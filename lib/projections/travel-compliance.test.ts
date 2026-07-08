@@ -322,6 +322,35 @@ describe("deriveTravelCompliance — semáforo and disclosure", () => {
     expect(state.corridorsShown).toHaveLength(0);
     expect(state.semaforo).toBe("verde");
   });
+
+  // QA histórico 2026-07-08 item 3: a foreign destination is on record (the
+  // pet's jurisdiction changed to Chile) but no corridor could be resolved
+  // for it — e.g. no transport_recorded event, or only a stale one. Previous
+  // behavior fell through to "verde" off zero obligations, a green that
+  // verified nothing. Must render "sin_datos" instead, never a false verde.
+  it("foreign destination with zero resolved corridors → sin_datos, never a false verde", () => {
+    const state = deriveTravelCompliance(
+      makeInput({
+        destinations: [{ country: "CL", province: null, locality: null }],
+        corridors: [],
+      }),
+    );
+    expect(state.semaforo).toBe("sin_datos");
+    const notResolved = state.obligations.find((o) => o.key === "corridor_not_resolved");
+    expect(notResolved).toBeDefined();
+    expect(notResolved?.state).toMatch(/no disponible/i);
+  });
+
+  it("domestic-only destination with zero corridors stays verde (no corridor is expected)", () => {
+    const state = deriveTravelCompliance(
+      makeInput({
+        destinations: [{ country: "AR", province: "Córdoba", locality: null }],
+        corridors: [],
+      }),
+    );
+    expect(state.semaforo).toBe("verde");
+    expect(state.obligations.find((o) => o.key === "corridor_not_resolved")).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

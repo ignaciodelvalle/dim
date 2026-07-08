@@ -1,7 +1,9 @@
 // TravelSemaforo — traffic-light summary for /viaje (movilidad Fase 1).
 //
-// rojo = any blocker; amarillo = warnings, no blocker; verde = all clear
-// (R4.1, S9 — derived upstream by deriveTravelCompliance, never here).
+// rojo = any blocker; amarillo = warnings, no blocker; verde = all clear;
+// sin_datos = no corridor could be resolved for a foreign destination on
+// record, so nothing was actually checked (R4.1, S9 — derived upstream by
+// deriveTravelCompliance, never here).
 //
 // R3.5/S13: this surface ALWAYS shows, per corridor, the corridor version +
 // effectiveFrom and the staleness disclaimer. The disclaimer is not optional
@@ -32,6 +34,15 @@ const SEMAFORO_STYLES: Record<Semaforo, { label: string; className: string }> = 
     label: "Requisitos en orden",
     className:
       "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
+  },
+  // A foreign destination is on record but no corridor could be resolved for
+  // it — neither red/yellow/green applies because nothing was actually
+  // checked. Never render green off zero obligations (QA histórico
+  // 2026-07-08 item 3).
+  sin_datos: {
+    label: "Verificación no disponible",
+    className:
+      "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)] border-[var(--color-ln-line-strong)]",
   },
 };
 

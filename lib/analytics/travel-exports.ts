@@ -68,6 +68,7 @@ const SEMAFORO_LABELS: Record<TravelSemaforo, string> = {
   rojo: "ROJO — No viajar todavía",
   amarillo: "AMARILLO — Revisar pendientes",
   verde: "VERDE — Requisitos en orden",
+  sin_datos: "SIN DATOS — Verificación no disponible",
 };
 
 const LEVEL_LABELS: Record<RequirementLevel, string> = {

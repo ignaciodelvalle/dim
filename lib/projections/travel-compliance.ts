@@ -60,7 +60,7 @@ export type TravelComplianceInput = {
 /** ObligationCard shape (key/label/state/tone/detail/legalFootnote) + the two
  * travel-only fields (spec R2.5). */
 export type TravelObligation = {
-  key: TravelRuleType | "corridor_rules_pending";
+  key: TravelRuleType | "corridor_rules_pending" | "corridor_not_resolved";
   label: string;
   state: string;
   tone: ComplianceTone;
@@ -70,7 +70,13 @@ export type TravelObligation = {
   contributingJurisdictions: string[];
 };
 
-export type TravelSemaforo = "rojo" | "amarillo" | "verde";
+// "sin_datos" (R-honesty, QA histórico 2026-07-08 item 3): a foreign
+// destination is recorded but no corridor could be resolved for it (no
+// transport_recorded event, or only a stale one) — verde would assert
+// "requisitos en orden" over zero checked obligations, which verifies
+// nothing. Distinct from "amarillo" (obligations ARE known and pending
+// review) — this state means we couldn't even look up the corridor.
+export type TravelSemaforo = "rojo" | "amarillo" | "verde" | "sin_datos";
 
 export type CorridorDisclosure = {
   id: Corridor["id"];
@@ -393,15 +399,45 @@ export function deriveTravelCompliance(input: TravelComplianceInput): TravelComp
     });
   }
 
+  // Corridor NOT resolved at all (R-honesty, QA histórico 2026-07-08 item 3):
+  // a foreign destination is on record, but zero corridors were resolved for
+  // it — no transport_recorded event carries a corridor_id, or the only one
+  // is stale (>30 days, see RECENT_TRAVEL_WINDOW_MS). This is DIFFERENT from
+  // corridorsPending above: that case means "we found the corridor, its
+  // rules just aren't loaded yet"; this case means "we never even looked up
+  // a corridor for this route". Neither should render verde. Display
+  // honesty only — this does not invent a rule to check.
+  const hasForeignDestination = input.destinations.some((d) => d.country !== "AR");
+  const corridorNotResolved = hasForeignDestination && input.corridors.length === 0;
+  if (corridorNotResolved) {
+    obligations.push({
+      key: "corridor_not_resolved",
+      label: "Requisitos del corredor",
+      state: "Verificación no disponible",
+      tone: "neutral",
+      detail:
+        "Sin requisitos cargados para este corredor — no se pudo resolver un corredor para el destino informado. Registrá el transporte del viaje para intentar resolverlo.",
+      legalFootnote: "Sin corredor resuelto para el destino informado.",
+      requirementLevel: requirementLevelFor("neutral", false),
+      contributingJurisdictions: [],
+    });
+  }
+
   obligations.sort(
     (a, b) => LEVEL_SEVERITY[a.requirementLevel] - LEVEL_SEVERITY[b.requirementLevel],
   );
 
+  // "corridor_not_resolved" is deliberately excluded from the generic
+  // warning bucket below — it must resolve to "sin_datos", not "amarillo"
+  // (that state is reserved for obligations we DID resolve and that are
+  // genuinely pending). Any OTHER blocker/warning still wins over sin_datos.
   const semaforo: TravelSemaforo = obligations.some((o) => o.requirementLevel === "blocker")
     ? "rojo"
-    : obligations.some((o) => o.requirementLevel === "warning")
+    : obligations.some((o) => o.requirementLevel === "warning" && o.key !== "corridor_not_resolved")
       ? "amarillo"
-      : "verde";
+      : corridorNotResolved
+        ? "sin_datos"
+        : "verde";
 
   return {
     obligations,

@@ -35,6 +35,15 @@ describe("<TravelSemaforo>", () => {
     expect(html).toContain("Requisitos en orden");
   });
 
+  // QA histórico 2026-07-08 item 3: a foreign destination with no resolved
+  // corridor previously fell through to "verde" — a green that verifies
+  // nothing. sin_datos must render honest copy, never the all-clear label.
+  it("sin_datos: renders the honest no-verification label, not a false verde", () => {
+    const html = render(<TravelSemaforo semaforo="sin_datos" corridors={[]} />);
+    expect(html).toContain("Verificación no disponible");
+    expect(html).not.toContain("Requisitos en orden");
+  });
+
   it("S13: always renders the staleness disclaimer", () => {
     const html = render(<TravelSemaforo semaforo="verde" corridors={[CORRIDOR]} />);
     expect(html).toContain("Verificá con SENASA");
