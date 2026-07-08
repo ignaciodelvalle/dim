@@ -14,7 +14,7 @@
 
 import "server-only";
 
-import { and, desc, eq, gt, inArray, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 
 import {
   attachments,
@@ -31,6 +31,7 @@ import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { enqueueOutboxForEvent } from "@/lib/events/event-outbox-enqueue";
 import { validatedEventValues } from "@/lib/events/validated-event-values";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -51,6 +52,38 @@ export type AttachmentInput = {
 };
 
 export type ReminderInput = typeof reminders.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Same-day duplicate warn (P4 item 4, 2026-07-08)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the [start, end] UTC instants bracketing the Argentina-local
+ * calendar day containing `date`. Argentina has used a fixed UTC-3 offset
+ * with no DST since 2009 (Ley 26.350), so constructing the boundaries
+ * directly from the AR-local Y-M-D parts is safe — no per-date offset table
+ * needed.
+ */
+function arCalendarDayRangeUtc(date: Date): { start: Date; end: Date } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: AR_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const d = parts.find((p) => p.type === "day")?.value;
+  if (!y || !m || !d) {
+    throw new Error(
+      `arCalendarDayRangeUtc: could not resolve AR-local date parts for ${date.toISOString()}`,
+    );
+  }
+  return {
+    start: new Date(`${y}-${m}-${d}T00:00:00-03:00`),
+    end: new Date(`${y}-${m}-${d}T23:59:59.999-03:00`),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // EventsRepository
@@ -94,6 +127,37 @@ export class EventsRepository {
     const [row] = await executor.insert(petEvents).values(validated).returning();
     if (!row) throw new Error("EventsRepository.insertEvent: insert returned no rows");
     return row;
+  }
+
+  /**
+   * Find an existing event of the same (pet, eventType) whose occurredAt
+   * falls on the same Argentina-local calendar day as `occurredAt`. Used by
+   * the SUSPICIOUS same-day-duplicate warn (P4 item 4) for
+   * vaccination_administered / deworming_administered — a hit means the
+   * caller should surface a non-blocking confirm prompt instead of inserting
+   * outright. Returns the first match's id only (existence check, not a
+   * projection read).
+   */
+  async findSameDayEventOfType(
+    petId: string,
+    eventType: string,
+    occurredAt: Date,
+    executor: DbOrTx = db,
+  ): Promise<{ id: string } | null> {
+    const { start, end } = arCalendarDayRangeUtc(occurredAt);
+    const [row] = await executor
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          eq(petEvents.eventType, eventType),
+          gte(petEvents.occurredAt, start),
+          lte(petEvents.occurredAt, end),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
   }
 
   // ===========================================================================

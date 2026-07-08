@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
@@ -36,6 +37,27 @@ export function DewormingForm({
   const [nextDueAt, setNextDueAt] = useState("");
   const [notes, setNotes] = useState(defaults?.notes ?? "");
 
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // P4 item 4 — SUSPICIOUS same-day duplicate warn (non-blocking). Mirrors
+  // VaccinationForm.tsx / the P2 soft-dedupe pattern in MinimalNewPetForm.tsx.
+  const [overrideSameDay, setOverrideSameDay] = useState(false);
+  const resubmitAfterOverride = useRef(false);
+
+  useEffect(() => {
+    if (overrideSameDay && resubmitAfterOverride.current) {
+      resubmitAfterOverride.current = false;
+      formRef.current?.requestSubmit();
+    }
+  }, [overrideSameDay]);
+
+  function confirmSameDay() {
+    resubmitAfterOverride.current = true;
+    setOverrideSameDay(true);
+  }
+
+  const sameDayPrompt = !overrideSameDay ? state.sameDayPrompt : undefined;
+
   return (
     <>
       <LnSheetHeader
@@ -45,8 +67,9 @@ export function DewormingForm({
         subtitle="Libreta sanitaria oficial"
       />
       <LnSheetBody>
-        <form id={FORM_ID} action={formAction} className="contents">
+        <form id={FORM_ID} ref={formRef} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+          <input type="hidden" name="sameDayOverride" value={overrideSameDay ? "1" : "0"} />
           <LnField label="Producto" required>
             {({ id, describedBy, invalid }) => (
               <LnInput
@@ -134,6 +157,14 @@ export function DewormingForm({
               {state.error}
             </p>
           )}
+
+          {sameDayPrompt && (
+            <LnCallout tone="warn" title="¿Registrar de nuevo?">
+              <p className="m-0" role="alert">
+                {sameDayPrompt.message}
+              </p>
+            </LnCallout>
+          )}
         </form>
       </LnSheetBody>
       <LnSheetFooter
@@ -141,6 +172,17 @@ export function DewormingForm({
         ctaLabel="Registrar antiparasitario"
         formId={FORM_ID}
         isPending={isPending}
+        customCta={
+          sameDayPrompt ? (
+            <button
+              type="button"
+              onClick={confirmSameDay}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-2 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90 active:scale-[0.98] active:opacity-90"
+            >
+              Sí, registrar otro igual
+            </button>
+          ) : undefined
+        }
       />
     </>
   );

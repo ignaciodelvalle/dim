@@ -13,7 +13,7 @@ import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
@@ -46,6 +46,30 @@ export function VaccinationForm({
   const vaccines = vaccinesForSpecies(species);
   const today = new Date().toISOString().slice(0, 10);
 
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // P4 item 4 — SUSPICIOUS same-day duplicate warn (non-blocking). Mirrors the
+  // P2 soft-dedupe pattern in MinimalNewPetForm.tsx: the action returns a
+  // sameDayPrompt state instead of inserting; confirming sets the override
+  // hidden input and resubmits the SAME form (all fields stay controlled, so
+  // nothing is lost across the round trip).
+  const [overrideSameDay, setOverrideSameDay] = useState(false);
+  const resubmitAfterOverride = useRef(false);
+
+  useEffect(() => {
+    if (overrideSameDay && resubmitAfterOverride.current) {
+      resubmitAfterOverride.current = false;
+      formRef.current?.requestSubmit();
+    }
+  }, [overrideSameDay]);
+
+  function confirmSameDay() {
+    resubmitAfterOverride.current = true;
+    setOverrideSameDay(true);
+  }
+
+  const sameDayPrompt = !overrideSameDay ? state.sameDayPrompt : undefined;
+
   const [vaccineName, setVaccineName] = useState(initialVaccineName ?? "");
   const [nextDueAt, setNextDueAt] = useState("");
   const [nextDueOverridden, setNextDueOverridden] = useState(false);
@@ -74,8 +98,9 @@ export function VaccinationForm({
         subtitle="Libreta sanitaria oficial"
       />
       <LnSheetBody>
-        <form id={FORM_ID} action={formAction} className="contents">
+        <form id={FORM_ID} ref={formRef} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+          <input type="hidden" name="sameDayOverride" value={overrideSameDay ? "1" : "0"} />
           {sourceReminderId && (
             <input type="hidden" name="sourceReminderId" value={sourceReminderId} />
           )}
@@ -216,6 +241,14 @@ export function VaccinationForm({
               {state.error}
             </p>
           )}
+
+          {sameDayPrompt && (
+            <LnCallout tone="warn" title="¿Registrar de nuevo?">
+              <p className="m-0" role="alert">
+                {sameDayPrompt.message}
+              </p>
+            </LnCallout>
+          )}
         </form>
       </LnSheetBody>
       <LnSheetFooter
@@ -223,6 +256,17 @@ export function VaccinationForm({
         ctaLabel="Registrar vacuna"
         formId={FORM_ID}
         isPending={isPending}
+        customCta={
+          sameDayPrompt ? (
+            <button
+              type="button"
+              onClick={confirmSameDay}
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-2 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90 active:scale-[0.98] active:opacity-90"
+            >
+              Sí, registrar otra igual
+            </button>
+          ) : undefined
+        }
       />
     </>
   );

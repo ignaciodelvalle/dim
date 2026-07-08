@@ -88,6 +88,16 @@ export type EventFormState = {
    * lib/ui/full-page-action-nav.ts for the mechanism).
    */
   redirectTo?: string;
+  /**
+   * P4 item 4 (2026-07-08): SUSPICIOUS same-day-duplicate warn — set only by
+   * createVaccinationAction / createDewormingAction when the same event type
+   * was already recorded for this pet earlier the same (Argentina-local)
+   * calendar day. Non-blocking: the form re-renders the message with a
+   * confirm affordance and resubmits with a `sameDayOverride=1` hidden field,
+   * mirroring the P2 soft-dedupe duplicatePrompt/duplicateOverride pattern in
+   * src/modules/pets/actions.ts + MinimalNewPetForm.tsx (commit dd1c3f97).
+   */
+  sameDayPrompt?: { message: string };
 };
 
 async function cleanupAttachment(supabase: SupabaseServerClient, path: string | null) {
@@ -186,15 +196,37 @@ export async function createVaccinationAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
 
+  const repo = new EventsRepository();
+
+  // P4 item 4 — SUSPICIOUS same-day duplicate warn (non-blocking). Runs
+  // BEFORE the attachment upload so a warn round-trip never orphans storage
+  // (same posture as P2's soft-dedupe in pets/actions.ts).
+  const sameDayOverride = String(formData.get("sameDayOverride") ?? "").trim() === "1";
+  if (!sameDayOverride) {
+    const sameDayDuplicate = await repo.findSameDayEventOfType(
+      pet.id,
+      "vaccination_administered",
+      occurredAt,
+    );
+    if (sameDayDuplicate) {
+      return {
+        error: null,
+        sameDayPrompt: {
+          message: `Ya cargaste ${vaccineName} hoy para ${pet.name}. ¿Registrar otra igual?`,
+        },
+      };
+    }
+  }
+
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
-
-  const repo = new EventsRepository();
 
   try {
     const result = await createVaccination(
@@ -335,15 +367,36 @@ export async function createDewormingAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
 
+  const repo = new EventsRepository();
+
+  // P4 item 4 — SUSPICIOUS same-day duplicate warn (non-blocking). Runs
+  // BEFORE the attachment upload so a warn round-trip never orphans storage.
+  const sameDayOverride = String(formData.get("sameDayOverride") ?? "").trim() === "1";
+  if (!sameDayOverride) {
+    const sameDayDuplicate = await repo.findSameDayEventOfType(
+      pet.id,
+      "deworming_administered",
+      occurredAt,
+    );
+    if (sameDayDuplicate) {
+      return {
+        error: null,
+        sameDayPrompt: {
+          message: `Ya cargaste ${product} hoy para ${pet.name}. ¿Registrar otro igual?`,
+        },
+      };
+    }
+  }
+
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
-
-  const repo = new EventsRepository();
 
   try {
     const result = await createDeworming(
