@@ -28,6 +28,7 @@ import {
   RABIES_VACCINE_NAME_REGEX,
   TARGETS,
   dogsInScopeCondition,
+  jurisdictionPairClause,
   petEventsScopeClause,
   petsScopeClause,
   rabiesCurrentlyValidCondition,
@@ -58,11 +59,16 @@ function casesScopeClause(ctx: ProjectionContext) {
   }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${cases.jurisdictionProvince} = ${j.province} AND ${cases.jurisdictionLocality} = ${j.locality})`,
+  // Route through the shared clause so a WHOLE-PROVINCE assignment subsumes every
+  // locality/barrio in it (critique of PR #762, finding 7) — the inline exact-pair
+  // build here was NOT covered by 7a17ec97's subsumption fix.
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${cases.jurisdictionProvince}`,
+      sql`${cases.jurisdictionLocality}`,
+    ) ?? sql`false`
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 // Pets-table jurisdiction guard for govt scope (scope-security review
@@ -96,11 +102,14 @@ function welfareReportsScopeClause(ctx: ProjectionContext) {
   }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${welfareReports.jurisdictionProvince} = ${j.province} AND ${welfareReports.jurisdictionLocality} = ${j.locality})`,
+  // Whole-province subsumption via the shared clause (critique of PR #762, finding 7).
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${welfareReports.jurisdictionProvince}`,
+      sql`${welfareReports.jurisdictionLocality}`,
+    ) ?? sql`false`
   );
-  return sql.join(pairs, sql` OR `);
 }
 
 // ---------------------------------------------------------------------------
@@ -204,11 +213,14 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   // Scope to dogs only by joining pets.
   if (ctx.scope.kind === "jurisdictions") {
-    const pairs = ctx.scope.jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // Whole-province subsumption via the shared clause (critique of PR #762,
+    // finding 7) — the inline exact-pair build here was NOT covered by 7a17ec97.
+    const pairs = jurisdictionPairClause(
+      ctx.scope.jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    rabiesVaccConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    if (pairs) rabiesVaccConditions.push(sql`(${pairs})`);
   }
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
 
@@ -311,11 +323,14 @@ export async function fetchRabiesCoverageByProvince(
   ];
   if (eventsScope) rabiesVaccConditions.push(sql`(${eventsScope})`);
   if (ctx.scope.kind === "jurisdictions") {
-    const pairs = ctx.scope.jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // Whole-province subsumption via the shared clause (critique of PR #762,
+    // finding 7) — the inline exact-pair build here was NOT covered by 7a17ec97.
+    const pairs = jurisdictionPairClause(
+      ctx.scope.jurisdictions,
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
     );
-    rabiesVaccConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
+    if (pairs) rabiesVaccConditions.push(sql`(${pairs})`);
   }
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
 
