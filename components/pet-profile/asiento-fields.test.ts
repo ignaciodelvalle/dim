@@ -71,3 +71,111 @@ describe("toAsientoView — whenRelative is deterministic under a fixed now", ()
     expect(a.whenRelative).toBe("hace 3 días");
   });
 });
+
+// ---------------------------------------------------------------------------
+// "Aplicó" attribution — must never contradict the provenance stamp
+// (staging validation 2026-07-04, bug 1: vet-signed vaccine read "Declarado
+// por el titular" next to a "Verificado por vet" badge).
+// ---------------------------------------------------------------------------
+
+describe("toAsientoView — vaccine 'Aplicó' attribution is consistent with the signature", () => {
+  const baseVaccine: HistorialEventRow = {
+    id: "evt-vac",
+    petId: "pet-1",
+    eventType: "vaccination_administered",
+    payload: { vaccine_name: "Antirrábica" },
+    occurredAt: new Date("2026-07-01T12:00:00Z"),
+    notes: null,
+    authorRole: "owner",
+    authorVerified: false,
+    authorOrganizationId: null,
+    attachmentUrl: null,
+    amendedAt: null,
+  };
+
+  function aplicoOf(row: HistorialEventRow): { value: string; missing?: boolean } {
+    const view = toAsientoView(row, "TOKEN-1234", NOW);
+    const f = view.facts.find((x) => x.key === "Aplicó");
+    if (!f) throw new Error("missing Aplicó fact");
+    return f;
+  }
+
+  it("vet-signed without administered_by never says 'Declarado por el titular'", () => {
+    const row: HistorialEventRow = {
+      ...baseVaccine,
+      authorRole: "vet",
+      authorVerified: true,
+      authorOrganizationId: "org-1",
+      authorOrgName: "Clínica San Roque",
+    };
+    const view = toAsientoView(row, "TOKEN-1234", NOW);
+    expect(view.provenance.verified).toBe(true);
+    const aplico = aplicoOf(row);
+    expect(aplico.value).not.toContain("Declarado por el titular");
+    expect(aplico.value).toBe("Vet. matriculado/a — Clínica San Roque");
+    expect(aplico.missing).toBe(false);
+    // A verified record must not carry the "falta verificación" warning.
+    expect(view.warn).toBeUndefined();
+  });
+
+  it("vet-signed with a stamped matrícula attributes 'Vet. M.N. XXX'", () => {
+    const row: HistorialEventRow = {
+      ...baseVaccine,
+      authorRole: "vet",
+      authorVerified: true,
+      authorOrganizationId: "org-1",
+      authorOrgName: "Clínica San Roque",
+      vetMatricula: "4821",
+    };
+    expect(aplicoOf(row).value).toBe("Vet. M.N. 4821");
+  });
+
+  it("vet-signed with no org name still attributes the verified signature", () => {
+    const row: HistorialEventRow = {
+      ...baseVaccine,
+      authorRole: "vet",
+      authorVerified: true,
+      authorOrganizationId: "org-1",
+    };
+    expect(aplicoOf(row).value).toBe("Vet. matriculado/a (firma verificada)");
+  });
+
+  it("org-recorded (no matrícula) attributes the organization, not the titular", () => {
+    const row: HistorialEventRow = {
+      ...baseVaccine,
+      authorRole: "shelter",
+      authorVerified: false,
+      authorOrganizationId: "org-1",
+      authorOrgName: "Refugio Esperanza",
+    };
+    const aplico = aplicoOf(row);
+    expect(aplico.value).toBe("Refugio Esperanza");
+    expect(aplico.missing).toBe(false);
+  });
+
+  it("explicit administered_by always wins over the signer fallback", () => {
+    const row: HistorialEventRow = {
+      ...baseVaccine,
+      payload: { vaccine_name: "Antirrábica", administered_by: "Dra. Paz — MP 4821" },
+      authorRole: "vet",
+      authorVerified: true,
+      authorOrganizationId: "org-1",
+      authorOrgName: "Clínica San Roque",
+    };
+    expect(aplicoOf(row).value).toBe("Dra. Paz — MP 4821");
+  });
+
+  it("owner-declared keeps 'Declarado por el titular' (correct in that case)", () => {
+    const aplico = aplicoOf(baseVaccine);
+    expect(aplico.value).toBe("Declarado por el titular");
+    expect(aplico.missing).toBe(true);
+  });
+
+  it("lab-confirmed owner dose stays owner-attributed (tier bumper must not fake a signer)", () => {
+    const row: HistorialEventRow = {
+      ...baseVaccine,
+      payload: { vaccine_name: "Antirrábica", confirmed_by_lab: true },
+    };
+    expect(aplicoOf(row).value).toBe("Declarado por el titular");
+  });
+});

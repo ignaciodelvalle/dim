@@ -25,6 +25,7 @@ import {
   cases,
   db,
   libretaShareTokens,
+  organizations,
   petEvents,
   reminders,
   serviceOfferings,
@@ -196,11 +197,29 @@ export async function getLibretaFaceData(context: {
 
   // Signed attachment URLs — one batched Storage round-trip. Only the
   // rendered window needs signing (vaccinationSummaryEvents never render).
+  // Org display names resolve in the same round-trip: the asiento "Aplicó"
+  // attribution needs the signing org's name so a vet/org-signed record never
+  // falls back to "Declarado por el titular" (staging validation 2026-07-04).
   const eventIds = pastEvents.map((e) => e.id);
-  const attachmentRows =
+  const authorOrgIds = [
+    ...new Set(
+      pastEvents
+        .map((e) => e.authorOrganizationId)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  ];
+  const [attachmentRows, authorOrgRows] = await Promise.all([
     eventIds.length > 0
-      ? await db.select().from(attachments).where(inArray(attachments.eventId, eventIds))
-      : [];
+      ? db.select().from(attachments).where(inArray(attachments.eventId, eventIds))
+      : Promise.resolve([]),
+    authorOrgIds.length > 0
+      ? db
+          .select({ id: organizations.id, displayName: organizations.displayName })
+          .from(organizations)
+          .where(inArray(organizations.id, authorOrgIds))
+      : Promise.resolve([]),
+  ]);
+  const orgNameById = new Map(authorOrgRows.map((o) => [o.id, o.displayName]));
   const supabase = await createClient();
   const urlByEventId = new Map<string, string>();
   await Promise.all(
@@ -225,6 +244,9 @@ export async function getLibretaFaceData(context: {
 
   const past: HistorialEventRow[] = projectedEvents.map((e) => ({
     ...e,
+    authorOrgName: e.authorOrganizationId
+      ? (orgNameById.get(e.authorOrganizationId) ?? null)
+      : null,
     attachmentUrl: urlByEventId.get(e.id) ?? null,
     amendedAt:
       e.amendedAt instanceof Date ? e.amendedAt : e.amendedAt ? new Date(e.amendedAt) : null,

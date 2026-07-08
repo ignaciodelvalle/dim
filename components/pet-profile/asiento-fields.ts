@@ -207,6 +207,38 @@ function fact(
 const RABIES_RE = /antirr[aá]b|rabi/i;
 
 // ---------------------------------------------------------------------------
+// "Aplicó" attribution fallback (staging validation 2026-07-04, bug 1)
+// ---------------------------------------------------------------------------
+//
+// When a vaccine record does NOT name a professional (`administered_by` empty),
+// the attribution must derive from the SIGNER, never default to "Declarado por
+// el titular": a clinic-signed asiento previously showed the "Verificado por
+// vet" stamp AND "Aplicó: Declarado por el titular" in the same card — a
+// direct contradiction of the trust value prop. Role-based on purpose (not
+// tier-based): the confirmed_by_lab tier bumper can lift an OWNER-declared
+// dose to institutional_verified, and that record is still owner-declared for
+// attribution purposes.
+function applierAttribution(
+  row: HistorialEventRow,
+  administeredBy: string | null,
+): { value: string; missing: boolean } {
+  if (administeredBy) return { value: administeredBy, missing: false };
+  if (row.authorRole === "vet" && row.authorVerified) {
+    if (row.vetMatricula) return { value: `Vet. M.N. ${row.vetMatricula}`, missing: false };
+    return {
+      value: row.authorOrgName
+        ? `Vet. matriculado/a — ${row.authorOrgName}`
+        : "Vet. matriculado/a (firma verificada)",
+      missing: false,
+    };
+  }
+  if ((row.authorRole === "shelter" || row.authorRole === "govt") && row.authorOrganizationId) {
+    return { value: row.authorOrgName ?? "La organización", missing: false };
+  }
+  return { value: "Declarado por el titular", missing: true };
+}
+
+// ---------------------------------------------------------------------------
 // Main projection
 // ---------------------------------------------------------------------------
 
@@ -239,14 +271,17 @@ export function toAsientoView(
       // "Dra. Paz — MP 4821" reads correctly: verified → "Verificado por Dra.
       // Paz…"; owner-declared → "Declarado por vos — citás a Dra. Paz…" (#45).
       const vaccineProvenance = deriveProvenance(row, administeredBy);
+      // Signer-derived fallback — must never contradict the provenance stamp
+      // (see applierAttribution docblock).
+      const aplico = applierAttribution(row, administeredBy);
       const facts: AsientoFact[] = [
         { key: "Aplicada", value: aplicada },
         fact("Vence", dateStr(p, "next_due_at"), "Sin dato"),
         fact("Vía", str(p, "route"), "Sin dato"),
         {
           key: "Aplicó",
-          value: administeredBy ?? "Declarado por el titular",
-          missing: !administeredBy,
+          value: aplico.value,
+          missing: aplico.missing,
         },
         fact("Laboratorio", str(p, "brand"), "Sin dato"),
         fact("Lote", str(p, "batch"), "No adjunto"),

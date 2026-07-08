@@ -27,6 +27,20 @@ export type HistorialEventRow = {
   authorRole: string;
   authorVerified: boolean;
   authorOrganizationId: string | null;
+  /**
+   * Display name of the signing organization (resolved from
+   * authorOrganizationId in the loader). Drives the "Aplicó" attribution for
+   * org/vet-signed records so it can never contradict the provenance stamp
+   * (staging validation 2026-07-04: vet-signed vaccine read "Declarado por el
+   * titular" next to a "Verificado por vet" badge).
+   */
+  authorOrgName?: string | null;
+  /**
+   * Matrícula stamped on the event row (SENASA columns, migration 0061).
+   * NULL for legacy rows and writers that don't capture it; when present a
+   * vet-signed record can attribute "Vet. M.N. XXX" precisely.
+   */
+  vetMatricula?: string | null;
   attachmentUrl: string | null;
   // Set when a later `event_amended` event corrects this one — drives the
   // "Corregido · ver original" affordance (WS-3). Enriched in the tab-data shim.
