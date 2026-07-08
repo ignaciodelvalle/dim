@@ -33,7 +33,11 @@ import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
-import { Z_LOCALITY, derivedLevel } from "@/components/panorama/situational-map-utils";
+import {
+  Z_LOCALITY,
+  derivedLevel,
+  pointsEligible,
+} from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
@@ -47,6 +51,7 @@ import {
   PANORAMA_LAYERS,
   getLayer,
   isAggregatedPointLayer,
+  isPointsLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import {
@@ -105,6 +110,10 @@ type ApiResponse = {
   suppressedCount: number;
   noLocalityCount: number;
   level?: AggregationLevel;
+  // panorama-event-points Slice 1: present only on a server-authorized points
+  // response ("points"); undefined/absent on the aggregated path.
+  mode?: "points" | "aggregated";
+  sinUbicacionCount?: number;
 };
 
 // The two choropleth layer ids — the only layers the aggregation level affects.
@@ -304,6 +313,34 @@ export function PanoramaConsole({
   // live camera zoom flows up from SituationalMap via `onZoom`.
   const [mapZoom, setMapZoom] = useState<number>(Z_LOCALITY - 1);
   const onMapZoom = useCallback((zoom: number) => setMapZoom(zoom), []);
+
+  // panorama-event-points Slice 1 — near-zoom REAL sighting DOTS (design D1/D2).
+  //
+  // A DEDICATED, additive cache slot (A5): points features live HERE, never in
+  // dataRef/provinceDataRef, so there is NO collision with the locality-aggregated
+  // cache at the same `level` — toggling points↔aggregated repaints from the
+  // correct source with no stale paint. `pointsMode` is a UX gate only; the server
+  // independently re-derives it (see the points effect + route). Slice 1 only
+  // `perdidas` has a points render policy (POINTS_LAYER_IDS).
+  const pointsDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
+  // Version bump to recompute the activeLayers memo after a points fetch resolves
+  // (the cache is a ref). The disclosure meta (cap + "sin ubicación" residual)
+  // is kept OUT of `states` (A6: distinct copy) so it never races the aggregated
+  // fetch that also writes states[perdidas].
+  const [pointsVersion, setPointsVersion] = useState(0);
+  const [pointsInfo, setPointsInfo] = useState<{
+    count: number;
+    truncated: boolean;
+    sinUbicacion: number;
+  } | null>(null);
+  // Effective scope for the UX points gate: an explicit picker province wins;
+  // otherwise the govt operator's implicit single-province scope.
+  const pointsScopeProvince = searchParams.get("province") ?? initialDivisionProvince;
+  const pointsScopeLocality = searchParams.get("locality");
+  const pointsMode = pointsEligible(
+    { country: "AR", province: pointsScopeProvince, locality: pointsScopeLocality },
+    mapZoom,
+  );
 
   const [states, setStates] = useState<Record<LayerId, LayerPanelState>>(() => {
     const s = initialState();
@@ -602,28 +639,43 @@ export function PanoramaConsole({
     // the same for the province cache.
     void asOfVersion;
     void levelVersion;
+    void pointsVersion;
     const out: ActiveLayer[] = [];
     for (const l of PANORAMA_LAYERS) {
       if (!states[l.id]?.active) continue;
       const temporal = isTemporalLayer(l.id);
       const isAggregatedPoint = AGGREGATED_POINT_IDS.has(l.id);
+      // panorama-event-points Slice 1: near-zoom REAL sighting dots override the
+      // aggregated mark for a points-capable layer (perdidas) ONCE its dedicated
+      // points cache has resolved. Until then it falls back to the aggregated
+      // features below, so the map never blanks while the points fetch is inflight.
+      const usesPoints = pointsMode && isPointsLayer(l.id) && pointsDataRef.current.has(l.id);
       // Choropleth layers in province mode fill basemap polygons (province cache).
       // Aggregated point layers (F1 density+signal) in province mode also read the
       // province cache — the server returned province-grouped AggregatedPointCells.
       const usesProvinceCache =
-        (CHOROPLETH_IDS.has(l.id) || isAggregatedPoint) && level === "province";
-      const features = usesProvinceCache
-        ? (provinceDataRef.current.get(l.id) ?? EMPTY_FC)
-        : scrubbing && temporal
-          ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
-          : (dataRef.current.get(l.id) ?? EMPTY_FC);
+        !usesPoints && (CHOROPLETH_IDS.has(l.id) || isAggregatedPoint) && level === "province";
+      const features = usesPoints
+        ? (pointsDataRef.current.get(l.id) ?? EMPTY_FC)
+        : usesProvinceCache
+          ? (provinceDataRef.current.get(l.id) ?? EMPTY_FC)
+          : scrubbing && temporal
+            ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
+            : (dataRef.current.get(l.id) ?? EMPTY_FC);
 
-      // Resolve the point render mode (F1 Panorama v2):
+      // Resolve the point render mode:
+      //   - points (perdidas real dots) → "points" (clustered pins, DetailDrawer)
       //   - density+signal → "graduated" (per-unit circles, no clustering)
       //   - reference (refugios/decomisos) → "reference" (discrete pins + clustering)
       //   - choropleth layers → renderMode omitted (handled by geomType path)
       const renderMode: PointRenderMode | undefined =
-        l.geomType === "point" ? (isAggregatedPoint ? "graduated" : "reference") : undefined;
+        l.geomType === "point"
+          ? usesPoints
+            ? "points"
+            : isAggregatedPoint
+              ? "graduated"
+              : "reference"
+          : undefined;
 
       out.push({
         id: l.id,
@@ -634,8 +686,10 @@ export function PanoramaConsole({
         features,
         // Choropleth layers + aggregated point layers carry the active aggregation
         // level so the map can use it for popup labeling (e.g. "province" means
-        // the feature represents a whole province). Reference layers omit it.
-        level: l.geomType === "choropleth" || isAggregatedPoint ? level : undefined,
+        // the feature represents a whole province). Points-mode + reference layers
+        // omit it (individual dots are not an aggregation unit).
+        level:
+          !usesPoints && (l.geomType === "choropleth" || isAggregatedPoint) ? level : undefined,
         // Non-temporal layers can't be reproduced in time — mute them while scrubbing.
         dimmed: scrubbing && !temporal,
         // F5: thread data-type taxonomy + compliance target from the registry so
@@ -647,8 +701,61 @@ export function PanoramaConsole({
       });
     }
     return out;
-    // asOfVersion + scrubbing + level + levelVersion are intentional triggers.
-  }, [states, scrubbing, asOfVersion, level, levelVersion, opacities]);
+    // asOfVersion + scrubbing + level + levelVersion + pointsMode/pointsVersion
+    // are intentional triggers (the caches are refs).
+  }, [states, scrubbing, asOfVersion, level, levelVersion, pointsMode, pointsVersion, opacities]);
+
+  // panorama-event-points Slice 1 — resolve the REAL sighting dots for perdidas.
+  //
+  // Additive + orthogonal to the level/aggregation plumbing: this effect ONLY
+  // populates the dedicated pointsDataRef + disclosure, it never touches the
+  // aggregated caches. Runs when the UX gate opens (pointsMode, i.e. zoom ≥
+  // Z_POINTS with a province in scope) AND perdidas is active. Keyed on the
+  // scope+period subset so a province/period change refetches. The SERVER is
+  // authoritative: it echoes `mode:"points"` only when it actually returned dots;
+  // an aggregated/declined response clears the overlay (fall back to bubbles).
+  const perdidasActive = states.perdidas?.active ?? false;
+  useEffect(() => {
+    if (!pointsMode || !perdidasActive) {
+      pointsDataRef.current.delete("perdidas");
+      setPointsInfo(null);
+      setPointsVersion((v) => v + 1);
+      return;
+    }
+    let cancelled = false;
+    const params = new URLSearchParams(scopePeriodQs);
+    params.set("mode", "points");
+    fetch(`/api/panorama/perdidas?${params.toString()}`, {
+      headers: { accept: "application/json" },
+      signal: signalFor("perdidas:points"),
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<ApiResponse>) : null))
+      .then((body) => {
+        if (cancelled || !body) return;
+        // Honor only a genuine server-authorized points response.
+        if (body.mode !== "points") {
+          pointsDataRef.current.delete("perdidas");
+          setPointsInfo(null);
+          setPointsVersion((v) => v + 1);
+          return;
+        }
+        pointsDataRef.current.set("perdidas", body.features);
+        setPointsInfo({
+          count: body.features.features.length,
+          truncated: body.truncated,
+          sinUbicacion: body.sinUbicacionCount ?? 0,
+        });
+        setPointsVersion((v) => v + 1);
+      })
+      .catch((err) => {
+        // Superseded fetch (keyed abort) — a newer points request will land.
+        if (isAbortError(err)) return;
+        // Transient failure: leave the aggregated bubbles showing (no flash).
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pointsMode, perdidasActive, scopePeriodQs, signalFor]);
 
   // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
   // layer is toggled on mid-scrub, so it paints at the current instant, not live).
@@ -1504,6 +1611,22 @@ export function PanoramaConsole({
           means at the active VISTA + derived level. Recomputes on preset/scope/
           period change (the "context switch"). Pure: never a data-derived value. */}
       <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+      {/* panorama-event-points Slice 1: honest points-mode disclosure — states
+          the mark is now REAL sighting locations, plus the cap ("los N más
+          recientes") and the "sin ubicación exacta" residual. Distinct copy from
+          the k-anon / no-locality notices (review A6/A8). */}
+      {pointsMode && pointsInfo !== null && (
+        <output
+          aria-live="polite"
+          className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs text-ln-op-ink-2"
+        >
+          Avistajes con ubicación real ({pointsInfo.count.toLocaleString("es-AR")}).
+          {pointsInfo.truncated &&
+            ` Mostrando los ${pointsInfo.count.toLocaleString("es-AR")} más recientes.`}
+          {pointsInfo.sinUbicacion > 0 &&
+            ` ${pointsInfo.sinUbicacion.toLocaleString("es-AR")} avistajes sin ubicación exacta.`}
+        </output>
+      )}
       {/* k-anon disclosure promoted out of "Personalizar": suppression is
           visible without any click (same envelope counts LayerPanel shows). */}
       <PanoramaSuppressionNotice states={states} />

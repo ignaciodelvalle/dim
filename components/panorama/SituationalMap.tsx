@@ -82,8 +82,13 @@ import { escapeHtml } from "@/lib/utils/escape-html";
  *    server-side; the client renders whatever the server sent.
  *  - `"reference"` — individual-entity layers (refugios, decomisos): discrete
  *    pins with MapLibre native clustering. The toggle axis is ignored for these.
+ *  - `"points"` — panorama-event-points Slice 1: REAL event-location dots
+ *    (perdidas sightings) at near zoom inside a jurisdiction. Shares the
+ *    reference clustered-pin renderer (design D3) with per-layer color; an
+ *    individual dot opens the DetailDrawer (the pet card the operator already
+ *    accesses — no new PII surface, D7).
  */
-export type PointRenderMode = "graduated" | "reference";
+export type PointRenderMode = "graduated" | "reference" | "points";
 
 /** One active layer the map must render. `geomType` decides point vs choropleth;
  * for point layers, `renderMode` further decides graduated (F1) vs discrete pins. */
@@ -315,6 +320,12 @@ export function SituationalMap({
   const loadedRef = useRef(false);
   // Track which layer ids are currently mounted on the map so we can reconcile.
   const mountedRef = useRef<Set<string>>(new Set());
+  // panorama-event-points Slice 1: the point render mode a layer is CURRENTLY
+  // mounted as. A GeoJSON source's `cluster` option is fixed at creation, so when
+  // a point layer flips render mode (e.g. perdidas graduated→points), the source
+  // must be torn down and re-added — a plain setData would keep the old geometry
+  // treatment. This tracks the mounted mode so syncLayers detects the flip.
+  const mountedPointModeRef = useRef<Map<string, PointRenderMode>>(new Map());
   // Keep the latest layers prop accessible inside one-time map handlers.
   const layersRef = useRef<ActiveLayer[]>(layers);
   layersRef.current = layers;
@@ -779,6 +790,7 @@ export function SituationalMap({
       if (!activeIds.has(id)) {
         removeLayer(map, id);
         mountedRef.current.delete(id);
+        mountedPointModeRef.current.delete(id);
       }
     }
 
@@ -864,17 +876,32 @@ export function SituationalMap({
       }
 
       const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
-      if (existing) {
+      // panorama-event-points Slice 1: a point layer that flipped render mode
+      // (e.g. perdidas graduated→points) cannot be reconciled via setData — the
+      // source's clustering is fixed at creation. Tear it down and re-add.
+      const pointModeFlipped =
+        layer.geomType === "point" &&
+        existing !== undefined &&
+        mountedPointModeRef.current.get(layer.id) !== layer.renderMode;
+      if (existing && !pointModeFlipped) {
         existing.setData(data);
       } else {
+        if (pointModeFlipped) {
+          removeLayer(map, layer.id);
+          mountedRef.current.delete(layer.id);
+          mountedPointModeRef.current.delete(layer.id);
+        }
         if (layer.geomType === "choropleth") {
           addChoroplethLayer(map, layer, data);
         } else if (layer.renderMode === "graduated") {
           // F1: density+signal layers render as per-unit graduated circles (no clustering).
           addGraduatedPointLayer(map, layer, data);
+          mountedPointModeRef.current.set(layer.id, "graduated");
         } else {
-          // Reference layers (refugios, decomisos): discrete pins with native clustering.
+          // Reference layers (refugios, decomisos) AND perdidas real-dots (points):
+          // discrete pins with native MapLibre clustering (design D3).
           addReferencePointLayer(map, layer, data);
+          mountedPointModeRef.current.set(layer.id, layer.renderMode ?? "reference");
         }
         mountedRef.current.add(layer.id);
       }
@@ -1843,6 +1870,29 @@ function pointPopupHtml(layer: ActiveLayer, props: Record<string, unknown>): str
     const name = String(props.name ?? "Refugio");
     const v = props.verified ? " · verificado" : "";
     return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(name)}</strong><span style="color:#94a3b8">${v}</span></div>`;
+  }
+  // panorama-event-points Slice 1: a perdidas REAL sighting dot (LostPointProps
+  // carries `token` + `lastSeenAt`). Popup: "Avistaje" + date + a subtle
+  // capture-precision hint. Clicking the dot opens the DetailDrawer (D7).
+  if (layer.id === "perdidas" && typeof props.token === "string") {
+    const name = String(props.name ?? "Mascota");
+    const when =
+      typeof props.lastSeenAt === "string" && props.lastSeenAt
+        ? new Date(props.lastSeenAt).toLocaleDateString("es-AR")
+        : null;
+    const precision =
+      props.locationSource === "gps"
+        ? "ubicación GPS"
+        : props.locationSource === "pin_manual"
+          ? "punto marcado en el mapa"
+          : props.locationSource === "geocodificada"
+            ? "ubicación aproximada por dirección"
+            : null;
+    const meta = ["Avistaje", when].filter(Boolean).join(" · ");
+    const hint = precision
+      ? `<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(precision)}</em>`
+      : "";
+    return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(name)}</strong><br/><span style="color:#94a3b8">${escapeHtml(meta)}</span>${hint}</div>`;
   }
   // Generic: a primary label + a meta line built from common props.
   const primary = String(props.name ?? props.code ?? props.diseaseLabel ?? layer.label);
