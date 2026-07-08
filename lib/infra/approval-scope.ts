@@ -8,15 +8,9 @@
 // this rule. The decision actions re-check via canDecideRequest as the
 // authoritative server-side guard.
 
-import { and, count, desc, eq, exists, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, exists, inArray, or, sql } from "drizzle-orm";
 
-import {
-  type ApprovalRequest,
-  type ApprovalRequestType,
-  approvalRequests,
-  db,
-  govtAssignments,
-} from "@/db";
+import { type ApprovalRequest, type ApprovalRequestType, approvalRequests, db } from "@/db";
 import {
   isWholeProvinceLocality,
   jurisdictionScopeContains,
@@ -58,32 +52,26 @@ export function canDecideRequest(
 // visible to `profile` (per spec §6). Use inside an `and()` clause to
 // combine with other filters (e.g. type filters, date sorts).
 //
-// - admin: ADMIN_ONLY types always, plus any govt-decidable type whose
-//   locality has NO active govt covering it (fallback).
+// - admin: UNIVERSAL catch-all — NO scope restriction. Admin sees EVERY pending
+//   request regardless of type or jurisdiction. This is deliberate and load-
+//   bearing: the admin headline counter (fetchQueueHealth) is a global
+//   count(*) filter (status='pending'), so the admin queue MUST show the same
+//   population or the counter and the queue diverge (QA 2026-07-08: dashboard
+//   "COLA PENDIENTE: 1" while /admin/cola was empty). It also makes admin the
+//   ultimate fallback for petitions in an unoperated jurisdiction (a barrio no
+//   govt covers) or of a type no govt can decide — nothing is orphaned.
+//   `canDecideRequest` already returns true for admin unconditionally, so
+//   showing every row matches the decision capability.
 // - govt: govt-decidable types whose (province, locality) matches one of
-//   their active assignments.
+//   their active assignments (whole-province subsumption applies).
 export function visibleRequestsClause(
   profile: { id: string; role: "admin" | "govt" },
   jurisdictions: readonly AdminOrGovtJurisdiction[],
 ) {
-  if (profile.role === "admin") {
-    const noGovtCovers = notExists(
-      db
-        .select({ id: govtAssignments.id })
-        .from(govtAssignments)
-        .where(
-          and(
-            isNull(govtAssignments.revokedAt),
-            eq(govtAssignments.jurisdictionProvince, approvalRequests.jurisdictionProvince),
-            eq(govtAssignments.jurisdictionLocality, approvalRequests.jurisdictionLocality),
-          ),
-        ),
-    );
-    return or(
-      inArray(approvalRequests.type, ADMIN_ONLY_TYPES),
-      and(inArray(approvalRequests.type, GOVT_DECIDABLE_TYPES), noGovtCovers),
-    );
-  }
+  // Admin is universal: no scope predicate. `sql`true`` composes cleanly inside
+  // the `and(status='pending', scopeClause)` the callers build, so the queue
+  // and the global counter share ONE population.
+  if (profile.role === "admin") return sql`true`;
 
   // govt: empty jurisdictions → see nothing.
   if (jurisdictions.length === 0) return sql`false`;

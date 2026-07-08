@@ -23,11 +23,12 @@
 // (the server action logs a single pii_queried audit row per search), exactly
 // like /gob/usuarios does.
 
-import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, eq, ilike, or, sql } from "drizzle-orm";
 
-import { cases, db, ownerships, petIdentifications, pets } from "@/db";
+import { cases, db, ownerships, petIdentifications, pets, welfareReports } from "@/db";
 import { searchUsers } from "@/lib/infra/admin-search";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { likeContains } from "@/lib/utils/like-helpers";
 
 // Per-type cap. The dropdown only ever shows a handful of rows per group; a low
@@ -84,10 +85,17 @@ const EMPTY_RESULTS: OmniboxResults = { pets: [], persons: [], cases: [], total:
 
 function caseJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>) {
   if (scope.role === "admin") return undefined;
-  return or(
-    ...scope.jurisdictions.map((j) =>
-      and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
-    ),
+  // Subsumption-aware (2026-07-08): a whole-province assignment (whole-CABA /
+  // "Ciudad Autónoma de Buenos Aires") governs every barrio in it, so it must
+  // match a barrio-tagged (Palermo) case on PROVINCE alone — the same predicate
+  // canReadCase re-gates with. Fail-closed: govt with no assignments (should be
+  // short-circuited upstream) yields `false`, never an unscoped leak.
+  return (
+    jurisdictionPairClause(
+      [...scope.jurisdictions],
+      sql`${cases.jurisdictionProvince}`,
+      sql`${cases.jurisdictionLocality}`,
+    ) ?? sql`false`
   );
 }
 
@@ -222,10 +230,68 @@ async function searchCases(
 }
 
 /**
+ * Resolve welfare denuncias by their public reference code (DEN-XXXX-XXXX).
+ *
+ * WHY (QA 2026-07-08): denuncia tracking codes live in
+ * `welfare_reports.reference_code`, NOT `cases.public_code`. An operator (even a
+ * universal superadmin) pasting a DEN- code into the omnibox got "Sin
+ * coincidencias" because searchCases only matched CAS- codes. This surfaces the
+ * denuncia so the DEN- code an operator sees actually resolves.
+ *
+ * A denuncia's operator detail lives at /gob/maltrato/[id] for BOTH roles (the
+ * page re-gates: admin is universal, govt via jurisdictionScopeContains). Result
+ * is shaped as a case-group row (caseKind 'welfare_denuncia') so it renders in
+ * the existing "Casos" group; publicCode carries the DEN- code the user typed.
+ *
+ * Scope: admin → unscoped (universal). govt → subsumption-aware jurisdiction
+ * match (whole-CABA sees a Palermo-tagged denuncia), fail-closed to `false`.
+ */
+async function searchWelfareReports(
+  query: string,
+  scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>,
+): Promise<OmniboxCaseResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const scopePredicate =
+    scope.role === "admin"
+      ? undefined
+      : (jurisdictionPairClause(
+          [...scope.jurisdictions],
+          sql`${welfareReports.jurisdictionProvince}`,
+          sql`${welfareReports.jurisdictionLocality}`,
+        ) ?? sql`false`);
+  // Reference codes are opaque non-PII identifiers (same class as cases.publicCode).
+  const codePredicate = ilike(welfareReports.referenceCode, likeContains(trimmed));
+  const where = scopePredicate ? and(scopePredicate, codePredicate) : codePredicate;
+
+  const rows = await db
+    .select({
+      id: welfareReports.id,
+      referenceCode: welfareReports.referenceCode,
+      status: welfareReports.status,
+    })
+    .from(welfareReports)
+    .where(where)
+    .limit(PER_TYPE_LIMIT);
+
+  return rows.map((r) => ({
+    type: "case" as const,
+    id: r.id,
+    publicCode: r.referenceCode,
+    caseKind: "welfare_denuncia",
+    status: r.status,
+    // Operator denuncia detail — same route for admin and govt; the page owns
+    // the scope re-gate (admin universal; govt via jurisdictionScopeContains).
+    href: `/gob/maltrato/${r.id}`,
+  }));
+}
+
+/**
  * Runs the scoped omnibox search.
  *
  * - org scope  → pets only (pets the org currently holds via shelter_custody).
- * - admin/govt → persons + cases only (no pet results for operators).
+ * - admin/govt → persons + cases (incl. welfare denuncias by DEN- code); no pets.
  *
  * Security guarantees:
  *   - govt with zero jurisdiction assignments → empty result, NO db hit.
@@ -249,15 +315,20 @@ export async function searchOmnibox(query: string, scope: OmniboxScope): Promise
   // govt-with-no-assignments must see nothing without touching the DB.
   if (scope.role === "govt" && scope.jurisdictions.length === 0) return EMPTY_RESULTS;
 
-  const [personResults, caseResults] = await Promise.all([
+  const [personResults, caseResults, welfareResults] = await Promise.all([
     searchPersons(trimmed, scope),
     searchCases(trimmed, scope),
+    searchWelfareReports(trimmed, scope),
   ]);
+
+  // Welfare denuncias (matched by DEN- reference code) join the "Casos" group so
+  // a DEN- paste resolves alongside CAS- cases in one list.
+  const allCases = [...caseResults, ...welfareResults];
 
   return {
     pets: [],
     persons: personResults,
-    cases: caseResults,
-    total: personResults.length + caseResults.length,
+    cases: allCases,
+    total: personResults.length + allCases.length,
   };
 }

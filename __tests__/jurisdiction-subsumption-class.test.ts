@@ -172,6 +172,20 @@ describe("subsumption class — visibleRequestsClause SQL (lib/infra/approval-sc
     const clause = visibleRequestsClause(govtProfile, []);
     expect(extractLiterals(clause)).toContain("false");
   });
+
+  // Admin is the UNIVERSAL catch-all: the queue clause imposes NO scope
+  // restriction, so /admin/cola shows every pending request and stays consistent
+  // with the global fetchQueueHealth counter (QA 2026-07-08: counter said 1 while
+  // the admin queue was empty). A `true` clause is unrestricted; it must NOT carry
+  // any jurisdiction/type literal that would narrow the population.
+  it("admin clause is unrestricted (true) — universal catch-all, no scope literal", () => {
+    const adminProfile = { id: "admin1", role: "admin" as const };
+    const clause = visibleRequestsClause(adminProfile, []);
+    const literals = extractLiterals(clause);
+    expect(literals).toContain("true");
+    expect(literals).not.toContain("CABA");
+    expect(literals).not.toContain("false");
+  });
 });
 
 // ---------------------------------------------------------------------------

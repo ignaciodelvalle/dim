@@ -5,6 +5,7 @@
 import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { approvalRequests, auditLog, cronRuns, db, govtAssignments, profiles } from "@/db";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -123,16 +124,20 @@ export async function fetchQueueHealthScoped(
   // The approval_requests table has indexed columns jurisdictionProvince /
   // jurisdictionLocality (see jurisIdx in schema.ts) so the OR fan-out is
   // covered by the existing partial index on status='pending'.
+  //
+  // Subsumption-aware (2026-07-08): a whole-province assignment (whole-CABA /
+  // "Ciudad Autónoma de Buenos Aires") governs every barrio in it, so it must
+  // match a barrio-tagged (Palermo) request on PROVINCE alone. Reuses
+  // jurisdictionPairClause — the SAME predicate the /gob/cola queue
+  // (visibleRequestsClause) uses — so this aging COUNTER and that queue can
+  // never diverge (a whole-CABA operator's "cola pendiente" tile and their
+  // queue show the same population). Exact pairs are kept for barrio operators.
   const jurisClause =
-    jurisdictions.length > 0
-      ? sql`(${sql.join(
-          jurisdictions.map(
-            (j) =>
-              sql`(${approvalRequests.jurisdictionProvince} = ${j.province} AND ${approvalRequests.jurisdictionLocality} = ${j.locality})`,
-          ),
-          sql` OR `,
-        )})`
-      : undefined;
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${approvalRequests.jurisdictionProvince}`,
+      sql`${approvalRequests.jurisdictionLocality}`,
+    ) ?? undefined;
 
   const [row] = await db
     .select({

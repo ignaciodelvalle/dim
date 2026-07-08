@@ -38,6 +38,7 @@ import {
   petIdentifications,
   pets,
   profiles,
+  welfareReports,
 } from "@/db";
 import type { AdminOrGovtSession } from "@/lib/infra/auth-guards";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -51,14 +52,27 @@ import { withMutationOverride } from "./_helpers/db-overrides";
 const TAG = "OMNIBOXTEST";
 const CABA_CASE_CODE = `CASO-${TAG}-CA`;
 const MENDOZA_CASE_CODE = `CASO-${TAG}-MZ`;
+// Welfare denuncia tracking code (DEN-, not CAS-) tagged to a CABA barrio.
+const PALERMO_DEN_CODE = `DEN-${TAG}-PA`;
 
 let cabaCaseId: string;
 let mendozaCaseId: string;
+let palermoDenunciaId: string;
 let govtUserId: string;
 
 const GOVT_CABA = {
   role: "govt" as const,
   jurisdictions: [{ province: "CABA", locality: "Buenos Aires" }],
+};
+// Whole-province (whole-CABA) operator: locality IS the INDEC single-entry that
+// subsumes every barrio. Distinct from GOVT_CABA (an exact-pair locality).
+const GOVT_WHOLE_CABA = {
+  role: "govt" as const,
+  jurisdictions: [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }],
+};
+const GOVT_MENDOZA = {
+  role: "govt" as const,
+  jurisdictions: [{ province: "Mendoza", locality: "Mendoza" }],
 };
 const ADMIN_SCOPE = { role: "admin" as const };
 
@@ -73,6 +87,7 @@ function govtSession(userId: string): AdminOrGovtSession {
 
 async function cleanupStaticFixtures() {
   await withMutationOverride(async (tx) => {
+    await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code LIKE ${`%${TAG}%`}`);
     await tx.execute(sql`DELETE FROM cases WHERE public_code LIKE ${`%${TAG}%`}`);
     if (govtUserId) await tx.execute(sql`DELETE FROM profiles WHERE id = ${govtUserId}`);
   });
@@ -114,6 +129,24 @@ beforeAll(async () => {
     })
     .returning();
   mendozaCaseId = mendozaCase.id;
+
+  // Welfare denuncia with a DEN- tracking code, tagged to a CABA barrio
+  // (Palermo). Its code lives in welfare_reports.reference_code — NOT
+  // cases.public_code — so the omnibox must resolve it via the welfare table.
+  const [palermoDenuncia] = await db
+    .insert(welfareReports)
+    .values({
+      referenceCode: PALERMO_DEN_CODE,
+      kind: "neglect",
+      severity: "medium",
+      description: `Denuncia de prueba ${TAG}`,
+      subjectKind: "general",
+      status: "open",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo",
+    })
+    .returning();
+  palermoDenunciaId = palermoDenuncia.id;
 });
 
 afterAll(cleanupStaticFixtures);
@@ -326,6 +359,36 @@ describe("searchOmnibox — case scoping (govt)", () => {
   it("govt with zero assignments returns empty", async () => {
     const r = await searchOmnibox(`CASO-${TAG}`, { role: "govt", jurisdictions: [] });
     expect(r.total).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// welfare denuncia resolution by DEN- code (QA 2026-07-08)
+//
+// DEN-XXXX-XXXX codes live in welfare_reports.reference_code, NOT
+// cases.public_code. An operator pasting a DEN- code must resolve the denuncia.
+// ---------------------------------------------------------------------------
+
+describe("searchOmnibox — welfare denuncia by DEN- code", () => {
+  it("admin (universal) resolves a DEN- code to the denuncia with the maltrato href", async () => {
+    const r = await searchOmnibox(PALERMO_DEN_CODE, ADMIN_SCOPE);
+    const found = r.cases.find((c) => c.id === palermoDenunciaId);
+    expect(found).toBeDefined();
+    expect(found?.publicCode).toBe(PALERMO_DEN_CODE);
+    expect(found?.caseKind).toBe("welfare_denuncia");
+    expect(found?.href).toBe(`/gob/maltrato/${palermoDenunciaId}`);
+  });
+
+  it("whole-CABA govt resolves a Palermo-tagged DEN- denuncia (subsumption)", async () => {
+    const r = await searchOmnibox(PALERMO_DEN_CODE, GOVT_WHOLE_CABA);
+    const ids = r.cases.map((c) => c.id);
+    expect(ids).toContain(palermoDenunciaId);
+  });
+
+  it("an out-of-scope govt (Mendoza) does NOT resolve a CABA DEN- denuncia", async () => {
+    const r = await searchOmnibox(PALERMO_DEN_CODE, GOVT_MENDOZA);
+    const ids = r.cases.map((c) => c.id);
+    expect(ids).not.toContain(palermoDenunciaId);
   });
 });
 
