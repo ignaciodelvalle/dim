@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, notifications, organizations, pets } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -159,8 +160,12 @@ export async function executeDecomisoAction(
     // province-only / null-province let a govt seize an animal (and revoke its
     // owner's custody) outside their jurisdiction. Fail-closed on any mismatch.
     if (session.profile.role === "govt") {
-      const inScope = session.jurisdictions.some(
-        (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+      // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
+      // every barrio in it. Never widens security — barrio assignments stay exact.
+      const inScope = jurisdictionScopeContains(
+        session.jurisdictions,
+        pet.jurisdictionProvince,
+        pet.jurisdictionLocality,
       );
       if (!inScope) {
         return { error: "Esta mascota no está en tu jurisdicción asignada." };
@@ -180,10 +185,11 @@ export async function executeDecomisoAction(
     // province-only check let a govt seize an unowned animal outside their
     // assigned locality. Fail-closed on any mismatch (incl. null org locality).
     if (session.profile.role === "govt") {
-      const inScope = session.jurisdictions.some(
-        (j) =>
-          j.province === govtOrg.jurisdictionProvince &&
-          j.locality === govtOrg.jurisdictionLocality,
+      // Subsumption-aware (whole-province assignment governs every barrio in it).
+      const inScope = jurisdictionScopeContains(
+        session.jurisdictions,
+        govtOrg.jurisdictionProvince,
+        govtOrg.jurisdictionLocality,
       );
       if (!inScope) {
         return {

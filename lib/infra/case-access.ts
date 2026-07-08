@@ -16,6 +16,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { custodyDisputeParties, db, organizationMemberships, ownerships } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import type { CaseDetail } from "@/lib/infra/case-queries";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
@@ -64,11 +65,14 @@ export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null)
   // Admin: universal scope.
   if (viewer.role === "admin") return true;
 
-  // Govt: scope-bound to jurisdiction.
+  // Govt: scope-bound to jurisdiction. Subsumption-aware — a whole-province
+  // assignment (e.g. whole-CABA) governs every barrio in it, so a case tagged
+  // to a barrio is readable. See jurisdictionScopeContains.
   if (viewer.role === "govt") {
-    const inScope = viewer.jurisdictions.some(
-      (j) =>
-        j.province === detail.jurisdictionProvince && j.locality === detail.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      viewer.jurisdictions,
+      detail.jurisdictionProvince,
+      detail.jurisdictionLocality,
     );
     if (inScope) return true;
     // Govt out-of-scope keeps falling through to the per-kind checks

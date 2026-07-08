@@ -17,6 +17,10 @@ import {
   db,
   govtAssignments,
 } from "@/db";
+import {
+  isWholeProvinceLocality,
+  jurisdictionScopeContains,
+} from "@/lib/domain/jurisdiction-canonical";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 
@@ -41,9 +45,12 @@ export function canDecideRequest(
 ): boolean {
   if (profile.role === "admin") return true;
   if (ADMIN_ONLY_TYPES.includes(request.type)) return false;
-  return jurisdictions.some(
-    (j) =>
-      j.province === request.jurisdictionProvince && j.locality === request.jurisdictionLocality,
+  // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
+  // every barrio in it; barrio assignments stay exact (never widens security).
+  return jurisdictionScopeContains(
+    jurisdictions,
+    request.jurisdictionProvince,
+    request.jurisdictionLocality,
   );
 }
 
@@ -81,13 +88,18 @@ export function visibleRequestsClause(
   // govt: empty jurisdictions → see nothing.
   if (jurisdictions.length === 0) return sql`false`;
 
-  // Match (province, locality) tuples via an OR of equality pairs.
+  // Match (province, locality) tuples via an OR of equality pairs. A whole-province
+  // assignment (e.g. whole-CABA) subsumes every barrio in it — match on province
+  // alone — mirroring jurisdictionPairClause / canDecideRequest above so the queue
+  // and the decision guard scope identically. Barrio assignments keep the exact pair.
   const tupleMatches = or(
     ...jurisdictions.map((j) =>
-      and(
-        eq(approvalRequests.jurisdictionProvince, j.province),
-        eq(approvalRequests.jurisdictionLocality, j.locality),
-      ),
+      isWholeProvinceLocality(j.province, j.locality)
+        ? eq(approvalRequests.jurisdictionProvince, j.province)
+        : and(
+            eq(approvalRequests.jurisdictionProvince, j.province),
+            eq(approvalRequests.jurisdictionLocality, j.locality),
+          ),
     ),
   );
   return and(inArray(approvalRequests.type, GOVT_DECIDABLE_TYPES), tupleMatches);

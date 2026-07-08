@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 
 import { auditLog, custodyDisputeParties, custodyDisputes, db, notifications } from "@/db";
 import type { CustodyDispute } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 
 import type { AddPartyInput, AddPartyResult } from "../domain/types";
 
@@ -28,9 +29,12 @@ function isGovtInScope(
   jurisdictions: { province: string; locality: string }[],
   dispute: Pick<CustodyDispute, "jurisdictionProvince" | "jurisdictionLocality">,
 ): boolean {
-  return jurisdictions.some(
-    (j) =>
-      j.province === dispute.jurisdictionProvince && j.locality === dispute.jurisdictionLocality,
+  // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
+  // every barrio in it; barrio assignments stay exact (never widens security).
+  return jurisdictionScopeContains(
+    jurisdictions,
+    dispute.jurisdictionProvince,
+    dispute.jurisdictionLocality,
   );
 }
 

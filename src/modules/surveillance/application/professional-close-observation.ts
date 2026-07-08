@@ -14,6 +14,7 @@
 //
 // AUDIT_LOG: NONE.
 
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { PROFESSIONAL_OUTCOMES, outcomeToStatus } from "../domain/rabies-observation";
@@ -79,10 +80,14 @@ export async function professionalCloseObservation(
     return { ok: false, error: "Esta mascota no tiene una observación activa." };
   }
 
-  // 4. Govt scope check — admin is universal.
+  // 4. Govt scope check — admin is universal. Subsumption-aware: a whole-province
+  // assignment (e.g. whole-CABA) governs every barrio in it, so a pet geocoded to
+  // a barrio is within cover. See jurisdictionScopeContains.
   if (actor.profile.role === "govt") {
-    const inScope = actor.jurisdictions.some(
-      (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      actor.jurisdictions,
+      pet.jurisdictionProvince,
+      pet.jurisdictionLocality,
     );
     if (!inScope) {
       return { ok: false, error: "Esta mascota no está dentro de tu cobertura asignada." };

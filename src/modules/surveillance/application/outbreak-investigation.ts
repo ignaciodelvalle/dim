@@ -13,6 +13,8 @@
 // Legal frame: Ley 15.465/60 + Decreto 3640/64.
 // External notification (SNVS/SENASA/zoonosis) NOT integrated — v1_noop=true.
 
+import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
+
 import { isEnoCode } from "../domain/eno-catalog";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { UseCaseResult } from "./types";
@@ -96,10 +98,16 @@ function isInScope(
 ): boolean {
   // National-scope case (no province) — any govt may act.
   if (!caseRow.jurisdictionProvince) return true;
+  // Located case: province must match, and the operator must cover the case's
+  // locality. Subsumption-aware — a whole-province assignment (e.g. whole-CABA)
+  // covers every barrio in it, so a case tagged to a barrio is in scope. A case
+  // with no locality (province-wide) matches any operator in that province.
   return jurisdictions.some(
     (j) =>
       j.province === caseRow.jurisdictionProvince &&
-      (!caseRow.jurisdictionLocality || j.locality === caseRow.jurisdictionLocality),
+      (!caseRow.jurisdictionLocality ||
+        isWholeProvinceLocality(j.province, j.locality) ||
+        j.locality === caseRow.jurisdictionLocality),
   );
 }
 

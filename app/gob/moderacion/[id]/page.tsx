@@ -22,6 +22,7 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { requireDenunciaModerationPrincipal } from "@/lib/infra/auth-guards";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
@@ -99,9 +100,14 @@ export default async function GobModeracionDetailPage({
   // may only open a report whose (province, locality) is in their assignments;
   // a report with no jurisdiction is never in scope → admin-only. Admin passes.
   if (profile.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) =>
-        j.province === report.jurisdictionProvince && j.locality === report.jurisdictionLocality,
+    // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
+    // every barrio in it, so a report geocoded to a barrio is in scope. A raw
+    // (province, locality) pair here would 404 a whole-province operator on a
+    // barrio-tagged row (list-vs-detail divergence). See jurisdiction-canonical.
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      report.jurisdictionProvince,
+      report.jurisdictionLocality,
     );
     if (!inScope) notFound();
   }

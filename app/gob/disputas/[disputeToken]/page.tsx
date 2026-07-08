@@ -12,6 +12,7 @@ import {
   profiles,
 } from "@/db";
 import type { EventType } from "@/db/schema";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { eventTypeLabel, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -60,11 +61,14 @@ export default async function DisputeDetailPage({
   if (!row) notFound();
   const { dispute, pet } = row;
 
-  // Govt scope guard.
+  // Govt scope guard — subsumption-aware so a whole-province operator (e.g.
+  // whole-CABA) opens a dispute tagged to a barrio in that province, matching
+  // the list clause. See jurisdictionScopeContains / jurisdiction-canonical.
   if (profile.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) =>
-        j.province === dispute.jurisdictionProvince && j.locality === dispute.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      dispute.jurisdictionProvince,
+      dispute.jurisdictionLocality,
     );
     if (!inScope) notFound();
   }

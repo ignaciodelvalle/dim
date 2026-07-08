@@ -10,6 +10,7 @@ import {
   OpCrumbs,
 } from "@/components/ui/dashboard";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
 import { speciesLabel } from "@/lib/utils/format";
@@ -36,10 +37,14 @@ export default async function ObservationDetailPage({
     notFound();
   }
 
-  // Govt scope check — admin sees universally.
+  // Govt scope check — admin sees universally. Subsumption-aware so a
+  // whole-province operator (e.g. whole-CABA) opens an observation on a pet
+  // geocoded to a barrio in that province. See jurisdictionScopeContains.
   if (profile.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      pet.jurisdictionProvince,
+      pet.jurisdictionLocality,
     );
     if (!inScope) notFound();
   }

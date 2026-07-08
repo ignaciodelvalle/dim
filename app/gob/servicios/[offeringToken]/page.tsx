@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -61,13 +62,14 @@ export default async function GobServicioDetailPage({
   const { offering, org, provider } = row;
 
   // Scope check: govt can only act on offerings in their localities.
+  // Subsumption-aware so a whole-province operator (e.g. whole-CABA) covers an
+  // offering tagged to a barrio in that province. See jurisdictionScopeContains.
   if (profile.role === "govt") {
-    const covers = jurisdictions.some(
-      (j) =>
-        j.province === offering.jurisdictionProvince &&
-        j.locality === offering.jurisdictionLocality,
+    const covers = jurisdictionScopeContains(
+      jurisdictions,
+      offering.jurisdictionProvince,
+      offering.jurisdictionLocality,
     );
-    // j.province and j.locality are the correct field names on AdminOrGovtJurisdiction
     if (!covers) notFound();
   }
 

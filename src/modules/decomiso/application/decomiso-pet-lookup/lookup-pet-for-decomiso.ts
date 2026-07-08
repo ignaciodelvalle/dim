@@ -15,6 +15,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships, pets, profiles } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import type { DecomisoPrincipalSession } from "@/lib/infra/auth-guards";
 
 import type { GovtPetLookupResult } from "./types";
@@ -62,8 +63,12 @@ export async function lookupPetForDecomiso(
   // on any pair that isn't an exact assignment. If out of scope, return an
   // error WITHOUT exposing owner PII (ownerDisplayName / hasOwner).
   if (session.profile.role === "govt") {
-    const inScope = session.jurisdictions.some(
-      (j) => j.province === pet.jurisdictionProvince && j.locality === pet.jurisdictionLocality,
+    // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
+    // every barrio in it; barrio-specific assignments stay exact (never widens).
+    const inScope = jurisdictionScopeContains(
+      session.jurisdictions,
+      pet.jurisdictionProvince,
+      pet.jurisdictionLocality,
     );
     if (!inScope) {
       return {
