@@ -26,7 +26,9 @@ type Props = {
 
 // ISO 3166 numeric country code for Argentina — the default for chips
 // implanted locally (matches the createMicrochip flow default).
-const DEFAULT_COUNTRY_CODE = "858";
+// NOTE: 858 is Uruguay's code, not Argentina's (Argentina = 032) — was
+// mislabeled here; fixed as part of the QA nits sweep 2026-07.
+const DEFAULT_COUNTRY_CODE = "032";
 
 // Implantation-site options mirror chipImplantSiteFromLocation's recognized
 // inputs (src/modules/pets/domain/pet-rules.ts) so the canonical row maps to a
@@ -108,7 +110,7 @@ export function MicrochipAttendanceForm({
             name="country_code"
             type="text"
             defaultValue={DEFAULT_COUNTRY_CODE}
-            placeholder="858 (Argentina)"
+            placeholder="032 (Argentina)"
           />
         </div>
         <div>

@@ -70,7 +70,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [color, setColor] = useState("");
   const [distinguishingFeatures, setDistinguishingFeatures] = useState("");
   const [microchipId, setMicrochipId] = useState("");
-  const [microchipCountryCode, setMicrochipCountryCode] = useState("858");
+  // 032 = ISO 3166 numeric code for Argentina. 858 (previously used here)
+  // is Uruguay's code — a mislabel fixed in the QA nits sweep 2026-07.
+  const [microchipCountryCode, setMicrochipCountryCode] = useState("032");
   const [tattooCode, setTattooCode] = useState("");
   const [intakeReason, setIntakeReason] = useState("");
   const [custodyRole, setCustodyRole] = useState<"shelter_custody" | "owner">("shelter_custody");

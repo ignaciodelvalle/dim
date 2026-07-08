@@ -1035,7 +1035,9 @@ function MicrochipBlock({
 }) {
   const [microchipId, setMicrochipId] = useState<string>(existingCanonicalChip?.code ?? "");
   const [microchipCountryCode, setMicrochipCountryCode] = useState<string>(
-    existingCanonicalChip?.isoCountryCode ?? "858",
+    // 032 = ISO 3166 numeric code for Argentina. 858 (previously used here)
+    // is Uruguay's code — a mislabel fixed in the QA nits sweep 2026-07.
+    existingCanonicalChip?.isoCountryCode ?? "032",
   );
   const [microchipImplantedAt, setMicrochipImplantedAt] = useState<string>(
     existingCanonicalChip?.recordedAt ?? "",
