@@ -145,6 +145,47 @@ export async function fetchMicrochipPenetration(
   return { ratePct: pct(chipped, active), chipped, active, byLocality };
 }
 
+export type ProvinceMicrochipRow = {
+  province: string;
+  ratePct: number;
+  chipped: number;
+  active: number;
+};
+
+/** Per-province microchip penetration for Panorama choropleth parity (U5). */
+export async function fetchMicrochipPenetrationByProvince(
+  ctx: ProjectionContext,
+): Promise<ProvinceMicrochipRow[]> {
+  if (govtWithoutScope(ctx)) return [];
+
+  const activeCond = activePetsCondition(ctx);
+  const chippedExists = sql`EXISTS (
+    SELECT 1 FROM pet_identifications pi
+    WHERE pi.pet_id = ${pets.id}
+      AND pi.kind = 'microchip_iso'
+      AND pi.status = 'active'
+  )`;
+
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      active: count(),
+      chipped: sql<number>`count(*) FILTER (WHERE ${chippedExists})::int`,
+    })
+    .from(pets)
+    .where(and(activeCond, sql`${pets.jurisdictionProvince} IS NOT NULL`))
+    .groupBy(pets.jurisdictionProvince);
+
+  return rows
+    .filter((r) => r.province)
+    .map((r) => ({
+      province: r.province as string,
+      active: r.active,
+      chipped: Number(r.chipped),
+      ratePct: pct(Number(r.chipped), r.active),
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // C2 — ISO-validity rate
 // ---------------------------------------------------------------------------
@@ -293,6 +334,46 @@ export async function fetchDangerousBreedCompliance(
   const flaggedCount = flaggedRows[0]?.n ?? 0;
   const attested = attestedRows[0]?.n ?? 0;
   return { ratePct: pct(attested, flaggedCount), attested, flaggedCount };
+}
+
+export type ProvincePppRow = {
+  province: string;
+  ratePct: number;
+  attested: number;
+  flaggedCount: number;
+};
+
+/** Per-province PPP registry compliance for Panorama choropleth parity (U5). */
+export async function fetchPppComplianceByProvince(
+  ctx: ProjectionContext,
+): Promise<ProvincePppRow[]> {
+  if (govtWithoutScope(ctx)) return [];
+
+  const pppCond = and(activePetsCondition(ctx), eq(pets.potentiallyDangerousBreed, true));
+  const attestedExists = sql`EXISTS (
+    SELECT 1 FROM pet_events pe
+    WHERE pe.pet_id = ${pets.id}
+      AND pe.event_type = 'dangerous_breed_attested'
+  )`;
+
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      flagged: count(),
+      attested: sql<number>`count(*) FILTER (WHERE ${attestedExists})::int`,
+    })
+    .from(pets)
+    .where(and(pppCond, sql`${pets.jurisdictionProvince} IS NOT NULL`))
+    .groupBy(pets.jurisdictionProvince);
+
+  return rows
+    .filter((r) => r.province)
+    .map((r) => ({
+      province: r.province as string,
+      flaggedCount: r.flagged,
+      attested: Number(r.attested),
+      ratePct: pct(Number(r.attested), r.flagged),
+    }));
 }
 
 // ---------------------------------------------------------------------------

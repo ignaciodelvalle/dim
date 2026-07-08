@@ -23,6 +23,8 @@ import {
   fetchDangerousBreedCompliance,
   fetchIsoValidity,
   fetchMicrochipPenetration,
+  fetchMicrochipPenetrationByProvince,
+  fetchPppComplianceByProvince,
   fetchReunificationRate,
   fetchSeizures,
 } from "@/lib/analytics/compliance-metrics";
@@ -216,6 +218,35 @@ describe("fetchMicrochipPenetration (C1)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// C1 — Microchip penetration by province (U5 choropleth parity)
+// ---------------------------------------------------------------------------
+
+describe("fetchMicrochipPenetrationByProvince (U5)", () => {
+  it("computes chipped/active ratio per province and excludes pets outside jurisdiction", async () => {
+    const a1 = await insertPet({ province: PROV, locality: LOC_A });
+    await insertPet({ province: PROV, locality: LOC_A });
+    await insertChip(a1, { iso: true });
+    // Out of scope (different province) — must NOT count.
+    const out = await insertPet({ province: "Buenos Aires", locality: "La Plata" });
+    await insertChip(out, { iso: true });
+
+    const rows = await fetchMicrochipPenetrationByProvince(
+      govtCtx([{ province: PROV, locality: LOC_A }]),
+    );
+    const row = rows.find((r) => r.province === PROV);
+    expect(row).toBeDefined();
+    expect(row?.active).toBe(2);
+    expect(row?.chipped).toBe(1);
+    expect(row?.ratePct).toBe(50);
+  });
+
+  it("returns an empty array for govt with no jurisdictions without hitting DB", async () => {
+    const rows = await fetchMicrochipPenetrationByProvince(govtCtx([]));
+    expect(rows).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // C2 — ISO-validity rate
 // ---------------------------------------------------------------------------
 
@@ -303,6 +334,34 @@ describe("fetchDangerousBreedCompliance (C7)", () => {
     );
     expect(r.flaggedCount).toBe(0);
     expect(r.ratePct).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C7 — PPP registry compliance by province (U5 choropleth parity)
+// ---------------------------------------------------------------------------
+
+describe("fetchPppComplianceByProvince (U5)", () => {
+  it("computes attested/flagged ratio per province", async () => {
+    const a = await insertPet({ province: PROV, locality: LOC_A, ppp: true });
+    await insertPet({ province: PROV, locality: LOC_A, ppp: true });
+    await emitEvent(a, "dangerous_breed_attested", {
+      registry: "prov_14107",
+      registry_id: "R-1",
+      attested_at: new Date().toISOString(),
+    });
+
+    const rows = await fetchPppComplianceByProvince(govtCtx([{ province: PROV, locality: LOC_A }]));
+    const row = rows.find((r) => r.province === PROV);
+    expect(row).toBeDefined();
+    expect(row?.flaggedCount).toBe(2);
+    expect(row?.attested).toBe(1);
+    expect(row?.ratePct).toBe(50);
+  });
+
+  it("returns an empty array for govt with no jurisdictions without hitting DB", async () => {
+    const rows = await fetchPppComplianceByProvince(govtCtx([]));
+    expect(rows).toEqual([]);
   });
 });
 
