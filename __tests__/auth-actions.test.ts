@@ -156,7 +156,9 @@ describe("loginAction", () => {
   it("returns an error when email or password is missing (no Supabase call)", async () => {
     const fd = loginForm({ email: "" });
     const result = await loginAction({ error: null }, fd);
-    expect(result).toEqual({ error: "Faltan datos." });
+    // The action echoes the submitted email back so the form can restore it
+    // across React 19's post-action reset (here it is the empty string).
+    expect(result).toEqual({ error: "Faltan datos.", email: "" });
     expect(signInMock).not.toHaveBeenCalled();
   });
 
@@ -168,7 +170,8 @@ describe("loginAction", () => {
 
     const result = await loginAction({ error: null }, loginForm({ password: "wrong" }));
 
-    expect(result).toEqual({ error: "Correo o contraseña incorrectos." });
+    // Echoes the submitted email back so the form restores it after the reset.
+    expect(result).toEqual({ error: "Correo o contraseña incorrectos.", email: OWNER_EMAIL });
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
@@ -211,6 +214,7 @@ describe("loginAction", () => {
 
     expect(result).toEqual({
       error: "Tu cuenta institucional está desactivada. Contactá al equipo de MiMAR.",
+      email: DEACT_ADMIN_EMAIL,
     });
     expect(signOutMock).toHaveBeenCalledTimes(1);
     expect(mockRedirect).not.toHaveBeenCalled();

@@ -36,7 +36,7 @@ export async function loginAction(
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    return { error: "Faltan datos." };
+    return { error: "Faltan datos.", email };
   }
 
   // Rate limit BEFORE touching GoTrue. Two independent budgets:
@@ -53,7 +53,7 @@ export async function loginAction(
       maxPerHour: 20,
     });
   } catch (err) {
-    if (err instanceof RateLimitError) return { error: TOO_MANY_ATTEMPTS };
+    if (err instanceof RateLimitError) return { error: TOO_MANY_ATTEMPTS, email };
     throw err;
   }
 
@@ -61,7 +61,7 @@ export async function loginAction(
   const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: "Correo o contraseña incorrectos." };
+    return { error: "Correo o contraseña incorrectos.", email };
   }
 
   const userId = signInData.user.id;
@@ -92,6 +92,7 @@ export async function loginAction(
     await supabase.auth.signOut();
     return {
       error: "Tu cuenta institucional está desactivada. Contactá al equipo de MiMAR.",
+      email,
     };
   }
 

@@ -69,4 +69,30 @@ describe("LoginFormView — account-switch field state", () => {
 
     expect(email.value).toBe("govt@example.gob.ar");
   });
+
+  it("restores the typed email across React 19's post-action form reset (bug #46)", () => {
+    // React 19 auto-resets an uncontrolled `<form action={fn}>` once the action
+    // resolves. A failed login returns (no redirect), so the reset would wipe the
+    // DOM-owned email. loginAction echoes the submitted email back in state, and
+    // the input seeds `defaultValue` from it, so form.reset() lands on the value.
+    const view = renderView();
+    const email = view.container.querySelector('input[name="email"]') as HTMLInputElement;
+    const form = view.container.querySelector("form") as HTMLFormElement;
+
+    fireEvent.change(email, { target: { value: "govt@example.gob.ar" } });
+
+    // The failed submit re-renders with the error AND the echoed-back email.
+    const errored: AuthFormState = {
+      error: "Correo o contraseña incorrectos.",
+      email: "govt@example.gob.ar",
+    };
+    view.rerender(
+      <LoginFormView state={errored} formAction={noopAction} isPending={false} returnTo={null} />,
+    );
+
+    // Simulate the React 19 reset. Without the defaultValue echo the field would
+    // reset to empty; with it, the typed email survives.
+    form.reset();
+    expect(email.value).toBe("govt@example.gob.ar");
+  });
 });

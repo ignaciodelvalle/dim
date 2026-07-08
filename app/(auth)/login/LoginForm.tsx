@@ -73,6 +73,14 @@ export function LoginFormView({
                 // Uncontrolled value (DOM-owned); onChange only drops the stale
                 // password when the account email is edited.
                 onChange={() => setPassword("")}
+                // React 19 auto-resets this uncontrolled form once the action
+                // resolves. A failed login returns (no redirect), so without a
+                // defaultValue the reset would wipe the email the user just
+                // typed. loginAction echoes the submitted email back, so the
+                // reset lands on it and the field survives. defaultValue does
+                // not fight autofill (it only seeds the DOM default, never the
+                // live value), so the uncontrolled-email decision above holds.
+                defaultValue={state.email ?? ""}
               />
             )}
           </LnField>
