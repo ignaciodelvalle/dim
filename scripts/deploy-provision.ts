@@ -562,6 +562,31 @@ const VERIFICATION_MINIMUMS = {
   authenticatedGrants: 50,
 } as const;
 
+// Tables the PII baseline (migration 0058) applies its retention columns to.
+// A fresh provision that skipped the BEGIN/COMMIT-wrapped pii migrations left
+// the `pii` schema absent, so Ley 25.326 export/erase died with
+// `schema "pii" does not exist` — verified here so that gap fails loud.
+const PII_BASELINE_TABLES = [
+  "profiles",
+  "pets",
+  "pet_identifications",
+  "custody_disputes",
+] as const;
+// pii schema functions the subject-rights RPCs depend on (0058 + 0059).
+const PII_REQUIRED_FUNCTIONS = ["apply_baseline", "caller_is_admin"] as const;
+// Storage buckets the app writes to that a fresh deploy must declare. A missing
+// bucket 500s the corresponding upload with "Bucket not found" (the revocations
+// bucket had no db/*storage.sql coverage and had to be hot-patched by hand).
+const REQUIRED_BUCKETS = [
+  "pet-photos",
+  "event-attachments",
+  "welfare-evidence",
+  "welfare-exports",
+  "ppp-exports",
+  "travel-exports",
+  "revocations",
+] as const;
+
 interface VerificationReport {
   functions: number;
   indexes: number;
@@ -573,6 +598,12 @@ interface VerificationReport {
   authenticatedGrants: number;
   schemaUsageAuthenticated: boolean;
   storagePolicies: number;
+  piiSchemaPresent: boolean;
+  piiFunctionsPresent: string[];
+  piiFunctionsMissing: string[];
+  piiRetentionColumns: number;
+  bucketsPresent: string[];
+  bucketsMissing: string[];
   shortfalls: string[];
 }
 
@@ -610,6 +641,32 @@ async function verifyProvision(sql: Sql): Promise<VerificationReport> {
     sql`select count(*)::int as n from pg_policies where schemaname = 'storage'`,
   ).catch(() => 0);
 
+  // ---- PII schema / functions / retention columns (Ley 25.326) ------------
+  const piiSchemaPresent =
+    (await one(sql`select count(*)::int as n from pg_namespace where nspname = 'pii'`)) > 0;
+  const piiFnRows = (await sql`
+    select p.proname from pg_proc p
+      join pg_namespace nsp on nsp.oid = p.pronamespace
+     where nsp.nspname = 'pii'
+  `.catch(() => [])) as { proname: string }[];
+  const piiFnPresent = new Set(piiFnRows.map((r) => r.proname));
+  const piiFunctionsPresent = PII_REQUIRED_FUNCTIONS.filter((f) => piiFnPresent.has(f));
+  const piiFunctionsMissing = PII_REQUIRED_FUNCTIONS.filter((f) => !piiFnPresent.has(f));
+  const piiRetentionColumns = await one(sql`
+    select count(*)::int as n from information_schema.columns
+     where table_schema = 'public'
+       and column_name = 'retention_until'
+       and table_name = any(${sql.array([...PII_BASELINE_TABLES])})
+  `).catch(() => 0);
+
+  // ---- Storage buckets (a missing one 500s its upload with Bucket not found) -
+  const bucketRows = (await sql`select id from storage.buckets`.catch(() => [])) as {
+    id: string;
+  }[];
+  const bucketIds = new Set(bucketRows.map((r) => r.id));
+  const bucketsPresent = REQUIRED_BUCKETS.filter((b) => bucketIds.has(b));
+  const bucketsMissing = REQUIRED_BUCKETS.filter((b) => !bucketIds.has(b));
+
   const shortfalls: string[] = [];
   if (functions < VERIFICATION_MINIMUMS.functions)
     shortfalls.push(`functions ${functions} < ${VERIFICATION_MINIMUMS.functions}`);
@@ -627,6 +684,18 @@ async function verifyProvision(sql: Sql): Promise<VerificationReport> {
     shortfalls.push(
       `authenticated table grants ${authenticatedGrants} < ${VERIFICATION_MINIMUMS.authenticatedGrants}`,
     );
+  if (!piiSchemaPresent)
+    shortfalls.push("pii schema missing (Ley 25.326 export/erase would fail — see migration 0058)");
+  if (piiFunctionsMissing.length > 0)
+    shortfalls.push(
+      `pii functions missing: ${piiFunctionsMissing.map((f) => `pii.${f}`).join(", ")}`,
+    );
+  if (piiRetentionColumns < PII_BASELINE_TABLES.length)
+    shortfalls.push(
+      `pii.retention_until columns ${piiRetentionColumns} < ${PII_BASELINE_TABLES.length} (expected on ${PII_BASELINE_TABLES.join(", ")})`,
+    );
+  if (bucketsMissing.length > 0)
+    shortfalls.push(`storage buckets missing: ${bucketsMissing.join(", ")}`);
 
   return {
     functions,
@@ -639,6 +708,12 @@ async function verifyProvision(sql: Sql): Promise<VerificationReport> {
     authenticatedGrants,
     schemaUsageAuthenticated,
     storagePolicies,
+    piiSchemaPresent,
+    piiFunctionsPresent,
+    piiFunctionsMissing,
+    piiRetentionColumns,
+    bucketsPresent,
+    bucketsMissing,
     shortfalls,
   };
 }
@@ -659,6 +734,15 @@ function printVerificationReport(r: VerificationReport): void {
     `    schema grants (authn) : USAGE=${r.schemaUsageAuthenticated} tableGrants=${r.authenticatedGrants} (min ${VERIFICATION_MINIMUMS.authenticatedGrants})`,
   );
   console.log(`    storage policies      : ${r.storagePolicies} (informational)`);
+  console.log(
+    `    pii schema            : ${r.piiSchemaPresent ? "present" : "MISSING"} — functions ${r.piiFunctionsPresent.map((f) => `pii.${f}`).join(", ") || "(none)"}${r.piiFunctionsMissing.length ? ` — MISSING: ${r.piiFunctionsMissing.map((f) => `pii.${f}`).join(", ")}` : ""}`,
+  );
+  console.log(
+    `    pii retention columns : ${r.piiRetentionColumns}/${PII_BASELINE_TABLES.length} (${PII_BASELINE_TABLES.join(", ")})`,
+  );
+  console.log(
+    `    storage buckets       : ${r.bucketsPresent.length}/${REQUIRED_BUCKETS.length} — ${r.bucketsPresent.join(", ") || "(none)"}${r.bucketsMissing.length ? ` — MISSING: ${r.bucketsMissing.join(", ")}` : ""}`,
+  );
 }
 
 // The loose orthogonal SQL, in dependency order. RLS files are applied AFTER
@@ -669,6 +753,7 @@ const LOOSE_SQL_ORDER = [
   "db/storage.sql",
   "db/welfare_storage.sql",
   "db/exports_storage.sql",
+  "db/revocations_storage.sql",
   "db/cases_rls.sql",
   "db/foster_rls.sql",
   "db/organizations_rls.sql",
