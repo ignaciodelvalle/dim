@@ -1,13 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import {
   type CreateShareResult,
-  type RevokeShareResult,
   createLibretaShareAction,
   revokeLibretaShareAction,
 } from "@/app/actions/libreta-share";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LnCheckbox } from "@/components/ui/Field";
 import type { LibretaShareToken } from "@/db/schema";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -32,7 +32,6 @@ const DURATION_OPTIONS = [
 ] as const;
 
 const initialCreateState: CreateShareResult | null = null;
-const initialRevokeState: RevokeShareResult | null = null;
 
 export function SharesManager({ petPublicToken, shares, onShareCreated }: Props) {
   const [creating, setCreating] = useState(false);
@@ -40,7 +39,16 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
   const [noExpiryConfirmed, setNoExpiryConfirmed] = useState(false);
   const [label, setLabel] = useState("");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
+  // The share pending a revoke confirmation — null when the dialog is closed.
+  const [confirmingShare, setConfirmingShare] = useState<LibretaShareToken | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [isRevoking, startRevokeTransition] = useTransition();
+  // The just-created share token whose "Enlace generado" box has been
+  // dismissed — cleared independently of `newShareToken` (which comes from
+  // `createState` and can't be reset directly) so revoking that same link
+  // also clears its box instead of leaving a dead link on screen.
+  const [dismissedToken, setDismissedToken] = useState<string | null>(null);
+  const revokeTriggerRef = useRef<HTMLButtonElement | null>(null);
   // Mirrors the `shares` prop but can also be trimmed locally on a
   // successful revoke — revalidatePath() (server action) only refreshes
   // RSC trees, it doesn't touch this already-mounted client component's
@@ -66,19 +74,28 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
     initialCreateState,
   );
 
-  const [revokeState, revokeAction, revokePending] = useActionState(
-    async (_prev: RevokeShareResult | null, formData: FormData) => {
-      const id = formData.get("shareTokenRowId") as string;
-      return revokeLibretaShareAction(id);
-    },
-    initialRevokeState,
-  );
-
-  useEffect(() => {
-    if (revokeState && "ok" in revokeState) {
-      setLocalShares((prev) => prev.filter((s) => s.id !== revokeState.shareTokenRowId));
-    }
-  }, [revokeState]);
+  // Revoking requires a confirm step (matches the weight-correction
+  // double-confirm pattern) so a stray tap can't silently kill a link a vet
+  // or family member is actively using. Called from the ConfirmDialog, not
+  // straight off the row button click.
+  function handleConfirmRevoke() {
+    const target = confirmingShare;
+    if (!target) return;
+    setRevokeError(null);
+    startRevokeTransition(async () => {
+      const result = await revokeLibretaShareAction(target.id);
+      if ("error" in result) {
+        setRevokeError(result.error);
+        setConfirmingShare(null);
+        return;
+      }
+      setLocalShares((prev) => prev.filter((s) => s.id !== target.id));
+      if (newShareToken && target.shareToken === newShareToken) {
+        setDismissedToken(newShareToken);
+      }
+      setConfirmingShare(null);
+    });
+  }
 
   // On a successful create, ask the parent to re-fetch the active-shares list
   // so the just-generated link shows up in "Enlaces activos" immediately
@@ -99,9 +116,13 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
     });
   }
 
-  const newShareToken = createState && "shareToken" in createState ? createState.shareToken : null;
+  const rawNewShareToken =
+    createState && "shareToken" in createState ? createState.shareToken : null;
+  // Suppressed once its own share row has been revoked (see handleConfirmRevoke)
+  // so the "Enlace generado" box doesn't keep showing a link that no longer works.
+  const newShareToken =
+    rawNewShareToken && rawNewShareToken !== dismissedToken ? rawNewShareToken : null;
   const createError = createState && "error" in createState ? createState.error : null;
-  const revokeError = revokeState && "error" in revokeState ? revokeState.error : null;
 
   return (
     <section className="space-y-4 print:hidden">
@@ -253,17 +274,18 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                 >
                   {copiedToken === share.shareToken ? "Copiado" : "Copiar"}
                 </button>
-                <form action={revokeAction}>
-                  <input type="hidden" name="shareTokenRowId" value={share.id} />
-                  <button
-                    type="submit"
-                    disabled={revokePending && revokingId === share.id}
-                    onClick={() => setRevokingId(share.id)}
-                    className="text-xs px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
-                  >
-                    Revocar
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  disabled={isRevoking && confirmingShare?.id === share.id}
+                  onClick={(e) => {
+                    revokeTriggerRef.current = e.currentTarget;
+                    setRevokeError(null);
+                    setConfirmingShare(share);
+                  }}
+                  className="text-xs px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
+                >
+                  Revocar
+                </button>
               </div>
             </li>
           ))}
@@ -277,6 +299,18 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
       )}
 
       {revokeError && <p className="text-xs text-[var(--color-ln-err)]">{revokeError}</p>}
+
+      <ConfirmDialog
+        open={confirmingShare !== null}
+        onClose={() => setConfirmingShare(null)}
+        onConfirm={handleConfirmRevoke}
+        title={`¿Revocar el enlace${confirmingShare?.label ? ` "${confirmingShare.label}"` : ""}?`}
+        description="Quien lo tenga guardado deja de poder ver la libreta al instante. Esta acción no se puede deshacer."
+        confirmLabel="Revocar"
+        tone="danger"
+        pending={isRevoking}
+        triggerRef={revokeTriggerRef}
+      />
     </section>
   );
 }

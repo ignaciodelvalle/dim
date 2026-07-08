@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 //
-// SharesManager — post-mutation staleness fix (QA finding 5a, engram #635).
+// SharesManager — post-mutation staleness fix (QA finding 5a, engram #635)
+// + revoke confirm/box-cleanup polish (2026-07 persona validation).
+//
 // Revoke succeeded server-side but the in-sheet "Enlaces activos" list never
 // updated (the revoked row + its "Revocar" button stayed live) because the
 // list only ever came from the `shares` prop, snapshotted once by the parent
@@ -10,11 +12,16 @@
 // Fix: mirror `shares` into local state and trim the revoked row out of it
 // using the server action's OWN return value (shareTokenRowId), not a
 // reload/refetch.
+//
+// Revoke now requires a ConfirmDialog step (previously one click killed a
+// live link with no confirmation, unlike the rest of the app's destructive
+// actions), and revoking the just-created share also clears its "Enlace
+// generado / Copiar" box instead of leaving a dead link on screen.
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LibretaShareToken } from "@/db/schema";
 
@@ -27,6 +34,28 @@ vi.mock("@/app/actions/libreta-share", () => ({
 }));
 
 import { SharesManager } from "./SharesManager";
+
+// jsdom doesn't implement native <dialog>.showModal/close (ConfirmDialog
+// calls them) — stubbed in OpBulkBar.test.tsx too, but that suite never
+// queries the dialog's own content, so a bare no-op is enough there. Here we
+// DO need to find the confirm button inside the dialog, and role="dialog"
+// is only exposed while the `open` attribute is set — so these stubs also
+// toggle it, same as the browser would.
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+    this.setAttribute("open", "");
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+    this.removeAttribute("open");
+  });
+});
+
+// Opens the revoke confirm dialog for a row and clicks its confirm button.
+function revokeViaDialog(rowButtonName = "Revocar") {
+  fireEvent.click(screen.getAllByRole("button", { name: rowButtonName })[0]);
+  const dialog = screen.getByRole("dialog");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Revocar" }));
+}
 
 function makeShare(overrides: Partial<LibretaShareToken> = {}): LibretaShareToken {
   return {
@@ -61,7 +90,7 @@ describe("SharesManager — revoke updates the in-sheet list without reload", ()
 
     expect(screen.getByText("Vet de cabecera")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Revocar" }));
+    revokeViaDialog();
 
     await waitFor(() => {
       expect(screen.queryByText("Vet de cabecera")).not.toBeInTheDocument();
@@ -80,12 +109,23 @@ describe("SharesManager — revoke updates the in-sheet list without reload", ()
       />,
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Revocar" })[0]);
+    revokeViaDialog();
 
     await waitFor(() => {
       expect(screen.queryByText("Vet de cabecera")).not.toBeInTheDocument();
     });
     expect(screen.getByText("Guardería")).toBeInTheDocument();
+  });
+
+  it("does nothing when the confirm dialog is dismissed without confirming", async () => {
+    render(<SharesManager petPublicToken="TOKEN-1" shares={[makeShare()]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revocar" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+
+    expect(revokeLibretaShareAction).not.toHaveBeenCalled();
+    expect(screen.getByText("Vet de cabecera")).toBeInTheDocument();
   });
 
   it("leaves the list untouched when revoke fails", async () => {
@@ -94,7 +134,7 @@ describe("SharesManager — revoke updates the in-sheet list without reload", ()
     });
     render(<SharesManager petPublicToken="TOKEN-1" shares={[makeShare()]} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Revocar" }));
+    revokeViaDialog();
 
     await waitFor(() => {
       expect(screen.getByText("Sin permisos para revocar este compartido.")).toBeInTheDocument();
@@ -129,5 +169,31 @@ describe("SharesManager — create refreshes the active-shares list (O-3)", () =
       expect(screen.getByText("No se pudo crear el enlace.")).toBeInTheDocument();
     });
     expect(onShareCreated).not.toHaveBeenCalled();
+  });
+});
+
+describe("SharesManager — revoking the just-created share clears its generated-link box", () => {
+  it("hides the 'Enlace generado' box once that same share is revoked", async () => {
+    // The parent (MergedShareSheet) re-fetches after onShareCreated, so the
+    // just-created share also arrives back in `shares` — simulated here by
+    // rendering with a matching row already present.
+    const newShare = makeShare({ id: "share-new", shareToken: "LBR-NEW1-NEW2", label: null });
+    createLibretaShareAction.mockResolvedValue({ shareToken: "LBR-NEW1-NEW2" });
+    revokeLibretaShareAction.mockResolvedValue({ ok: true, shareTokenRowId: "share-new" });
+
+    render(<SharesManager petPublicToken="TOKEN-1" shares={[newShare]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nuevo enlace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Crear enlace" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Enlace generado. Copia y envialo.")).toBeInTheDocument();
+    });
+
+    revokeViaDialog();
+
+    await waitFor(() => {
+      expect(screen.queryByText("Enlace generado. Copia y envialo.")).not.toBeInTheDocument();
+    });
   });
 });
