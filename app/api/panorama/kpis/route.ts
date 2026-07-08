@@ -15,6 +15,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import { localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -61,22 +62,31 @@ export async function GET(request: Request) {
   const provinceIso = url.searchParams.get("province");
   const localitySlug = url.searchParams.get("locality");
 
+  // Resolve the selected province/locality once — shared by govt scope-narrowing
+  // and admin drill-down below (mirrors /api/panorama/[layer]).
+  const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
+  const localityRow =
+    provinceObj && localitySlug
+      ? await localityByName(provinceObj.code as ProvinceCode, localitySlug)
+      : null;
+
   // 3. Intersect scope with the viewer's assignments (never widens for govt).
-  let scoped = jurisdictions;
-  if (provinceIso && profile.role !== "admin") {
-    const provinceObj = provinceByCode(provinceIso);
-    if (provinceObj) {
-      const provinceName = provinceObj.name;
-      const localityRow = localitySlug
-        ? await localityByName(provinceObj.code as ProvinceCode, localitySlug)
-        : null;
-      scoped = localityRow
-        ? jurisdictions.filter(
-            (j) => j.province === provinceName && j.locality === localityRow.localityName,
-          )
-        : jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
+  // narrowGovtScope applies whole-province SUBSUMPTION: a whole-province
+  // assignment narrows to the selected locality instead of being emptied by an
+  // exact-locality mismatch (critique of PR #762, finding 4).
+  const scoped =
+    provinceObj && profile.role !== "admin"
+      ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
+      : jurisdictions;
+
+  // Admin drill-down: mirror /api/panorama/[layer] and app/admin/panorama/page.tsx
+  // so a client KPI refetch on a filter change scopes to the selected
+  // province/locality. Without this the route ignored the admin filter and a
+  // refetch silently returned NATIONAL KPIs (critique of PR #762, finding 1).
+  // Only passed for admin — govt scope lives in `scoped`.
+  const adminProvince = profile.role === "admin" ? (provinceObj?.name ?? undefined) : undefined;
+  const adminLocality =
+    profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
   // 4. Delegate to the use-case (reuses the tested dashboard fetchers), bounded
   //    by a time budget and wrapped so it NEVER throws to the runtime (task #74):
@@ -85,7 +95,7 @@ export async function GET(request: Request) {
   //    Either way the lambda answers cleanly instead of crashing mid-response.
   try {
     const result = await withDbBudget(
-      getPanoramaKpis(actor, scoped, period),
+      getPanoramaKpis(actor, scoped, period, adminProvince, adminLocality),
       KPIS_BUDGET_MS,
       "GET /api/panorama/kpis",
       degradedPanoramaKpis(),

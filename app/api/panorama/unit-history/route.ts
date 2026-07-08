@@ -24,6 +24,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
@@ -76,11 +77,16 @@ export async function GET(request: Request) {
   //    client should never request out-of-scope units (the map only shows
   //    features within scope), so a 403 here means a crafted request.
   if (actor.role === "govt") {
-    const inScope = jurisdictions.some((j) => {
-      if (j.province !== province) return false;
-      if (locality) return j.locality === locality;
-      return true;
-    });
+    // A locality-specific request uses jurisdictionScopeContains so a WHOLE-
+    // PROVINCE assignment (e.g. whole-CABA / "Ciudad Autónoma de Buenos Aires")
+    // SUBSUMES every barrio the map shows that operator — the previous exact
+    // (province, locality) pair match 403'd a whole-CABA operator on a barrio
+    // unit the map rendered for them (critique of PR #762, finding 2; same class
+    // as the queue fix 681f78fb). A province-level request (no locality) keeps
+    // the "any assignment in the province" allowance.
+    const inScope = locality
+      ? jurisdictionScopeContains(jurisdictions, province, locality)
+      : jurisdictions.some((j) => j.province === province);
     if (!inScope) {
       return NextResponse.json({ error: "forbidden" }, { status: 403 });
     }

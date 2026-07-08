@@ -2,6 +2,7 @@ import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   listLocalitiesByProvince,
   listLocalityCentroids,
@@ -104,14 +105,14 @@ export default async function AdminPanoramaPage({
 
   // Admin: [] means universal scope; the scope clauses short-circuit on admin.
   // A selected province/locality narrows the rollups (admin can drill anywhere).
-  let scoped: DashboardJurisdiction[] = jurisdictions;
-  if (provinceObj && profile.role !== "admin") {
-    scoped = localityRow
-      ? jurisdictions.filter(
-          (j) => j.province === provinceObj.name && j.locality === localityRow.localityName,
-        )
-      : jurisdictions.filter((j) => j.province === provinceObj.name);
-  }
+  // A govt user reaching this route (requireAdminOrGovtOrRedirect admits both)
+  // is narrowed via narrowGovtScope, which applies whole-province SUBSUMPTION so
+  // a whole-province assignment narrows to the selected locality instead of being
+  // emptied by an exact-locality mismatch (critique of PR #762, finding 4).
+  const scoped: DashboardJurisdiction[] =
+    provinceObj && profile.role !== "admin"
+      ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
+      : jurisdictions;
 
   // Admin province drill-down: canonical stored names derived server-side from
   // provinceByCode() and localityByName(). Only passed for admin role — govt

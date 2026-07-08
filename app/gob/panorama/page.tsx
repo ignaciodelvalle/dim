@@ -10,6 +10,7 @@ import {
   type AdminOrGovtJurisdiction,
   requireAdminOrGovtOrRedirect,
 } from "@/lib/infra/auth-guards";
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
@@ -80,14 +81,13 @@ export default async function GobPanoramaPage({
 
   // Intersect the selected province/locality with the user's actual assignments
   // so a govt user cannot widen scope by crafting ?province=&locality= params.
-  let scoped: DashboardJurisdiction[] = jurisdictions;
-  if (provinceObj && profile.role !== "admin") {
-    scoped = localityRow
-      ? jurisdictions.filter(
-          (j) => j.province === provinceObj.name && j.locality === localityRow.localityName,
-        )
-      : jurisdictions.filter((j) => j.province === provinceObj.name);
-  }
+  // narrowGovtScope applies whole-province SUBSUMPTION: a whole-province
+  // assignment narrows to the selected locality instead of being emptied by an
+  // exact-locality mismatch (critique of PR #762, finding 4).
+  const scoped: DashboardJurisdiction[] =
+    provinceObj && profile.role !== "admin"
+      ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
+      : jurisdictions;
 
   // Admin province drill-down: canonical stored names derived server-side from
   // provinceByCode() and localityByName(). Only passed for admin role — govt

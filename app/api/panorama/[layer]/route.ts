@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import { localityByName } from "@/lib/infra/ar-localidades";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -83,14 +84,13 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
       : null;
 
   // 4. Intersect scope with the viewer's assignments (never widens for govt).
-  let scoped = jurisdictions;
-  if (provinceObj && profile.role !== "admin") {
-    scoped = localityRow
-      ? jurisdictions.filter(
-          (j) => j.province === provinceObj.name && j.locality === localityRow.localityName,
-        )
-      : jurisdictions.filter((j) => j.province === provinceObj.name);
-  }
+  // narrowGovtScope applies whole-province SUBSUMPTION: a whole-province
+  // assignment narrows to the selected locality instead of being emptied by an
+  // exact-locality mismatch (critique of PR #762, finding 4).
+  const scoped =
+    provinceObj && profile.role !== "admin"
+      ? narrowGovtScope(jurisdictions, provinceObj.name, localityRow?.localityName ?? null)
+      : jurisdictions;
 
   // Admin drill-down: mirror app/admin/panorama/page.tsx so toggled layers scope
   // to the selected province/locality exactly like the server-rendered default
@@ -105,9 +105,25 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   // affects the two choropleth layers; point layers ignore it. Bounded + never
   // throws to the runtime (task #74): budget expiry → empty features (200);
   // fetcher rejection → 503 JSON envelope. Never crashes the lambda.
+  // The layer window's upper bound: an explicit `asOf` scrub if present, else the
+  // period's own `until`. Passing only `asOf` (undefined when not scrubbing) let
+  // a CUSTOM period's upper bound leak — events after `to` were plotted (critique
+  // of PR #762, finding 3). getLayerFeatures already treats `asOf` as the upper
+  // bound of the event-windowed layers and ignores it for current-state layers,
+  // so `asOf ?? until` bounds custom periods without touching the loader signature.
+  const windowUntil = asOf ?? until;
+
   try {
     const result = await withDbBudget(
-      getLayerFeatures(layer, actor, scoped, { since, asOf }, level, adminProvince, adminLocality),
+      getLayerFeatures(
+        layer,
+        actor,
+        scoped,
+        { since, asOf: windowUntil },
+        level,
+        adminProvince,
+        adminLocality,
+      ),
       LAYER_BUDGET_MS,
       `GET /api/panorama/${layer}`,
       emptyLayerFeatures(),

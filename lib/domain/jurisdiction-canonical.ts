@@ -131,3 +131,39 @@ export function jurisdictionScopeContains(
       : j.province === targetProvince && j.locality === targetLocality,
   );
 }
+
+/**
+ * Narrow a govt actor's assigned jurisdictions by an optional (province, locality)
+ * UI filter, WITH whole-province subsumption. The result is the effective scope
+ * the scoped loaders receive — it NEVER widens beyond the actor's assignments:
+ *
+ *   - no province selected            → the full assignment list (unchanged).
+ *   - province only                   → assignments in that province.
+ *   - province + locality selected    → the SINGLE selected unit, but only if
+ *     it is within scope (jurisdictionScopeContains applies whole-province
+ *     subsumption, so a whole-province assignment NARROWS to the picked locality
+ *     instead of being emptied by an exact-locality mismatch); otherwise `[]`.
+ *
+ * Bug this fixes (critique of PR #762): the previous inline intersection filtered
+ * assignments by EXACT locality equality, so a whole-province assignment (e.g.
+ * whole-CABA / "Ciudad Autónoma de Buenos Aires") disappeared the moment a barrio
+ * locality filter was applied → scoped=[] → the loaders emitted `sql\`false\`` →
+ * empty results for data the operator legitimately governs. Subsumption narrows
+ * to the selected locality instead of emptying.
+ *
+ * Admin actors must NOT be routed through this helper — their drill-down uses the
+ * explicit adminProvince/adminLocality predicates, not scope narrowing.
+ */
+export function narrowGovtScope(
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  selectedProvince: string | null | undefined,
+  selectedLocality: string | null | undefined,
+): { province: string; locality: string }[] {
+  if (!selectedProvince) return jurisdictions.map((j) => ({ ...j }));
+  if (!selectedLocality) {
+    return jurisdictions.filter((j) => j.province === selectedProvince).map((j) => ({ ...j }));
+  }
+  return jurisdictionScopeContains(jurisdictions, selectedProvince, selectedLocality)
+    ? [{ province: selectedProvince, locality: selectedLocality }]
+    : [];
+}
