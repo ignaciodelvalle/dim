@@ -57,6 +57,17 @@ import { SurveillanceRepository } from "./infrastructure/surveillance-repository
 
 const repo = new SurveillanceRepository();
 
+/**
+ * panorama-event-points Slice 2: read the coordinate-capture origin from the bite
+ * form (`locationSource` hidden field emitted by LocationFields l2 / the org map
+ * picker). Only the three known enum values are honored; anything else (absent /
+ * legacy form) → null so the schema's nullable-optional passes.
+ */
+function parseLocationSource(fd: FormData): "gps" | "pin_manual" | "geocodificada" | null {
+  const raw = String(fd.get("locationSource") ?? "").trim();
+  return raw === "gps" || raw === "pin_manual" || raw === "geocodificada" ? raw : null;
+}
+
 /** Flush notifications post-tx, best-effort. Never throws. */
 async function flushNotifications(
   pending: Array<typeof notifications.$inferInsert>,
@@ -150,6 +161,7 @@ export async function reportBiteAction(
   }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
+  const locationSource = parseLocationSource(formData);
 
   // 4. Call use-case.
   const result = await reportBite(
@@ -172,6 +184,10 @@ export async function reportBiteAction(
       clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
+      // panorama-event-points Slice 2: the map-pin coordinate (may be null).
+      locationLat: normalizedLoc.lat,
+      locationLng: normalizedLoc.lng,
+      locationSource,
     },
     {
       repo,
@@ -310,6 +326,7 @@ export async function reportBiteFromOrgAction(
   }
   const eventJurisdictionProvince = normalizedLoc.province;
   const eventJurisdictionLocality = normalizedLoc.locality;
+  const locationSource = parseLocationSource(formData);
   const noRedirect = String(formData.get("noRedirect") ?? "") === "1";
 
   // 4. Call use-case.
@@ -336,6 +353,10 @@ export async function reportBiteFromOrgAction(
       clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
+      // panorama-event-points Slice 2: the map-pin coordinate (may be null).
+      locationLat: normalizedLoc.lat,
+      locationLng: normalizedLoc.lng,
+      locationSource,
       noRedirect,
       orgToken,
     },

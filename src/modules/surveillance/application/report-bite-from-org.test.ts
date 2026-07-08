@@ -68,6 +68,9 @@ const BASE_INPUT: ReportBiteFromOrgInput = {
   vetInvolved: false,
   eventJurisdictionProvince: null,
   eventJurisdictionLocality: null,
+  locationLat: null,
+  locationLng: null,
+  locationSource: null,
   noRedirect: false,
   orgToken: "org-tok-1",
   clientIdempotencyKey: null,
@@ -98,6 +101,24 @@ describe("reportBiteFromOrg (org path)", () => {
       payload: Record<string, unknown>;
     };
     expect(call.payload.reporter_role).toBe("vet");
+  });
+
+  // panorama-event-points Slice 2: the org map pin persists COLUMNAR coords.
+  it("persists the incident map-pin coordinate columnar + location_source in payload", async () => {
+    const deps = makeDeps();
+    await reportBiteFromOrg(
+      { ...BASE_INPUT, locationLat: -31.42, locationLng: -64.18, locationSource: "gps" },
+      deps,
+    );
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
+      locationLat: unknown;
+      locationLng: unknown;
+      payload: Record<string, unknown>;
+    };
+    expect(call.locationLat).toBe("-31.42");
+    expect(call.locationLng).toBe("-64.18");
+    expect(call.payload.location_source).toBe("gps");
   });
 
   it("maps shelter orgType to reporter_role=shelter", async () => {

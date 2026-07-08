@@ -13,6 +13,7 @@
 // Cierre: SuccessScreen "Incidente registrado. Mascota en observación
 // antirrábica por 10 días" — replaces the previous redirect.
 
+import dynamic from "next/dynamic";
 import { useRef, useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
@@ -32,6 +33,17 @@ type FormAction = (
   prev: ReportBiteFromOrgFormState,
   formData: FormData,
 ) => Promise<ReportBiteFromOrgFormState>;
+
+// panorama-event-points Slice 2: reuse the standard map-pin component (the same
+// LocationPicker LocationFields uses for sightings). The org wizard builds its
+// FormData imperatively, so a controlled point + hidden-input-free wiring is
+// cleaner than embedding LocationFields (whose hidden inputs the wizard's manual
+// FormData would not capture).
+const LocationPicker = dynamic(() => import("@/components/LocationPicker"), {
+  loading: () => (
+    <div className="h-64 w-full animate-pulse rounded-lg border border-ln-op-line bg-ln-op-stripe" />
+  ),
+});
 
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Mascota", "Cuándo", "Víctima y contexto", "Confirmar"];
@@ -71,6 +83,24 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
   const [vetInvolved, setVetInvolved] = useState(false);
   const [context, setContext] = useState("");
   const [confirmObservation, setConfirmObservation] = useState(false);
+  // panorama-event-points Slice 2: the optional incident map pin + how it was set.
+  const [point, setPoint] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationSource, setLocationSource] = useState<"gps" | "pin_manual" | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  function useMyLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setLocationSource("gps");
+        setGeoLoading(false);
+      },
+      () => setGeoLoading(false),
+      { enableHighAccuracy: true, timeout: 10_000 },
+    );
+  }
 
   function submit() {
     setState({ error: null });
@@ -91,6 +121,12 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
     if (vetInvolved) fd.set("vetInvolved", "on");
     if (context) fd.set("context", context);
     if (confirmObservation) fd.set("confirmObservation", "on");
+    // panorama-event-points Slice 2: persist the incident map pin when set.
+    if (point) {
+      fd.set("locationLat", String(point.lat));
+      fd.set("locationLng", String(point.lng));
+      if (locationSource) fd.set("locationSource", locationSource);
+    }
     fd.set("noRedirect", "1");
     startTransition(async () => {
       const result = await action({ error: null }, fd);
@@ -227,6 +263,40 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             Para enrutar el reporte a la autoridad sanitaria correspondiente. Si no la elegís,
             usamos la jurisdicción registrada de la mascota.
           </p>
+        </div>
+
+        {/* panorama-event-points Slice 2: optional incident map pin. When set,
+            the coordinate is persisted so the mordeduras near-zoom dot can plot
+            the incident inside the operator's jurisdiction. */}
+        <div className="space-y-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="block text-xs font-medium text-ln-op-ink-2">
+              Ubicación en el mapa (opcional)
+            </p>
+            <button
+              type="button"
+              onClick={useMyLocation}
+              disabled={geoLoading}
+              className="text-xs text-ln-op-ink-2 underline underline-offset-4 hover:text-ln-op-ink disabled:opacity-50"
+            >
+              {geoLoading ? "Obteniendo…" : "Usar mi ubicación"}
+            </button>
+          </div>
+          <p className="text-sm text-ln-op-mute">
+            Tocá el mapa para marcar dónde ocurrió. Ubica el incidente en el panorama de vigilancia.
+          </p>
+          <LocationPicker
+            value={point}
+            onChange={(p) => {
+              setPoint(p);
+              setLocationSource("pin_manual");
+            }}
+          />
+          {point && (
+            <p className="font-mono text-xs text-ln-op-mute">
+              {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">

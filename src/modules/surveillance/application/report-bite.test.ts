@@ -69,6 +69,9 @@ const BASE_INPUT: ReportBiteInput = {
   clientIdempotencyKey: "key-abc",
   eventJurisdictionProvince: null,
   eventJurisdictionLocality: null,
+  locationLat: null,
+  locationLng: null,
+  locationSource: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -147,6 +150,50 @@ describe("reportBite (owner path)", () => {
     const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
       .calls[0][0] as { payload: Record<string, unknown> };
     expect(call.payload.rabies_vaccine_valid_at_incident).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// panorama-event-points Slice 2 — incident coordinate capture
+// ---------------------------------------------------------------------------
+
+describe("reportBite — incident coordinate (Slice 2)", () => {
+  it("persists the map-pin coordinate COLUMNAR (as numeric strings) + location_source in payload", async () => {
+    const deps = makeDeps();
+    await reportBite(
+      {
+        ...BASE_INPUT,
+        locationLat: -34.6037,
+        locationLng: -58.3816,
+        locationSource: "pin_manual",
+      },
+      deps,
+    );
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
+      locationLat: unknown;
+      locationLng: unknown;
+      payload: Record<string, unknown>;
+    };
+    // Columnar coordinate (numeric-string), NOT in the payload.
+    expect(call.locationLat).toBe("-34.6037");
+    expect(call.locationLng).toBe("-58.3816");
+    // Precision hint travels in the payload.
+    expect(call.payload.location_source).toBe("pin_manual");
+  });
+
+  it("writes NULL columnar coords when no pin was dropped (falls into the residual, never faked)", async () => {
+    const deps = makeDeps();
+    await reportBite(BASE_INPUT, deps);
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
+      locationLat: unknown;
+      locationLng: unknown;
+      payload: Record<string, unknown>;
+    };
+    expect(call.locationLat).toBeNull();
+    expect(call.locationLng).toBeNull();
+    expect(call.payload.location_source).toBeNull();
   });
 });
 

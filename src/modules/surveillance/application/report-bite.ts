@@ -49,6 +49,14 @@ export type ReportBiteInput = {
   clientIdempotencyKey: string | null;
   eventJurisdictionProvince: string | null;
   eventJurisdictionLocality: string | null;
+  // panorama-event-points Slice 2: the incident coordinate (optional) captured by
+  // the bite form's map pin, persisted COLUMNAR on the event so the mordeduras
+  // near-zoom dot loader (loadBiteEvents) can plot it. Null when the reporter
+  // dropped no pin → the bite is counted into the "sin ubicación exacta" residual,
+  // never a faked centroid dot.
+  locationLat: number | null;
+  locationLng: number | null;
+  locationSource: "gps" | "pin_manual" | "geocodificada" | null;
 };
 
 type Deps = {
@@ -131,6 +139,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         reporter_role: "owner",
         jurisdiction_province: input.eventJurisdictionProvince,
         jurisdiction_locality: input.eventJurisdictionLocality,
+        location_source: input.locationSource,
       });
 
       const { event: biteEvent, wasNoop: biteNoop } = await repo.insertIncidentEventIdempotent(
@@ -144,6 +153,10 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           payload: incidentPayload,
           caseId: caseRow.id,
           clientIdempotencyKey: input.clientIdempotencyKey,
+          // panorama-event-points Slice 2: persist the incident point COLUMNAR (numeric
+          // string), mirroring the sighting writer. Null-coord bites fall into the residual.
+          locationLat: input.locationLat != null ? String(input.locationLat) : null,
+          locationLng: input.locationLng != null ? String(input.locationLng) : null,
         } as Parameters<typeof repo.insertIncidentEventIdempotent>[0],
         tx as Parameters<typeof repo.insertIncidentEventIdempotent>[1],
       );

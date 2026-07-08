@@ -880,6 +880,13 @@ const incidentReported = z
       // L1 jurisdiction (optional). Sprint 4 PR-034 / doc 09 §3.A.
       jurisdiction_province: z.string().nullable().optional(),
       jurisdiction_locality: z.string().nullable().optional(),
+      // panorama-event-points Slice 2 (PO-approved 2026-07-08): how the incident
+      // coordinate was captured, so the mordeduras map dot can show a subtle
+      // precision hint — gps | pin_manual | geocodificada. Same enum as the
+      // note_added sighting field. The exact coordinate itself lives on the
+      // columnar location_lat/lng (not here). OPTIONAL/nullable so every
+      // pre-existing incident validates unchanged (forward-only, no backfill).
+      location_source: z.enum(["gps", "pin_manual", "geocodificada"]).nullable().optional(),
     }),
   )
   .strict();

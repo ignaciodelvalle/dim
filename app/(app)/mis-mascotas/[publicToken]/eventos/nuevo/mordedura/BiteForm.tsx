@@ -87,8 +87,13 @@ export function BiteForm({
               />
             )}
           </LnField>
-          <LnSheetAccordion num="+" title="Provincia y localidad">
-            <LocationFields mode="l1" />
+          {/* panorama-event-points Slice 2: capture the incident point on a map
+              (LocationFields l2 — the same picker sightings use). Optional; when a
+              pin is dropped it persists the columnar coordinate so the mordeduras
+              near-zoom dot can plot it. Collapsed by default so the quick path is
+              unchanged; opening it derives province/localidad from the pin too. */}
+          <LnSheetAccordion num="+" title="Ubicación en el mapa (opcional)">
+            <LocationFields mode="l2" />
           </LnSheetAccordion>
 
           {/* Victim kind — pill radio group wrapped in fieldset for SR grouping */}
