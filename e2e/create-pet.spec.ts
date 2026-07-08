@@ -3,39 +3,42 @@ import { expect, test } from "@playwright/test";
 /**
  * Create-pet happy-path e2e.
  *
- * Logs in as the seeded OWNER, navigates to /mis-mascotas/nueva, fills the
- * MinimalNewPetForm (name + species chip + sex radio + location), submits,
- * and asserts the new pet appears in /mis-mascotas.
+ * Logs in as the seeded OWNER, navigates to /mis-mascotas/nueva, drives the
+ * 2-step MinimalNewPetForm wizard (commit f94ad6ff), and asserts the new pet
+ * appears in /mis-mascotas.
  *
- * This flow regressed before (create-pet broke silently in staging). This
- * test would have caught it at the browser-rendering layer.
+ * This flow regressed before (create-pet broke silently in staging) and again
+ * changed shape twice since the original test was written:
+ *   - 38fb1f44 introduced the province-first cascade: LocationFields mode="l1"
+ *     cascade renders a "Provincia" <select> that GATES a province-scoped
+ *     "Localidad o barrio" autocomplete (disabled until a province is picked).
+ *   - f94ad6ff split the alta into two steps: paso 1 (identidad) with a
+ *     "Continuar" button, then paso 2 (foto y más) with the final "Crear
+ *     mascota" submit. Both steps stay mounted so all fields are in the single
+ *     final FormData.
  *
- * Fields driven by MinimalNewPetForm (components/MinimalNewPetForm.tsx):
- *   - name       → text input labelled "Nombre"
- *   - species    → chip button "Perro/a" sets hidden input name="species"
- *   - sex        → radio group, value "male"/"female"/"unknown"
- *   - location   → LocalityPickerAcross autocomplete → hidden localityName
- *
- * The location step is the previously-broken piece: the form validates that
- * localityName is filled before submitting. We type a well-known locality and
- * pick the first autocomplete suggestion.
+ * Fields driven here (app/(app)/mis-mascotas/nueva/MinimalNewPetForm.tsx):
+ *   - name     → text input labelled "Nombre"
+ *   - species  → chip button "Perro/a" sets hidden input name="species"
+ *   - sex      → radio group, value "male"/"female"/"unknown"
+ *   - province → <select> labelled "Provincia" (ISO 3166-2:AR value)
+ *   - locality → LocalityPickerAcross labelled "Localidad o barrio", scoped to
+ *                the chosen province → hidden input name="localityName"
  */
 
 const OWNER_EMAIL = "owner@dim.test";
 const OWNER_PASSWORD = "Test1234!";
 
-// Unique name to assert in the list afterwards.
+// Unique name to assert in the list afterwards (also keeps the soft same-owner
+// dedupe gate P2 from firing on repeated runs).
 const PET_NAME = `E2EPet-${Date.now()}`;
 
-// Re-enabled after stabilizing the locality step (previously test.fixme): the
-// old version clicked the dropdown button, but LocalityPickerAcross selects on
-// mousedown and immediately unmounts the list (setOpen(false)), so Playwright's
-// click raced against the element detaching. We now wait for the debounced
-// search results to render, then select with the keyboard (Enter), which the
-// component's key handler turns into a selection without a click/detach race.
+// Palermo is a CABA barrio; the cascade needs its province picked first.
+const PROVINCE_CODE = "AR-C"; // Ciudad Autónoma de Buenos Aires (CABA)
+
 test("owner creates a pet with location and it appears in /mis-mascotas", async ({ page }) => {
-  // Alta is a multi-step flow (login → form → dual-write → list); with the 45s
-  // submit budget below, the 30s default test timeout is too tight.
+  // Alta is a multi-step flow (login → wizard → dual-write → list); with the
+  // 45s submit budget below, the 30s default test timeout is too tight.
   test.setTimeout(90_000);
 
   // -- Log in -----------------------------------------------------------
@@ -51,8 +54,9 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
     page.getByRole("heading", { name: /registrar (tu primera )?mascota/i }),
   ).toBeVisible();
 
+  // ── Paso 1 — Identidad ───────────────────────────────────────────────
   // -- Name -------------------------------------------------------------
-  await page.getByLabel(/nombre/i).fill(PET_NAME);
+  await page.getByLabel(/^nombre/i).fill(PET_NAME);
 
   // -- Species: click the "Perro/a" chip --------------------------------
   await page.getByRole("button", { name: /perro\/a/i }).click();
@@ -60,55 +64,53 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // -- Sex: pick "Macho" radio ------------------------------------------
   await page.getByRole("radio", { name: /macho/i }).check();
 
-  // -- Location: type a locality and pick the first autocomplete result --
-  // LocalityPickerAcross (components/LocalityPickerAcross.tsx) debounces 200ms,
-  // calls searchLocalitiesAction, and renders results as <ul><li><button>.
-  // Selection fires on mousedown (to beat the input's onBlur).
-  const localityInput = page.getByPlaceholder(/Palermo/i);
+  // -- Location (cascade): pick the province, THEN the scoped locality ---
+  // The locality autocomplete is disabled until a province is chosen, so the
+  // province <select> must come first.
+  await page.getByLabel(/provincia/i).selectOption(PROVINCE_CODE);
+
+  const localityInput = page.getByLabel(/localidad o barrio/i);
+  await expect(localityInput).toBeEnabled();
   await localityInput.fill("Palermo");
 
-  // Wait for the debounced search to resolve and the option to render. This
-  // also guarantees the dropdown is open, so Enter is captured by the
-  // component's key handler (which preventDefaults) instead of submitting.
+  // Wait for the debounced (200ms) province-scoped search to render its
+  // <li><button> options, then select the first Palermo match. Selection fires
+  // on mousedown / Enter; the component's key handler preventDefaults Enter so
+  // it never submits the form.
   const firstOption = page
     .locator("li button")
     .filter({ hasText: /Palermo/i })
     .first();
   await expect(firstOption).toBeVisible({ timeout: 15_000 });
-
-  // Select the first suggestion via the keyboard — no mouse, so no race with
-  // the mousedown handler that unmounts the dropdown.
   await localityInput.press("Enter");
 
-  // Dismiss the typeahead dropdown explicitly. On CI the results list could
-  // stay mounted over the submit button (intercepting the click and producing
-  // a false alta-hang), so Escape closes it before we reach for "Crear
-  // mascota". Selection is already committed by the Enter above.
-  await localityInput.press("Escape");
-
-  // Confirm the picker captured a locality before submitting (the form has a
+  // Confirm the picker captured a locality before advancing (paso 1 has a
   // required-locality guard); fails here with a clear message if selection
-  // didn't take, instead of a confusing redirect timeout later.
+  // didn't take, instead of a confusing bounce-back later.
   await expect(page.locator('input[name="localityName"]')).toHaveValue(/.+/);
 
-  // -- Submit -----------------------------------------------------------
+  // -- Advance to paso 2 ------------------------------------------------
+  await page.getByRole("button", { name: /continuar/i }).click();
+
+  // Paso 2 revealed: prominent photo field + the final submit button.
+  await expect(page.getByText(/tomar o elegir una foto/i)).toBeVisible();
+
+  // ── Paso 2 — submit (foto is optional; skip it) ──────────────────────
   await page.getByRole("button", { name: /crear mascota/i }).click();
 
-  // Creation must LEAVE the new-pet form (redirect to the list or the new
-  // pet's profile). Use a predicate rather than a loose /mis-mascotas/ regex —
-  // that regex also matches /mis-mascotas/nueva, so a failed create that stays
-  // on the form would slip through and fail confusingly at the list assertion.
-  // This way a create failure surfaces here, at the submit step.
+  // Creation must LEAVE the wizard. On success the action redirects to the
+  // credential screen (/mis-mascotas/nueva/{token}/credencial) — that path
+  // starts with /mis-mascotas and does not end with "/nueva", so the predicate
+  // passes while a failed create that stays on the form (…/nueva) does not.
   // Alta can take a while on a cold build (event-first dual-write + RSC
-  // revalidate), so allow ≥45s before declaring the create hung — the shorter
-  // 20s budget produced false failures on the :3000 QA server.
+  // revalidate), so allow ≥45s before declaring the create hung.
   await page.waitForURL(
     (url) => url.pathname.startsWith("/mis-mascotas") && !url.pathname.endsWith("/nueva"),
     { timeout: 45_000 },
   );
 
   // -- Assert pet is visible in the list --------------------------------
-  // Navigate to the list explicitly (we may have landed on the pet profile).
+  // Navigate to the list explicitly (we landed on the credential screen).
   // Reload once if the freshly-created pet isn't immediately listed, to defeat
   // any RSC/router-cache staleness right after the write.
   await page.goto("/mis-mascotas");
