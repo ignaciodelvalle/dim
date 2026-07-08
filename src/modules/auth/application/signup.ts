@@ -8,6 +8,14 @@
 // display_name metadata is supplied, so profiles.display_name is never NULL.
 // The real first+last name is collected in step 2 (completeIdentityAction),
 // which overwrites the provisional value.
+//
+// Every non-redirecting error branch echoes `email` back in AuthFormState.
+// React 19 auto-resets an uncontrolled `<form action={fn}>` once the action
+// resolves; a validation error here returns (no redirect), and that reset
+// would otherwise wipe the DOM-owned email the user just typed. SignupForm
+// seeds the input's `defaultValue` from the echo, mirroring the login fix
+// (bug #46). The enumeration-defense success masquerade below intentionally
+// does NOT echo email — it must stay byte-identical to a genuine success.
 
 import { headers } from "next/headers";
 
@@ -26,16 +34,16 @@ export async function signupAction(
   const tosAccepted = formData.get("tosAccepted") === "on";
 
   if (!email || !password) {
-    return { error: "Faltan datos. Completá todos los campos." };
+    return { error: "Faltan datos. Completá todos los campos.", email };
   }
   if (password.length < 8) {
-    return { error: "La contraseña debe tener al menos 8 caracteres." };
+    return { error: "La contraseña debe tener al menos 8 caracteres.", email };
   }
   if (password !== confirmPassword) {
-    return { error: "Las contraseñas no coinciden." };
+    return { error: "Las contraseñas no coinciden.", email };
   }
   if (!tosAccepted) {
-    return { error: "Tenés que aceptar los Términos y la Política de privacidad." };
+    return { error: "Tenés que aceptar los Términos y la Política de privacidad.", email };
   }
 
   // Rate limit per trusted edge IP before creating a GoTrue user. Tighter than
@@ -48,7 +56,7 @@ export async function signupAction(
     await enforceRateLimit("auth_signup_ip", ip, { maxPerMinute: 3, maxPerHour: 15 });
   } catch (err) {
     if (err instanceof RateLimitError) {
-      return { error: "Demasiados intentos. Esperá un momento y volvé a probar." };
+      return { error: "Demasiados intentos. Esperá un momento y volvé a probar.", email };
     }
     throw err;
   }
@@ -78,8 +86,13 @@ export async function signupAction(
       return { error: null, ok: true };
     }
     // Every other failure returns a single generic message — never the raw
-    // Supabase text, which could itself hint at account state.
-    return { error: "No pudimos completar el registro. Revisá tus datos e intentá de nuevo." };
+    // Supabase text, which could itself hint at account state. Echo the email
+    // so React 19's post-action form reset (bug #46, mirrored from login)
+    // doesn't wipe what the user typed.
+    return {
+      error: "No pudimos completar el registro. Revisá tus datos e intentá de nuevo.",
+      email,
+    };
   }
 
   // Do NOT redirect. The inline signup flow uses this success signal to

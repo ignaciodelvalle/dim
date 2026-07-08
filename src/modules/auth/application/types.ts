@@ -15,4 +15,12 @@ export type AuthFormState = {
 export type IdentityFormState = {
   error: string | null;
   ok?: boolean;
+  // Echo the submitted name back to the identity step of the signup form for
+  // the same reason AuthFormState echoes email (see above): React 19 resets
+  // this uncontrolled form once completeIdentityAction resolves, and a
+  // non-redirecting validation error would otherwise wipe the name the user
+  // just typed. firstName/lastName round-trip; the DNI is not echoed (out of
+  // scope of this fix — only the fields already affected by the wipe).
+  firstName?: string;
+  lastName?: string;
 };

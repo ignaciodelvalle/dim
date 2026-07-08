@@ -9,6 +9,12 @@
 // The partial unique index profiles_dni_hash_unique (migration 0106)
 // enforces uniqueness when the hash is not null. A 23505 violation here
 // means another account already holds that DNI — surface a friendly error.
+//
+// Every non-redirecting error branch echoes firstName/lastName back in
+// IdentityFormState, mirroring the login/signup field-wipe fix (bug #46):
+// React 19 auto-resets this uncontrolled form once the action resolves, and
+// a validation error (no redirect) would otherwise wipe the name the user
+// just typed. DNI is intentionally not echoed — out of scope for this fix.
 
 import { eq, sql } from "drizzle-orm";
 
@@ -36,12 +42,12 @@ export async function completeIdentityAction(
     .replace(/[.\s-]/g, "");
 
   if (!firstName || !lastName) {
-    return { error: "Ingresá tu nombre y apellido." };
+    return { error: "Ingresá tu nombre y apellido.", firstName, lastName };
   }
 
   // Validate DNI format only when provided.
   if (rawDni && !DNI_RE.test(rawDni)) {
-    return { error: "El DNI debe tener 7 u 8 dígitos numéricos." };
+    return { error: "El DNI debe tener 7 u 8 dígitos numéricos.", firstName, lastName };
   }
 
   // Location — optional. LocationFields (l1 mode) submits provinceCode (ISO)
@@ -53,7 +59,7 @@ export async function completeIdentityAction(
     normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
   } catch (err) {
     if (err instanceof CoordError) {
-      return { error: err.message };
+      return { error: err.message, firstName, lastName };
     }
     throw err;
   }
@@ -111,7 +117,11 @@ export async function completeIdentityAction(
     // drizzle 0.45 wraps the pg error; pgError unwraps the `.cause` chain to
     // the real postgres-js error. We still inspect it to log/branch internally,
     // but the user-facing copy is uniform.
-    return { error: "No pudimos guardar tus datos. Revisá la información e intentá de nuevo." };
+    return {
+      error: "No pudimos guardar tus datos. Revisá la información e intentá de nuevo.",
+      firstName,
+      lastName,
+    };
   }
 
   return { error: null, ok: true };

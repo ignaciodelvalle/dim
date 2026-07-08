@@ -45,13 +45,6 @@ export function SignupForm({
     initialIdentityState,
   );
 
-  // Controlled field state — step 1
-  const [email, setEmail] = useState("");
-
-  // Controlled field state — step 2
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-
   // Step 1 → step 2 transition.
   useEffect(() => {
     if (!authState.ok) return;
@@ -95,8 +88,12 @@ export function SignupForm({
                 required
                 aria-describedby={describedBy}
                 invalid={invalid}
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                // Uncontrolled (DOM-owned). React 19 auto-resets this form once
+                // completeIdentityAction resolves; on a validation error (no
+                // redirect) the reset would wipe the typed name. The action
+                // echoes it back in state so the reset lands on it instead
+                // (mirrors the login email fix, bug #46).
+                defaultValue={identityState.firstName ?? ""}
               />
             )}
           </LnField>
@@ -110,8 +107,7 @@ export function SignupForm({
                 required
                 aria-describedby={describedBy}
                 invalid={invalid}
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                defaultValue={identityState.lastName ?? ""}
               />
             )}
           </LnField>
@@ -178,8 +174,12 @@ export function SignupForm({
                 required
                 aria-describedby={describedBy}
                 invalid={invalid}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                // Uncontrolled (DOM-owned) — same fix as LoginForm (bug #46).
+                // React 19 auto-resets this form once signupAction resolves; a
+                // validation error (no redirect) would otherwise wipe the typed
+                // email. signupAction echoes it back in state so the reset
+                // lands on the typed value instead of clearing it.
+                defaultValue={authState.email ?? ""}
               />
             )}
           </LnField>
