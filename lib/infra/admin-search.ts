@@ -80,7 +80,14 @@ export async function searchUsers(
   // We join profiles → ownerships → pets and filter on the pet's jurisdiction
   // columns. This is a semi-join: DISTINCT ensures each user appears once even
   // if they have multiple pets in the matching jurisdiction.
-  const scopeConditions: ReturnType<typeof and>[] = [];
+  //
+  // System/service accounts (profiles.is_system, migration 0109 — e.g. the
+  // `system:backfill-*` rows migrations insert to author bulk audit trails)
+  // must never surface here: they have role='admin' so the default (no-query)
+  // listing sorted admin-first put them at the very top, reading as
+  // manageable human administrators. `/admin/admins` already partitions on
+  // this same flag — mirror it here rather than a display-name heuristic.
+  const scopeConditions: ReturnType<typeof and>[] = [eq(profiles.isSystem, false)];
   if (scope.role === "govt") {
     // At least one active ownership linking the user to a scoped pet.
     // ownerships.role = 'owner' ensures we only count real owners (not caretakers).

@@ -32,6 +32,8 @@ vi.mock("@/db", () => ({
     matriculaJurisdiccion: "profiles.matriculaJurisdiccion",
     // Wave 5 Item 25a: no plaintext DNI — displayName search only.
     dniHash: "profiles.dniHash",
+    // Migration 0109 — excludes system/service accounts from admin rosters.
+    isSystem: "profiles.isSystem",
   },
   ownerships: {
     ownerUserId: "ownerships.ownerUserId",
