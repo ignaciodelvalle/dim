@@ -21,6 +21,7 @@ import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { foundPossessivePhrase } from "@/lib/utils/format";
 
 import { FinderInPossessionForm } from "./FinderInPossessionForm";
 
@@ -208,7 +209,7 @@ export default async function FinderInPossessionPage({
     // Non-fatal — anonymous path.
   }
 
-  // Resolve owner first name (for the header copy "X está esperando que la encuentren").
+  // Resolve owner first name (for the header copy "X está esperando reencontrarse").
   // Gated on disclosePrefs — only fetch the name if the owner opted in, same as
   // the credential page (app/(public)/p/[publicToken]/page.tsx) and the cartel
   // page (app/(app)/mis-mascotas/[publicToken]/cartel/page.tsx).
@@ -252,12 +253,12 @@ export default async function FinderInPossessionPage({
             )}
             <div>
               <h1 className="text-xl font-semibold text-[var(--color-ln-ink)]">
-                La tengo conmigo: {pet.name}
+                {foundPossessivePhrase(pet.sex)}: {pet.name}
               </h1>
               <p className="text-xs text-[var(--color-ln-mute)] mt-0.5">
                 {ownerFirstName
-                  ? `${ownerFirstName} está esperando que la encuentren.`
-                  : "El dueño/a está esperando que la encuentren."}
+                  ? `${ownerFirstName} está esperando reencontrarse con ${pet.name}.`
+                  : `Su familia está esperando reencontrarse con ${pet.name}.`}
               </p>
             </div>
           </div>

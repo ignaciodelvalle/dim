@@ -52,6 +52,33 @@ export function formatDateTime(value: Date | string | null | undefined): string 
   return SPANISH_DATETIME_FORMAT.format(date);
 }
 
+// Legal-document timestamp (MPF/PPP PDF exports — staging validation
+// 2026-07-04, bug 4): seconds precision + an EXPLICIT timezone label. A legal
+// PDF printing a bare clock ("generado 06:27:41" for a 17:47 ART generation,
+// server clock = UTC) is ambiguous evidence; every legal timestamp must be
+// AR-pinned AND say so.
+const SPANISH_DATETIME_LEGAL_FORMAT = new Intl.DateTimeFormat("es-AR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  timeZone: AR_TIME_ZONE,
+});
+
+/**
+ * es-AR timestamp for legal/exported documents: "07/07/2026, 17:47:41 (hora
+ * de Argentina)". Always pinned to AR_TIME_ZONE with an explicit label —
+ * never render a legal clock without its timezone.
+ */
+export function formatDateTimeLegal(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return `${SPANISH_DATETIME_LEGAL_FORMAT.format(date)} (hora de Argentina)`;
+}
+
 // Parse a "YYYY-MM-DD" string from <input type="date"> into a Date anchored at
 // noon UTC of that calendar day. Noon UTC stays on the same calendar date when
 // rendered in any timezone within ±12 hours, so the user sees the date they
@@ -202,6 +229,19 @@ export function foundParticiple(sex: string | null | undefined): string {
     default:
       // Neutral: "encontrada/o" reads as the inclusive form when sex is unknown.
       return "encontrada/o";
+  }
+}
+
+/** Finder-claims-custody CTA, e.g. "La tengo conmigo" / "Lo tengo conmigo". */
+export function foundPossessivePhrase(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Lo tengo conmigo";
+    case "female":
+      return "La tengo conmigo";
+    default:
+      // Neutral: sidesteps the lo/la pronoun when sex is unknown.
+      return "Está conmigo";
   }
 }
 

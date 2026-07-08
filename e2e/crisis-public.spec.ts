@@ -116,7 +116,9 @@ test.describe("public credential — lost vs non-lost contrast", () => {
 
     // At least one finder channel is present (call / finder form / sighting form).
     const hasCallBtn = await page.getByRole("link", { name: /llamar/i }).count();
-    const hasFinderForm = await page.getByRole("link", { name: /la tengo conmigo/i }).count();
+    const hasFinderForm = await page
+      .getByRole("link", { name: /(la|lo) tengo conmigo|está conmigo/i })
+      .count();
     const hasSightingForm = await page.getByRole("link", { name: /la vi cerca de acá/i }).count();
     expect(hasCallBtn + hasFinderForm + hasSightingForm).toBeGreaterThan(0);
   });

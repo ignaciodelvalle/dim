@@ -122,8 +122,8 @@ describe("/p/[publicToken]/encontre — owner first-name disclosure gate", () =>
 
     const html = await renderEncontrePage();
 
-    expect(html).toContain("Lucía está esperando que la encuentren.");
-    expect(html).not.toContain("El dueño/a está esperando");
+    expect(html).toContain("Lucía está esperando reencontrarse con Firulais.");
+    expect(html).not.toContain("Su familia está esperando");
   });
 
   it("discloseFirstNameWhenLost=false shows neutral copy and never fetches the name", async () => {
@@ -133,7 +133,7 @@ describe("/p/[publicToken]/encontre — owner first-name disclosure gate", () =>
 
     const html = await renderEncontrePage();
 
-    expect(html).toContain("El dueño/a está esperando que la encuentren.");
+    expect(html).toContain("Su familia está esperando reencontrarse con Firulais.");
     expect(html).not.toContain("Lucía");
     // Defense-in-depth: the owner-name join query must never be issued when
     // the flag is off, not merely suppressed at render time.

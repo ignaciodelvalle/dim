@@ -18,7 +18,12 @@
 import { Icon } from "@/components/Icon";
 import { tattooLocationLabel } from "@/lib/reference/lookups";
 import { BRANDING } from "@/lib/ui/branding";
-import { lostBannerHeadline, lostFirstPersonLine, normalizePhoneForTel } from "@/lib/utils/format";
+import {
+  foundPossessivePhrase,
+  lostBannerHeadline,
+  lostFirstPersonLine,
+  normalizePhoneForTel,
+} from "@/lib/utils/format";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
@@ -178,7 +183,7 @@ export function LostPublicCredential({
                 href={finderFormHref}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-azul px-5 text-sm font-semibold text-white hover:bg-ln-azul-700"
               >
-                📍 La tengo conmigo
+                📍 {foundPossessivePhrase(petSex)}
               </Link>
             )}
             {sightingFormHref && (

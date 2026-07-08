@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   foundParticiple,
+  foundPossessivePhrase,
   lostBannerHeadline,
   lostFirstPersonLine,
   lostThirdPersonPhrase,
@@ -57,5 +58,17 @@ describe("foundParticiple", () => {
   it("inclusive form for unknown", () => {
     expect(foundParticiple("unknown")).toBe("encontrada/o");
     expect(foundParticiple(null)).toBe("encontrada/o");
+  });
+});
+
+describe("foundPossessivePhrase", () => {
+  it("genders by sex", () => {
+    expect(foundPossessivePhrase("male")).toBe("Lo tengo conmigo");
+    expect(foundPossessivePhrase("female")).toBe("La tengo conmigo");
+  });
+  it("neutral for unknown", () => {
+    expect(foundPossessivePhrase("unknown")).toBe("Está conmigo");
+    expect(foundPossessivePhrase(null)).toBe("Está conmigo");
+    expect(foundPossessivePhrase(undefined)).toBe("Está conmigo");
   });
 });
