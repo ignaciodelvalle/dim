@@ -49,6 +49,23 @@ describe("CABA barrios — Ley 1.777 import", () => {
     expect(row.c).toBe(48);
   });
 
+  it("ships a non-NULL centroid (latitude+longitude) for every barrio", async () => {
+    // Panorama centroid-snapping (repository.ts) drops any barrio row without
+    // coordinates, so every imported barrio MUST carry its frozen centroid.
+    const [row] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(arLocalities)
+      .where(
+        and(
+          eq(arLocalities.provinceCode, "AR-C"),
+          eq(arLocalities.source, "caba_open_data"),
+          isNull(arLocalities.removedAt),
+          sql`${arLocalities.latitude} IS NOT NULL AND ${arLocalities.longitude} IS NOT NULL`,
+        ),
+      );
+    expect(row.c).toBe(48);
+  });
+
   it("preserves the INDEC catch-all CABA entry alongside the barrios", async () => {
     const [row] = await db
       .select({ c: sql<number>`count(*)::int` })

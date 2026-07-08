@@ -17,8 +17,11 @@
 //   pnpm tsx scripts/import-caba-barrios.ts --dry-run
 //
 // Notes:
-// - We don't pretend to ship lat/lng for each barrio. Centroids are
-//   readily computable later when the city portal API is wired in.
+// - Each barrio ships its area-weighted polygon centroid (latitude/longitude),
+//   frozen in scripts/caba-barrios-data.ts (derived once from
+//   public/geo/caba-barrios.geojson). Panorama layers that snap dots to
+//   ar_localities centroids depend on these being non-NULL; the upsert below
+//   also BACKFILLS coordinates onto rows that predate this (imported NULL).
 // - indec_id stays null — these rows don't come from INDEC.
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
@@ -31,63 +34,20 @@ import {
   db,
 } from "@/db";
 
+// Canonical barrio reference data (names + area-weighted polygon centroids).
+// Single source of truth shared with seed-panorama.ts and
+// redistribute-caba-barrios.ts. We consume only name + centroid here; the
+// ar_localities locality_slug is derived by this script's own slugify()
+// (hyphenated), which differs from the geo-join slug carried on each entry.
+import { CABA_BARRIOS } from "./caba-barrios-data";
+
 const SOURCE: ArgentineLocalitySource = "caba_open_data";
 const PROVINCE_CODE = "AR-C";
 const CATEGORY = "barrio";
 const SOURCE_URL = "data.buenosaires.gob.ar (Ley CABA 1.777 — 48 barrios oficiales)";
 
-// Canonical list per Ley CABA 1.777 + Ley 8 de Comunas. Display names use
-// the spelling from the city's official barrio register (acentos preservados).
-const CABA_BARRIOS = [
-  "Agronomía",
-  "Almagro",
-  "Balvanera",
-  "Barracas",
-  "Belgrano",
-  "Boedo",
-  "Caballito",
-  "Chacarita",
-  "Coghlan",
-  "Colegiales",
-  "Constitución",
-  "Flores",
-  "Floresta",
-  "La Boca",
-  "La Paternal",
-  "Liniers",
-  "Mataderos",
-  "Monserrat",
-  "Monte Castro",
-  "Nueva Pompeya",
-  "Núñez",
-  "Palermo",
-  "Parque Avellaneda",
-  "Parque Chacabuco",
-  "Parque Chas",
-  "Parque Patricios",
-  "Puerto Madero",
-  "Recoleta",
-  "Retiro",
-  "Saavedra",
-  "San Cristóbal",
-  "San Nicolás",
-  "San Telmo",
-  "Vélez Sársfield",
-  "Versalles",
-  "Villa Crespo",
-  "Villa del Parque",
-  "Villa Devoto",
-  "Villa General Mitre",
-  "Villa Lugano",
-  "Villa Luro",
-  "Villa Ortúzar",
-  "Villa Pueyrredón",
-  "Villa Real",
-  "Villa Riachuelo",
-  "Villa Santa Rita",
-  "Villa Soldati",
-  "Villa Urquiza",
-] as const;
+// The canonical Ley CABA 1.777 barrio list (names + centroids) lives in
+// scripts/caba-barrios-data.ts (imported above as CABA_BARRIOS).
 
 function slugify(s: string): string {
   return s
@@ -133,17 +93,25 @@ export async function runImport(options?: { dryRun?: boolean }): Promise<Stats> 
     const toTouchIds: string[] = [];
     const now = new Date();
 
-    for (const localityName of CABA_BARRIOS) {
+    for (const barrio of CABA_BARRIOS) {
+      const localityName = barrio.name;
       const slug = slugify(localityName);
+      // Area-weighted polygon centroid, clamped to the column's numeric(10,7).
+      const latitude = barrio.lat.toFixed(7);
+      const longitude = barrio.lng.toFixed(7);
       const existing = existingBySlug.get(slug);
 
       if (existing) {
         // Already there. Bump last_imported_at + migrate source/version if it
-        // came in via a different ingest path. Otherwise no-op (touch only).
+        // came in via a different ingest path. Also BACKFILL the centroid onto
+        // rows imported before we shipped coordinates (latitude/longitude NULL)
+        // — panorama centroid-snapping drops any barrio row without coords.
         const needsUpdate =
           existing.source !== SOURCE ||
           existing.category !== CATEGORY ||
-          existing.localityName !== localityName;
+          existing.localityName !== localityName ||
+          existing.latitude !== latitude ||
+          existing.longitude !== longitude;
         if (needsUpdate) {
           if (!dryRun) {
             await db
@@ -153,6 +121,8 @@ export async function runImport(options?: { dryRun?: boolean }): Promise<Stats> 
                 sourceVersion: "1.777",
                 category: CATEGORY,
                 localityName,
+                latitude,
+                longitude,
                 lastImportedAt: now,
               })
               .where(eq(arLocalities.id, existing.id));
@@ -173,8 +143,8 @@ export async function runImport(options?: { dryRun?: boolean }): Promise<Stats> 
         localitySlug: slug,
         indecId: null,
         category: CATEGORY,
-        latitude: null,
-        longitude: null,
+        latitude,
+        longitude,
         source: SOURCE,
         sourceVersion: "1.777",
       });

@@ -11,11 +11,11 @@
  * INDEC's CPPDyL dataset treats CABA as a SINGLE locality ("Ciudad Autónoma de
  * Buenos Aires", category='componente' in ar_localities — the whole-city
  * operator placeholder, NOT a barrio). The 48 barrios (Ley CABA 1.777) are
- * imported by scripts/import-caba-barrios.ts but WITHOUT coordinates. The
- * panorama seed's loadLocalities() filters `latitude IS NOT NULL`, so the
- * barrios are excluded and every CABA pet fell back to the placeholder — the
- * govt panorama then read CABA as one undifferentiated blob instead of a real
- * by-barrio distribution.
+ * imported by scripts/import-caba-barrios.ts. The centroids below are the
+ * source of truth those imports write into ar_localities.latitude/longitude,
+ * so the panorama seed's loadLocalities() (which filters `latitude IS NOT
+ * NULL`) keeps them and CABA pets distribute across real barrios instead of
+ * collapsing onto the whole-city placeholder blob.
  *
  * The 48 names below are byte-identical to scripts/import-caba-barrios.ts's
  * canonical Ley 1.777 register (so a relabeled pet points at a real
@@ -138,35 +138,8 @@ export const CABA_BARRIOS: readonly CabaBarrio[] = [
 /** Set of the 48 canonical barrio names — for "is this already a real barrio?" checks. */
 export const CABA_BARRIO_NAMES: ReadonlySet<string> = new Set(CABA_BARRIOS.map((b) => b.name));
 
-/** Sum of all barrio weights (memoized). */
+/**
+ * Sum of all barrio weights. Used by the SQL weighted-pick modulo in
+ * scripts/redistribute-caba-barrios.ts (see pickExpr / barriosCte there).
+ */
 export const CABA_TOTAL_WEIGHT: number = CABA_BARRIOS.reduce((s, b) => s + b.weight, 0);
-
-/**
- * Deterministic, stable 31-bit hash of a string (FNV-1a, masked non-negative).
- * Used to derive a repeatable barrio assignment from a row id so that
- * re-running the migration converges (same id → same barrio).
- */
-export function hash31(input: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    h ^= input.charCodeAt(i);
-    // FNV prime multiply via shifts (keeps within 32-bit via Math.imul).
-    h = Math.imul(h, 0x01000193);
-  }
-  // Mask to a non-negative 31-bit integer.
-  return (h & 0x7fffffff) >>> 0;
-}
-
-/**
- * Deterministic weighted barrio pick from a stable string key (e.g. a pet id).
- * Same key → same barrio, forever. Bigger-weight barrios are proportionally
- * more likely; every barrio is reachable.
- */
-export function pickCabaBarrio(key: string): CabaBarrio {
-  let r = hash31(key) % CABA_TOTAL_WEIGHT;
-  for (const b of CABA_BARRIOS) {
-    if (r < b.weight) return b;
-    r -= b.weight;
-  }
-  return CABA_BARRIOS[CABA_BARRIOS.length - 1];
-}

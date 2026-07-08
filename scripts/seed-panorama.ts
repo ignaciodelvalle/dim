@@ -61,7 +61,7 @@ import {
 // import statically (no db side-effect). Used to replace the whole-city
 // "Ciudad Autónoma de Buenos Aires" placeholder locality with the 48 real
 // barrios so CABA pets distribute across barrios instead of one blob.
-import { CABA_BARRIOS, CABA_PLACEHOLDER_LOCALITY } from "./caba-barrios-data";
+import { CABA_BARRIOS, CABA_BARRIO_NAMES, CABA_PLACEHOLDER_LOCALITY } from "./caba-barrios-data";
 
 // ---------------------------------------------------------------------------
 // 1. Env bootstrap (must run before db/index.ts is imported)
@@ -550,11 +550,20 @@ async function loadLocalities(): Promise<Map<string, LocalityRow[]>> {
  * naturally spread CABA pets/events across barrios. The CABA METRO_ANCHORS
  * (Palermo, Caballito, Belgrano, Recoleta, Flores) now resolve to real barrio
  * rows, giving the big barrios the bulk while every barrio still gets some.
+ *
+ * IDEMPOTENT: import-caba-barrios.ts now ships the barrios WITH centroids, so
+ * loadLocalities() can pick them up from the DB. To avoid double-adding, we
+ * drop any AR-C row whose name is a real barrio (as well as the whole-city
+ * placeholder) before appending the frozen 48 — whether the coords came from
+ * the DB or not, the injected set is the single authoritative copy.
  */
 function injectCabaBarrios(byProvince: Map<string, LocalityRow[]>): void {
   const existing = byProvince.get("AR-C") ?? [];
-  // Keep any unexpected non-placeholder AR-C rows; drop the whole-city blob.
-  const kept = existing.filter((l) => l.localityName !== CABA_PLACEHOLDER_LOCALITY);
+  // Keep only rows that are neither the whole-city blob nor a real barrio the
+  // DB import already loaded — then append the frozen 48 so there are no dupes.
+  const kept = existing.filter(
+    (l) => l.localityName !== CABA_PLACEHOLDER_LOCALITY && !CABA_BARRIO_NAMES.has(l.localityName),
+  );
   const barrioRows: LocalityRow[] = CABA_BARRIOS.map((b) => ({
     id: `caba-barrio-${b.slug}`,
     provinceCode: "AR-C",
@@ -565,7 +574,7 @@ function injectCabaBarrios(byProvince: Map<string, LocalityRow[]>): void {
   byProvince.set("AR-C", [...kept, ...barrioRows]);
   log(
     "INFO",
-    `CABA: replaced the whole-city placeholder with ${barrioRows.length} real barrios (dropped ${existing.length - kept.length} placeholder row)`,
+    `CABA: normalized AR-C to the 48 real barrios (dropped ${existing.length - kept.length} placeholder/duplicate row(s))`,
   );
 }
 
