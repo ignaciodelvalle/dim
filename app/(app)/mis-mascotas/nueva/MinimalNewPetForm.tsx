@@ -188,10 +188,10 @@ export function MinimalNewPetForm({
       >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="mb-6">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[var(--text-2xl)] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             {isFirstPet ? "Registrar tu primera mascota" : "Registrar mascota"}
           </h1>
-          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+          <p className="mt-1 text-md text-[var(--color-ln-mute)]">
             {step === 1
               ? "Empezamos por lo que la identifica."
               : "Sumá una foto y algún dato más. Podés hacerlo ahora o más tarde."}
@@ -367,14 +367,14 @@ export function MinimalNewPetForm({
               <div className="mt-3 flex flex-col gap-2">
                 <Link
                   href={`/mis-mascotas/${duplicatePrompt.publicToken}`}
-                  className="inline-flex w-full items-center justify-center rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[13px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
+                  className="inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[var(--text-md)] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
                 >
                   Ver a {duplicatePrompt.name}
                 </Link>
                 <button
                   type="button"
                   onClick={createAnyway}
-                  className="inline-flex w-full cursor-pointer items-center justify-center rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 text-[13px] font-semibold text-[var(--color-ln-ink-2)] transition-colors hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]"
+                  className="inline-flex w-full cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 text-[var(--text-md)] font-semibold text-[var(--color-ln-ink-2)] transition-colors hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]"
                 >
                   No, es otra — crear igual
                 </button>
@@ -389,7 +389,7 @@ export function MinimalNewPetForm({
             <button
               type="button"
               onClick={goToStep2}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[var(--text-md)] font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
             >
               Continuar
             </button>
@@ -397,7 +397,7 @@ export function MinimalNewPetForm({
             <button
               type="submit"
               disabled={isPending}
-              className="inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[var(--text-md)] font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending ? (
                 <>
@@ -434,7 +434,7 @@ function SpeciesField({
   onOtherSpeciesChange: (v: string) => void;
 }) {
   const chipBase =
-    "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] border-2 px-3.5 py-3.5 text-[13px] font-semibold transition-colors select-none";
+    "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--radius-md)] border-2 px-3.5 py-3.5 text-[var(--text-md)] font-semibold transition-colors select-none";
   const chipActive =
     "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]";
   const chipIdle =
@@ -471,7 +471,7 @@ function SpeciesField({
               .filter(Boolean)
               .join(" ")}
           >
-            <span className="text-[22px] leading-none">{emoji}</span>
+            <span className="text-[var(--text-2xl)] leading-none">{emoji}</span>
             <span>{label}</span>
           </button>
         ))}
@@ -544,15 +544,15 @@ function PhotoField() {
           <img
             src={preview}
             alt="Vista previa de la mascota"
-            className="h-[84px] w-[84px] flex-shrink-0 rounded-[5px] object-cover"
+            className="h-[84px] w-[84px] flex-shrink-0 rounded-[var(--radius-md)] object-cover"
           />
         ) : (
-          <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[var(--color-ln-stripe)] text-[11px] text-[var(--color-ln-mute)]">
+          <div className="flex h-[84px] w-[84px] flex-shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-ln-stripe)] text-[var(--text-sm)] text-[var(--color-ln-mute)]">
             Sin foto
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium text-[var(--color-ln-ink-2)]">
+          <p className="text-[var(--text-md)] font-medium text-[var(--color-ln-ink-2)]">
             {preview ? "Cambiar foto" : "Tomar o elegir una foto"}
           </p>
           <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
@@ -573,7 +573,7 @@ function PhotoField() {
         <button
           type="button"
           onClick={removePhoto}
-          className="self-start font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+          className="self-start font-[var(--font-ln-mono)] text-[var(--text-sm)] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
         >
           Quitar foto
         </button>
