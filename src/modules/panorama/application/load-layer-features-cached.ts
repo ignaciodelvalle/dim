@@ -46,11 +46,18 @@ import { isIncrementalCacheMissing } from "./data-cache";
 import { type LayerFeaturesResult, type LayerPeriod, getLayerFeatures } from "./get-layer-features";
 
 /**
- * Key-bucket width: 60s, mirroring kpis-cache's `KPIS_CACHE_TTL_MS`. Preset
+ * Key-bucket width: 300s, ALIGNED WITH `LAYER_CACHE_REVALIDATE_S`. Preset
  * periods advance `until`/`asOf` to now on every request; flooring the window
  * endpoints to this bucket keeps the key stable while bounding staleness.
+ *
+ * MEASURED ON STAGING (2026-07-09): the original 60s bucket made the rolling
+ * `until=now` produce a NEW key every minute, so the 300s-TTL entries could
+ * only ever hit within the same minute — repeat loads minutes apart always
+ * recomputed (layer APIs stayed at 3-11s). Bucket == TTL means a key stays
+ * live for exactly one revalidate window; worst-case data staleness is
+ * bucket + TTL ≈ 10 min, fine for day-granularity synthetic aggregates.
  */
-export const LAYER_KEY_BUCKET_MS = 60_000;
+export const LAYER_KEY_BUCKET_MS = 300_000;
 
 /**
  * How long a cached layer envelope lives in the Data Cache before it goes stale
