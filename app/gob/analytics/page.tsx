@@ -1,4 +1,3 @@
-import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
@@ -14,7 +13,6 @@ import {
   RABIES_VACCINATION_RATE_LABEL_ES,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
-  fetchCasesPerCapita,
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/analytics/govt-dashboards";
@@ -28,7 +26,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
-import { deathCauseLabel, formatPercent, formatRate } from "@/lib/utils/format";
+import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";
@@ -116,7 +114,6 @@ export default async function GobAnalyticsPage({
     acquisitionTrend,
     deathCauses,
     outbreakHistory,
-    casesPerCapita,
     regionRanking,
     signalsTrend,
     petRegisteredTrend,
@@ -125,7 +122,6 @@ export default async function GobAnalyticsPage({
     fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
     fetchDeathCauses(actor, filteredJurisdictions, { since }),
     fetchOutbreakHistory(actor, filteredJurisdictions),
-    fetchCasesPerCapita(actor, filteredJurisdictions),
     fetchRegionRanking(actor, filteredJurisdictions),
     fetchOutbreakSignalsTrend(trendCtx),
     // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
@@ -144,23 +140,10 @@ export default async function GobAnalyticsPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
-  // Shape map data -- per-capita rate per province (casos por 10k hab., INDEC 2022).
-  // Provinces with no census row (ratePer10k === null) are omitted so the map
-  // renders them as COLOR_NO_DATA ("sin datos") instead of mixing a raw count
-  // onto the per-capita scale (which would produce false hotspots).
-  const choroplethData = casesPerCapita
-    .filter((row) => row.code !== "" && row.ratePer10k !== null)
-    .map((row) => ({
-      code: row.code,
-      value: row.ratePer10k as number,
-      label: `${formatRate(row.ratePer10k as number)} casos por 10k hab.`,
-    }));
-
   // Compute bar chart max for death causes.
   const maxDeathCount = deathCauses.reduce((m, r) => Math.max(m, r.count), 0);
 
   const panelAcquisitionId = "panel-acquisition-titulo";
-  const panelMapId = "panel-mapa-analytics-titulo";
   const panelDeathId = "panel-death-titulo";
   const panelOutbreakId = "panel-outbreak-titulo";
   const panelRankingId = "panel-ranking-titulo";
@@ -302,28 +285,11 @@ export default async function GobAnalyticsPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Geographic distribution + cross-region ranking */}
-      <OpCard aria-labelledby={panelMapId}>
-        <OpCardHead
-          title={
-            <span id={panelMapId}>
-              Distribución geográfica{" "}
-              <span className="text-[11px] font-normal text-ln-op-mute">
-                por 10.000 hab. (INDEC 2022)
-              </span>
-            </span>
-          }
-        />
-        <OpCardBody>
-          <MapChoroplethDynamic
-            data={choroplethData}
-            scaleLabel="Casos por 10k hab."
-            fallbackTableLabel="Casos por 10.000 habitantes por provincia"
-          />
-        </OpCardBody>
-      </OpCard>
-
-      {/* Cross-region ranking table (Item 22) */}
+      {/* Cross-region ranking table (Item 22). A "casos por 10k hab." choropleth
+          previously sat above this — removed: same spatial question (open-case
+          distribution by province) as /gob/vigilancia's national map, just
+          normalized instead of raw. Demoted per PO review; raw counts remain
+          visible on /gob/vigilancia. */}
       {(regionRanking.top.length > 0 || regionRanking.bottom.length > 0) && (
         <OpCard aria-labelledby={panelRankingId}>
           <OpCardHead

@@ -10,7 +10,6 @@
 // Consumes Item 23 primitives: OpKpi v2, MapChoropleth v2, JurisdictionSwitcher, PeriodPicker.
 // Builds on lib/metrics/ (ProjectionContext, buildProjectionContext).
 
-import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -22,7 +21,6 @@ import {
   GOB_ALL_PROVINCES,
   PROVINCE_ISO_MAP,
 } from "@/lib/analytics/govt-dashboards";
-import { RAMP_BLUE, RAMP_GREEN } from "@/lib/analytics/viz-scales";
 import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -144,33 +142,11 @@ export default async function GobCampanasPage({
     periodLabel,
   );
 
-  // Choropleth: aggregate geoReach by province for the province-level map.
-  // The basemap GeoJSON joins on province ISO code — locality-level codes would
-  // produce orphan data and render nothing. Sum attendedCount per province.
-  const provinceAttendance = new Map<string, { isoCode: string; name: string; count: number }>();
-  for (const r of dashboard.geoReach) {
-    const provinceName = r.province;
-    if (!provinceName) continue;
-    const isoCode = PROVINCE_ISO_MAP[provinceName];
-    if (!isoCode) continue;
-    const existing = provinceAttendance.get(isoCode);
-    if (existing) {
-      existing.count += r.attendedCount;
-    } else {
-      provinceAttendance.set(isoCode, { isoCode, name: provinceName, count: r.attendedCount });
-    }
-  }
-  const choroplethData = Array.from(provinceAttendance.values()).map((p) => ({
-    code: p.isoCode,
-    value: p.count,
-    label: `${p.count} ${p.count === 1 ? "asistencia" : "asistencias"} en ${p.name}`,
-  }));
-
   const hasData = dashboard.offerings.length > 0;
 
   const panelKpiId = "panel-kpis-campanias";
   const panelOfferingsId = "panel-ofertas-campanias";
-  const panelMapId = "panel-mapa-campanias";
+  const panelGeoId = "panel-alcance-geografico-campanias";
 
   return (
     <div className="space-y-6">
@@ -423,12 +399,15 @@ export default async function GobCampanasPage({
             </OpCardBody>
           </OpCard>
 
-          {/* Geographic reach choropleth */}
+          {/* Geographic reach — locality-level table. A province choropleth
+              previously sat above this table, but it only re-aggregated the
+              same geoReach rows to province granularity (strictly less
+              detail than the table below) — demoted per PO review. */}
           {dashboard.geoReach.length > 0 && (
-            <OpCard aria-labelledby={panelMapId}>
+            <OpCard aria-labelledby={panelGeoId}>
               <OpCardHead
                 title={
-                  <span id={panelMapId}>
+                  <span id={panelGeoId}>
                     Alcance geográfico
                     <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
                       localidades con asistencias
@@ -437,54 +416,35 @@ export default async function GobCampanasPage({
                 }
               />
               <OpCardBody>
-                {/* Province-level choropleth — joins on province ISO code from
-                    the basemap GeoJSON. geoReach rows are aggregated by province
-                    so every region renders; localities without an ISO-mapped province
-                    are silently dropped (they show as COLOR_NO_DATA).
-                    The colorScale comes from viz-scales (no arbitrary hex). */}
-                <MapChoroplethDynamic
-                  data={choroplethData}
-                  level="province"
-                  colorScale={RAMP_BLUE}
-                  scaleLabel="Asistencias"
-                  fallbackTableLabel="Asistencias por provincia en campañas sanitarias"
-                />
-
-                {/* Accessibility: data table below the map */}
-                <details className="mt-3">
-                  <summary className="text-[11px] text-ln-op-mute cursor-pointer hover:text-ln-op-ink">
-                    Ver datos de alcance geográfico (tabla)
-                  </summary>
-                  <table className="mt-2 w-full text-sm border-collapse">
-                    <caption className="sr-only">
-                      Asistencias por localidad en campañas sanitarias
-                    </caption>
-                    <thead>
-                      <tr className="border-b border-ln-op-line">
-                        <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
-                          Localidad
-                        </th>
-                        <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
-                          Provincia
-                        </th>
-                        <th scope="col" className="py-1 text-right font-semibold text-ln-op-mute">
-                          Asistencias
-                        </th>
+                <table className="w-full text-sm border-collapse">
+                  <caption className="sr-only">
+                    Asistencias por localidad en campañas sanitarias
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-ln-op-line">
+                      <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
+                        Localidad
+                      </th>
+                      <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
+                        Provincia
+                      </th>
+                      <th scope="col" className="py-1 text-right font-semibold text-ln-op-mute">
+                        Asistencias
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dashboard.geoReach.map((r) => (
+                      <tr key={r.locality} className="border-b border-ln-op-line/50">
+                        <td className="py-1 text-ln-op-ink">{r.locality}</td>
+                        <td className="py-1 text-ln-op-mute">{r.province ?? "—"}</td>
+                        <td className="py-1 text-right tabular-nums text-ln-op-ink">
+                          {r.attendedCount}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {dashboard.geoReach.map((r) => (
-                        <tr key={r.locality} className="border-b border-ln-op-line/50">
-                          <td className="py-1 text-ln-op-ink">{r.locality}</td>
-                          <td className="py-1 text-ln-op-mute">{r.province ?? "—"}</td>
-                          <td className="py-1 text-right tabular-nums text-ln-op-ink">
-                            {r.attendedCount}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </details>
+                    ))}
+                  </tbody>
+                </table>
               </OpCardBody>
             </OpCard>
           )}
