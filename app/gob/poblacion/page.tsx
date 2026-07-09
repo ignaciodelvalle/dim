@@ -277,7 +277,7 @@ export default async function GobPoblacionPage({
         <OpKpi
           label="Preñeces activas"
           value={activePregnancies.toLocaleString("es-AR")}
-          sub="mascotas con pregnancy_status='in_progress'"
+          sub="preñez registrada y aún no cerrada"
           tone={activePregnancies > 0 ? "warn" : "neutral"}
           info={{
             definition:
@@ -393,7 +393,7 @@ export default async function GobPoblacionPage({
             <LnEmptyState
               icon="chart-line"
               title="Sin esterilizaciones en el período"
-              description="No hay eventos sterilization_performed en el rango y la cobertura seleccionados."
+              description="No hay esterilizaciones registradas en el rango y la cobertura seleccionados."
             />
           ) : (
             <TimeSeriesChartDynamic

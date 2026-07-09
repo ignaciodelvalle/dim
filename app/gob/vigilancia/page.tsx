@@ -575,7 +575,7 @@ export default async function GobVigilanciaPage({
             <LnEmptyState
               icon="shield-check"
               title="Sin movimientos en el período"
-              description="No se registraron eventos movement_recorded en el rango y la cobertura seleccionados."
+              description="No se registraron movimientos de mascotas en el rango y la cobertura seleccionados."
             />
           ) : (
             <>

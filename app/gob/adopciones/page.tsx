@@ -195,7 +195,7 @@ export default async function GobAdopcionesPage({
           value={
             shelterOccupancy.occupied > 0 ? shelterOccupancy.occupied.toLocaleString("es-AR") : "—"
           }
-          sub="ownerships shelter_custody activas en la cobertura"
+          sub="custodias en refugio activas en la cobertura"
           info={{
             definition:
               "Animales con ownerships.role = 'shelter_custody' y ended_at IS NULL, scoped a la jurisdicción.",
@@ -219,7 +219,7 @@ export default async function GobAdopcionesPage({
         <OpKpi
           label="Adopciones"
           value={funnel.adoption > 0 ? funnel.adoption.toLocaleString("es-AR") : "—"}
-          sub="adoption_finalized en el período y la cobertura"
+          sub="adopciones finalizadas en el período y la cobertura"
           sparkline={
             adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined
           }
@@ -483,8 +483,9 @@ export default async function GobAdopcionesPage({
                 </tbody>
               </table>
               <p className="mt-2 text-xs text-ln-op-mute">
-                Duración: COALESCE(ended_at, now()) − started_at para ownerships que se superponen
-                con el período en la cobertura seleccionada.
+                Duración: desde el inicio de la custodia hasta su cierre (o hasta hoy si sigue
+                activa), para custodias que se superponen con el período en la cobertura
+                seleccionada.
               </p>
             </div>
           )}
@@ -605,7 +606,7 @@ export default async function GobAdopcionesPage({
             <LnEmptyState
               icon="chart-line"
               title="Sin adopciones en el período"
-              description="No hay eventos adoption_finalized en el rango y la cobertura seleccionados."
+              description="No hay adopciones finalizadas en el rango y la cobertura seleccionados."
             />
           ) : (
             <TimeSeriesChartDynamic
