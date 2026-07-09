@@ -23,6 +23,7 @@ import {
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
+import { DEFAULT_PANORAMA_PRESET_ID, type PresetId } from "@/src/modules/panorama/domain/presets";
 
 // Centro de Situación Nacional — gobierno view (jurisdiction scope).
 // govt sees only its assigned jurisdictions (intersection inherited from the
@@ -117,6 +118,18 @@ export default async function GobPanoramaPage({
       ? allowedProvinces[0].code
       : undefined;
 
+  // Role-aware default vista (audit-ratified 2026-07-09): the first-visit preset
+  // follows the operator's urgent question. A jurisdiction (govt) operator opens
+  // on local syndromic surveillance ("sintomas" — base síntomas density + señal
+  // de zoonosis, locality-level, framing-less so it stays in THEIR jurisdiction),
+  // the sanitary-surveillance question they act on; an admin viewing /gob keeps
+  // the national overview default. Presentation-only — respects the URL ?preset
+  // contract (applied only on a bare first visit; never overrides an explicit
+  // board). The server-seeded default LAYER (perdidas) is unchanged; this only
+  // steers the client's first-visit preset auto-activation.
+  const defaultPresetId: PresetId =
+    profile.role === "admin" ? DEFAULT_PANORAMA_PRESET_ID : "sintomas";
+
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
   // Default layer features + the headline KPIs + the jurisdiction bbox resolve
@@ -182,6 +195,7 @@ export default async function GobPanoramaPage({
       initialBounds={initialBounds ?? undefined}
       initialLevel={initialLevel}
       initialDivisionProvince={initialDivisionProvince}
+      defaultPresetId={defaultPresetId}
     />
   );
 }

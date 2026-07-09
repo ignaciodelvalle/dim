@@ -509,6 +509,33 @@ describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 h
     });
   });
 
+  it("honors a role-aware defaultPresetId — govt lands on 'sintomas' (local surveillance)", async () => {
+    // Audit-ratified 2026-07-09: a jurisdiction (govt) operator opens on local
+    // syndromic surveillance instead of the national welfare default. The server
+    // page passes the role-resolved preset; the console default-activates IT on a
+    // truly-bare first visit (same URL-contract guard as the fallback).
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+    renderRedesignConsole({ defaultPresetId: "sintomas" });
+
+    expect(pushSpy).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("sintomas");
+    expect(params.get("period")).toBe("30d");
+    expect(params.get("layers")).toBe("zoonosis,sintomas");
+    // sintomas is a locality-level drill-down preset — framing-less, so it stays
+    // in the operator's jurisdiction (no national frame on the default land).
+    expect(mapProps?.frame).toBeNull();
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.startsWith("/api/panorama/") && !u.includes("/kpis"));
+      expect(
+        layerCalls.some((u) => u.includes("/api/panorama/sintomas") && u.includes("period=30d")),
+      ).toBe(true);
+    });
+  });
+
   it("does NOT default-activate when the URL carries an explicit period (deliberate navigation)", () => {
     setUrl("/gob/panorama?period=30d");
     renderRedesignConsole();

@@ -4,6 +4,7 @@ import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import type { PresetId } from "@/src/modules/panorama/domain/presets";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -69,6 +70,14 @@ type Props = {
    * Presentation-only: the data scope is unchanged (enforced server-side).
    */
   initialDivisionProvince?: string | null;
+  /**
+   * Role-aware default vista auto-activated on a first visit (bare URL). The
+   * page resolves it from the operator's role: a jurisdiction (govt) operator
+   * opens on local syndromic surveillance; admin keeps the national default.
+   * Omitted → PanoramaConsole falls back to DEFAULT_PANORAMA_PRESET_ID.
+   * Presentation-only; the URL ?preset contract still wins.
+   */
+  defaultPresetId?: PresetId;
 };
 
 export function PanoramaShell({
@@ -85,6 +94,7 @@ export function PanoramaShell({
   suppressDemoDisclosure = false,
   initialLevel = "province",
   initialDivisionProvince,
+  defaultPresetId,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -126,6 +136,7 @@ export function PanoramaShell({
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}
         initialDivisionProvince={initialDivisionProvince}
+        defaultPresetId={defaultPresetId}
         filtersSlot={
           <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3">
             <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />

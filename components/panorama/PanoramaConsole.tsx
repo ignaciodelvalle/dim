@@ -290,6 +290,16 @@ type Props = {
    * scope (those keep today's behavior: provinces basemap until an explicit pick).
    */
   initialDivisionProvince?: string | null;
+  /**
+   * Preset auto-activated on a TRULY-FIRST visit (bare URL, no saved board, no
+   * explicit ?preset/?period). Role-aware default: the server passes the vista
+   * that matches the operator's urgent question — a jurisdiction (govt) operator
+   * opens on local syndromic surveillance ("sintomas"), an admin keeps the
+   * national overview default. Falls back to DEFAULT_PANORAMA_PRESET_ID when the
+   * page doesn't specify one. Presentation-only — the URL ?preset contract still
+   * wins (this only applies when no explicit board is present).
+   */
+  defaultPresetId?: PresetId;
 };
 
 export function PanoramaConsole({
@@ -304,6 +314,7 @@ export function PanoramaConsole({
   initialLevel = "province",
   filtersSlot,
   initialDivisionProvince = null,
+  defaultPresetId = DEFAULT_PANORAMA_PRESET_ID,
 }: Props) {
   const searchParams = useSearchParams();
   // panorama-redesign Fase 1: per-key fetch cancellation. Key = layer id for
@@ -1623,8 +1634,9 @@ export function PanoramaConsole({
     if (current.get("period") !== null || current.get("preset") !== null) return;
     if (saved === null) {
       // (c) No explicit board, no saved board — first visit: land on the
-      // flagship question-framed preset instead of the orphan default layer.
-      applyPreset(DEFAULT_PANORAMA_PRESET_ID, "replace");
+      // role-aware question-framed preset (govt → local surveillance, admin →
+      // national default) instead of the orphan default layer.
+      applyPreset(defaultPresetId, "replace");
       return;
     }
     const savedIds = parseLayersParam(saved.layers || null);
@@ -1680,7 +1692,7 @@ export function PanoramaConsole({
     });
     const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
     if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
-  }, [fetchLayersInto, applyPreset]);
+  }, [fetchLayersInto, applyPreset, defaultPresetId]);
 
   const mapLabel = useMemo(() => {
     const names = activeLayers.map((l) => l.label);
