@@ -181,7 +181,7 @@ export default async function GobCampanasPage({
         <p className="text-[13px] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
-            : "Inscripciones, completitud y alcance geográfico de las campañas sanitarias en tu cobertura."}
+            : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
         </p>
       </header>
 
@@ -213,7 +213,7 @@ export default async function GobCampanasPage({
       ) : (
         <>
           {/* KPI row */}
-          <section aria-labelledby={panelKpiId} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <section aria-labelledby={panelKpiId} className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <span id={panelKpiId} className="sr-only">
               Indicadores de campañas
             </span>
@@ -272,6 +272,24 @@ export default async function GobCampanasPage({
                 caveat: "Las ausencias pueden indicar barreras de acceso — considerar recontacto.",
               }}
             />
+
+            {/* Sanitary OUTCOME — projected over the pet_events spine, not logistics.
+                Exact per-appointment attribution via appointments.outcome_event_id. */}
+            <OpKpi
+              label="Impacto sanitario"
+              value={String(dashboard.totals.sanitaryOutcome)}
+              tone="ok"
+              info={{
+                definition:
+                  "Prestaciones sanitarias efectivamente registradas como evento inmutable (vacuna aplicada, castración realizada, desparasitación) a partir de turnos asistidos de la campaña. Es el RESULTADO, no la logística.",
+                formula:
+                  "eventos sanitarios (vaccination/sterilization/deworming) vinculados a turnos asistidos",
+                caveat:
+                  dashboard.totals.outcomeConversionRate !== null
+                    ? `Conversión asistencia → prestación: ${dashboard.totals.outcomeConversionRate}%. Por debajo de 100% indica turnos asistidos sin registro sanitario inmutable.`
+                    : "Atribución exacta por turno (outcome_event_id), no un proxy por ventana temporal.",
+              }}
+            />
           </section>
 
           {/* Per-offering table */}
@@ -320,7 +338,7 @@ export default async function GobCampanasPage({
                       </div>
 
                       {/* Metrics row */}
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+                      <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                         {/* Enrollment */}
                         <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe px-2 py-1.5">
                           <p className="text-lg font-semibold font-ln-serif text-ln-op-ink leading-none">
@@ -379,6 +397,21 @@ export default async function GobCampanasPage({
                             <p className="text-[9px] text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
                               <span aria-hidden="true">⚠</span>
                               <span>No-show</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Sanitary outcome — real prestaciones from the event spine */}
+                        <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe px-2 py-1.5">
+                          <p className="text-lg font-semibold font-ln-serif text-ln-op-ok leading-none">
+                            {offering.sanitaryOutcome}
+                          </p>
+                          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                            Prestaciones
+                          </p>
+                          {offering.outcomeConversionRate !== null && (
+                            <p className="text-[9px] text-ln-op-mute mt-0.5">
+                              {offering.outcomeConversionRate}% conv.
                             </p>
                           )}
                         </div>

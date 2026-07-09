@@ -17,8 +17,65 @@
 
 import { and, count, countDistinct, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 
-import { appointments, db, serviceOfferings } from "@/db";
+import { appointments, db, petEvents, serviceOfferings } from "@/db";
 import type { ProjectionContext } from "@/lib/metrics";
+
+// ---------------------------------------------------------------------------
+// Sanitary outcome event spine
+// ---------------------------------------------------------------------------
+//
+// Enrollment/completion/no-show measure LOGISTICS (who booked, who showed up).
+// They do NOT measure the sanitary RESULT. The result lives in the append-only
+// pet_events spine: an attended appointment writes an immutable medical event
+// and links it back via appointments.outcome_event_id (see
+// src/modules/events/application/attendance/mark-appointment-attended.ts).
+//
+// Because that FK is a PRECISE per-appointment link, we compute EXACT
+// attribution — not a jurisdiction/time-window proxy: each attended campaign
+// appointment whose linked outcome event is a sanitary type counts as one real
+// prestación delivered (dose in the arm / castración performed / dosis of
+// dewormer administered). The conversion attended → prestación surfaces the gap
+// between "marked attended" and "an immutable sanitary record actually exists".
+
+/** pet_event types that represent a real sanitary prestación (the campaign RESULT). */
+export const SANITARY_OUTCOME_EVENT_TYPES = [
+  "vaccination_administered",
+  "sterilization_performed",
+  "deworming_administered",
+] as const;
+
+export type SanitaryOutcomeEventType = (typeof SANITARY_OUTCOME_EVENT_TYPES)[number];
+
+/** Type guard: is this pet_event type a sanitary prestación we attribute to a campaign? */
+export function isSanitaryOutcomeEvent(eventType: string): eventType is SanitaryOutcomeEventType {
+  return (SANITARY_OUTCOME_EVENT_TYPES as readonly string[]).includes(eventType);
+}
+
+/** One attended appointment joined to its linked outcome event (via outcome_event_id). */
+export type CampaignOutcomeRow = {
+  offeringId: string;
+  /** pet_events.event_type of the linked outcome event. */
+  eventType: string;
+};
+
+/**
+ * Pure aggregation: fold linked outcome events into per-offering sanitary counts.
+ *
+ * Only rows whose linked event is a sanitary prestación are counted — a
+ * vet_visit_logged fallback (e.g. a general-checkup offering, or a legacy
+ * attended appointment without a sanitary event) is intentionally excluded, so
+ * the count is the true number of sanitary records the campaign produced.
+ *
+ * Exported for unit testing against synthetic events without a database.
+ */
+export function aggregateCampaignOutcomes(rows: CampaignOutcomeRow[]): Map<string, number> {
+  const byOffering = new Map<string, number>();
+  for (const row of rows) {
+    if (!isSanitaryOutcomeEvent(row.eventType)) continue;
+    byOffering.set(row.offeringId, (byOffering.get(row.offeringId) ?? 0) + 1);
+  }
+  return byOffering;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,6 +99,18 @@ export type CampaignOfferingStats = {
   completionRate: number | null;
   /** No-show rate 0–100 (null when enrollment=0). */
   noShowRate: number | null;
+  /**
+   * Real sanitary prestaciones delivered — attended appointments whose linked
+   * outcome event (via appointments.outcome_event_id) is a sanitary type.
+   * This is the campaign RESULT (doses/procedures), not the logistics.
+   * Exact per-appointment attribution over the pet_events spine.
+   */
+  sanitaryOutcome: number;
+  /**
+   * Conversion attended → prestación, 0–100 (null when completion=0).
+   * < 100 means some attended appointments have no immutable sanitary record.
+   */
+  outcomeConversionRate: number | null;
 };
 
 /** Geo reach: distinct localities where ≥1 attendance happened. */
@@ -66,6 +135,10 @@ export type CampaignDashboardData = {
     noShow: number;
     completionRate: number | null;
     noShowRate: number | null;
+    /** Total real sanitary prestaciones delivered across offerings in scope. */
+    sanitaryOutcome: number;
+    /** Aggregate conversion attended → prestación, 0–100 (null when completion=0). */
+    outcomeConversionRate: number | null;
   };
   /** Previous-period totals (for delta computation in OpKpi v2). */
   prevTotals: {
@@ -186,6 +259,8 @@ async function fetchOfferingStats(
         noShow: 0,
         completionRate: null,
         noShowRate: null,
+        sanitaryOutcome: 0,
+        outcomeConversionRate: null,
       });
     }
     // biome-ignore lint/style/noNonNullAssertion: key was just set above if missing
@@ -211,6 +286,47 @@ async function fetchOfferingStats(
   }
 
   return Array.from(byOffering.values());
+}
+
+// ---------------------------------------------------------------------------
+// Sanitary outcome (event-spine projection)
+// ---------------------------------------------------------------------------
+
+/**
+ * Projects the real sanitary result per offering over the pet_events spine.
+ *
+ * Joins attended appointments to their linked outcome event via
+ * appointments.outcome_event_id (a precise per-appointment FK), keeping only
+ * sanitary event types. Returns offeringId → count of sanitary prestaciones.
+ * Scoped by the same appointment window as enrollment/completion so the
+ * attended → prestación conversion is coherent (same denominator set).
+ */
+async function fetchOfferingOutcomes(
+  offeringIds: string[],
+  ctx: ProjectionContext,
+): Promise<Map<string, number>> {
+  if (offeringIds.length === 0) return new Map();
+
+  const { since, until } = ctx.period;
+
+  const rows = await db
+    .select({
+      offeringId: appointments.serviceOfferingId,
+      eventType: petEvents.eventType,
+    })
+    .from(appointments)
+    .innerJoin(petEvents, eq(petEvents.id, appointments.outcomeEventId))
+    .where(
+      and(
+        inArray(appointments.serviceOfferingId, offeringIds),
+        eq(appointments.status, "attended"),
+        gte(appointments.createdAt, since),
+        lt(appointments.createdAt, until),
+        inArray(petEvents.eventType, SANITARY_OUTCOME_EVENT_TYPES as unknown as string[]),
+      ),
+    );
+
+  return aggregateCampaignOutcomes(rows);
 }
 
 // ---------------------------------------------------------------------------
@@ -379,27 +495,40 @@ export async function fetchCampaignDashboard(
         noShow: 0,
         completionRate: null,
         noShowRate: null,
+        sanitaryOutcome: 0,
+        outcomeConversionRate: null,
       },
       prevTotals: { enrollment: 0, completion: 0, noShow: 0 },
       geoReach: [],
     };
   }
 
-  const [offerings, geoReach, enrollmentSparkline, prevTotals] = await Promise.all([
-    fetchOfferingStats(offeringIds, ctx),
-    fetchGeoReach(offeringIds, ctx),
-    fetchEnrollmentSparkline(offeringIds),
-    fetchPrevTotals(offeringIds, ctx),
-  ]);
+  const [offerings, outcomesByOffering, geoReach, enrollmentSparkline, prevTotals] =
+    await Promise.all([
+      fetchOfferingStats(offeringIds, ctx),
+      fetchOfferingOutcomes(offeringIds, ctx),
+      fetchGeoReach(offeringIds, ctx),
+      fetchEnrollmentSparkline(offeringIds),
+      fetchPrevTotals(offeringIds, ctx),
+    ]);
+
+  // Fold the event-spine outcome counts into each offering + compute conversion.
+  for (const o of offerings) {
+    o.sanitaryOutcome = outcomesByOffering.get(o.offeringId) ?? 0;
+    o.outcomeConversionRate =
+      o.completion > 0 ? Math.round((o.sanitaryOutcome / o.completion) * 100) : null;
+  }
 
   // Compute aggregated totals.
   let totalEnrollment = 0;
   let totalCompletion = 0;
   let totalNoShow = 0;
+  let totalSanitaryOutcome = 0;
   for (const o of offerings) {
     totalEnrollment += o.enrollment;
     totalCompletion += o.completion;
     totalNoShow += o.noShow;
+    totalSanitaryOutcome += o.sanitaryOutcome;
   }
 
   return {
@@ -412,6 +541,9 @@ export async function fetchCampaignDashboard(
       completionRate:
         totalEnrollment > 0 ? Math.round((totalCompletion / totalEnrollment) * 100) : null,
       noShowRate: totalEnrollment > 0 ? Math.round((totalNoShow / totalEnrollment) * 100) : null,
+      sanitaryOutcome: totalSanitaryOutcome,
+      outcomeConversionRate:
+        totalCompletion > 0 ? Math.round((totalSanitaryOutcome / totalCompletion) * 100) : null,
     },
     prevTotals,
     geoReach,

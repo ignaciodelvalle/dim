@@ -13,7 +13,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { buildProjectionContext } from "@/lib/metrics";
-import { computeDelta, fetchCampaignDashboard, formatDelta } from "./campaign-metrics";
+import {
+  type CampaignOutcomeRow,
+  aggregateCampaignOutcomes,
+  computeDelta,
+  fetchCampaignDashboard,
+  formatDelta,
+  isSanitaryOutcomeEvent,
+} from "./campaign-metrics";
 
 // ---------------------------------------------------------------------------
 // Pure unit tests — no DB
@@ -56,6 +63,59 @@ describe("formatDelta", () => {
   it("negative delta is preserved", () => {
     const result = formatDelta(80, 100, "vs período anterior");
     expect(result).toEqual({ value: -20, period: "vs período anterior" });
+  });
+});
+
+describe("isSanitaryOutcomeEvent", () => {
+  it("accepts the three sanitary prestación event types", () => {
+    expect(isSanitaryOutcomeEvent("vaccination_administered")).toBe(true);
+    expect(isSanitaryOutcomeEvent("sterilization_performed")).toBe(true);
+    expect(isSanitaryOutcomeEvent("deworming_administered")).toBe(true);
+  });
+
+  it("rejects non-sanitary event types (logistics/fallback do not count)", () => {
+    expect(isSanitaryOutcomeEvent("vet_visit_logged")).toBe(false);
+    expect(isSanitaryOutcomeEvent("microchip_implanted")).toBe(false);
+    expect(isSanitaryOutcomeEvent("pet_registered")).toBe(false);
+    expect(isSanitaryOutcomeEvent("")).toBe(false);
+  });
+});
+
+describe("aggregateCampaignOutcomes — pure projection over synthetic events", () => {
+  it("returns an empty map for no rows", () => {
+    expect(aggregateCampaignOutcomes([]).size).toBe(0);
+  });
+
+  it("counts one sanitary prestación per linked outcome event, grouped by offering", () => {
+    // Synthetic events: offering A produced 2 vaccinations + 1 sterilization,
+    // offering B produced 1 deworming.
+    const rows: CampaignOutcomeRow[] = [
+      { offeringId: "A", eventType: "vaccination_administered" },
+      { offeringId: "A", eventType: "vaccination_administered" },
+      { offeringId: "A", eventType: "sterilization_performed" },
+      { offeringId: "B", eventType: "deworming_administered" },
+    ];
+    const result = aggregateCampaignOutcomes(rows);
+    expect(result.get("A")).toBe(3);
+    expect(result.get("B")).toBe(1);
+  });
+
+  it("excludes non-sanitary outcome events (vet_visit_logged / microchip fallback)", () => {
+    // Two attended appointments produced non-sanitary events → must not count.
+    const rows: CampaignOutcomeRow[] = [
+      { offeringId: "A", eventType: "vaccination_administered" },
+      { offeringId: "A", eventType: "vet_visit_logged" },
+      { offeringId: "A", eventType: "microchip_implanted" },
+    ];
+    const result = aggregateCampaignOutcomes(rows);
+    // Only the vaccination counts — conversion attended(3) → prestación(1) is honest.
+    expect(result.get("A")).toBe(1);
+  });
+
+  it("omits offerings with zero sanitary events from the map", () => {
+    const rows: CampaignOutcomeRow[] = [{ offeringId: "A", eventType: "vet_visit_logged" }];
+    const result = aggregateCampaignOutcomes(rows);
+    expect(result.has("A")).toBe(false);
   });
 });
 
