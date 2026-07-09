@@ -87,6 +87,7 @@ export const metadata: Metadata = {
     title: BRANDING.appName,
   },
   icons: {
+    icon: "/icons/icon-192.png",
     apple: "/icons/icon-192.png",
   },
 };

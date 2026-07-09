@@ -63,7 +63,9 @@ export function AdoptionListingCard({
           {photoUrl ? (
             <img
               src={photoUrl}
-              alt={item.name}
+              // Decorative inside the card link: the heading below already
+              // names the pet, so a non-empty alt reads the name twice.
+              alt=""
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
