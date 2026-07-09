@@ -285,8 +285,8 @@ function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
   );
 }
 
-describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", () => {
-  it("renders Reading → PresetPanel → SuppressionNotice before the map, KPI strip after", () => {
+describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phase 1)", () => {
+  it("renders Reading → Vista panel → map → SuppressionNotice (map column), KPI strip in the metrics column", () => {
     // Explicit period → the first-visit default preset does NOT rewrite the
     // board, so the server-seeded perdidas layer (suppressedCount 3) stays on
     // and the suppression notice is visible for the DOM-order assertion.
@@ -295,14 +295,16 @@ describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", ()
 
     const reading = screen.getByText("Sin variación destacable frente al período anterior.");
     const presets = screen.getByText("Vista");
-    const notice = screen.getByText(/celdas con menos de 5 casos/);
     const map = screen.getByTestId("map-region");
+    // SuppressionNotice lives WITH the map it describes (design Decision 1) —
+    // it now sits AFTER the map, inside the same map column.
+    const notice = screen.getByText(/celdas con menos de 5 casos/);
     const strip = screen.getByTestId("kpi-strip");
 
     expect(isBefore(reading, presets)).toBe(true);
-    expect(isBefore(presets, notice)).toBe(true);
-    expect(isBefore(notice, map)).toBe(true);
-    expect(isBefore(map, strip)).toBe(true);
+    expect(isBefore(presets, map)).toBe(true);
+    expect(isBefore(map, notice)).toBe(true);
+    expect(isBefore(notice, strip)).toBe(true);
   });
 
   it("hosts the filters slot inside the 'Alcance y período' disclosure, next to 'Personalizar'", () => {
@@ -350,6 +352,23 @@ describe("PanoramaConsole — reflow composition (panorama-redesign Fase 1)", ()
     expect(container.querySelector("input[type='range']")).not.toBeNull();
     expect(firstPaint.some((el) => el.getAttribute("type") === "range")).toBe(false);
     expect(screen.getByText("Reproducir en el tiempo").tagName).toBe("SUMMARY");
+  });
+
+  it("Vista panel: clicking a tab activates the preset and the question line matches its description", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+
+    expect(screen.getByRole("button", { name: /Brotes activos/ })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    // The question line appears TWICE: once as the Vista panel's headline
+    // (design Decision 1) and once inside the active preset button's own
+    // helper text (PresetPanel, unchanged) — both must match verbatim.
+    const question = screen.getAllByText("¿Dónde hay brotes activos sobre huecos de vacunación?");
+    expect(question).toHaveLength(2);
   });
 });
 

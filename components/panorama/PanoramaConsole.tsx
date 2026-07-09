@@ -1761,87 +1761,96 @@ export function PanoramaConsole({
   const selectedLocalityCenter: [number, number] | null =
     selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
 
-  // panorama-redesign Fase 1 reflow: Reading → PresetPanel (full-width) →
-  // SuppressionNotice → "Reproducir en el tiempo" disclosure (TimeScrubber,
-  // default-closed — design-QA 2026-07-04 P0 control budget) → map grid (side
-  // column: "Alcance y período" disclosure hosting the server filtersSlot,
-  // then the unchanged "Personalizar" disclosure) → KPI strip (deliberately
-  // demoted below the map — flagged for PO, non-blocking).
+  // panorama-vista-redesign Phase 1 (design Decision 1): Vista panel (VISTA
+  // label + active question line + PresetPanel row tabs) → 2-col body
+  // (map column: map + honesty lines + scrubber | metrics column: ~342px
+  // right rail). Supersedes the Fase 1 flat reflow.
+  const activePreset = activePresetId !== null ? getPreset(activePresetId) : null;
+
   return (
     <div className="space-y-4">
       {/* One-line auto-reading derived from the existing KPI deltas (no new
           query). Hidden while the KPIs are stale — the notice below covers it. */}
       <PanoramaReading kpis={kpis.kpis} stale={kpisStale} />
-      {/* Presets promoted above the map: the primary control answers the
-          operator's QUESTION first (design rule #667 still holds — advanced
-          controls stay behind "Personalizar"). */}
-      <PresetPanel
-        presets={PANORAMA_PRESETS}
-        activePresetId={activePresetId}
-        onPreset={onPreset}
-        layout="row"
-      />
-      {/* panorama-ia-v2 §2.4: plain-language caption — re-states what a map mark
-          means at the active VISTA + derived level. Recomputes on preset/scope/
-          period change (the "context switch"). Pure: never a data-derived value. */}
-      <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
-      {/* panorama-event-points: honest points-mode disclosure — one line per
-          active points-capable layer, stating the mark is now REAL locations
-          (or coarse locality centroids for denuncias), plus the cap ("los N más
-          recientes") and the "sin ubicación exacta" residual. Distinct copy from
-          the k-anon / no-locality notices (review A6/A8). */}
-      {pointsMode && Object.keys(pointsInfo).length > 0 && (
-        <output
-          aria-live="polite"
-          className="block space-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs text-ln-op-ink-2"
-        >
-          {Object.entries(pointsInfo).map(([id, info]) => (
-            <p key={id}>{pointsDisclosureLine(id as LayerId, info)}</p>
-          ))}
-        </output>
-      )}
-      {/* k-anon disclosure promoted out of "Personalizar": suppression is
-          visible without any click (same envelope counts LayerPanel shows). */}
-      <PanoramaSuppressionNotice states={states} />
-      {/* design-QA 2026-07-04 P0 (control budget): the temporal scrubber is a
-          flagship capability but NOT a first-screen decision — default-closed
-          disclosure keeps the landing board at ≤8 controls (5 presets + 3
-          disclosure summaries) and stops the 3-year axis from competing with
-          the map hero. One click re-opens the full reproduction control. */}
-      <details className="group">
-        <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
-          <span
-            aria-hidden="true"
-            className="mr-1 inline-block transition-transform group-open:rotate-90"
-          >
-            ▸
-          </span>
-          Reproducir en el tiempo
-        </summary>
-        <div className="mt-2">
-          <TimeScrubber
-            since={since}
-            until={until}
-            onChange={onScrub}
-            basis={timeBasis}
-            onBasisChange={onBasisChange}
-          />
-        </div>
-      </details>
-      <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-        <SituationalMapDynamic
-          layers={activeLayers}
-          label={mapLabel}
-          onFeatureClick={onFeatureClick}
-          initialBounds={initialBounds}
-          selectedProvinceCode={selectedProvinceCode}
-          selectedLocalityCenter={selectedLocalityCenter}
-          frame={presetFrame}
-          onZoom={onMapZoom}
-          highlightedUnitKey={highlightedUnitKey}
-          onUnitHover={setHighlightedUnitKey}
-          viewMeta={viewMeta}
+      {/* Vista panel: the primary control answers the operator's QUESTION
+          first — a "VISTA" header + the active preset's question line, above
+          the 6-tab row (unchanged, layout="row"). */}
+      <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-4">
+        {activePreset && (
+          <div className="space-y-0.5">
+            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">VISTA</p>
+            <p className="text-sm font-medium leading-snug text-ln-op-ink">
+              {activePreset.description}
+            </p>
+          </div>
+        )}
+        <PresetPanel
+          presets={PANORAMA_PRESETS}
+          activePresetId={activePresetId}
+          onPreset={onPreset}
+          layout="row"
         />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_342px]">
+        <div className="min-w-0 space-y-3">
+          <SituationalMapDynamic
+            layers={activeLayers}
+            label={mapLabel}
+            onFeatureClick={onFeatureClick}
+            initialBounds={initialBounds}
+            selectedProvinceCode={selectedProvinceCode}
+            selectedLocalityCenter={selectedLocalityCenter}
+            frame={presetFrame}
+            onZoom={onMapZoom}
+            highlightedUnitKey={highlightedUnitKey}
+            onUnitHover={setHighlightedUnitKey}
+            viewMeta={viewMeta}
+          />
+          {/* panorama-ia-v2 §2.4: plain-language caption — re-states what a map
+              mark means at the active VISTA + derived level. These "honesty
+              lines" live WITH the map they describe (design Decision 1). */}
+          <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+          {/* panorama-event-points: honest points-mode disclosure — one line per
+              active points-capable layer, stating the mark is now REAL locations
+              (or coarse locality centroids for denuncias), plus the cap ("los N más
+              recientes") and the "sin ubicación exacta" residual. */}
+          {pointsMode && Object.keys(pointsInfo).length > 0 && (
+            <output
+              aria-live="polite"
+              className="block space-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs text-ln-op-ink-2"
+            >
+              {Object.entries(pointsInfo).map(([id, info]) => (
+                <p key={id}>{pointsDisclosureLine(id as LayerId, info)}</p>
+              ))}
+            </output>
+          )}
+          {/* k-anon disclosure — suppression is visible without any click. */}
+          <PanoramaSuppressionNotice states={states} />
+          {/* design-QA 2026-07-04 P0 (control budget): TEMPORARY default-closed
+              disclosure — Phase 4 (panorama-vista-redesign) removes this wrapper
+              and supersedes the control-budget rule with Simple mode + temporal
+              gating (the scrubber becomes a compact always-present element). */}
+          <details className="group">
+            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+              <span
+                aria-hidden="true"
+                className="mr-1 inline-block transition-transform group-open:rotate-90"
+              >
+                ▸
+              </span>
+              Reproducir en el tiempo
+            </summary>
+            <div className="mt-2">
+              <TimeScrubber
+                since={since}
+                until={until}
+                onChange={onScrub}
+                basis={timeBasis}
+                onBasisChange={onBasisChange}
+              />
+            </div>
+          </details>
+        </div>
         <div className="space-y-3">
           {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
               ordered list (hover-synced with the map), plus the accessible
@@ -1893,13 +1902,9 @@ export function PanoramaConsole({
               <div className="mt-2 space-y-3">{filtersSlot}</div>
             </details>
           )}
-          {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" is no longer a
-              buried <details>. The aggregation axis was REMOVED (the level is
-              now derived from scope + zoom, not a manual toggle), so the only
-              advanced control left is the per-layer legend/toggle panel — shown
-              as a visible-but-secondary section (muted heading, not a primary
-              control). Keeps the first paint simple while making layer control
-              a single glance away, not a click. */}
+          {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" — TEMPORARY here;
+              Phase 2 (panorama-vista-redesign) moves this into CapasBox's
+              Detalle mode inside the Vista panel above. */}
           <section aria-labelledby="pano-personalizar" className="space-y-2">
             <h3
               id="pano-personalizar"
@@ -1917,22 +1922,23 @@ export function PanoramaConsole({
               onToggleVerified={onToggleVerified}
             />
           </section>
+          {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
+              by asOf in v1). Phase 3 (panorama-vista-redesign) replaces this flat
+              strip with the per-vista PanoramaMetricsColumn. */}
+          <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
+          {kpisStale && (
+            // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
+            // the strip above is showing the last-known numbers, not live ones —
+            // say so instead of leaving the operator misled by a silent stale read.
+            <output
+              aria-live="polite"
+              className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+            >
+              No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
+            </output>
+          )}
         </div>
       </div>
-      {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked by
-          asOf in v1). The scrubber note states this so the operator isn't misled. */}
-      <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
-      {kpisStale && (
-        // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
-        // the strip above is showing the last-known numbers, not live ones —
-        // say so instead of leaving the operator misled by a silent stale read.
-        <output
-          aria-live="polite"
-          className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
-        >
-          No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
-        </output>
-      )}
       <DetailDrawer selected={selected} onClose={closeDrawer} />
     </div>
   );
