@@ -382,8 +382,10 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     // Mirrors the "Confiabilidad" section in ADMIN_NAV_SECTIONS for operational views.
     label: "Confiabilidad",
     items: [
-      // Paquete gov-vis — operational health + notification SLA monitor
-      { href: "/gob/sistema", label: "Sistema", matchPrefix: "/gob/sistema" },
+      // /gob/sistema folded into /gob/programa (2026-07-09 audit): its KPIs
+      // (ENO SLA, scoped queue aging) duplicated fetchers already on Programa;
+      // the one unique figure (total ENO notifications) moved into Programa's
+      // SLA KPI. /gob/sistema still exists as a redirect for deep links.
       { href: "/gob/outbox", label: "Bandeja de salida", matchPrefix: "/gob/outbox" },
     ],
   },

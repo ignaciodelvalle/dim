@@ -432,8 +432,8 @@ describe("GOB_NAV — no route regression", () => {
     expect(hrefs).toContain("/gob/programa");
   });
 
-  it("contains /gob/sistema (gov-vis — operational health scoped to jurisdiction)", () => {
-    expect(hrefs).toContain("/gob/sistema");
+  it("does NOT contain /gob/sistema (folded into /gob/programa for govt, 2026-07-09 audit)", () => {
+    expect(hrefs).not.toContain("/gob/sistema");
   });
 
   it("contains /gob/outbox (gov-vis — ENO SLA / notification monitor)", () => {
@@ -523,7 +523,9 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
-  "/gob/sistema", // gov-vis — operational health scoped to jurisdiction
+  // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
+  // operators (2026-07-09 audit). Route still exists as a redirect for deep
+  // links but is no longer in nav.
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
 ]);
 
@@ -570,9 +572,9 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(unlabeled?.items.map((i) => i.href)).toContain("/gob/programa");
   });
 
-  it("includes /gob/sistema in the Confiabilidad section (gov-vis)", () => {
+  it("does NOT include /gob/sistema in the Confiabilidad section (folded into /gob/programa)", () => {
     const confSection = GOB_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
-    expect(confSection?.items.map((i) => i.href)).toContain("/gob/sistema");
+    expect(confSection?.items.map((i) => i.href)).not.toContain("/gob/sistema");
   });
 
   it("includes /gob/outbox in the Confiabilidad section (gov-vis)", () => {

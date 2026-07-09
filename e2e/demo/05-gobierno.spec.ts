@@ -106,8 +106,9 @@ test("segmento 05 — gobierno", async ({ page }) => {
   await showScreen(page, "/gob/usuarios");
   await showScreen(page, "/gob/reglas"); // show only — no rule edits
 
-  // 5. CONFIABILIDAD
-  await showScreen(page, "/gob/sistema");
+  // 5. CONFIABILIDAD — /gob/sistema folded into /gob/programa for govt
+  // (2026-07-09 audit); it now redirects there, so it's dropped from this
+  // beat to avoid re-showing the same Programa screen twice.
   await showScreen(page, "/gob/outbox");
 
   // 6. REFERENCIA

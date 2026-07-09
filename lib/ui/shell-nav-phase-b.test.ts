@@ -47,7 +47,8 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
-  "/gob/sistema", // gov-vis — operational health scoped to jurisdiction
+  // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
+  // operators (2026-07-09 audit), matches nav-presets.test.ts.
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
 ]);
 

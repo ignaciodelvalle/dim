@@ -1,20 +1,16 @@
-// /gob/sistema — Operational health scoped to jurisdiction (govt view of /admin/sistema).
-//
-// What's kept vs. admin/sistema:
-//   KEEP: ENO SLA (fetchEnoSla(ctx) — scope-aware via ProjectionContext)
-//         Scoped queue aging via fetchQueueHealthScoped(filteredJurisdictions)
-//         (pendingTotal + 14d/30d/60d buckets + oldest).
-//   DROP (admin-meta, not gov data):
-//     - per-govt activity roster (fetchGovtActivity)
-//     - cron health (fetchCronRuns)
-//     - platform user metrics (fetchUserMetrics)
-//     - global decisions (fetchDecisionsMetrics)
+// /gob/sistema — folded into /gob/programa for govt operators (2026-07-09
+// audit, PO-ratified). Its KPIs (ENO SLA, scoped queue aging) duplicated
+// fetchers already rendered on /gob/programa; the one figure that was NOT
+// already there — total ENO notifications in period — moved into Programa's
+// SLA KPI sub-line. Govt visitors (including stale deep links) now redirect
+// to /gob/programa with filters preserved. Admin's /gob/sistema behaviour is
+// UNCHANGED — /admin/sistema (full platform ops) is the separate admin
+// surface and was never in scope for this fold.
 //
 // Privacy invariant: both fetchers receive scope-restricted context/jurisdictions.
 
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
@@ -30,6 +26,7 @@ import { TARGETS, buildProjectionContext, enoSlaTone, toneForTarget } from "@/li
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -45,25 +42,24 @@ export default async function GobSistemaPage({
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const actor = { role: profile.role } as const;
+  const sp = await searchParams;
 
-  // Capability guard: requires admin OR (govt AND has assignments).
-  const hasAccess =
-    profile.role === "admin" || (profile.role === "govt" && jurisdictions.length > 0);
-
-  if (!hasAccess) {
-    return (
-      <div className="space-y-6">
-        <LnEmptyState
-          icon="lock"
-          title="Sin acceso"
-          description="Tu rol no tiene acceso a salud operativa. Pedile al admin que te asigne jurisdicciones."
-        />
-      </div>
-    );
+  // Govt: this page is folded into /gob/programa — redirect, carrying the
+  // period/scope filters over so a stale deep link lands on the same slice.
+  if (profile.role === "govt") {
+    const qs = new URLSearchParams();
+    if (sp.period) qs.set("period", sp.period);
+    if (sp.from) qs.set("from", sp.from);
+    if (sp.to) qs.set("to", sp.to);
+    if (sp.province) qs.set("province", sp.province);
+    if (sp.locality) qs.set("locality", sp.locality);
+    const query = qs.toString();
+    redirect(query ? `/gob/programa?${query}` : "/gob/programa");
   }
 
-  const sp = await searchParams;
+  // Admin only past this point (requireAdminOrGovtOrRedirect allows only
+  // 'admin' | 'govt', and 'govt' redirected above) — unchanged full view.
+  const actor = { role: profile.role } as const;
 
   // Resolve selected province ISO code → Province object + localities list.
   const selectedProvinceIso = sp.province ?? null;

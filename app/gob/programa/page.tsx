@@ -9,6 +9,13 @@
 //   REPLACE: fetchQueueHealth() → fetchQueueHealthScoped(filteredJurisdictions)
 //   DROP: fetchCronRuns() — platform infra, admin-meta, not gov data.
 //
+// Fold from /gob/sistema (2026-07-09 audit, PO-ratified): for a govt operator,
+// /gob/sistema's KPIs (ENO SLA %, scoped queue aging) were already rendered
+// here from the same fetchers. The one figure that was NOT already here —
+// enoSla.total, the notification count backing the SLA % — is now surfaced
+// in the "SLA ENO" KPI sub-line below. /gob/sistema now redirects govt here;
+// see app/gob/sistema/page.tsx.
+//
 // Privacy invariant: all fetchers receive a scoped ctx or filteredJurisdictions —
 // a govt can never see data outside their assigned localities.
 
@@ -276,12 +283,15 @@ export default async function GobProgramaPage({
           tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} en breach activo`
-              : "sin breach activo"
+              ? `${enoSla.breachedOpen} en breach activo de ${enoSla.total.toLocaleString("es-AR")}`
+              : enoSla.total > 0
+                ? `${enoSla.total.toLocaleString("es-AR")} notificaciones, sin breach activo`
+                : "sin notificaciones en el período"
           }
           href="/gob/outbox"
           info={{
-            definition: "% de notificaciones ENO entregadas dentro del SLA (A7).",
+            definition:
+              "% de notificaciones ENO entregadas dentro del SLA (A7). El sub-texto muestra el total de notificaciones en el período (folded from /gob/sistema).",
             formula: "onTime / delivered * 100",
           }}
         />
