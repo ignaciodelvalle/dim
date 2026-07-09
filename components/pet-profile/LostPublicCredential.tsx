@@ -238,7 +238,17 @@ export function LostPublicCredential({
           </section>
         )}
 
-        {(lastSeenPlaceName || lastSeenLocality || hasLastSeenCoords) && (
+        {!(lastSeenPlaceName || lastSeenLocality || hasLastSeenCoords) ? (
+          // Honest empty-state: on a lost pet's public credential an absent
+          // sighting location is decision-relevant — say so instead of hiding
+          // the whole section (consistency with the /perdidas board).
+          <section className="rounded-2xl bg-ln-card p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
+              Última vez vista
+            </p>
+            <p className="mt-1 text-sm italic text-ln-mute">Sin ubicación de avistaje registrada</p>
+          </section>
+        ) : (
           <section className="rounded-2xl bg-ln-card p-4 shadow-sm ">
             <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute ">
               Última vez vista

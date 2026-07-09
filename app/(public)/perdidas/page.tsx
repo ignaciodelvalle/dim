@@ -364,8 +364,11 @@ function LostListingCard({ item }: { item: LostListingItem }) {
             {[item.breed, item.color].filter(Boolean).join(" · ") || "Mascota"}
           </p>
 
-          {/* Last-seen box — gated by privacy flag, only shown when present */}
-          {item.lastSeenDescription && (
+          {/* Last-seen box — gated by the owner's privacy flag. When there is no
+              disclosed sighting location we say so EXPLICITLY rather than omit the
+              line: on a lost-pet board an absent last-seen is decision-relevant
+              (the searcher shouldn't assume a location that isn't there). */}
+          {item.lastSeenDescription ? (
             <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2 space-y-0.5">
               <p className="font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-seal)]">
                 Visto por última vez
@@ -374,6 +377,10 @@ function LostListingCard({ item }: { item: LostListingItem }) {
                 {item.lastSeenDescription}
               </p>
             </div>
+          ) : (
+            <p className="text-[11px] italic text-[var(--color-ln-mute)]">
+              Sin ubicación de avistaje registrada
+            </p>
           )}
 
           {/* Footer */}
