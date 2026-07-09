@@ -7,9 +7,10 @@
 // Integration tests cover:
 //   - fetchRegionRanking returns top/bottom by rabies coverage
 
+import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { rankByField } from "./analytics-ranking";
+import { rankByField, regionRankingPetsScope } from "./analytics-ranking";
 
 // ---------------------------------------------------------------------------
 // Pure unit tests — no DB
@@ -61,5 +62,61 @@ describe("rankByField", () => {
 
   it("returns at most limit rows", () => {
     expect(rankByField(rows, "value", "desc", 2)).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Region-ranking jurisdiction scope — whole-province (CABA) subsumption
+// ---------------------------------------------------------------------------
+//
+// Regression: fetchRegionRanking previously built an ad-hoc exact
+// `(province = X AND locality = Y)` clause. A whole-CABA govt assignment has
+// locality "Ciudad Autónoma de Buenos Aires", but CABA pets are tagged with
+// barrio localities ("Belgrano", "Palermo", …), so the exact clause matched
+// zero barrio-tagged pets and CABA silently vanished from the ranking. The fix
+// routes scope through the shared jurisdictionPairClause, which emits a
+// province-only predicate for whole-province assignments.
+
+function render(clause: ReturnType<typeof regionRankingPetsScope>) {
+  if (clause === null) return { sql: "", params: [] as unknown[] };
+  return new PgDialect().sqlToQuery(clause);
+}
+
+describe("regionRankingPetsScope — CABA whole-province subsumption", () => {
+  it("emits a PROVINCE-ONLY predicate for a whole-CABA govt assignment (barrio-tagged pets still match)", () => {
+    const clause = regionRankingPetsScope({ role: "govt" }, [
+      { province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" },
+    ]);
+    const { sql: text, params } = render(clause);
+    // Province alone → a barrio-tagged CABA pet ("Belgrano") is still in scope.
+    expect(text).toContain("jurisdiction_province");
+    expect(text).not.toContain("jurisdiction_locality");
+    expect(params).toContain("CABA");
+    // The OLD ad-hoc exact clause would have pinned the whole-province locality
+    // string here — which no barrio-tagged pet carries → CABA returned 0 rows.
+    expect(params).not.toContain("Ciudad Autónoma de Buenos Aires");
+  });
+
+  it("keeps the EXACT pair for a barrio-specific assignment (no widening)", () => {
+    const clause = regionRankingPetsScope({ role: "govt" }, [
+      { province: "CABA", locality: "Palermo" },
+    ]);
+    const { sql: text, params } = render(clause);
+    expect(text).toContain("jurisdiction_locality");
+    expect(params).toEqual(expect.arrayContaining(["CABA", "Palermo"]));
+  });
+
+  it("keeps the EXACT pair for a normal (non-whole-province) locality", () => {
+    const clause = regionRankingPetsScope({ role: "govt" }, [
+      { province: "Mendoza", locality: "Godoy Cruz" },
+    ]);
+    const { sql: text, params } = render(clause);
+    expect(text).toContain("jurisdiction_province");
+    expect(text).toContain("jurisdiction_locality");
+    expect(params).toEqual(expect.arrayContaining(["Mendoza", "Godoy Cruz"]));
+  });
+
+  it("returns null for admin (universal scope unchanged)", () => {
+    expect(regionRankingPetsScope({ role: "admin" }, [])).toBeNull();
   });
 });

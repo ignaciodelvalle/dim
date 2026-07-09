@@ -4,10 +4,11 @@
 //   rankByField — pure sort + slice + rank assignment (testable without DB)
 //   fetchRegionRanking — DB-backed ranking by rabies coverage per province
 
-import { and, count, countDistinct, eq, inArray, sql } from "drizzle-orm";
+import { type SQL, and, count, countDistinct, eq, inArray, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
@@ -42,6 +43,33 @@ export function rankByField(
     dir === "desc" ? b[field] - a[field] : a[field] - b[field],
   );
   return sorted.slice(0, limit).map((r, i) => ({ ...r, rank: i + 1 }));
+}
+
+/**
+ * Jurisdiction-scope clause for the region ranking's `pets` queries.
+ *
+ * admin → null (universal scope, no restriction).
+ * govt  → OR of the actor's assignment pairs via the SHARED jurisdictionPairClause,
+ *   so a whole-province assignment (e.g. whole-CABA, locality
+ *   "Ciudad Autónoma de Buenos Aires") subsumes its barrio/locality-tagged pets
+ *   (Belgrano, Palermo, …) via a province-only predicate. The previous ad-hoc
+ *   exact `(province = X AND locality = Y)` clause never matched barrio-tagged
+ *   CABA pets, so CABA silently returned 0 rows in the ranking. A barrio-specific
+ *   assignment (CABA / Palermo) still keeps the exact pair — no widening.
+ *
+ * Returns null only when a govt actor has no assignments; fetchRegionRanking
+ * early-returns before that, so the govt branch here always yields a clause.
+ */
+export function regionRankingPetsScope(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): SQL | null {
+  if (actor.role !== "govt") return null;
+  return jurisdictionPairClause(
+    jurisdictions,
+    sql`${pets.jurisdictionProvince}`,
+    sql`${pets.jurisdictionLocality}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -85,17 +113,8 @@ export async function fetchRegionRanking(
     return { top: [], bottom: [] };
   }
 
-  // Build scope filter for the pets table.
-  const petsScope =
-    actor.role === "govt"
-      ? sql`(${sql.join(
-          jurisdictions.map(
-            (j) =>
-              sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
-          ),
-          sql` OR `,
-        )})`
-      : null;
+  // Build scope filter for the pets table (whole-province subsumption included).
+  const petsScope = regionRankingPetsScope(actor, jurisdictions);
 
   // 1. Total active+lost pets per province.
   const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];
