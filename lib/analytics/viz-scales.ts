@@ -194,8 +194,12 @@ export function divergentStops(
  * as a light sticker floating over the navy basemap — map-polish cursor #3). It
  * sits just above COLOR_LAND so a no-data polygon reads as "territory without a
  * value", clearly separate from both the colored data ramp and the hatched
- * k-anon suppression pattern. */
-export const COLOR_NO_DATA = "#2a3348" as const;
+ * k-anon suppression pattern. Nudged brighter (was #2a3348) so the RGB delta
+ * over COLOR_LAND (#161d33) roughly doubles — a no-data polygon reads as clearly
+ * separable from bare territory while still sitting well below both the data
+ * ramp low-ends and the divergent neutral (slate-500 #64748b), and distinct from
+ * the division outline (#3a4568). */
+export const COLOR_NO_DATA = "#313c58" as const;
 
 /** Suppressed cells (< k-anonymity threshold) get this distinct fill. */
 export const COLOR_SUPPRESSED = "#d1d5db" as const;

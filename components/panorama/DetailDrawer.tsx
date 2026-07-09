@@ -197,7 +197,9 @@ function DrillLink({ href, children }: { href: string; children: React.ReactNode
 // Per-layer body (individual-feature detail; no unit history)
 // ---------------------------------------------------------------------------
 
-function FeatureBody({
+// Exported for unit tests: the layer-specific drawer body renders the honest
+// k-anon copy ("Suprimido …") for a suppressed cell instead of a bogus "0".
+export function FeatureBody({
   layerId,
   properties,
 }: { layerId: LayerId; properties: Record<string, unknown> }) {

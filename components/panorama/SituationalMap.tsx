@@ -278,6 +278,12 @@ const PROV_LINE_OPACITY_FADED = 0.3;
 // drill (prefetch + transition) instead of a hard pop after the camera settles.
 const DIVISION_LINE_OPACITY = 0.85;
 const DIVISION_FADE_MS = 300;
+// cursor #2 — the k-anon hatch overlay opacity, and a SOLID fallback opacity for
+// when the diagonal-hatch pattern image is unavailable (SSR / no canvas). The
+// fallback keeps suppressed divisions visually distinct from genuine no-data so
+// the legend's fill / hatch / no-data trichotomy never silently collapses.
+const HATCH_FILL_OPACITY = 0.85;
+const SUPPRESS_SOLID_OPACITY = 0.5;
 
 // Per-layer maplibre object ids are namespaced by layer id so multiple layers
 // coexist without collision.
@@ -389,6 +395,13 @@ export function SituationalMap({
   // previous one before setting the next.
   const hoveredProvinceRef = useRef<string | null>(null);
   const hoveredDivisionRef = useRef<string | null>(null);
+  // Division-fill interactions bind to a per-layer-id MapLibre event target that
+  // SURVIVES a removeLayer/re-addLayer cycle (map.on handlers are keyed by the
+  // layer id string, not the layer instance). syncDivisions tears the fill down
+  // and re-adds it on every province-set change, so without this guard each pass
+  // stacks another full set of hover/click handlers → duplicate popups + double
+  // feature-state writes. We wire ONCE per layer id and never re-bind.
+  const divisionWiredRef = useRef<Set<string>>(new Set());
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
@@ -659,6 +672,12 @@ export function SituationalMap({
           // A1 PR-7: store as the national fallback for subsequent autozoom.
           nationalBboxRef.current = bbox;
         }
+        // cursor #9: sync insetZoom to the map's ACTUAL zoom after the initial
+        // fitBounds. insetZoom otherwise only updates on zoomend, so a govt
+        // jurisdiction that fits past Z_DIVISIONS would still show the CABA inset
+        // (initial visibility computed from the stale AR_ZOOM default) until the
+        // first user zoom gesture.
+        setInsetZoom(map.getZoom());
       });
     });
 
@@ -1119,6 +1138,15 @@ export function SituationalMap({
     }
     divisionValuesRef.current.clear();
     divisionSuppressedRef.current.clear();
+    // cursor #6: clear any lingering hover glow BEFORE the source is torn down.
+    // Otherwise hoveredDivisionRef keeps pointing at a code whose feature-state
+    // can no longer be reset (mouseleave no-ops once the source is gone), so the
+    // glow reappears stale on the next division set until leave/re-enter.
+    const prevHover = hoveredDivisionRef.current;
+    if (prevHover !== null && map.getSource(DIVISION_SRC)) {
+      map.setFeatureState({ source: DIVISION_SRC, id: prevHover }, { hover: false });
+    }
+    hoveredDivisionRef.current = null;
     if (map.getLayer(DIVISION_HOVER_ID)) map.removeLayer(DIVISION_HOVER_ID);
     if (map.getLayer(DIVISION_LINE_ID)) map.removeLayer(DIVISION_LINE_ID);
     if (map.getSource(DIVISION_SRC)) map.removeSource(DIVISION_SRC);
@@ -1132,10 +1160,17 @@ export function SituationalMap({
     const provinceDataActive = active.some(
       (l) => l.geomType === "choropleth" && l.level === "province",
     );
+    // Locality choropleths are the only layers that FILL the divisions with data.
+    const localityDataActive = active.some(
+      (l) => l.geomType === "choropleth" && l.level === "locality",
+    );
     const divisionsActive = divisionsRef.current !== null;
-    // A polygon-filling data layer is on when a province choropleth is active OR
-    // divisions are loaded (locality fill / always-on outline over a scope).
-    const dataActive = provinceDataActive || divisionsActive;
+    // Judgment #4: dim the basemap only under an active DATA fill (province OR
+    // locality choropleth), NOT merely because division OUTLINES are loaded. The
+    // outlines can be on with no data layer active (zoom-driven prefetch), and
+    // dimming the land then just washes out the basemap past Z_DIVISIONS with
+    // nothing to justify it.
+    const dataActive = provinceDataActive || localityDataActive;
     if (map.getLayer("ar-prov-fill")) {
       map.setPaintProperty(
         "ar-prov-fill",
@@ -1204,15 +1239,23 @@ export function SituationalMap({
     codes: ReadonlySet<string>,
   ) {
     if (!map.getSource(DIVISION_SRC)) return;
-    if (!map.hasImage(HATCH_IMAGE_ID)) return; // pattern not registered (SSR/no canvas)
     const sid = DIVISION_SUPPRESS_ID(layer.id);
+    // Fail-honest: if the diagonal-hatch pattern image is unavailable (SSR / no
+    // canvas), fall back to a SOLID suppressed-tone fill rather than skipping the
+    // overlay. A skipped overlay leaves suppressed divisions outline-only — which
+    // is indistinguishable from genuine no-data and would break the legend's
+    // trichotomy. Presentation only; the join already dropped the counts.
+    const hasPattern = map.hasImage(HATCH_IMAGE_ID);
+    const paint: maplibregl.FillLayerSpecification["paint"] = hasPattern
+      ? { "fill-pattern": HATCH_IMAGE_ID, "fill-opacity": HATCH_FILL_OPACITY }
+      : { "fill-color": COLOR_SUPPRESSED, "fill-opacity": SUPPRESS_SOLID_OPACITY };
     if (!map.getLayer(sid)) {
       map.addLayer(
         {
           id: sid,
           type: "fill",
           source: DIVISION_SRC,
-          paint: { "fill-pattern": HATCH_IMAGE_ID, "fill-opacity": 0.85 },
+          paint,
           filter: divisionSuppressedFilter(codes),
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
@@ -1227,6 +1270,11 @@ export function SituationalMap({
   function wireDivisionInteractions(map: maplibregl.Map, layer: ActiveLayer) {
     const popup = popupRef.current;
     if (!popup) return;
+    // Bind ONCE per layer id — the handlers persist across the fill layer's
+    // remove/re-add cycles (see divisionWiredRef), so re-wiring would stack
+    // duplicate handlers (duplicate popups, double hover-state writes).
+    if (divisionWiredRef.current.has(layer.id)) return;
+    divisionWiredRef.current.add(layer.id);
     const fillId = divisionFillLayerId(layer.id);
     // The shared source can hold BOTH departamentos (numeric INDEC codes) and
     // CABA barrios (slug codes). Normalize per-feature by the code's shape rather
@@ -1287,6 +1335,11 @@ export function SituationalMap({
       // A barrio feature carries a slug code; a departamento a numeric one.
       const isBarrio = !/^\d/.test((props.code ?? "").trim());
       const value = divisionValuesRef.current.get(layer.id)?.get(code) ?? null;
+      // Honesty: pass the REAL k-anon state of this division (the same set the
+      // hatch layer and hover popup already read) so the DetailDrawer renders
+      // the "protegido por privacidad · k-anonimato" branch instead of a bogus
+      // "0". A suppressed division has no value to reveal — never a count.
+      const isSuppressed = divisionSuppressedRef.current.get(layer.id)?.has(code) === true;
       onFeatureClickRef.current?.(layer.id, {
         // Barrio divisions map 1:1 to a locality, so surface the name as the
         // locality (unit-history keyed by locality still works). Departamento
@@ -1296,7 +1349,7 @@ export function SituationalMap({
         departmentName: props.name ?? null,
         value,
         level: "locality",
-        suppressed: false,
+        suppressed: isSuppressed,
       });
     });
   }
@@ -1857,7 +1910,13 @@ export function SituationalMap({
   // inset renders at barrio scale. Shown only at national/regional zoom (before
   // the operator drills past Z_DIVISIONS, where CABA becomes readable on the main
   // map anyway). Privacy-safe: same aggregates, same tokens, same k-anon hatch.
-  const insetLayer = layers.find((l) => l.geomType === "choropleth") ?? null;
+  // Judgment #6: only a LOCALITY-level choropleth carries per-barrio cells the
+  // inset can join to CABA's 48 barrios. A province-level choropleth has one
+  // value for the whole province → an empty barrio join, while the inset chrome
+  // says "por barrio" (an over-promise). Restrict the inset to locality data so
+  // the panel is honest: it appears only when there is real barrio granularity.
+  const insetLayer =
+    layers.find((l) => l.geomType === "choropleth" && l.level === "locality") ?? null;
   const insetVisible = insetLayer !== null && insetZoom < Z_DIVISIONS;
 
   return (
@@ -2149,6 +2208,16 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
     const dfid = divisionFillLayerId(layer.id);
     if (map.getLayer(dfid)) {
       map.setPaintProperty(dfid, "fill-opacity", dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY));
+    }
+    // cursor #2 + #8: scale the k-anon hatch overlay in lockstep with the data
+    // fill. Without this the hatch stays at full opacity while the fill dims to
+    // DIM_OPACITY during a time-scrub, making suppressed cells visually DOMINATE
+    // the muted layer. The base opacity depends on whether the pattern rendered
+    // (hatch) or fell back to a solid tone (no-canvas).
+    const sid = DIVISION_SUPPRESS_ID(layer.id);
+    if (map.getLayer(sid)) {
+      const hatchBase = map.hasImage(HATCH_IMAGE_ID) ? HATCH_FILL_OPACITY : SUPPRESS_SOLID_OPACITY;
+      map.setPaintProperty(sid, "fill-opacity", dim ? DIM_OPACITY : scaled(hatchBase));
     }
     const cid = choroLayerId(layer.id);
     if (!map.getLayer(cid)) return;
