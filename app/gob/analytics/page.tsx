@@ -23,6 +23,7 @@ import {
   buildProjectionContext,
   fetchKpiTrend,
   fetchOutbreakSignalsTrend,
+  fetchVetAccessByLocality,
   toneForTarget,
 } from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
@@ -117,6 +118,7 @@ export default async function GobAnalyticsPage({
     regionRanking,
     signalsTrend,
     petRegisteredTrend,
+    vetAccess,
   ] = await Promise.all([
     fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
     fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
@@ -126,6 +128,8 @@ export default async function GobAnalyticsPage({
     fetchOutbreakSignalsTrend(trendCtx),
     // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
     fetchKpiTrend("pet_registered", trendCtx),
+    // Access-to-care gap: vet visits per 1k active pets by locality (care deserts).
+    fetchVetAccessByLocality(trendCtx),
   ]);
 
   // Shape the outbreak-signals trend for TimeSeriesChart.
@@ -147,6 +151,10 @@ export default async function GobAnalyticsPage({
   const panelDeathId = "panel-death-titulo";
   const panelOutbreakId = "panel-outbreak-titulo";
   const panelRankingId = "panel-ranking-titulo";
+  const panelVetAccessId = "panel-vet-access-titulo";
+  // Lowest-access localities first (care deserts). fetchVetAccessByLocality
+  // already sorts ascending by per1k; cap the table at the 8 lowest.
+  const vetAccessRows = vetAccess.localities.slice(0, 8);
 
   return (
     <div className="space-y-6">
@@ -305,6 +313,85 @@ export default async function GobAnalyticsPage({
           </OpCardBody>
         </OpCard>
       )}
+
+      {/* Vet-access gap — vet visits per 1.000 active pets by locality. Lowest
+          per-1k localities are care deserts (the CABA vs periphery inequity).
+          Locality-grouped → k-anon (k=5) suppression on the active-pet population. */}
+      <OpCard aria-labelledby={panelVetAccessId}>
+        <OpCardHead
+          title={<span id={panelVetAccessId}>Acceso veterinario por localidad</span>}
+          actions={
+            vetAccess.suppressedCount > 0 ? (
+              <span className="text-sm font-normal text-ln-op-mute">
+                {vetAccess.suppressedCount}{" "}
+                {vetAccess.suppressedCount === 1 ? "localidad oculta" : "localidades ocultas"}{" "}
+                (privacidad)
+              </span>
+            ) : null
+          }
+        />
+        <OpCardBody>
+          {vetAccessRows.length === 0 ? (
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin datos de acceso veterinario"
+              description="No hay localidades con población activa suficiente (k-anonimato) en la cobertura seleccionada."
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+                <caption className="sr-only">
+                  Visitas veterinarias por cada 1.000 mascotas activas, por localidad, de menor a
+                  mayor acceso.
+                </caption>
+                <thead>
+                  <tr className="border-b border-ln-op-line">
+                    <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
+                      Localidad
+                    </th>
+                    <th scope="col" className="text-right py-2 px-4 font-semibold text-ln-op-mute">
+                      Visitas / 1.000
+                    </th>
+                    <th scope="col" className="text-right py-2 px-4 font-semibold text-ln-op-mute">
+                      Visitas
+                    </th>
+                    <th scope="col" className="text-right py-2 pl-4 font-semibold text-ln-op-mute">
+                      Activos
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vetAccessRows.map((r) => (
+                    <tr
+                      key={`${r.province}::${r.locality}`}
+                      className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
+                    >
+                      <td className="py-2 pr-4">
+                        {r.locality}
+                        <span className="text-ln-op-mute"> · {r.province}</span>
+                      </td>
+                      <td className="py-2 px-4 text-right tabular-nums font-semibold">
+                        {r.per1k.toLocaleString("es-AR")}
+                      </td>
+                      <td className="py-2 px-4 text-right tabular-nums text-ln-op-mute">
+                        {r.visits.toLocaleString("es-AR")}
+                      </td>
+                      <td className="py-2 pl-4 text-right tabular-nums text-ln-op-mute">
+                        {r.activePets.toLocaleString("es-AR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-xs text-ln-op-mute">
+                Ordenado de menor a mayor acceso — las primeras filas son desiertos de atención.
+                Denominador: mascotas activas de la localidad (no censo humano). Localidades con
+                menos de 5 activos se ocultan por k-anonimato.
+              </p>
+            </div>
+          )}
+        </OpCardBody>
+      </OpCard>
 
       {/* Top 10 death causes -- v1: simple HTML/CSS bars (spec B.6 doesn't mandate recharts here) */}
       <OpCard aria-labelledby={panelDeathId}>

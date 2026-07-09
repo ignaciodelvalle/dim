@@ -57,7 +57,11 @@ export type KpiId =
   | "sterilization_natalidad_ratio"
   | "data_quality_completeness"
   | "custody_return_rate"
-  | "shelter_occupancy_national";
+  | "shelter_occupancy_national"
+  | "deworming_coverage_population"
+  | "vet_access_per_1k_locality"
+  | "movement_volume"
+  | "adoption_application_conversion";
 
 /** Unit of the KPI's `value` field, for consistent formatting across surfaces. */
 export type KpiUnit = "percent" | "count" | "rate_per_10k" | "ratio" | "days";
@@ -358,6 +362,70 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat: "Admin-only aggregate (national); capacity is org self-reported config, not verified.",
+  },
+
+  deworming_coverage_population: {
+    id: "deworming_coverage_population",
+    label: "Cobertura antiparasitaria (12 meses)",
+    numerator:
+      "COUNT DISTINCT active/lost pets (any species) with ≥1 deworming_administered event in the trailing 12 months ending at ctx.period.until",
+    denominator: "COUNT active/lost pets in scope",
+    source: "pets, pet_events (deworming_administered)",
+    fetcherName: "fetchDewormingCoverage",
+    fetcherPath: "lib/metrics/deworming.ts",
+    cadence: "FIXED trailing 12 months ending at ctx.period.until — recomputed on every render",
+    unit: "percent",
+    suppression: "none (province rows are never small enough to require k-anon)",
+    caveat:
+      "Sanitary-coverage sibling of rabies_coverage_dogs_12m and sterilization_coverage_population, surfaced on /gob/poblacion. Unlike sterilization (once-ever), deworming is periodic — the 12-month window is a 'currently protected' proxy. Only counts dewormings logged in MiMAR; real-world coverage may be higher. SEED-DENSITY CAVEAT: deworming_administered has low seed density, so this reads a low but HONEST value until owners/vets log antiparasitic doses.",
+  },
+
+  vet_access_per_1k_locality: {
+    id: "vet_access_per_1k_locality",
+    label: "Acceso veterinario (visitas / 1.000 activos)",
+    numerator: "COUNT vet_visit_logged events in the ctx period whose pet is homed in the locality",
+    denominator: "COUNT active/lost pets homed in the locality, divided by 1,000",
+    source: "pets, pet_events (vet_visit_logged)",
+    fetcherName: "fetchVetAccessByLocality",
+    fetcherPath: "lib/metrics/vet-access.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "rate_per_10k",
+    suppression:
+      "k-anon (k=5) on the per-locality active-pet population — a locality with <5 active pets is suppressed",
+    caveat:
+      "Access-to-care equity signal surfaced on /gob/analytics; localities are sorted ascending by per-1k so care deserts surface first (the CABA vs periphery inequity). Denominator is PET population per locality, not human census. Scoped and grouped by the pet's HOME jurisdiction. Unit is 'per 1,000' (reusing the rate_per_10k unit slot — closest available). SEED-DENSITY CAVEAT: vet_visit_logged density is uneven, so per-1k rates are directional.",
+  },
+
+  movement_volume: {
+    id: "movement_volume",
+    label: "Movilidad registrada (movement_recorded)",
+    numerator:
+      "COUNT movement_recorded events in the ctx period, scoped, decomposed by payload.sub_kind (jurisdiction_changed / cvi_issued / transport_recorded)",
+    denominator: "n/a — absolute counts (a flow volume, not a ratio)",
+    source: "pets, pet_events (movement_recorded)",
+    fetcherName: "fetchMovementCorridors",
+    fetcherPath: "lib/metrics/movement.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: "none — jurisdiction-level totals, not locality-grouped",
+    caveat:
+      "Epidemiological mobility signal surfaced on /gob/vigilancia — a moved animal carries its exposure into a new jurisdiction. Scoped by the pet's HOME jurisdiction; a jurisdiction_changed move denormalizes the pet's home to the DESTINATION, so a scoped operator sees inbound relocations once the pet has landed. SEED-DENSITY CAVEAT: movement_recorded (esp. cvi_issued / transport_recorded cross-border) is sparse in seed data — reads honest low/zero totals.",
+  },
+
+  adoption_application_conversion: {
+    id: "adoption_application_conversion",
+    label: "Conversión de postulaciones de adopción",
+    numerator:
+      "COUNT adoption_application_submitted events in the ctx period; resolved breakdown counts adoption_application_resolved by payload.outcome (approved/rejected/withdrawn)",
+    denominator: "conversionRate = approved / submitted — null when submitted=0",
+    source: "pets, pet_events (adoption_application_submitted, adoption_application_resolved)",
+    fetcherName: "fetchAdoptionApplicationFunnel",
+    fetcherPath: "lib/metrics/adoption-funnel.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "percent",
+    suppression: "none — jurisdiction-level totals, not locality-grouped",
+    caveat:
+      "DEMAND side of the pipeline (online postulaciones), distinct from custody_return_rate / fetchCustodyFunnel's SUPPLY side (intake→adoption_finalized). Surfaced on /gob/adopciones. Submitted and resolved are INDEPENDENT windowed counts, not a followed cohort — a resolution in-period may reference an application submitted before the period started. SEED-DENSITY CAVEAT: adoption_application_* density is low in seed data.",
   },
 };
 

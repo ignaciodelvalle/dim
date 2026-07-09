@@ -154,3 +154,16 @@ export type {
   ReproductiveOutcomes,
   SterilizationCoverageResult,
 } from "./population-control";
+
+// 26/48 coverage-gap fill — four high-yield events surfaced on existing /gob
+// dashboards (deworming coverage · vet-access gap · movement corridors · adoption
+// application funnel). Each reads the append-only pet_events spine, jurisdiction-
+// scoped via petsScopeClause.
+export { fetchDewormingCoverage } from "./deworming";
+export type { DewormingCoverageResult, ProvinceDewormingRow } from "./deworming";
+export { fetchVetAccessByLocality, perThousand } from "./vet-access";
+export type { VetAccessResult, VetAccessRow } from "./vet-access";
+export { fetchMovementCorridors } from "./movement";
+export type { MovementCorridorsResult } from "./movement";
+export { approvalRate, fetchAdoptionApplicationFunnel } from "./adoption-funnel";
+export type { AdoptionFunnelResult } from "./adoption-funnel";

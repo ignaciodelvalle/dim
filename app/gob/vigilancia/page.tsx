@@ -29,7 +29,12 @@ import {
 import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metrics";
 import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { buildProjectionContext, fetchKpiTrend, windows } from "@/lib/metrics";
+import {
+  buildProjectionContext,
+  fetchKpiTrend,
+  fetchMovementCorridors,
+  windows,
+} from "@/lib/metrics";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
@@ -117,6 +122,7 @@ export default async function GobVigilanciaPage({
     outbreakSparkline,
     rabiesSparkline,
     vacSparkline,
+    movement,
   ] = await Promise.all([
     fetchVigilanciaMetrics(actor, filteredJurisdictions),
     fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
@@ -134,6 +140,9 @@ export default async function GobVigilanciaPage({
     fetchKpiTrend("outbreak_signal", complianceCtx),
     fetchKpiTrend("rabies_observation_started", complianceCtx),
     fetchKpiTrend("vaccination_administered", complianceCtx),
+    // Movilidad jurisdiccional / CVI — mobility is an epidemiological vector
+    // (a moved animal carries its exposure into a new jurisdiction).
+    fetchMovementCorridors(complianceCtx),
   ]);
 
   const signals = signalsPeriod ?? signals30d;
@@ -219,6 +228,7 @@ export default async function GobVigilanciaPage({
   const panelEnoId = "panel-eno-titulo";
   const panelEnfId = "panel-enf-titulo";
   const panelAmrId = "panel-amr-titulo";
+  const panelMovementId = "panel-movilidad-titulo";
 
   // Item 3 presentational helpers — render a metric or an em-dash placeholder.
   const { enoSla, rabiesCompliance, amrDensity, reportableIncidence } = compliance;
@@ -553,6 +563,56 @@ export default async function GobVigilanciaPage({
           </OpCardBody>
         </OpCard>
       </div>
+
+      {/* Movilidad jurisdiccional — mobility volume from movement_recorded.
+          Epidemiological vector: a moved animal carries its exposure into a new
+          jurisdiction. Scoped by the pet's home jurisdiction; sub-kinds decompose
+          domestic relocations, CVI emissions and cross-border transport. */}
+      <OpCard aria-labelledby={panelMovementId}>
+        <OpCardHead title={<span id={panelMovementId}>Movilidad registrada (período)</span>} />
+        <OpCardBody>
+          {movement.total === 0 ? (
+            <LnEmptyState
+              icon="shield-check"
+              title="Sin movimientos en el período"
+              description="No se registraron eventos movement_recorded en el rango y la cobertura seleccionados."
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {movement.total.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Movimientos totales</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {movement.jurisdictionChanged.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Cambios de jurisdicción</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {movement.cviIssued.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">CVI emitidos</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {movement.transportRecorded.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Transportes registrados</div>
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-ln-op-mute">
+                Eventos movement_recorded en el período, scoped a la jurisdicción de origen de la
+                mascota. Un cambio de jurisdicción reasigna el hogar de la mascota al destino.
+              </p>
+            </>
+          )}
+        </OpCardBody>
+      </OpCard>
 
       {/* Map + signals panels side-by-side on desktop */}
       <div className="grid lg:grid-cols-2 gap-4">

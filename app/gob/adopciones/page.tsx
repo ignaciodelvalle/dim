@@ -28,6 +28,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
+  fetchAdoptionApplicationFunnel,
   fetchAdoptionTrend,
   fetchCustodyFunnel,
   fetchFosterPoolUtilization,
@@ -119,15 +120,23 @@ export default async function GobAdopcionesPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
-  const [funnel, timeInState, returnRateValue, fosterPool, shelterOccupancy, adoptionTrend] =
-    await Promise.all([
-      fetchCustodyFunnel(ctx),
-      fetchTimeInState(ctx),
-      fetchReturnRate(ctx),
-      fetchFosterPoolUtilization(ctx),
-      fetchShelterOccupancyNational(ctx),
-      fetchAdoptionTrend(ctx),
-    ]);
+  const [
+    funnel,
+    timeInState,
+    returnRateValue,
+    fosterPool,
+    shelterOccupancy,
+    adoptionTrend,
+    appFunnel,
+  ] = await Promise.all([
+    fetchCustodyFunnel(ctx),
+    fetchTimeInState(ctx),
+    fetchReturnRate(ctx),
+    fetchFosterPoolUtilization(ctx),
+    fetchShelterOccupancyNational(ctx),
+    fetchAdoptionTrend(ctx),
+    fetchAdoptionApplicationFunnel(ctx),
+  ]);
 
   const fPct = funnelWithinUniverse(funnel);
 
@@ -136,6 +145,11 @@ export default async function GobAdopcionesPage({
 
   const returnRatePct = returnRateValue != null ? Math.round(returnRateValue * 1000) / 10 : null;
 
+  const conversionPct =
+    appFunnel.conversionRate != null ? Math.round(appFunnel.conversionRate * 1000) / 10 : null;
+  const hasAppFunnel = appFunnel.submitted > 0 || appFunnel.resolved > 0;
+
+  const panelAppFunnelId = "gob-panel-adopciones-postulaciones-titulo";
   const panelFunnelId = "gob-panel-adopciones-embudo-titulo";
   const panelTimeId = "gob-panel-adopciones-tiempo-titulo";
   const panelOccupancyId = "gob-panel-adopciones-ocupacion-titulo";
@@ -346,6 +360,65 @@ export default async function GobAdopcionesPage({
                 Las etapas son conteos de eventos independientes (no cohorte).
               </p>
             </figure>
+          )}
+        </OpCardBody>
+      </OpCard>
+
+      {/* Application funnel — DEMAND side (online postulaciones), distinct from
+          the supply-side placement funnel above. submitted → resolved (aprobadas /
+          rechazadas / retiradas) with an approval conversion rate. */}
+      <OpCard aria-labelledby={panelAppFunnelId}>
+        <OpCardHead title={<span id={panelAppFunnelId}>Embudo de postulaciones</span>} />
+        <OpCardBody>
+          {!hasAppFunnel ? (
+            <LnEmptyState
+              icon="heart"
+              title="Sin postulaciones en el período"
+              description="No hay eventos adoption_application_submitted ni adoption_application_resolved en el rango y la cobertura seleccionados."
+            />
+          ) : (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {appFunnel.submitted.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Postulaciones</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {appFunnel.resolved.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Resueltas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-verde tabular-nums">
+                    {appFunnel.approved.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Aprobadas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {appFunnel.rejected.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Rechazadas</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
+                    {conversionPct != null ? `${conversionPct}%` : "—"}
+                  </div>
+                  <div className="text-[11px] text-ln-op-mute mt-0.5">Conversión</div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-ln-op-mute">
+                Conversión = aprobadas / postulaciones del período.{" "}
+                {appFunnel.withdrawn > 0
+                  ? `${appFunnel.withdrawn.toLocaleString("es-AR")} retirada(s) por el postulante. `
+                  : ""}
+                Postulaciones y resoluciones son conteos independientes del período (no cohorte):
+                una resolución puede referirse a una postulación anterior al rango.
+              </p>
+            </>
           )}
         </OpCardBody>
       </OpCard>

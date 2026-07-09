@@ -35,6 +35,7 @@ import {
   TARGETS,
   buildProjectionContext,
   fetchActivePregnancies,
+  fetchDewormingCoverage,
   fetchNetGrowth,
   fetchReproductiveOutcomes,
   fetchSterilizationCoverage,
@@ -161,6 +162,7 @@ export default async function GobPoblacionPage({
       fetchNetGrowth(ctx),
       fetchSterilizationNatalidadRatio(ctx),
       fetchSterilizationTrend(ctx),
+      fetchDewormingCoverage(ctx),
     ]),
   );
 
@@ -177,10 +179,18 @@ export default async function GobPoblacionPage({
     );
   }
 
-  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio, sterilTrend] =
-    load.value;
+  const [
+    coverage,
+    activePregnancies,
+    outcomes,
+    netGrowth,
+    sterilNatalidadRatio,
+    sterilTrend,
+    deworming,
+  ] = load.value;
 
   const hasData = coverage.total > 0;
+  const dewormingTone = toneForTarget(deworming.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
   const hasTrend = sterilTrend.points.length > 0;
 
   const coverageTone = toneForTarget(coverage.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
@@ -239,6 +249,27 @@ export default async function GobPoblacionPage({
               "COUNT(DISTINCT pets WHERE EXISTS sterilization_performed) / COUNT(active/lost pets) * 100",
             caveat:
               "Meta programática 70% (benchmark interno — no es mandato legal como la cobertura antirrábica).",
+          }}
+        />
+
+        {/* KPI 1b: Deworming coverage — sanitary sibling of esterilización, 12m window */}
+        <OpKpi
+          label="Cobertura antiparasitaria"
+          value={deworming.total > 0 ? formatPercent(deworming.rate) : "—"}
+          bar={deworming.total > 0 ? deworming.rate : undefined}
+          tone={deworming.total > 0 ? dewormingTone : "neutral"}
+          sub={
+            deworming.total > 0
+              ? `últimos 12 meses · ${deworming.dewormed.toLocaleString("es-AR")} de ${deworming.total.toLocaleString("es-AR")}`
+              : "Sin datos en la cobertura"
+          }
+          info={{
+            definition:
+              "Fracción de mascotas activas/extraviadas en scope con al menos un evento deworming_administered en los últimos 12 meses.",
+            formula:
+              "COUNT(DISTINCT pets WHERE EXISTS deworming_administered en 12m) / COUNT(active/lost pets) * 100",
+            caveat:
+              "A diferencia de la esterilización (una vez), la desparasitación es periódica: la ventana de 12 meses es un proxy de 'protección vigente'. Solo cuenta dosis registradas en MiMAR — la cobertura real puede ser mayor.",
           }}
         />
 
