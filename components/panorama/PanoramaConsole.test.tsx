@@ -560,6 +560,105 @@ describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 h
   });
 });
 
+describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2)", () => {
+  // A non-empty FeatureCollection per layer so a seeded layer read from the
+  // WRONG cache (a level mismatch — C2) would surface as an EMPTY_FC on the map.
+  const seedFc = (tag: string) => ({
+    type: "FeatureCollection" as const,
+    features: [
+      {
+        type: "Feature" as const,
+        properties: { tag },
+        geometry: { type: "Point" as const, coordinates: [-58.4, -34.6] },
+      },
+    ],
+  });
+  const bienestarSeed = [
+    {
+      id: "denuncias",
+      features: seedFc("denuncias"),
+      truncated: false,
+      suppressedCount: 0,
+      noLocalityCount: 0,
+    },
+    {
+      id: "decomisos",
+      features: seedFc("decomisos"),
+      truncated: false,
+      suppressedCount: 0,
+      noLocalityCount: 0,
+    },
+  ];
+
+  it("paints the seeded preset layers on first render with NO live layer load and NO KPI refetch", async () => {
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+    renderRedesignConsole({
+      // The server seeds the role-default preset (bienestar) at its OWN level
+      // (locality) — initialLevel MUST equal that seed level (the C2 invariant).
+      seededPresetId: "bienestar",
+      seededLayers: bienestarSeed,
+      initialLevel: "locality",
+    });
+
+    // The preset row + map connect on first paint (no fetch waited on).
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Bienestar/ })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+    });
+
+    // The board committed silently (replaceState, not a history push) with the
+    // preset's period + layers + locality level.
+    expect(pushSpy).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("bienestar");
+    expect(params.get("period")).toBe("90d");
+    expect(params.get("layers")).toBe("denuncias,decomisos");
+    expect(params.get("level")).toBe("locality");
+
+    // The seeded features are on the map AT the seeded level — read from the
+    // cache that matches initialLevel. A level mismatch would blank these
+    // (EMPTY_FC), so a non-empty read IS the level-invariant guard.
+    const layers = (mapProps?.layers ?? []) as Array<{
+      id: string;
+      features: { features: unknown[] };
+    }>;
+    const denuncias = layers.find((l) => l.id === "denuncias");
+    const decomisos = layers.find((l) => l.id === "decomisos");
+    expect(denuncias?.features.features.length).toBe(1);
+    expect(decomisos?.features.features.length).toBe(1);
+    // perdidas (the legacy default seed) is NOT on the board on this path.
+    expect(layers.some((l) => l.id === "perdidas")).toBe(false);
+
+    // The whole point: the preset commit issues NO LIVE layer load — every
+    // seeded layer was served from the cache the initializer filled, so
+    // fetchLayersInto has nothing to fetch (missingFromCache === []).
+    //
+    // NOTE on the scope of this assertion: we key on LIVE loads (asOf-absent).
+    // Under THIS test's `useSearchParams` mock (which reads window.location), the
+    // shallow board commit flips the resolved window 3y→90d, and the real
+    // TimeScrubber transiently emits a non-live as-of on that transition — firing
+    // a couple of `?asOf=` refetches. That is PRE-EXISTING scrubber behavior (it
+    // happens on the non-seeded first-visit path too) and does NOT occur in
+    // production, where useSearchParams ignores the History-API commit so the
+    // window never transitions. It is orthogonal to this commit's caching win.
+    const liveLayerCalls = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter(
+        (u) => u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("asOf="),
+      );
+    const kpiCalls = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes("/api/panorama/kpis"));
+    expect(liveLayerCalls).toEqual([]);
+    // The KPIs were seeded server-side at the preset window; seededQsRef is
+    // pre-armed with the committed scope+period so the commit skips the refetch.
+    expect(kpiCalls).toEqual([]);
+  });
+});
+
 describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)", () => {
   const coberturaCalls = () =>
     fetchMock.mock.calls.filter((c) => String(c[0]).includes("/api/panorama/cobertura"));

@@ -126,6 +126,34 @@ type ApiResponse = {
 // The two choropleth layer ids — the only layers the aggregation level affects.
 const CHOROPLETH_IDS = new Set<LayerId>(CHOROPLETH_LAYERS.map((l) => l.id));
 
+/**
+ * A layer envelope the SERVER seeded for the first-visit fast path (perf plan
+ * commit 1.2). Matches the exact per-layer shape the console stores: the
+ * FeatureCollection plus the k-anon disclosure counts. On a truly-first visit
+ * the page resolves the role-default preset, fetches ALL its layers (cached),
+ * and hands them down here so the console paints on first render with ZERO
+ * client fetches — instead of the client clearing caches and re-fetching.
+ */
+export type SeededLayer = {
+  id: LayerId;
+  features: FeatureCollection;
+  truncated: boolean;
+  suppressedCount: number;
+  noLocalityCount: number;
+};
+
+/**
+ * True when a layer's features at `level` live in the PROVINCE cache
+ * (provinceDataRef) rather than the locality cache (dataRef). Mirrors EXACTLY
+ * the cache routing `activeLayers` uses to READ features (choropleth OR
+ * aggregated-point layer, at province level). Seeding a layer through this same
+ * predicate guarantees the seed lands in the SAME cache activeLayers reads it
+ * from at `initialLevel` — the C2 level-invariant, enforced by construction.
+ */
+function seededLayerUsesProvinceCache(id: LayerId, level: AggregationLevel): boolean {
+  return (CHOROPLETH_IDS.has(id) || isAggregatedPointLayer(id)) && level === "province";
+}
+
 // panorama-event-points: per-layer es-AR copy for the honest points-mode
 // disclosure. perdidas/mordeduras plot REAL coordinates; denuncias plots the
 // coarse LOCALITY CENTROID (never the exact report coordinate).
@@ -300,6 +328,18 @@ type Props = {
    * wins (this only applies when no explicit board is present).
    */
   defaultPresetId?: PresetId;
+  /**
+   * perf plan commit 1.2 — first-visit fast path. On a TRULY-first visit the
+   * server resolves the role-default preset and seeds ALL its layers (via the
+   * cached loader) at the preset's level + period. `seededPresetId` is that
+   * preset (equals `defaultPresetId`); `seededLayers` carries the per-layer
+   * envelopes. When present the console seeds its caches + states from these,
+   * paints on first render, and the mount's preset activation PRESERVES the
+   * seeded caches (zero client fetches). Absent → today's behavior (perdidas
+   * seed + client-side preset activation that fetches, now cache-warmed).
+   */
+  seededPresetId?: PresetId;
+  seededLayers?: SeededLayer[];
 };
 
 export function PanoramaConsole({
@@ -315,7 +355,13 @@ export function PanoramaConsole({
   filtersSlot,
   initialDivisionProvince = null,
   defaultPresetId = DEFAULT_PANORAMA_PRESET_ID,
+  seededPresetId,
+  seededLayers,
 }: Props) {
+  // perf plan 1.2: a first-visit seed is present only when the server handed
+  // down BOTH the preset id and at least one layer envelope. Everything below
+  // gates on this so a non-seeded (normal) render keeps today's behavior.
+  const hasSeed = seededPresetId != null && seededLayers != null && seededLayers.length > 0;
   const searchParams = useSearchParams();
   // panorama-redesign Fase 1: per-key fetch cancellation. Key = layer id for
   // /api/panorama/[layer] fetches, "kpis" for the KPI strip — last click wins
@@ -326,7 +372,20 @@ export function PanoramaConsole({
   // When the server seeded the default layer at locality level (scoped view,
   // initialLevel="locality"), the seed lands here — this IS the locality cache.
   const dataRef = useRef<Map<LayerId, FeatureCollection>>(
-    initialLevel === "locality" ? new Map([[defaultLayerId, defaultFeatures]]) : new Map(),
+    (() => {
+      // First-visit fast path (perf plan 1.2): seed every server-seeded layer
+      // whose features live in the LOCALITY cache at `initialLevel` (the level
+      // the page seeded them at). seededLayerUsesProvinceCache mirrors the
+      // activeLayers read-routing, so seed placement == read placement (C2).
+      if (hasSeed) {
+        const m = new Map<LayerId, FeatureCollection>();
+        for (const seed of seededLayers) {
+          if (!seededLayerUsesProvinceCache(seed.id, initialLevel)) m.set(seed.id, seed.features);
+        }
+        return m;
+      }
+      return initialLevel === "locality" ? new Map([[defaultLayerId, defaultFeatures]]) : new Map();
+    })(),
   );
   // As-of feature cache (F4): per (layer, asOf-iso) the features the layer had at
   // that instant. Refreshed when the scrubber moves; cleared when the period/scope
@@ -344,9 +403,21 @@ export function PanoramaConsole({
   // would leave the active cache empty on first render, causing the
   // activeLayers memo to find EMPTY_FC → blank map.
   const provinceDataRef = useRef<Map<LayerId, FeatureCollection>>(
-    initialLevel === "province" && isAggregatedPointLayer(defaultLayerId)
-      ? new Map([[defaultLayerId, defaultFeatures]])
-      : new Map(),
+    (() => {
+      // First-visit fast path: the province-cache counterpart of dataRef above —
+      // seed every server-seeded layer that reads from provinceDataRef at
+      // `initialLevel` (choropleth / aggregated-point at province level).
+      if (hasSeed) {
+        const m = new Map<LayerId, FeatureCollection>();
+        for (const seed of seededLayers) {
+          if (seededLayerUsesProvinceCache(seed.id, initialLevel)) m.set(seed.id, seed.features);
+        }
+        return m;
+      }
+      return initialLevel === "province" && isAggregatedPointLayer(defaultLayerId)
+        ? new Map([[defaultLayerId, defaultFeatures]])
+        : new Map();
+    })(),
   );
 
   // U5 aggregation axis — the granularity TOGGLE. Distinct from the scope filter
@@ -425,6 +496,23 @@ export function PanoramaConsole({
     const s = initialState();
     const urlLayerIds = parseLayersParam(searchParams.get("layers"));
     if (urlLayerIds === null) {
+      if (hasSeed) {
+        // First-visit fast path (perf plan 1.2): the server seeded the
+        // role-default preset's layers. Mark each active + NON-loading with its
+        // seeded envelope so the map paints on first render with no client
+        // fetch (perdidas is NOT seeded on this path — the preset owns the board).
+        for (const seed of seededLayers) {
+          s[seed.id] = {
+            active: true,
+            loading: false,
+            count: seed.features.features.length,
+            suppressedCount: seed.suppressedCount,
+            noLocalityCount: seed.noLocalityCount,
+            truncated: seed.truncated,
+          };
+        }
+        return s;
+      }
       // No explicit board in the URL — the server-seeded default layer is on.
       s[defaultLayerId] = {
         active: true,
@@ -1380,7 +1468,15 @@ export function PanoramaConsole({
   // map-QOL: the URL (`?preset=`) wins on mount so a shared board reproduces it.
   const [activePresetId, setActivePresetId] = useState<PresetId | null>(() => {
     const raw = searchParams.get("preset");
-    return raw !== null && getPreset(raw as PresetId) ? (raw as PresetId) : null;
+    if (raw !== null && getPreset(raw as PresetId)) return raw as PresetId;
+    // First-visit fast path: adopt the server-seeded preset on mount so (a) the
+    // preset row + metrics column read active on first paint, and (b) the
+    // derived-level effect sees the preset's level — WITHOUT this, that effect
+    // (which runs before the mount preset-activation) would compute a
+    // province-level target for a national scope and fire onLevelChange, drilling
+    // AWAY from the seeded locality caches and blanking the map (C2 class).
+    if (hasSeed) return seededPresetId;
+    return null;
   });
 
   // panorama-redesign Fase 1: preset map framing (camera-only). Set on preset
@@ -1429,16 +1525,35 @@ export function PanoramaConsole({
    * 4. Fetch the preset's layers directly against the NEW params (no closure
    *    over stale searchParams) + persist the board for the bare-URL restore.
    */
+  // Which of `ids` are NOT yet cached for `lvl` — the layers a preset activation
+  // must actually fetch. Routes each id to the same cache activeLayers reads it
+  // from (seededLayerUsesProvinceCache). With server-seeded caches (first-visit
+  // fast path) this is normally EMPTY, so the preset commit fires zero fetches.
+  const missingFromCache = useCallback((ids: LayerId[], lvl: AggregationLevel) => {
+    return ids.filter((lid) => {
+      const cache = seededLayerUsesProvinceCache(lid, lvl)
+        ? provinceDataRef.current
+        : dataRef.current;
+      return !cache.has(lid);
+    });
+  }, []);
+
   const applyPreset = useCallback(
-    (id: PresetId, commit: "push" | "replace") => {
+    (id: PresetId, commit: "push" | "replace", opts?: { preserveSeededCaches?: boolean }) => {
       const preset = getPreset(id);
       if (!preset) return;
+      // perf plan 1.2: preserve mode keeps the SERVER-seeded caches (first-visit
+      // fast path). The scrubber is already parked at live (asOf init null), so
+      // the only work is fetching layers MISSING from the seed (normally none).
+      const preserve = opts?.preserveSeededCaches === true;
 
-      // Clear all caches — preset always starts fresh.
-      dataRef.current.clear();
-      provinceDataRef.current.clear();
-      asOfDataRef.current.clear();
-      setAsOf(null);
+      if (!preserve) {
+        // Clear all caches — an explicit preset commit always starts fresh.
+        dataRef.current.clear();
+        provinceDataRef.current.clear();
+        asOfDataRef.current.clear();
+        setAsOf(null);
+      }
 
       // Switch aggregation level immediately so statesRef and any effect that
       // reads levelRef both see the correct level.
@@ -1446,19 +1561,29 @@ export function PanoramaConsole({
       levelRef.current = preset.level;
 
       const presetIds = presetLayerIds(preset);
+      // preserve → only the layers missing from the seeded caches; else all.
+      const toFetch = preserve ? missingFromCache(presetIds, preset.level) : presetIds;
+      const toFetchSet = new Set(toFetch);
 
       // Flip all layers: deactivate current ones; mark preset layers active+loading.
+      // A seeded-and-preserved layer is marked active + NON-loading (its envelope
+      // stays from the initializer) — flipping it to loading:true would spin
+      // forever, since no fetch is issued to clear it.
       setStates((s) => {
         const next = { ...s };
         for (const l of PANORAMA_LAYERS) {
           if (presetIds.includes(l.id)) {
-            next[l.id] = {
-              active: true,
-              loading: true,
-              count: 0,
-              suppressedCount: 0,
-              truncated: false,
-            };
+            if (preserve && !toFetchSet.has(l.id)) {
+              next[l.id] = { ...s[l.id], active: true, loading: false };
+            } else {
+              next[l.id] = {
+                active: true,
+                loading: true,
+                count: 0,
+                suppressedCount: 0,
+                truncated: false,
+              };
+            }
           } else if (s[l.id]?.active) {
             next[l.id] = { ...s[l.id], active: false, compatibilityHint: undefined };
           }
@@ -1486,6 +1611,12 @@ export function PanoramaConsole({
       else nextParams.delete("level");
       nextParams.set("preset", id);
       presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
+      // perf plan 1.2: on the first-visit fast path the SERVER already seeded the
+      // KPIs at this preset's window — pre-arm seededQsRef with the committed
+      // scope+period qs so this commit's URL change can't trigger a redundant
+      // /api/panorama/kpis refetch (the KPI effect skips a matching qs). Only for
+      // preserve mode; an explicit preset click still refetches KPIs at its period.
+      if (preserve) seededQsRef.current = scopePeriodQsOf(nextParams);
       const nextUrl = `${window.location.pathname}?${nextParams.toString()}`;
       if (commit === "push") pushMapStateUrl(nextUrl);
       else replaceMapStateUrl(nextUrl);
@@ -1496,6 +1627,9 @@ export function PanoramaConsole({
         capasDetail: capasDetailRef.current,
         scrubDetail: scrubDetailRef.current,
       });
+      // perf plan 1.2: nothing to fetch (every preset layer was seeded) → the
+      // commit is state + URL only, ZERO network. This is the whole win.
+      if (toFetch.length === 0) return;
       // panorama-redesign Fase 1: TRAILING debounce on the layer-fetch burst
       // ONLY — the state flips + shallow URL push above stay synchronous
       // (instant feedback). Rapid preset clicks coalesce into one burst for
@@ -1505,10 +1639,10 @@ export function PanoramaConsole({
       }
       presetFetchTimerRef.current = window.setTimeout(() => {
         presetFetchTimerRef.current = null;
-        void fetchLayersInto(presetIds, preset.level, nextParams);
+        void fetchLayersInto(toFetch, preset.level, nextParams);
       }, PRESET_FETCH_DEBOUNCE_MS);
     },
-    [searchParams, fetchLayersInto],
+    [searchParams, fetchLayersInto, missingFromCache],
   );
 
   /** F3: explicit preset click — a back-button-undoable board commit. */
@@ -1593,13 +1727,6 @@ export function PanoramaConsole({
     mountInitDoneRef.current = true;
     const current = new URLSearchParams(window.location.search);
     const urlLayerIds = parseLayersParam(current.get("layers"));
-    const missingFromCache = (ids: LayerId[], lvl: AggregationLevel) =>
-      ids.filter((lid) => {
-        const levelSensitive = CHOROPLETH_IDS.has(lid) || isAggregatedPointLayer(lid);
-        const cache =
-          levelSensitive && lvl === "province" ? provinceDataRef.current : dataRef.current;
-        return !cache.has(lid);
-      });
 
     // panorama-vista-redesign Phase 5 (design Decision 5): capasDetail/
     // scrubDetail are UI-only prefs (never URL params) — read the saved board
@@ -1635,8 +1762,16 @@ export function PanoramaConsole({
     if (saved === null) {
       // (c) No explicit board, no saved board — first visit: land on the
       // role-aware question-framed preset (govt → local surveillance, admin →
-      // national default) instead of the orphan default layer.
-      applyPreset(defaultPresetId, "replace");
+      // national default) instead of the orphan default layer. When the SERVER
+      // seeded that preset's layers + KPIs (perf plan 1.2), PRESERVE the seeded
+      // caches so this commit fires zero fetches; otherwise (no seed) fall back
+      // to the fetch-on-mount path (the client re-fetches, now cache-warmed).
+      const preserve = hasSeed && seededPresetId === defaultPresetId;
+      applyPreset(
+        defaultPresetId,
+        "replace",
+        preserve ? { preserveSeededCaches: true } : undefined,
+      );
       return;
     }
     const savedIds = parseLayersParam(saved.layers || null);
@@ -1692,7 +1827,9 @@ export function PanoramaConsole({
     });
     const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
     if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
-  }, [fetchLayersInto, applyPreset, defaultPresetId]);
+    // hasSeed/seededPresetId are mount-stable props; the effect is mount-only
+    // (mountInitDoneRef guard), so their inclusion never re-runs it.
+  }, [fetchLayersInto, applyPreset, defaultPresetId, missingFromCache, hasSeed, seededPresetId]);
 
   const mapLabel = useMemo(() => {
     const names = activeLayers.map((l) => l.label);

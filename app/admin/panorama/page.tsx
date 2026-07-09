@@ -1,3 +1,4 @@
+import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
@@ -18,6 +19,11 @@ import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-pan
 import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
+import {
+  DEFAULT_PANORAMA_PRESET_ID,
+  getPreset,
+  presetLayerIds,
+} from "@/src/modules/panorama/domain/presets";
 
 // Centro de Situación Nacional — admin view (universal scope).
 // Slice 2: dark local basemap + multi-layer console + unified filters.
@@ -38,6 +44,10 @@ export default async function AdminPanoramaPage({
     to?: string;
     province?: string;
     locality?: string;
+    // perf plan 1.2: a first visit carries NONE of period/preset/layers (nor a
+    // custom from/to window) — the signal to seed the role-default preset.
+    preset?: string;
+    layers?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -119,8 +129,95 @@ export default async function AdminPanoramaPage({
 
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
-  // Default layer features + the headline KPIs resolve concurrently. The KPIs
-  // reuse the tested dashboard fetchers (parity) and are scoped+period-aware.
+
+  // Admin's role-default vista (see src/modules/panorama/domain/presets.ts):
+  // the national welfare overview. Seeded server-side on a first visit below.
+  const defaultPresetId = DEFAULT_PANORAMA_PRESET_ID;
+
+  // perf plan 1.2 — first-visit detection. A TRUE first visit carries none of
+  // period/preset/layers (nor a custom from/to window). On this path the server
+  // resolves the role-default preset itself — seeding its layers + KPIs at the
+  // PRESET's window/level — so the client paints on first render with zero layer
+  // fetches, instead of discarding a freshly-seeded perdidas layer.
+  const isFirstVisit =
+    sp.period === undefined &&
+    sp.preset === undefined &&
+    sp.layers === undefined &&
+    sp.from === undefined &&
+    sp.to === undefined;
+
+  if (isFirstVisit) {
+    // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
+    const preset = getPreset(defaultPresetId)!;
+    // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH the preset's level.
+    // The console initializes `level` from initialLevel and reads each seeded
+    // layer from the cache keyed by that level — a mismatch blanks the map.
+    const seedLevel = preset.level;
+    // The preset's OWN window (90d/30d) — not the 3y default. This also scopes
+    // the KPI fan-out to that window, killing the wasted 3-year compute.
+    const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });
+    const seedIds = presetLayerIds(preset);
+    const [seedResults, kpis] = await Promise.all([
+      Promise.all(
+        seedIds.map((lid) =>
+          withDbBudget(
+            loadLayerFeaturesCached(
+              lid,
+              actor,
+              scoped,
+              { since: seedPeriod.since },
+              seedLevel,
+              adminProvince,
+              adminLocality,
+            ),
+            PAGE_BUDGET_MS,
+            `admin/panorama seed ${lid}`,
+            emptyLayerFeatures(),
+          ).catch(() => emptyLayerFeatures()),
+        ),
+      ),
+      loadCachedPanoramaKpis({
+        actor,
+        jurisdictions: scoped,
+        period: seedPeriod,
+        adminProvince,
+        adminLocality,
+        label: "admin/panorama kpis",
+      })
+        .then((r) => r.value)
+        .catch(() => degradedPanoramaKpis()),
+    ]);
+    const seededLayers: SeededLayer[] = seedIds.map((lid, i) => ({
+      id: lid,
+      features: seedResults[i].features,
+      truncated: seedResults[i].truncated,
+      suppressedCount: seedResults[i].suppressedCount,
+      noLocalityCount: seedResults[i].noLocalityCount,
+    }));
+    return (
+      <PanoramaShell
+        scopeLabel="Nacional · todas las provincias"
+        layer={layer}
+        // perdidas is NOT seeded on the first-visit path — the preset owns the
+        // board. Pass an empty envelope so the console has a default (unused).
+        features={emptyLayerFeatures().features}
+        truncated={false}
+        suppressedCount={0}
+        allowedProvinces={GOB_ALL_PROVINCES}
+        localities={localities}
+        localityCentroids={localityCentroids}
+        initialBounds={initialBounds}
+        kpis={kpis}
+        suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}
+        initialLevel={seedLevel}
+        defaultPresetId={defaultPresetId}
+        seededPresetId={defaultPresetId}
+        seededLayers={seededLayers}
+      />
+    );
+  }
+
+  // Non-first visit — keep today's behavior (perdidas seed, now cache-warmed).
   //
   // Seed level follows the scope (QA 2026-07-03): a selected province/locality
   // opens at LOCALITY granularity (finest the data supports — shows the data's
@@ -180,6 +277,7 @@ export default async function AdminPanoramaPage({
       // Panorama's own notice so the page never stacks two disclosures (D3).
       suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}
       initialLevel={initialLevel}
+      defaultPresetId={defaultPresetId}
     />
   );
 }

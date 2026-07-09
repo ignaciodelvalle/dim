@@ -1,3 +1,4 @@
+import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
@@ -21,7 +22,12 @@ import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-pan
 import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
-import { DEFAULT_PANORAMA_PRESET_ID, type PresetId } from "@/src/modules/panorama/domain/presets";
+import {
+  DEFAULT_PANORAMA_PRESET_ID,
+  type PresetId,
+  getPreset,
+  presetLayerIds,
+} from "@/src/modules/panorama/domain/presets";
 
 // Centro de Situación Nacional — gobierno view (jurisdiction scope).
 // govt sees only its assigned jurisdictions (intersection inherited from the
@@ -53,6 +59,10 @@ export default async function GobPanoramaPage({
     to?: string;
     province?: string;
     locality?: string;
+    // perf plan 1.2: a first visit carries NONE of period/preset/layers (nor a
+    // custom from/to window) — the signal to seed the role-default preset.
+    preset?: string;
+    layers?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -130,9 +140,96 @@ export default async function GobPanoramaPage({
 
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;
-  // Default layer features + the headline KPIs + the jurisdiction bbox resolve
-  // concurrently. The KPIs reuse the tested dashboard fetchers (parity) and are
-  // scoped+period-aware.
+
+  // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
+  // Cheap static lookup, needed by both the first-visit and normal paths.
+  const initialBounds = await jurisdictionBounds(jurisdictions);
+
+  // perf plan 1.2 — first-visit detection. A TRUE first visit carries none of
+  // period/preset/layers (nor a custom from/to window): the bare-URL landing the
+  // client would otherwise resolve to the role-default preset AFTER discarding a
+  // freshly-seeded perdidas layer. On this path the server does that resolution
+  // itself — seeding the preset's layers + KPIs at the PRESET's window/level —
+  // so the client paints on first render with zero layer fetches.
+  const isFirstVisit =
+    sp.period === undefined &&
+    sp.preset === undefined &&
+    sp.layers === undefined &&
+    sp.from === undefined &&
+    sp.to === undefined;
+
+  if (isFirstVisit) {
+    // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
+    const preset = getPreset(defaultPresetId)!;
+    // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH the preset's level.
+    // The console initializes `level` from initialLevel and reads each seeded
+    // layer from the cache keyed by that level — a mismatch blanks the map.
+    const seedLevel = preset.level;
+    // The preset's OWN window (90d/30d) — not the 3y default. This also scopes
+    // the KPI fan-out to that window, killing the wasted 3-year compute.
+    const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });
+    const seedIds = presetLayerIds(preset);
+    const [seedResults, kpis] = await Promise.all([
+      Promise.all(
+        seedIds.map((lid) =>
+          withDbBudget(
+            loadLayerFeaturesCached(
+              lid,
+              actor,
+              scoped,
+              { since: seedPeriod.since },
+              seedLevel,
+              adminProvince,
+              adminLocality,
+            ),
+            PAGE_BUDGET_MS,
+            `gob/panorama seed ${lid}`,
+            emptyLayerFeatures(),
+          ).catch(() => emptyLayerFeatures()),
+        ),
+      ),
+      loadCachedPanoramaKpis({
+        actor,
+        jurisdictions: scoped,
+        period: seedPeriod,
+        adminProvince,
+        adminLocality,
+        label: "gob/panorama kpis",
+      })
+        .then((r) => r.value)
+        .catch(() => degradedPanoramaKpis()),
+    ]);
+    const seededLayers: SeededLayer[] = seedIds.map((lid, i) => ({
+      id: lid,
+      features: seedResults[i].features,
+      truncated: seedResults[i].truncated,
+      suppressedCount: seedResults[i].suppressedCount,
+      noLocalityCount: seedResults[i].noLocalityCount,
+    }));
+    return (
+      <PanoramaShell
+        scopeLabel={scopeLabel(profile.role, jurisdictions)}
+        layer={layer}
+        // perdidas is NOT seeded on the first-visit path — the preset owns the
+        // board. Pass an empty envelope so the console has a default (unused).
+        features={emptyLayerFeatures().features}
+        truncated={false}
+        suppressedCount={0}
+        allowedProvinces={allowedProvinces}
+        localities={localities}
+        localityCentroids={localityCentroids}
+        kpis={kpis}
+        initialBounds={initialBounds ?? undefined}
+        initialLevel={seedLevel}
+        initialDivisionProvince={initialDivisionProvince}
+        defaultPresetId={defaultPresetId}
+        seededPresetId={defaultPresetId}
+        seededLayers={seededLayers}
+      />
+    );
+  }
+
+  // Non-first visit — keep today's behavior (perdidas seed, now cache-warmed).
   //
   // Seed level follows the scope (QA 2026-07-03): a govt actor (always
   // jurisdiction-scoped) or an explicit province selection opens at LOCALITY
@@ -144,8 +241,8 @@ export default async function GobPanoramaPage({
   // Both DB fan-outs are time-bounded AND `.catch`-guarded: withDbBudget degrades
   // on timeout, the trailing `.catch` degrades on an early fetcher rejection — so
   // a degraded DB never throws out of this Server Component (it renders the honest
-  // degraded PanoramaShell instead). jurisdictionBounds is a cheap static lookup.
-  const [result, kpis, initialBounds] = await Promise.all([
+  // degraded PanoramaShell instead).
+  const [result, kpis] = await Promise.all([
     withDbBudget(
       loadLayerFeaturesCached(
         "perdidas",
@@ -175,8 +272,6 @@ export default async function GobPanoramaPage({
     })
       .then((r) => r.value)
       .catch(() => degradedPanoramaKpis()),
-    // Govt → bbox of their assigned localities; admin (jurisdictions=[]) → null.
-    jurisdictionBounds(jurisdictions),
   ]);
 
   return (

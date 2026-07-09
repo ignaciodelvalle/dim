@@ -1,6 +1,6 @@
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { PanoramaConsole } from "@/components/panorama/PanoramaConsole";
+import { PanoramaConsole, type SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -78,6 +78,16 @@ type Props = {
    * Presentation-only; the URL ?preset contract still wins.
    */
   defaultPresetId?: PresetId;
+  /**
+   * perf plan commit 1.2 — first-visit fast path. On a TRULY-first visit the
+   * page resolves the role-default preset and seeds ALL its layers (cached) at
+   * the preset's level + period; these props carry that seed to the console so
+   * the map paints on first render with zero client fetches. Absent on
+   * non-first visits (the page keeps seeding perdidas). `seededPresetId` equals
+   * `defaultPresetId` on this path.
+   */
+  seededPresetId?: PresetId;
+  seededLayers?: SeededLayer[];
 };
 
 export function PanoramaShell({
@@ -95,6 +105,8 @@ export function PanoramaShell({
   initialLevel = "province",
   initialDivisionProvince,
   defaultPresetId,
+  seededPresetId,
+  seededLayers,
 }: Props) {
   return (
     <div className="space-y-4">
@@ -137,6 +149,8 @@ export function PanoramaShell({
         initialLevel={initialLevel}
         initialDivisionProvince={initialDivisionProvince}
         defaultPresetId={defaultPresetId}
+        seededPresetId={seededPresetId}
+        seededLayers={seededLayers}
         filtersSlot={
           <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3">
             <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
