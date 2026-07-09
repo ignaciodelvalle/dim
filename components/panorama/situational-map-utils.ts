@@ -43,6 +43,62 @@ export function derivedLevel(
 }
 
 // ---------------------------------------------------------------------------
+// panorama magnetic-zoom Phase 2 — hysteresis around the province↔locality flip
+// ---------------------------------------------------------------------------
+//
+// The single Z_LOCALITY threshold makes the level FLICKER: a camera that settles
+// right on 5.0 (or a frame that lands there) toggles province↔locality on every
+// jitter, each flip triggering a refetch of the active level-sensitive layers.
+// A Schmitt-trigger band fixes it: enter locality only well ABOVE the old line,
+// fall back to province only well BELOW it, and hold the previous level inside
+// the dead-band so tiny oscillations produce ZERO flips.
+
+/** Zoom at/above which national scope ENTERS locality (upper Schmitt edge). */
+export const Z_LOCALITY_ENTER = 5.4;
+/** Zoom below which national scope EXITS back to province (lower Schmitt edge). */
+export const Z_LOCALITY_EXIT = 4.6;
+
+/**
+ * Derive the aggregation level with hysteresis — the flip-free counterpart of
+ * `derivedLevel`. The scope-wins rule is UNCHANGED (any province/locality scope
+ * is always locality). For national scope the flip is a Schmitt trigger:
+ *
+ *  - `zoom >= Z_LOCALITY_ENTER` → locality (decisive drill-in past the boundary),
+ *  - `zoom <  Z_LOCALITY_EXIT`  → province (decisive pull-out below the boundary),
+ *  - otherwise (inside the dead-band) → keep `prev` — no flip, no refetch.
+ *
+ * Pure — no map, no DOM. `prev` is the CURRENT aggregation level (the caller
+ * threads it via a ref); it is only consulted for national scope inside the band.
+ */
+export function derivedLevelWithHysteresis(
+  prev: AggregationLevel,
+  scope: PanoramaScope,
+  zoom: number,
+): AggregationLevel {
+  // Scope wins over the camera, exactly as `derivedLevel` — a jurisdiction drill
+  // always shows its localities regardless of zoom.
+  if (scope.province != null || scope.locality != null) return "locality";
+  if (zoom >= Z_LOCALITY_ENTER) return "locality";
+  if (zoom < Z_LOCALITY_EXIT) return "province";
+  return prev;
+}
+
+/**
+ * Max-zoom a PROGRAMMATIC camera move (initial fit, jurisdiction viewport, preset
+ * frame) should clamp to so it lands DECISIVELY below the province↔locality flip.
+ * A frame is only "magnetic" when its natural landing zoom falls within ±0.5 of
+ * the old Z_LOCALITY line — otherwise it keeps its default max-zoom and lands
+ * wherever it naturally would. This snaps the near-boundary case to just under
+ * the flip so an automated frame never leaves the level teetering.
+ */
+export const FRAMING_SNAP_MAX_ZOOM = Z_LOCALITY - 0.25;
+
+/** True when a programmatic landing zoom is close enough to the flip to snap. */
+export function shouldSnapFraming(landingZoom: number): boolean {
+  return Math.abs(landingZoom - Z_LOCALITY) <= 0.5;
+}
+
+// ---------------------------------------------------------------------------
 // panorama-event-points Slice 1 — near-zoom real-location dot mode (design D1/D2)
 // ---------------------------------------------------------------------------
 

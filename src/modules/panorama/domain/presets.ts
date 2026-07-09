@@ -56,7 +56,17 @@ export type PanoramaPreset = {
    * Unlimited — reference layers are always compatible.
    */
   references?: LayerId[];
-  /** Aggregation granularity the preset sets on activation. */
+  /**
+   * Aggregation granularity the preset PREFERS.
+   *
+   * PO-ratified 2026-07-09: this is an INITIAL PREFERENCE, not a force. In
+   * NATIONAL framing every preset opens at `province` (24 rows, cheap, no
+   * k-anon) regardless of this field; a `level: "locality"` preset drills to
+   * locality only on an intentional zoom past the boundary or a jurisdiction
+   * selection (scope-wins). The preference is realized by the server first-visit
+   * seed (seeded at the scope-derived level) and the live camera hysteresis —
+   * NOT by pinning the console's level to this value on activation.
+   */
   level: AggregationLevel;
   /** Period window the preset activates (maps to the ?period searchParam). */
   periodPreset: "30d" | "90d";

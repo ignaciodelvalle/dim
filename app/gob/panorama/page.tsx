@@ -161,10 +161,18 @@ export default async function GobPanoramaPage({
   if (isFirstVisit) {
     // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
     const preset = getPreset(defaultPresetId)!;
-    // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH the preset's level.
-    // The console initializes `level` from initialLevel and reads each seeded
-    // layer from the cache keyed by that level — a mismatch blanks the map.
-    const seedLevel = preset.level;
+    // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH `seedLevel`. The
+    // console initializes `level` from initialLevel and reads each seeded layer
+    // from the cache keyed by that level — a mismatch blanks the map.
+    //
+    // PO-ratified 2026-07-09: the seed level follows the SCOPE, not the preset.
+    // A govt operator (always jurisdiction-scoped) or an explicit province opens
+    // at LOCALITY (scope-wins); only the unscoped national (admin viewing /gob)
+    // seeds at PROVINCE — matching the console's zoomed-out hysteresis derivation
+    // so the mount produces no level drift/refetch. The preset's own `level` is
+    // only a preference now.
+    const isScoped = provinceObj !== null || (profile.role !== "admin" && jurisdictions.length > 0);
+    const seedLevel = isScoped ? ("locality" as const) : ("province" as const);
     // The preset's OWN window (90d/30d) — not the 3y default. This also scopes
     // the KPI fan-out to that window, killing the wasted 3-year compute.
     const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });

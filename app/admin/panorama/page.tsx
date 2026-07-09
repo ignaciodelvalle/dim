@@ -149,10 +149,15 @@ export default async function AdminPanoramaPage({
   if (isFirstVisit) {
     // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
     const preset = getPreset(defaultPresetId)!;
-    // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH the preset's level.
-    // The console initializes `level` from initialLevel and reads each seeded
-    // layer from the cache keyed by that level — a mismatch blanks the map.
-    const seedLevel = preset.level;
+    // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH `seedLevel`. The
+    // console initializes `level` from initialLevel and reads each seeded layer
+    // from the cache keyed by that level — a mismatch blanks the map.
+    //
+    // PO-ratified 2026-07-09: the seed level follows the SCOPE, not the preset.
+    // A national first visit seeds at PROVINCE (matching the console's zoomed-out
+    // hysteresis derivation, so no drift/refetch on mount); a scoped drill seeds
+    // at LOCALITY (scope-wins). The preset's own `level` is only a preference.
+    const seedLevel = provinceObj ? ("locality" as const) : ("province" as const);
     // The preset's OWN window (90d/30d) — not the 3y default. This also scopes
     // the KPI fan-out to that window, killing the wasted 3-year compute.
     const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });

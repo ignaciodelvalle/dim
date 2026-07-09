@@ -595,11 +595,14 @@ describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2
     const pushSpy = vi.spyOn(window.history, "pushState");
     pushSpy.mockClear();
     renderRedesignConsole({
-      // The server seeds the role-default preset (bienestar) at its OWN level
-      // (locality) — initialLevel MUST equal that seed level (the C2 invariant).
+      // PO-ratified 2026-07-09: a NATIONAL first visit seeds the role-default
+      // preset (bienestar) at PROVINCE — the preset's own `level: "locality"` is
+      // now only a preference; the scope (national here) decides. initialLevel
+      // MUST equal that seed level (the C2 invariant), and the zoomed-out
+      // hysteresis derivation lands on the same province, so there is no drift.
       seededPresetId: "bienestar",
       seededLayers: bienestarSeed,
-      initialLevel: "locality",
+      initialLevel: "province",
     });
 
     // The preset row + map connect on first paint (no fetch waited on).
@@ -617,7 +620,9 @@ describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2
     expect(params.get("preset")).toBe("bienestar");
     expect(params.get("period")).toBe("90d");
     expect(params.get("layers")).toBe("denuncias,decomisos");
-    expect(params.get("level")).toBe("locality");
+    // National framing → province is the derived level, so the board carries NO
+    // explicit `level` flag (province is the un-flagged default).
+    expect(params.get("level")).toBeNull();
 
     // The seeded features are on the map AT the seeded level — read from the
     // cache that matches initialLevel. A level mismatch would blank these

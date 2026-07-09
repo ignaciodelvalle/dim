@@ -21,6 +21,7 @@ import {
 } from "@/components/panorama/division-fill";
 import {
   type Bbox,
+  FRAMING_SNAP_MAX_ZOOM,
   type ProvinceBbox,
   Z_DIVISIONS,
   computeJurisdictionViewport,
@@ -29,6 +30,7 @@ import {
   countRenderableFeatures,
   hasProvinceChoroplethLayer,
   resolveDivisionProvinces,
+  shouldSnapFraming,
 } from "@/components/panorama/situational-map-utils";
 import {
   isCABA,
@@ -243,6 +245,28 @@ const AR_MAX_BOUNDS: [[number, number], [number, number]] = [
   [AR_BBOX[1][0] + MAX_BOUNDS_PAD_DEG, AR_BBOX[1][1] + MAX_BOUNDS_PAD_DEG],
 ];
 const MIN_ZOOM = 3;
+// The default max-zoom every programmatic fitBounds uses (before the magnetic
+// snap can clamp it lower). Kept as a named constant so all three camera sites
+// pass the same ceiling to `framingMaxZoom`.
+const FRAME_MAX_ZOOM = 11;
+const FRAME_PADDING = 56;
+
+/**
+ * panorama magnetic-zoom Phase 2 — resolve the max-zoom a PROGRAMMATIC fitBounds
+ * should use. If the frame's NATURAL landing zoom (what fitBounds would pick with
+ * no ceiling) falls within ±0.5 of the province↔locality flip, clamp it to
+ * `FRAMING_SNAP_MAX_ZOOM` so the frame lands decisively BELOW the flip; otherwise
+ * keep the default ceiling. Only programmatic frames route through here — a user
+ * wheel/pinch (originalEvent present on the maplibre event) never does, so manual
+ * zoom still crosses the boundary freely.
+ */
+function framingMaxZoom(map: maplibregl.Map, bbox: [[number, number], [number, number]]): number {
+  const camera = map.cameraForBounds(bbox, { padding: FRAME_PADDING });
+  const landing = camera?.zoom;
+  return typeof landing === "number" && shouldSnapFraming(landing)
+    ? FRAMING_SNAP_MAX_ZOOM
+    : FRAME_MAX_ZOOM;
+}
 
 // Dark government-console palette (canvas / land / borders).
 const COLOR_CANVAS = "#0b1020";
@@ -668,7 +692,13 @@ export function SituationalMap({
         // when no initialBounds was supplied (admin = national view).
         const bbox = initialBoundsRef.current ?? layersBbox(layersRef.current);
         if (bbox) {
-          map.fitBounds(bbox, { padding: 56, animate: false, maxZoom: 11 });
+          map.fitBounds(bbox, {
+            padding: FRAME_PADDING,
+            animate: false,
+            // Magnetic snap: a first fit that would land right on the flip is
+            // clamped just below it so the derived level starts unambiguous.
+            maxZoom: framingMaxZoom(map, bbox),
+          });
           // A1 PR-7: store as the national fallback for subsequent autozoom.
           nationalBboxRef.current = bbox;
         }
@@ -738,7 +768,13 @@ export function SituationalMap({
     if (cancelled) return;
 
     if (viewport.kind === "fitBounds") {
-      map.fitBounds(viewport.bbox, { padding: 56, animate: !prefersReducedMotion, maxZoom: 11 });
+      map.fitBounds(viewport.bbox, {
+        padding: FRAME_PADDING,
+        animate: !prefersReducedMotion,
+        // Magnetic snap: a jurisdiction fit that would land on the flip clamps
+        // just below it (camera-only; a province scope still forces locality).
+        maxZoom: framingMaxZoom(map, viewport.bbox),
+      });
     } else {
       map.flyTo({ center: viewport.center, zoom: viewport.zoom, animate: !prefersReducedMotion });
     }
@@ -768,7 +804,13 @@ export function SituationalMap({
     const viewport = computePresetFrameViewport(frame.framing, nationalBboxRef.current, AR_BBOX);
     if (viewport === null || viewport.kind !== "fitBounds") return;
 
-    map.fitBounds(viewport.bbox, { padding: 56, animate: !prefersReducedMotion, maxZoom: 11 });
+    map.fitBounds(viewport.bbox, {
+      padding: FRAME_PADDING,
+      animate: !prefersReducedMotion,
+      // Magnetic snap: a preset frame that would land on the flip clamps just
+      // below it so an automated frame never leaves the level teetering.
+      maxZoom: framingMaxZoom(map, viewport.bbox),
+    });
   }, [frame]);
 
   // panorama-ia-v2 §3.3: row→map highlight. Mirror the RankedUnitsPanel's

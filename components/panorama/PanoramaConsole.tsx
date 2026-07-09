@@ -40,7 +40,9 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import {
   Z_LOCALITY,
-  derivedLevel,
+  Z_LOCALITY_ENTER,
+  Z_LOCALITY_EXIT,
+  derivedLevelWithHysteresis,
   pointsEligible,
 } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
@@ -1111,14 +1113,16 @@ export function PanoramaConsole({
   // cache (province → provinceDataRef; locality → dataRef). Returns the count so
   // the LayerPanel state can be refreshed. Threads the active scope/period qs.
   const fetchChoroplethAt = useCallback(
-    async (id: LayerId, lvl: AggregationLevel): Promise<ApiResponse | null> => {
+    async (id: LayerId, lvl: AggregationLevel, signalKey?: string): Promise<ApiResponse | null> => {
       const params = new URLSearchParams(searchParams.toString());
       if (lvl === "province") params.set("level", "province");
       applyVerifiedParam(params, id);
       try {
+        // `signalKey` lets a caller (e.g. the boundary-prefetch warm fetch) use a
+        // DISTINCT abort key so it never supersedes an active same-layer fetch.
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
-          signal: signalFor(id),
+          signal: signalFor(signalKey ?? id),
         });
         if (!res.ok) return null;
         const body = (await res.json()) as ApiResponse;
@@ -1636,14 +1640,18 @@ export function PanoramaConsole({
         setAsOf(null);
       }
 
-      // Switch aggregation level immediately so statesRef and any effect that
-      // reads levelRef both see the correct level.
-      setLevel(preset.level);
-      levelRef.current = preset.level;
+      // PO-ratified 2026-07-09: a preset no longer PINS the aggregation level —
+      // `level: "locality"` is an initial preference realized by the server seed
+      // + the live camera, not a force. Activating a preset keeps whatever level
+      // the scope+zoom hysteresis currently dictates (`levelRef.current`), so a
+      // preset chosen in national framing stays at province and only drills to
+      // locality on an intentional zoom or a jurisdiction selection. The layers
+      // are fetched at — and the URL reflects — that current level.
+      const lvl = levelRef.current;
 
       const presetIds = presetLayerIds(preset);
       // preserve → only the layers missing from the seeded caches; else all.
-      const toFetch = preserve ? missingFromCache(presetIds, preset.level) : presetIds;
+      const toFetch = preserve ? missingFromCache(presetIds, lvl) : presetIds;
       const toFetchSet = new Set(toFetch);
 
       // Flip all layers: deactivate current ones; mark preset layers active+loading.
@@ -1688,7 +1696,7 @@ export function PanoramaConsole({
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set("period", preset.periodPreset);
       nextParams.set("layers", canonicalLayersKey(presetIds));
-      if (preset.level === "locality") nextParams.set("level", "locality");
+      if (lvl === "locality") nextParams.set("level", "locality");
       else nextParams.delete("level");
       nextParams.set("preset", id);
       presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
@@ -1720,7 +1728,7 @@ export function PanoramaConsole({
       }
       presetFetchTimerRef.current = window.setTimeout(() => {
         presetFetchTimerRef.current = null;
-        void fetchLayersInto(toFetch, preset.level, nextParams);
+        void fetchLayersInto(toFetch, lvl, nextParams);
       }, PRESET_FETCH_DEBOUNCE_MS);
     },
     [searchParams, fetchLayersInto, missingFromCache],
@@ -1729,29 +1737,57 @@ export function PanoramaConsole({
   /** F3: explicit preset click — a back-button-undoable board commit. */
   const onPreset = useCallback((id: PresetId) => applyPreset(id, "push"), [applyPreset]);
 
-  // panorama-ia-v2 §1.1: DERIVE the aggregation level from (scope, zoom) instead
-  // of a manual toggle. Scope selection or zooming past Z_LOCALITY drills to the
-  // locality mark; a locality-baseline preset (e.g. bienestar) stays at locality
-  // even zoomed out (prefer precision — PO #1). The derivation only ever calls
-  // the existing onLevelChange machinery (cache-aware, keyed-abort), so the
-  // province/locality fetch routing and the debounce/abort contract are intact.
-  // The effective province for level derivation: an explicit picker selection
-  // wins; otherwise fall back to the implicit single-province scope so a
-  // jurisdiction-scoped operator (e.g. CABA) drills to LOCALITY on mount — the
-  // granularity the division fill joins against — exactly as an explicit
-  // ?province selection would (derivedLevel: any province scope → locality).
+  // panorama magnetic-zoom Phase 2: DERIVE the aggregation level from (scope,
+  // zoom) with HYSTERESIS. The scope-wins rule is unchanged — a jurisdiction
+  // drill (explicit ?province/?locality, or the implicit single-province scope
+  // of a jurisdiction-scoped operator) is always locality. For national scope
+  // the flip is a Schmitt trigger (Z_LOCALITY_ENTER / _EXIT) so a camera that
+  // settles near the boundary produces ZERO oscillation. `levelRef.current` is
+  // threaded as `prev` so the dead-band holds the current level.
+  //
+  // PO-ratified 2026-07-09: a preset's `level: "locality"` is now an INITIAL
+  // PREFERENCE (the server seed / the current camera), NOT a force — in national
+  // framing every preset starts at province and locality arrives only on an
+  // intentional zoom past the boundary or a jurisdiction drill. So this effect
+  // NO LONGER pins the level to the active preset's level.
   const derivedProvince = searchParams.get("province") ?? initialDivisionProvince;
   const derivedLocality = searchParams.get("locality");
   useEffect(() => {
-    const fromScopeZoom = derivedLevel(
+    const desired = derivedLevelWithHysteresis(
+      levelRef.current,
       { country: "AR", province: derivedProvince, locality: derivedLocality },
       mapZoom,
     );
-    const presetLevel = activePresetId ? getPreset(activePresetId)?.level : undefined;
-    const desired: AggregationLevel =
-      fromScopeZoom === "locality" || presetLevel === "locality" ? "locality" : "province";
     if (desired !== levelRef.current) onLevelChange(desired);
-  }, [mapZoom, derivedProvince, derivedLocality, activePresetId, onLevelChange]);
+  }, [mapZoom, derivedProvince, derivedLocality, onLevelChange]);
+
+  // panorama magnetic-zoom Phase 2 — BOUNDARY PREFETCH. While national scope is
+  // still at PROVINCE but the camera is APPROACHING the locality boundary (inside
+  // the dead-band, below the ENTER edge), warm the LOCALITY cache for the active
+  // level-sensitive layers so the eventual flip repaints for free. Uses a
+  // dedicated `:warm` abort key so it NEVER cancels an in-flight province fetch,
+  // and only fetches layers still missing from the locality cache. It does NOT
+  // flip the level or bump levelVersion — purely cache-warming.
+  useEffect(() => {
+    if (levelRef.current !== "province") return;
+    // Approach band only: from just below the EXIT edge up to (not past) ENTER.
+    // Past ENTER the level effect above flips outright and owns the fetch.
+    if (mapZoom < Z_LOCALITY_EXIT - 0.4 || mapZoom >= Z_LOCALITY_ENTER) return;
+    const toWarm = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(
+      (l) => statesRef.current[l.id]?.active && !dataRef.current.has(l.id),
+    );
+    if (toWarm.length === 0) return;
+    for (const l of toWarm) {
+      void (async () => {
+        try {
+          await fetchChoroplethAt(l.id, "locality", `${l.id}:warm`);
+        } catch {
+          // Superseded warm fetch (keyed abort) or a transient failure — the
+          // flip will fetch on demand. Warming is best-effort, never fatal.
+        }
+      })();
+    }
+  }, [mapZoom, fetchChoroplethAt]);
 
   // map-QOL URL sync: mirror the board (active layers / level / preset) into
   // the URL via shallow replaceState whenever it changes — toggles are silent
