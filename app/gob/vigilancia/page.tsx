@@ -168,9 +168,12 @@ export default async function GobVigilanciaPage({
   // (every department / every barrio, with 0-default counts). So:
   //   - visibleCodes = every sub-region code → MapChoropleth filters the national
   //     GeoJSON to ONLY those polygons and frames the viewport to that province.
-  //   - data = only sub-regions WITH cases (count > 0) → 0-case sub-regions fall
-  //     through to the missing-color (grey) branch instead of the lightest scale
-  //     color, so "no cases" reads as grey, not "few cases".
+  //   - data = sub-regions WITH cases (count > 0) plus SUPPRESSED cells →
+  //     0-case sub-regions fall through to the missing-color (grey) branch
+  //     instead of the lightest scale color, so "no cases" reads as grey, not
+  //     "few cases".
+  //   - suppressed cells (1..4 cases, k-anon redacted at the fetcher) render
+  //     with the hatch pattern and a privacy tooltip — never a number.
   let choroplethData = provinceChoroplethData;
   let mapGeojsonUrl: string | undefined = undefined;
   let mapVisibleCodes: string[] | undefined = undefined;
@@ -179,12 +182,21 @@ export default async function GobVigilanciaPage({
   if (selectedProvinceIso && subregionData !== null) {
     mapVisibleCodes = subregionData.map((r) => r.code);
     choroplethData = subregionData
-      .filter((r) => r.count > 0)
-      .map((r) => ({
-        code: r.code,
-        value: r.count,
-        label: `${r.name}: ${r.count} caso${r.count !== 1 ? "s" : ""}`,
-      }));
+      .filter((r) => r.count > 0 || r.suppressed)
+      .map((r) =>
+        r.suppressed
+          ? {
+              code: r.code,
+              value: 0,
+              suppressed: true,
+              label: `${r.name}: suprimido por privacidad (menos de 5 casos)`,
+            }
+          : {
+              code: r.code,
+              value: r.count,
+              label: `${r.name}: ${r.count} caso${r.count !== 1 ? "s" : ""}`,
+            },
+      );
     if (selectedProvinceIso === "AR-C") {
       mapGeojsonUrl = "/geo/caba-barrios.geojson";
       mapCardTitle = "Casos abiertos por barrio — CABA";
@@ -307,7 +319,7 @@ export default async function GobVigilanciaPage({
           }}
         />
         <OpKpi
-          label="Mascotas hoy"
+          label="Altas registradas hoy"
           value={String(metrics.petsRegisteredToday)}
           info={{
             definition:
@@ -404,9 +416,18 @@ export default async function GobVigilanciaPage({
           icon="⚠"
           title={`${rabiesCompliance.openBreaches} observación(es) rábica(s) fuera del plazo legal de 10 días`}
           detail={
-            <Link href="/admin/observaciones" className="underline">
-              Ver observaciones →
-            </Link>
+            // Only admins have an observation queue console; govt operators get
+            // the in-page "Observaciones rábicas en curso" card instead of a
+            // link that would bounce off the /admin auth guard.
+            profile.role === "admin" ? (
+              <Link href="/admin/observaciones" className="underline">
+                Ver observaciones →
+              </Link>
+            ) : (
+              <a href={`#${panelRabiesId}`} className="underline">
+                Ver observaciones en curso ↓
+              </a>
+            )
           }
         />
       )}
@@ -592,7 +613,11 @@ export default async function GobVigilanciaPage({
       {/* Trend chart full width */}
       <OpCard aria-labelledby={panelTrendId}>
         <OpCardHead
-          title={<span id={panelTrendId}>Tendencia de enfermedades reportables (12 meses)</span>}
+          title={
+            <span id={panelTrendId}>
+              Tendencia de enfermedades reportables (período seleccionado)
+            </span>
+          }
         />
         <OpCardBody>
           <TimeSeriesChartDynamic data={trendPoints} seriesLabel="Señales" />

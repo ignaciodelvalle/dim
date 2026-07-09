@@ -854,17 +854,8 @@ export async function fetchCasesPerLocality(
 
 // ============================================================================
 
-export type SubregionCaseCount = {
-  /** Matches `feature.properties.code` in the sub-region GeoJSON:
-   *  - Non-CABA: 5-digit INDEC department_code (e.g. "06007")
-   *  - CABA: normalized barrio key (NFD-stripped, lowercase, e.g. "agronomia")
-   */
-  code: string;
-  /** Display name of the sub-region (department name or barrio name). */
-  name: string;
-  /** Count of open cases assigned to this sub-region. */
-  count: number;
-};
+export type { SubregionCaseCount } from "./subregion-redaction";
+import { type SubregionCaseCount, redactSmallSubregionCells } from "./subregion-redaction";
 
 /**
  * Open cases per sub-region within a selected province — the FULL sub-region set.
@@ -948,7 +939,7 @@ export async function fetchCasesPerSubregion(
       if (byCode.has(code)) continue;
       byCode.set(code, { code, name: b.name, count: countByCode.get(code) ?? 0 });
     }
-    return [...byCode.values()];
+    return redactSmallSubregionCells([...byCode.values()]);
   }
 
   // Non-CABA: resolve the canonical province display name (cases store the
@@ -1033,7 +1024,7 @@ export async function fetchCasesPerSubregion(
     if (entry) entry.count += r.n;
   }
 
-  return [...fullSet.values()];
+  return redactSmallSubregionCells([...fullSet.values()]);
 }
 
 // ============================================================================

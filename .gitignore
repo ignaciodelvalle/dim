@@ -71,3 +71,6 @@ ds-bundle/
 
 .vercel
 .env*
+
+# Playwright MCP session artifacts (screenshots, snapshots)
+.playwright-mcp/
