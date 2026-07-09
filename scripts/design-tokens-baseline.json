@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2394,
+    "totalViolations": 2393,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -413,13 +413,6 @@
       "hexStyle": 0
     },
     "components/panorama/PanoramaDemoDisclosure.tsx": {
-      "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "components/panorama/PanoramaKpiStrip.tsx": {
       "text": 1,
       "space": 0,
       "rounded": 0,

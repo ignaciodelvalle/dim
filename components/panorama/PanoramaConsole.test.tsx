@@ -68,8 +68,12 @@ vi.mock("@/components/panorama/LayerPanel", () => ({
     return null;
   },
 }));
-vi.mock("@/components/panorama/PanoramaKpiStrip", () => ({
-  PanoramaKpiStrip: () => <div data-testid="kpi-strip" />,
+// panorama-vista-redesign Phase 3: PanoramaKpiStrip was retired from its
+// mount (extracted into PanoramaKpiFooter + PanoramaMetricsColumn). Stub the
+// footer as the DOM-order position marker; the metrics column is left REAL
+// (it renders the actual per-vista KPI tiles the redesign is about).
+vi.mock("@/components/panorama/PanoramaKpiFooter", () => ({
+  PanoramaKpiFooter: () => <div data-testid="kpi-strip" />,
 }));
 // TimeScrubber is deliberately REAL (design-QA 2026-07-04 P0): the control
 // budget below must hold with the actual scrubber rendered, not mocked away —
@@ -285,26 +289,28 @@ function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
   );
 }
 
-describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phase 1)", () => {
-  it("renders Reading → Vista panel → map → SuppressionNotice (map column), KPI strip in the metrics column", () => {
+describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases 1 & 3)", () => {
+  it("renders Vista panel → map → SuppressionNotice (map column) → Reading → footer (metrics column)", () => {
     // Explicit period → the first-visit default preset does NOT rewrite the
     // board, so the server-seeded perdidas layer (suppressedCount 3) stays on
     // and the suppression notice is visible for the DOM-order assertion.
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole({ defaultSuppressedCount: 3 });
 
-    const reading = screen.getByText("Sin variación destacable frente al período anterior.");
     const presets = screen.getByText("Vista");
     const map = screen.getByTestId("map-region");
     // SuppressionNotice lives WITH the map it describes (design Decision 1) —
-    // it now sits AFTER the map, inside the same map column.
+    // it sits AFTER the map, inside the same map column.
     const notice = screen.getByText(/celdas con menos de 5 casos/);
+    // Reading + the footer moved into the metrics column (design Decision 3,
+    // Phase 3) — both now sit AFTER the map column, in the right rail.
+    const reading = screen.getByText("Sin variación destacable frente al período anterior.");
     const strip = screen.getByTestId("kpi-strip");
 
-    expect(isBefore(reading, presets)).toBe(true);
     expect(isBefore(presets, map)).toBe(true);
     expect(isBefore(map, notice)).toBe(true);
-    expect(isBefore(notice, strip)).toBe(true);
+    expect(isBefore(notice, reading)).toBe(true);
+    expect(isBefore(reading, strip)).toBe(true);
   });
 
   it("hosts the filters slot inside the 'Alcance y período' disclosure, next to CapasBox", () => {

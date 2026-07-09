@@ -47,6 +47,7 @@ import {
   fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
 } from "@/lib/analytics/govt-home-kpis";
+import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 
 /** Tone passthrough to the OpKpi tile (kept loose to avoid a UI import here). */
 export type KpiTone = "neutral" | "danger" | "warn" | "ok" | "blue";
@@ -76,14 +77,7 @@ export type KpiDelta = {
 /** One headline KPI, ready to feed an OpKpi tile. */
 export type PanoramaKpi = {
   /** Stable id (used as a React key + a test handle). */
-  id:
-    | "cobertura"
-    | "mascotas"
-    | "perdidas"
-    | "mordeduras"
-    | "zoonosis"
-    | "denuncias"
-    | "esterilizacion";
+  id: PanoramaKpiId;
   /** es-AR label. */
   label: string;
   /** Pre-formatted display value (es-AR number formatting applied here). */

@@ -6,7 +6,7 @@
 //
 // Pure module — no DB, no React, no Next.
 
-import type { AggregationLevel, LayerId } from "./types";
+import type { AggregationLevel, LayerId, PanoramaKpiId } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +68,13 @@ export type PanoramaPreset = {
    * (design-QA 2026-07-04 fast-follow, expanding the Fase 1 demonstrator).
    */
   framing?: PresetFraming;
+  /**
+   * panorama-vista-redesign: the 3-4 headline KPIs (in display order) the
+   * per-vista metrics column shows for this preset — replaces the flat
+   * 7-tile PanoramaKpiStrip with a curated set matching the preset's
+   * question. Same `getPanoramaKpis()` result; this only filters/orders it.
+   */
+  metrics: readonly PanoramaKpiId[];
 };
 
 // ---------------------------------------------------------------------------
@@ -88,6 +95,8 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // Fase 1 framing demonstrator: an outbreak overview is a national question —
     // frame the whole country so cross-province patterns are visible at once.
     framing: { kind: "national" },
+    // panorama-vista-redesign: the metrics column for "¿dónde hay brotes?".
+    metrics: ["cobertura", "zoonosis", "mordeduras"],
   },
   {
     id: "sintomas",
@@ -98,6 +107,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     signal: "zoonosis",
     level: "locality",
     periodPreset: "30d",
+    metrics: ["zoonosis", "mordeduras", "denuncias"],
   },
   {
     id: "cumplimiento",
@@ -112,6 +122,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // A province-level compliance ranking is a national question — frame the
     // whole country so under-target jurisdictions are comparable at a glance.
     framing: { kind: "national" },
+    metrics: ["cobertura", "esterilizacion", "mascotas"],
   },
   {
     id: "bienestar",
@@ -123,6 +134,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     references: ["decomisos"],
     level: "locality",
     periodPreset: "90d",
+    metrics: ["denuncias", "mordeduras", "mascotas"],
   },
   {
     id: "control-poblacional",
@@ -136,6 +148,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // Same national-overview question as cumplimiento: a province choropleth
     // vs the 70% target only reads when the whole country is in frame.
     framing: { kind: "national" },
+    metrics: ["esterilizacion", "mascotas", "perdidas"],
   },
   {
     id: "perdidas-reunificacion",
@@ -147,6 +160,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     signal: "reunificacion",
     level: "locality",
     periodPreset: "90d",
+    metrics: ["perdidas", "mascotas", "denuncias"],
     // Locality-level drill-down question — stays framing-less, same as sintomas
     // and bienestar (design-QA 2026-07-04 convention).
   },

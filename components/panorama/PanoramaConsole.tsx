@@ -26,7 +26,8 @@ import { DetailDrawer, type SelectedFeature } from "@/components/panorama/Detail
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
-import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
+import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
+import { PanoramaMetricsColumn } from "@/components/panorama/PanoramaMetricsColumn";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
@@ -1773,11 +1774,13 @@ export function PanoramaConsole({
   // right rail). Supersedes the Fase 1 flat reflow.
   const activePreset = activePresetId !== null ? getPreset(activePresetId) : null;
 
+  // panorama-vista-redesign Phase 3 (design Decision 3): the active preset's
+  // curated metric ids, in display order. Null (manual/advanced mode, no
+  // active preset) → PanoramaMetricsColumn shows every KPI, nothing hidden.
+  const metricIds = activePreset?.metrics ?? null;
+
   return (
     <div className="space-y-4">
-      {/* One-line auto-reading derived from the existing KPI deltas (no new
-          query). Hidden while the KPIs are stale — the notice below covers it. */}
-      <PanoramaReading kpis={kpis.kpis} stale={kpisStale} />
       {/* Vista panel: the primary control answers the operator's QUESTION
           first — a "VISTA" header + the active preset's question line, above
           the 6-tab row (unchanged, layout="row"). */}
@@ -1873,6 +1876,33 @@ export function PanoramaConsole({
           </details>
         </div>
         <div className="space-y-3">
+          {/* panorama-vista-redesign Phase 3 (design Decision 1): the metrics
+              column's right-rail order — Reading → Alcance y período →
+              per-vista KPI tiles → Peores-N ranking → footer → stale notice. */}
+          {/* One-line auto-reading derived from the existing KPI deltas (no new
+              query). Hidden while the KPIs are stale — the notice below covers it. */}
+          <PanoramaReading kpis={kpis.kpis} stale={kpisStale} />
+          {/* RSC slot: scope/period filters owned by the SERVER shell, placed
+              behind progressive disclosure — identical behavior, one click away. */}
+          {filtersSlot !== undefined && (
+            <details className="group space-y-2">
+              <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
+                <span
+                  aria-hidden="true"
+                  className="mr-1 inline-block transition-transform group-open:rotate-90"
+                >
+                  ▸
+                </span>
+                Alcance y período
+              </summary>
+              <div className="mt-2 space-y-3">{filtersSlot}</div>
+            </details>
+          )}
+          {/* panorama-vista-redesign Phase 3 (design Decision 3): per-vista KPI
+              tiles — replaces the flat 7-tile PanoramaKpiStrip body. Same
+              getPanoramaKpis() result; only filtered/ordered by the active
+              preset's `metrics` (null in manual mode → shows every KPI). */}
+          <PanoramaMetricsColumn kpis={kpis} metricIds={metricIds} />
           {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
               ordered list (hover-synced with the map), plus the accessible
               <table> view (Ley 26.653). Shown for rate/density base layers only
@@ -1907,29 +1937,13 @@ export function PanoramaConsole({
               )}
             </section>
           )}
-          {/* RSC slot: scope/period filters owned by the SERVER shell, placed
-              behind progressive disclosure — identical behavior, one click away. */}
-          {filtersSlot !== undefined && (
-            <details className="group space-y-2">
-              <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
-                <span
-                  aria-hidden="true"
-                  className="mr-1 inline-block transition-transform group-open:rotate-90"
-                >
-                  ▸
-                </span>
-                Alcance y período
-              </summary>
-              <div className="mt-2 space-y-3">{filtersSlot}</div>
-            </details>
-          )}
           {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" (the LayerPanel
               legend/toggle) now lives inside CapasBox's Detalle mode, in the
               Vista panel above — panorama-vista-redesign Phase 2. */}
           {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
-              by asOf in v1). Phase 3 (panorama-vista-redesign) replaces this flat
-              strip with the per-vista PanoramaMetricsColumn. */}
-          <PanoramaKpiStrip kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
+              by asOf in v1). The footer states the recalculation cue + freshness
+              chip + "Actualizar" (extracted from the retired PanoramaKpiStrip). */}
+          <PanoramaKpiFooter kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
           {kpisStale && (
             // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
             // the strip above is showing the last-known numbers, not live ones —

@@ -19,7 +19,7 @@ import {
   getPreset,
   presetLayerIds,
 } from "@/src/modules/panorama/domain/presets";
-import type { LayerId } from "@/src/modules/panorama/domain/types";
+import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 
 // ---------------------------------------------------------------------------
 // Catalogue integrity
@@ -308,6 +308,52 @@ describe("DEFAULT_PANORAMA_PRESET_ID", () => {
 // ---------------------------------------------------------------------------
 // getPreset()
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// metrics (panorama-vista-redesign — per-vista metrics column)
+// ---------------------------------------------------------------------------
+
+describe("PANORAMA_PRESETS — metrics field", () => {
+  const KNOWN_KPI_IDS: readonly PanoramaKpiId[] = [
+    "cobertura",
+    "esterilizacion",
+    "perdidas",
+    "mordeduras",
+    "zoonosis",
+    "denuncias",
+    "mascotas",
+  ];
+
+  it("every preset has 3-4 metrics", () => {
+    for (const p of PANORAMA_PRESETS) {
+      expect(p.metrics.length).toBeGreaterThanOrEqual(3);
+      expect(p.metrics.length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("every metric id is a known PanoramaKpiId", () => {
+    for (const p of PANORAMA_PRESETS) {
+      for (const id of p.metrics) {
+        expect(KNOWN_KPI_IDS).toContain(id);
+      }
+    }
+  });
+
+  it("no preset has duplicate metrics", () => {
+    for (const p of PANORAMA_PRESETS) {
+      expect(new Set(p.metrics).size).toBe(p.metrics.length);
+    }
+  });
+
+  it("bienestar → control-poblacional shows the expected metrics (spec table)", () => {
+    expect(getPreset("bienestar")!.metrics).toEqual(["denuncias", "mordeduras", "mascotas"]);
+    expect(getPreset("control-poblacional")!.metrics).toEqual([
+      "esterilizacion",
+      "mascotas",
+      "perdidas",
+    ]);
+  });
+});
 
 describe("getPreset()", () => {
   it("returns the correct preset for each known id", () => {

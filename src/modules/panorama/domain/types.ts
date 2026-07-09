@@ -239,3 +239,20 @@ export type PanoramaFilters = {
   severity?: string | null;
   caseStatus?: string | null;
 };
+
+// --- panorama-vista-redesign: per-vista metrics column ----------------------
+
+/**
+ * Stable id for a headline KPI (mirrors `PanoramaKpi.id` in
+ * application/get-panorama-kpis.ts). Lives in the domain layer so
+ * `PanoramaPreset.metrics` can reference it without the domain importing the
+ * application layer (application → domain purity direction preserved).
+ */
+export type PanoramaKpiId =
+  | "cobertura"
+  | "esterilizacion"
+  | "perdidas"
+  | "mordeduras"
+  | "zoonosis"
+  | "denuncias"
+  | "mascotas";
