@@ -799,3 +799,88 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     expect(second?.signal?.aborted).toBe(false);
   });
 });
+
+describe("PanoramaConsole — reading aligned with the metrics column (QA fix, finding 5)", () => {
+  it("PanoramaReading headlines only the active preset's curated metrics, not the full KPI set", async () => {
+    setUrl("/gob/panorama?period=3y");
+    const customKpis = {
+      kpis: [
+        {
+          id: "cobertura" as const,
+          label: "Cobertura antirrábica",
+          value: "10%",
+          tone: "neutral" as const,
+          info: { definition: "d" },
+          href: "/x",
+          source: "s",
+          delta: { pct: 50, direction: "down" as const, label: "-50%" },
+        },
+        {
+          id: "mordeduras" as const,
+          label: "Mordeduras / 10k hab.",
+          value: "3",
+          tone: "neutral" as const,
+          info: { definition: "d" },
+          href: "/x",
+          source: "s",
+          delta: { pct: 5, direction: "up" as const, label: "+5%" },
+        },
+      ],
+      recalculatedFor: "Recalculado para Nacional",
+      dataAsOf: null,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        const body = url.includes("/api/panorama/kpis") ? customKpis : OK_ENVELOPE;
+        return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+      }),
+    );
+
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={customKpis}
+      />,
+    );
+
+    // bienestar's curated metrics are denuncias/mordeduras/mascotas — cobertura
+    // (the larger-magnitude delta) is excluded. The full-kpis reading would
+    // headline cobertura; the aligned reading must headline mordeduras instead.
+    fireEvent.click(screen.getByRole("button", { name: /Bienestar/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Mordeduras empeora 5%/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Cobertura antirrábica empeora/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PanoramaConsole — saved-board Simple/Detalle strict boolean coercion (QA fix, finding 7)", () => {
+  it("reads a corrupt non-boolean capasDetail/scrubDetail as Simple, never as truthy", async () => {
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({
+        layers: "cobertura",
+        level: "province",
+        preset: null,
+        period: "90d",
+        capasDetail: "yes", // corrupt: not a boolean
+        scrubDetail: 1, // corrupt: not a boolean
+      }),
+    );
+
+    expect(() => renderConsole()).not.toThrow();
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("layers")).toBe("cobertura");
+    });
+    expect(screen.getByRole("button", { name: "Modo simple de capas" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+});

@@ -27,7 +27,10 @@ import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
-import { PanoramaMetricsColumn } from "@/components/panorama/PanoramaMetricsColumn";
+import {
+  PanoramaMetricsColumn,
+  selectMetricKpis,
+} from "@/components/panorama/PanoramaMetricsColumn";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
@@ -1601,8 +1604,12 @@ export function PanoramaConsole({
       saved = null;
     }
     if (saved !== null) {
-      setCapasDetail(saved.capasDetail ?? false);
-      setScrubDetail(saved.scrubDetail ?? false);
+      // QA fix: coerce STRICTLY — a corrupt or pre-redesign non-boolean value
+      // (e.g. a stray string) must read as Simple (false), not as any
+      // truthy value. `?? false` only guards `undefined`; `=== true` also
+      // guards against a corrupt stored value passing through.
+      setCapasDetail(saved.capasDetail === true);
+      setScrubDetail(saved.scrubDetail === true);
     }
 
     if (urlLayerIds !== null) {
@@ -1854,6 +1861,17 @@ export function PanoramaConsole({
   // active preset) → PanoramaMetricsColumn shows every KPI, nothing hidden.
   const metricIds = activePreset?.metrics ?? null;
 
+  // QA fix (finding 5): feed PanoramaReading the SAME preset-subset the
+  // metrics column shows — previously the reading headlined off the FULL
+  // kpis.kpis array while the column right below it only showed the active
+  // preset's curated metrics, so the one-line sentence could reference a KPI
+  // the operator can't see anywhere on screen. selectMetricKpis is the exact
+  // filter PanoramaMetricsColumn uses; buildPanoramaReading only looks at
+  // known ids + deltas (reading.ts qualify()), so narrowing the input array
+  // just narrows which deltas are eligible to headline — it never breaks the
+  // sentence construction.
+  const readingKpis = useMemo(() => selectMetricKpis(kpis, metricIds), [kpis, metricIds]);
+
   // panorama-vista-redesign Phase 4 (design Decision 4): temporal gating is
   // sourced EXCLUSIVELY from isTemporalLayer() over the ACTIVE layer set —
   // no scrubber-local temporal set (the regression the design flags). Adding
@@ -1970,7 +1988,7 @@ export function PanoramaConsole({
               per-vista KPI tiles → Peores-N ranking → footer → stale notice. */}
           {/* One-line auto-reading derived from the existing KPI deltas (no new
               query). Hidden while the KPIs are stale — the notice below covers it. */}
-          <PanoramaReading kpis={kpis.kpis} stale={kpisStale} />
+          <PanoramaReading kpis={readingKpis} stale={kpisStale} />
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (

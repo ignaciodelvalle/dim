@@ -10,7 +10,10 @@
 // nothing is hidden when the operator isn't following a curated question.
 
 import { PanoramaKpiTile } from "@/components/panorama/PanoramaKpiTile";
-import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import type {
+  PanoramaKpi,
+  PanoramaKpis,
+} from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 
 type Props = {
@@ -19,15 +22,38 @@ type Props = {
   metricIds: readonly PanoramaKpiId[] | null;
 };
 
-export function PanoramaMetricsColumn({ kpis, metricIds }: Props) {
-  const shown =
-    metricIds === null
-      ? kpis.kpis
-      : metricIds
-          .map((id) => kpis.kpis.find((k) => k.id === id))
-          .filter((k): k is NonNullable<typeof k> => k !== undefined);
+/**
+ * The subset of `kpis.kpis` this column actually renders: every KPI in
+ * manual mode (`metricIds` null), or exactly the active preset's curated
+ * metrics, in the preset's declared order, dropping any id the strip result
+ * doesn't carry (a partial payload). Exported so PanoramaConsole can feed the
+ * SAME subset to PanoramaReading (QA fix, finding 5) — the one-line auto-
+ * reading must never headline off a KPI the column itself is hiding.
+ */
+export function selectMetricKpis(
+  kpis: PanoramaKpis,
+  metricIds: readonly PanoramaKpiId[] | null,
+): PanoramaKpi[] {
+  return metricIds === null
+    ? kpis.kpis
+    : metricIds
+        .map((id) => kpis.kpis.find((k) => k.id === id))
+        .filter((k): k is NonNullable<typeof k> => k !== undefined);
+}
 
-  if (shown.length === 0) return null;
+export function PanoramaMetricsColumn({ kpis, metricIds }: Props) {
+  const shown = selectMetricKpis(kpis, metricIds);
+
+  if (shown.length === 0) {
+    // QA fix (finding 6): a partial payload can filter every curated metric
+    // out — say so instead of silently rendering nothing, which used to read
+    // as "the column vanished" rather than "these metrics aren't available".
+    return (
+      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute">
+        Métricas no disponibles para esta vista.
+      </p>
+    );
+  }
 
   return (
     <section aria-label="Indicadores de esta vista" className="space-y-3">

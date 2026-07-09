@@ -81,4 +81,19 @@ describe("PanoramaMetricsColumn — switching vista updates the column", () => {
       expect(screen.getByText(k.label)).toBeInTheDocument();
     }
   });
+
+  it("QA fix (finding 6): a partial payload that filters out every curated metric shows an honest empty state, not nothing", () => {
+    const partialPayload: PanoramaKpis = {
+      kpis: [kpi("cobertura", "Cobertura antirrábica")], // none of bienestar's metrics
+      recalculatedFor: ALL_KPIS.recalculatedFor,
+      dataAsOf: null,
+    };
+    const bienestar = getPreset("bienestar")!;
+    const { container } = render(
+      <PanoramaMetricsColumn kpis={partialPayload} metricIds={bienestar.metrics} />,
+    );
+
+    expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
+    expect(container).not.toBeEmptyDOMElement();
+  });
 });
