@@ -109,6 +109,10 @@ export default async function AdminPoblacionPage({
   const coverageTone = toneForTarget(coverage.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
 
   const natalidadCaveatText = "Solo partos en seguimiento — subestima la natalidad real";
+  // metric-honesty 2026-07-09: the ratio's denominator (partos registrados)
+  // under-counts real natalidad, so the ratio OVER-states population control.
+  const ratioOverstatementCaveat =
+    "Contexto, no indicador de decisión: el denominador (partos en seguimiento) subestima la natalidad real, por lo que este ratio SOBRESTIMA la contención poblacional.";
 
   const panelTrendId = "admin-panel-esterilizacion-titulo";
   const panelForecastId = "admin-panel-esterilizacion-proyeccion-titulo";
@@ -199,20 +203,23 @@ export default async function AdminPoblacionPage({
         />
       </section>
 
-      {/* Ratio esterilización/natalidad */}
+      {/* Ratio esterilización/natalidad — CONTEXT tile (metric-honesty
+          2026-07-09). Demoted out of the headline: it OVER-states population
+          control because its denominator (partos en seguimiento) under-counts
+          real natalidad. */}
       {sterilNatalidadRatio !== null && (
         <section aria-label="Ratio esterilización / natalidad registrada">
           <div className="rounded-xl border border-ln-op-line bg-white px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute">
-              Ratio esterilización / natalidad registrada (nacional)
+              Contexto · Ratio esterilización / natalidad registrada (nacional)
             </p>
-            <p className="mt-1 text-[22px] font-semibold tabular-nums text-ln-op-ink">
+            <p className="mt-1 text-lg font-semibold tabular-nums text-ln-op-ink">
               {formatRate(sterilNatalidadRatio, { decimals: 2 })}
             </p>
             <p className="mt-1 text-[11px] text-ln-op-mute">
-              esterilizaciones del período por parto en seguimiento ·{" "}
-              <span className="italic">{natalidadCaveatText}</span>
+              esterilizaciones del período por parto en seguimiento
             </p>
+            <p className="mt-1 text-[11px] italic text-ln-op-mute">{ratioOverstatementCaveat}</p>
           </div>
         </section>
       )}

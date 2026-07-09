@@ -147,12 +147,13 @@ beforeEach(() => {
 });
 
 describe("getPanoramaKpis", () => {
-  it("returns 9 KPIs in display order, each backed by a named dashboard fetcher", async () => {
+  it("returns 8 headline KPIs in display order, each backed by a named dashboard fetcher", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     // Legal-analysis reorientation (2026-07-03): the two legally-grounded
-    // compliance coverages lead; the population denominator closes the strip.
-    // v+1 rail: "microchip" joins the compliance trio; "reunificacion" (D4)
-    // sits next to "perdidas" — both meta-progress-meter additions.
+    // compliance coverages lead. v+1 rail: "microchip" joins the compliance
+    // trio; "reunificacion" (D4) sits next to "perdidas". metric-honesty
+    // 2026-07-09: "mascotas" (the coverage DENOMINATOR) is no longer a headline
+    // tile — it moved to the `coverageDenominator` footer field.
     expect(kpis.map((k) => k.id)).toEqual([
       "cobertura",
       "esterilizacion",
@@ -162,7 +163,6 @@ describe("getPanoramaKpis", () => {
       "mordeduras",
       "zoonosis",
       "denuncias",
-      "mascotas",
     ]);
     // Parity proof: every KPI names the fetcher that produced it.
     expect(kpis.map((k) => k.source)).toEqual([
@@ -174,8 +174,17 @@ describe("getPanoramaKpis", () => {
       "govt-home-kpis.fetchBitesPer10k",
       "govt-home-kpis.fetchActiveZoonosis",
       "govt-home-kpis.fetchOpenWelfareReportsCount",
-      "govt-dashboards.fetchAnalyticsMetrics",
     ]);
+    // The coverage denominator is NOT a headline tile anymore.
+    expect(kpis.some((k) => k.id === "mascotas")).toBe(false);
+  });
+
+  it("demotes the coverage denominator to a footer field, not a headline tile (metric-honesty)", async () => {
+    const result = await getPanoramaKpis({ role: "admin" }, [], period);
+    // fetchAnalyticsMetrics.totalPets (12345) now rides `coverageDenominator`,
+    // formatted as a footer caption by PanoramaKpiFooter — never a decision KPI.
+    expect(result.coverageDenominator).toEqual({ totalPets: 12345, href: "/gob/analytics" });
+    expect(result.kpis.some((k) => k.label === "Mascotas en cobertura")).toBe(false);
   });
 
   it("formats values with es-AR conventions and surfaces an info tooltip per KPI", async () => {
@@ -187,8 +196,6 @@ describe("getPanoramaKpis", () => {
     expect(byId.cobertura.bar).toBe(72.4);
     expect(byId.cobertura.tone).toBe("warn"); // 72.4 < target 80
 
-    // Thousands separator (es-AR) — 12345 → "12.345".
-    expect(byId.mascotas.value).toBe((12345).toLocaleString("es-AR"));
     // Decimal comma (es-AR) — 3.5 → "3,5".
     expect(byId.mordeduras.value).toBe("3,5");
     expect(byId.perdidas.value).toBe("42");
@@ -329,7 +336,6 @@ describe("getPanoramaKpis", () => {
     expect(byId.zoonosis.delta?.direction).toBe("flat");
 
     // State metrics NEVER carry a delta (no misleading 0% on stocks/queues).
-    expect(byId.mascotas.delta).toBeUndefined();
     expect(byId.perdidas.delta).toBeUndefined();
     expect(byId.denuncias.delta).toBeUndefined();
     expect(byId.esterilizacion.delta).toBeUndefined();
@@ -476,7 +482,6 @@ describe("getPanoramaKpis", () => {
     // Non-window-sensitive KPIs never get a sparkline (no matching trend).
     expect(byId.esterilizacion.sparkline).toBeUndefined();
     expect(byId.perdidas.sparkline).toBeUndefined();
-    expect(byId.mascotas.sparkline).toBeUndefined();
     expect(byId.denuncias.sparkline).toBeUndefined();
 
     // Parity: the trend fetchers receive the SAME ctx as the headline value —
@@ -568,6 +573,7 @@ describe("getPanoramaKpis", () => {
     const degraded = degradedPanoramaKpis();
     expect(degraded.kpis).toEqual([]);
     expect(degraded.dataAsOf).toBeNull();
+    expect(degraded.coverageDenominator).toBeNull();
     expect(degraded.recalculatedFor.toLowerCase()).toContain("reintent");
   });
 });

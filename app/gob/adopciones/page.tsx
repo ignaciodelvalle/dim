@@ -418,59 +418,70 @@ export default async function GobAdopcionesPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Shelter occupancy */}
-      <OpCard aria-labelledby={panelOccupancyId}>
-        <OpCardHead title={<span id={panelOccupancyId}>Ocupación de refugios</span>} />
-        <OpCardBody>
-          {shelterOccupancy.occupied === 0 && shelterOccupancy.capacity == null ? (
-            <LnEmptyState
-              icon="home"
-              title="Sin datos de ocupación"
-              description="No hay custodia activa ni cupo declarado para refugios en tu cobertura."
-            />
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="text-[22px] font-semibold text-ln-op-ink tabular-nums">
-                  {shelterOccupancy.occupied.toLocaleString("es-AR")}
+      {/* Shelter occupancy — NATIONAL metric (metric-honesty 2026-07-09).
+          `capacity` is org-config summed across ALL shelters (never scoped),
+          while `occupied` is scoped to the operator's jurisdiction: a local
+          operator's scoped-occupied ÷ national-capacity is a misleading ratio.
+          The scoped occupied count already appears in the "En custodia
+          (refugio)" headline KPI above, so this national comparison is shown
+          ONLY at national (admin) scope, explicitly labelled "escala nacional".
+          Local govt operators no longer see the mixed-scope percentage. */}
+      {profile.role === "admin" && (
+        <OpCard aria-labelledby={panelOccupancyId}>
+          <OpCardHead
+            title={<span id={panelOccupancyId}>Ocupación de refugios (escala nacional)</span>}
+          />
+          <OpCardBody>
+            {shelterOccupancy.occupied === 0 && shelterOccupancy.capacity == null ? (
+              <LnEmptyState
+                icon="home"
+                title="Sin datos de ocupación"
+                description="No hay custodia activa ni cupo declarado para refugios en tu cobertura."
+              />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="text-[22px] font-semibold text-ln-op-ink tabular-nums">
+                    {shelterOccupancy.occupied.toLocaleString("es-AR")}
+                  </div>
+                  <div className="text-[13px] text-ln-op-mute">
+                    {shelterOccupancy.capacity != null ? (
+                      <>
+                        de {shelterOccupancy.capacity.toLocaleString("es-AR")} cupos declarados
+                        {shelterOccupancy.pct != null && (
+                          <span
+                            className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-rojo" : shelterOccupancy.pct > 70 ? "text-ln-op-amarillo" : "text-ln-op-verde"}`}
+                          >
+                            ({shelterOccupancy.pct}%)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      "animales en custodia · cupo no declarado"
+                    )}
+                  </div>
                 </div>
-                <div className="text-[13px] text-ln-op-mute">
-                  {shelterOccupancy.capacity != null ? (
-                    <>
-                      de {shelterOccupancy.capacity.toLocaleString("es-AR")} cupos declarados
-                      {shelterOccupancy.pct != null && (
-                        <span
-                          className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-rojo" : shelterOccupancy.pct > 70 ? "text-ln-op-amarillo" : "text-ln-op-verde"}`}
-                        >
-                          ({shelterOccupancy.pct}%)
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    "animales en custodia · cupo no declarado"
-                  )}
-                </div>
-              </div>
-              {shelterOccupancy.capacity != null && shelterOccupancy.pct != null && (
-                <div
-                  className="h-3 rounded bg-ln-op-stripe overflow-hidden"
-                  aria-hidden="true"
-                  role="presentation"
-                >
+                {shelterOccupancy.capacity != null && shelterOccupancy.pct != null && (
                   <div
-                    className={`h-full rounded transition-all ${shelterOccupancy.pct > 90 ? "bg-ln-op-rojo" : shelterOccupancy.pct > 70 ? "bg-ln-op-amarillo" : "bg-ln-op-verde"}`}
-                    style={{ width: `${Math.min(100, shelterOccupancy.pct)}%` }}
-                  />
-                </div>
-              )}
-              <p className="text-xs text-ln-op-mute">
-                Ocupados: ownerships shelter_custody activos scoped a la cobertura · Cupo: SUM de
-                organizations.capacity_total para orgs tipo shelter.
-              </p>
-            </div>
-          )}
-        </OpCardBody>
-      </OpCard>
+                    className="h-3 rounded bg-ln-op-stripe overflow-hidden"
+                    aria-hidden="true"
+                    role="presentation"
+                  >
+                    <div
+                      className={`h-full rounded transition-all ${shelterOccupancy.pct > 90 ? "bg-ln-op-rojo" : shelterOccupancy.pct > 70 ? "bg-ln-op-amarillo" : "bg-ln-op-verde"}`}
+                      style={{ width: `${Math.min(100, shelterOccupancy.pct)}%` }}
+                    />
+                  </div>
+                )}
+                <p className="text-xs text-ln-op-mute">
+                  Ocupados: total nacional de animales en custodia activa en refugios · Cupo: SUM de
+                  organizations.capacity_total para orgs tipo shelter (escala nacional).
+                </p>
+              </div>
+            )}
+          </OpCardBody>
+        </OpCard>
+      )}
 
       {/* Foster pool utilization */}
       <OpCard aria-labelledby={panelFosterPoolId}>

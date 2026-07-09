@@ -115,6 +115,22 @@ export type PanoramaKpi = {
   sparkline?: number[];
 };
 
+/**
+ * Context denominator (metric-honesty demotion 2026-07-09): the pet population
+ * the coverage rates are computed against. Previously a HEADLINE "Mascotas en
+ * cobertura" tile — demoted to a footer caption because it is a DENOMINATOR for
+ * the rate KPIs, not a decision KPI in its own right (metric audit: it occupied
+ * a headline slot without driving a decision). Rendered once under the strip by
+ * PanoramaKpiFooter, so it no longer competes with the decision KPIs for
+ * attention or repeats across presets.
+ */
+export type PanoramaCoverageDenominator = {
+  /** COUNT(pets status IN ('active','lost')) in scope — the rate KPIs' denominator. */
+  totalPets: number;
+  /** Drill-through to the analytics dashboard this denominator mirrors. */
+  href: string;
+};
+
 export type PanoramaKpis = {
   /** The headline KPIs in display order. */
   kpis: PanoramaKpi[];
@@ -130,6 +146,13 @@ export type PanoramaKpis = {
    * JSON round-trip unchanged.
    */
   dataAsOf: string | null;
+  /**
+   * The coverage denominator ("N mascotas en cobertura") rendered as a footer
+   * caption under the strip — NOT a headline tile (metric-honesty demotion
+   * 2026-07-09). Optional so pre-existing PanoramaKpis fixtures/callers stay
+   * valid; `null` on the degraded strip. The real fetcher always sets it.
+   */
+  coverageDenominator?: PanoramaCoverageDenominator | null;
 };
 
 /**
@@ -159,6 +182,7 @@ export function degradedPanoramaKpis(): PanoramaKpis {
     recalculatedFor:
       "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
     dataAsOf: null,
+    coverageDenominator: null,
   };
 }
 
@@ -373,8 +397,10 @@ export async function getPanoramaKpis(
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica
   // (Ley 22.953, near-universal) and esterilización (mandated in 5 provinces)
-  // are the flagship public-health KPIs; risk signals follow; the population
-  // denominator ("mascotas en cobertura") closes the strip as context.
+  // are the flagship public-health KPIs; risk signals follow. The population
+  // denominator ("mascotas en cobertura") is NO LONGER a headline tile —
+  // metric-honesty demotion 2026-07-09 moved it to `coverageDenominator`, a
+  // footer caption (it is a context denominator, not a decision KPI).
   const kpis: PanoramaKpi[] = [
     {
       id: "cobertura",
@@ -525,27 +551,19 @@ export async function getPanoramaKpis(
           "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible.",
       },
     },
-    {
-      id: "mascotas",
-      label: "Mascotas en cobertura",
-      value: formatCount(analytics.totalPets),
-      sub: "activas o perdidas",
-      tone: "blue",
-      href: "/gob/analytics",
-      source: "govt-dashboards.fetchAnalyticsMetrics",
-      info: {
-        definition:
-          "Total de mascotas con estado 'active' o 'lost' en la jurisdicción seleccionada. Es el denominador de las tasas de cobertura.",
-        formula: "COUNT(pets donde status IN ('active', 'lost')) en alcance",
-        caveat: "Excluye mascotas fallecidas (status='deceased').",
-      },
-    },
   ];
 
   return {
     kpis,
     recalculatedFor: describeRecalc(actor, jurisdictions, adminProvince, adminLocality),
     dataAsOf: ingestAt?.toISOString() ?? null,
+    // Context denominator ("N mascotas en cobertura") — a footer caption, not a
+    // headline tile (metric-honesty demotion 2026-07-09). Same fetcher
+    // (fetchAnalyticsMetrics.totalPets) as before; only its placement changed.
+    coverageDenominator: {
+      totalPets: analytics.totalPets,
+      href: "/gob/analytics",
+    },
   };
 }
 

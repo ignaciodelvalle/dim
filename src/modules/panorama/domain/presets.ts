@@ -69,10 +69,12 @@ export type PanoramaPreset = {
    */
   framing?: PresetFraming;
   /**
-   * panorama-vista-redesign: the 3-4 headline KPIs (in display order) the
-   * per-vista metrics column shows for this preset — replaces the flat
-   * 7-tile PanoramaKpiStrip with a curated set matching the preset's
-   * question. Same `getPanoramaKpis()` result; this only filters/orders it.
+   * panorama-vista-redesign: the 2-4 headline DECISION KPIs (in display order)
+   * the per-vista metrics column shows for this preset — replaces the flat
+   * 7-tile PanoramaKpiStrip with a curated set matching the preset's question.
+   * Same `getPanoramaKpis()` result; this only filters/orders it. The coverage
+   * denominator ("mascotas en cobertura") is NOT listed here — it is a footer
+   * caption (metric-honesty demotion 2026-07-09), shown once for every vista.
    */
   metrics: readonly PanoramaKpiId[];
 };
@@ -124,8 +126,9 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     framing: { kind: "national" },
     // v+1 rail: microchip penetration joins the compliance trio — same legal
     // family as cobertura/esterilizacion (Ley Prov 14.107), each rendering a
-    // target-progress meter (bar) against TARGETS via toneForTarget.
-    metrics: ["cobertura", "esterilizacion", "microchip", "mascotas"],
+    // target-progress meter (bar) against TARGETS via toneForTarget. The
+    // coverage denominator now rides the shared footer caption.
+    metrics: ["cobertura", "esterilizacion", "microchip"],
   },
   {
     id: "bienestar",
@@ -137,7 +140,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     references: ["decomisos"],
     level: "locality",
     periodPreset: "90d",
-    metrics: ["denuncias", "mordeduras", "mascotas"],
+    metrics: ["denuncias", "mordeduras"],
   },
   {
     id: "control-poblacional",
@@ -151,7 +154,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // Same national-overview question as cumplimiento: a province choropleth
     // vs the 70% target only reads when the whole country is in frame.
     framing: { kind: "national" },
-    metrics: ["esterilizacion", "mascotas", "perdidas"],
+    metrics: ["esterilizacion", "perdidas"],
   },
   {
     id: "perdidas-reunificacion",
@@ -166,7 +169,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // v+1 rail: the "reunificacion" KPI (D4 rate vs TARGETS.REUNIFICATION_PCT,
     // target-progress bar) headlines the question this preset asks — it was
     // previously absent from the column despite naming the preset.
-    metrics: ["perdidas", "reunificacion", "mascotas", "denuncias"],
+    metrics: ["perdidas", "reunificacion", "denuncias"],
     // Locality-level drill-down question — stays framing-less, same as sintomas
     // and bienestar (design-QA 2026-07-04 convention).
   },

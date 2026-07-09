@@ -41,25 +41,25 @@ const ALL_KPIS: PanoramaKpis = {
     kpi("mordeduras", "Mordeduras / 10k hab."),
     kpi("zoonosis", "Zoonosis activas"),
     kpi("denuncias", "Denuncias activas"),
-    kpi("mascotas", "Mascotas en cobertura"),
   ],
   recalculatedFor: "Recalculado para el alcance nacional.",
   dataAsOf: null,
 };
 
 describe("PanoramaMetricsColumn — switching vista updates the column", () => {
-  it("shows bienestar's metrics (denuncias, mordeduras, mascotas) in order", () => {
+  it("shows bienestar's metrics (denuncias, mordeduras) in order", () => {
     const bienestar = getPreset("bienestar")!;
     render(<PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={bienestar.metrics} />);
 
-    const labels = screen
-      .getAllByText(/Denuncias activas|Mordeduras|Mascotas en cobertura/)
-      .map((el) => el.textContent);
-    expect(labels).toEqual(["Denuncias activas", "Mordeduras / 10k hab.", "Mascotas en cobertura"]);
+    const labels = screen.getAllByText(/Denuncias activas|Mordeduras/).map((el) => el.textContent);
+    expect(labels).toEqual(["Denuncias activas", "Mordeduras / 10k hab."]);
     expect(screen.queryByText("Cobertura antirrábica")).not.toBeInTheDocument();
+    // metric-honesty 2026-07-09: the coverage denominator is a footer caption,
+    // never a per-vista tile — the column must not render it.
+    expect(screen.queryByText("Mascotas en cobertura")).not.toBeInTheDocument();
   });
 
-  it("switching to control-poblacional shows esterilizacion/mascotas/perdidas instead", () => {
+  it("switching to control-poblacional shows esterilizacion/perdidas instead", () => {
     const controlPoblacional = getPreset("control-poblacional")!;
     const { rerender } = render(
       <PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={getPreset("bienestar")!.metrics} />,
@@ -69,9 +69,9 @@ describe("PanoramaMetricsColumn — switching vista updates the column", () => {
     rerender(<PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={controlPoblacional.metrics} />);
 
     expect(screen.getByText("Cobertura de esterilización")).toBeInTheDocument();
-    expect(screen.getByText("Mascotas en cobertura")).toBeInTheDocument();
     expect(screen.getByText("Pérdidas activas")).toBeInTheDocument();
     expect(screen.queryByText("Denuncias activas")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mascotas en cobertura")).not.toBeInTheDocument();
   });
 
   it("manual/advanced mode (metricIds null) shows every KPI — nothing hidden", () => {

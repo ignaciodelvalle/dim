@@ -326,10 +326,19 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     "mascotas",
   ];
 
-  it("every preset has 3-4 metrics", () => {
+  it("every preset has 2-4 decision metrics", () => {
+    // metric-honesty 2026-07-09: the coverage denominator ("mascotas") left the
+    // per-vista lists for the shared footer caption, so a preset can now carry
+    // as few as 2 decision metrics.
     for (const p of PANORAMA_PRESETS) {
-      expect(p.metrics.length).toBeGreaterThanOrEqual(3);
+      expect(p.metrics.length).toBeGreaterThanOrEqual(2);
       expect(p.metrics.length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("no preset lists the coverage denominator (mascotas) — it is a footer caption", () => {
+    for (const p of PANORAMA_PRESETS) {
+      expect(p.metrics).not.toContain("mascotas");
     }
   });
 
@@ -348,12 +357,8 @@ describe("PANORAMA_PRESETS — metrics field", () => {
   });
 
   it("bienestar → control-poblacional shows the expected metrics (spec table)", () => {
-    expect(getPreset("bienestar")!.metrics).toEqual(["denuncias", "mordeduras", "mascotas"]);
-    expect(getPreset("control-poblacional")!.metrics).toEqual([
-      "esterilizacion",
-      "mascotas",
-      "perdidas",
-    ]);
+    expect(getPreset("bienestar")!.metrics).toEqual(["denuncias", "mordeduras"]);
+    expect(getPreset("control-poblacional")!.metrics).toEqual(["esterilizacion", "perdidas"]);
   });
 
   // v+1 rail: meta-progress meters headline the presets they were built for.
@@ -362,7 +367,6 @@ describe("PANORAMA_PRESETS — metrics field", () => {
       "cobertura",
       "esterilizacion",
       "microchip",
-      "mascotas",
     ]);
   });
 
@@ -370,7 +374,6 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     expect(getPreset("perdidas-reunificacion")!.metrics).toEqual([
       "perdidas",
       "reunificacion",
-      "mascotas",
       "denuncias",
     ]);
   });
