@@ -341,7 +341,14 @@ export default async function GobiernoDashboardPage({
           tone={openRabiesObservations.count > 0 ? "danger" : "neutral"}
           deltaV2={
             openRabiesObservations.deltaWeek !== 0
-              ? { value: openRabiesObservations.deltaWeek, period: "vs semana ant." }
+              ? {
+                  value: openRabiesObservations.deltaWeek,
+                  period: "vs semana ant.",
+                  // deltaWeek is a raw net-change count (thisWeek - lastWeek
+                  // opens), not a percentage — demo-review M5 caught it
+                  // rendering as "+1%" on a count of 1.
+                  unit: "count",
+                }
               : undefined
           }
           sparkline={zoonosisTrend.points.map((p) => p.y)}

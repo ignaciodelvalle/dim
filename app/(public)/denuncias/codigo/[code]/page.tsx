@@ -149,36 +149,19 @@ export default async function WelfareReportByCodePage({
           ← Buscar otra denuncia
         </Link>
 
-        {/* Fresh submission confirmation banner */}
+        {/* Fresh submission confirmation banner. demo-review M4: this used to
+            repeat the código + "Copiar código" + "Descargar comprobante"
+            block that the header renders right below — same actions shown
+            twice on first load. The banner now only confirms the submission;
+            the header owns the single código/action block. */}
         {nueva === "1" && (
-          <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-3">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-2">
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
               Tu denuncia fue registrada.
             </p>
-            <p
-              className="text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
-              style={{ fontFamily: "var(--font-ln-mono)" }}
-            >
-              Tu código de seguimiento
-            </p>
-            {/* pub-codecard pattern: mono code in a bordered box with copy action */}
-            <div className="space-y-2">
-              <div className="rounded-[var(--radius-md)] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3 inline-block">
-                <p
-                  className="text-2xl font-semibold tracking-[.06em] text-[var(--color-ln-ink)]"
-                  style={{ fontFamily: "var(--font-ln-mono)" }}
-                >
-                  {report.referenceCode}
-                </p>
-              </div>
-              <div>
-                <CopyCodeButton code={report.referenceCode} />
-              </div>
-            </div>
             <p className="text-xs text-[var(--color-ln-ok)] leading-relaxed">
-              Guardá este código. Es la única forma de volver a esta denuncia sin sesión.
+              Guardá el código de abajo. Es la única forma de volver a esta denuncia sin sesión.
             </p>
-            <DescargarComprobante />
           </div>
         )}
 

@@ -1965,16 +1965,21 @@ export function SituationalMap({
           </button>
           {/* Roadmap signal for funcionario demos (PO obs 1048): a one-click
               situación report is planned. Visibly disabled — the ONLY dead UI on
-              this surface — so the affordance reads as "coming", not broken. */}
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="En desarrollo"
-            className="cursor-not-allowed rounded-[var(--radius-sm)] border border-white/10 bg-black/40 px-2.5 py-1 text-xs font-medium text-white/40"
-          >
-            Informe de situación (en desarrollo)
-          </button>
+              this surface — so the affordance reads as "coming", not broken.
+              demo-review M6: a disabled "(en desarrollo)" button still reads as
+              an unfinished feature in front of a funcionario, so it's dev-only —
+              hidden from the production build the demo actually runs. */}
+          {process.env.NODE_ENV === "development" && (
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              title="En desarrollo"
+              className="cursor-not-allowed rounded-[var(--radius-sm)] border border-white/10 bg-black/40 px-2.5 py-1 text-xs font-medium text-white/40"
+            >
+              Informe de situación (en desarrollo)
+            </button>
+          )}
         </div>
       )}
       {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (

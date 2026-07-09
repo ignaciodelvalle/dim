@@ -183,9 +183,14 @@ export default async function AdminPoblacionPage({
           }}
         />
 
-        {/* KPI 4: Net growth — directional, neutral tone */}
+        {/* KPI 4: Net registry inflow — directional, neutral tone.
+            demo-review M2 (mirrored from /gob/poblacion): "Balance
+            poblacional" read as real population growth, but "altas" is
+            pets.created_at (new registrations, including pre-existing
+            animals just onboarded), not new animals born. Relabeled to keep
+            this surface consistent with the govt dashboard's honest wording. */}
         <OpKpi
-          label="Balance poblacional"
+          label="Altas netas registradas"
           value={
             netGrowth.net > 0
               ? `+${netGrowth.net.toLocaleString("es-AR")}`
@@ -198,7 +203,7 @@ export default async function AdminPoblacionPage({
               "Altas nuevas en el período + nacimientos registrados − muertes registradas (nacional).",
             formula: "COUNT(altas) + COUNT(live_birth events) − COUNT(death_recorded events)",
             caveat:
-              "INDICADOR DIRECCIONAL, NO EXACTO. Los nacimientos registrados solo cubren partos en seguimiento — callejero e ilegítimos son invisibles.",
+              "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en MiMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento — callejero e ilegítimos son invisibles.",
           }}
         />
       </section>

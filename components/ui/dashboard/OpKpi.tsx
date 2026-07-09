@@ -24,8 +24,13 @@ type Tone = "neutral" | "danger" | "warn" | "ok" | "blue";
 /** v1 delta (backward compat) */
 type DeltaV1 = { text: string; up: boolean };
 
-/** v2 delta — numeric value + period label */
-type DeltaV2 = { value: number; period: string };
+/**
+ * v2 delta — numeric value + period label.
+ * `unit` defaults to "percent" (existing callers unaffected). Use "count" for
+ * a raw net-change value (e.g. queue size delta) so the chip doesn't render a
+ * misleading "%" on a plain integer (demo-review M5).
+ */
+type DeltaV2 = { value: number; period: string; unit?: "percent" | "count" };
 
 type InfoTooltip = {
   definition: string;
@@ -262,19 +267,32 @@ export function OpKpi({
         </div>
       )}
 
-      {/* v2 Delta (numeric value + period) */}
+      {/* v2 Delta (numeric value + period).
+          demo-review M5: a delta of exactly 0 got an up-arrow / "Sube" label —
+          honest text ("+0%") next to a directional arrow reads as a real
+          increase. No arrow (and neutral tone) when the delta is exactly 0. */}
       {deltaV2 && (
         <div
           className={[
             "mt-1 flex items-center gap-1.5 text-sm font-semibold",
-            deltaV2.value >= 0 ? "text-[var(--color-st-ok)]" : "text-[var(--color-st-err)]",
+            deltaV2.value === 0
+              ? "text-ln-op-mute"
+              : deltaV2.value > 0
+                ? "text-[var(--color-st-ok)]"
+                : "text-[var(--color-st-err)]",
           ].join(" ")}
         >
-          <span aria-hidden="true">{deltaV2.value >= 0 ? "↑" : "↓"}</span>
-          <span className="sr-only">{deltaV2.value >= 0 ? "Sube:" : "Baja:"}</span>
+          {deltaV2.value !== 0 && (
+            <>
+              <span aria-hidden="true">{deltaV2.value > 0 ? "↑" : "↓"}</span>
+              <span className="sr-only">{deltaV2.value > 0 ? "Sube:" : "Baja:"}</span>
+            </>
+          )}
           <span>
             {deltaV2.value >= 0 ? "+" : ""}
-            {deltaV2.value}% <span className="font-normal text-ln-op-mute">{deltaV2.period}</span>
+            {deltaV2.value}
+            {deltaV2.unit === "count" ? "" : "%"}{" "}
+            <span className="font-normal text-ln-op-mute">{deltaV2.period}</span>
           </span>
         </div>
       )}
