@@ -26,6 +26,10 @@ test("segmento 02 — dueno", async ({ page }) => {
   await page.locator('input[name="name"]').fill("Luna");
   await page.getByRole("button", { name: /perro/i }).click();
   await page.locator('label:has(input[name="sex"][value="male"])').click();
+  // Location is now a province-first cascade (LocationFields cascade=true,
+  // MinimalNewPetForm) — the locality autocomplete stays disabled until a
+  // province is picked. Palermo is a CABA barrio.
+  await page.locator("#cascade-province").selectOption("AR-C");
   await pickLocality(page, "#localityName-input", "Palermo");
   await fullScroll(page);
   await page.getByRole("button", { name: /crear mascota/i }).click();

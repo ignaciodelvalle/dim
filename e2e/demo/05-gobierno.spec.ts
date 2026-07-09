@@ -43,28 +43,48 @@ test("segmento 05 — gobierno", async ({ page }) => {
     );
   // Idempotent across re-records: one open investigation per disease per
   // jurisdiction is allowed, so walk the disease list until one submits
-  // ("Ya existe una investigación abierta…" → try the next one).
+  // ("Ya existe una investigación abierta…" → try the next one). The
+  // duplicate notice renders near-instantly (no navigation) — detect it
+  // directly instead of paying submitAndWait's full click-retry budget
+  // (10s wait + resubmit + 12s wait ≈ 22s) on every already-open disease.
+  // With only 5 ENO diseases per jurisdiction and investigations additive
+  // across recording runs, that tax alone can eat minutes once several are
+  // already open (perf audit 2026-07-09: measured contributor to the 05
+  // near-timeout — see e2e/demo/_helpers.ts submitAndWait for the #39
+  // dropped-click workaround this still falls back to).
   const investigationUrl = (url: URL) =>
     url.pathname.startsWith("/gob/vigilancia/investigaciones/") && !url.pathname.endsWith("/nuevo");
+  const dupNotice = page.locator("output", { hasText: /ya existe/i });
   const diseaseCount = await page.locator("select#diseaseCode option").count();
   let opened = false;
   for (let i = 1; i < diseaseCount && !opened; i++) {
     await page.locator("select#diseaseCode").selectOption({ index: i });
     await page.waitForTimeout(400);
     const openBtn = page.getByRole("button", { name: /abrir investigaci/i });
-    try {
-      await submitAndWait(page, openBtn, investigationUrl, 12_000);
+    await expect(openBtn, "submit button").toBeEnabled();
+    await openBtn.click();
+    // Race the two fast, expected outcomes before falling back to
+    // submitAndWait's slower dropped-click resubmit workaround.
+    const outcome = await Promise.race([
+      page.waitForURL(investigationUrl, { timeout: 4_000 }).then(() => "opened" as const),
+      dupNotice.waitFor({ state: "visible", timeout: 4_000 }).then(() => "duplicate" as const),
+    ]).catch(() => "neither" as const);
+    if (outcome === "opened") {
       opened = true;
-    } catch {
-      const dup = await page
-        .locator("output", { hasText: /ya existe/i })
-        .count()
-        .catch(() => 0);
-      if (!dup)
-        throw new Error(
-          `investigation submit failed on disease index ${i} without a duplicate notice`,
-        );
+    } else if (outcome === "neither") {
+      // Neither signal showed up — possible dropped click (#39 workaround).
+      try {
+        await submitAndWait(page, openBtn, investigationUrl, 12_000);
+        opened = true;
+      } catch {
+        const dup = await dupNotice.count().catch(() => 0);
+        if (!dup)
+          throw new Error(
+            `investigation submit failed on disease index ${i} without a duplicate notice`,
+          );
+      }
     }
+    // outcome === "duplicate": expected — try the next disease.
   }
   expect(opened, "an investigation was opened for some disease").toBe(true);
   await page.waitForLoadState("networkidle").catch(() => {});

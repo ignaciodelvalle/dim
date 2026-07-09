@@ -67,7 +67,10 @@ test("segmento 03 — refugio", async ({ page }) => {
   await page.locator('label:has(input[name="sex"][value="female"])').click();
   await step.getByLabel(/años/i).fill("2");
   await step.getByLabel(/meses/i).fill("6");
-  await step.getByLabel(/raza/i).fill("Mestiza");
+  // Exact match — a loose /raza/i regex also matches the "Peso estimado (kg)"
+  // field, whose helper text ("razas potencialmente peligrosas") contains
+  // "raza" as a substring, causing a strict-mode violation (2 elements).
+  await step.getByLabel("Raza", { exact: true }).fill("Mestiza");
   await step.getByLabel(/color/i).fill("Negra con pecho blanco");
   await step
     .getByLabel(/señas particulares/i)
