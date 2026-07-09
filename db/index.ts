@@ -172,9 +172,18 @@ const analyticsClient = isTest
   : (globalForDb.__dimPgAnalyticsClient ??
     postgres((process.env.ANALYTICS_DATABASE_URL ?? process.env.DATABASE_URL) as string, {
       prepare: false, // harmless on session mode; keeps the DATABASE_URL fallback transaction-pooler-safe
-      max: 3, // tiny — session mode pins one backend per connection
+      // max: 1 — MEASURED ON STAGING (2026-07-09): one /admin/panorama load fans
+      // out to the page SSR + ~5 concurrent /api/panorama/[layer] lambdas; at
+      // max 3 each, the burst exhausted the session pooler's pool_size (15)
+      // with EMAXCONNSESSION → every layer 503'd ("Sin datos para esta capa")
+      // and the KPI fan-out starved past its budget (degraded tiles). Each
+      // layer route runs a single aggregate, so 1 connection costs nothing;
+      // the ~11-statement KPI fan-out serializes over one warm connection well
+      // under its budget (~1.7s total measured over 3). 15 concurrent lambdas
+      // now fit the 15-slot pool instead of 5.
+      max: 1,
       connect_timeout: 10, // seconds — fail fast when the pooler is saturated
-      idle_timeout: 10, // seconds — release session-pooler backends quickly
+      idle_timeout: 5, // seconds — release session-pooler backends fast (was 10; see max note)
       max_lifetime: 300, // seconds — recycle to avoid stale/degraded connections
       connection: {
         options: "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=15000",
