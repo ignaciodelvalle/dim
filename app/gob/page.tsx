@@ -603,25 +603,11 @@ export default async function GobiernoDashboardPage({
 
         {/* Right aside column */}
         <div className="space-y-4">
-          {/* Vigilancia */}
-          <OpCard>
-            <OpCardHead
-              title="Vigilancia"
-              actions={
-                <Link
-                  href="/gob/vigilancia"
-                  className="text-sm text-ln-op-azul hover:underline no-underline"
-                >
-                  Ver →
-                </Link>
-              }
-            />
-            <OpCardBody>
-              <p className="text-[var(--text-md)] text-ln-op-mute">
-                Señales de zoonosis filtradas a tu cobertura.
-              </p>
-            </OpCardBody>
-          </OpCard>
+          {/* The "Vigilancia" link-only placeholder card was removed here —
+              it duplicated the "Casos zoonosis activos" KPI tile (with live
+              count, delta, sparkline) already in the strip above and added
+              no data of its own. /gob/vigilancia stays reachable from the
+              KPI tile's href and from the main nav. */}
 
           {/* Denuncias ciudadanas */}
           <OpCard>

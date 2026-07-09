@@ -255,20 +255,11 @@ export default async function GobVigilanciaPage({
         />
       )}
 
-      {/* Quick-access CTAs: zoonosis + investigaciones */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Link
-          href="/gob/vigilancia/zoonosis"
-          className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
-        >
-          <span className="text-[22px]" aria-hidden="true">
-            🦠
-          </span>
-          <div>
-            <p className="text-[13px] font-semibold text-ln-op-ink">Zoonosis</p>
-            <p className="text-[11px] text-ln-op-mute">Enfermedades transmisibles activas</p>
-          </div>
-        </Link>
+      {/* Quick-access CTA: investigaciones. The former "Zoonosis" CTA (→
+          /gob/vigilancia/zoonosis) was removed — that screen was a
+          near-duplicate of this page's own disease-summary + trend panels
+          below and the route now redirects here. */}
+      <div className="grid grid-cols-1 sm:max-w-xs gap-3">
         <Link
           href="/gob/vigilancia/investigaciones"
           className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
@@ -311,7 +302,7 @@ export default async function GobVigilanciaPage({
           value={String(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
           sparkline={rabiesSparkline.points.map((p) => p.y)}
-          href="/gob/vigilancia/zoonosis"
+          href={`#${panelRabiesId}`}
           info={{
             definition:
               "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",

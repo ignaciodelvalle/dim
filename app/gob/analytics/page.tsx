@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
@@ -250,19 +248,13 @@ export default async function GobAnalyticsPage({
         />
       </section>
 
-      {/* Acquisition trend + export */}
+      {/* Acquisition trend. The "Exportar CSV →" link to /gob/analytics/export
+          was removed — that export flow is half-wired (see the DEFERRED BY
+          DESIGN header comment on that route) and was never meant to be
+          reachable from nav; the route file itself is left in place for when
+          the export flow is picked back up. */}
       <OpCard aria-labelledby={panelAcquisitionId}>
-        <OpCardHead
-          title={<span id={panelAcquisitionId}>Adquisición por método</span>}
-          actions={
-            <Link
-              href="/gob/analytics/export"
-              className="text-sm text-ln-op-azul hover:underline no-underline"
-            >
-              {"Exportar CSV →"}
-            </Link>
-          }
-        />
+        <OpCardHead title={<span id={panelAcquisitionId}>Adquisición por método</span>} />
         <OpCardBody>
           {acquisitionTrend.length === 0 ? (
             <LnEmptyState
