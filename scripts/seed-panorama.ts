@@ -1238,6 +1238,7 @@ async function seedPets(
       lat: number;
       lng: number;
       provinceName: string;
+      localityName: string | null;
       species: string;
       dangerousBreed: boolean;
       reunified: boolean;
@@ -1303,6 +1304,7 @@ async function seedPets(
         lat,
         lng,
         provinceName,
+        localityName: loc?.localityName ?? null,
         species,
         dangerousBreed,
         reunified,
@@ -1387,7 +1389,12 @@ async function seedPets(
             source: "seed-panorama",
             from_status: "active",
             to_status: "lost",
-            location_description: "AMBA / zona de búsqueda activa",
+            // Honest last-seen text: the pet's OWN locality/province — a fixed
+            // metro-area placeholder on pets across the country misdirects
+            // searchers on /perdidas (clickthrough review 2026-07-09).
+            location_description: meta.localityName
+              ? `${meta.localityName}, ${meta.provinceName}`
+              : meta.provinceName,
           },
           ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.04)),
         });
