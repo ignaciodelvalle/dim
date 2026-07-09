@@ -725,3 +725,77 @@ describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, r
     expect(coberturaCalls.length).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// QA fixes (cursor-agent review, panorama-vista-redesign)
+// ---------------------------------------------------------------------------
+
+describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => {
+  it("clears asOf and undims non-temporal layers once the active set loses its last temporal layer (finding 1)", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+
+    // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    // Flip to Detalle so LayerPanel mounts and captures onToggle.
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
+
+    // Start a scrub — the loop chip is enabled as soon as zoonosis is active
+    // (activation is synchronous; it doesn't wait on the layer fetch).
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    await waitFor(() => {
+      const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
+        (l) => l.id === "cobertura",
+      );
+      expect(cobertura?.dimmed).toBe(true);
+    });
+
+    // Deactivate the only temporal layer — temporalAvailable flips false.
+    await act(async () => {
+      layerPanelProps?.onToggle?.("zoonosis");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+    });
+    // The map must stop dimming cobertura — asOf was cleared, not left stuck.
+    await waitFor(() => {
+      const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
+        (l) => l.id === "cobertura",
+      );
+      expect(cobertura?.dimmed).toBe(false);
+    });
+  });
+
+  it("keyed-aborts a superseded as-of fetch on a rapid scrub (finding 4)", async () => {
+    deferMode = true;
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeEnabled();
+    });
+
+    // Two rapid loop-chip clicks each move the scrub position, firing two
+    // as-of fetches for the active temporal layer (zoonosis).
+    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ 30 días" }));
+
+    await waitFor(() => {
+      const asOfCalls = deferred.filter(
+        (d) => d.url.includes("/api/panorama/zoonosis") && d.url.includes("asOf="),
+      );
+      expect(asOfCalls.length).toBeGreaterThanOrEqual(2);
+    });
+    const asOfCalls = deferred.filter(
+      (d) => d.url.includes("/api/panorama/zoonosis") && d.url.includes("asOf="),
+    );
+    const [first, second] = asOfCalls.slice(-2);
+    expect(first.signal?.aborted).toBe(true);
+    expect(second?.signal?.aborted).toBe(false);
+  });
+});

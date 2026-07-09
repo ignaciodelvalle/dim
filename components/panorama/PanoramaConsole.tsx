@@ -526,6 +526,15 @@ export function PanoramaConsole({
   // Current as-of upper bound. null = live (parked at "ahora").
   const [asOf, setAsOf] = useState<Date | null>(null);
   const scrubbing = asOf !== null;
+  // panorama-vista-redesign QA fix: bumped whenever THIS console forces asOf
+  // back to null OUTSIDE a since/until (period) change — a scope-only change
+  // (see the invalidation effect below) or temporal availability flipping
+  // off (see the temporalAvailable effect near the end). Threaded into
+  // TimeScrubber as `resetToken` so its internal slider index resets even
+  // when `since`/`until` stay identical (its own win-change reset never
+  // fires in that case) — otherwise the scrubber immediately re-emits its
+  // stale non-live asOf and undoes this console's own reset.
+  const [scrubResetToken, setScrubResetToken] = useState(0);
 
   // task #77 bitemporal — the replay basis. "valid" (occurred_at, default) replays
   // "what happened when"; "transaction" (recorded_at) replays "what the State KNEW
@@ -574,6 +583,10 @@ export function PanoramaConsole({
     for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
     for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
     setAsOf(null);
+    // QA fix (finding 3): a scope-only change (province/locality, period
+    // unchanged) leaves `since`/`until` identical — TimeScrubber's win-change
+    // reset never fires for it, so force its internal position back to live too.
+    setScrubResetToken((v) => v + 1);
 
     // Refetch active period-sensitive layers at the new params.
     const activePeriodSensitive = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(
@@ -662,13 +675,20 @@ export function PanoramaConsole({
         // task #77: replay by recorded_at when the operator picked transaction time.
         if (timeBasis === "transaction") params.set("basis", "transaction");
         try {
+          // QA fix (finding 4): keyed abort, mirroring the KPI/toggle fetches
+          // — a rapid scrub or basis flip supersedes the prior in-flight
+          // as-of request for this layer instead of racing it into
+          // asOfDataRef out of order.
           const res = await fetch(`/api/panorama/${l.id}?${params.toString()}`, {
             headers: { accept: "application/json" },
+            signal: signalFor(`${l.id}:asOf`),
           });
           if (!res.ok) return;
           const body = (await res.json()) as ApiResponse;
           asOfDataRef.current.set(l.id, body.features);
-        } catch {
+        } catch (err) {
+          // Superseded fetch — the newer as-of request owns this layer now.
+          if (isAbortError(err)) return;
           // Leave the last-known as-of features in place on a transient failure.
         }
       }),
@@ -678,7 +698,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [asOf, searchParams, timeBasis]);
+  }, [asOf, searchParams, timeBasis, signalFor]);
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
@@ -884,18 +904,24 @@ export function PanoramaConsole({
       // task #77: honor the active replay basis (recorded_at when transaction).
       if (timeBasisRef.current === "transaction") params.set("basis", "transaction");
       try {
+        // QA fix (finding 4): keyed abort — same `:asOf` key as the as-of
+        // effect above, so a rapid re-toggle mid-scrub supersedes its own
+        // prior in-flight request instead of racing it into asOfDataRef.
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
+          signal: signalFor(`${id}:asOf`),
         });
         if (!res.ok) return;
         const body = (await res.json()) as ApiResponse;
         asOfDataRef.current.set(id, body.features);
         setAsOfVersion((v) => v + 1);
-      } catch {
+      } catch (err) {
+        // Superseded fetch — the newer as-of request owns this layer now.
+        if (isAbortError(err)) return;
         // Leave the live features showing on a transient failure (no flash).
       }
     },
-    [searchParams],
+    [searchParams, signalFor],
   );
 
   // U5: fetch a choropleth layer at a given aggregation level into the right
@@ -1836,6 +1862,19 @@ export function PanoramaConsole({
     (l) => states[l.id]?.active && isTemporalLayer(l.id),
   );
 
+  // QA fix (finding 1): the active layer set losing its last temporal layer
+  // must park the scrubber back at live — otherwise `scrubbing` stays true
+  // (asOf non-null) and the map keeps every non-temporal layer DIMMED while
+  // the scrubber itself already shows "No disponible en esta vista". The
+  // scrubber's own onChange never re-fires here (its derived `asOf` value
+  // hasn't changed), so this console must clear its own state directly.
+  useEffect(() => {
+    if (!temporalAvailable && asOf !== null) {
+      setAsOf(null);
+      setScrubResetToken((v) => v + 1);
+    }
+  }, [temporalAvailable, asOf]);
+
   return (
     <div className="space-y-4">
       {/* Vista panel: the primary control answers the operator's QUESTION
@@ -1922,6 +1961,7 @@ export function PanoramaConsole({
             temporalAvailable={temporalAvailable}
             scrubDetail={scrubDetail}
             onScrubDetailChange={setScrubDetail}
+            resetToken={scrubResetToken}
           />
         </div>
         <div className="space-y-3">

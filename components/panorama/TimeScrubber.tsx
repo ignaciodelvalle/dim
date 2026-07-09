@@ -92,6 +92,17 @@ type Props = {
    * rendered (backward-compatible for callers that don't manage the pref).
    */
   onScrubDetailChange?: (value: boolean) => void;
+  /**
+   * panorama-vista-redesign QA fix: bumped by the parent whenever it forces
+   * the board back to live OUTSIDE a `since`/`until` change — e.g. a
+   * scope-only change (province/locality, period unchanged) or temporal
+   * availability flipping off. `since`/`until` (and therefore `win`) can stay
+   * IDENTICAL in both cases, so the existing win-change reset below never
+   * fires; without this signal the scrubber keeps its stale internal index
+   * and immediately re-emits a non-null `onChange`, undoing the parent's own
+   * reset. Absent → no external-reset behavior (backward-compatible).
+   */
+  resetToken?: number;
 };
 
 export function TimeScrubber({
@@ -103,6 +114,7 @@ export function TimeScrubber({
   temporalAvailable = true,
   scrubDetail = false,
   onScrubDetailChange,
+  resetToken,
 }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
   // by timestamp so a new Date object with the same instant does not rebuild.
@@ -131,6 +143,20 @@ export function TimeScrubber({
     setLooping(null);
   }, [win]);
 
+  // panorama-vista-redesign QA fix: the parent's `resetToken` is an explicit
+  // "park back to live" signal for transitions that do NOT change `win`
+  // (scope-only changes, temporal availability flipping off — see the Props
+  // doc comment). `win.steps` is read at fire time, not tracked reactively —
+  // this must run ONLY when the token itself changes, mirroring the
+  // win-change reset above.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: resetToken is the intentional sole trigger; win.steps is read live.
+  useEffect(() => {
+    if (resetToken === undefined) return;
+    setIndex(win.steps);
+    setPlaying(false);
+    setLooping(null);
+  }, [resetToken]);
+
   // Derive the as-of Date for the current index. At the live edge → null.
   const atLive = index >= win.steps;
   const asOf = useMemo(() => (atLive ? null : dayIndexToDate(win, index)), [win, index, atLive]);
@@ -158,13 +184,29 @@ export function TimeScrubber({
     return dateToDayIndex(win, new Date(untilMs - looping * DAY_MS));
   }, [looping, win, untilMs]);
 
+  // A degenerate window (single day) has nothing to scrub — render a hint
+  // only. Computed here (ahead of the play effect below) so the play loop can
+  // gate on it directly — see the panorama-vista-redesign QA fix note there.
+  const scrubbable = win.steps > 0 && temporalAvailable;
+
   // Play loop: advance one step per tick. Outside a loop, stop cleanly at
   // "ahora" (unchanged behavior). Inside a loop, wrap back to the window
   // start instead of stopping — the reconstruction replays continuously
   // until "Ahora" is clicked.
+  //
+  // panorama-vista-redesign QA fix: gate on `scrubbable` too, not just
+  // `playing` — without it, a play loop started before temporal gating hides
+  // the controls (temporalAvailable flips false) kept ticking and calling
+  // `onChange` behind the "No disponible en esta vista" empty state. Also
+  // clear `playing` itself so a later re-enable doesn't silently resume.
   useEffect(() => {
     if (!playing) {
       stopInterval();
+      return;
+    }
+    if (!scrubbable) {
+      stopInterval();
+      setPlaying(false);
       return;
     }
     intervalRef.current = setInterval(() => {
@@ -180,7 +222,7 @@ export function TimeScrubber({
       });
     }, PLAY_INTERVAL_MS);
     return stopInterval;
-  }, [playing, win, stopInterval, windowStartIndex]);
+  }, [playing, scrubbable, win, stopInterval, windowStartIndex]);
 
   // Cleanup on unmount (belt-and-suspenders; the effect above also returns it).
   useEffect(() => stopInterval, [stopInterval]);
@@ -219,8 +261,6 @@ export function TimeScrubber({
     [win, untilMs],
   );
 
-  // A degenerate window (single day) has nothing to scrub — render a hint only.
-  const scrubbable = win.steps > 0 && temporalAvailable;
   const sinceLabel = formatAsOfLabel(dayIndexToDate(win, 0));
 
   // Detalle-only: N evenly-spaced date-tick references along the track.
@@ -356,7 +396,14 @@ export function TimeScrubber({
             </div>
           )}
 
-          {/* Loop chips — shade a trailing window and cycle the thumb within it. */}
+          {/* Loop chips — shade a trailing window and cycle the thumb within it.
+              QA fix: the 7/30/90-day windows are computed as CALENDAR-DAY
+              offsets (startLoop/windowStartIndex above), but a long period
+              (> 90 days, e.g. the "3y" Panorama default) steps the axis by
+              whole MONTHS (buildScrubWindow) — the day math only approximates
+              a month-stepped index, making the shaded window/thumb position
+              dishonest. Disable the chips with a hint instead of shipping an
+              approximate reconstruction. */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span
               aria-hidden="true"
@@ -369,7 +416,12 @@ export function TimeScrubber({
                 key={days}
                 type="button"
                 aria-pressed={looping === days}
-                disabled={!scrubbable}
+                disabled={!scrubbable || win.step === "month"}
+                title={
+                  win.step === "month"
+                    ? "No disponible: el período activo reproduce por mes, no por día."
+                    : undefined
+                }
                 onClick={() => startLoop(days)}
                 className={`rounded-[var(--radius-md)] border px-2 py-1 text-[var(--text-sm)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                   looping === days
@@ -381,6 +433,12 @@ export function TimeScrubber({
               </button>
             ))}
           </div>
+          {scrubbable && win.step === "month" && (
+            <p className="text-[var(--text-sm)] text-ln-op-mute">
+              Los atajos de repetición no están disponibles para períodos largos (reproducción
+              mensual).
+            </p>
+          )}
 
           {/* task #77 bitemporal — replay-basis toggle. Detalle-only (panorama-
               vista-redesign): default "valid" replays by occurred_at ("cuándo

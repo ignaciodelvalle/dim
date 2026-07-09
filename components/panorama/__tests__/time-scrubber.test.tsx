@@ -158,6 +158,140 @@ describe("TimeScrubber — loop windows", () => {
   });
 });
 
+describe("TimeScrubber — QA fix: playback stops when temporal gating hides the controls", () => {
+  it("a running play loop stops advancing once temporalAvailable flips false (no onChange behind the empty state)", () => {
+    vi.useFakeTimers();
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        temporalAvailable={true}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reproducir la formación de la situación" }),
+    );
+    expect(screen.getByRole("button", { name: "Pausar reproducción" })).toBeInTheDocument();
+    onChange.mockClear();
+
+    // Temporal gating hides the controls — the empty state replaces the track.
+    rerender(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        temporalAvailable={false}
+      />,
+    );
+    expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+
+    // Advance well past several play-loop ticks — the interval must not still
+    // be running behind the empty state.
+    act(() => {
+      vi.advanceTimersByTime(1100 * 5);
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("TimeScrubber — QA fix: resetToken forces a live reset independent of `win`", () => {
+  it("parks back at live and clears play/loop when resetToken bumps, even though since/until are unchanged", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        resetToken={0}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    const slider = screen.getByRole("slider") as HTMLInputElement;
+    expect(Number(slider.value)).toBeLessThan(Number(slider.max));
+    onChange.mockClear();
+
+    // Same since/until (win is unchanged) — only the token bumps, mirroring a
+    // scope-only change or a temporalAvailable flip the parent handled itself.
+    rerender(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        resetToken={1}
+      />,
+    );
+
+    expect(slider.value).toBe(slider.max);
+    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("omitting resetToken keeps the existing (backward-compatible) behavior — no forced reset", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    const slider = screen.getByRole("slider") as HTMLInputElement;
+    expect(Number(slider.value)).toBeLessThan(Number(slider.max));
+  });
+});
+
+describe("TimeScrubber — QA fix: loop chips disabled for month-stepped (long) windows", () => {
+  it("disables the loop chips and shows a hint when the active period steps by month (> 90 days)", () => {
+    const longSince = new Date("2023-07-01T00:00:00Z");
+    const longUntil = new Date("2026-07-01T00:00:00Z"); // ~3 years — month-stepped
+    render(
+      <TimeScrubber
+        since={longSince}
+        until={longUntil}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "↺ 30 días" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "↺ 90 días" })).toBeDisabled();
+    expect(screen.getByText(/no están disponibles para períodos largos/)).toBeInTheDocument();
+  });
+
+  it("keeps the loop chips enabled for short (day-stepped) windows", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeEnabled();
+    expect(screen.queryByText(/no están disponibles para períodos largos/)).not.toBeInTheDocument();
+  });
+});
+
 describe("TimeScrubber — Simple/Detalle", () => {
   it("Simple (default) hides date ticks and the bitemporal basis toggle", () => {
     render(
