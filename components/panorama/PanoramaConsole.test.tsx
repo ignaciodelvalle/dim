@@ -307,12 +307,14 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phase 
     expect(isBefore(notice, strip)).toBe(true);
   });
 
-  it("hosts the filters slot inside the 'Alcance y período' disclosure, next to 'Personalizar'", () => {
+  it("hosts the filters slot inside the 'Alcance y período' disclosure, next to CapasBox", () => {
     const { container } = renderRedesignConsole();
 
     const scopeSummary = screen.getByText("Alcance y período");
     expect(scopeSummary.closest("details")).not.toBeNull();
-    expect(screen.getByText("Personalizar")).toBeInTheDocument();
+    // panorama-vista-redesign Phase 2: "Personalizar" moved into CapasBox's
+    // Detalle mode (rendered inside the Vista panel, not the right rail).
+    expect(screen.getByText("Capas")).toBeInTheDocument();
 
     // The slot content is REACHABLE (identical behavior, one click away)…
     const filterSelect = screen.getByLabelText("Provincia");
@@ -323,34 +325,29 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phase 
     expect(container.contains(filterSelect)).toBe(true);
   });
 
-  it("stays within the first-paint BOARD control budget (≤8) with the REAL TimeScrubber rendered", () => {
-    // Honest budget (design-QA 2026-07-04 P0). Scope of the ≤8 assertion:
-    //   COUNTED — the board: preset buttons + disclosure summaries + any
-    //   control not hidden behind a default-closed <details>. TimeScrubber is
-    //   the REAL component here (no mock): its play/range/"Ahora" controls
-    //   must sit behind the default-closed "Reproducir en el tiempo"
-    //   disclosure, contributing exactly ONE summary to the budget.
-    //   NOT COUNTED — map-canvas controls (MapLibre zoom + "Mi alcance" live
-    //   on the map surface itself; SituationalMap is mocked) and the KPI
-    //   strip's refresh (below the map hero, mocked). Production first paint
-    //   therefore shows 8 board controls + the map's own canvas controls.
+  it("first paint: Vista tabs + CapasBox Simple chips are visible; the scrubber stays behind its disclosure", () => {
+    // panorama-vista-redesign supersedes the 2026-07-04 P0 control-budget rule
+    // (flagged explicitly at design/verify time): CapasBox is deliberately
+    // "additive-looking" and visible without a click — only the temporal
+    // scrubber (Phase 4 removes even this) still hides behind a disclosure.
     const { container } = renderRedesignConsole({ defaultSuppressedCount: 3 });
 
-    const all = Array.from(container.querySelectorAll("button, input, select, summary"));
-    const firstPaint = all.filter((el) => {
-      const hiddenBy = el.closest("details:not([open])");
-      if (hiddenBy === null) return true;
-      // The <summary> of a closed details is itself visible.
-      return el.tagName === "SUMMARY" && el.parentElement === hiddenBy;
-    });
-
-    expect(firstPaint.length).toBeLessThanOrEqual(8);
-    // Sanity: the 5 preset buttons ARE part of the visible set.
-    expect(firstPaint.filter((el) => el.tagName === "BUTTON").length).toBeGreaterThanOrEqual(5);
-    // The real scrubber IS mounted but its controls are NOT first-paint: the
-    // range slider hides behind the closed disclosure, whose summary shows.
+    // The 6 preset tabs are first-paint.
+    expect(
+      Array.from(container.querySelectorAll("button")).filter((b) =>
+        b.closest("details:not([open])") === null,
+      ).length,
+    ).toBeGreaterThanOrEqual(6);
+    // CapasBox's Simple/Detalle toggle is visible (not hidden behind a disclosure).
+    expect(screen.getByRole("button", { name: "Simple" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Detalle" })).toBeVisible();
+    // The scrubber's range input is still NOT first-paint — it hides behind
+    // the (temporary, Phase-1-only) "Reproducir en el tiempo" disclosure.
     expect(container.querySelector("input[type='range']")).not.toBeNull();
-    expect(firstPaint.some((el) => el.getAttribute("type") === "range")).toBe(false);
+    const rangeHiddenByDetails = container
+      .querySelector("input[type='range']")
+      ?.closest("details:not([open])");
+    expect(rangeHiddenByDetails).not.toBeNull();
     expect(screen.getByText("Reproducir en el tiempo").tagName).toBe("SUMMARY");
   });
 
@@ -489,6 +486,9 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
   it("aborts a superseded in-flight fetch; the abort NEVER deactivates the layer; last click wins", async () => {
     deferMode = true;
     renderRedesignConsole();
+    // CapasBox mounts LayerPanel only in Detalle mode (panorama-vista-redesign
+    // Phase 2) — flip to Detalle so the mocked LayerPanel captures `states`.
+    fireEvent.click(screen.getByRole("button", { name: "Detalle" }));
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
     fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));

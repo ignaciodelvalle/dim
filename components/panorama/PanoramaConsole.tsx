@@ -21,8 +21,9 @@
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { CapasBox } from "@/components/panorama/CapasBox";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
-import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
+import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaKpiStrip } from "@/components/panorama/PanoramaKpiStrip";
@@ -685,6 +686,11 @@ export function PanoramaConsole({
   const onOpacity = useCallback((id: LayerId, value: number) => {
     setOpacities((prev) => ({ ...prev, [id]: value }));
   }, []);
+
+  // panorama-vista-redesign Phase 2: CapasBox Simple/Detalle. Client-only UI
+  // pref — persisted (tolerantly) in the board key by Phase 5, never a URL
+  // param. Defaults to Simple (false) so a fresh load stays additive-looking.
+  const [capasDetail, setCapasDetail] = useState(false);
 
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
@@ -1790,6 +1796,21 @@ export function PanoramaConsole({
           onPreset={onPreset}
           layout="row"
         />
+        {/* panorama-vista-redesign Phase 2 (design Decision 2): CapasBox
+            composes the unchanged LayerPanel for Detalle — checkCompatibility
+            and role rules are 100% preserved; Simple is a presentational
+            surface only. */}
+        <CapasBox
+          states={states}
+          onToggle={onToggle}
+          scrubbing={scrubbing}
+          opacities={opacities}
+          onOpacity={onOpacity}
+          verifiedOnly={verifiedOnly}
+          onToggleVerified={onToggleVerified}
+          capasDetail={capasDetail}
+          onCapasDetailChange={setCapasDetail}
+        />
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_342px]">
         <div className="min-w-0 space-y-3">
@@ -1902,26 +1923,9 @@ export function PanoramaConsole({
               <div className="mt-2 space-y-3">{filtersSlot}</div>
             </details>
           )}
-          {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" — TEMPORARY here;
-              Phase 2 (panorama-vista-redesign) moves this into CapasBox's
-              Detalle mode inside the Vista panel above. */}
-          <section aria-labelledby="pano-personalizar" className="space-y-2">
-            <h3
-              id="pano-personalizar"
-              className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
-            >
-              Personalizar
-            </h3>
-            <LayerPanel
-              states={states}
-              onToggle={onToggle}
-              scrubbing={scrubbing}
-              opacities={opacities}
-              onOpacity={onOpacity}
-              verifiedOnly={verifiedOnly}
-              onToggleVerified={onToggleVerified}
-            />
-          </section>
+          {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" (the LayerPanel
+              legend/toggle) now lives inside CapasBox's Detalle mode, in the
+              Vista panel above — panorama-vista-redesign Phase 2. */}
           {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
               by asOf in v1). Phase 3 (panorama-vista-redesign) replaces this flat
               strip with the per-vista PanoramaMetricsColumn. */}
