@@ -19,8 +19,11 @@
 // (budget-exhausted) results are still never cached, so one bad load never
 // poisons the next window.
 
+import { unstable_cache } from "next/cache";
+
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
+import { isIncrementalCacheMissing } from "./data-cache";
 import { withDbBudget } from "./db-budget";
 import { type PanoramaKpis, degradedPanoramaKpis, getPanoramaKpis } from "./get-panorama-kpis";
 import { type CachedKpisResult, getCachedPanoramaKpis, kpiCacheKey } from "./kpis-cache";
@@ -34,6 +37,82 @@ import { type CachedKpisResult, getCachedPanoramaKpis, kpiCacheKey } from "./kpi
 // a reload gets the same headroom the client refetch already had (previously the
 // pages used a tighter 9s budget, which tripped under load — staging QA #1).
 export const KPIS_BUDGET_MS = 20_000;
+
+/**
+ * L2 (cross-request Vercel Data Cache) revalidate window for the KPI fan-out.
+ * Matches the L1 per-lambda TTL (60s) so both cache layers agree on freshness.
+ */
+export const KPIS_CACHE_REVALIDATE_S = 60;
+
+/** A real (non-degraded) strip carries at least one tile; a degraded strip has none. */
+const isRealKpiStrip = (value: PanoramaKpis): boolean => value.kpis.length > 0;
+
+/**
+ * Thrown INSIDE the L2 cached fan-out when the result is a degraded (empty)
+ * strip, so Next's `unstable_cache` never PERSISTS it (a thrown result is not
+ * stored). Caught immediately OUTSIDE the cache and converted back to a plain
+ * degraded strip returned UNCACHED. `getPanoramaKpis` normally THROWS on a
+ * fetcher failure (never returns an empty strip), so this is a defensive
+ * belt-and-suspenders guard mirroring the L1 `shouldCache` predicate.
+ */
+class DegradedKpiStripError extends Error {
+  constructor() {
+    super("panorama KPI fan-out produced a degraded strip — not cacheable");
+    this.name = "DegradedKpiStripError";
+  }
+}
+
+/**
+ * L2: wrap the underlying KPI fan-out in the shared Vercel Data Cache, keyed by
+ * the SAME bucketed `kpiCacheKey` string as the L1 Map, so a browser reload that
+ * lands on a COLD lambda still skips the ~17-query fan-out when a warm entry
+ * exists cross-request.
+ *
+ * KEY STABILITY: the wrapped fn takes NO arguments; the varying scope rides
+ * entirely in `keyParts` (the bucketed key). Compute args are closed over as
+ * normalized ISO strings and reconstructed inside the pure fn (no headers()/
+ * cookies()) — passing the raw timestamps as args would fold them into Next's
+ * cache key un-bucketed and defeat the 60s bucket.
+ *
+ * DEGRADED NEVER CACHED: `withDbBudget` stays OUTSIDE this call (in
+ * `loadCachedPanoramaKpis`), and the sentinel-throw guard ensures the Data Cache
+ * only ever holds a real strip. A real fetcher failure propagates as
+ * `PanoramaKpisUnavailableError` (unstable_cache never stores a throw) so the
+ * caller degrades exactly as before.
+ */
+function computeCachedKpiFanOut(
+  cacheKey: string,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  period: AnalyticsPeriod,
+  adminProvince: string | undefined,
+  adminLocality: string | undefined,
+): Promise<PanoramaKpis> {
+  // Direct (uncached) fan-out — the source of truth, shared by the cached fn's
+  // body and the no-Data-Cache fallback so both paths compute identically.
+  const fanOut = () => getPanoramaKpis(actor, jurisdictions, period, adminProvince, adminLocality);
+
+  const cached = unstable_cache(
+    async () => {
+      const result = await fanOut();
+      // Never let unstable_cache persist a degraded (empty) strip.
+      if (!isRealKpiStrip(result)) throw new DegradedKpiStripError();
+      return result;
+    },
+    [cacheKey],
+    { revalidate: KPIS_CACHE_REVALIDATE_S },
+  );
+
+  return cached().catch((err) => {
+    // The sentinel means "degraded" → return it UNCACHED.
+    if (err instanceof DegradedKpiStripError) return degradedPanoramaKpis();
+    // No Data Cache in this context (unit test / script) → run the fan-out
+    // uncached (getPanoramaKpis throws on a real failure → propagates as before).
+    if (isIncrementalCacheMissing(err)) return fanOut();
+    // Any other rejection (a real fetcher failure) propagates so the caller degrades.
+    throw err;
+  });
+}
 
 export type LoadCachedPanoramaKpisParams = {
   actor: DashboardActor;
@@ -76,9 +155,13 @@ export function loadCachedPanoramaKpis(
   });
   return getCachedPanoramaKpis(
     cacheKey,
+    // L1 (per-lambda Map) → withDbBudget → L2 (cross-request Data Cache) →
+    // getPanoramaKpis. The budget stays OUTSIDE L2 so a budget-timeout degraded
+    // is never stored; L2 lets a reload on a COLD lambda still skip the fan-out.
     () =>
       withDbBudget(
-        getPanoramaKpis(
+        computeCachedKpiFanOut(
+          cacheKey,
           params.actor,
           params.jurisdictions,
           params.period,
@@ -91,6 +174,6 @@ export function loadCachedPanoramaKpis(
       ),
     // Only a real strip (tiles present) is cached — degraded strips carry no
     // tiles (kpis: []), so caching one would freeze the honest error for 60s.
-    { shouldCache: (value: PanoramaKpis) => value.kpis.length > 0 },
+    { shouldCache: isRealKpiStrip },
   );
 }

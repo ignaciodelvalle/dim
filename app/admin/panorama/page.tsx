@@ -13,11 +13,9 @@ import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
-import {
-  emptyLayerFeatures,
-  getLayerFeatures,
-} from "@/src/modules/panorama/application/get-layer-features";
+import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 
@@ -136,7 +134,7 @@ export default async function AdminPanoramaPage({
   // honest degraded PanoramaShell instead).
   const [result, kpis] = await Promise.all([
     withDbBudget(
-      getLayerFeatures(
+      loadLayerFeaturesCached(
         "perdidas",
         actor,
         scoped,

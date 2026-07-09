@@ -16,11 +16,9 @@ import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
-import {
-  emptyLayerFeatures,
-  getLayerFeatures,
-} from "@/src/modules/panorama/application/get-layer-features";
+import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 import { DEFAULT_PANORAMA_PRESET_ID, type PresetId } from "@/src/modules/panorama/domain/presets";
@@ -149,7 +147,7 @@ export default async function GobPanoramaPage({
   // degraded PanoramaShell instead). jurisdictionBounds is a cheap static lookup.
   const [result, kpis, initialBounds] = await Promise.all([
     withDbBudget(
-      getLayerFeatures(
+      loadLayerFeaturesCached(
         "perdidas",
         actor,
         scoped,

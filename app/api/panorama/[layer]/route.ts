@@ -20,9 +20,9 @@ import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import {
   emptyLayerFeatures,
-  getLayerFeatures,
   resolvePointsMode,
 } from "@/src/modules/panorama/application/get-layer-features";
+import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf, parseTimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 
@@ -136,7 +136,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
 
   try {
     const result = await withDbBudget(
-      getLayerFeatures(
+      // Cross-request Data Cache stays INSIDE the budget so a degraded/empty
+      // fallback is never cached; points mode bypasses the cache internally.
+      loadLayerFeaturesCached(
         layer,
         actor,
         scoped,
