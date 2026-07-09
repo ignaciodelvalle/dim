@@ -947,11 +947,18 @@ async function runClean(): Promise<void> {
     }
   }
 
-  // 10a-bis. Belt-and-suspenders: remove any PANO-CASE-tagged cases that, for
+  // 10a-bis. Belt-and-suspenders: remove any PANO-tagged cases that, for
   // whatever reason, did not cascade with their primary pet (e.g. a case whose
-  // pet was already gone). Keyed off the deterministic public_code prefix.
+  // pet was already gone). Two independent tags, since not all PANO cases
+  // share a public_code prefix:
+  //   - public_code LIKE 'PANO-CASE-%'  → RABOBS/DECOMISO/DISPUTE literal codes
+  //   - opened_reason LIKE '%seed histórico%' → multi-year HIST decomiso/
+  //     dispute cases, which use production-format CAS-XXXX-XXXX public
+  //     codes (see seedHistoryWelfareAndCases) and so are NOT matched by the
+  //     public_code pattern above; they have no primary_pet_id to cascade on
+  //     either (primarySubjectKind='location'), so this is their only cleanup path.
   const deletedCases = await db.execute(
-    sql`DELETE FROM cases WHERE public_code LIKE 'PANO-CASE-%'`,
+    sql`DELETE FROM cases WHERE public_code LIKE 'PANO-CASE-%' OR opened_reason LIKE '%seed histórico%'`,
   );
   log("OK", `  Deleted PANO cases (${JSON.stringify(deletedCases)})`);
 
@@ -3291,8 +3298,16 @@ async function seedModelProvinceHistory(
 // 17. Historical welfare_reports + enforcement cases — 2024-2026 all provinces
 // ---------------------------------------------------------------------------
 // All rows are PANO-tagged so runClean()'s existing patterns remove them:
-//   welfare_reports: description LIKE 'PANO-%'    ← 'PANO-HIST-WEL-*' matches
-//   cases:           public_code LIKE 'PANO-CASE-%' ← 'PANO-CASE-HIST-*' matches
+//   welfare_reports: description LIKE 'PANO-%'         ← 'PANO-HIST-WEL-*' matches
+//   cases:           opened_reason LIKE '%seed histórico%' ← both the
+//     decomiso and dispute openedReason strings below end in that marker.
+//     NOTE: these cases' public_code is production-format CAS-XXXX-XXXX
+//     (allocateCasePublicCode(), same generator as CasesRepository), on
+//     purpose — a demo /gob/casos list mixing CAS-XXXX-XXXX with literal
+//     PANO-CASE-HIST-* codes read as an obvious fake. That means the
+//     public_code LIKE 'PANO-CASE-%' cleanup pattern does NOT catch them —
+//     the opened_reason marker is their only cleanup path (no primary_pet_id
+//     to cascade on either, since primarySubjectKind='location').
 //
 // Jurisdiction scoped by COLUMN (jurisdictionProvince/jurisdictionLocality),
 // matching jurisdictionColumnsScope() in the panorama repository consumers:
@@ -3307,6 +3322,26 @@ async function seedModelProvinceHistory(
 // Welfare-report createdAt is set explicitly to a past date (not defaultNow)
 // so the consumer's gte(welfareReports.createdAt, since) temporal filter
 // correctly returns rows from 2024 and 2025.
+
+/**
+ * Allocate a unique CAS-XXXX-XXXX case public_code — same generator
+ * (generatePrefixedToken) and retry-on-collision idiom as the production
+ * path (CasesRepository.generateUniqueCasePublicCode in
+ * cases-repository.ts). Used so seeded HIST cases are indistinguishable in
+ * format from real operator-created cases in the /gob/casos list.
+ */
+async function allocateCasePublicCode(): Promise<string | undefined> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = generatePrefixedToken("CAS");
+    const [existing] = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(eq(cases.publicCode, candidate))
+      .limit(1);
+    if (!existing) return candidate;
+  }
+  return undefined;
+}
 
 async function seedHistoryWelfareAndCases(
   localitiesByCode: Map<string, LocalityRow[]>,
@@ -3324,8 +3359,6 @@ async function seedHistoryWelfareAndCases(
   ] as const;
 
   let welIdx = 0;
-  let decIdx = 0;
-  let disIdx = 0;
   let totalWelfare = 0;
   let totalDecomisos = 0;
   let totalDisputes = 0;
@@ -3435,8 +3468,13 @@ async function seedHistoryWelfareAndCases(
                 ),
               )
             : null;
+          const decCode = await allocateCasePublicCode();
+          if (!decCode) {
+            log("WARN", "  could not allocate CAS code for HIST decomiso — skipping");
+            continue;
+          }
           await db.insert(cases).values({
-            publicCode: `PANO-CASE-HIST-DEC-${String(decIdx).padStart(6, "0")}`,
+            publicCode: decCode,
             caseKind: "custody_episode",
             status: isClosed ? "closed" : "open",
             // 'location' subject: satisfies cases_subject_location_consistency by
@@ -3455,7 +3493,6 @@ async function seedHistoryWelfareAndCases(
           }
             ? V
             : never);
-          decIdx++;
           provDecomisos++;
         }
 
@@ -3470,8 +3507,13 @@ async function seedHistoryWelfareAndCases(
               ),
             )
           : null;
+        const disCode = await allocateCasePublicCode();
+        if (!disCode) {
+          log("WARN", "  could not allocate CAS code for HIST dispute — skipping");
+          continue;
+        }
         await db.insert(cases).values({
-          publicCode: `PANO-CASE-HIST-DIS-${String(disIdx).padStart(6, "0")}`,
+          publicCode: disCode,
           caseKind: "custody_dispute",
           status: disIsClosed ? "closed" : "open",
           primarySubjectKind: "location",
@@ -3490,7 +3532,6 @@ async function seedHistoryWelfareAndCases(
         }
           ? V
           : never);
-        disIdx++;
         provDisputes++;
       }
     }
