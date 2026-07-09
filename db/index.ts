@@ -7,12 +7,36 @@
 // values/enums from the schema, import from "@/db/schema" in client code.)
 import "server-only";
 
-import { drizzle } from "drizzle-orm/postgres-js";
+import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set in environment");
+// DATABASE_URL guard — DEFERRED to first use, not thrown at module load.
+//
+// This module used to `throw` here at import time when DATABASE_URL was unset.
+// That made `next build` page-data collection hard-fail ("DATABASE_URL is not
+// set") for any route that imports @/db (e.g. /auth/callback) whenever the build
+// environment lacked the var — the Vercel branch/preview builds, which don't
+// carry DATABASE_URL, all died here. postgres() itself is lazy (it connects on
+// first query, never at construction — verified), so the ONLY import-time
+// failure was this throw.
+//
+// We now keep import side-effect-free: when DATABASE_URL is present the exports
+// are the real drizzle handles (identical behaviour); when it is absent they are
+// proxies that throw the SAME clear message on first access, so a genuinely
+// misconfigured runtime still fails loudly — just not at build time.
+const DATABASE_URL_PRESENT = Boolean(process.env.DATABASE_URL);
+
+function missingDatabaseUrl(handle: "db" | "analyticsDb"): never {
+  throw new Error(`DATABASE_URL is not set in environment (accessed \`${handle}\`)`);
+}
+
+function missingDbProxy(handle: "db" | "analyticsDb"): PostgresJsDatabase<typeof schema> {
+  return new Proxy({} as PostgresJsDatabase<typeof schema>, {
+    get: () => missingDatabaseUrl(handle),
+    apply: () => missingDatabaseUrl(handle),
+    has: () => missingDatabaseUrl(handle),
+  });
 }
 
 // In test environments (vitest runs with fileParallelism:false — one file at a
@@ -77,7 +101,9 @@ const globalForDb = globalThis as unknown as {
 // runner) — a 15s statement_timeout could flake a legitimately slow suite.
 const client =
   globalForDb.__dimPgClient ??
-  postgres(process.env.DATABASE_URL, {
+  // Cast: when DATABASE_URL is unset this pool is never queried (the `db` export
+  // is the missing-url proxy), and postgres() constructs lazily either way.
+  postgres(process.env.DATABASE_URL as string, {
     prepare: false,
     ...(isTest
       ? {
@@ -103,7 +129,9 @@ const client =
 
 if (process.env.NODE_ENV === "development") globalForDb.__dimPgClient = client;
 
-export const db = drizzle(client, { schema });
+export const db: PostgresJsDatabase<typeof schema> = DATABASE_URL_PRESENT
+  ? drizzle(client, { schema })
+  : missingDbProxy("db");
 
 // ---------------------------------------------------------------------------
 // ANALYTICS pool (task #74 follow-up — dual-pool split).
@@ -142,7 +170,7 @@ export const db = drizzle(client, { schema });
 const analyticsClient = isTest
   ? client
   : (globalForDb.__dimPgAnalyticsClient ??
-    postgres(process.env.ANALYTICS_DATABASE_URL ?? process.env.DATABASE_URL, {
+    postgres((process.env.ANALYTICS_DATABASE_URL ?? process.env.DATABASE_URL) as string, {
       prepare: false, // harmless on session mode; keeps the DATABASE_URL fallback transaction-pooler-safe
       max: 3, // tiny — session mode pins one backend per connection
       connect_timeout: 10, // seconds — fail fast when the pooler is saturated
@@ -183,7 +211,9 @@ if (process.env.NODE_ENV === "production" && !process.env.ANALYTICS_DATABASE_URL
  * production (`ANALYTICS_DATABASE_URL`). Never use this for writes or for
  * request-path OLTP reads — those belong on `db`.
  */
-export const analyticsDb = drizzle(analyticsClient, { schema });
+export const analyticsDb: PostgresJsDatabase<typeof schema> = DATABASE_URL_PRESENT
+  ? drizzle(analyticsClient, { schema })
+  : missingDbProxy("analyticsDb");
 
 // Re-export everything from schema so app code can `import { pets, db } from "@/db"`.
 export * from "./schema";
