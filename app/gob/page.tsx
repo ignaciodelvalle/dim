@@ -27,8 +27,10 @@ import {
   fetchPerdidasMetrics,
 } from "@/lib/analytics/govt-dashboards";
 import {
-  fetchActiveZoonosis,
   fetchBitesPer10k,
+  fetchNotifiedDiseases,
+  fetchOpenBiteCases,
+  fetchOpenRabiesObservations,
   fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
@@ -139,7 +141,9 @@ export default async function GobiernoDashboardPage({
     rabiesCoverage,
     sterilizations,
     bitesPer10k,
-    activeZoonosis,
+    openRabiesObservations,
+    openBiteCases,
+    notifiedDiseases,
     openWelfareReports,
     microchipPenetration,
     breedCompliance,
@@ -166,7 +170,10 @@ export default async function GobiernoDashboardPage({
     fetchRabiesCoverage(ctx12m),
     fetchSterilizationMetrics(ctx30d),
     fetchBitesPer10k(ctx12m),
-    fetchActiveZoonosis(ctx12m),
+    // "Zoonosis activas" composite decomposed (PO-ratified) into 3 legible signals.
+    fetchOpenRabiesObservations(ctx12m),
+    fetchOpenBiteCases(ctx12m),
+    fetchNotifiedDiseases(ctx12m),
     fetchOpenWelfareReportsCount(ctx12m),
     // Item 4 compliance headline KPIs (C1 microchip penetration, C7 PPP registry).
     // Penetration/compliance are population-state metrics ("now"); the 12m window
@@ -325,23 +332,49 @@ export default async function GobiernoDashboardPage({
               "El denominador es población humana del censo (jurisdictions_census). Si la provincia no tiene fila de censo, la tasa se muestra como 0.",
           }}
         />
+        {/* Zoonosis activas — descompuesto (PO) en 3 señales legibles en vez de
+            un único número opaco: observación rábica abierta, mordeduras abiertas
+            y enfermedades notificadas. */}
         <OpKpi
-          label="Casos zoonosis activos"
-          value={activeZoonosis.count}
-          tone="danger"
+          label="Observaciones rábicas abiertas"
+          value={openRabiesObservations.count}
+          tone={openRabiesObservations.count > 0 ? "danger" : "neutral"}
           deltaV2={
-            activeZoonosis.deltaWeek !== 0
-              ? { value: activeZoonosis.deltaWeek, period: "vs semana ant." }
+            openRabiesObservations.deltaWeek !== 0
+              ? { value: openRabiesObservations.deltaWeek, period: "vs semana ant." }
               : undefined
           }
           sparkline={zoonosisTrend.points.map((p) => p.y)}
-          sub={`${activeZoonosis.rabies} rabia · ${activeZoonosis.lepto} lepto · ${activeZoonosis.hidat} hidat.`}
+          sub="observaciones en curso"
           href="/gob/vigilancia"
           info={{
             definition:
-              "Total de señales zoonóticas activas: mascotas con observación rábica en curso (status='in_progress') + casos bite_incident abiertos (deduplicados) + reportes de leptospirosis e hidatidosis en los últimos 30 días.",
-            formula:
-              "COUNT DISTINCT(pets en obs. rábica O en caso bite abierto) + COUNT(disease_reported='lepto', 30d) + COUNT(disease_reported='hidatidosis', 30d)",
+              "Mascotas con una observación antirrábica actualmente en curso (rabies_observation_status='in_progress') en la jurisdicción. Deriva de la observación tras mordedura (Ley 22.953).",
+            formula: "COUNT(pets donde rabies_observation_status='in_progress') en alcance",
+          }}
+        />
+        <OpKpi
+          label="Mordeduras abiertas"
+          value={openBiteCases.count}
+          tone={openBiteCases.count > 0 ? "warn" : "neutral"}
+          sub={openBiteCases.count === 1 ? "caso abierto" : "casos abiertos"}
+          href="/gob/vigilancia"
+          info={{
+            definition:
+              "Casos de mordedura (case_kind='bite_incident') que siguen abiertos (status='open') en la jurisdicción.",
+            formula: "COUNT(cases donde case_kind='bite_incident' AND status='open') en alcance",
+          }}
+        />
+        <OpKpi
+          label="Enfermedades notificadas"
+          value={notifiedDiseases.count}
+          tone={notifiedDiseases.count > 0 ? "danger" : "neutral"}
+          sub={`${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · últimos 30 días`}
+          href="/gob/vigilancia"
+          info={{
+            definition:
+              "Nuevos eventos de enfermedad notificada (disease_reported) registrados en los últimos 30 días en la jurisdicción. El subtítulo desglosa leptospirosis e hidatidosis.",
+            formula: "COUNT(disease_reported, últimos 30 días) en alcance",
           }}
         />
       </section>

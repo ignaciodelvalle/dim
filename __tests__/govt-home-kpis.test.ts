@@ -8,10 +8,13 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, jurisdictionsCensus, petEvents, pets } from "@/db";
+import { cases, db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import {
   fetchActiveZoonosis,
   fetchBitesPer10k,
+  fetchNotifiedDiseases,
+  fetchOpenBiteCases,
+  fetchOpenRabiesObservations,
   fetchRabiesCoverage,
   fetchRabiesCoverageByProvince,
   fetchSterilizationMetrics,
@@ -820,5 +823,224 @@ describe("fetchSterilizationMetrics — intrinsic 30d window, not the display pe
     expect(count30d.count).toBe(1);
     expect(count12m.count).toBe(1);
     expect(count30d.count).toBe(count12m.count);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Decomposed "Zoonosis activas" composite (PO-ratified): the single opaque KPI
+// (fetchActiveZoonosis) is split into three independently-counted signals —
+// fetchOpenRabiesObservations, fetchOpenBiteCases, fetchNotifiedDiseases. Each is
+// asserted on its own seeded rows in a locality no other fixture touches so the
+// scoped counts are exactly ours. Same scope + window primitives as the composite.
+// ---------------------------------------------------------------------------
+
+describe("decomposed zoonosis signals — three independent counts", () => {
+  const Z_PROVINCE = "Santa Fe";
+  const Z_LOCALITY = "ZoonosisDecompVille"; // unique to this suite
+  const TOKEN_OBS_A = "HK-ZOO-OBS-A";
+  const TOKEN_OBS_B = "HK-ZOO-OBS-B";
+  const TOKEN_HOST = "HK-ZOO-HOST"; // hosts started/disease events + the bite case
+  const ALL_TOKENS = [TOKEN_OBS_A, TOKEN_OBS_B, TOKEN_HOST];
+  const CASE_CODES = ["HK-ZOO-CASE-1", "HK-ZOO-CASE-2", "HK-ZOO-CASE-3"];
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  let hostPetId: string;
+
+  const ctx = () =>
+    buildProjectionContext(
+      { role: "govt" },
+      [{ province: Z_PROVINCE, locality: Z_LOCALITY }],
+      windows.trailing12m(),
+    );
+
+  async function cleanup() {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`
+        DELETE FROM cases WHERE public_code IN (${sql.join(
+          CASE_CODES.map((c) => sql`${c}`),
+          sql`, `,
+        )})
+      `);
+      await tx.execute(sql`
+        DELETE FROM pet_events
+        WHERE pet_id IN (SELECT id FROM pets WHERE public_token IN (${sql.join(
+          ALL_TOKENS.map((t) => sql`${t}`),
+          sql`, `,
+        )}))
+      `);
+      await tx.execute(sql`
+        DELETE FROM pets WHERE public_token IN (${sql.join(
+          ALL_TOKENS.map((t) => sql`${t}`),
+          sql`, `,
+        )})
+      `);
+    });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+
+    // Two pets currently under a rabies observation + one event-host pet.
+    const inserted = await db
+      .insert(pets)
+      .values([
+        {
+          publicToken: TOKEN_OBS_A,
+          name: "ZooObsDogA",
+          species: "dog",
+          status: "active",
+          jurisdictionProvince: Z_PROVINCE,
+          jurisdictionLocality: Z_LOCALITY,
+          rabiesObservationStatus: "in_progress",
+        },
+        {
+          publicToken: TOKEN_OBS_B,
+          name: "ZooObsDogB",
+          species: "dog",
+          status: "active",
+          jurisdictionProvince: Z_PROVINCE,
+          jurisdictionLocality: Z_LOCALITY,
+          rabiesObservationStatus: "in_progress",
+        },
+        {
+          publicToken: TOKEN_HOST,
+          name: "ZooHostDog",
+          species: "dog",
+          status: "active",
+          jurisdictionProvince: Z_PROVINCE,
+          jurisdictionLocality: Z_LOCALITY,
+        },
+      ])
+      .returning({ id: pets.id, publicToken: pets.publicToken });
+    hostPetId = inserted.find((p) => p.publicToken === TOKEN_HOST)?.id as string;
+
+    // rabies_observation_started: 2 this week, 1 last week → deltaWeek = +1.
+    const now = Date.now();
+    await db.insert(petEvents).values([
+      {
+        petId: hostPetId,
+        eventType: "rabies_observation_started",
+        occurredAt: new Date(now - 2 * DAY_MS),
+        payload: { payload_version: 1 },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+      {
+        petId: hostPetId,
+        eventType: "rabies_observation_started",
+        occurredAt: new Date(now - 3 * DAY_MS),
+        payload: { payload_version: 1 },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+      {
+        petId: hostPetId,
+        eventType: "rabies_observation_started",
+        occurredAt: new Date(now - 10 * DAY_MS),
+        payload: { payload_version: 1 },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+    ]);
+
+    // disease_reported: lepto (5d) + hidatidosis (5d) + a THIRD disease (5d) inside
+    // the 30d window, plus one lepto OUTSIDE the window (40d) → count=3, lepto=1, hidat=1.
+    await db.insert(petEvents).values([
+      {
+        petId: hostPetId,
+        eventType: "disease_reported",
+        occurredAt: new Date(now - 5 * DAY_MS),
+        payload: { payload_version: 1, disease: "lepto" },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+      {
+        petId: hostPetId,
+        eventType: "disease_reported",
+        occurredAt: new Date(now - 5 * DAY_MS),
+        payload: { payload_version: 1, disease: "hidatidosis" },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+      {
+        petId: hostPetId,
+        eventType: "disease_reported",
+        occurredAt: new Date(now - 5 * DAY_MS),
+        payload: { payload_version: 1, disease: "brucelosis" },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+      {
+        petId: hostPetId,
+        eventType: "disease_reported",
+        occurredAt: new Date(now - 40 * DAY_MS),
+        payload: { payload_version: 1, disease: "lepto" },
+        authorRole: "vet",
+        recordedByUserId: null,
+      },
+    ]);
+
+    // Bite cases: 2 open + 1 closed in scope → open count = 2. Unowned-animal
+    // subjects (primaryPetId null) so the cases_open_per_pet_kind partial unique
+    // index (one open case per pet+kind) doesn't reject the second open row.
+    // fetchOpenBiteCases scopes on the jurisdiction columns, not the pet.
+    await db.insert(cases).values([
+      {
+        publicCode: CASE_CODES[0],
+        caseKind: "bite_incident",
+        status: "open",
+        primarySubjectKind: "unowned_animal",
+        jurisdictionProvince: Z_PROVINCE,
+        jurisdictionLocality: Z_LOCALITY,
+      },
+      {
+        publicCode: CASE_CODES[1],
+        caseKind: "bite_incident",
+        status: "open",
+        primarySubjectKind: "unowned_animal",
+        jurisdictionProvince: Z_PROVINCE,
+        jurisdictionLocality: Z_LOCALITY,
+      },
+      {
+        publicCode: CASE_CODES[2],
+        caseKind: "bite_incident",
+        status: "closed",
+        // cases_closed_consistency check: a closed case must carry closedReason + closedAt.
+        closedReason: "resolved",
+        closedAt: new Date(),
+        primarySubjectKind: "unowned_animal",
+        jurisdictionProvince: Z_PROVINCE,
+        jurisdictionLocality: Z_LOCALITY,
+      },
+    ]);
+  });
+
+  afterAll(cleanup);
+
+  it("fetchOpenRabiesObservations counts the two in-progress observations and a +1 weekly delta", async () => {
+    const kpi = await fetchOpenRabiesObservations(ctx());
+    expect(kpi.count).toBe(2);
+    // 2 started this 7d − 1 started the prior 7d = +1.
+    expect(kpi.deltaWeek).toBe(1);
+  });
+
+  it("fetchOpenBiteCases counts only the OPEN bite_incident cases (closed excluded)", async () => {
+    const kpi = await fetchOpenBiteCases(ctx());
+    expect(kpi.count).toBe(2);
+  });
+
+  it("fetchNotifiedDiseases counts ALL disease_reported in the 30d window with lepto/hidat sub-breakdown", async () => {
+    const kpi = await fetchNotifiedDiseases(ctx());
+    // 3 in-window (lepto + hidatidosis + brucelosis); the 40-day lepto is excluded.
+    expect(kpi.count).toBe(3);
+    expect(kpi.lepto).toBe(1);
+    expect(kpi.hidat).toBe(1);
+  });
+
+  it("all three fetchers return zeros for an empty govt jurisdiction without hitting the DB", async () => {
+    const emptyCtx = buildProjectionContext({ role: "govt" }, [], windows.trailing12m());
+    expect(await fetchOpenRabiesObservations(emptyCtx)).toEqual({ count: 0, deltaWeek: 0 });
+    expect(await fetchOpenBiteCases(emptyCtx)).toEqual({ count: 0 });
+    expect(await fetchNotifiedDiseases(emptyCtx)).toEqual({ count: 0, lepto: 0, hidat: 0 });
   });
 });

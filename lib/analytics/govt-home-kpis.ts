@@ -848,6 +848,207 @@ export async function fetchActiveZoonosis(ctx: ProjectionContext): Promise<Activ
 }
 
 // ---------------------------------------------------------------------------
+// KPI 4a/4b/4c — Decomposed zoonosis signals
+// ---------------------------------------------------------------------------
+//
+// PO-ratified decomposition of the opaque "Zoonosis activas" composite
+// (fetchActiveZoonosis above) into THREE legible, independently-counted signals.
+// The composite summed dedup(active-rabies-obs ∪ open-bite-cases) + lepto + hidat
+// into one number; the three fetchers below split it along its truest axes so an
+// operator sees WHICH signal is moving, not one blended figure. Scope and window
+// primitives are reused VERBATIM from fetchActiveZoonosis so each part scopes and
+// windows identically to the composite it replaces.
+//
+// MAPPING vs the old composite:
+//   - fetchOpenRabiesObservations → the composite's `rabies` arm (pets with
+//     rabies_observation_status='in_progress') plus its `deltaWeek` (net change in
+//     rabies_observation_started opens vs the prior 7-day window).
+//   - fetchOpenBiteCases          → the open-bite-case side of the composite's
+//     dedup UNION (cases.case_kind='bite_incident' AND status='open'), now counted
+//     on its own instead of merged with the rabies-obs pets.
+//   - fetchNotifiedDiseases       → generalises the composite's lepto+hidat arms to
+//     ALL disease_reported events in the trailing 30 days (the truest "enfermedades
+//     notificadas" axis), keeping lepto/hidat as a sub-breakdown for continuity.
+
+export type OpenRabiesObservationsKpi = {
+  /** Pets with an active rabies observation (rabies_observation_status='in_progress') in scope. */
+  count: number;
+  /**
+   * Net change in rabies_observation_started opens vs the prior 7-day window
+   * (this week minus last week) — same delta the composite exposed as deltaWeek.
+   */
+  deltaWeek: number;
+};
+
+/**
+ * KPI: open_rabies_observations (decomposed from active_zoonosis_signals).
+ *
+ * NUMERATOR:   COUNT pets with rabies_observation_status='in_progress' in scope.
+ * DENOMINATOR: n/a — absolute count.
+ * SOURCE:      pets (status), pet_events (rabies_observation_started, for the delta).
+ * CADENCE:     "now" snapshot; deltaWeek compares this 7d vs the prior 7d of opens.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchOpenRabiesObservations(
+  ctx: ProjectionContext,
+): Promise<OpenRabiesObservationsKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { count: 0, deltaWeek: 0 };
+  }
+
+  const now = ctx.period.until.getTime();
+  const since7d = new Date(now - 7 * DAY_MS);
+  const since14d = new Date(now - 14 * DAY_MS);
+
+  // Snapshot count scopes on the pets column (petsScopeClause); the started-event
+  // delta scopes by the pet's CURRENT home jurisdiction (petsGuard, EXISTS) — SAME
+  // scope split fetchActiveZoonosis uses for these two arms.
+  const petsScope = petsScopeClause(ctx);
+  const petsGuard = petsCurrentJurisdictionGuard(ctx);
+
+  const rabiesConditions = [sql`${pets.rabiesObservationStatus} = ${"in_progress"}`];
+  if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
+
+  const startedThisWeekConditions = [
+    eq(petEvents.eventType, "rabies_observation_started"),
+    gte(petEvents.occurredAt, since7d),
+  ];
+  if (petsGuard) startedThisWeekConditions.push(petsGuard);
+
+  const startedLastWeekConditions = [
+    eq(petEvents.eventType, "rabies_observation_started"),
+    gte(petEvents.occurredAt, since14d),
+    lt(petEvents.occurredAt, since7d),
+  ];
+  if (petsGuard) startedLastWeekConditions.push(petsGuard);
+
+  const [rabiesRows, thisWeekRows, lastWeekRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(pets)
+      .where(and(...rabiesConditions)),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...startedThisWeekConditions)),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...startedLastWeekConditions)),
+  ]);
+
+  const thisWeek = thisWeekRows[0]?.n ?? 0;
+  const lastWeek = lastWeekRows[0]?.n ?? 0;
+
+  return {
+    count: rabiesRows[0]?.n ?? 0,
+    deltaWeek: thisWeek - lastWeek,
+  };
+}
+
+export type OpenBiteCasesKpi = {
+  /** Open bite-incident cases (cases.case_kind='bite_incident' AND status='open') in scope. */
+  count: number;
+};
+
+/**
+ * KPI: open_bite_cases (decomposed from active_zoonosis_signals).
+ *
+ * NUMERATOR:   COUNT cases where case_kind='bite_incident' AND status='open' in scope.
+ * DENOMINATOR: n/a — absolute count.
+ * SOURCE:      cases.
+ * CADENCE:     "now" snapshot.
+ * SUPPRESSION: none.
+ *
+ * Reuses casesScopeClause (whole-province subsumption) — the SAME clause the
+ * composite built for the open-bite side of its dedup UNION.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchOpenBiteCases(ctx: ProjectionContext): Promise<OpenBiteCasesKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { count: 0 };
+  }
+
+  const casesScope = casesScopeClause(ctx);
+  const conditions = [eq(cases.caseKind, "bite_incident"), eq(cases.status, "open")];
+  if (casesScope) conditions.push(sql`(${casesScope})`);
+
+  const rows = await db
+    .select({ n: count() })
+    .from(cases)
+    .where(and(...conditions));
+
+  return { count: rows[0]?.n ?? 0 };
+}
+
+export type NotifiedDiseasesKpi = {
+  /** All disease_reported events in the trailing 30 days in scope. */
+  count: number;
+  /** Sub-breakdown: leptospirosis reports within the same window. */
+  lepto: number;
+  /** Sub-breakdown: hidatidosis reports within the same window. */
+  hidat: number;
+};
+
+/**
+ * KPI: notified_diseases (decomposed from active_zoonosis_signals).
+ *
+ * NUMERATOR:   COUNT disease_reported events in the trailing 30 days in scope
+ *              (ALL diseases, not only lepto/hidatidosis — the truest "enfermedades
+ *              notificadas" axis). lepto/hidat are returned as a sub-breakdown so
+ *              the tile keeps the composite's "X lepto · Y hidat." legend.
+ * DENOMINATOR: n/a — absolute count.
+ * SOURCE:      pet_events (disease_reported).
+ * CADENCE:     trailing 30 days ending at ctx.period.until.
+ * SUPPRESSION: none.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchNotifiedDiseases(ctx: ProjectionContext): Promise<NotifiedDiseasesKpi> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { count: 0, lepto: 0, hidat: 0 };
+  }
+
+  const since30d = new Date(ctx.period.until.getTime() - 30 * DAY_MS);
+
+  // disease_reported carries no payload jurisdiction snapshot — scope by the pet's
+  // CURRENT home jurisdiction (petsGuard, EXISTS), SAME as the composite's lepto/hidat arms.
+  const petsGuard = petsCurrentJurisdictionGuard(ctx);
+
+  const conditions = [
+    eq(petEvents.eventType, "disease_reported"),
+    gte(petEvents.occurredAt, since30d),
+  ];
+  if (petsGuard) conditions.push(petsGuard);
+
+  // Single pass: total + lepto/hidat sub-counts via conditional aggregation.
+  const rows = await db
+    .select({
+      total: count(),
+      lepto:
+        sql<number>`count(*) filter (where (${petEvents.payload}->>'disease') = 'lepto')`.mapWith(
+          Number,
+        ),
+      hidat:
+        sql<number>`count(*) filter (where (${petEvents.payload}->>'disease') = 'hidatidosis')`.mapWith(
+          Number,
+        ),
+    })
+    .from(petEvents)
+    .where(and(...conditions));
+
+  const row = rows[0];
+  return {
+    count: row?.total ?? 0,
+    lepto: row?.lepto ?? 0,
+    hidat: row?.hidat ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // KPI 5 — Open welfare reports (Denuncias ciudadanas)
 // ---------------------------------------------------------------------------
 
