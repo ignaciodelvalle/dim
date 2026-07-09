@@ -23,9 +23,12 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  * Arrow keys rove + activate, and Enter on a tab flips the credential face.
  */
 
-// Seeded by scripts/seed-test-users.ts + seed-demo.ts. DIM-B4KS-KWZA is the
-// owner's pet (owner@dim.test); its public credential lives at /p/<token>.
-const PET_TOKEN = "DIM-B4KS-KWZA";
+// Seeded by scripts/seed-demo.ts. DIM-DEMO-0001 (Rocco) is owner@dim.test's
+// first pet — active, so the profile renders the Credencial/Libreta flip; its
+// public credential lives at /p/<token>. (The prior token DIM-B4KS-KWZA no
+// longer exists in the demo seed, so every assertion below silently ran against
+// a 404 page — clickthrough review 2026-07-09.)
+const PET_TOKEN = "DIM-DEMO-0001";
 
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"] as const;
 
