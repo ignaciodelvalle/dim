@@ -17,6 +17,7 @@ import {
   isCABA,
   joinChoroplethData,
 } from "@/lib/infra/geo-join";
+import { escapeHtml } from "@/lib/utils/escape-html";
 import type maplibregl from "maplibre-gl";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -118,6 +119,19 @@ export type MapChoroplethProps = {
    * Has no effect when `scaleMode` is `"sequential"` (the default).
    */
   target?: number;
+  /**
+   * Cartographic form.
+   *  - `"flat"` (default): the v1 look — a single flat white 1px region outline
+   *    and a plain hover tooltip. Every pre-existing caller keeps this untouched.
+   *  - `"panorama"`: brings the Panorama SituationalMap's cartographic polish to
+   *    this LIGHT keeper map WITHOUT changing the ChoroplethRegionDatum contract:
+   *    a tonal stroke hierarchy (soft white halo + a crisp mid-slate admin
+   *    stroke, analog of SituationalMap's COLOR_ADMIN_STROKE), a slightly crisper
+   *    data fill, and a structured hover card (place / value / scale-label
+   *    caption) with a polished popup skin. Opt-in so the other callers
+   *    (campanas, censo, perdidas, design/dashboards) do not regress.
+   */
+  cartography?: "flat" | "panorama";
 };
 
 // ---------------------------------------------------------------------------
@@ -135,6 +149,26 @@ const LEVEL_LABELS: Record<GeoLevel, string> = {
   department: "Departamentos",
   barrio: "Barrios",
 };
+
+// ---------------------------------------------------------------------------
+// Cartography tokens (opt-in `cartography="panorama"`)
+// ---------------------------------------------------------------------------
+//
+// Mirror the Panorama SituationalMap's admin-boundary treatment, adapted to
+// MapChoropleth's LIGHT basemap (#e8ecf0). Panorama gets its depth from strong
+// admin strokes over a DIMMED dark basemap; on a light surface the analog is a
+// soft white halo that lifts every boundary off the colored data fills, with a
+// crisp mid-slate admin stroke on top (the light-surface counterpart of
+// SituationalMap's COLOR_ADMIN_STROKE "#5b6b8c"). Slightly crisper data fill so
+// the regions "sit on" the territory instead of tinting it translucently.
+const CARTO_HALO_COLOR = "#ffffff";
+const CARTO_HALO_WIDTH = 1.75;
+const CARTO_HALO_OPACITY = 0.65;
+const CARTO_ADMIN_COLOR = "#64748b"; // slate-500 — reads as a boundary on light + over fills
+const CARTO_ADMIN_WIDTH = 0.75;
+const CARTO_ADMIN_OPACITY = 0.9;
+const CARTO_FILL_OPACITY = 0.88;
+const FLAT_FILL_OPACITY = 0.75;
 
 // ---------------------------------------------------------------------------
 // Internal drill state
@@ -174,6 +208,7 @@ export function MapChoropleth({
   scaleLabel,
   scaleMode = "sequential",
   target,
+  cartography = "flat",
 }: MapChoroplethProps) {
   const searchParams = useSearchParams();
 
@@ -416,15 +451,48 @@ export function MapChoropleth({
               id: "regions-fill",
               type: "fill",
               source: "regions",
-              paint: { "fill-color": colorExpr, "fill-opacity": 0.75 },
+              paint: {
+                "fill-color": colorExpr,
+                "fill-opacity": cartography === "panorama" ? CARTO_FILL_OPACITY : FLAT_FILL_OPACITY,
+              },
             });
 
-            map.addLayer({
-              id: "regions-outline",
-              type: "line",
-              source: "regions",
-              paint: { "line-color": "#ffffff", "line-width": 1 },
-            });
+            // Cartography: panorama-style tonal stroke hierarchy vs the flat v1 outline.
+            if (cartography === "panorama") {
+              // Soft white halo UNDER the admin stroke — lifts every boundary off
+              // the colored fills so adjacent regions separate cleanly (the depth
+              // panorama gets from its dimmed dark basemap, on the light surface).
+              map.addLayer({
+                id: "regions-outline-halo",
+                type: "line",
+                source: "regions",
+                paint: {
+                  "line-color": CARTO_HALO_COLOR,
+                  "line-width": CARTO_HALO_WIDTH,
+                  "line-opacity": CARTO_HALO_OPACITY,
+                },
+              });
+              // Crisp mid-slate admin boundary on top — the hierarchy-aware stroke
+              // that reads as a border over both the basemap and the data fill
+              // (light-surface analog of SituationalMap's COLOR_ADMIN_STROKE).
+              map.addLayer({
+                id: "regions-outline",
+                type: "line",
+                source: "regions",
+                paint: {
+                  "line-color": CARTO_ADMIN_COLOR,
+                  "line-width": CARTO_ADMIN_WIDTH,
+                  "line-opacity": CARTO_ADMIN_OPACITY,
+                },
+              });
+            } else {
+              map.addLayer({
+                id: "regions-outline",
+                type: "line",
+                source: "regions",
+                paint: { "line-color": "#ffffff", "line-width": 1 },
+              });
+            }
 
             // map-QOL: diagonal hatching over SUPPRESSED cells — suppression is
             // encoded by pattern + tooltip text, never by color alone.
@@ -519,8 +587,13 @@ export function MapChoropleth({
               // Bbox failed — initial center/zoom stays.
             }
 
-            // Tooltip
-            const tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false });
+            // Tooltip — the panorama form gets a polished popup skin (self-sufficient
+            // card styling in globals.css; no base maplibre CSS import needed).
+            const tooltip = new maplibregl.Popup({
+              closeButton: false,
+              closeOnClick: false,
+              ...(cartography === "panorama" ? { className: "mapchoropleth-popup" } : {}),
+            });
 
             map.on("mousemove", "regions-fill", (e) => {
               if (!e.features?.length) return;
@@ -538,17 +611,40 @@ export function MapChoropleth({
                   ? "Sin datos"
                   : String(props.choropleth_value ?? "—");
 
-              const drillHint = drillable
-                ? `<br/><em style="font-size:11px;color:#6b7280">Clic para ver detalle</em>`
-                : "";
-
               map.getCanvas().style.cursor = drillable ? "pointer" : "default";
-              tooltip
-                .setLngLat(e.lngLat)
-                .setHTML(
-                  `<div style="font-size:13px;padding:4px 8px"><strong>${labelText}</strong><br/>${valStr}${drillHint}</div>`,
-                )
-                .addTo(map);
+
+              if (cartography === "panorama") {
+                // Panorama-structured card: place (muted) / value (strong) / the
+                // scale-label caption — mirrors SituationalMap's popup hierarchy.
+                // Suppressed + missing stay muted (never a number for a k-anon
+                // cell). All interpolated text is escaped (parity with panorama).
+                const valueMarkup =
+                  isSuppressed || isMissing
+                    ? `<span style="color:#64748b">${escapeHtml(valStr)}</span>`
+                    : `<strong>${escapeHtml(valStr)}</strong>`;
+                const caption = scaleLabel
+                  ? `<br/><em style="font-size:11px;color:#64748b">${escapeHtml(scaleLabel)}</em>`
+                  : "";
+                const pHint = drillable
+                  ? `<br/><em style="font-size:11px;color:#64748b">Clic para ver detalle</em>`
+                  : "";
+                tooltip
+                  .setLngLat(e.lngLat)
+                  .setHTML(
+                    `<div style="font-size:12px;padding:2px 6px"><div style="color:#334155">${escapeHtml(labelText)}</div>${valueMarkup}${caption}${pHint}</div>`,
+                  )
+                  .addTo(map);
+              } else {
+                const drillHint = drillable
+                  ? `<br/><em style="font-size:11px;color:#6b7280">Clic para ver detalle</em>`
+                  : "";
+                tooltip
+                  .setLngLat(e.lngLat)
+                  .setHTML(
+                    `<div style="font-size:13px;padding:4px 8px"><strong>${labelText}</strong><br/>${valStr}${drillHint}</div>`,
+                  )
+                  .addTo(map);
+              }
             });
 
             map.on("mouseleave", "regions-fill", () => {
@@ -608,6 +704,7 @@ export function MapChoropleth({
     allowDrill,
     scaleMode,
     target,
+    cartography,
   ]);
 
   // ---------------------------------------------------------------------------

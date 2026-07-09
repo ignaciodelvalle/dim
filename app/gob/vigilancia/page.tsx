@@ -625,6 +625,7 @@ export default async function GobVigilanciaPage({
               {...(mapVisibleCodes ? { visibleCodes: mapVisibleCodes } : {})}
               fallbackTableLabel={mapCardTitle}
               scaleLabel="Casos abiertos"
+              cartography="panorama"
             />
           </OpCardBody>
         </OpCard>

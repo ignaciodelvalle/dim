@@ -3611,3 +3611,40 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
 .panorama-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
   border-left-color: rgba(11, 16, 32, 0.95);
 }
+
+/* ---- MapChoropleth cartography popups (keeper-map panorama form) ---------- */
+/* Opt-in `cartography="panorama"` keeper maps (gob/vigilancia, gob/poblacion)
+   mirror the panorama popup STRUCTURE on the LIGHT gob dashboard surface: a
+   polished white card with a slate border + shadow, instead of the plain v1
+   tooltip. Self-sufficient (MapChoropleth does not import the base maplibre
+   popup CSS), so these rules provide the full card box on their own. */
+.mapchoropleth-popup .maplibregl-popup-content {
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 6px 10px;
+}
+.mapchoropleth-popup .maplibregl-popup-content strong {
+  color: #0f172a;
+}
+/* Tint the tip triangle white per anchor so it reads as part of the card (the
+   default maplibre tip is only present when the base popup CSS is loaded; these
+   rules are harmless no-ops otherwise). */
+.mapchoropleth-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.mapchoropleth-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.mapchoropleth-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: #ffffff;
+}
+.mapchoropleth-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.mapchoropleth-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.mapchoropleth-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: #ffffff;
+}
+.mapchoropleth-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: #ffffff;
+}
+.mapchoropleth-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: #ffffff;
+}

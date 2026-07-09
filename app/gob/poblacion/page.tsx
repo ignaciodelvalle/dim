@@ -422,6 +422,7 @@ export default async function GobPoblacionPage({
               scaleLabel="Cobertura de esterilización (%)"
               fallbackTableLabel="Cobertura de esterilización por provincia"
               height={400}
+              cartography="panorama"
             />
           </OpCardBody>
         </OpCard>
