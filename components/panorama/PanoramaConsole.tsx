@@ -677,7 +677,11 @@ export function PanoramaConsole({
   useEffect(() => {
     if (kpisPromise == null) return;
     let cancelled = false;
-    kpisPromise
+    // Promise.resolve() is load-bearing: an RSC-streamed promise arrives on the
+    // client as a React thenable whose .then() returns undefined (not chainable),
+    // so calling .catch() on the .then() result throws and the ErrorBoundary
+    // takes down the whole console. Wrapping normalizes it to a real Promise.
+    Promise.resolve(kpisPromise)
       .then((resolved) => {
         if (cancelled) return;
         if (!clientKpiTookOverRef.current) setKpis(resolved);
