@@ -6,6 +6,7 @@ import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/
 import {
   divisionCodeForCell,
   divisionFillColorExpr,
+  divisionSuppressedFilter,
   divisionValueBounds,
   filterDepartmentsByPrefix,
   joinCellsToDivisions,
@@ -165,6 +166,59 @@ describe("joinCellsToDivisionsMulti — zoom-driven multi-province union", () =>
     const single = joinCellsToDivisions(cells, "barrio", barrioCodes);
     const multi = joinCellsToDivisionsMulti(cells, [{ level: "barrio", codes: barrioCodes }]);
     expect(multi.values.get("palermo")).toBe(single.values.get("palermo"));
+  });
+});
+
+describe("k-anon suppressed hatch set (map-polish cursor #2)", () => {
+  const barrioCodes = new Set(["palermo", "la boca", "recoleta"]);
+
+  it("lists a division whose ONLY cell is suppressed (hatched, not no-data)", () => {
+    const join = joinCellsToDivisions(
+      fc([cell({ locality: "La Boca", value: null, suppressed: true })]),
+      "barrio",
+      barrioCodes,
+    );
+    // Never a number (k-anon logic untouched) AND flagged for the hatch.
+    expect(join.values.has("la boca")).toBe(false);
+    expect(join.suppressed.has("la boca")).toBe(true);
+  });
+
+  it("does NOT hatch a departamento that has a visible constituent (fill wins)", () => {
+    const deptCodes = new Set(["06441"]);
+    const join = joinCellsToDivisions(
+      fc([
+        cell({ locality: "La Plata", departmentCode: "06441", value: 10, suppressed: false }),
+        cell({ locality: "Villa Elisa", departmentCode: "06441", value: null, suppressed: true }),
+      ]),
+      "department",
+      deptCodes,
+    );
+    // The visible sum colors the cell; the suppressed constituent is omitted from
+    // the sum (unchanged behavior) and the cell is NOT hatched.
+    expect(join.values.get("06441")).toBe(10);
+    expect(join.suppressed.has("06441")).toBe(false);
+  });
+
+  it("leaves a plain no-data division out of BOTH values and suppressed", () => {
+    const join = joinCellsToDivisions(fc([]), "barrio", barrioCodes);
+    expect(join.values.size).toBe(0);
+    expect(join.suppressed.size).toBe(0);
+  });
+});
+
+describe("divisionSuppressedFilter (map-polish cursor #2)", () => {
+  it("is a constant-false filter for an empty set (hatch renders nothing)", () => {
+    expect(divisionSuppressedFilter(new Set())).toBe(false);
+  });
+
+  it("matches the suppressed codes against the polygon `code` property", () => {
+    const filter = divisionSuppressedFilter(new Set(["la boca", "palermo"])) as unknown[];
+    expect(filter[0]).toBe("match");
+    expect(filter[1]).toEqual(["get", "code"]);
+    expect(filter[2]).toEqual(["la boca", "palermo"]);
+    // labels → true, fallback → false (member vs non-member).
+    expect(filter[3]).toBe(true);
+    expect(filter[4]).toBe(false);
   });
 });
 

@@ -102,9 +102,11 @@ export const RAMP_GREEN: ColorRamp = ["#edf8e9", "#006d2c"] as const;
  */
 export const COLOR_DIVERGENT_BELOW = "#f59e0b" as const; // amber-400
 
-/** Neutral midpoint (at target): near-white — minimal fill so the target is
- * visually "zero" on the diverging scale. */
-export const COLOR_DIVERGENT_NEUTRAL = "#f8fafc" as const; // slate-50
+/** Neutral midpoint (at target): a VISIBLE mid-slate, not paper-white. On the
+ * dark operator basemap (navy #0b1020) a slate-50 neutral blew out as a white
+ * sticker (map-polish cursor #3); a mid-slate reads as "at target" while still
+ * leaving hue+luminance distance to both poles (amber below, teal above). */
+export const COLOR_DIVERGENT_NEUTRAL = "#64748b" as const; // slate-500
 
 /**
  * Good pole (above compliance target): teal/blue.
@@ -187,8 +189,13 @@ export function divergentStops(
 // "No data" color — always rendered as a separate token, never hardcoded
 // ---------------------------------------------------------------------------
 
-/** Regions/cells with no matching data get this neutral fill. */
-export const COLOR_NO_DATA = "#e5e7eb" as const;
+/** Regions/cells with no matching data get this neutral fill. A desaturated
+ * mid-tone in the dark-console LAND family (not the old pale #e5e7eb, which read
+ * as a light sticker floating over the navy basemap — map-polish cursor #3). It
+ * sits just above COLOR_LAND so a no-data polygon reads as "territory without a
+ * value", clearly separate from both the colored data ramp and the hatched
+ * k-anon suppression pattern. */
+export const COLOR_NO_DATA = "#2a3348" as const;
 
 /** Suppressed cells (< k-anonymity threshold) get this distinct fill. */
 export const COLOR_SUPPRESSED = "#d1d5db" as const;

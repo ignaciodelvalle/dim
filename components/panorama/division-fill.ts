@@ -16,7 +16,7 @@
 // consumes `joinCellsToDivisions` (which FeatureCollection to feed the circle
 // source) and `divisionFillColorExpr` (the data-driven polygon fill).
 
-import type { ExpressionSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
 import { RAMP_BLUE } from "@/lib/analytics/viz-scales";
 import { normalizeBarioCode, normalizeDepartmentCode } from "@/lib/infra/geo-join";
@@ -76,6 +76,19 @@ export type DivisionJoin = {
    * never also a muted circle (no double-encoding).
    */
   unmatched: FeatureCollection;
+  /**
+   * cursor #2 — division codes whose matched cells are k-anon SUPPRESSED and
+   * which carry NO visible value (so they are absent from `values`). These render
+   * with a diagonal HATCH pattern — perceptually distinct from both a colored
+   * data cell and an outline-only genuine no-data cell (the honest trichotomy).
+   *
+   * A division that has SOME visible constituent (present in `values`) is NOT
+   * listed here: it renders as a real colored fill, and the suppressed
+   * constituents are simply omitted from its sum (existing k-anon behavior). This
+   * changes PRESENTATION only — the suppression LOGIC (what is dropped from the
+   * sum) is untouched; a suppressed cell still never contributes a number.
+   */
+  suppressed: Set<string>;
 };
 
 /**
@@ -118,6 +131,10 @@ export function joinCellsToDivisionsMulti(
 ): DivisionJoin {
   const values = new Map<string, number>();
   const unmatched: PanoramaFeature[] = [];
+  // Codes that had at least one matched SUPPRESSED cell — resolved against
+  // `values` after the loop so a division with any visible constituent stays a
+  // colored fill (not hatched).
+  const suppressedSeen = new Set<string>();
 
   for (const f of features.features) {
     const props = (f.properties ?? {}) as ChoroplethCellProps;
@@ -127,8 +144,11 @@ export function joinCellsToDivisionsMulti(
       if (code === null || !codes.has(code)) continue;
       matched = true;
       // Matched: contributes to the fill only when visible (k-anon). A matched
-      // but suppressed cell is intentionally dropped → outline only.
-      if (props.suppressed !== true && typeof props.value === "number") {
+      // but suppressed cell is intentionally dropped from the sum → it renders
+      // as a HATCH (below) if no visible constituent covers the same division.
+      if (props.suppressed === true) {
+        suppressedSeen.add(code);
+      } else if (typeof props.value === "number") {
         values.set(code, (values.get(code) ?? 0) + props.value);
       }
       break;
@@ -136,7 +156,14 @@ export function joinCellsToDivisionsMulti(
     if (!matched) unmatched.push(f);
   }
 
-  return { values, unmatched: { type: "FeatureCollection", features: unmatched } };
+  // A division is HATCHED only when it is suppressed AND has no visible value —
+  // otherwise the visible sum wins and the cell is a normal colored fill.
+  const suppressed = new Set<string>();
+  for (const code of suppressedSeen) {
+    if (!values.has(code)) suppressed.add(code);
+  }
+
+  return { values, unmatched: { type: "FeatureCollection", features: unmatched }, suppressed };
 }
 
 /** A fully-transparent fill — a division with no (visible) data shows outline only. */
@@ -182,6 +209,17 @@ export function divisionFillColorExpr(
     TRANSPARENT,
     ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE[0], hi, RAMP_BLUE[1]],
   ] as unknown as ExpressionSpecification;
+}
+
+/**
+ * cursor #2 — build the MapLibre `filter` that selects the SUPPRESSED division
+ * polygons (for the diagonal-hatch overlay). Matches the shared-source `code`
+ * property against the suppressed code set. Returns a constant-`false` filter
+ * when the set is empty so the hatch layer renders nothing (never everything).
+ */
+export function divisionSuppressedFilter(codes: ReadonlySet<string>): FilterSpecification {
+  if (codes.size === 0) return false as unknown as FilterSpecification;
+  return ["match", ["get", "code"], [...codes], true, false] as unknown as FilterSpecification;
 }
 
 /** value min/max over a division values map (for the fill legend). null when empty. */
