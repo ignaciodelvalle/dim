@@ -268,6 +268,35 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
     expect(params.get("period")).toBe("30d");
     expect(params.get("layers")).toBeNull();
   });
+
+  it("reading a pre-redesign v1 entry (no capasDetail/scrubDetail) restores cleanly, defaulting to Simple", async () => {
+    // A `panorama:board:v1` entry saved BEFORE panorama-vista-redesign — the
+    // exact pre-redesign shape (design Decision 5: no version bump, tolerant
+    // OPTIONAL fields).
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({
+        layers: "cobertura,zoonosis",
+        level: "province",
+        preset: "brotes-activos",
+        period: "90d",
+      }),
+    );
+
+    // No JSON.parse failure, no crash — the console mounts normally.
+    expect(() => renderConsole()).not.toThrow();
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("layers")).toBe("zoonosis,cobertura");
+    });
+    // Missing capasDetail/scrubDetail default to Simple (false) — both
+    // Simple/Detalle toggles read "Simple" as pressed.
+    expect(screen.getByRole("button", { name: "Modo simple de capas" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------

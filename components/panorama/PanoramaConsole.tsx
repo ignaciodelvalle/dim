@@ -163,6 +163,14 @@ type SavedBoard = {
   level: AggregationLevel;
   preset: string | null;
   period: string | null;
+  /**
+   * panorama-vista-redesign Phase 5 (design Decision 5): CapasBox / TimeScrubber
+   * Simple-Detalle prefs. OPTIONAL — folded into the EXISTING `panorama:board:v1`
+   * key with NO version bump. A pre-redesign v1 entry lacks these fields
+   * entirely; `undefined` reads as Simple (false), never a crash.
+   */
+  capasDetail?: boolean;
+  scrubDetail?: boolean;
 };
 
 /** The scope+period subset of a query string, in stable key order. */
@@ -199,14 +207,24 @@ function canonicalLayersKey(ids: readonly LayerId[]): string {
     .join(",");
 }
 
-/** Persists the board (layers/level/preset/period) for the bare-URL restore. */
-function saveBoard(params: URLSearchParams): void {
+/**
+ * Persists the board (layers/level/preset/period) for the bare-URL restore.
+ * `prefs` stamps the CURRENT capasDetail/scrubDetail — they are UI-only state,
+ * never URL params, so the caller passes the live values (panorama-vista-
+ * redesign Phase 5, design Decision 5).
+ */
+function saveBoard(
+  params: URLSearchParams,
+  prefs: { capasDetail: boolean; scrubDetail: boolean },
+): void {
   try {
     const board: SavedBoard = {
       layers: params.get("layers") ?? "",
       level: params.get("level") === "locality" ? "locality" : "province",
       preset: params.get("preset"),
       period: params.get("period"),
+      capasDetail: prefs.capasDetail,
+      scrubDetail: prefs.scrubDetail,
     };
     window.localStorage.setItem(BOARD_STORAGE_KEY, JSON.stringify(board));
   } catch {
@@ -695,6 +713,14 @@ export function PanoramaConsole({
   // panorama-vista-redesign Phase 4: TimeScrubber Simple/Detalle. Same
   // treatment as capasDetail — client-only, persisted tolerantly (Phase 5).
   const [scrubDetail, setScrubDetail] = useState(false);
+  // panorama-vista-redesign Phase 5: ref mirrors so saveBoard's callers (which
+  // don't want to depend on — and re-create their identity around — every
+  // Simple/Detalle flip) always read the LIVE values, matching the existing
+  // verifiedRef/levelRef/timeBasisRef pattern.
+  const capasDetailRef = useRef(capasDetail);
+  capasDetailRef.current = capasDetail;
+  const scrubDetailRef = useRef(scrubDetail);
+  scrubDetailRef.current = scrubDetail;
 
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
@@ -1423,7 +1449,13 @@ export function PanoramaConsole({
       const nextUrl = `${window.location.pathname}?${nextParams.toString()}`;
       if (commit === "push") pushMapStateUrl(nextUrl);
       else replaceMapStateUrl(nextUrl);
-      saveBoard(nextParams);
+      // panorama-vista-redesign Phase 5: stamp the LIVE capasDetail/scrubDetail
+      // via the ref mirrors (applyPreset's identity should not churn on every
+      // Simple/Detalle flip — matches the verifiedRef/levelRef pattern).
+      saveBoard(nextParams, {
+        capasDetail: capasDetailRef.current,
+        scrubDetail: scrubDetailRef.current,
+      });
       // panorama-redesign Fase 1: TRAILING debounce on the layer-fetch burst
       // ONLY — the state flips + shallow URL push above stay synchronous
       // (instant feedback). Rapid preset clicks coalesce into one burst for
@@ -1494,11 +1526,15 @@ export function PanoramaConsole({
     // task #78 Part 3: encode the vet-signed toggle so a shared board reproduces it.
     if (verifiedOnly) params.set("verified", "1");
     else params.delete("verified");
-    if (params.toString() === before) return;
-    const qsStr = params.toString();
-    replaceMapStateUrl(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
-    saveBoard(params);
-  }, [activeLayersKey, level, activePresetId, verifiedOnly]);
+    if (params.toString() !== before) {
+      const qsStr = params.toString();
+      replaceMapStateUrl(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
+    }
+    // panorama-vista-redesign Phase 5: stamp capasDetail/scrubDetail on every
+    // run of this effect — including a Simple/Detalle-only flip, which never
+    // changes the URL params above — so the UI pref is never lost.
+    saveBoard(params, { capasDetail, scrubDetail });
+  }, [activeLayersKey, level, activePresetId, verifiedOnly, capasDetail, scrubDetail]);
 
   // map-QOL mount effect (runs once): resolve the initial board.
   // (a) URL carries `layers` → fetch whatever the server didn't seed.
@@ -1525,6 +1561,24 @@ export function PanoramaConsole({
         return !cache.has(lid);
       });
 
+    // panorama-vista-redesign Phase 5 (design Decision 5): capasDetail/
+    // scrubDetail are UI-only prefs (never URL params) — read the saved board
+    // ONCE here and seed both toggles regardless of which restore branch below
+    // runs. A pre-redesign v1 entry (or unreadable storage) tolerantly reads
+    // as Simple (false) for both — no crash, no JSON.parse failure surfaced.
+    let saved: SavedBoard | null = null;
+    try {
+      const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
+      saved = raw !== null ? (JSON.parse(raw) as SavedBoard) : null;
+    } catch {
+      // Storage unreadable — treat as a first visit: default-activate below.
+      saved = null;
+    }
+    if (saved !== null) {
+      setCapasDetail(saved.capasDetail ?? false);
+      setScrubDetail(saved.scrubDetail ?? false);
+    }
+
     if (urlLayerIds !== null) {
       const missing = missingFromCache(urlLayerIds, levelRef.current);
       if (missing.length > 0) void fetchLayersInto(missing, levelRef.current, current);
@@ -1534,14 +1588,6 @@ export function PanoramaConsole({
     // Bare URL — offer the saved board, if any. Explicit period/preset params
     // mean the operator navigated here on purpose: don't override.
     if (current.get("period") !== null || current.get("preset") !== null) return;
-    let saved: SavedBoard | null = null;
-    try {
-      const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
-      saved = raw !== null ? (JSON.parse(raw) as SavedBoard) : null;
-    } catch {
-      // Storage unreadable — treat as a first visit: default-activate below.
-      saved = null;
-    }
     if (saved === null) {
       // (c) No explicit board, no saved board — first visit: land on the
       // flagship question-framed preset instead of the orphan default layer.
