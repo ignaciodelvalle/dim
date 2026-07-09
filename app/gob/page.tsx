@@ -413,7 +413,7 @@ export default async function GobiernoDashboardPage({
           tone={
             breedCompliance.flaggedCount === 0
               ? "neutral"
-              : toneForTarget(breedCompliance.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)
+              : toneForTarget(breedCompliance.ratePct, TARGETS.PPP_ATTESTATION_PCT)
           }
           bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
           sub={

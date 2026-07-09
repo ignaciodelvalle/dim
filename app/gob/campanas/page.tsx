@@ -163,7 +163,7 @@ export default async function GobCampanasPage({
   const choroplethData = Array.from(provinceAttendance.values()).map((p) => ({
     code: p.isoCode,
     value: p.count,
-    label: `${p.count} ${p.count === 1 ? "inscripción" : "inscripciones"} en ${p.name}`,
+    label: `${p.count} ${p.count === 1 ? "asistencia" : "asistencias"} en ${p.name}`,
   }));
 
   const hasData = dashboard.offerings.length > 0;
@@ -413,8 +413,8 @@ export default async function GobCampanasPage({
                   data={choroplethData}
                   level="province"
                   colorScale={RAMP_BLUE}
-                  scaleLabel="Inscripciones"
-                  fallbackTableLabel="Inscripciones por provincia en campañas sanitarias"
+                  scaleLabel="Asistencias"
+                  fallbackTableLabel="Asistencias por provincia en campañas sanitarias"
                 />
 
                 {/* Accessibility: data table below the map */}
@@ -424,7 +424,7 @@ export default async function GobCampanasPage({
                   </summary>
                   <table className="mt-2 w-full text-sm border-collapse">
                     <caption className="sr-only">
-                      Inscripciones por localidad en campañas sanitarias
+                      Asistencias por localidad en campañas sanitarias
                     </caption>
                     <thead>
                       <tr className="border-b border-ln-op-line">

@@ -87,6 +87,15 @@ export const TARGETS = {
    * Programmatic benchmark — programme internal KPI.
    */
   ADOPTION_RETURN_RATE_PCT: 10,
+
+  /**
+   * % of PPP-flagged (potencialmente peligrosos) dogs with a
+   * dangerous_breed_attested event on record.
+   *
+   * Legal mandate (Ley CABA 4078 / Ley Prov. 14.107): attestation is
+   * compulsory for every PPP dog, so the only defensible target is 100.
+   */
+  PPP_ATTESTATION_PCT: 100,
 } as const;
 
 // ---------------------------------------------------------------------------
