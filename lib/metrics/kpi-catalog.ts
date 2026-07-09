@@ -46,6 +46,9 @@ export type KpiId =
   | "sterilizations_per_month"
   | "bites_per_10k"
   | "active_zoonosis_signals"
+  | "open_rabies_observations"
+  | "open_bite_cases"
+  | "notified_diseases"
   | "microchip_penetration"
   | "ppp_registry_compliance"
   | "open_welfare_reports"
@@ -176,7 +179,53 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "count",
     suppression: "none",
     caveat:
-      "The rabies+bite union is deduplicated at the pet level — a pet in both an active observation AND an open bite case counts once, not twice (fixed from an earlier Math.max approximation that assumed full nesting).",
+      "The rabies+bite union is deduplicated at the pet level — a pet in both an active observation AND an open bite case counts once, not twice (fixed from an earlier Math.max approximation that assumed full nesting). STILL SURFACED on Panorama's metrics column (src/modules/panorama/application/get-panorama-kpis.ts) even though /gob home replaced it with its three decomposed parts below (open_rabies_observations, open_bite_cases, notified_diseases) — kept here because it is a genuinely different, still-rendered composite, not dead code.",
+  },
+
+  open_rabies_observations: {
+    id: "open_rabies_observations",
+    label: "Observaciones rábicas abiertas",
+    numerator: "COUNT active/lost pets where rabies_observation_status = 'in_progress'",
+    denominator: "n/a — absolute count",
+    source: "pets, pet_events (rabies_observation_started, for the weekly delta)",
+    fetcherName: "fetchOpenRabiesObservations",
+    fetcherPath: "lib/analytics/govt-home-kpis.ts",
+    cadence: "'now' snapshot; deltaWeek compares the trailing 7 days of opens vs the prior 7 days",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Decomposed from active_zoonosis_signals's rabies arm (PO-ratified split of the opaque composite into legible signals) — same predicate and same deltaWeek computation, just no longer merged with the open-bite-case count.",
+  },
+
+  open_bite_cases: {
+    id: "open_bite_cases",
+    label: "Mordeduras abiertas",
+    numerator: "COUNT cases where case_kind = 'bite_incident' AND status = 'open'",
+    denominator: "n/a — absolute count",
+    source: "cases",
+    fetcherName: "fetchOpenBiteCases",
+    fetcherPath: "lib/analytics/govt-home-kpis.ts",
+    cadence: "'now' snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Decomposed from active_zoonosis_signals's open-bite-case arm (PO-ratified split) — same casesScopeClause and predicate the composite used for its dedup UNION, now counted on its own instead of merged with rabies-observation pets.",
+  },
+
+  notified_diseases: {
+    id: "notified_diseases",
+    label: "Enfermedades notificadas",
+    numerator:
+      "COUNT disease_reported events in the trailing 30 days in scope (ALL diseases, not only lepto/hidatidosis)",
+    denominator: "n/a — absolute count",
+    source: "pet_events (disease_reported)",
+    fetcherName: "fetchNotifiedDiseases",
+    fetcherPath: "lib/analytics/govt-home-kpis.ts",
+    cadence: "trailing 30 days ending at ctx.period.until",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Generalises active_zoonosis_signals's lepto+hidat arms (PO-ratified split) to every disease_reported event in the window — the truest 'enfermedades notificadas' axis. Returns lepto/hidat as a sub-breakdown for continuity with the composite's legend, but the catalogued count is the ALL-diseases total, not just those two.",
   },
 
   microchip_penetration: {
