@@ -89,4 +89,16 @@ Full per-screen analysis (code layer, cursor-delegated, every claim file:line-an
 ### Contaminated-run demo failures were contention, not bugs
 - Original run: 02-dueno + 05-gobierno hit the FULL 18-min timeout (hung), 03-refugio fast-failed (14.5s). Root cause: I ran tsc/vitest/biome/build + MCP nav concurrently against the same :3000, starving the recording-paced specs. Clean serial re-run in progress (br1vx9c4f) on the fresh build with nothing competing. [results appended on completion]
 
+### CSP chunk block on /denuncias/nueva → COSMETIC (verified), no code change
+- Drove the wizard to step 3 "¿Dónde y cuándo?" on the production build. The LocationPicker map renders a **live maplibre canvas (1 `maplibregl-canvas`, 0 pulse skeletons)** — the map works. The CSP-blocked modulepreload chunk (7851) reloads via the nonce-trusted webpack runtime (strict-dynamic child load), so the console violation is noise, not a functional break.
+- Verdict: do NOT weaken CSP and do NOT defer-mount LocationPicker (the map works; deferring would fight the uncontrolled-input-in-DOM submit design). Leave as-is; the new CSP smoke spec (task 16) must **allowlist this specific chunk** so it only catches NEW violations.
+
+## Definition of Done status
+- `tsc --noEmit`: clean. `pnpm lint` (biome) + 15 custom guards (authz/rls/events/tokens/deps/nav/...): all green. `pnpm test`: 8673 passed / 0 failed (one unattributed vitest worker-fork flake in the 616s full run — not in changed areas; `lib/analytics`+`lib/metrics` re-run 305/305 green). `pnpm build`: exit 0 (build2, includes all committed source). 6 work-unit commits on integration/all-20260703 (ae967955..47705a6e).
+
+## Product flows — completability (the core PO ask)
+- **Público**: 01-publico e2e PASS end-to-end incl. denuncia submit. Adoptar/perdidas/refugios render honestly.
+- **Dueño**: alta-de-mascota **completable** — proven via live MCP drive: the form is a province→locality cascade (`#cascade-province` → `#localityName-input` enables on province select). The 02-dueno *recording spec* hangs only because its stale `pickLocality` helper skips the province step (task #17, test maintenance — NOT a product bug).
+- **Gob/Admin**: content+viz audited across all 80 screens; fixes landed. Visual gob verification + seed-account gate: in progress.
+
 <!-- APPEND BELOW AS THE PASS CONTINUES -->
