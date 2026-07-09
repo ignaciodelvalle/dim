@@ -692,6 +692,9 @@ export function PanoramaConsole({
   // pref — persisted (tolerantly) in the board key by Phase 5, never a URL
   // param. Defaults to Simple (false) so a fresh load stays additive-looking.
   const [capasDetail, setCapasDetail] = useState(false);
+  // panorama-vista-redesign Phase 4: TimeScrubber Simple/Detalle. Same
+  // treatment as capasDetail — client-only, persisted tolerantly (Phase 5).
+  const [scrubDetail, setScrubDetail] = useState(false);
 
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
@@ -1779,6 +1782,14 @@ export function PanoramaConsole({
   // active preset) → PanoramaMetricsColumn shows every KPI, nothing hidden.
   const metricIds = activePreset?.metrics ?? null;
 
+  // panorama-vista-redesign Phase 4 (design Decision 4): temporal gating is
+  // sourced EXCLUSIVELY from isTemporalLayer() over the ACTIVE layer set —
+  // no scrubber-local temporal set (the regression the design flags). Adding
+  // a temporal layer flips this true and self-enables the scrubber.
+  const temporalAvailable = PANORAMA_LAYERS.some(
+    (l) => states[l.id]?.active && isTemporalLayer(l.id),
+  );
+
   return (
     <div className="space-y-4">
       {/* Vista panel: the primary control answers the operator's QUESTION
@@ -1850,30 +1861,22 @@ export function PanoramaConsole({
           )}
           {/* k-anon disclosure — suppression is visible without any click. */}
           <PanoramaSuppressionNotice states={states} />
-          {/* design-QA 2026-07-04 P0 (control budget): TEMPORARY default-closed
-              disclosure — Phase 4 (panorama-vista-redesign) removes this wrapper
-              and supersedes the control-budget rule with Simple mode + temporal
-              gating (the scrubber becomes a compact always-present element). */}
-          <details className="group">
-            <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
-              <span
-                aria-hidden="true"
-                className="mr-1 inline-block transition-transform group-open:rotate-90"
-              >
-                ▸
-              </span>
-              Reproducir en el tiempo
-            </summary>
-            <div className="mt-2">
-              <TimeScrubber
-                since={since}
-                until={until}
-                onChange={onScrub}
-                basis={timeBasis}
-                onBasisChange={onBasisChange}
-              />
-            </div>
-          </details>
+          {/* panorama-vista-redesign Phase 4 (design Decision 1 FLAG/supersede):
+              the 2026-07-04 control-budget P0 (default-closed disclosure) is
+              REMOVED — the scrubber is now a compact always-present element
+              under the map, its budget role replaced by Simple mode + temporal
+              gating (temporalAvailable dims it to an empty state instead of
+              hiding it behind a click). */}
+          <TimeScrubber
+            since={since}
+            until={until}
+            onChange={onScrub}
+            basis={timeBasis}
+            onBasisChange={onBasisChange}
+            temporalAvailable={temporalAvailable}
+            scrubDetail={scrubDetail}
+            onScrubDetailChange={setScrubDetail}
+          />
         </div>
         <div className="space-y-3">
           {/* panorama-vista-redesign Phase 3 (design Decision 1): the metrics

@@ -81,6 +81,7 @@ export function CapasBox({
           <button
             type="button"
             aria-pressed={!capasDetail}
+            aria-label="Modo simple de capas"
             onClick={() => onCapasDetailChange(false)}
             className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
               !capasDetail
@@ -93,6 +94,7 @@ export function CapasBox({
           <button
             type="button"
             aria-pressed={capasDetail}
+            aria-label="Modo detalle de capas"
             onClick={() => onCapasDetailChange(true)}
             className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
               capasDetail
