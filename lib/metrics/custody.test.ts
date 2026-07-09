@@ -7,68 +7,108 @@
 // but do NOT run here (no live Postgres in unit suite).
 //
 // Pure helpers tested:
-//   1. funnelWithinUniverse — percents, cap at 100, zero-intake guard
+//   1. funnelBarWidths — volume-proportional bar widths, no stage exceeds 100,
+//                        max stage always fills the bar, all-zero guard
 //   2. returnRate            — null on zero denominator, correct ratio
 //   3. timeInStateNonNegative — clamps negatives to 0
+//   4. reconciliation        — funnel + tile devolución rate agree (single source)
 
 import { describe, expect, it } from "vitest";
 
-import { funnelWithinUniverse, returnRate, timeInStateNonNegative } from "./custody";
+import { type FunnelCounts, funnelBarWidths, returnRate, timeInStateNonNegative } from "./custody";
 
 // ---------------------------------------------------------------------------
-// 1. funnelWithinUniverse
+// 1. funnelBarWidths — bars proportional to the LARGEST stage (independent
+//    event counts, NOT a cohort narrowing from intake). No clamping needed:
+//    the widest stage is 100 by construction and nothing exceeds it.
 // ---------------------------------------------------------------------------
 
-describe("funnelWithinUniverse", () => {
-  it("intake=0 → 100/0/0/0 (no universe)", () => {
-    const pct = funnelWithinUniverse({ intake: 0, foster: 0, adoption: 0, reversed: 0 });
-    expect(pct.intakePct).toBe(100);
-    expect(pct.fosterPct).toBe(0);
-    expect(pct.adoptionPct).toBe(0);
-    expect(pct.reversedPct).toBe(0);
+describe("funnelBarWidths", () => {
+  it("all stages zero → all widths 0 (no data)", () => {
+    const w = funnelBarWidths({ intake: 0, foster: 0, adoption: 0, reversed: 0 });
+    expect(w).toEqual({ intakePct: 0, fosterPct: 0, adoptionPct: 0, reversedPct: 0 });
   });
 
-  it("all stages equal intake → each stage is 100%", () => {
-    const pct = funnelWithinUniverse({ intake: 10, foster: 10, adoption: 10, reversed: 10 });
-    expect(pct.intakePct).toBe(100);
-    expect(pct.fosterPct).toBe(100);
-    expect(pct.adoptionPct).toBe(100);
-    expect(pct.reversedPct).toBe(100);
+  it("all stages equal → every bar fills the width", () => {
+    const w = funnelBarWidths({ intake: 10, foster: 10, adoption: 10, reversed: 10 });
+    expect(w).toEqual({ intakePct: 100, fosterPct: 100, adoptionPct: 100, reversedPct: 100 });
   });
 
-  it("typical funnel — each stage is smaller than the previous", () => {
-    const pct = funnelWithinUniverse({ intake: 100, foster: 40, adoption: 20, reversed: 2 });
-    expect(pct.intakePct).toBe(100);
-    expect(pct.fosterPct).toBe(40);
-    expect(pct.adoptionPct).toBe(20);
-    expect(pct.reversedPct).toBe(2);
+  it("classic narrowing funnel — intake is the widest, downstream proportional", () => {
+    const w = funnelBarWidths({ intake: 100, foster: 40, adoption: 20, reversed: 2 });
+    expect(w.intakePct).toBe(100);
+    expect(w.fosterPct).toBe(40);
+    expect(w.adoptionPct).toBe(20);
+    expect(w.reversedPct).toBe(2);
   });
 
-  it("percentages are rounded to one decimal", () => {
-    // 1/3 = 33.3%
-    const pct = funnelWithinUniverse({ intake: 3, foster: 1, adoption: 0, reversed: 0 });
-    expect(pct.fosterPct).toBe(33.3);
+  it("adoption exceeds intake (non-cohort reality) — adoption fills the bar, intake is proportional, NOTHING is clamped", () => {
+    // The bug scenario: intake=28, adoption=56, reversed=1. The old helper
+    // rendered intake AND adoption both at 100% (Math.min clamp), hiding that
+    // adoptions are 2x intakes. The honest helper scales to the max (56).
+    const w = funnelBarWidths({ intake: 28, foster: 12, adoption: 56, reversed: 1 });
+    expect(w.adoptionPct).toBe(100); // largest stage fills the bar (visible)
+    expect(w.intakePct).toBe(50); // 28 / 56
+    expect(w.reversedPct).toBe(1.8); // 1 / 56
+    // Internal consistency: no stage can ever exceed 100.
+    for (const v of Object.values(w)) {
+      expect(v).toBeLessThanOrEqual(100);
+      expect(v).toBeGreaterThanOrEqual(0);
+    }
   });
 
-  it("downstream stage exceeds intake → capped at 100 (pathological data guard)", () => {
-    // foster=200 vs intake=100 → would be 200% → capped at 100
-    const pct = funnelWithinUniverse({ intake: 100, foster: 200, adoption: 50, reversed: 5 });
-    expect(pct.fosterPct).toBe(100);
-    expect(pct.adoptionPct).toBe(50);
+  it("no stage ever exceeds 100 across arbitrary orderings", () => {
+    const cases: FunnelCounts[] = [
+      { intake: 5, foster: 200, adoption: 1, reversed: 999 },
+      { intake: 0, foster: 0, adoption: 7, reversed: 3 },
+      { intake: 1, foster: 0, adoption: 0, reversed: 0 },
+    ];
+    for (const c of cases) {
+      const w = funnelBarWidths(c);
+      for (const v of Object.values(w)) expect(v).toBeLessThanOrEqual(100);
+    }
   });
 
-  it("reversedPct is relative to intake, NOT to adoption", () => {
-    // reversed=10 vs intake=100 → 10%, regardless of adoption=20
-    const pct = funnelWithinUniverse({ intake: 100, foster: 50, adoption: 20, reversed: 10 });
-    expect(pct.reversedPct).toBe(10);
+  it("widths are rounded to one decimal", () => {
+    // 1/3 of the max → 33.3
+    const w = funnelBarWidths({ intake: 3, foster: 1, adoption: 0, reversed: 0 });
+    expect(w.fosterPct).toBe(33.3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Reconciliation — the devolución rate shown in the funnel row and the
+//    "tasa de retorno" KPI tile MUST come from a single source:
+//    returnRate(reversed, adoption) — i.e. reversed / adoptions, NOT
+//    reversed / intake. This guards against the two-denominators-on-one-screen
+//    regression flagged in the demo review (funnel showed 3.6% = 1/28 while the
+//    tile showed 1.8% = 1/56).
+// ---------------------------------------------------------------------------
+
+describe("devolución rate is single-sourced (funnel ↔ tile reconciliation)", () => {
+  it("the shown percentage is reversed/adoptions, and it does NOT depend on intake", () => {
+    const counts: FunnelCounts = { intake: 28, foster: 12, adoption: 56, reversed: 1 };
+
+    // The one true rate used by BOTH the KPI tile and the funnel row label.
+    const rate = returnRate(counts.reversed, counts.adoption);
+    const shownPct = rate != null ? Math.round(rate * 1000) / 10 : null;
+    expect(shownPct).toBe(1.8); // 1 / 56
+
+    // The bar WIDTH is volume-proportional and must not be reinterpreted as the
+    // rate: reversed's width (reversed/max) differs from the rate (reversed/adoptions).
+    const widths = funnelBarWidths(counts);
+    expect(widths.reversedPct).toBe(1.8); // 1 / 56 here since adoption is the max
+
+    // The discredited denominator (reversed/intake) would give a different,
+    // conflicting number — proving intake is NOT the base.
+    const wrongIntakeBased = Math.round((counts.reversed / counts.intake) * 1000) / 10;
+    expect(wrongIntakeBased).toBe(3.6);
+    expect(wrongIntakeBased).not.toBe(shownPct);
   });
 
-  it("zero foster, zero adoption, zero reversed → only intake at 100%", () => {
-    const pct = funnelWithinUniverse({ intake: 50, foster: 0, adoption: 0, reversed: 0 });
-    expect(pct.intakePct).toBe(100);
-    expect(pct.fosterPct).toBe(0);
-    expect(pct.adoptionPct).toBe(0);
-    expect(pct.reversedPct).toBe(0);
+  it("rate is null (no percentage shown) when there are no adoptions", () => {
+    const counts: FunnelCounts = { intake: 10, foster: 4, adoption: 0, reversed: 0 };
+    expect(returnRate(counts.reversed, counts.adoption)).toBeNull();
   });
 });
 

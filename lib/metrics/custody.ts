@@ -11,7 +11,7 @@
 //
 // PURE HELPERS (unit-testable, DB-free):
 // ---------------------------------------
-// funnelWithinUniverse, timeInStateNonNegative, returnRate
+// funnelBarWidths, timeInStateNonNegative, returnRate
 //
 // EVENT TYPES USED:
 //   pet_events.event_type:
@@ -56,33 +56,45 @@ export type FunnelCounts = {
 };
 
 /**
- * Per-stage percentage relative to intake (the universe).
+ * Bar-width percentages for the custody stage chart.
  *
- * Returns percents rounded to one decimal.
- * Guards against intake=0 (returns 0 for all downstream stages).
+ * The four stages are INDEPENDENT event counts in the period (see
+ * fetchCustodyFunnel) — NOT a cohort that narrows from intake. A later stage
+ * can legitimately exceed an earlier one (e.g. adoptions of animals whose
+ * intake fell outside the window, or that entered via foster/street with no
+ * recorded shelter intake). Treating intake as the funnel denominator and
+ * clamping at 100% therefore MISREPRESENTS the data: it hides the fact that a
+ * downstream stage is larger, painting a false "perfect pipeline".
  *
- * Downstream stages CAN exceed intake in pathological data (events recorded
- * in-period for animals whose intake was outside the period window); this
- * function caps at 100 to keep UI bars sensible.
+ * Instead, each bar is scaled to the LARGEST stage so the bars are visually
+ * proportional to their raw counts. By construction the widest stage is 100%
+ * and no stage ever exceeds it — no clamping, no borrowed denominator. The
+ * numeric labels next to each bar show the raw counts; percentages are NOT
+ * presented per stage (there is no honest shared denominator). The devolución
+ * rate, when shown, is single-sourced from returnRate(reversed, adoption) so it
+ * agrees with the "tasa de retorno" KPI on the same screen.
  *
  * @param stages - Raw funnel counts from fetchCustodyFunnel.
+ * @returns Bar widths (0–100) proportional to the largest stage; all zeros when
+ *          every stage is 0.
  */
-export function funnelWithinUniverse(stages: FunnelCounts): {
+export function funnelBarWidths(stages: FunnelCounts): {
   intakePct: number;
   fosterPct: number;
   adoptionPct: number;
   reversedPct: number;
 } {
   const { intake, foster, adoption, reversed } = stages;
-  if (intake === 0) {
-    return { intakePct: 100, fosterPct: 0, adoptionPct: 0, reversedPct: 0 };
+  const max = Math.max(intake, foster, adoption, reversed);
+  if (max === 0) {
+    return { intakePct: 0, fosterPct: 0, adoptionPct: 0, reversedPct: 0 };
   }
-  const cap = (n: number) => Math.min(100, Math.round((n / intake) * 1000) / 10);
+  const width = (n: number) => Math.round((n / max) * 1000) / 10;
   return {
-    intakePct: 100,
-    fosterPct: cap(foster),
-    adoptionPct: cap(adoption),
-    reversedPct: cap(reversed),
+    intakePct: width(intake),
+    fosterPct: width(foster),
+    adoptionPct: width(adoption),
+    reversedPct: width(reversed),
   };
 }
 

@@ -35,7 +35,7 @@ import {
   fetchReturnRate,
   fetchShelterOccupancyNational,
   fetchTimeInState,
-  funnelWithinUniverse,
+  funnelBarWidths,
   toneForTarget,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
@@ -138,7 +138,7 @@ export default async function GobAdopcionesPage({
     fetchAdoptionApplicationFunnel(ctx),
   ]);
 
-  const fPct = funnelWithinUniverse(funnel);
+  const fPct = funnelBarWidths(funnel);
 
   const hasFunnel = funnel.intake > 0 || funnel.foster > 0 || funnel.adoption > 0;
   const hasTrend = adoptionTrend.points.length > 0;
@@ -275,7 +275,7 @@ export default async function GobAdopcionesPage({
                 {/* Stage 1: Intake */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Ingresos: ${funnel.intake.toLocaleString("es-AR")} (100%)`}
+                  aria-label={`Ingresos al refugio: ${funnel.intake.toLocaleString("es-AR")}`}
                 >
                   <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
                     Ingresos al refugio
@@ -284,17 +284,20 @@ export default async function GobAdopcionesPage({
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
                   >
-                    <div className="h-full rounded bg-ln-op-azul" style={{ width: "100%" }} />
+                    <div
+                      className="h-full rounded bg-ln-op-azul"
+                      style={{ width: `${fPct.intakePct}%` }}
+                    />
                   </div>
                   <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
-                    {funnel.intake.toLocaleString("es-AR")} (100%)
+                    {funnel.intake.toLocaleString("es-AR")}
                   </span>
                 </li>
 
                 {/* Stage 2: Foster */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Tránsito (foster): ${funnel.foster.toLocaleString("es-AR")} (${fPct.fosterPct}%)`}
+                  aria-label={`Asignados a tránsito (foster): ${funnel.foster.toLocaleString("es-AR")}`}
                 >
                   <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
                     Asignados a tránsito
@@ -309,14 +312,14 @@ export default async function GobAdopcionesPage({
                     />
                   </div>
                   <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
-                    {funnel.foster.toLocaleString("es-AR")} ({fPct.fosterPct}%)
+                    {funnel.foster.toLocaleString("es-AR")}
                   </span>
                 </li>
 
                 {/* Stage 3: Adoption */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Adoptados: ${funnel.adoption.toLocaleString("es-AR")} (${fPct.adoptionPct}%)`}
+                  aria-label={`Adopciones finalizadas: ${funnel.adoption.toLocaleString("es-AR")}`}
                 >
                   <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
                     Adopciones finalizadas
@@ -331,14 +334,18 @@ export default async function GobAdopcionesPage({
                     />
                   </div>
                   <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
-                    {funnel.adoption.toLocaleString("es-AR")} ({fPct.adoptionPct}%)
+                    {funnel.adoption.toLocaleString("es-AR")}
                   </span>
                 </li>
 
-                {/* Stage 4: Reversed (devolución) */}
+                {/* Stage 4: Reversed (devolución). Rate is single-sourced from
+                    returnRatePct (= reversed / adoptions) so it agrees with the
+                    "tasa de retorno" KPI above — bar width is volume-proportional. */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Devoluciones: ${funnel.reversed.toLocaleString("es-AR")} (${fPct.reversedPct}%)`}
+                  aria-label={`Devoluciones: ${funnel.reversed.toLocaleString("es-AR")}${
+                    returnRatePct != null ? ` (${returnRatePct}% de las adopciones)` : ""
+                  }`}
                 >
                   <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">Devoluciones</span>
                   <div
@@ -346,18 +353,24 @@ export default async function GobAdopcionesPage({
                     aria-hidden="true"
                   >
                     <div
-                      className={`h-full rounded ${fPct.reversedPct > 10 ? "bg-ln-op-rojo" : fPct.reversedPct > 5 ? "bg-ln-op-amarillo" : "bg-ln-op-azul"}`}
+                      className={`h-full rounded ${returnRatePct != null && returnRatePct > 10 ? "bg-ln-op-rojo" : returnRatePct != null && returnRatePct > 5 ? "bg-ln-op-amarillo" : "bg-ln-op-azul"}`}
                       style={{ width: `${fPct.reversedPct}%` }}
                     />
                   </div>
                   <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
-                    {funnel.reversed.toLocaleString("es-AR")} ({fPct.reversedPct}%)
+                    {funnel.reversed.toLocaleString("es-AR")}
+                    {returnRatePct != null ? (
+                      <span className="ml-1 text-ln-op-mute">({returnRatePct}%)</span>
+                    ) : null}
                   </span>
                 </li>
               </ul>
               <p className="mt-2 text-xs text-ln-op-mute">
-                Porcentajes relativos al total de ingresos en el período y cobertura seleccionados.
-                Las etapas son conteos de eventos independientes (no cohorte).
+                Cada etapa es un conteo de eventos independiente del período y la cobertura (no
+                cohorte): una etapa posterior puede superar a una anterior. Las barras son
+                proporcionales al conteo de cada etapa (relativas a la de mayor volumen). El % de
+                Devoluciones es sobre las adopciones del período — misma base que la tasa de
+                retorno.
               </p>
             </figure>
           )}

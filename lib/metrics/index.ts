@@ -103,7 +103,7 @@ export type { CensusCoverage, FunnelStages, ProvinceRegistryRow, RegistryCounts 
 
 // Paquete F — pipeline de custodia & adopción.
 export {
-  funnelWithinUniverse,
+  funnelBarWidths,
   returnRate,
   timeInStateNonNegative,
   fetchAdoptionTrend,
