@@ -85,6 +85,7 @@ vi.mock("@/components/panorama/PanoramaKpiFooter", () => ({
 // budget below must hold with the actual scrubber rendered, not mocked away —
 // mocking it made the ≤8 assertion dishonest vs production first paint.
 
+import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { PanoramaConsole } from "./PanoramaConsole";
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
@@ -1008,5 +1009,114 @@ describe("PanoramaConsole — saved-board Simple/Detalle strict boolean coercion
       "aria-pressed",
       "true",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// perf plan 1.3 — streamed (un-awaited) KPIs: pending → resolved + last-set-wins
+// ---------------------------------------------------------------------------
+
+/** An externally-controllable promise, mirroring the RSC-streamed KPI loader. */
+function deferredPromise<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+const MORDEDURAS_KPIS: PanoramaKpis = {
+  kpis: [
+    {
+      id: "mordeduras",
+      label: "Mordeduras / 10k hab.",
+      value: "1,2",
+      tone: "warn",
+      info: { definition: "d" },
+      href: "/gob/vigilancia",
+      source: "s",
+    },
+  ],
+  recalculatedFor: "Recalculado para Nacional",
+  dataAsOf: null,
+  coverageDenominator: null,
+};
+
+describe("PanoramaConsole — streamed KPIs (perf plan 1.3)", () => {
+  it("renders the 'Cargando indicadores…' pending state while the promise is unresolved, then the KPI once it lands", async () => {
+    // Explicit period so the console does NOT rewrite the board on mount (no
+    // preset auto-activation), keeping the strip in manual mode (shows all KPIs).
+    setUrl("/gob/panorama?period=3y");
+    const { promise, resolve } = deferredPromise<PanoramaKpis>();
+
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        kpisPromise={promise}
+      />,
+    );
+
+    // Pending: the metrics column shows the loading cue, not a KPI or the
+    // degraded "no disponibles" copy.
+    expect(screen.getByText("Cargando indicadores…")).toBeInTheDocument();
+    expect(screen.queryByText("Mordeduras / 10k hab.")).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolve(MORDEDURAS_KPIS);
+      await promise;
+    });
+
+    // Resolved: the streamed KPI is rendered; the pending cue is gone.
+    await waitFor(() => {
+      expect(screen.getByText("Mordeduras / 10k hab.")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Cargando indicadores…")).not.toBeInTheDocument();
+  });
+
+  it("last-set-wins: a client refetch that takes over is NOT clobbered by the late-resolving streamed seed", async () => {
+    setUrl("/gob/panorama?period=3y");
+    const { promise: seedPromise, resolve: resolveSeed } = deferredPromise<PanoramaKpis>();
+
+    const view = render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        kpisPromise={seedPromise}
+      />,
+    );
+
+    // Flush mount effects — the seed effect subscribes; the strip is pending.
+    await act(async () => {});
+    expect(screen.getByText("Cargando indicadores…")).toBeInTheDocument();
+
+    // Change the period → scopePeriodQs changes → the client KPI refetch effect
+    // issues (fetchMock returns the empty INITIAL_KPIS) and takes over the strip.
+    setUrl("/gob/panorama?period=90d");
+    await act(async () => {
+      view.rerender(
+        <PanoramaConsole
+          defaultLayerId="perdidas"
+          defaultFeatures={EMPTY_FC}
+          kpisPromise={seedPromise}
+        />,
+      );
+    });
+
+    // The client refetch resolved to an empty strip (no tiles) and cleared the
+    // pending state — the metrics column shows the degraded copy, not loading.
+    await waitFor(() => {
+      expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
+    });
+
+    // NOW the slow streamed seed resolves LATE with a stale payload. The guard
+    // must skip it — the seed's KPI must never appear over the fresher refetch.
+    await act(async () => {
+      resolveSeed(MORDEDURAS_KPIS);
+      await seedPromise;
+    });
+
+    expect(screen.queryByText("Mordeduras / 10k hab.")).not.toBeInTheDocument();
+    expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
   });
 });

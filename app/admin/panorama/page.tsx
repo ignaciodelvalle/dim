@@ -157,36 +157,41 @@ export default async function AdminPanoramaPage({
     // the KPI fan-out to that window, killing the wasted 3-year compute.
     const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });
     const seedIds = presetLayerIds(preset);
-    const [seedResults, kpis] = await Promise.all([
-      Promise.all(
-        seedIds.map((lid) =>
-          withDbBudget(
-            loadLayerFeaturesCached(
-              lid,
-              actor,
-              scoped,
-              { since: seedPeriod.since },
-              seedLevel,
-              adminProvince,
-              adminLocality,
-            ),
-            PAGE_BUDGET_MS,
-            `admin/panorama seed ${lid}`,
-            emptyLayerFeatures(),
-          ).catch(() => emptyLayerFeatures()),
-        ),
+    // perf plan 1.3: only the LAYER seed is awaited (fast at the preset's 90d
+    // window) — it must paint on first render. The KPI fan-out is streamed
+    // UN-awaited (kpisPromise below) so a cold ~12-query load never blocks the
+    // SSR shell; the console resolves it client-side behind a pending strip.
+    const seedResults = await Promise.all(
+      seedIds.map((lid) =>
+        withDbBudget(
+          loadLayerFeaturesCached(
+            lid,
+            actor,
+            scoped,
+            { since: seedPeriod.since },
+            seedLevel,
+            adminProvince,
+            adminLocality,
+          ),
+          PAGE_BUDGET_MS,
+          `admin/panorama seed ${lid}`,
+          emptyLayerFeatures(),
+        ).catch(() => emptyLayerFeatures()),
       ),
-      loadCachedPanoramaKpis({
-        actor,
-        jurisdictions: scoped,
-        period: seedPeriod,
-        adminProvince,
-        adminLocality,
-        label: "admin/panorama kpis",
-      })
-        .then((r) => r.value)
-        .catch(() => degradedPanoramaKpis()),
-    ]);
+    );
+    // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
+    // the promise always resolves to an honest strip (the loader carries its own
+    // 20s budget; the console shows "Cargando indicadores…" until it lands).
+    const kpisPromise = loadCachedPanoramaKpis({
+      actor,
+      jurisdictions: scoped,
+      period: seedPeriod,
+      adminProvince,
+      adminLocality,
+      label: "admin/panorama kpis",
+    })
+      .then((r) => r.value)
+      .catch(() => degradedPanoramaKpis());
     const seededLayers: SeededLayer[] = seedIds.map((lid, i) => ({
       id: lid,
       features: seedResults[i].features,
@@ -207,7 +212,7 @@ export default async function AdminPanoramaPage({
         localities={localities}
         localityCentroids={localityCentroids}
         initialBounds={initialBounds}
-        kpis={kpis}
+        kpisPromise={kpisPromise}
         suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}
         initialLevel={seedLevel}
         defaultPresetId={defaultPresetId}
@@ -225,41 +230,40 @@ export default async function AdminPanoramaPage({
   // readable overview). The level MUST match PanoramaShell's initialLevel or
   // the console's seeded cache is the wrong one and the map starts blank (C2).
   const initialLevel = provinceObj ? ("locality" as const) : ("province" as const);
-  // Both fan-outs are time-bounded AND `.catch`-guarded: withDbBudget degrades on
-  // timeout, and the trailing `.catch` degrades on an early fetcher rejection —
-  // so a degraded DB never throws out of this Server Component (it renders the
-  // honest degraded PanoramaShell instead).
-  const [result, kpis] = await Promise.all([
-    withDbBudget(
-      loadLayerFeaturesCached(
-        "perdidas",
-        actor,
-        scoped,
-        { since },
-        initialLevel,
-        adminProvince,
-        adminLocality,
-      ),
-      PAGE_BUDGET_MS,
-      "admin/panorama layer",
-      emptyLayerFeatures(),
-    ).catch(() => emptyLayerFeatures()),
-    // KPIs go through the SHARED cached loader (staging QA 2026-07-08 #1): a
-    // browser reload now hits the warm 60s per-lambda cache instead of re-running
-    // the ~12-query fan-out under a tight budget, so the indicators can't vanish
-    // on reload. The loader carries its own 20s budget (headroom above the 15s
-    // statement_timeout); the trailing `.catch` degrades on an early rejection.
-    loadCachedPanoramaKpis({
+  // perf plan 1.3: only the LAYER is awaited (fast at the active window) so the
+  // map paints on first render. withDbBudget degrades on timeout and the
+  // trailing `.catch` degrades on an early fetcher rejection — a degraded DB
+  // never throws out of this Server Component.
+  const result = await withDbBudget(
+    loadLayerFeaturesCached(
+      "perdidas",
       actor,
-      jurisdictions: scoped,
-      period,
+      scoped,
+      { since },
+      initialLevel,
       adminProvince,
       adminLocality,
-      label: "admin/panorama kpis",
-    })
-      .then((r) => r.value)
-      .catch(() => degradedPanoramaKpis()),
-  ]);
+    ),
+    PAGE_BUDGET_MS,
+    "admin/panorama layer",
+    emptyLayerFeatures(),
+  ).catch(() => emptyLayerFeatures());
+  // KPIs go through the SHARED cached loader (staging QA 2026-07-08 #1): a
+  // browser reload hits the warm 60s per-lambda cache instead of re-running the
+  // ~12-query fan-out. perf plan 1.3: the promise is streamed UN-awaited so a
+  // COLD fan-out (cache miss) never blocks the SSR shell — the console resolves
+  // it client-side behind a "Cargando indicadores…" pending strip. The loader
+  // carries its own 20s budget; the trailing `.catch` degrades an early rejection.
+  const kpisPromise = loadCachedPanoramaKpis({
+    actor,
+    jurisdictions: scoped,
+    period,
+    adminProvince,
+    adminLocality,
+    label: "admin/panorama kpis",
+  })
+    .then((r) => r.value)
+    .catch(() => degradedPanoramaKpis());
 
   return (
     <PanoramaShell
@@ -272,7 +276,7 @@ export default async function AdminPanoramaPage({
       localities={localities}
       localityCentroids={localityCentroids}
       initialBounds={initialBounds}
-      kpis={kpis}
+      kpisPromise={kpisPromise}
       // /admin shows the global DemoModeBanner (admin layout); suppress
       // Panorama's own notice so the page never stacks two disclosures (D3).
       suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}

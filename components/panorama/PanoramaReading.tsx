@@ -7,7 +7,9 @@
 // k-anon-suppressed cell.
 //
 // Hidden while the KPIs are stale: the kpisStale warning already covers that
-// state, and a "reading" over stale numbers would mislead the operator.
+// state, and a "reading" over stale numbers would mislead the operator. Also
+// hidden while the KPIs are still streaming in (perf plan 1.3 pending state):
+// there are no deltas yet, so a reading would headline off nothing.
 
 import { type ReadingKpi, buildPanoramaReading } from "@/src/modules/panorama/domain/reading";
 
@@ -16,10 +18,16 @@ type Props = {
   kpis: readonly ReadingKpi[];
   /** True when the last KPI refetch failed — the numbers on screen are stale. */
   stale: boolean;
+  /**
+   * perf plan 1.3: the streamed KPI promise hasn't resolved yet. The metrics
+   * column shows the "Cargando indicadores…" state; the reading stays hidden
+   * (no deltas to read) exactly as it does while stale.
+   */
+  pending?: boolean;
 };
 
-export function PanoramaReading({ kpis, stale }: Props) {
-  if (stale) return null;
+export function PanoramaReading({ kpis, stale, pending = false }: Props) {
+  if (stale || pending) return null;
   return (
     <p aria-live="polite" className="text-sm font-medium text-ln-op-ink">
       {buildPanoramaReading(kpis)}

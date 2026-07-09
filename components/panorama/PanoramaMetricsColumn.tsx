@@ -20,6 +20,13 @@ type Props = {
   kpis: PanoramaKpis;
   /** The active preset's curated metric ids, in display order. Null = show all (manual mode). */
   metricIds: readonly PanoramaKpiId[] | null;
+  /**
+   * perf plan 1.3: the streamed KPI promise hasn't resolved yet — render a
+   * "Cargando indicadores…" pending state (reusing the degraded-strip visuals)
+   * instead of the "no disponibles" degraded copy. Default false keeps the
+   * awaited path byte-identical.
+   */
+  pending?: boolean;
 };
 
 /**
@@ -41,8 +48,22 @@ export function selectMetricKpis(
         .filter((k): k is NonNullable<typeof k> => k !== undefined);
 }
 
-export function PanoramaMetricsColumn({ kpis, metricIds }: Props) {
+export function PanoramaMetricsColumn({ kpis, metricIds, pending = false }: Props) {
   const shown = selectMetricKpis(kpis, metricIds);
+
+  if (pending) {
+    // perf plan 1.3: the KPI fan-out is streaming in — reuse the degraded-strip
+    // dashed surface with an honest "Cargando indicadores…" cue (and aria-busy)
+    // so the operator sees a loading state, not a phantom "no disponibles".
+    return (
+      <p
+        aria-busy="true"
+        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
+      >
+        Cargando indicadores…
+      </p>
+    );
+  }
 
   if (shown.length === 0) {
     // QA fix (finding 6): a partial payload can filter every curated metric

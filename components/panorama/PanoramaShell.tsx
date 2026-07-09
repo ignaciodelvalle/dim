@@ -41,8 +41,18 @@ type Props = {
    * Empty object when no province is selected.
    */
   localityCentroids?: LocalityCentroids;
-  /** Headline KPIs recalculated for the active scope+period (server-rendered). */
-  kpis: PanoramaKpis;
+  /**
+   * Headline KPIs recalculated for the active scope+period. Optional since perf
+   * plan 1.3: a page may instead stream `kpisPromise` (un-awaited) so the shell
+   * paints before the KPI fan-out resolves. Pass exactly one.
+   */
+  kpis?: PanoramaKpis;
+  /**
+   * perf plan 1.3 — un-awaited KPI loader promise streamed to the console over
+   * RSC. Forwarded verbatim to PanoramaConsole, which resolves it client-side
+   * and shows a "Cargando indicadores…" pending strip meanwhile.
+   */
+  kpisPromise?: Promise<PanoramaKpis>;
   /**
    * Pre-zoomed bounding box for the map's initial viewport.
    * Govt operators receive their jurisdiction bbox (server-computed); admin
@@ -100,6 +110,7 @@ export function PanoramaShell({
   localities,
   localityCentroids = {},
   kpis,
+  kpisPromise,
   initialBounds,
   suppressDemoDisclosure = false,
   initialLevel = "province",
@@ -144,6 +155,7 @@ export function PanoramaShell({
         defaultTruncated={truncated}
         defaultSuppressedCount={suppressedCount}
         initialKpis={kpis}
+        kpisPromise={kpisPromise}
         initialBounds={initialBounds}
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}

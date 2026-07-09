@@ -13,9 +13,16 @@ type Props = {
   onRefresh?: () => void;
   /** True while a selective refresh is in flight (disables the button). */
   refreshing?: boolean;
+  /**
+   * perf plan 1.3: the streamed KPI promise hasn't resolved yet. While pending
+   * the caption shows the loading copy (`kpis.recalculatedFor`) WITHOUT the
+   * dashboard-parity suffix or the "Actualizar" affordance — there is nothing
+   * to refresh until the first payload lands.
+   */
+  pending?: boolean;
 };
 
-export function PanoramaKpiFooter({ kpis, onRefresh, refreshing = false }: Props) {
+export function PanoramaKpiFooter({ kpis, onRefresh, refreshing = false, pending = false }: Props) {
   return (
     <div className="space-y-1.5">
       {/* metric-honesty demotion 2026-07-09: the coverage denominator ("N
@@ -40,7 +47,8 @@ export function PanoramaKpiFooter({ kpis, onRefresh, refreshing = false }: Props
             aria-hidden="true"
             className="inline-block h-1.5 w-1.5 rounded-full bg-ln-op-azul"
           />
-          {kpis.recalculatedFor} Consistente con las superficies de detalle.
+          {kpis.recalculatedFor}
+          {!pending && " Consistente con las superficies de detalle."}
         </p>
         {kpis.dataAsOf && (
           <span
@@ -57,7 +65,7 @@ export function PanoramaKpiFooter({ kpis, onRefresh, refreshing = false }: Props
             })}
           </span>
         )}
-        {onRefresh && (
+        {onRefresh && !pending && (
           <button
             type="button"
             onClick={onRefresh}

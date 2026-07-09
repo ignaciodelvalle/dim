@@ -263,6 +263,22 @@ function saveBoard(
   }
 }
 
+/**
+ * perf plan 1.3 — client-safe placeholder for the streaming KPI strip. Shares
+ * the degraded payload SHAPE (empty tiles, no denominator/freshness) but a
+ * distinct "Cargando indicadores…" caption so the pending state is honest. Kept
+ * local (not imported from get-panorama-kpis) so this client bundle never pulls
+ * that server module's DB fetcher graph.
+ */
+function loadingPanoramaKpis(): PanoramaKpis {
+  return {
+    kpis: [],
+    recalculatedFor: "Cargando indicadores…",
+    dataAsOf: null,
+    coverageDenominator: null,
+  };
+}
+
 type Props = {
   /** Default-on layer id (perdidas) — its features come pre-resolved from the server. */
   defaultLayerId: LayerId;
@@ -272,8 +288,25 @@ type Props = {
   defaultTruncated?: boolean;
   defaultSuppressedCount?: number;
   defaultNoLocalityCount?: number;
-  /** Server-rendered headline KPIs (recalculated for the active scope+period). */
-  initialKpis: PanoramaKpis;
+  /**
+   * Server-rendered headline KPIs (recalculated for the active scope+period).
+   * Optional since perf plan 1.3: a streaming page omits this and passes
+   * `kpisPromise` instead (the KPI fan-out no longer blocks SSR). Non-streaming
+   * callers (tests, awaited paths) still pass the resolved value — when present
+   * it seeds the strip on first render exactly as before.
+   */
+  initialKpis?: PanoramaKpis;
+  /**
+   * perf plan 1.3 — non-blocking KPIs. The page creates the KPI loader promise
+   * and streams it UN-awaited over RSC (React 19 / Next 15) so the shell + map
+   * paint while the (cold) ~12-query fan-out is still resolving. The console
+   * resolves it in a mount effect into `kpis` state, rendering a "Cargando
+   * indicadores…" pending state until it lands. Absent → today's awaited
+   * `initialKpis` behavior (backward compatible). The page attaches
+   * `.catch(() => degradedPanoramaKpis())` before passing it, so a degraded DB
+   * still resolves to an honest empty strip instead of rejecting.
+   */
+  kpisPromise?: Promise<PanoramaKpis>;
   /**
    * Pre-zoomed bounding box for the map's initial viewport.
    * Govt operators receive their jurisdiction bbox (server-computed); admin
@@ -349,6 +382,7 @@ export function PanoramaConsole({
   defaultSuppressedCount = 0,
   defaultNoLocalityCount = 0,
   initialKpis,
+  kpisPromise,
   initialBounds,
   localityCentroids = {},
   initialLevel = "province",
@@ -562,7 +596,18 @@ export function PanoramaConsole({
   // Headline KPIs: seeded server-side, re-fetched when the scope/period
   // searchParams change so the strip stays IDENTICAL to the dashboards for the
   // active alcance. The API mirrors the [layer] route's auth + scope rules.
-  const [kpis, setKpis] = useState<PanoramaKpis>(initialKpis);
+  const [kpis, setKpis] = useState<PanoramaKpis>(() => initialKpis ?? loadingPanoramaKpis());
+  // perf plan 1.3: while the streamed KPI promise is unresolved the strip shows
+  // a "Cargando indicadores…" pending state. True only on the streaming path (a
+  // promise but no resolved seed); the awaited `initialKpis` path starts settled.
+  const [kpisPending, setKpisPending] = useState<boolean>(
+    initialKpis == null && kpisPromise != null,
+  );
+  // last-set-wins guard (perf plan 1.3): once a client refetch (a changed
+  // scope/period) has taken over the KPI strip, the late-resolving streamed seed
+  // — computed for the ORIGINAL scope — must not clobber the fresher client
+  // numbers. Set when the refetch effect below actually issues a request.
+  const clientKpiTookOverRef = useRef(false);
   // error-path audit 2026-07-04 finding E5: a failed KPI refetch used to be
   // silently swallowed, leaving stale numbers on screen with no signal that
   // they no longer reflect the active scope/period. kpisStale surfaces that
@@ -580,6 +625,11 @@ export function PanoramaConsole({
       seededQsRef.current = null;
       return;
     }
+    // perf plan 1.3: the scope/period changed → this client refetch owns the KPI
+    // strip from here on. Mark the takeover so a late-resolving streamed seed
+    // (computed for the previous scope) can no longer clobber these fresher
+    // numbers when it settles.
+    clientKpiTookOverRef.current = true;
     let cancelled = false;
     fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
       headers: { accept: "application/json" },
@@ -594,6 +644,9 @@ export function PanoramaConsole({
         } else {
           setKpisStale(true);
         }
+        // The client refetch settled → drop the initial streaming pending state
+        // (a no-op once the seed already resolved).
+        setKpisPending(false);
       })
       .catch((err) => {
         // Superseded fetch (keyed abort) — a newer KPI request is in flight:
@@ -604,11 +657,39 @@ export function PanoramaConsole({
         if (cancelled) return;
         console.error("[PanoramaConsole] KPI refresh failed", err);
         setKpisStale(true);
+        setKpisPending(false);
       });
     return () => {
       cancelled = true;
     };
   }, [scopePeriodQs, signalFor]);
+
+  // perf plan 1.3 — resolve the streamed KPI promise into state. The page creates
+  // the loader promise and passes it un-awaited over RSC so SSR never blocks on
+  // the (cold) KPI fan-out; here we await it on the client and drop the pending
+  // state. The last-set-wins guard skips the assignment when a client refetch has
+  // already superseded the seed (its scope/period differs), so a slow seed can't
+  // overwrite fresher numbers. The page attaches `.catch(() =>
+  // degradedPanoramaKpis())`, so this promise RESOLVES (never rejects) to either
+  // the real strip or an honest degraded one; the `.catch` here is defensive.
+  useEffect(() => {
+    if (kpisPromise == null) return;
+    let cancelled = false;
+    kpisPromise
+      .then((resolved) => {
+        if (cancelled) return;
+        if (!clientKpiTookOverRef.current) setKpis(resolved);
+        setKpisPending(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        // Never leave the strip stuck pending on an unexpected rejection.
+        setKpisPending(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kpisPromise]);
 
   // --- F4 temporal reproduction -------------------------------------------
   // The active period window [since, until] drives the scrubber axis. Resolved
@@ -2132,7 +2213,7 @@ export function PanoramaConsole({
               per-vista KPI tiles → Peores-N ranking → footer → stale notice. */}
           {/* One-line auto-reading derived from the existing KPI deltas (no new
               query). Hidden while the KPIs are stale — the notice below covers it. */}
-          <PanoramaReading kpis={readingKpis} stale={kpisStale} />
+          <PanoramaReading kpis={readingKpis} stale={kpisStale} pending={kpisPending} />
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (
@@ -2153,7 +2234,7 @@ export function PanoramaConsole({
               tiles — replaces the flat 7-tile PanoramaKpiStrip body. Same
               getPanoramaKpis() result; only filtered/ordered by the active
               preset's `metrics` (null in manual mode → shows every KPI). */}
-          <PanoramaMetricsColumn kpis={kpis} metricIds={metricIds} />
+          <PanoramaMetricsColumn kpis={kpis} metricIds={metricIds} pending={kpisPending} />
           {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
               ordered list (hover-synced with the map), plus the accessible
               <table> view (Ley 26.653). Shown for rate/density base layers only
@@ -2194,7 +2275,12 @@ export function PanoramaConsole({
           {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
               by asOf in v1). The footer states the recalculation cue + freshness
               chip + "Actualizar" (extracted from the retired PanoramaKpiStrip). */}
-          <PanoramaKpiFooter kpis={kpis} onRefresh={onRefresh} refreshing={refreshing} />
+          <PanoramaKpiFooter
+            kpis={kpis}
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            pending={kpisPending}
+          />
           {kpisStale && (
             // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
             // the strip above is showing the last-known numbers, not live ones —
