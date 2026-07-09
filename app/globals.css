@@ -3576,3 +3576,38 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Panorama situational-map popups (map-polish cursor #12) -------------- */
+/* MapLibre popups default to white chrome, which glares on the dark government
+   console. This dark skin gives them a navy card with WCAG-AA slate text and a
+   matching tip, so hover/click popups read as part of the operator surface. The
+   .panorama-popup class is set on the Popup at construction (SituationalMap). */
+.panorama-popup .maplibregl-popup-content {
+  background: rgba(11, 16, 32, 0.95);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 6px 10px;
+}
+.panorama-popup .maplibregl-popup-content strong {
+  color: #f8fafc;
+}
+/* Recolor the tip triangle per anchor so only the visible edge is tinted (the
+   other three borders stay transparent — tinting all would square the tip). */
+.panorama-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.panorama-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.panorama-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
+  border-bottom-color: rgba(11, 16, 32, 0.95);
+}
+.panorama-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.panorama-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.panorama-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: rgba(11, 16, 32, 0.95);
+}
+.panorama-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: rgba(11, 16, 32, 0.95);
+}
+.panorama-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: rgba(11, 16, 32, 0.95);
+}

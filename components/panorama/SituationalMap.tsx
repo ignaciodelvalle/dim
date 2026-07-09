@@ -3,22 +3,26 @@
 import type maplibregl from "maplibre-gl";
 import { useEffect, useRef, useState } from "react";
 
+import { CabaInset } from "@/components/panorama/CabaInset";
 import {
   INCIDENT_LABEL,
   PET_STATUS_LABEL,
   SEVERITY_LABEL,
 } from "@/components/panorama/DetailDrawer";
+import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 
 import {
   type DivisionLevel,
   divisionFillColorExpr,
+  divisionSuppressedFilter,
   divisionValueBounds,
   joinCellsToDivisionsMulti,
 } from "@/components/panorama/division-fill";
 import {
   type Bbox,
   type ProvinceBbox,
+  Z_DIVISIONS,
   computeJurisdictionViewport,
   computePresetFrameViewport,
   computeProvinceBboxes,
@@ -253,6 +257,27 @@ const COLOR_CONTEXT_BORDER = "#1c2540";
 // departamento lines read over COLOR_LAND, but still subtle (they must never
 // compete with the data fill on top). Matches the basemap's line treatment.
 const COLOR_DIVISION_LINE = "#3a4568";
+// Admin-boundary stroke for province outlines. Replaces the old COLOR_CANVAS
+// choropleth line, which painted near-black seams that read as CRACKS between
+// colored provinces (map-polish cursor #1). A hierarchy-aware neutral slate that
+// reads as a boundary over both the land basemap and the data fill.
+const COLOR_ADMIN_STROKE = "#5b6b8c";
+// map-polish cursor #4 — data/basemap luminance separation. When a data layer
+// fills polygons the basemap land dims so the choropleth "sits on" the territory
+// instead of tinting it uniformly; outlines keep full opacity.
+const DATA_FILL_OPACITY = 0.92;
+const BASEMAP_FILL_ACTIVE = 0.55;
+const BASEMAP_FILL_IDLE = 1;
+// map-polish cursor #5 — border hierarchy. Province admin lines read normally
+// when provinces are the finest division on screen, and fade when departamento /
+// barrio lines are active so the subordinate divisions dominate.
+const PROV_LINE_WIDTH = 0.9;
+const PROV_LINE_OPACITY = 0.7;
+const PROV_LINE_OPACITY_FADED = 0.3;
+// map-polish cursor #7 — division outlines fade IN over DIVISION_FADE_MS on
+// drill (prefetch + transition) instead of a hard pop after the camera settles.
+const DIVISION_LINE_OPACITY = 0.85;
+const DIVISION_FADE_MS = 300;
 
 // Per-layer maplibre object ids are namespaced by layer id so multiple layers
 // coexist without collision.
@@ -271,6 +296,12 @@ const provinceLineLayerId = (id: string) => `pano-prov-line-${id}`;
 // by layer id, like the province choropleth over ar-provinces).
 const DIVISION_SRC = "pano-divisions";
 const DIVISION_LINE_ID = "pano-div-line";
+// cursor #6: feature-state hover glow over the division polygons.
+const DIVISION_HOVER_ID = "pano-div-hover";
+// cursor #2: hatched k-anon suppression overlay for divisions whose only cells
+// are suppressed — a diagonal fill-pattern that is perceptually distinct from
+// both the colored data fill and the outline-only no-data cell.
+const DIVISION_SUPPRESS_ID = (id: string) => `pano-div-suppress-${id}`;
 const divisionFillLayerId = (id: string) => `pano-div-fill-${id}`;
 
 /** Compute a [[minLng,minLat],[maxLng,maxLat]] bbox over many feature sets. */
@@ -353,6 +384,11 @@ export function SituationalMap({
   // The province code currently highlighted via feature-state (row→map sync),
   // so the sync effect can clear the previous one before setting the next.
   const highlightedCodeRef = useRef<string | null>(null);
+  // cursor #6 — the province / division code currently under the pointer (its
+  // feature-state `hover` glow is set), so the interaction handlers can clear the
+  // previous one before setting the next.
+  const hoveredProvinceRef = useRef<string | null>(null);
+  const hoveredDivisionRef = useRef<string | null>(null);
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
@@ -403,6 +439,10 @@ export function SituationalMap({
   // syncLayers so the hover/click popup can look up a division's value without
   // recomputing the whole join per pointer move.
   const divisionValuesRef = useRef<Map<string, Map<string, number>>>(new Map());
+  // cursor #2 + #10 — per-layer set of SUPPRESSED division codes (hatched). The
+  // hover popup reads it so a protected division reads "dato protegido"
+  // (k-anonimato), never "sin datos" (which conflates suppression with no-data).
+  const divisionSuppressedRef = useRef<Map<string, Set<string>>>(new Map());
   // Legend descriptor for the active locality choropleth division fill (min/max
   // over the visible divisions). State (not a ref) so the legend overlay repaints
   // when the fill changes; guarded setState avoids a render loop.
@@ -411,7 +451,15 @@ export function SituationalMap({
     unitNoun: string;
     min: number;
     max: number;
+    // Whether a value ramp is shown (there is at least one visible division).
+    hasRamp: boolean;
+    // cursor #2 — at least one visible division is k-anon suppressed (hatched),
+    // so the legend shows the "Suprimido (k-anon)" hatch swatch.
+    suppressed: boolean;
   } | null>(null);
+  // cursor Part2 — the live camera zoom, tracked in state (not just the ref) so
+  // the CABA/AMBA inset panel can show at national scope and hide on drill.
+  const [insetZoom, setInsetZoom] = useState(AR_ZOOM);
 
   // --- One-time map construction (basemap only). ---------------------------
   useEffect(() => {
@@ -456,7 +504,23 @@ export function SituationalMap({
       // panorama-ia-v2 §1.1: report the camera zoom after every zoom gesture so
       // the console can derive the aggregation level (province → locality once
       // the camera crosses Z_LOCALITY). Fires once per gesture, not per frame.
-      map.on("zoomend", () => onZoomRef.current?.(map.getZoom()));
+      map.on("zoomend", () => {
+        const z = map.getZoom();
+        onZoomRef.current?.(z);
+        // cursor #7: warm the department GeoJSON cache BEFORE the camera crosses
+        // Z_DIVISIONS so outlines fade in immediately on drill instead of popping
+        // after the 693 KB file resolves post-moveend. Same-origin, cached once.
+        if (z >= Z_DIVISIONS - 0.5 && departmentsRawRef.current === null) {
+          void fetchGeojsonFeatures(AR_DEPARTMENTS_URL).then((raw) => {
+            if (raw !== null && departmentsRawRef.current === null) {
+              departmentsRawRef.current = raw;
+            }
+          });
+        }
+        // cursor Part2: drive the CABA inset visibility (shown at national scope,
+        // hidden once the operator drills past the division threshold).
+        setInsetZoom(z);
+      });
       // PO directive 2026-07-07: divisions are ALSO zoom-driven. After the camera
       // settles (moveend covers both zoom and pan), re-resolve which province(s)
       // are in view and (de)activate their admin divisions. Debounced so a rapid
@@ -479,6 +543,16 @@ export function SituationalMap({
 
       map.on("load", async () => {
         if (cancelled) return;
+        // cursor #2: register the diagonal-hatch tile ONCE as a map image so the
+        // k-anon suppression overlay can reference it via `fill-pattern`.
+        try {
+          if (!map.hasImage(HATCH_IMAGE_ID)) {
+            const hatch = buildHatchImageData();
+            if (hatch) map.addImage(HATCH_IMAGE_ID, hatch, { pixelRatio: 2 });
+          }
+        } catch {
+          // No canvas / addImage unavailable — suppressed cells stay outline-only.
+        }
         // Regional context: neighbouring countries as a muted, non-interactive
         // backdrop. Added FIRST so it renders BELOW the Argentine provinces
         // (MapLibre draws layers in insertion order). No feature-state / hover
@@ -522,7 +596,11 @@ export function SituationalMap({
             id: "ar-prov-line",
             type: "line",
             source: "ar-provinces",
-            paint: { "line-color": COLOR_BORDER, "line-width": 0.8 },
+            paint: {
+              "line-color": COLOR_ADMIN_STROKE,
+              "line-width": PROV_LINE_WIDTH,
+              "line-opacity": PROV_LINE_OPACITY,
+            },
           });
           // panorama-ia-v2 §3.3: highlight outline driven by feature-state — a
           // ranked-row hover thickens the matching province's border (row→map).
@@ -532,8 +610,26 @@ export function SituationalMap({
             source: "ar-provinces",
             paint: {
               "line-color": "#f8fafc",
-              "line-width": ["case", ["boolean", ["feature-state", "highlighted"], false], 2.5, 0],
-              "line-opacity": ["case", ["boolean", ["feature-state", "highlighted"], false], 1, 0],
+              // cursor #6: the outline responds to BOTH the ranked-row highlight
+              // (row→map, feature-state `highlighted`) AND a direct pointer hover
+              // (feature-state `hover`) — a slightly thinner glow for hover so the
+              // polygon itself reacts, glyph-free.
+              "line-width": [
+                "case",
+                ["boolean", ["feature-state", "highlighted"], false],
+                2.5,
+                ["boolean", ["feature-state", "hover"], false],
+                1.75,
+                0,
+              ],
+              "line-opacity": [
+                "case",
+                ["boolean", ["feature-state", "highlighted"], false],
+                1,
+                ["boolean", ["feature-state", "hover"], false],
+                0.85,
+                0,
+              ],
             },
           });
           // A1 PR-7: cache province features for the autozoom helper.
@@ -807,10 +903,37 @@ export function SituationalMap({
       id: DIVISION_LINE_ID,
       type: "line",
       source: DIVISION_SRC,
-      paint: { "line-color": COLOR_DIVISION_LINE, "line-width": 0.6, "line-opacity": 0.75 },
+      paint: {
+        "line-color": COLOR_DIVISION_LINE,
+        "line-width": 0.65,
+        // cursor #7: start transparent and fade IN so the outlines don't hard-pop
+        // after the camera settles. The transition is applied before the value.
+        "line-opacity": 0,
+        "line-opacity-transition": { duration: DIVISION_FADE_MS, delay: 0 },
+      },
+    });
+    // cursor #6: a feature-state hover glow on the division polygons — the polygon
+    // itself responds to the pointer (glyph-free), mirroring the province path.
+    map.addLayer({
+      id: DIVISION_HOVER_ID,
+      type: "line",
+      source: DIVISION_SRC,
+      paint: {
+        "line-color": "#e2e8f0",
+        "line-width": ["case", ["boolean", ["feature-state", "hover"], false], 1.75, 0],
+        "line-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.9, 0],
+      },
     });
     divisionsRef.current = { signature, deptCodes, barrioCodes, names };
+    // Kick the fade-in on the next frame so MapLibre registers the 0→target step.
+    const fadeMap = map;
+    window.requestAnimationFrame(() => {
+      if (fadeMap.getLayer(DIVISION_LINE_ID)) {
+        fadeMap.setPaintProperty(DIVISION_LINE_ID, "line-opacity", DIVISION_LINE_OPACITY);
+      }
+    });
     syncLayers();
+    updateChromeHierarchy(map);
   }
 
   // Add/update/remove maplibre sources+layers to match `layersRef.current`.
@@ -838,6 +961,8 @@ export function SituationalMap({
       unitNoun: string;
       min: number;
       max: number;
+      hasRamp: boolean;
+      suppressed: boolean;
     } | null = null;
 
     // Add or update active layers.
@@ -876,6 +1001,7 @@ export function SituationalMap({
         if (divs.barrioCodes.size > 0) levels.push({ level: "barrio", codes: divs.barrioCodes });
         const join = joinCellsToDivisionsMulti(layer.features, levels);
         divisionValuesRef.current.set(layer.id, join.values);
+        divisionSuppressedRef.current.set(layer.id, join.suppressed);
         const circleData = join.unmatched as unknown as GeoJSON.FeatureCollection;
         const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
         if (existing) existing.setData(circleData);
@@ -885,10 +1011,15 @@ export function SituationalMap({
         } else {
           addDivisionFillLayer(map, layer, join.values);
         }
+        // cursor #2: hatch the divisions whose only cells are k-anon suppressed —
+        // honest trichotomy (colored value / outline-only no-data / hatched
+        // suppressed). Presentation only; the join already dropped the numbers.
+        addDivisionSuppressionLayer(map, layer, join.suppressed);
         mountedRef.current.add(layer.id);
         applyDim(map, layer);
         const bounds = divisionValueBounds(join.values);
-        if (bounds) {
+        const hasSuppressed = join.suppressed.size > 0;
+        if (bounds || hasSuppressed) {
           nextDivisionLegend = {
             label: layer.label,
             // Name the unit by which code space(s) are in view: a mixed
@@ -899,16 +1030,23 @@ export function SituationalMap({
                 : divs.barrioCodes.size > 0
                   ? "barrio"
                   : "departamento",
-            ...bounds,
+            min: bounds?.min ?? 0,
+            max: bounds?.max ?? 0,
+            hasRamp: bounds !== null,
+            suppressed: hasSuppressed,
           };
         }
         continue;
       }
-      // Not in division-fill mode: drop any stale division fill for this layer so
-      // the centroid circles (below) become the sole representation again.
+      // Not in division-fill mode: drop any stale division fill + suppression
+      // hatch for this layer so the centroid circles become the sole rep again.
+      if (map.getLayer(DIVISION_SUPPRESS_ID(layer.id))) {
+        map.removeLayer(DIVISION_SUPPRESS_ID(layer.id));
+      }
       if (map.getLayer(divisionFillLayerId(layer.id))) {
         map.removeLayer(divisionFillLayerId(layer.id));
         divisionValuesRef.current.delete(layer.id);
+        divisionSuppressedRef.current.delete(layer.id);
       }
 
       const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
@@ -957,22 +1095,62 @@ export function SituationalMap({
           prev.label === nextDivisionLegend.label &&
           prev.unitNoun === nextDivisionLegend.unitNoun &&
           prev.min === nextDivisionLegend.min &&
-          prev.max === nextDivisionLegend.max);
+          prev.max === nextDivisionLegend.max &&
+          prev.hasRamp === nextDivisionLegend.hasRamp &&
+          prev.suppressed === nextDivisionLegend.suppressed);
       return same ? prev : nextDivisionLegend;
     });
+
+    // cursors #4 + #5: reconcile basemap luminance + border hierarchy after every
+    // layer change (a province choropleth toggling on/off flips the basemap dim).
+    updateChromeHierarchy(map);
   }
 
   // --- Always-visible divisions: fill + outline lifecycle. -------------------
 
-  /** Remove the shared division source, its outline, and every per-layer fill. */
+  /** Remove the shared division source, its outline, hover glow, and every
+   * per-layer fill + suppression-hatch overlay. */
   function removeDivisions(map: maplibregl.Map) {
     for (const id of mountedRef.current) {
       const fid = divisionFillLayerId(id);
       if (map.getLayer(fid)) map.removeLayer(fid);
+      const sid = DIVISION_SUPPRESS_ID(id);
+      if (map.getLayer(sid)) map.removeLayer(sid);
     }
     divisionValuesRef.current.clear();
+    divisionSuppressedRef.current.clear();
+    if (map.getLayer(DIVISION_HOVER_ID)) map.removeLayer(DIVISION_HOVER_ID);
     if (map.getLayer(DIVISION_LINE_ID)) map.removeLayer(DIVISION_LINE_ID);
     if (map.getSource(DIVISION_SRC)) map.removeSource(DIVISION_SRC);
+  }
+
+  // map-polish cursors #4 + #5 — data/basemap luminance + border hierarchy.
+  // Dims the basemap land under active data fills and fades province admin lines
+  // when divisions (departamento/barrio) are active so they read as subordinate.
+  function updateChromeHierarchy(map: maplibregl.Map) {
+    const active = layersRef.current;
+    const provinceDataActive = active.some(
+      (l) => l.geomType === "choropleth" && l.level === "province",
+    );
+    const divisionsActive = divisionsRef.current !== null;
+    // A polygon-filling data layer is on when a province choropleth is active OR
+    // divisions are loaded (locality fill / always-on outline over a scope).
+    const dataActive = provinceDataActive || divisionsActive;
+    if (map.getLayer("ar-prov-fill")) {
+      map.setPaintProperty(
+        "ar-prov-fill",
+        "fill-opacity",
+        dataActive ? BASEMAP_FILL_ACTIVE : BASEMAP_FILL_IDLE,
+      );
+    }
+    const provLineOpacity = divisionsActive ? PROV_LINE_OPACITY_FADED : PROV_LINE_OPACITY;
+    if (map.getLayer("ar-prov-line")) {
+      map.setPaintProperty("ar-prov-line", "line-opacity", provLineOpacity);
+    }
+    for (const id of mountedRef.current) {
+      const lid = provinceLineLayerId(id);
+      if (map.getLayer(lid)) map.setPaintProperty(lid, "line-opacity", provLineOpacity);
+    }
   }
 
   // Fill the division polygons by value (data-join on the polygon `code`),
@@ -991,7 +1169,7 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: DIVISION_SRC,
-          paint: { "fill-color": divisionFillColorExpr(values), "fill-opacity": 0.82 },
+          paint: { "fill-color": divisionFillColorExpr(values), "fill-opacity": DATA_FILL_OPACITY },
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
       );
@@ -1014,6 +1192,36 @@ export function SituationalMap({
     }
   }
 
+  // cursor #2 — the diagonal-hatch overlay for k-anon-suppressed divisions. A
+  // fill-pattern layer over the shared division source, filtered to the
+  // suppressed code set, inserted BELOW the outline so the barrio/departamento
+  // lines stay crisp on top. An empty set yields a constant-false filter (the
+  // layer renders nothing). Honest: this only PRESENTS the suppression the join
+  // already computed — it never surfaces a suppressed count.
+  function addDivisionSuppressionLayer(
+    map: maplibregl.Map,
+    layer: ActiveLayer,
+    codes: ReadonlySet<string>,
+  ) {
+    if (!map.getSource(DIVISION_SRC)) return;
+    if (!map.hasImage(HATCH_IMAGE_ID)) return; // pattern not registered (SSR/no canvas)
+    const sid = DIVISION_SUPPRESS_ID(layer.id);
+    if (!map.getLayer(sid)) {
+      map.addLayer(
+        {
+          id: sid,
+          type: "fill",
+          source: DIVISION_SRC,
+          paint: { "fill-pattern": HATCH_IMAGE_ID, "fill-opacity": 0.85 },
+          filter: divisionSuppressedFilter(codes),
+        },
+        map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
+      );
+    } else {
+      map.setFilter(sid, divisionSuppressedFilter(codes));
+    }
+  }
+
   // Hover names the division (barrio/departamento) + its value; click opens the
   // DetailDrawer, mirroring the old centroid-circle click where feasible.
   function wireDivisionInteractions(map: maplibregl.Map, layer: ActiveLayer) {
@@ -1031,16 +1239,37 @@ export function SituationalMap({
     map.on("mouseleave", fillId, () => {
       map.getCanvas().style.cursor = "";
       popup.remove();
+      // cursor #6: clear the division hover glow.
+      const prev = hoveredDivisionRef.current;
+      if (prev !== null && map.getSource(DIVISION_SRC)) {
+        map.setFeatureState({ source: DIVISION_SRC, id: prev }, { hover: false });
+        hoveredDivisionRef.current = null;
+      }
     });
     map.on("mousemove", fillId, (e) => {
       const f = e.features?.[0];
       if (!f) return;
       const props = f.properties as { code?: string; name?: string };
       const code = codeFor(props.code ?? "");
+      // cursor #6: move the division hover glow to the polygon under the pointer
+      // (feature id = the promoted `code` property). Mirrors the province path.
+      const fid = f.id as string | number | undefined;
+      const prevHover = hoveredDivisionRef.current;
+      if (fid !== undefined && String(fid) !== prevHover) {
+        if (prevHover !== null) {
+          map.setFeatureState({ source: DIVISION_SRC, id: prevHover }, { hover: false });
+        }
+        map.setFeatureState({ source: DIVISION_SRC, id: fid }, { hover: true });
+        hoveredDivisionRef.current = String(fid);
+      }
       const value = divisionValuesRef.current.get(layer.id)?.get(code);
+      const isSuppressed = divisionSuppressedRef.current.get(layer.id)?.has(code) === true;
       const place = props.name ?? props.code ?? "—";
-      const valueLine =
-        value === undefined
+      // cursor #10: suppressed (hatched) divisions read as PROTECTED, never as a
+      // number and never as plain "Sin datos" — the honest k-anon copy.
+      const valueLine = isSuppressed
+        ? `<span style="color:#94a3b8">Datos insuficientes (protegidos por privacidad · k-anonimato)</span>`
+        : value === undefined
           ? `<span style="color:#94a3b8">Sin datos</span>`
           : `<strong>${value.toLocaleString("es-AR")}</strong>`;
       popup
@@ -1246,16 +1475,23 @@ export function SituationalMap({
         source: "ar-provinces",
         paint: {
           "fill-color": provinceColorExprForLayer(layer),
-          "fill-opacity": 0.82,
+          "fill-opacity": DATA_FILL_OPACITY,
         },
       });
     }
     if (!map.getLayer(lineId)) {
+      // cursor #1: admin-neutral stroke (NOT COLOR_CANVAS) so province edges read
+      // as boundaries over the fill, never as near-black cracks. Faded by
+      // updateChromeHierarchy when divisions are active (cursor #5).
       map.addLayer({
         id: lineId,
         type: "line",
         source: "ar-provinces",
-        paint: { "line-color": COLOR_CANVAS, "line-width": 0.8 },
+        paint: {
+          "line-color": COLOR_ADMIN_STROKE,
+          "line-width": PROV_LINE_WIDTH,
+          "line-opacity": PROV_LINE_OPACITY,
+        },
       });
     }
     wireProvinceChoroplethInteractions(map, layer);
@@ -1294,6 +1530,12 @@ export function SituationalMap({
       popup.remove();
       // panorama-ia-v2 §3.3: clear the ranked-row highlight (map→row sync).
       onUnitHoverRef.current?.(null);
+      // cursor #6: clear the polygon hover glow.
+      const prev = hoveredProvinceRef.current;
+      if (prev !== null) {
+        map.setFeatureState({ source: "ar-provinces", id: prev }, { hover: false });
+        hoveredProvinceRef.current = null;
+      }
     });
     map.on("mousemove", fillId, (e) => {
       const f = e.features?.[0];
@@ -1302,6 +1544,15 @@ export function SituationalMap({
       const code = props.code ?? "";
       // panorama-ia-v2 §3.3: highlight the matching ranked row (map→row sync).
       onUnitHoverRef.current?.(code);
+      // cursor #6: move the polygon hover glow to the province under the pointer.
+      const prev = hoveredProvinceRef.current;
+      if (prev !== code) {
+        if (prev !== null) {
+          map.setFeatureState({ source: "ar-provinces", id: prev }, { hover: false });
+        }
+        if (code) map.setFeatureState({ source: "ar-provinces", id: code }, { hover: true });
+        hoveredProvinceRef.current = code || null;
+      }
       const value = valueFor(code);
       const place = props.name ?? code ?? "—";
       const valueLine =
@@ -1602,6 +1853,13 @@ export function SituationalMap({
     map.fitBounds(bbox, { padding: 56, animate: true, maxZoom: 11 });
   }
 
+  // cursor Part2 — the active choropleth base layer whose CABA aggregates the
+  // inset renders at barrio scale. Shown only at national/regional zoom (before
+  // the operator drills past Z_DIVISIONS, where CABA becomes readable on the main
+  // map anyway). Privacy-safe: same aggregates, same tokens, same k-anon hatch.
+  const insetLayer = layers.find((l) => l.geomType === "choropleth") ?? null;
+  const insetVisible = insetLayer !== null && insetZoom < Z_DIVISIONS;
+
   return (
     <div className="relative w-full" style={{ height }}>
       <div
@@ -1611,6 +1869,10 @@ export function SituationalMap({
         role="img"
         aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista.`}
       />
+      {/* cursor Part2: CABA/AMBA inset — a docked barrio-scale mini-map so the
+          micro-jurisdiction is legible at national zoom (not an unreadable smear).
+          Static camera, non-interactive, shares the choropleth + k-anon system. */}
+      <CabaInset layer={insetLayer} visible={insetVisible} />
       {/* map-QOL: one-click return to the operator's scope. */}
       <button
         type="button"
@@ -1642,6 +1904,18 @@ export function SituationalMap({
           >
             Exportar PNG
           </button>
+          {/* Roadmap signal for funcionario demos (PO obs 1048): a one-click
+              situación report is planned. Visibly disabled — the ONLY dead UI on
+              this surface — so the affordance reads as "coming", not broken. */}
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="En desarrollo"
+            className="cursor-not-allowed rounded-[var(--radius-sm)] border border-white/10 bg-black/40 px-2.5 py-1 text-xs font-medium text-white/40"
+          >
+            Informe de situación (en desarrollo)
+          </button>
         </div>
       )}
       {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (
@@ -1670,19 +1944,42 @@ export function SituationalMap({
                 {divisionLegend.label}{" "}
                 <span className="font-normal text-white/60">· por {divisionLegend.unitNoun}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="tabular-nums">{divisionLegend.min.toLocaleString("es-AR")}</span>
+              {divisionLegend.hasRamp && (
+                <div className="flex items-center gap-2">
+                  <span className="tabular-nums">{divisionLegend.min.toLocaleString("es-AR")}</span>
+                  <span
+                    className="h-2.5 w-24 rounded-full"
+                    style={{
+                      background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
+                    }}
+                    aria-hidden="true"
+                  />
+                  <span className="tabular-nums">{divisionLegend.max.toLocaleString("es-AR")}</span>
+                </div>
+              )}
+              {/* cursor #2: the three states are trichotomous — a colored fill is a
+                  value, a DIAGONAL HATCH is a k-anon-protected division, and an
+                  outline-only cell is genuine no-data. Each swatch matches its map
+                  mark exactly so a govt user never reads "protegido" as "cero". */}
+              {divisionLegend.suppressed && (
+                <div className="mt-1 flex items-center gap-1.5 text-white/70">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
+                    style={{
+                      backgroundImage:
+                        "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
+                    }}
+                    aria-hidden="true"
+                  />
+                  Suprimido (k-anonimato)
+                </div>
+              )}
+              <div className="mt-1 flex items-center gap-1.5 text-white/70">
                 <span
-                  className="h-2.5 w-24 rounded-full"
-                  style={{
-                    background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
-                  }}
+                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
                   aria-hidden="true"
                 />
-                <span className="tabular-nums">{divisionLegend.max.toLocaleString("es-AR")}</span>
-              </div>
-              <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
-                División sin relleno — sin datos o dato protegido (k-anonimato)
+                Sin datos (solo contorno)
               </div>
             </div>
           )}
@@ -1820,6 +2117,7 @@ function removeLayer(map: maplibregl.Map, id: string) {
     provinceFillLayerId(id),
     provinceLineLayerId(id),
     divisionFillLayerId(id),
+    DIVISION_SUPPRESS_ID(id),
   ]) {
     if (map.getLayer(lid)) map.removeLayer(lid);
   }
@@ -1843,14 +2141,14 @@ function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
     if (layer.level === "province") {
       const fid = provinceFillLayerId(layer.id);
       if (map.getLayer(fid))
-        map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : scaled(0.82));
+        map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY));
       return;
     }
     // Locality mode with a division fill: mute the polygon fill alongside the
     // fallback circles so the whole layer dims as one while scrubbing.
     const dfid = divisionFillLayerId(layer.id);
     if (map.getLayer(dfid)) {
-      map.setPaintProperty(dfid, "fill-opacity", dim ? DIM_OPACITY : scaled(0.82));
+      map.setPaintProperty(dfid, "fill-opacity", dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY));
     }
     const cid = choroLayerId(layer.id);
     if (!map.getLayer(cid)) return;
