@@ -251,7 +251,9 @@ export type PanoramaFilters = {
 export type PanoramaKpiId =
   | "cobertura"
   | "esterilizacion"
+  | "microchip"
   | "perdidas"
+  | "reunificacion"
   | "mordeduras"
   | "zoonosis"
   | "denuncias"

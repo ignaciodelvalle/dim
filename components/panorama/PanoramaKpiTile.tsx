@@ -7,6 +7,10 @@
 // The delta stays a neutral text line — NEVER a valence color. Several
 // panorama KPIs are bad-when-up (zoonosis, mordeduras); a green "Sube" would
 // misread a worsening trend as an improvement (code review 2026-07-03).
+//
+// v+1 rail: `bar` (target-progress meter) and `sparkline` (inline trend) are
+// straight pass-throughs to OpKpi — both already existed on OpKpi, only
+// `kpi.sparkline` is new (get-panorama-kpis.ts). No new visual language.
 
 import { OpKpi } from "@/components/ui/dashboard";
 import type { KpiDelta, PanoramaKpi } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -32,6 +36,7 @@ export function PanoramaKpiTile({ kpi }: Props) {
         sub={kpi.sub}
         href={kpi.href}
         info={kpi.info}
+        sparkline={kpi.sparkline}
       />
       {kpi.delta && (
         <p className="flex items-center gap-1 text-xs tabular-nums text-ln-op-mute">

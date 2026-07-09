@@ -30,7 +30,22 @@ vi.mock("@/lib/metrics/population-control", () => ({
 vi.mock("@/lib/metrics/freshness", () => ({
   lastIngestAt: vi.fn(),
 }));
+// v+1 rail — meta-progress meters + KPI sparklines (get-panorama-kpis.ts now
+// fans out to these too; unmocked here would hit a live DB with no Postgres).
+vi.mock("@/lib/analytics/compliance-metrics", () => ({
+  fetchReunificationRate: vi.fn(),
+  fetchMicrochipPenetration: vi.fn(),
+}));
+vi.mock("@/lib/metrics/trends", () => ({
+  fetchRabiesVaccinationTrend: vi.fn(),
+  fetchBitesTrend: vi.fn(),
+  fetchKpiTrend: vi.fn(),
+}));
 
+import {
+  fetchMicrochipPenetration,
+  fetchReunificationRate,
+} from "@/lib/analytics/compliance-metrics";
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
@@ -41,6 +56,7 @@ import {
 import type { AnalyticsPeriod } from "@/lib/metrics";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
 
 import { __resetKpisCache } from "../kpis-cache";
 import { loadCachedPanoramaKpis } from "../load-panorama-kpis";
@@ -87,6 +103,22 @@ function seedDefaults() {
     byProvince: [],
   });
   vi.mocked(lastIngestAt).mockResolvedValue(new Date("2026-06-19T18:30:00.000Z"));
+  vi.mocked(fetchReunificationRate).mockResolvedValue({
+    ratePct: 45.2,
+    recovered: 19,
+    lostEpisodes: 42,
+    medianDaysToRecovery: 3,
+  });
+  vi.mocked(fetchMicrochipPenetration).mockResolvedValue({
+    ratePct: 55.1,
+    chipped: 551,
+    active: 1000,
+    byLocality: { value: [] as never, suppressedCount: 0 },
+  });
+  const emptyTrend = { granularity: "month" as const, points: [], suppressedCount: 0 };
+  vi.mocked(fetchRabiesVaccinationTrend).mockResolvedValue(emptyTrend);
+  vi.mocked(fetchBitesTrend).mockResolvedValue(emptyTrend);
+  vi.mocked(fetchKpiTrend).mockResolvedValue(emptyTrend);
 }
 
 beforeEach(() => {

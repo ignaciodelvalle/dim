@@ -36,10 +36,21 @@ import {
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
-import { TARGETS } from "@/lib/metrics/targets";
+import { TARGETS, toneForTarget } from "@/lib/metrics/targets";
+// v+1 rail — the SAME generic/typed trend fetchers /gob home wires into its
+// KPI tiles (app/gob/page.tsx: rabiesVaxTrend/bitesTrend/zoonosisTrend). No
+// panorama-only trend query: reusing these three preserves dashboard parity.
+import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
 
 import { formatCount, formatPercent, formatRate } from "@/lib/utils/format";
 
+// v+1 rail — D4 reunification rate + C1 microchip penetration, the SAME
+// fetchers /gob/perdidas and /gob/programa already call. Adding them here
+// only ORCHESTRATES a call the dashboards already trust; no new SQL.
+import {
+  fetchMicrochipPenetration,
+  fetchReunificationRate,
+} from "@/lib/analytics/compliance-metrics";
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
@@ -95,6 +106,13 @@ export type PanoramaKpi = {
   source: string;
   /** Period-over-period delta — only on window-sensitive KPIs (map-QOL). */
   delta?: KpiDelta;
+  /**
+   * v+1 rail: inline sparkline series (chronological values, no keys/labels) —
+   * fed straight into OpKpi's `sparkline` prop. Only set on the window-sensitive
+   * KPIs with a matching trend fetcher in lib/metrics/trends (cobertura,
+   * mordeduras, zoonosis). Same visual language as /gob home's KPI tiles.
+   */
+  sparkline?: number[];
 };
 
 export type PanoramaKpis = {
@@ -306,6 +324,17 @@ export async function getPanoramaKpis(
     // task #78 Part 3: signed-only (firmado por matrícula) rabies coverage for the
     // cobertura tile's "both numbers" sub-line.
     fetchRabiesCoverage(verifiedCtx),
+    // v+1 rail — meta-progress meters: D4 reunification rate (perdidas-reunificacion
+    // preset) + C1 microchip penetration (cumplimiento preset). Same fetchers
+    // /gob/perdidas + /gob/programa already call; current-active-period ctx.
+    fetchReunificationRate(ctx),
+    fetchMicrochipPenetration(ctx),
+    // v+1 rail — KPI sparklines. Same trend fetchers /gob home wires into its
+    // tiles, run against the SAME ctx as the headline value (not a fixed 12m
+    // window) so the sparkline always spans the operator's active period.
+    fetchRabiesVaccinationTrend(ctx), // cobertura
+    fetchBitesTrend(ctx), // mordeduras
+    fetchKpiTrend("rabies_observation_started", ctx), // zoonosis (mirrors /gob home's zoonosisTrend)
   ]);
 
   // Any fetcher rejected → the strip cannot be built with parity. Log every
@@ -334,6 +363,12 @@ export async function getPanoramaKpis(
   const ingestAt = value(settled[10]);
   // task #78 Part 3: signed-only coverage (firmado por matrícula) for the sub-line.
   const coverageSigned = value(settled[11]);
+  // v+1 rail: meta-progress meters + sparklines.
+  const reunification = value(settled[12]);
+  const microchip = value(settled[13]);
+  const rabiesVaxTrend = value(settled[14]);
+  const bitesTrend = value(settled[15]);
+  const zoonosisTrend = value(settled[16]);
 
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica
@@ -356,6 +391,7 @@ export async function getPanoramaKpis(
       href: "/gob/analytics",
       source: "govt-home-kpis.fetchRabiesCoverage",
       delta: deltaOf(coverage.current, priorCoverage.current),
+      sparkline: rabiesVaxTrend.points.map((p) => p.y),
       info: {
         definition:
           "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón registrado es el primer denominador; el segundo es la población canina estimada. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
@@ -384,6 +420,23 @@ export async function getPanoramaKpis(
       },
     },
     {
+      // v+1 rail — C1 microchip penetration (Ley Prov 14.107), the same fetcher
+      // /gob/programa's "Microchip" tile uses. Wording copied verbatim for
+      // dashboard parity (definition/formula/href).
+      id: "microchip",
+      label: "Microchip",
+      value: formatPercent(microchip.ratePct),
+      sub: `meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`,
+      bar: microchip.ratePct,
+      tone: toneForTarget(microchip.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT),
+      href: "/gob/censo",
+      source: "compliance-metrics.fetchMicrochipPenetration",
+      info: {
+        definition: "% de mascotas activas con microchip ISO activo.",
+        formula: "chipped / active * 100",
+      },
+    },
+    {
       id: "perdidas",
       label: "Pérdidas activas",
       value: formatCount(perdidas.activeCount),
@@ -403,6 +456,24 @@ export async function getPanoramaKpis(
       },
     },
     {
+      // v+1 rail — D4 reunification rate, the same fetcher /gob/perdidas' "Tasa
+      // de reunificación" tile uses. Wording copied verbatim for parity. Headlines
+      // the perdidas-reunificacion preset's own question (previously absent).
+      id: "reunificacion",
+      label: "Tasa de reunificación",
+      value: formatPercent(reunification.ratePct),
+      sub: `meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`,
+      bar: reunification.ratePct,
+      tone: toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT),
+      href: "/gob/perdidas",
+      source: "compliance-metrics.fetchReunificationRate",
+      info: {
+        definition: `Porcentaje de episodios de pérdida que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
+        formula:
+          "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en período) × 100",
+      },
+    },
+    {
       id: "mordeduras",
       label: "Mordeduras / 10k hab.",
       value: formatRate(bites.rate),
@@ -411,6 +482,7 @@ export async function getPanoramaKpis(
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchBitesPer10k",
       delta: deltaOf(bites.rate, priorBites.rate),
+      sparkline: bitesTrend.points.map((p) => p.y),
       info: {
         definition:
           "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy).",
@@ -429,6 +501,7 @@ export async function getPanoramaKpis(
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchActiveZoonosis",
       delta: deltaOf(zoonosis.count, priorZoonosis.count),
+      sparkline: zoonosisTrend.points.map((p) => p.y),
       info: {
         definition:
           "Total de señales zoonóticas activas: mascotas con observación rábica en curso (status='in_progress') + casos bite_incident abiertos (deduplicados) + reportes de leptospirosis e hidatidosis en los últimos 30 días.",

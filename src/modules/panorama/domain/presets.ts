@@ -122,7 +122,10 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // A province-level compliance ranking is a national question — frame the
     // whole country so under-target jurisdictions are comparable at a glance.
     framing: { kind: "national" },
-    metrics: ["cobertura", "esterilizacion", "mascotas"],
+    // v+1 rail: microchip penetration joins the compliance trio — same legal
+    // family as cobertura/esterilizacion (Ley Prov 14.107), each rendering a
+    // target-progress meter (bar) against TARGETS via toneForTarget.
+    metrics: ["cobertura", "esterilizacion", "microchip", "mascotas"],
   },
   {
     id: "bienestar",
@@ -160,7 +163,10 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     signal: "reunificacion",
     level: "locality",
     periodPreset: "90d",
-    metrics: ["perdidas", "mascotas", "denuncias"],
+    // v+1 rail: the "reunificacion" KPI (D4 rate vs TARGETS.REUNIFICATION_PCT,
+    // target-progress bar) headlines the question this preset asks — it was
+    // previously absent from the column despite naming the preset.
+    metrics: ["perdidas", "reunificacion", "mascotas", "denuncias"],
     // Locality-level drill-down question — stays framing-less, same as sintomas
     // and bienestar (design-QA 2026-07-04 convention).
   },

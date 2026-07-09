@@ -317,7 +317,9 @@ describe("PANORAMA_PRESETS — metrics field", () => {
   const KNOWN_KPI_IDS: readonly PanoramaKpiId[] = [
     "cobertura",
     "esterilizacion",
+    "microchip",
     "perdidas",
+    "reunificacion",
     "mordeduras",
     "zoonosis",
     "denuncias",
@@ -351,6 +353,25 @@ describe("PANORAMA_PRESETS — metrics field", () => {
       "esterilizacion",
       "mascotas",
       "perdidas",
+    ]);
+  });
+
+  // v+1 rail: meta-progress meters headline the presets they were built for.
+  it("cumplimiento includes microchip (target-progress meter alongside cobertura/esterilizacion)", () => {
+    expect(getPreset("cumplimiento")!.metrics).toEqual([
+      "cobertura",
+      "esterilizacion",
+      "microchip",
+      "mascotas",
+    ]);
+  });
+
+  it("perdidas-reunificacion includes reunificacion (the D4 rate the preset is named for)", () => {
+    expect(getPreset("perdidas-reunificacion")!.metrics).toEqual([
+      "perdidas",
+      "reunificacion",
+      "mascotas",
+      "denuncias",
     ]);
   });
 });

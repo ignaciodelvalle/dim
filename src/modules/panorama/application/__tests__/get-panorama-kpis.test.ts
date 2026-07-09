@@ -26,7 +26,22 @@ vi.mock("@/lib/metrics/population-control", () => ({
 vi.mock("@/lib/metrics/freshness", () => ({
   lastIngestAt: vi.fn(),
 }));
+// v+1 rail — meta-progress meters (D4 reunification + C1 microchip).
+vi.mock("@/lib/analytics/compliance-metrics", () => ({
+  fetchReunificationRate: vi.fn(),
+  fetchMicrochipPenetration: vi.fn(),
+}));
+// v+1 rail — KPI sparklines (same trend fetchers /gob home uses).
+vi.mock("@/lib/metrics/trends", () => ({
+  fetchRabiesVaccinationTrend: vi.fn(),
+  fetchBitesTrend: vi.fn(),
+  fetchKpiTrend: vi.fn(),
+}));
 
+import {
+  fetchMicrochipPenetration,
+  fetchReunificationRate,
+} from "@/lib/analytics/compliance-metrics";
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchActiveZoonosis,
@@ -37,6 +52,7 @@ import {
 import type { AnalyticsPeriod } from "@/lib/metrics";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
 
 import {
   PanoramaKpisUnavailableError,
@@ -86,6 +102,43 @@ function seedDefaults() {
     byProvince: [],
   });
   vi.mocked(lastIngestAt).mockResolvedValue(new Date("2026-06-19T18:30:00.000Z"));
+  // v+1 rail defaults.
+  vi.mocked(fetchReunificationRate).mockResolvedValue({
+    ratePct: 45.2,
+    recovered: 19,
+    lostEpisodes: 42,
+    medianDaysToRecovery: 3,
+  });
+  vi.mocked(fetchMicrochipPenetration).mockResolvedValue({
+    ratePct: 55.1,
+    chipped: 551,
+    active: 1000,
+    byLocality: { value: [] as never, suppressedCount: 0 },
+  });
+  vi.mocked(fetchRabiesVaccinationTrend).mockResolvedValue({
+    granularity: "month",
+    points: [
+      { x: "ene", y: 10 },
+      { x: "feb", y: 14 },
+    ],
+    suppressedCount: 0,
+  });
+  vi.mocked(fetchBitesTrend).mockResolvedValue({
+    granularity: "month",
+    points: [
+      { x: "ene", y: 3 },
+      { x: "feb", y: 5 },
+    ],
+    suppressedCount: 0,
+  });
+  vi.mocked(fetchKpiTrend).mockResolvedValue({
+    granularity: "month",
+    points: [
+      { x: "ene", y: 1 },
+      { x: "feb", y: 2 },
+    ],
+    suppressedCount: 0,
+  });
 }
 
 beforeEach(() => {
@@ -94,14 +147,18 @@ beforeEach(() => {
 });
 
 describe("getPanoramaKpis", () => {
-  it("returns 7 KPIs in display order, each backed by a named dashboard fetcher", async () => {
+  it("returns 9 KPIs in display order, each backed by a named dashboard fetcher", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     // Legal-analysis reorientation (2026-07-03): the two legally-grounded
     // compliance coverages lead; the population denominator closes the strip.
+    // v+1 rail: "microchip" joins the compliance trio; "reunificacion" (D4)
+    // sits next to "perdidas" — both meta-progress-meter additions.
     expect(kpis.map((k) => k.id)).toEqual([
       "cobertura",
       "esterilizacion",
+      "microchip",
       "perdidas",
+      "reunificacion",
       "mordeduras",
       "zoonosis",
       "denuncias",
@@ -111,7 +168,9 @@ describe("getPanoramaKpis", () => {
     expect(kpis.map((k) => k.source)).toEqual([
       "govt-home-kpis.fetchRabiesCoverage",
       "metrics.fetchSterilizationCoverage",
+      "compliance-metrics.fetchMicrochipPenetration",
       "govt-dashboards.fetchPerdidasMetrics",
+      "compliance-metrics.fetchReunificationRate",
       "govt-home-kpis.fetchBitesPer10k",
       "govt-home-kpis.fetchActiveZoonosis",
       "govt-home-kpis.fetchOpenWelfareReportsCount",
@@ -400,6 +459,73 @@ describe("getPanoramaKpis", () => {
     vi.mocked(lastIngestAt).mockResolvedValue(null);
     const empty = await getPanoramaKpis({ role: "admin" }, [], period);
     expect(empty.dataAsOf).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // v+1 rail — KPI sparklines (item 1): cobertura/mordeduras/zoonosis carry an
+  // inline sparkline series sourced from the SAME trend fetchers /gob home uses.
+  // ---------------------------------------------------------------------------
+
+  it("attaches a sparkline to cobertura, mordeduras and zoonosis (window-sensitive KPIs)", async () => {
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
+
+    expect(byId.cobertura.sparkline).toEqual([10, 14]);
+    expect(byId.mordeduras.sparkline).toEqual([3, 5]);
+    expect(byId.zoonosis.sparkline).toEqual([1, 2]);
+    // Non-window-sensitive KPIs never get a sparkline (no matching trend).
+    expect(byId.esterilizacion.sparkline).toBeUndefined();
+    expect(byId.perdidas.sparkline).toBeUndefined();
+    expect(byId.mascotas.sparkline).toBeUndefined();
+    expect(byId.denuncias.sparkline).toBeUndefined();
+
+    // Parity: the trend fetchers receive the SAME ctx as the headline value —
+    // the sparkline spans the active period, not a hardcoded 12m window.
+    expect(fetchRabiesVaccinationTrend).toHaveBeenCalledTimes(1);
+    expect(fetchBitesTrend).toHaveBeenCalledTimes(1);
+    expect(fetchKpiTrend).toHaveBeenCalledWith("rabies_observation_started", expect.anything());
+  });
+
+  // ---------------------------------------------------------------------------
+  // v+1 rail — meta-progress meters (item 2): reunificacion (D4) + microchip (C1)
+  // render a `bar` + `tone` computed via toneForTarget against TARGETS, reusing
+  // the SAME fetchers /gob/perdidas + /gob/programa already call.
+  // ---------------------------------------------------------------------------
+
+  it("reunificacion KPI carries a target-progress bar + tone vs TARGETS.REUNIFICATION_PCT", async () => {
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const reunificacion = kpis.find((k) => k.id === "reunificacion")!;
+
+    expect(reunificacion.value).toBe("45,2%");
+    expect(reunificacion.bar).toBe(45.2);
+    expect(reunificacion.tone).toBe("ok"); // 45.2 >= TARGETS.REUNIFICATION_PCT (39)
+    expect(reunificacion.sub).toBe("meta 39% · 19 de 42 episodios");
+    expect(reunificacion.href).toBe("/gob/perdidas");
+    expect(fetchReunificationRate).toHaveBeenCalledTimes(1);
+  });
+
+  it("microchip KPI carries a target-progress bar + tone vs TARGETS.MICROCHIP_PENETRATION_PCT", async () => {
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const microchip = kpis.find((k) => k.id === "microchip")!;
+
+    expect(microchip.value).toBe("55,1%");
+    expect(microchip.bar).toBe(55.1);
+    expect(microchip.tone).toBe("warn"); // 55.1 < 80, but >= 80*0.5
+    expect(microchip.sub).toBe("meta 80%");
+    expect(microchip.href).toBe("/gob/censo");
+    expect(fetchMicrochipPenetration).toHaveBeenCalledTimes(1);
+  });
+
+  it("reunificacion tone degrades to warn/danger below target, matching toneForTarget", async () => {
+    vi.mocked(fetchReunificationRate).mockResolvedValue({
+      ratePct: 5,
+      recovered: 1,
+      lostEpisodes: 20,
+      medianDaysToRecovery: 10,
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const reunificacion = kpis.find((k) => k.id === "reunificacion")!;
+    expect(reunificacion.tone).toBe("danger"); // 5 < 39*0.5
   });
 
   // ---------------------------------------------------------------------------
