@@ -25,10 +25,10 @@
 
 ## BLOQUE 4 — Los 4 features nuevos (verificar que se ven y funcionan)
 
-7. **Procedencia de vacunas** (#78): en la ficha de un pet con vacuna **declarada por el dueño** (sin firma de vet) → debe mostrar el estado DUAL: verde "lo que tenés" + ámbar "para el registro oficial, un vet debe firmarla". En el panorama (`/gob/panorama`, capa antirrábica) → el toggle **"solo firmado por matrícula"** debe cambiar el número, y el KPI debe mostrar AMBOS (total + firmado).
+7. **Procedencia de vacunas** (#78): en la ficha de un pet con vacuna **declarada por el dueño** (sin firma de vet) → debe mostrar el estado DUAL: verde "lo que tenés" + ámbar "para el registro oficial, un vet debe firmarla". En el panorama (`/gob/panorama`, capa antirrábica) → el toggle **"solo firmado por matrícula"** (Capas → Detalle, con cobertura activa) debe cambiar el número, y el KPI debe mostrar AMBOS (total + firmado).
 8. **Denominadores dobles** (#79): en el panorama y /gob, la cobertura debe decir el doble denominador: "X% del padrón (N perros) · el padrón cubre Y% de la población canina estimada".
 9. **Mordeduras en el mapa** (#75): al cargar la mordedura del Bloque 1, el form debe pedir **ubicación con el picker de mapa**. Después en `/gob/panorama` con zoom cercano (capa mordeduras) → debe aparecer el punto donde la cargaste (solo en TU jurisdicción como operador).
-10. **Bitemporalidad** (#77): en el scrubber del panorama ("Reproducir en el tiempo"), el toggle **"Cuándo ocurrió / Según lo conocido al momento"** debe estar y cambiar la animación. En un PDF MPF (cerrá un caso welfare y exportá) → debe tener la sección **"Cronología según conocimiento"**.
+10. **Bitemporalidad** (#77): en el scrubber del panorama ("Reproducción temporal", siempre visible — ya no hay `<details>` "Reproducir en el tiempo"), el toggle **"Cuándo ocurrió / Según lo conocido al momento"** (modo Detalle del scrubber) debe estar y cambiar la animación. En un PDF MPF (cerrá un caso welfare y exportá) → debe tener la sección **"Cronología según conocimiento"**.
 
 ## Veredicto
 Por bloque: ¿cierra o falla? Foco en los Bloques 1-3 (los remates) — si cerraron, el sistema pasó de "casi" a "sí, para un piloto". Los tokens/códigos que generes, anotalos.

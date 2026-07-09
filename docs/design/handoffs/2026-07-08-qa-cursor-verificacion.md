@@ -18,8 +18,8 @@
 - En /p público de esa mascota: la vacuna declarada no debe figurar como "verificada".
 
 ## 3. Denominadores dobles + panorama (#79, #78)
-- `/gob/panorama` (govt-local@) capa antirrábica: la cobertura debe decir el **doble denominador** ("X% del padrón (N perros) · el padrón cubre Y% de la población estimada"). El toggle **"solo firmado por matrícula"** debe estar y cambiar el número mostrando ambos.
-- El scrubber "Reproducir en el tiempo" debe tener el toggle **"Cuándo ocurrió / Según lo conocido al momento"**.
+- `/gob/panorama` (govt-local@) capa antirrábica: la cobertura debe decir el **doble denominador** ("X% del padrón (N perros) · el padrón cubre Y% de la población estimada"). El toggle **"solo firmado por matrícula"** (ahora vive en Capas → Detalle, visible solo con la capa cobertura activa; sigue reflejándose en la URL `?verified=1`) debe estar y cambiar el número mostrando ambos.
+- El scrubber **"Reproducción temporal"** (siempre visible bajo el mapa — ya no existe el `<details>` "Reproducir en el tiempo") debe tener, en su modo **Detalle**, el toggle **"Cuándo ocurrió / Según lo conocido al momento"**.
 
 ## 4. Puntos en el mapa — lectura (#75)
 - `/gob/panorama` con zoom cercano (z≥10): capa **avistajes** debe mostrar puntos reales; capa **denuncias** debe mostrar puntos en el **centroide del barrio** (no dirección exacta). Ninguna debe mostrar la ubicación exacta de una denuncia.

@@ -89,6 +89,21 @@ export async function panoramaMapBeat(page: Page, urlPath: string): Promise<void
     `panorama console at ${urlPath}`,
   ).toBeVisible();
   await fullScroll(page);
+  // panorama-vista-redesign: CapasBox defaults to Simple mode (base chip +
+  // click-to-remove overlay chips, no checkboxes) — the layer checkbox
+  // toggles only exist inside Detalle (CapasBox → LayerPanel). Open Detalle
+  // first so the beat can still exercise a real layer toggle; best-effort,
+  // same as before (layer availability varies by seed data).
+  const detalleToggle = page.getByRole("button", { name: "Modo detalle de capas" });
+  if (
+    await detalleToggle
+      .count()
+      .then((c) => c > 0)
+      .catch(() => false)
+  ) {
+    await detalleToggle.click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
   const layerToggle = page.locator('label:has(input[type="checkbox"]:not([disabled]))').first();
   if (
     await layerToggle

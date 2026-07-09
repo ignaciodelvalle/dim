@@ -855,7 +855,7 @@ Surfaces and their basis:
 
 | Surface | Default basis | Toggle? | Notes |
 |---|---|---|---|
-| Panorama time scrubber ("Reproducir en el tiempo") | valid (`occurred_at`) | Yes — "según lo conocido al momento" switches to `recorded_at` | Honored by the `pet_events`-backed layers: perdidas, mordeduras, zoonosis. `?basis=transaction` on `/api/panorama/[layer]`. `denuncias` (welfare_reports) and `decomisos` (cases) have no distinct `recorded_at`, so they replay by their single timestamp in both modes. |
+| Panorama time scrubber ("Reproducción temporal") | valid (`occurred_at`) | Yes — "según lo conocido al momento" switches to `recorded_at` (scrubber Detalle mode only) | Honored by the `pet_events`-backed layers: perdidas, mordeduras, zoonosis. Client-only view state (panorama-vista-redesign) — NOT part of the shareable board URL; threaded as `?basis=transaction` only into the `/api/panorama/[layer]` fetch while actively scrubbing. `denuncias` (welfare_reports) and `decomisos` (cases) have no distinct `recorded_at`, so they replay by their single timestamp in both modes. |
 | MPF welfare export ("Cronología según conocimiento") | both, shown side by side | n/a | The PDF names the occurrence date (valid) and the intake date (transaction = when the authority took knowledge via the denuncia), plus the gap — institutional legal defense for the fiscalía. |
 
 **Pitch material**: no Argentine state system exposes this distinction. Surfacing "según lo conocido al momento" turns a dormant data property into a governance instrument — the reporting-lag gap is territorial-presence evidence no other registry can produce.

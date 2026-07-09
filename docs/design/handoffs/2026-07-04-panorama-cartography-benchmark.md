@@ -21,7 +21,7 @@ Panorama already has a strong **government-grade foundation**: declarative layer
 | k-anon enforced server-side; suppressed cells carry flag, never leak count | `repository.ts:985–1009`, popups `SituationalMap.tsx:746–748` |
 | Shareable board via shallow URL (`layers`, `level`, `preset`, `period`) | `PanoramaConsole.tsx:11–19`, `map-layer-nav.ts:34–37` |
 | Situation-room temporal scrub + dim non-temporal layers | `TimeScrubber.tsx`, `SituationalMap.tsx:1106–1165` |
-| Trust primitives: methodology `<details>`, demo disclosure, KPI ⓘ tooltips, freshness | `PanoramaShell.tsx:131–158`, `PanoramaKpiStrip.tsx:73–80`, `get-panorama-kpis.ts:52–57` |
+| Trust primitives: methodology `<details>`, demo disclosure, KPI ⓘ tooltips, freshness | `PanoramaShell.tsx:131–158`, `PanoramaKpiFooter.tsx:18–52`, `get-panorama-kpis.ts:52–57` |
 | Unit drill: drawer + sparkline history on aggregated cell click | `DetailDrawer.tsx:17–23`, `Sparkline.tsx` |
 
 ---
