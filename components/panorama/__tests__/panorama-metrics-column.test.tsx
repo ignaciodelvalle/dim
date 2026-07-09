@@ -13,7 +13,10 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { PanoramaMetricsColumn } from "@/components/panorama/PanoramaMetricsColumn";
-import type { PanoramaKpi, PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import type {
+  PanoramaKpi,
+  PanoramaKpis,
+} from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getPreset } from "@/src/modules/panorama/domain/presets";
 
 afterEach(cleanup);
@@ -59,10 +62,7 @@ describe("PanoramaMetricsColumn — switching vista updates the column", () => {
   it("switching to control-poblacional shows esterilizacion/mascotas/perdidas instead", () => {
     const controlPoblacional = getPreset("control-poblacional")!;
     const { rerender } = render(
-      <PanoramaMetricsColumn
-        kpis={ALL_KPIS}
-        metricIds={getPreset("bienestar")!.metrics}
-      />,
+      <PanoramaMetricsColumn kpis={ALL_KPIS} metricIds={getPreset("bienestar")!.metrics} />,
     );
     expect(screen.getByText("Denuncias activas")).toBeInTheDocument();
 

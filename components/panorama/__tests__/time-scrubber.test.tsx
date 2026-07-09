@@ -67,7 +67,13 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
 
   it("defaults to available (temporalAvailable omitted) — backward compatible", () => {
     render(
-      <TimeScrubber since={SINCE} until={UNTIL} onChange={vi.fn()} basis="valid" onBasisChange={vi.fn()} />,
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
     );
     expect(screen.getByRole("slider")).toBeInTheDocument();
   });
@@ -76,7 +82,13 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
 describe("TimeScrubber — loop windows", () => {
   it("starting a 30-day loop shades the window and moves the thumb off the live edge", () => {
     render(
-      <TimeScrubber since={SINCE} until={UNTIL} onChange={vi.fn()} basis="valid" onBasisChange={vi.fn()} />,
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
     );
 
     const slider = screen.getByRole("slider") as HTMLInputElement;
@@ -93,23 +105,41 @@ describe("TimeScrubber — loop windows", () => {
 
   it("'Ahora' clears the loop and returns to live", () => {
     render(
-      <TimeScrubber since={SINCE} until={UNTIL} onChange={vi.fn()} basis="valid" onBasisChange={vi.fn()} />,
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Volver a ahora (en vivo)" }));
 
     const slider = screen.getByRole("slider") as HTMLInputElement;
     expect(slider.value).toBe(slider.max);
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("the loop keeps cycling within the window instead of stopping at 'ahora'", () => {
     vi.useFakeTimers();
     render(
-      <TimeScrubber since={SINCE} until={UNTIL} onChange={vi.fn()} basis="valid" onBasisChange={vi.fn()} />,
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
@@ -131,7 +161,13 @@ describe("TimeScrubber — loop windows", () => {
 describe("TimeScrubber — Simple/Detalle", () => {
   it("Simple (default) hides date ticks and the bitemporal basis toggle", () => {
     render(
-      <TimeScrubber since={SINCE} until={UNTIL} onChange={vi.fn()} basis="valid" onBasisChange={vi.fn()} />,
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
     );
     expect(screen.queryByText("Cuándo ocurrió")).not.toBeInTheDocument();
   });

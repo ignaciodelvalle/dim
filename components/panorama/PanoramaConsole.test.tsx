@@ -375,8 +375,8 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
 
     // The 6 preset tabs are first-paint.
     expect(
-      Array.from(container.querySelectorAll("button")).filter((b) =>
-        b.closest("details:not([open])") === null,
+      Array.from(container.querySelectorAll("button")).filter(
+        (b) => b.closest("details:not([open])") === null,
       ).length,
     ).toBeGreaterThanOrEqual(6);
     // CapasBox's Simple/Detalle toggle is visible (not hidden behind a disclosure).

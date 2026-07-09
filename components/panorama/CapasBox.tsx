@@ -8,10 +8,10 @@
 // Detalle. Toggles ALWAYS delegate to the parent's onToggle → checkCompatibility
 // — Simple is a presentational surface only, never a second compatibility path.
 
+import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { type LayerRole, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
-import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 
 type Props = {
   states: Record<LayerId, LayerPanelState>;
@@ -35,9 +35,7 @@ const CHIP_BASE =
   "inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] border px-2.5 py-1 text-[var(--text-sm)]";
 
 function activeIdsOf(states: Props["states"], role: LayerRole): LayerId[] {
-  return PANORAMA_LAYERS.filter((l) => roleOf(l) === role && states[l.id]?.active).map(
-    (l) => l.id,
-  );
+  return PANORAMA_LAYERS.filter((l) => roleOf(l) === role && states[l.id]?.active).map((l) => l.id);
 }
 
 export function CapasBox({
@@ -73,11 +71,8 @@ export function CapasBox({
             se suman · compatibles entre sí
           </span>
         </div>
-        <div
-          role="group"
-          aria-label="Modo de la sección Capas"
-          className="inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line"
-        >
+        <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
+          <legend className="sr-only">Modo de la sección Capas</legend>
           <button
             type="button"
             aria-pressed={!capasDetail}
@@ -104,7 +99,7 @@ export function CapasBox({
           >
             Detalle
           </button>
-        </div>
+        </fieldset>
       </div>
 
       {capasDetail ? (

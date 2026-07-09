@@ -244,11 +244,8 @@ export function TimeScrubber({
         <div className="flex items-center gap-2">
           <p className="tabular-nums text-sm font-semibold text-ln-op-ink">{asOfLabel}</p>
           {onScrubDetailChange && (
-            <div
-              role="group"
-              aria-label="Modo de la reproducción temporal"
-              className="inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line"
-            >
+            <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
+              <legend className="sr-only">Modo de la reproducción temporal</legend>
               <button
                 type="button"
                 aria-pressed={!scrubDetail}
@@ -275,7 +272,7 @@ export function TimeScrubber({
               >
                 Detalle
               </button>
-            </div>
+            </fieldset>
           )}
         </div>
       </div>
