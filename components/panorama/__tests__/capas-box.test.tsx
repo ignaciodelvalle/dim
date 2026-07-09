@@ -73,7 +73,7 @@ describe("CapasBox — Simple mode", () => {
     expect(baseChip.tagName).toBe("SPAN");
   });
 
-  it("the '+N capas' expander flips capasDetail to true", () => {
+  it("PO screenshot fix (2026-07-08): Simple mode never renders an inactive-layer expander chip — Detalle toggle stays the only path to the full catalog", () => {
     const states = baseStates();
     const onCapasDetailChange = vi.fn();
 
@@ -86,7 +86,10 @@ describe("CapasBox — Simple mode", () => {
       />,
     );
 
-    fireEvent.click(screen.getByText(/＋\d+ capas/));
+    expect(screen.queryByText(/＋\d+ capas/)).not.toBeInTheDocument();
+    const detalleToggle = screen.getByRole("button", { name: "Modo detalle de capas" });
+    expect(detalleToggle).toBeVisible();
+    fireEvent.click(detalleToggle);
     expect(onCapasDetailChange).toHaveBeenCalledWith(true);
   });
 });

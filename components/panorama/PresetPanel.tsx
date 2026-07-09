@@ -2,10 +2,12 @@
 
 // PresetPanel — renders the F3 curated preset buttons.
 //
-// Each preset is a <button> with aria-pressed to indicate the active preset.
-// The preset's description (the QUESTION it answers) is shown as helper text
-// below the button label. Clicking a button calls onPreset(id) and the parent
-// (PanoramaConsole) activates the corresponding compatibility-valid layer set.
+// Each preset is a <button> with aria-pressed to indicate the active preset,
+// showing ONLY its label (PO screenshot fix, 2026-07-08, engram obs 1047 —
+// the description/question line was dropped from the card; the field stays
+// on PanoramaPreset for other consumers, e.g. PanoramaConsole's metricIds).
+// Clicking a button calls onPreset(id) and the parent (PanoramaConsole)
+// activates the corresponding compatibility-valid layer set.
 
 import type { PanoramaPreset, PresetId } from "@/src/modules/panorama/domain/presets";
 
@@ -38,16 +40,13 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
                 type="button"
                 aria-pressed={isActive}
                 onClick={() => onPreset(preset.id)}
-                className={`w-full rounded-[var(--radius-md)] border px-2.5 py-2 text-left transition-colors ${
+                className={`flex min-h-24 w-full flex-col items-start justify-center rounded-[var(--radius-md)] border px-3 py-4 text-left transition-colors ${
                   isActive
                     ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul"
                     : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card"
                 }`}
               >
                 <span className="block text-sm font-medium leading-tight">{preset.label}</span>
-                <span className="mt-0.5 block text-xs leading-snug text-ln-op-mute">
-                  {preset.description}
-                </span>
               </button>
             </li>
           );

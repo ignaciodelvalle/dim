@@ -84,8 +84,11 @@ export async function showScreen(page: Page, urlPath: string): Promise<void> {
 export async function panoramaMapBeat(page: Page, urlPath: string): Promise<void> {
   await visit(page, urlPath);
   await page.waitForTimeout(3_000); // first map paint (dynamic client import)
+  // PO screenshot fix (2026-07-08): the h1 "Panorama" was removed (redundant
+  // with the breadcrumb + nav-rail). The eyebrow line is the stable console-
+  // loaded signal now.
   await expect(
-    page.locator("h1", { hasText: "Panorama" }).first(),
+    page.getByText("Centro de Situación Nacional").first(),
     `panorama console at ${urlPath}`,
   ).toBeVisible();
   await fullScroll(page);

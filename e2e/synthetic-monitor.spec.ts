@@ -111,8 +111,11 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
 
     // Panorama map paints a canvas within 60s.
     await page.goto("/gob/panorama", { waitUntil: "domcontentloaded" });
+    // PO screenshot fix (2026-07-08): the h1 "Panorama" was removed
+    // (redundant with the breadcrumb + nav-rail); the eyebrow line is the
+    // stable console-loaded signal now.
     await expect(
-      page.getByRole("heading", { name: "Panorama" }),
+      page.getByText("Centro de Situación Nacional"),
       "panorama console heading",
     ).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("canvas").first(), "panorama MapLibre canvas painted").toBeVisible({

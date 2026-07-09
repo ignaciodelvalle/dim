@@ -1895,18 +1895,13 @@ export function PanoramaConsole({
 
   return (
     <div className="space-y-4">
-      {/* Vista panel: the primary control answers the operator's QUESTION
-          first — a "VISTA" header + the active preset's question line, above
-          the 6-tab row (unchanged, layout="row"). */}
+      {/* Vista panel: PresetPanel renders its own single "Vista" label + the
+          6-tab row (layout="row"). PO screenshot fix (2026-07-08, engram obs
+          1047): the parent used to duplicate that label AND repeat the active
+          preset's question above the cards — removed; PresetPanel's own
+          label is the only one left, and the cards now show label only (see
+          PresetPanel.tsx). */}
       <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-4">
-        {activePreset && (
-          <div className="space-y-0.5">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">VISTA</p>
-            <p className="text-sm font-medium leading-snug text-ln-op-ink">
-              {activePreset.description}
-            </p>
-          </div>
-        )}
         <PresetPanel
           presets={PANORAMA_PRESETS}
           activePresetId={activePresetId}

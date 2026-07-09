@@ -4,9 +4,12 @@
 // Decision 2). Composes the EXISTING LayerPanel for Detalle mode (unchanged
 // compatibility model, blocked-state hints, opacity sliders, "solo firmado"
 // sub-checkbox) and adds a "Simple" surface: base chip (non-toggle) + active
-// overlay chips (click-to-remove) + a "＋N capas" expander that flips to
-// Detalle. Toggles ALWAYS delegate to the parent's onToggle → checkCompatibility
-// — Simple is a presentational surface only, never a second compatibility path.
+// overlay chips (click-to-remove) ONLY (PO screenshot fix, 2026-07-08, engram
+// obs 1047 — the "＋N capas" expander was removed; the Simple/Detalle
+// fieldset above is the sole, still-discoverable path to the full catalog,
+// including inactive layers). Toggles ALWAYS delegate to the parent's
+// onToggle → checkCompatibility — Simple is a presentational surface only,
+// never a second compatibility path.
 
 import { LayerPanel, type LayerPanelState } from "@/components/panorama/LayerPanel";
 import { type LayerRole, roleOf } from "@/src/modules/panorama/domain/compatibility";
@@ -55,7 +58,6 @@ export function CapasBox({
   const activeOverlays = activeOverlayIds
     .map((id) => PANORAMA_LAYERS.find((l) => l.id === id))
     .filter((l): l is NonNullable<typeof l> => l !== undefined);
-  const inactiveCount = PANORAMA_LAYERS.filter((l) => !states[l.id]?.active).length;
 
   return (
     <section aria-labelledby="capas-box-heading" className="space-y-2">
@@ -144,15 +146,6 @@ export function CapasBox({
               <span aria-hidden="true">×</span>
             </button>
           ))}
-          {inactiveCount > 0 && (
-            <button
-              type="button"
-              onClick={() => onCapasDetailChange(true)}
-              className={`${CHIP_BASE} border-dashed border-ln-op-line bg-ln-op-card text-ln-op-mute hover:border-ln-op-azul/40 hover:text-ln-op-azul`}
-            >
-              ＋{inactiveCount} capas
-            </button>
-          )}
         </div>
       )}
     </section>

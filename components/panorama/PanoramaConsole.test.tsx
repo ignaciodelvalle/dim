@@ -390,7 +390,7 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(range!.closest("details:not([open])")).toBeNull();
   });
 
-  it("Vista panel: clicking a tab activates the preset and the question line matches its description", () => {
+  it("PO screenshot fix (2026-07-08): Vista cards show only the label — clicking a tab activates the preset with no question/description line rendered anywhere", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
@@ -400,11 +400,11 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
       "aria-pressed",
       "true",
     );
-    // The question line appears TWICE: once as the Vista panel's headline
-    // (design Decision 1) and once inside the active preset button's own
-    // helper text (PresetPanel, unchanged) — both must match verbatim.
-    const question = screen.getAllByText("¿Dónde hay brotes activos sobre huecos de vacunación?");
-    expect(question).toHaveLength(2);
+    // Both the parent's duplicated "VISTA" headline + question line AND the
+    // per-card description were removed — the preset's question never renders.
+    expect(
+      screen.queryByText("¿Dónde hay brotes activos sobre huecos de vacunación?"),
+    ).not.toBeInTheDocument();
   });
 });
 

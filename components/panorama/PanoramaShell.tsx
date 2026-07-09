@@ -88,12 +88,17 @@ export function PanoramaShell({
 }: Props) {
   return (
     <div className="space-y-4">
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Centro de Situación Nacional
-        </p>
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Panorama</h1>
+      {/* PO screenshot fix (2026-07-08, engram obs 1047): the h1 "Panorama"
+          was redundant with the breadcrumb + the active nav-rail item (both
+          stay elsewhere in the shell). The scope chip — previously floating
+          next to the removed title — is promoted onto the eyebrow line so
+          "Centro de Situación Nacional" and the live Nacional/<Provincia>
+          scope read together as the header's top line. */}
+      <header className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Centro de Situación Nacional
+          </p>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[11px] text-ln-op-ink-2">
             <span aria-hidden="true">📍</span>
             {scopeLabel}
