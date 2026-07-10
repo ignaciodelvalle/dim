@@ -47,3 +47,82 @@ export function replaceMapStateUrl(url: string): void {
   if (typeof window === "undefined") return;
   window.history.replaceState(null, "", url);
 }
+
+// ---------------------------------------------------------------------------
+// "Copiar vista" fidelity (map-QOL): the shareable URL must reproduce the EXACT
+// view the operator sees. Layer/period/scope already travel; camera (zoom +
+// center) and the scrub position (`asOf`) did NOT, so a copied link opened a
+// DIFFERENT view. These pure encode/decode helpers close that gap — the console
+// writes them through replaceMapStateUrl on camera-settle / scrub-change and
+// restores them on load. Rounding keeps the URL short and stable (a sub-metre
+// camera jitter must not churn the querystring on every settle).
+// ---------------------------------------------------------------------------
+
+/** A restorable map camera: the values a single `jumpTo` needs. */
+export type MapCamera = { zoom: number; lng: number; lat: number };
+
+const CAMERA_ZOOM_KEY = "z";
+const CAMERA_LAT_KEY = "lat";
+const CAMERA_LNG_KEY = "lng";
+const AS_OF_KEY = "asOf";
+
+/** Round to `dp` decimals (avoids float-tail noise like 3.4000000000000004). */
+function round(value: number, dp: number): number {
+  const factor = 10 ** dp;
+  return Math.round(value * factor) / factor;
+}
+
+/**
+ * Write the camera to `params` (mutates in place). Zoom keeps 2 decimals (the
+ * level-flip hysteresis needs sub-integer fidelity); lat/lng keep 3 (~110 m,
+ * plenty for a shared frame and short in the URL).
+ */
+export function encodeCameraToParams(params: URLSearchParams, camera: MapCamera): void {
+  params.set(CAMERA_ZOOM_KEY, String(round(camera.zoom, 2)));
+  params.set(CAMERA_LAT_KEY, String(round(camera.lat, 3)));
+  params.set(CAMERA_LNG_KEY, String(round(camera.lng, 3)));
+}
+
+/**
+ * Parse a camera from `params`, or null when any component is absent, non-finite,
+ * or out of the valid lat/lng range (a hand-edited or truncated URL must not
+ * jump the camera to a nonsense coordinate — fall back to the computed frame).
+ */
+export function parseCameraFromParams(params: URLSearchParams): MapCamera | null {
+  const zRaw = params.get(CAMERA_ZOOM_KEY);
+  const latRaw = params.get(CAMERA_LAT_KEY);
+  const lngRaw = params.get(CAMERA_LNG_KEY);
+  if (zRaw === null || latRaw === null || lngRaw === null) return null;
+  const zoom = Number(zRaw);
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (!Number.isFinite(zoom) || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+  return { zoom, lng, lat };
+}
+
+/**
+ * Write the scrub position to `params` at DAY precision (a scrub steps whole
+ * days, so the time-of-day is meaningless). null = live edge → drop the param.
+ */
+export function encodeAsOfToParams(params: URLSearchParams, asOf: Date | null): void {
+  if (asOf === null || Number.isNaN(asOf.getTime())) {
+    params.delete(AS_OF_KEY);
+    return;
+  }
+  params.set(AS_OF_KEY, asOf.toISOString().slice(0, 10));
+}
+
+/**
+ * Parse the scrub position from `params` → a Date at UTC midnight of the encoded
+ * day, or null when absent/malformed. Tolerates a full ISO string (older links
+ * that stamped the whole instant) by reading only its date part.
+ */
+export function parseAsOfFromParams(params: URLSearchParams): Date | null {
+  const raw = params.get(AS_OF_KEY);
+  if (raw === null) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
+  if (match === null) return null;
+  const date = new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}

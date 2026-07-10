@@ -113,6 +113,13 @@ type Props = {
    * reset. Absent → no external-reset behavior (backward-compatible).
    */
   resetToken?: number;
+  /**
+   * "Copiar vista" fidelity: a shared scrub position to seek to ONCE on mount
+   * (decoded from the URL by the parent). Applied in a mount-only effect (post-
+   * hydration, so no SSR mismatch) — a value outside the active window is
+   * ignored (the slider stays at the live edge). Absent → open at the live edge.
+   */
+  initialAsOf?: Date | null;
 };
 
 export function TimeScrubber({
@@ -126,6 +133,7 @@ export function TimeScrubber({
   scrubDetail = false,
   onScrubDetailChange,
   resetToken,
+  initialAsOf = null,
 }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
   // by timestamp so a new Date object with the same instant does not rebuild.
@@ -167,6 +175,20 @@ export function TimeScrubber({
     setPlaying(false);
     setLooping(null);
   }, [resetToken]);
+
+  // "Copiar vista": seek ONCE on mount to a shared scrub day (if any). Declared
+  // AFTER the win-change reset above so it wins the mount pass (that reset also
+  // runs on mount, parking at live). A day outside the active window clamps to
+  // the live edge via dateToDayIndex → treated as "no restore" (idx === steps).
+  const initialAsOfSeekedRef = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only restore; win/initialAsOf read live.
+  useEffect(() => {
+    if (initialAsOfSeekedRef.current) return;
+    initialAsOfSeekedRef.current = true;
+    if (initialAsOf === null || win.steps === 0) return;
+    const idx = dateToDayIndex(win, initialAsOf);
+    if (idx > 0 && idx < win.steps) setIndex(idx);
+  }, []);
 
   // Derive the as-of Date for the current index. At the live edge → null.
   const atLive = index >= win.steps;

@@ -75,6 +75,7 @@ import {
   sampleStops,
 } from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
+import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
 
 // ---------------------------------------------------------------------------
@@ -228,6 +229,20 @@ type Props = {
    * level is now a property of (scope, zoom), never a control.
    */
   onZoom?: (zoom: number) => void;
+  /**
+   * "Copiar vista" fidelity (map-QOL): the camera to reproduce on load, decoded
+   * from a shared URL. Applied ONCE via a programmatic jumpTo INSTEAD of the
+   * computed jurisdiction/data frame so the reproduced view matches the sender's
+   * exactly. Captured at mount (a stable per-load value); null/undefined → keep
+   * today's computed-frame behavior.
+   */
+  initialCamera?: MapCamera | null;
+  /**
+   * "Copiar vista" fidelity (map-QOL): reports the full camera (zoom + center)
+   * after every settle so the console can mirror it into the URL. Fires on the
+   * same moveend as the zoom derivation (both user and programmatic moves).
+   */
+  onCameraChange?: (camera: MapCamera) => void;
   /**
    * panorama-ia-v2 §3.3: the unit key (province code) currently highlighted in
    * the RankedUnitsPanel, or null. Drives a feature-state highlight outline on
@@ -420,6 +435,8 @@ export function SituationalMap({
   selectedLocalityCenter = null,
   frame = null,
   onZoom,
+  initialCamera = null,
+  onCameraChange,
   highlightedUnitKey = null,
   onUnitHover,
   viewMeta,
@@ -471,6 +488,10 @@ export function SituationalMap({
   // handler that reports the camera zoom to the console (derived level).
   const onZoomRef = useRef(onZoom);
   onZoomRef.current = onZoom;
+  // "Copiar vista": latest camera-report callback for the one-time moveend
+  // handler that mirrors the camera (zoom + center) into the shareable URL.
+  const onCameraChangeRef = useRef(onCameraChange);
+  onCameraChangeRef.current = onCameraChange;
   // panorama-ia-v2 §3.3: latest map→row hover callback for the one-time handler.
   const onUnitHoverRef = useRef(onUnitHover);
   onUnitHoverRef.current = onUnitHover;
@@ -492,6 +513,10 @@ export function SituationalMap({
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
+  // "Copiar vista": capture the restore camera ONCE at mount (a stable per-load
+  // value decoded from the URL). When present the load handler reproduces it
+  // verbatim instead of computing a frame.
+  const initialCameraRef = useRef(initialCamera);
   // A1 PR-7: the national bbox used as fallback for the autozoom helper.
   // Populated after the initial fitBounds resolves on load. Never mutated.
   const nationalBboxRef = useRef<[[number, number], [number, number]] | null>(null);
@@ -660,6 +685,11 @@ export function SituationalMap({
         // of them (fitBounds/flyTo settle with moveend); setMapZoom no-ops when the
         // value is unchanged, so a pure pan costs nothing.
         onZoomRef.current?.(map.getZoom());
+        // "Copiar vista": mirror the settled camera (zoom + center) into the URL
+        // so a shared link reproduces the exact frame. moveend coalesces a rapid
+        // gesture, so this fires once per settle (not per frame).
+        const center = map.getCenter();
+        onCameraChangeRef.current?.({ zoom: map.getZoom(), lng: center.lng, lat: center.lat });
         if (divisionMoveTimerRef.current !== null) {
           window.clearTimeout(divisionMoveTimerRef.current);
         }
@@ -826,32 +856,45 @@ export function SituationalMap({
           // A1 PR-7: store as the national fallback for subsequent autozoom.
           nationalBboxRef.current = bbox;
         }
-        // Click-to-drill (task #55): when the operator drilled into a province
-        // (explicit `?province`, no server jurisdiction bbox), FRAME that province
-        // polygon on load — the drill committed via navigation, so the reloaded
-        // map must land fitted to the province, not the national data extent.
-        let frameBbox = bbox;
-        if (
-          !initialBoundsRef.current &&
-          selectedProvinceRef.current &&
-          basemapFeaturesRef.current.length > 0
-        ) {
-          const vp = computeJurisdictionViewport(
-            selectedProvinceRef.current,
-            null,
-            basemapFeaturesRef.current,
-            bbox ?? AR_BBOX,
-          );
-          if (vp.kind === "fitBounds") frameBbox = vp.bbox;
-        }
-        if (frameBbox) {
-          map.fitBounds(frameBbox, {
-            padding: FRAME_PADDING,
-            animate: false,
-            // Magnetic snap: a first fit that would land right on the flip is
-            // clamped just below it so the derived level starts unambiguous.
-            maxZoom: framingMaxZoom(map, frameBbox),
+        // "Copiar vista": a shared URL that pinned an exact camera wins over the
+        // computed frame — reproduce it verbatim with ONE jumpTo so the reloaded
+        // view matches the sender's. Otherwise fall through to the computed frame.
+        // (The A1 autozoom effect early-returns at mount — it only handles later
+        // jurisdiction picks — so it never clobbers this restored camera.)
+        const restoredCamera = initialCameraRef.current;
+        if (restoredCamera) {
+          map.jumpTo({
+            center: [restoredCamera.lng, restoredCamera.lat],
+            zoom: restoredCamera.zoom,
           });
+        } else {
+          // Click-to-drill (task #55): when the operator drilled into a province
+          // (explicit `?province`, no server jurisdiction bbox), FRAME that province
+          // polygon on load — the drill committed via navigation, so the reloaded
+          // map must land fitted to the province, not the national data extent.
+          let frameBbox = bbox;
+          if (
+            !initialBoundsRef.current &&
+            selectedProvinceRef.current &&
+            basemapFeaturesRef.current.length > 0
+          ) {
+            const vp = computeJurisdictionViewport(
+              selectedProvinceRef.current,
+              null,
+              basemapFeaturesRef.current,
+              bbox ?? AR_BBOX,
+            );
+            if (vp.kind === "fitBounds") frameBbox = vp.bbox;
+          }
+          if (frameBbox) {
+            map.fitBounds(frameBbox, {
+              padding: FRAME_PADDING,
+              animate: false,
+              // Magnetic snap: a first fit that would land right on the flip is
+              // clamped just below it so the derived level starts unambiguous.
+              maxZoom: framingMaxZoom(map, frameBbox),
+            });
+          }
         }
         // cursor #9: sync insetZoom to the map's ACTUAL zoom after the initial
         // fitBounds. insetZoom otherwise only updates on zoomend, so a govt

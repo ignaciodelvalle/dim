@@ -49,7 +49,15 @@ import {
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
-import { pushMapStateUrl, replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
+import {
+  type MapCamera,
+  encodeAsOfToParams,
+  encodeCameraToParams,
+  parseAsOfFromParams,
+  parseCameraFromParams,
+  pushMapStateUrl,
+  replaceMapStateUrl,
+} from "@/lib/ui/map-layer-nav";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import {
@@ -727,8 +735,26 @@ export function PanoramaConsole({
     [searchParams, committedPeriod],
   );
 
-  // Current as-of upper bound. null = live (parked at "ahora").
-  const [asOf, setAsOf] = useState<Date | null>(null);
+  // "Copiar vista" fidelity: decode the shared camera + scrub position ONCE from
+  // the mount URL (client-only — the map + scrubber consume these only in mount
+  // effects, never in SSR render, so a server/client value difference is inert).
+  // The camera is reproduced by SituationalMap's load handler; the scrub day
+  // seeks the TimeScrubber post-mount so the reproduced view matches the sender.
+  const [initialCamera] = useState<MapCamera | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : parseCameraFromParams(new URLSearchParams(window.location.search)),
+  );
+  const [initialAsOf] = useState<Date | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : parseAsOfFromParams(new URLSearchParams(window.location.search)),
+  );
+
+  // Current as-of upper bound. null = live (parked at "ahora"). Lazy-init from a
+  // restored scrub day so the console fetches the as-of features immediately on
+  // load (the scrubber independently seeks its slider to the same day).
+  const [asOf, setAsOf] = useState<Date | null>(() => initialAsOf);
   const scrubbing = asOf !== null;
   // panorama-vista-redesign QA fix: bumped whenever THIS console forces asOf
   // back to null OUTSIDE a since/until (period) change — a scope-only change
@@ -2099,6 +2125,42 @@ export function PanoramaConsole({
 
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
+  // "Copiar vista" fidelity: mirror the map camera (zoom + center) into the URL
+  // on every settle via a shallow History replace — the SAME machinery the
+  // layer/period/scope params ride — so a copied link reproduces the exact
+  // frame. Skips the write when the rounded value is unchanged (a pure re-render
+  // or a settle that lands on the same rounded camera never churns the URL).
+  const onCameraChange = useCallback((camera: MapCamera) => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const before = params.toString();
+    encodeCameraToParams(params, camera);
+    const after = params.toString();
+    if (after !== before) replaceMapStateUrl(`${window.location.pathname}?${after}`);
+  }, []);
+
+  // "Copiar vista" fidelity: mirror the scrub position into the URL at day
+  // precision (live edge → drop the param). The first run is guarded so a
+  // restored `asOf` is not clobbered before the scrubber has seeked to it (the
+  // scrubber briefly emits null at the live edge on mount, then seeks).
+  const asOfUrlSyncReadyRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!asOfUrlSyncReadyRef.current) {
+      asOfUrlSyncReadyRef.current = true;
+      // Do not delete a URL-restored asOf on the mount pass; only start syncing
+      // once the console actually holds a scrub position.
+      if (asOf === null) return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const before = params.toString();
+    encodeAsOfToParams(params, asOf);
+    const after = params.toString();
+    if (after !== before) {
+      replaceMapStateUrl(`${window.location.pathname}${after ? `?${after}` : ""}`);
+    }
+  }, [asOf]);
+
   // task #77: flip the replay basis (valid ↔ transaction). The as-of feature cache
   // holds features resolved under the PREVIOUS basis, so clear it; the as-of effect
   // (which now depends on timeBasis) refetches the active temporal layers under the
@@ -2309,6 +2371,8 @@ export function PanoramaConsole({
             selectedLocalityCenter={selectedLocalityCenter}
             frame={presetFrame}
             onZoom={onMapZoom}
+            initialCamera={initialCamera}
+            onCameraChange={onCameraChange}
             highlightedUnitKey={highlightedUnitKey}
             onUnitHover={setHighlightedUnitKey}
             viewMeta={viewMeta}
@@ -2350,6 +2414,7 @@ export function PanoramaConsole({
             scrubDetail={scrubDetail}
             onScrubDetailChange={setScrubDetail}
             resetToken={scrubResetToken}
+            initialAsOf={initialAsOf}
           />
         </div>
         <div className="space-y-3">

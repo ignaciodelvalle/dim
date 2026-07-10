@@ -5,7 +5,15 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { isSameRouteUrl, pushMapStateUrl, replaceMapStateUrl } from "./map-layer-nav";
+import {
+  encodeAsOfToParams,
+  encodeCameraToParams,
+  isSameRouteUrl,
+  parseAsOfFromParams,
+  parseCameraFromParams,
+  pushMapStateUrl,
+  replaceMapStateUrl,
+} from "./map-layer-nav";
 
 describe("pushMapStateUrl / replaceMapStateUrl — history-API state machine", () => {
   const pushState = vi.fn();
@@ -47,6 +55,56 @@ describe("pushMapStateUrl / replaceMapStateUrl — history-API state machine", (
   it("replaceMapStateUrl is a no-op when window is undefined (SSR safety)", () => {
     vi.stubGlobal("window", undefined);
     expect(() => replaceMapStateUrl("/gob/panorama?layer=perdidas")).not.toThrow();
+  });
+});
+
+describe("camera encode/decode — 'Copiar vista' round-trip", () => {
+  it("round-trips a camera through the URL (rounded, but restorable)", () => {
+    const params = new URLSearchParams("layers=perdidas&period=90d");
+    encodeCameraToParams(params, { zoom: 6.123456, lng: -63.61672, lat: -40.0004 });
+    expect(params.get("z")).toBe("6.12");
+    expect(params.get("lng")).toBe("-63.617");
+    expect(params.get("lat")).toBe("-40");
+    // Untouched params survive.
+    expect(params.get("layers")).toBe("perdidas");
+    const camera = parseCameraFromParams(params);
+    expect(camera).toEqual({ zoom: 6.12, lng: -63.617, lat: -40 });
+  });
+
+  it("returns null when any camera component is missing", () => {
+    expect(parseCameraFromParams(new URLSearchParams("z=6&lat=-40"))).toBeNull();
+    expect(parseCameraFromParams(new URLSearchParams(""))).toBeNull();
+  });
+
+  it("returns null for an out-of-range or non-finite coordinate (hand-edited URL)", () => {
+    expect(parseCameraFromParams(new URLSearchParams("z=6&lat=999&lng=-63"))).toBeNull();
+    expect(parseCameraFromParams(new URLSearchParams("z=x&lat=-40&lng=-63"))).toBeNull();
+  });
+});
+
+describe("asOf encode/decode — scrub-position round-trip", () => {
+  it("encodes a scrub position at day precision and parses it back to UTC midnight", () => {
+    const params = new URLSearchParams("layers=perdidas");
+    encodeAsOfToParams(params, new Date("2026-06-01T14:37:00.000Z"));
+    expect(params.get("asOf")).toBe("2026-06-01");
+    const parsed = parseAsOfFromParams(params);
+    expect(parsed?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+  });
+
+  it("drops the param at the live edge (null)", () => {
+    const params = new URLSearchParams("asOf=2026-06-01");
+    encodeAsOfToParams(params, null);
+    expect(params.has("asOf")).toBe(false);
+    expect(parseAsOfFromParams(params)).toBeNull();
+  });
+
+  it("tolerates a full-ISO asOf from an older link", () => {
+    const parsed = parseAsOfFromParams(new URLSearchParams("asOf=2026-06-01T09:00:00.000Z"));
+    expect(parsed?.toISOString()).toBe("2026-06-01T00:00:00.000Z");
+  });
+
+  it("returns null for a malformed asOf", () => {
+    expect(parseAsOfFromParams(new URLSearchParams("asOf=ayer"))).toBeNull();
   });
 });
 
