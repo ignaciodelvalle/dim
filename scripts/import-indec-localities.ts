@@ -53,6 +53,7 @@ import {
   arLocalitiesImportRuns,
   db,
 } from "@/db";
+import { isWholeProvinceAggregate } from "@/lib/infra/ar-localidades";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 
 const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censales.csv";
@@ -256,6 +257,12 @@ export async function runImport(options?: {
     const toInsert: NewArgentineLocality[] = [];
     const queuedInsertIds = new Set<string>();
 
+    // Whole-province aggregate rows we deliberately drop (see the skip below).
+    // Their indec_ids are excluded from `importedIndecIds` further down so that
+    // an aggregate row left over from an older import gets soft-deleted on the
+    // next run — the importer self-heals the province-as-locality overlap.
+    const skippedAggregateIds = new Set<string>();
+
     for (const [idx, row] of records.entries()) {
       const indecId = row.id;
       const localityName = row.nombre;
@@ -280,6 +287,21 @@ export async function runImport(options?: {
 
       const category = normalizeCategory(rawCategory);
       if (!category) {
+        stats.skipped += 1;
+        continue;
+      }
+
+      // Drop the whole-province aggregate (INDEC ships CABA as a single
+      // city-wide 'componente', indec_id 02000010, that double-counts the 48
+      // barrios tiling it). isWholeProvinceAggregate isolates exactly that row:
+      // name resolves to its own province AND no departamento. Real capital
+      // cities that share their province name always carry a departamento, so
+      // they are imported normally. Excluding it here (and from
+      // importedIndecIds below) keeps a re-import from reintroducing the row.
+      if (
+        isWholeProvinceAggregate({ provinceCode, localityName, departmentCode: departamentoCode })
+      ) {
+        skippedAggregateIds.add(indecId);
         stats.skipped += 1;
         continue;
       }
@@ -366,6 +388,10 @@ export async function runImport(options?: {
     // snapshot (rows inserted this run are all present in the CSV, so they are
     // never removal candidates) and flush the removals in one chunked UPDATE.
     const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
+    // A whole-province aggregate row present in the CSV is intentionally NOT
+    // imported; drop its id from the "seen" set so an aggregate left over from
+    // an older import is treated as gone and soft-deleted below (self-healing).
+    for (const id of skippedAggregateIds) importedIndecIds.delete(id);
     const toRemoveIds: string[] = [];
     for (const e of existingCatalog) {
       if (

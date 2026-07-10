@@ -23,6 +23,12 @@
 //   ar_localities centroids depend on these being non-NULL; the upsert below
 //   also BACKFILLS coordinates onto rows that predate this (imported NULL).
 // - indec_id stays null — these rows don't come from INDEC.
+// - This importer only ever inserts the 48 named barrios from CABA_BARRIOS, so
+//   it structurally CANNOT reintroduce the whole-province aggregate (the
+//   city-wide "Ciudad Autónoma de Buenos Aires" row). Do NOT add the whole city
+//   to CABA_BARRIOS: it would recreate the province-as-locality overlap that
+//   isWholeProvinceAggregate (lib/infra/ar-localidades.ts) exists to drop. The
+//   INDEC importer is where that aggregate is filtered out on ingest.
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
