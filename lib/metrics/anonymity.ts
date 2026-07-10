@@ -81,6 +81,63 @@ export function suppressSmallCells<Row>(
 }
 
 /**
+ * Complementary suppression (statistical-disclosure control) against a
+ * differencing attack.
+ *
+ * When a coarser aggregate is published UNSUPPRESSED (the Panorama province
+ * choropleth totals, spec §U5) while its finer breakdown is k-anon suppressed,
+ * a group with EXACTLY ONE suppressed cell leaks that cell's exact count by
+ * subtraction: `hidden = groupTotal − Σ(visible cells)`. Suppressing the small
+ * cell alone is not enough — its value is recoverable from the siblings.
+ *
+ * The textbook fix is COMPLEMENTARY (a.k.a. secondary) suppression: whenever a
+ * group has exactly one primary-suppressed cell AND at least one visible
+ * sibling, ALSO suppress the next-smallest visible cell in that group, so no
+ * single hidden value can be isolated by subtraction. After this pass every
+ * group holds 0 or ≥2 suppressed cells — EXCEPT a group with a lone suppressed
+ * cell and NO visible sibling (a single-cell group), which has nothing to
+ * complement: its exposure is the published group total itself (the accepted
+ * §U5 province-total disclosure), not a finer-tier differencing leak.
+ *
+ * Pure and generic: `group` extracts the aggregation group (e.g. province) and
+ * `count` the cell population. Returns re-partitioned visible/suppressed arrays;
+ * the caller renders the complementary cell with the SAME k-anon hatch (its
+ * value is withheld identically — the user cannot tell primary from secondary).
+ */
+export function complementarySuppress<Row>(
+  visible: readonly Row[],
+  suppressed: readonly Row[],
+  opts: { group: (r: Row) => string; count: (r: Row) => number },
+): { visible: Row[]; suppressed: Row[] } {
+  // Count primary-suppressed cells per group.
+  const suppressedPerGroup = new Map<string, number>();
+  for (const r of suppressed) {
+    const g = opts.group(r);
+    suppressedPerGroup.set(g, (suppressedPerGroup.get(g) ?? 0) + 1);
+  }
+
+  // For each group with exactly one suppressed cell, pick the smallest visible
+  // sibling to promote into suppression (the complementary cell).
+  const toPromote = new Set<Row>();
+  for (const [g, n] of suppressedPerGroup) {
+    if (n !== 1) continue;
+    let smallest: Row | null = null;
+    for (const r of visible) {
+      if (opts.group(r) !== g) continue;
+      if (smallest === null || opts.count(r) < opts.count(smallest)) smallest = r;
+    }
+    // No visible sibling → single-cell group; nothing to complement (see jsdoc).
+    if (smallest !== null) toPromote.add(smallest);
+  }
+
+  if (toPromote.size === 0) return { visible: [...visible], suppressed: [...suppressed] };
+  return {
+    visible: visible.filter((r) => !toPromote.has(r)),
+    suppressed: [...suppressed, ...toPromote],
+  };
+}
+
+/**
  * Convenience wrapper that returns the MetricResult shape expected by
  * locality-grouped fetchers.
  *

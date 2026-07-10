@@ -18,7 +18,7 @@ export { buildProjectionContext, ctxKey } from "./context";
 export type { Cell, MetricResult, SuppressedCells } from "./types";
 
 export type { SuppressOpts } from "./anonymity";
-export { suppressSmallCells, suppressedMetric } from "./anonymity";
+export { complementarySuppress, suppressSmallCells, suppressedMetric } from "./anonymity";
 
 export { petsScopeClause, petEventsScopeClause, jurisdictionPairClause } from "./scope";
 

@@ -41,6 +41,7 @@ import {
   type DashboardActor,
   type DashboardJurisdiction,
   buildProjectionContext,
+  complementarySuppress,
   fetchReunificationByUnit,
   jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
@@ -655,17 +656,27 @@ function toChoroplethCells(rollup: RollupRow[]): {
   cells: ChoroplethCell[];
   suppressedCount: number;
 } {
-  const { visible, suppressed, suppressedCount } = suppressSmallCells(rollup, {
+  const primary = suppressSmallCells(rollup, {
     count: (r) => r.count,
     key: (r) => r.key,
     k: 5,
   });
+  // Complementary suppression (differencing-attack defense): the province total
+  // (§U5) is published unsuppressed, so a province with exactly ONE suppressed
+  // department leaks it by subtraction. Also suppress the next-smallest visible
+  // department in that province so no lone hidden cell survives. Grouped by
+  // province — the published unsuppressed aggregate.
+  const { visible, suppressed } = complementarySuppress(
+    primary.visible as unknown as readonly RollupRow[],
+    primary.suppressed,
+    { group: (r) => r.province, count: (r) => r.count },
+  );
+  const suppressedCount = suppressed.length;
 
   const cells: ChoroplethCell[] = [];
-  // Visible cells carry the real value. `visible` is branded SuppressedCells
-  // (readonly Cell[]); we know the underlying rows are RollupRow (same objects
-  // suppressSmallCells partitioned), so we re-narrow via unknown.
-  for (const r of visible as unknown as readonly RollupRow[]) {
+  // Visible cells carry the real value. The rows are RollupRow objects that
+  // suppressSmallCells / complementarySuppress partitioned.
+  for (const r of visible) {
     cells.push({
       key: r.key,
       province: r.province,
@@ -1309,13 +1320,22 @@ function toAggregatedCells(
     };
   }
   // Locality level — route through suppressSmallCells (k=5).
-  const { visible, suppressed, suppressedCount } = suppressSmallCells(rollup, {
+  const primary = suppressSmallCells(rollup, {
     count: (r) => r.count,
     key: (r) => r.key,
     k: 5,
   });
+  // Complementary suppression: same differencing-attack defense as the
+  // choropleth path — a province with a lone suppressed folded cell also
+  // suppresses its next-smallest visible sibling (grouped by province).
+  const { visible, suppressed } = complementarySuppress(
+    primary.visible as unknown as readonly RollupRow[],
+    primary.suppressed,
+    { group: (r) => r.province, count: (r) => r.count },
+  );
+  const suppressedCount = suppressed.length;
   const cells: AggregatedPointCell[] = [];
-  for (const r of visible as unknown as readonly RollupRow[]) {
+  for (const r of visible) {
     cells.push({
       key: r.key,
       province: r.province,
