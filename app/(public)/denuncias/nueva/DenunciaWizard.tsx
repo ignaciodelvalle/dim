@@ -42,7 +42,6 @@
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { useEffect, useRef, useState } from "react";
 
-import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { clearDraft, restoreDraft, saveDraft } from "@/lib/ui/denuncia-autosave";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
@@ -97,7 +96,6 @@ export function DenunciaWizard() {
   const [stepError, setStepError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [successCode, setSuccessCode] = useState<string | null>(null);
 
   // Ref to the outer <form> so we can read all inputs at submit time,
   // including LocationFields' uncontrolled hidden inputs inside Step3Where.
@@ -133,15 +131,13 @@ export function DenunciaWizard() {
   // UX 3.2 item 3 — Autosave to localStorage whenever relevant state changes.
   // Contact email/phone are NEVER saved here (anonymous flow — those fields stay ephemeral).
   useEffect(() => {
-    // Only autosave while the form is in-progress (no successCode yet)
-    if (successCode) return;
     saveDraft({
       step,
       step1: { kind: wizState.kind },
       step2: { severity: wizState.severity },
       step3: { description: wizState.description, when: wizState.when },
     });
-  }, [step, wizState.kind, wizState.severity, wizState.description, wizState.when, successCode]);
+  }, [step, wizState.kind, wizState.severity, wizState.description, wizState.when]);
 
   // UX 3.2 item 3 — beforeunload warning when the reporter has entered any data.
   useEffect(() => {
@@ -151,7 +147,7 @@ export function DenunciaWizard() {
       wizState.description.trim() ||
       wizState.when
     );
-    if (!hasDirtyData || successCode) return;
+    if (!hasDirtyData) return;
 
     function handleBeforeUnload(e: BeforeUnloadEvent) {
       e.preventDefault();
@@ -162,7 +158,7 @@ export function DenunciaWizard() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [wizState.kind, wizState.severity, wizState.description, wizState.when, successCode]);
+  }, [wizState.kind, wizState.severity, wizState.description, wizState.when]);
 
   function updateState(patch: Partial<WizardState>) {
     setWizState((prev) => ({ ...prev, ...patch }));
@@ -326,20 +322,10 @@ export function DenunciaWizard() {
     }
   }
 
-  if (successCode) {
-    return (
-      <LnSuccessScreen
-        title="Denuncia registrada"
-        description="Tu denuncia fue recibida. Gracias por animarte a denunciar."
-        code={successCode}
-        codeWarning="Si enviaste anónima, este código es la única forma de volver a esta denuncia. Guardalo en un lugar seguro o sacale screenshot."
-        next={[
-          { label: "Ver mi denuncia →", href: `/denuncias/codigo/${successCode}` },
-          { label: "Volver al inicio", href: "/", variant: "secondary" },
-        ]}
-      />
-    );
-  }
+  // NOTE: this wizard never renders a success screen inline — on a successful
+  // submit, createWelfareReportAction redirects to /denuncias/codigo/[code],
+  // which is the canonical receipt. The catch block above clears the autosave
+  // draft on the NEXT_REDIRECT signal.
 
   return (
     // Single <form> wrapping the wizard — no native action, submit handled by handleSubmit.
