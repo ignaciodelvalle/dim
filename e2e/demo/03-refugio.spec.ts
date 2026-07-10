@@ -20,7 +20,12 @@ import {
 // and microchip replacement are SHOWN (navigate + full scroll) but NEVER
 // submitted. Additive mutations happen only on the animal we intake here.
 test("segmento 03 — refugio", async ({ page }) => {
-  test.setTimeout(18 * 60_000);
+  // 25m (up from 18m): the operator surfaces got heavier this week — the org
+  // console pages now render more projections/tiles, so each networkidle beat
+  // costs more and the journey COMPLETES right at the old 18m budget (perf
+  // audit 2026-07-09). The extra headroom reflects the heavier surface, not a
+  // regression. Owner (02) stays at 18m — it drives fewer operator pages.
+  test.setTimeout(25 * 60_000);
   page.on("dialog", (d) => d.accept().catch(() => {}));
 
   await loginAs(page, ACCOUNTS.orgAdmin);

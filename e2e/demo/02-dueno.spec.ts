@@ -20,9 +20,12 @@ test("segmento 02 — dueno", async ({ page }) => {
   // 1. Home
   await showScreen(page, "/inicio");
 
-  // 2. ALTA DE MASCOTA — single-step form (MinimalNewPetForm), ends on the QR credential.
+  // 2. ALTA DE MASCOTA — 2-step wizard (MinimalNewPetForm, PO decision
+  // 2026-07-08, commit f94ad6ff): paso 1 identidad → "Continuar" → paso 2
+  // "foto y más" → "Crear mascota". Ends on the QR credential.
   await showScreen(page, "/mis-mascotas");
   await visit(page, "/mis-mascotas/nueva");
+  // Paso 1 — identidad (nombre / especie / sexo / provincia → localidad).
   await page.locator('input[name="name"]').fill("Luna");
   await page.getByRole("button", { name: /perro/i }).click();
   await page.locator('label:has(input[name="sex"][value="male"])').click();
@@ -31,6 +34,12 @@ test("segmento 02 — dueno", async ({ page }) => {
   // province is picked. Palermo is a CABA barrio.
   await page.locator("#cascade-province").selectOption("AR-C");
   await pickLocality(page, "#localityName-input", "Palermo");
+  await fullScroll(page);
+  // Advance to paso 2. The step is a client-side toggle (both steps stay
+  // mounted), so "Continuar" only swaps the footer button — no navigation.
+  await page.getByRole("button", { name: /continuar/i }).click();
+  // Paso 2 — "foto y más". The photo is OPTIONAL (skippable fast path), so
+  // submit straight through to mint the credential.
   await fullScroll(page);
   await page.getByRole("button", { name: /crear mascota/i }).click();
   await page.waitForURL(/\/credencial/, { timeout: 30_000 });

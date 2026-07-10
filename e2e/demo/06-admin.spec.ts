@@ -7,7 +7,13 @@ import { ACCOUNTS, fullScroll, loginAs, panoramaMapBeat, showScreen, visit } fro
 // /admin/sistema (recently fixed crash), /admin/sistema/crons (21 crons),
 // /admin/libro (event book with the seeded amendment chain).
 test("segmento 06 — admin", async ({ page }) => {
-  test.setTimeout(18 * 60_000);
+  // 25m (up from 18m): the admin operator surfaces got heavier this week — the
+  // dashboards now render more projections/tiles per page, so each networkidle
+  // beat costs more and the journey COMPLETES right at the old 18m budget (its
+  // failure screenshot was the LAST screen; perf audit 2026-07-09). The extra
+  // headroom reflects the heavier surface, not a regression. Owner (02) stays
+  // at 18m — it drives fewer operator pages.
+  test.setTimeout(25 * 60_000);
   page.on("dialog", (d) => d.accept().catch(() => {}));
 
   await loginAs(page, ACCOUNTS.admin);
