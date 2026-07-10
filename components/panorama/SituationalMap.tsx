@@ -542,6 +542,13 @@ export function SituationalMap({
         zoom: AR_ZOOM,
         attributionControl: false,
         dragRotate: false,
+        // RESILIENCE (2026-07-10, PO instrumented-review re-confirm): a single
+        // wheel tick over the canvas used to zoom the map AND scroll the page at
+        // once — the operator lost their place every time they scrolled past the
+        // console. cooperativeGestures gates wheel-zoom behind Ctrl/⌘ (and pan
+        // behind two fingers on touch), so a plain scroll moves the PAGE, never
+        // the map. Help text localized below.
+        cooperativeGestures: true,
         // map-QOL zoom bounds: pan/zoom clamped to the national territory —
         // the operator can never get lost in the open ocean or zoom out to
         // a meaningless world view.
@@ -560,6 +567,11 @@ export function SituationalMap({
           "NavigationControl.ZoomIn": "Acercar",
           "NavigationControl.ZoomOut": "Alejar",
           "NavigationControl.ResetBearing": "Restablecer orientación",
+          // cooperativeGestures overlay copy (es-AR) — shown when the operator
+          // scrolls over the canvas without the modifier key.
+          "CooperativeGesturesHandler.WindowsHelpText": "Usá Ctrl + rueda para hacer zoom",
+          "CooperativeGesturesHandler.MacHelpText": "Usá ⌘ + rueda para hacer zoom",
+          "CooperativeGesturesHandler.MobileHelpText": "Usá dos dedos para mover el mapa",
         },
       });
       mapRef.current = map;
