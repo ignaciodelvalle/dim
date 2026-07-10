@@ -10,6 +10,7 @@ import {
   divisionSuppressedFilter,
   joinCellsToDivisionsMulti,
 } from "@/components/panorama/division-fill";
+import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
 import { normalizeBarioCode } from "@/lib/infra/geo-join";
 
@@ -118,7 +119,7 @@ export function CabaInset({ layer, visible, uniformFill = null }: Props) {
         }
         try {
           // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
-          const raw = (await fetch(CABA_BARRIOS_URL).then((r) => r.json())) as any;
+          const raw = await fetchGeojsonCached<any>(CABA_BARRIOS_URL);
           if (cancelled) return;
           const features = (raw.features ?? []) as BarrioRawFeature[];
           map.addSource(SRC, {
