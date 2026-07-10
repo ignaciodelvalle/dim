@@ -564,6 +564,16 @@ export function SituationalMap({
       // gesture coalesces into ONE resolution (→ at most one file fetch); the
       // signature dedupe inside syncDivisions then skips no-op rebuilds.
       map.on("moveend", () => {
+        // W1/W3 fix: report the REAL camera zoom after EVERY camera settle,
+        // including PROGRAMMATIC moves — the initial fitBounds, the jurisdiction
+        // viewport flyTo/fitBounds, and preset framing. `zoomend` alone fires only
+        // on a user gesture (and not at all when a programmatic move lands on the
+        // same zoom), so the console otherwise derived its aggregation level from
+        // the stale `mapZoom` placeholder until the first manual gesture — spuriously
+        // downgrading a shared/saved locality board to province. moveend catches all
+        // of them (fitBounds/flyTo settle with moveend); setMapZoom no-ops when the
+        // value is unchanged, so a pure pan costs nothing.
+        onZoomRef.current?.(map.getZoom());
         if (divisionMoveTimerRef.current !== null) {
           window.clearTimeout(divisionMoveTimerRef.current);
         }

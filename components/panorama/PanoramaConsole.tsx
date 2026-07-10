@@ -38,6 +38,7 @@ import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
 import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
 import {
   Z_LOCALITY,
   Z_LOCALITY_ENTER,
@@ -697,19 +698,33 @@ export function PanoramaConsole({
     };
   }, [kpisPromise]);
 
+  // W2 fix: the COMMITTED period preset. A preset commit / board restore writes
+  // `period=` via a SHALLOW History replace that `useSearchParams()` can't observe,
+  // so keying the period chrome (scrubber axis + PeriodPicker) off searchParams
+  // alone left it stuck on the 3y default while the data showed the preset window.
+  // This state carries the truth; both chrome consumers prefer it (searchParams
+  // fallback). Lazy-init on the seeded first-visit so the chrome agrees with the
+  // seeded data from FIRST paint (SSR + hydration compute the same initializer, so
+  // no hydration mismatch); null on the normal path → searchParams wins as before.
+  const [committedPeriod, setCommittedPeriod] = useState<string | null>(() => {
+    if (hasSeed && seededPresetId != null) return getPreset(seededPresetId)?.periodPreset ?? null;
+    return null;
+  });
+
   // --- F4 temporal reproduction -------------------------------------------
   // The active period window [since, until] drives the scrubber axis. Resolved
-  // from the SAME searchParams the server used (parity). `until` is "ahora".
+  // from the committed period (a shallow preset commit) when present, else the
+  // SAME searchParams the server used (parity). `until` is "ahora".
   const { since, until } = useMemo(
     () =>
       resolveAnalyticsPeriod({
         // Panorama defaults to a multi-year window so the scrubber spans the
         // seeded history; the detail dashboards keep their own short defaults.
-        period: searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET,
+        period: committedPeriod ?? searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET,
         from: searchParams.get("from") ?? undefined,
         to: searchParams.get("to") ?? undefined,
       }),
-    [searchParams],
+    [searchParams, committedPeriod],
   );
 
   // Current as-of upper bound. null = live (parked at "ahora").
@@ -1685,6 +1700,11 @@ export function PanoramaConsole({
       });
 
       setActivePresetId(id);
+      // W2 fix: this commit writes `period=<preset>` via a shallow History replace
+      // that useSearchParams() can't see — record the committed period so the
+      // scrubber axis + PeriodPicker highlight track the loaded window, not the
+      // stale bare-URL default.
+      setCommittedPeriod(preset.periodPreset);
 
       // panorama-redesign Fase 1: apply the preset's optional map framing
       // (camera-only — data scope untouched). Framing-less presets clear it.
@@ -1920,6 +1940,9 @@ export function PanoramaConsole({
     }
     presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
     replaceMapStateUrl(`${window.location.pathname}?${nextParams.toString()}`);
+    // W2 fix: mirror the restored period into committedPeriod so the chrome tracks
+    // the shallow-committed window (useSearchParams stays on the bare URL).
+    if (saved.period !== null) setCommittedPeriod(saved.period);
     setLevel(savedLevel);
     levelRef.current = savedLevel;
     setActivePresetId(
@@ -2267,7 +2290,12 @@ export function PanoramaConsole({
                 </span>
                 Alcance y período
               </summary>
-              <div className="mt-2 space-y-3">{filtersSlot}</div>
+              {/* W2 fix: bridge the console's committed period into the server-owned
+                  filters slot so PeriodPicker (which reads useSearchParams) highlights
+                  the loaded window on a shallow preset commit, not the stale default. */}
+              <CommittedPeriodContext.Provider value={committedPeriod}>
+                <div className="mt-2 space-y-3">{filtersSlot}</div>
+              </CommittedPeriodContext.Provider>
             </details>
           )}
           {/* panorama-vista-redesign Phase 3 (design Decision 3): per-vista KPI

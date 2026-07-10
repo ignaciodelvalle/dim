@@ -3,6 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { useCommittedPeriod } from "@/components/panorama/committed-period-context";
+
 import { DateRangePicker } from "./DateRangePicker";
 import type { DateRange } from "./DateRangePicker";
 
@@ -86,10 +88,17 @@ export function PeriodPicker({
   className = "",
 }: PeriodPickerProps) {
   const searchParams = useSearchParams();
+  // W2 fix: a shallow client-side period commit (Panorama presets) isn't visible
+  // to useSearchParams(); prefer the console's committed period so the active chip
+  // matches the loaded data. null (no provider / nothing committed) → searchParams.
+  const committedPeriod = useCommittedPeriod();
 
   const presets = multiYear ? [...PRESETS, ...MULTI_YEAR_PRESETS] : PRESETS;
 
-  const activePreset = (searchParams.get(presetParamKey) as PeriodPreset | null) ?? defaultPreset;
+  const activePreset =
+    (committedPeriod as PeriodPreset | null) ??
+    (searchParams.get(presetParamKey) as PeriodPreset | null) ??
+    defaultPreset;
 
   const fromValue = searchParams.get(customParamKeys.from) ?? null;
   const toValue = searchParams.get(customParamKeys.to) ?? null;

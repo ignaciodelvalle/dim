@@ -25,6 +25,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
+import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
+
 import { PeriodPicker } from "./PeriodPicker";
 
 const mockAssign = vi.fn();
@@ -114,5 +116,39 @@ describe("PeriodPicker — full navigation on change (router-drop fix)", () => {
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
     expect(routerRefresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("PeriodPicker — committed period wins over searchParams (W2 seeded-visit chrome)", () => {
+  // Panorama's seeded first visit commits `period=<preset>` via a SHALLOW History
+  // replace that useSearchParams() (a bare-URL snapshot) can't observe. The console
+  // bridges the committed period through CommittedPeriodContext so the active chip
+  // matches the loaded window instead of the "3 años" default (multiYear picker).
+  it("highlights the committed preset window, not the searchParams default", () => {
+    // Bare URL (no ?period=) — exactly the seeded first-visit landing.
+    setUrl("/gob/panorama");
+    render(
+      <CommittedPeriodContext.Provider value="90d">
+        <PeriodPicker defaultPreset="3y" multiYear />
+      </CommittedPeriodContext.Provider>,
+    );
+
+    expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "3 años" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("falls back to the searchParams default when nothing is committed (null context)", () => {
+    setUrl("/gob/panorama");
+    render(
+      <CommittedPeriodContext.Provider value={null}>
+        <PeriodPicker defaultPreset="3y" multiYear />
+      </CommittedPeriodContext.Provider>,
+    );
+
+    expect(screen.getByRole("button", { name: "3 años" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });
