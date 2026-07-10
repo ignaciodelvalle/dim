@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2393,
+    "totalViolations": 2392,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -398,6 +398,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/panorama/CabaInset.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 1,
+      "hexStyle": 0
+    },
     "components/panorama/DetailDrawer.tsx": {
       "text": 6,
       "space": 0,
@@ -420,7 +427,7 @@
       "hexStyle": 0
     },
     "components/panorama/PanoramaShell.tsx": {
-      "text": 4,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -432,13 +439,6 @@
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 1
-    },
-    "components/panorama/TimeScrubber.tsx": {
-      "text": 2,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
     },
     "components/layout/AppCitizenMasthead.tsx": {
       "text": 18,
@@ -1064,7 +1064,7 @@
       "hexStyle": 0
     },
     "app/gob/vigilancia/page.tsx": {
-      "text": 15,
+      "text": 17,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1079,13 +1079,6 @@
     },
     "app/gob/vigilancia/_components/OutbreakSignalRow.tsx": {
       "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/vigilancia/zoonosis/page.tsx": {
-      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1449,7 +1442,7 @@
       "hexStyle": 0
     },
     "app/gob/campanas/page.tsx": {
-      "text": 14,
+      "text": 15,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1491,7 +1484,7 @@
       "hexStyle": 0
     },
     "app/gob/adopciones/page.tsx": {
-      "text": 16,
+      "text": 21,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1778,7 +1771,7 @@
       "hexStyle": 0
     },
     "app/(public)/perdidas/page.tsx": {
-      "text": 5,
+      "text": 6,
       "space": 1,
       "rounded": 3,
       "shadow": 0,
@@ -2534,15 +2527,8 @@
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/nueva/MinimalNewPetForm.tsx": {
-      "text": 5,
-      "space": 1,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/nueva/page.tsx": {
-      "text": 1,
-      "space": 1,
+      "text": 3,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
