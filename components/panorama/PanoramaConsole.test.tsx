@@ -21,6 +21,7 @@
 import "@testing-library/jest-dom/vitest";
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const routerPush = vi.fn();
@@ -59,7 +60,9 @@ let layerPanelProps: {
 vi.mock("@/components/panorama/SituationalMapDynamic", () => ({
   SituationalMapDynamic: (props: Record<string, unknown>) => {
     mapProps = props;
-    return <div data-testid="map-region" />;
+    // ARCHETYPE A: the TimeScrubber is DOCKED inside the map card via the
+    // `bottomDock` prop — render it so the scrubber-gating assertions still see it.
+    return <div data-testid="map-region">{props.bottomDock as ReactNode}</div>;
   },
 }));
 vi.mock("@/components/panorama/DetailDrawer", () => ({

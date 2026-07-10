@@ -15,9 +15,11 @@ export const SituationalMapDynamic = dynamic(
   {
     ssr: false,
     loading: () => (
+      // ARCHETYPE A full-bleed: fill the console's viewport-relative sizer (the
+      // map card is `h-full`), not a fixed 560px, so the skeleton doesn't jump.
       <div
-        className="w-full animate-pulse rounded-[var(--radius-lg)] border border-ln-op-line"
-        style={{ height: 560, background: "#0b1020" }}
+        className="h-full min-h-[440px] w-full animate-pulse rounded-[var(--radius-lg)] border border-ln-op-line"
+        style={{ background: "#0b1020" }}
         aria-hidden="true"
       />
     ),

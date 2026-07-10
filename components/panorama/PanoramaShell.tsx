@@ -131,7 +131,7 @@ export function PanoramaShell({
     // the shared AppShell/topbar.
     <div
       data-theme="situation-room"
-      className="-mx-6 -my-[22px] min-h-[calc(100%+44px)] space-y-4 bg-ln-op-page px-6 py-5 text-ln-op-ink"
+      className="-mx-6 -my-[22px] min-h-[calc(100%+44px)] space-y-2.5 bg-ln-op-page px-6 py-3.5 text-ln-op-ink"
     >
       {/* PO screenshot fix (2026-07-08, engram obs 1047): the h1 "Panorama"
           was redundant with the breadcrumb + the active nav-rail item (both
@@ -139,20 +139,17 @@ export function PanoramaShell({
           next to the removed title — is promoted onto the eyebrow line so
           "Centro de Situación Nacional" and the live Nacional/<Provincia>
           scope read together as the header's top line. */}
-      <header className="space-y-1.5">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Centro de Situación Nacional
-          </p>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[11px] text-ln-op-ink-2">
-            <span aria-hidden="true">📍</span>
-            {scopeLabel}
-          </span>
-        </div>
-        {/* ARCHETYPE situation-room: the descriptive paragraph no longer sits
-            always-on above the map (it pushed the canvas below the fold). It
-            collapses into an "Acerca de esta vista" disclosure so the map leads
-            and the explanation is one click away. */}
+      {/* ARCHETYPE A: a SINGLE compact identity line so the map leads the fold —
+          eyebrow + live scope + the "Acerca de esta vista" disclosure share one
+          row (the description expands full-width below only when opened). */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          Centro de Situación Nacional
+        </p>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[11px] text-ln-op-ink-2">
+          <span aria-hidden="true">📍</span>
+          {scopeLabel}
+        </span>
         <details className="group text-[13px] text-ln-op-mute">
           <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
             <span
@@ -163,7 +160,7 @@ export function PanoramaShell({
             </span>
             Acerca de esta vista
           </summary>
-          <p className="mt-1.5">
+          <p className="mt-1.5 max-w-prose">
             Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
             (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
           </p>

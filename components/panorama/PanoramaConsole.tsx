@@ -2485,6 +2485,19 @@ export function PanoramaConsole({
   const selectedLocalityCenter: [number, number] | null =
     selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
 
+  // ARCHETYPE A: on-canvas aggregation-level badge copy. Announces what a map
+  // mark aggregates NOW — "Provincias" at the national rollup, the division noun
+  // ("Departamentos/partidos", "Comunas" for CABA) when drilled into a province,
+  // or "Localidades" at locality level without a province scope.
+  const aggregationLabel =
+    level === "province"
+      ? "Provincias"
+      : selectedProvinceCode
+        ? selectedProvinceCode === "AR-C"
+          ? "Comunas"
+          : "Departamentos/partidos"
+        : "Localidades";
+
   // panorama-vista-redesign Phase 1 (design Decision 1): Vista panel (VISTA
   // label + active question line + PresetPanel row tabs) → 2-col body
   // (map column: map + honesty lines + scrubber | metrics column: ~342px
@@ -2567,6 +2580,96 @@ export function PanoramaConsole({
     }
   }, [temporalAvailable, asOf]);
 
+  // ARCHETYPE A: the time scrubber is DOCKED to the map card's bottom edge (see
+  // SituationalMap `bottomDock`) instead of floating as a separate block below
+  // the map. Its logic/props are UNCHANGED — this is a layout move only.
+  const scrubberDock = (
+    <TimeScrubber
+      since={since}
+      until={until}
+      onChange={onScrub}
+      basis={timeBasis}
+      onBasisChange={onBasisChange}
+      temporalAvailable={temporalAvailable}
+      currentStateBaseLabel={currentStateBaseLabel}
+      scrubDetail={scrubDetail}
+      onScrubDetailChange={setScrubDetail}
+      resetToken={scrubResetToken}
+      initialAsOf={initialAsOf}
+      // SUGGESTION 9: while a scope/period refetch is in flight the last-known
+      // kpis.dataAsOf belongs to the PREVIOUS scope — showing its time would
+      // print a stale watermark. Drop to null (scrubber falls back to the
+      // generic "Al último evento") until the new cutoff lands.
+      watermark={kpisPending || kpisStale ? null : kpis.dataAsOf ? new Date(kpis.dataAsOf) : null}
+      histogramBins={signalHistogramBins}
+    />
+  );
+
+  // task #63: bivariate encoding toggle — offered ONLY on "Brotes activos" at
+  // province framing (both inputs active). A map ENCODING switch (how the two
+  // layers are drawn), not a data toggle. ARCHETYPE A: relocated from above the
+  // map into the monitoring rail so the geography leads the fold.
+  const bivariateControl = bivariateEligible ? (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2">
+      <div className="flex flex-col">
+        <span className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
+          Ver riesgo combinado
+        </span>
+        <span className="text-[var(--text-xs)] text-ln-op-mute">
+          Cobertura baja × señales altas — el rincón de riesgo del mapa bivariado
+        </span>
+      </div>
+      <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
+        <legend className="sr-only">Codificación del mapa de brotes</legend>
+        <button
+          type="button"
+          aria-pressed={!bivariateMode}
+          onClick={() => setBivariateMode(false)}
+          className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
+            !bivariateMode
+              ? "bg-ln-op-azul/10 text-ln-op-azul"
+              : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
+          }`}
+        >
+          Capas
+        </button>
+        <button
+          type="button"
+          aria-pressed={bivariateActive}
+          // The bivariate join can't mix a frozen (non-temporal) cobertura
+          // with an as-of zoonosis frame — offered only at the live edge; and
+          // it needs enough comparable units to classify (WARNING 7).
+          disabled={scrubbing || bivariateDegenerate}
+          title={
+            scrubbing
+              ? "Riesgo bivariado — solo al último evento"
+              : bivariateDegenerate
+                ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables`
+                : undefined
+          }
+          onClick={() => setBivariateMode(true)}
+          className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            bivariateActive
+              ? "bg-ln-op-azul/10 text-ln-op-azul"
+              : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
+          }`}
+        >
+          Riesgo (bivariado)
+        </button>
+      </fieldset>
+      {scrubbing && (
+        <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
+          Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo).
+        </p>
+      )}
+      {!scrubbing && bivariateDegenerate && (
+        <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
+          Riesgo bivariado requiere al menos {BIVARIATE_MIN_UNITS} unidades comparables en la vista.
+        </p>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-4">
       {/* ARCHETYPE situation-room control bar: the preset strip is the PRIMARY
@@ -2605,96 +2708,41 @@ export function PanoramaConsole({
         />
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_342px]">
-        <div className="min-w-0 space-y-3">
-          {/* Task #53 seed: always-visible condition chips (scope / period / data
-              cutoff) so the CONDITIONS that qualify the board are never hidden
-              behind the collapsed "Alcance y período" disclosure. A clickable
-              chip opens the full control it summarizes. */}
-          <FilterChips chips={filterChips} />
-          {/* task #63: bivariate encoding toggle — offered ONLY on "Brotes
-              activos" at province framing (both inputs active). It is a map
-              ENCODING switch (how the two layers are drawn), not a data toggle:
-              on → the 3×3 risk matrix replaces the stacked coverage fill +
-              zoonosis bubbles; off → the two layers as usual. */}
-          {bivariateEligible && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2">
-              <div className="flex flex-col">
-                <span className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
-                  Ver riesgo combinado
-                </span>
-                <span className="text-[var(--text-xs)] text-ln-op-mute">
-                  Cobertura baja × señales altas — el rincón de riesgo del mapa bivariado
-                </span>
-              </div>
-              <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
-                <legend className="sr-only">Codificación del mapa de brotes</legend>
-                <button
-                  type="button"
-                  aria-pressed={!bivariateMode}
-                  onClick={() => setBivariateMode(false)}
-                  className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
-                    !bivariateMode
-                      ? "bg-ln-op-azul/10 text-ln-op-azul"
-                      : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
-                  }`}
-                >
-                  Capas
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={bivariateActive}
-                  // The bivariate join can't mix a frozen (non-temporal) cobertura
-                  // with an as-of zoonosis frame — offered only at the live edge; and
-                  // it needs enough comparable units to classify (WARNING 7).
-                  disabled={scrubbing || bivariateDegenerate}
-                  title={
-                    scrubbing
-                      ? "Riesgo bivariado — solo al último evento"
-                      : bivariateDegenerate
-                        ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables`
-                        : undefined
-                  }
-                  onClick={() => setBivariateMode(true)}
-                  className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                    bivariateActive
-                      ? "bg-ln-op-azul/10 text-ln-op-azul"
-                      : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
-                  }`}
-                >
-                  Riesgo (bivariado)
-                </button>
-              </fieldset>
-              {scrubbing && (
-                <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
-                  Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el
-                  tiempo).
-                </p>
-              )}
-              {!scrubbing && bivariateDegenerate && (
-                <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
-                  Riesgo bivariado requiere al menos {BIVARIATE_MIN_UNITS} unidades comparables en
-                  la vista.
-                </p>
-              )}
-            </div>
-          )}
-          <SituationalMapDynamic
-            layers={mapLayers}
-            label={mapLabel}
-            onFeatureClick={onFeatureClick}
-            onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
-            onReturnNational={canReturnNational ? onReturnNational : undefined}
-            initialBounds={initialBounds}
-            selectedProvinceCode={selectedProvinceCode}
-            selectedLocalityCenter={selectedLocalityCenter}
-            frame={presetFrame}
-            onZoom={onMapZoom}
-            initialCamera={initialCamera}
-            onCameraChange={onCameraChange}
-            highlightedUnitKey={highlightedUnitKey}
-            onUnitHover={setHighlightedUnitKey}
-            viewMeta={viewMeta}
-          />
+        <div className="flex min-w-0 flex-col gap-2">
+          {/* ARCHETYPE A: the condition chips (scope/period/cutoff) and the
+              bivariate encoding toggle moved OFF the above-map stack (they pushed
+              the geography below the fold): the chips now ride in the map card's
+              top chrome (conditionsSlot) and the bivariate control lives at the
+              top of the monitoring rail. */}
+          {/* ARCHETYPE A full-bleed: the map is the dominant viewport element.
+              The sizer gives it a tall, viewport-relative height (a large share
+              of the fold) while the rail stays a fixed column; the map fills it
+              (`fill`) and a ResizeObserver keeps MapLibre's canvas in sync. The
+              scrubber docks to the card's bottom edge and the aggregation badge
+              rides on the canvas — see SituationalMap. */}
+          <div className="h-[76vh] min-h-[460px]">
+            <SituationalMapDynamic
+              layers={mapLayers}
+              label={mapLabel}
+              fill
+              bottomDock={scrubberDock}
+              aggregationLabel={aggregationLabel}
+              conditionsSlot={<FilterChips chips={filterChips} />}
+              onFeatureClick={onFeatureClick}
+              onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
+              onReturnNational={canReturnNational ? onReturnNational : undefined}
+              initialBounds={initialBounds}
+              selectedProvinceCode={selectedProvinceCode}
+              selectedLocalityCenter={selectedLocalityCenter}
+              frame={presetFrame}
+              onZoom={onMapZoom}
+              initialCamera={initialCamera}
+              onCameraChange={onCameraChange}
+              highlightedUnitKey={highlightedUnitKey}
+              onUnitHover={setHighlightedUnitKey}
+              viewMeta={viewMeta}
+            />
+          </div>
           {/* panorama-ia-v2 §2.4: plain-language caption — re-states what a map
               mark means at the active VISTA + derived level. These "honesty
               lines" live WITH the map they describe (design Decision 1).
@@ -2754,40 +2802,15 @@ export function PanoramaConsole({
           )}
           {/* k-anon disclosure — suppression is visible without any click. */}
           <PanoramaSuppressionNotice states={states} />
-          {/* panorama-vista-redesign Phase 4 (design Decision 1 FLAG/supersede):
-              the 2026-07-04 control-budget P0 (default-closed disclosure) is
-              REMOVED — the scrubber is now a compact always-present element
-              under the map, its budget role replaced by Simple mode + temporal
-              gating (temporalAvailable dims it to an empty state instead of
-              hiding it behind a click). */}
-          <TimeScrubber
-            since={since}
-            until={until}
-            onChange={onScrub}
-            basis={timeBasis}
-            onBasisChange={onBasisChange}
-            temporalAvailable={temporalAvailable}
-            currentStateBaseLabel={currentStateBaseLabel}
-            scrubDetail={scrubDetail}
-            onScrubDetailChange={setScrubDetail}
-            resetToken={scrubResetToken}
-            initialAsOf={initialAsOf}
-            // SUGGESTION 9: while a scope/period refetch is in flight the last-known
-            // kpis.dataAsOf belongs to the PREVIOUS scope — showing its time would
-            // print a stale watermark. Drop to null (scrubber falls back to the
-            // generic "Al último evento") until the new cutoff lands.
-            watermark={
-              kpisPending || kpisStale ? null : kpis.dataAsOf ? new Date(kpis.dataAsOf) : null
-            }
-            histogramBins={signalHistogramBins}
-          />
         </div>
         <div className="space-y-3">
           {/* ARCHETYPE situation-room rail order — MONITORING, not narration:
-              scope (Alcance y período) → KPIs → freshness/honesty → Peores-N
-              ranking → one-line reading LAST. The numbers and the worst list
-              lead; the plain-language reading (narration) is the tail, so the
-              rail alerts before it tells a story. */}
+              [map encoding toggle] → scope (Alcance y período) → KPIs →
+              freshness/honesty → Peores-N ranking → one-line reading LAST. The
+              numbers and the worst list lead; the plain-language reading
+              (narration) is the tail, so the rail alerts before it tells a story. */}
+          {/* task #63: bivariate map-encoding toggle (only on Brotes activos). */}
+          {bivariateControl}
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (
