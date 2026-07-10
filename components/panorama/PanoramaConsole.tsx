@@ -42,6 +42,7 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
+import { binTimestamps } from "@/components/panorama/signal-histogram";
 import {
   Z_LOCALITY,
   Z_LOCALITY_ENTER,
@@ -1677,6 +1678,32 @@ export function PanoramaConsole({
     // levelVersion/asOfVersion bump when the province caches (refs) change.
   }, [activeLayers, bivariateActive, levelVersion, asOfVersion]);
 
+  // task #65: the signal histogram bins for the TimeScrubber. Built ONLY from
+  // per-event timestamps ALREADY on the client — the real-event dots (points mode)
+  // carry `occurredAt`/`lastSeenAt`; the aggregated overview features carry only a
+  // count, so this stays null there (honest: no fabricated distribution). The bins
+  // are SCOPE-AGGREGATE totals, never per-unit, so they reveal no suppressed cell.
+  const signalHistogramBins = useMemo<number[] | undefined>(() => {
+    const times: number[] = [];
+    for (const l of activeLayers) {
+      if (!isTemporalLayer(l.id as LayerId)) continue;
+      for (const f of l.features.features) {
+        const p = f.properties as { occurredAt?: unknown; lastSeenAt?: unknown };
+        const raw =
+          typeof p.occurredAt === "string"
+            ? p.occurredAt
+            : typeof p.lastSeenAt === "string"
+              ? p.lastSeenAt
+              : null;
+        if (raw === null) continue;
+        const v = Date.parse(raw);
+        if (Number.isFinite(v)) times.push(v);
+      }
+    }
+    if (times.length === 0) return undefined;
+    return binTimestamps(times, since.getTime(), until.getTime(), 48);
+  }, [activeLayers, since, until]);
+
   // panorama-redesign Fase 1: preset map framing (camera-only). Set on preset
   // activation from the preset's optional `framing` field; the token is a
   // monotonic counter so re-clicking the same preset re-frames (new object
@@ -2642,6 +2669,7 @@ export function PanoramaConsole({
             resetToken={scrubResetToken}
             initialAsOf={initialAsOf}
             watermark={kpis.dataAsOf ? new Date(kpis.dataAsOf) : null}
+            histogramBins={signalHistogramBins}
           />
         </div>
         <div className="space-y-3">

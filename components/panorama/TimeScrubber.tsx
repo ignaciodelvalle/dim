@@ -121,6 +121,16 @@ type Props = {
    */
   initialAsOf?: Date | null;
   /**
+   * task #65 (kepler pattern): per-bin SCOPE-AGGREGATE signal counts over the
+   * active [since, until] window (bin 0 = oldest), for the mini-histogram drawn
+   * UNDER the track so operators jump to activity peaks. Built by the parent from
+   * the already-fetched temporal-layer event timestamps; the bins are totals, never
+   * per-unit, so they reveal no k-anon-suppressed cell. Absent/empty → no histogram
+   * (e.g. the aggregated overview, whose features carry no per-event timestamp — a
+   * scope-wide daily-count endpoint would light that case up; out of this scope).
+   */
+  histogramBins?: number[];
+  /**
    * Watermark honesty (task #69): the last-event timestamp (data freshness). The
    * data is BATCH, not "en vivo", so the live edge reads "Al último evento: HH:MM"
    * (not "Ahora (en vivo)") and the DISPLAY axis quantizes its upper bound to this
@@ -144,6 +154,7 @@ export function TimeScrubber({
   resetToken,
   initialAsOf = null,
   watermark = null,
+  histogramBins,
 }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
   // by timestamp so a new Date object with the same instant does not rebuild.
@@ -322,6 +333,13 @@ export function TimeScrubber({
 
   const sinceLabel = formatAsOfLabel(dayIndexToDate(win, 0));
 
+  // task #65: the mini-histogram's tallest bin, for normalizing bar heights. Only
+  // rendered when there are bins AND a scrubbable window (a degenerate window has
+  // no track to hang it under).
+  const histogramPeak =
+    histogramBins && histogramBins.length > 0 ? Math.max(...histogramBins, 0) : 0;
+  const showHistogram = scrubbable && histogramPeak > 0;
+
   // Detalle-only: N evenly-spaced date-tick references along the track.
   const ticks = useMemo(() => {
     if (!scrubDetail || win.steps === 0) return [];
@@ -407,6 +425,31 @@ export function TimeScrubber({
             </button>
 
             <div className="relative flex-1">
+              {/* task #65: signal histogram — SCOPE-AGGREGATE event volume over the
+                  window, drawn just above the track so the operator can drag to a
+                  peak. Decorative (the as-of label + live region carry the state);
+                  bars are muted, the current scrub position is marked. */}
+              {showHistogram && histogramBins && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 bottom-full mb-1 flex h-5 items-end gap-px"
+                >
+                  {histogramBins.map((count, i) => (
+                    <span
+                      // biome-ignore lint/suspicious/noArrayIndexKey: bins are a fixed-length positional series (bin i is always the i-th time bucket) — never reordered, so the index IS the stable identity.
+                      key={`sig-bin-${i}`}
+                      className="flex-1 rounded-t-[1px] bg-ln-op-mute/40"
+                      style={{ height: `${(count / histogramPeak) * 100}%` }}
+                    />
+                  ))}
+                  {win.steps > 0 && (
+                    <span
+                      className="absolute inset-y-0 w-px bg-ln-op-azul/80"
+                      style={{ left: `${(index / win.steps) * 100}%` }}
+                    />
+                  )}
+                </div>
+              )}
               {/* Shaded loop-window overlay — purely visual, sits under the range input. */}
               {windowStartIndex !== null && win.steps > 0 && (
                 <div
