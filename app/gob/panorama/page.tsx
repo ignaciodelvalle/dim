@@ -1,3 +1,6 @@
+import { Suspense } from "react";
+
+import { PanoramaBoardSkeleton } from "@/components/panorama/PanoramaBoardSkeleton";
 import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
@@ -50,20 +53,42 @@ function scopeLabel(role: string, jurisdictions: AdminOrGovtJurisdiction[]): str
   return provinces.length <= 3 ? provinces.join(", ") : `${provinces.length} provincias`;
 }
 
-export default async function GobPanoramaPage({
+type PanoramaSearchParams = Promise<{
+  period?: string;
+  from?: string;
+  to?: string;
+  province?: string;
+  locality?: string;
+  // perf plan 1.2: a first visit carries NONE of period/preset/layers (nor a
+  // custom from/to window) — the signal to seed the role-default preset.
+  preset?: string;
+  layers?: string;
+}>;
+
+// RESILIENCE (2026-07-10, PO instrumented-review finding #1): the board's slow
+// default-layer seed used to be awaited at the TOP of this page component,
+// blocking the very first byte for up to PAGE_BUDGET_MS while the generic
+// route-group "Cargando…" skeleton hung. It now streams behind this <Suspense>
+// so the outer function returns synchronously — the operator chrome + a bounded
+// panorama skeleton paint immediately, and the seeded board flushes when ready.
+// A throw inside the board is caught by app/gob/panorama/error.tsx (a real
+// "reintentar" state), never a perpetual skeleton.
+export default function GobPanoramaPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    period?: string;
-    from?: string;
-    to?: string;
-    province?: string;
-    locality?: string;
-    // perf plan 1.2: a first visit carries NONE of period/preset/layers (nor a
-    // custom from/to window) — the signal to seed the role-default preset.
-    preset?: string;
-    layers?: string;
-  }>;
+  searchParams: PanoramaSearchParams;
+}) {
+  return (
+    <Suspense fallback={<PanoramaBoardSkeleton />}>
+      <GobPanoramaBoard searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function GobPanoramaBoard({
+  searchParams,
+}: {
+  searchParams: PanoramaSearchParams;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
@@ -177,9 +202,25 @@ export default async function GobPanoramaPage({
     // the KPI fan-out to that window, killing the wasted 3-year compute.
     const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });
     const seedIds = presetLayerIds(preset);
+    // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
+    // the promise always resolves to an honest strip (the loader carries its own
+    // 20s budget; the console shows "Cargando indicadores…" until it lands).
+    // RESILIENCE (2026-07-10): created BEFORE the seed await so the KPI fan-out
+    // runs CONCURRENTLY with the seed instead of serializing after it — the two
+    // slow paths overlap rather than summing.
+    const kpisPromise = loadCachedPanoramaKpis({
+      actor,
+      jurisdictions: scoped,
+      period: seedPeriod,
+      adminProvince,
+      adminLocality,
+      label: "gob/panorama kpis",
+    })
+      .then((r) => r.value)
+      .catch(() => degradedPanoramaKpis());
     // perf plan 1.3: only the LAYER seed is awaited (fast at the preset's 90d
     // window) — it must paint on first render. The KPI fan-out is streamed
-    // UN-awaited (kpisPromise below) so a cold ~12-query load never blocks the
+    // UN-awaited (kpisPromise above) so a cold ~12-query load never blocks the
     // SSR shell; the console resolves it client-side behind a pending strip.
     const seedResults = await Promise.all(
       seedIds.map((lid) =>
@@ -204,19 +245,6 @@ export default async function GobPanoramaPage({
         ).catch(() => emptyLayerFeatures()),
       ),
     );
-    // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
-    // the promise always resolves to an honest strip (the loader carries its own
-    // 20s budget; the console shows "Cargando indicadores…" until it lands).
-    const kpisPromise = loadCachedPanoramaKpis({
-      actor,
-      jurisdictions: scoped,
-      period: seedPeriod,
-      adminProvince,
-      adminLocality,
-      label: "gob/panorama kpis",
-    })
-      .then((r) => r.value)
-      .catch(() => degradedPanoramaKpis());
     const seededLayers: SeededLayer[] = seedIds.map((lid, i) => ({
       id: lid,
       features: seedResults[i].features,
@@ -256,6 +284,24 @@ export default async function GobPanoramaPage({
   // initialLevel or the console's seeded cache is the wrong one (C2).
   const isScoped = provinceObj !== null || (profile.role !== "admin" && jurisdictions.length > 0);
   const initialLevel = isScoped ? ("locality" as const) : ("province" as const);
+  // KPIs go through the SHARED cached loader (staging QA 2026-07-08 #1): a
+  // browser reload hits the warm 60s per-lambda cache instead of re-running the
+  // ~12-query fan-out. perf plan 1.3: the promise is streamed UN-awaited so a
+  // COLD fan-out (cache miss) never blocks the SSR shell — the console resolves
+  // it client-side behind a "Cargando indicadores…" pending strip. The loader
+  // carries its own 20s budget; the trailing `.catch` degrades an early rejection.
+  // RESILIENCE (2026-07-10): created BEFORE the seed await so the KPI fan-out
+  // runs CONCURRENTLY with the layer seed instead of serializing after it.
+  const kpisPromise = loadCachedPanoramaKpis({
+    actor,
+    jurisdictions: scoped,
+    period,
+    adminProvince,
+    adminLocality,
+    label: "gob/panorama kpis",
+  })
+    .then((r) => r.value)
+    .catch(() => degradedPanoramaKpis());
   // perf plan 1.3: only the LAYER is awaited (fast at the active window) so the
   // map paints on first render. withDbBudget degrades on timeout and the
   // trailing `.catch` degrades on an early fetcher rejection — a degraded DB
@@ -277,22 +323,6 @@ export default async function GobPanoramaPage({
     "gob/panorama layer",
     emptyLayerFeatures(),
   ).catch(() => emptyLayerFeatures());
-  // KPIs go through the SHARED cached loader (staging QA 2026-07-08 #1): a
-  // browser reload hits the warm 60s per-lambda cache instead of re-running the
-  // ~12-query fan-out. perf plan 1.3: the promise is streamed UN-awaited so a
-  // COLD fan-out (cache miss) never blocks the SSR shell — the console resolves
-  // it client-side behind a "Cargando indicadores…" pending strip. The loader
-  // carries its own 20s budget; the trailing `.catch` degrades an early rejection.
-  const kpisPromise = loadCachedPanoramaKpis({
-    actor,
-    jurisdictions: scoped,
-    period,
-    adminProvince,
-    adminLocality,
-    label: "gob/panorama kpis",
-  })
-    .then((r) => r.value)
-    .catch(() => degradedPanoramaKpis());
 
   return (
     <PanoramaShell
