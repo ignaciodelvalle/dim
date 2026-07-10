@@ -53,8 +53,8 @@ import {
   arLocalitiesImportRuns,
   db,
 } from "@/db";
-import { isWholeProvinceAggregate } from "@/lib/infra/ar-localidades";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
+import { isWholeProvinceAggregate } from "@/lib/reference/locality-integrity";
 
 const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censales.csv";
 
