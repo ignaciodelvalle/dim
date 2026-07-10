@@ -26,14 +26,22 @@ import { loadUnitHistory } from "../repository";
 const PROVINCE = "Santa Fe";
 const PROVINCE_CODE = "AR-S";
 const DEPARTMENT = "PANORAMA-DEPT-ISO"; // synthetic department — no seed collision
+const DEPARTMENT_CODE = "99999";
 const LOCALITY_A = "PANO-DEPT-A";
 const LOCALITY_B = "PANO-DEPT-B";
+// WARNING 3 decoy: a locality NAMED like the department but sitting in a DIFFERENT
+// department (code 88888). A name-based drill would pull its pet in; a CODE-based
+// drill must exclude it.
+const DECOY_DEPARTMENT = "PANORAMA-DEPT-OTHER";
+const DECOY_DEPARTMENT_CODE = "88888";
+const DECOY_LOCALITY = DEPARTMENT; // locality literally named like the department
 const ADMIN: DashboardActor = { role: "admin" };
 const JURS: DashboardJurisdiction[] = [];
 const SINCE = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
 let petAId = "";
 let petBId = "";
+let petDecoyId = "";
 
 async function insertSighting(petId: string): Promise<void> {
   await db.insert(petEvents).values({
@@ -50,13 +58,17 @@ async function insertSighting(petId: string): Promise<void> {
   });
 }
 
-async function insertLocality(name: string): Promise<void> {
+async function insertLocality(
+  name: string,
+  departmentName = DEPARTMENT,
+  departmentCode = DEPARTMENT_CODE,
+): Promise<void> {
   await db.insert(arLocalities).values({
     provinceCode: PROVINCE_CODE,
-    departmentName: DEPARTMENT,
-    departmentCode: "99999",
+    departmentName,
+    departmentCode,
     localityName: name,
-    localitySlug: name.toLowerCase(),
+    localitySlug: `${departmentCode}-${name.toLowerCase()}`,
     category: "localidad",
     source: "bahra",
     latitude: "-31.6",
@@ -81,7 +93,7 @@ async function makePet(token: string, locality: string): Promise<string> {
 }
 
 async function cleanup(): Promise<void> {
-  const ids = [petAId, petBId].filter(Boolean);
+  const ids = [petAId, petBId, petDecoyId].filter(Boolean);
   if (ids.length) {
     await withMutationOverride(async (tx) => {
       await tx.delete(petEvents).where(inArray(petEvents.petId, ids));
@@ -94,43 +106,54 @@ async function cleanup(): Promise<void> {
       .where(
         and(
           eq(arLocalities.provinceCode, PROVINCE_CODE),
-          eq(arLocalities.departmentName, DEPARTMENT),
+          inArray(arLocalities.departmentName, [DEPARTMENT, DECOY_DEPARTMENT]),
         ),
       );
   });
   petAId = "";
   petBId = "";
+  petDecoyId = "";
 }
 
 beforeAll(async () => {
   await cleanup();
   await insertLocality(LOCALITY_A);
   await insertLocality(LOCALITY_B);
+  // Decoy: a locality named exactly like DEPARTMENT but in a DIFFERENT department.
+  await insertLocality(DECOY_LOCALITY, DECOY_DEPARTMENT, DECOY_DEPARTMENT_CODE);
   petAId = await makePet("DIM-PANO-DEPT-A", LOCALITY_A);
   petBId = await makePet("DIM-PANO-DEPT-B", LOCALITY_B);
+  petDecoyId = await makePet("DIM-PANO-DEPT-DECOY", DECOY_LOCALITY);
   // 3 sightings in locality A + 3 in locality B → each locality below k=5, but the
-  // department sums to 6 (>= 5) → visible when drilled by department.
+  // department sums to 6 (>= 5) → visible when drilled by department. The decoy pet
+  // gets 5 sightings (would clear k on its own if wrongly pulled in).
   for (let i = 0; i < 3; i++) {
     await insertSighting(petAId);
     await insertSighting(petBId);
+  }
+  for (let i = 0; i < 5; i++) {
+    await insertSighting(petDecoyId);
   }
 });
 
 afterAll(cleanup);
 
 describe("department-aware unit-history drill (PO Option A)", () => {
-  it("drilling by DEPARTMENT name aggregates its member localities and clears k=5", async () => {
+  it("drilling by department CODE aggregates member localities, clears k=5, and excludes a same-named decoy in another department (WARNING 3)", async () => {
     const hist = await loadUnitHistory({
       layer: "perdidas",
       province: PROVINCE,
-      locality: DEPARTMENT, // the folded map cell carries the department name here
+      locality: DEPARTMENT, // the folded map cell carries the department name here…
+      departmentCode: DEPARTMENT_CODE, // …but the CODE is the group key the fold used
       since: SINCE,
       until: new Date(),
       actor: ADMIN,
       jurisdictions: JURS,
     });
     expect(hist.suppressed ?? false).toBe(false);
-    // 6 sightings across the two member localities — the department total.
+    // Exactly the 6 member-locality sightings (A+B) — the department total. The
+    // decoy's 5 (a locality literally named like the department, but under a
+    // DIFFERENT department code) are NOT pulled in: matched by CODE, not name.
     expect(hist.events.length).toBe(6);
     expect(hist.trend.reduce((s, b) => s + b.count, 0)).toBe(6);
   }, 30_000);

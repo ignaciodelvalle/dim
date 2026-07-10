@@ -471,11 +471,19 @@ function buildHistoryUrl(
   const province = String(properties.province ?? "");
   const locality =
     typeof properties.locality === "string" && properties.locality ? properties.locality : null;
+  // Folded detail cells (choropleth + aggregated points) carry the INDEC department
+  // code. Forward it so the unit-history guard/drill resolves member localities by
+  // CODE, not the ambiguous department name (re-identification guard, WARNING 3).
+  const departmentCode =
+    typeof properties.departmentCode === "string" && properties.departmentCode
+      ? properties.departmentCode
+      : null;
 
   const params = new URLSearchParams();
   params.set("layer", layerId);
   params.set("province", province);
   if (locality) params.set("locality", locality);
+  if (departmentCode) params.set("departmentCode", departmentCode);
 
   // Thread the active period (from the console's searchParams) so the history
   // window matches the map's current filters.

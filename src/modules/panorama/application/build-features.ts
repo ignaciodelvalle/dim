@@ -466,6 +466,11 @@ export type AggregatedPointCell = {
   key: string;
   province: string;
   locality?: string | null;
+  /** INDEC department code (the fold's actual group key, MIN(department_code)) —
+   * carried so a department drill can re-filter member localities by CODE, not the
+   * ambiguous department NAME (re-identification guard, unit-history WARNING 3).
+   * Null for province-level cells and CABA barrios (which have no department). */
+  departmentCode?: string | null;
   /** Latitude of the centroid (province or locality). */
   centroidLat: string | null;
   /** Longitude of the centroid. */
@@ -483,6 +488,9 @@ export type AggregatedPointProps = {
   place: string;
   province: string;
   locality: string | null;
+  /** INDEC department code for a folded detail cell (null at province level / CABA).
+   * Threaded to the unit-history drill so member localities are matched by CODE. */
+  departmentCode: string | null;
   /** "province" or "locality" — lets the popup and legend know the aggregation level. */
   level: "province" | "locality";
   /** Event count for this unit; null for k-anon suppressed cells. */
@@ -510,6 +518,7 @@ export function buildAggregatedPointFeatures(
         place,
         province: c.province,
         locality: c.locality ?? null,
+        departmentCode: c.departmentCode ?? null,
         level,
         count: c.suppressed ? null : c.count,
         suppressed: c.suppressed,

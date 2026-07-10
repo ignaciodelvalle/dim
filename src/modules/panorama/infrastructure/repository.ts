@@ -1311,6 +1311,7 @@ function toAggregatedCells(
         key: r.key,
         province: r.province,
         locality: r.locality !== "" ? r.locality : null,
+        departmentCode: r.departmentCode ?? null,
         centroidLat: r.centroidLat,
         centroidLng: r.centroidLng,
         count: r.count,
@@ -1340,6 +1341,7 @@ function toAggregatedCells(
       key: r.key,
       province: r.province,
       locality: r.locality !== "" ? r.locality : null,
+      departmentCode: r.departmentCode ?? null,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
       count: r.count,
@@ -1351,6 +1353,7 @@ function toAggregatedCells(
       key: r.key,
       province: r.province,
       locality: r.locality !== "" ? r.locality : null,
+      departmentCode: r.departmentCode ?? null,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
       count: null,
@@ -2151,8 +2154,18 @@ export type LoadUnitHistoryParams = {
   layer: string;
   /** Province name (display name, e.g. "Buenos Aires"). Always required. */
   province: string;
-  /** Locality name (display name). Optional — when absent, scope is province-wide. */
+  /** Locality name (display name). Optional — when absent, scope is province-wide.
+   * For a folded DETAIL cell this carries the DEPARTMENT (or barrio) label. */
   locality?: string | null;
+  /** INDEC department code of the folded cell (the fold's MIN(department_code) group
+   * key). When present, department membership is resolved by CODE — not the
+   * ambiguous department NAME — so a locality merely named like another department
+   * is never pulled into the guard set (WARNING 3). Null for CABA barrios / cells
+   * that resolved no department (they match by the direct locality-name arm). */
+  departmentCode?: string | null;
+  /** task #78 Part 3: mirror the cobertura map's "solo firmado" numerator narrowing
+   * in the k-anon guard so it suppresses the SAME cells the map does (WARNING 2). */
+  verifiedOnly?: boolean;
   /** Window start (inclusive). */
   since: Date;
   /** Window end (inclusive). */
@@ -2181,7 +2194,17 @@ export type LoadUnitHistoryParams = {
  * DB-backed; not unit-testable without a live Postgres connection.
  */
 export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<UnitHistoryResult> {
-  const { layer, province, locality, since, until, actor, jurisdictions } = params;
+  const {
+    layer,
+    province,
+    locality,
+    departmentCode = null,
+    verifiedOnly = false,
+    since,
+    until,
+    actor,
+    jurisdictions,
+  } = params;
 
   // --- verify scope for govt actors -----------------------------------------
   // A govt actor must have at least one assignment that covers the requested
@@ -2220,6 +2243,27 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   // `if (locality)`, where the label is non-null.
   // ---------------------------------------------------------------------------
   function unitLocalityFilter(localityCol: SQL): SQL {
+    // Department drill (code present): match EXACTLY the member localities the fold
+    // counted — pets whose (province, locality) join ar_localities under this
+    // department CODE (the fold's MIN(department_code) group key). NO direct-label
+    // arm here: a locality merely NAMED like the department but sitting in a
+    // DIFFERENT department must NOT be pulled in (WARNING 3). The code-membership
+    // arm already covers a genuine seat locality that shares the department's name
+    // (its ar_localities row carries this code), so nothing legitimate is lost.
+    if (departmentCode) {
+      return sql`EXISTS (
+        SELECT 1 FROM ar_localities al
+        WHERE al.province_code = ${provinceIsoMapSql(sql`${province}`)}
+          AND al.removed_at IS NULL
+          AND al.department_code = ${departmentCode}
+          AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(localityCol)}
+      )`;
+    }
+    // No department code — a CABA barrio, a locality that resolved no department
+    // (fold label = its own name), or a stale client that sent no code. Match the
+    // label directly, plus a name-based department fallback so a legacy department
+    // drill still resolves its members (accepts the name-ambiguity WARNING 3 flags,
+    // which the code path above eliminates whenever the client sends the code).
     return sql`(
       ${normNameSql(localityCol)} = ${normNameSql(sql`${locality}`)}
       OR EXISTS (
@@ -2352,26 +2396,25 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
       case "cobertura": {
         const scope = petsScope(actor, jurisdictions);
+        // Mirror the map numerator EXACTLY via metricPredicate('rabies-coverage'):
+        // DOGS in scope with a qualifying rabies dose in the trailing-12-month
+        // window, narrowed to vet-signed when verifiedOnly (WARNING 2). The prior
+        // guard counted ALL doses matching LIKE '%rabi%' over the SCRUBBER window
+        // [since, until] — two ways adrift from the map, so with "solo firmado" ON
+        // a map-suppressed department could clear k=5 here and be re-identified.
+        // The rabies map is trailing-12m regardless of the scrubber, so the window
+        // lives INSIDE the predicate; the guard applies no [since, until] clause.
         const conditions: SQL[] = [
-          eq(petEvents.eventType, "vaccination_administered"),
-          // Amendment overlay (audit A2): count by the CURRENT vaccine name.
-          sql`unaccent(lower(coalesce(${amendedPayloadText("vaccine_name")}, ''))) LIKE '%rabi%'`,
-          // Mirror metricPredicate('rabies-coverage'): the rabies choropleth
-          // counts DOGS only, so the guard must too (k-anon parity).
-          sql`${pets.species} = 'dog'`,
-          gte(petEvents.occurredAt, since),
-          lte(petEvents.occurredAt, until),
+          metricPredicate("rabies-coverage", verifiedOnly),
           sql`${pets.jurisdictionProvince} = ${province}`,
           unitLocalityFilter(sql`${pets.jurisdictionLocality}`),
         ];
         if (scope) conditions.push(sql`(${scope})`);
-        // countDistinct(pet) not count(rows): the choropleth counts DISTINCT
-        // PETS, so one dog with several boosters must not clear k=5 for a cell
-        // the map suppressed (re-identification guard).
+        // countDistinct(pet): the choropleth counts DISTINCT PETS, so one dog with
+        // several boosters must not clear k=5 for a cell the map suppressed.
         const [row] = await db
-          .select({ n: countDistinct(petEvents.petId) })
-          .from(petEvents)
-          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .select({ n: countDistinct(pets.id) })
+          .from(pets)
           .where(and(...conditions));
         totalCount = row?.n ?? 0;
         break;

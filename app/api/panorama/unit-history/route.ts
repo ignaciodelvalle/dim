@@ -60,6 +60,12 @@ export async function GET(request: Request) {
   }
 
   const locality = url.searchParams.get("locality") ?? undefined;
+  // Folded detail cell → department code (WARNING 3: match member localities by
+  // CODE, not the ambiguous department name). Absent for province / CABA cells.
+  const departmentCode = url.searchParams.get("departmentCode") ?? undefined;
+  // Mirror the cobertura map's "solo firmado" numerator narrowing in the k-anon
+  // guard (WARNING 2) — same ?verified=1 param the layer fetch + board URL use.
+  const verifiedOnly = url.searchParams.get("verified") === "1";
 
   // 2. Non-redirect auth: ACTIVE INSTITUTIONAL admin or govt only (mirrors
   //    /api/panorama/[layer]). Same full invariant set as the page guard (role +
@@ -112,6 +118,8 @@ export async function GET(request: Request) {
         layer,
         province,
         locality: locality ?? null,
+        departmentCode: departmentCode ?? null,
+        verifiedOnly,
         since,
         until: asOf ?? until,
         actor,
