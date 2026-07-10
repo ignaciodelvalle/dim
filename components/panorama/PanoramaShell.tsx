@@ -138,10 +138,25 @@ export function PanoramaShell({
             {scopeLabel}
           </span>
         </div>
-        <p className="text-[13px] text-ln-op-mute">
-          Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
-          (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
-        </p>
+        {/* ARCHETYPE situation-room: the descriptive paragraph no longer sits
+            always-on above the map (it pushed the canvas below the fold). It
+            collapses into an "Acerca de esta vista" disclosure so the map leads
+            and the explanation is one click away. */}
+        <details className="group text-[13px] text-ln-op-mute">
+          <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
+            <span
+              aria-hidden="true"
+              className="inline-block transition-transform group-open:rotate-90"
+            >
+              ▸
+            </span>
+            Acerca de esta vista
+          </summary>
+          <p className="mt-1.5">
+            Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
+            (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
+          </p>
+        </details>
       </header>
 
       {/* panorama-redesign Fase 1 reflow: the console (presets + map) leads;
