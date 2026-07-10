@@ -28,7 +28,7 @@ describe("captionFor", () => {
 
   it("density + graduated-symbol + period window at locality → burbuja/Tamaño + últimos N días", () => {
     expect(captionFor(layer("mordeduras"), "locality", period90d)).toBe(
-      "Cada burbuja es una localidad. Tamaño = eventos de mordedura / antirrábica, últimos 90 días.",
+      "Cada burbuja es una división (departamento/partido, o barrio en CABA). Tamaño = eventos de mordedura / antirrábica, últimos 90 días.",
     );
   });
 
@@ -50,10 +50,21 @@ describe("captionFor", () => {
     );
   });
 
-  it("point-layer detail tier still names the locality (unchanged by Option A)", () => {
-    // Density/signal point layers still aggregate per locality (their detail-tier
-    // department fold is a separate follow-up), so their caption stays "localidad".
-    expect(captionFor(layer("mordeduras"), "locality", period90d)).toContain("es una localidad");
+  it("folded aggregated-point layers name the detail division (PO Option A)", () => {
+    // The count/signal point layers now fold their detail tier to the department
+    // (barrio in CABA) too, so their caption names the division like the choropleths.
+    expect(captionFor(layer("mordeduras"), "locality", period90d)).toContain(
+      "es una división (departamento/partido, o barrio en CABA)",
+    );
+    expect(captionFor(layer("zoonosis"), "locality", period90d)).toContain(
+      "es una división (departamento/partido, o barrio en CABA)",
+    );
+  });
+
+  it("reunificacion still names the locality (its RATE is not folded yet)", () => {
+    // reunificacion carries a ratePct that cannot be summed across localities, so
+    // its detail tier stays at the locality — the caption stays "localidad".
+    expect(captionFor(layer("reunificacion"), "locality", period90d)).toContain("es una localidad");
   });
 
   it("reference (clustered-points) layers produce a non-empty caption without a Meta clause", () => {

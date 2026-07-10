@@ -20,13 +20,15 @@ const UNIT: Record<AggregationLevel, string> = {
 };
 
 /**
- * Unit noun for the DIVISION-FILL (choropleth) layers, whose detail tier draws —
- * and, since PO "Option A", aggregates + k-anon-suppresses at — the administrative
- * DIVISION the map actually renders: the departamento/partido everywhere, the
- * barrio in CABA. The old shared `UNIT.locality = "localidad"` mislabeled that
- * tier ("Cada área es una localidad") while the polygon under it was a department.
- * A feminine noun ("división") keeps the caption template's "es una {unit}" grammar
- * correct; the parenthetical names the concrete unit at each scope.
+ * Unit noun for the layers whose detail tier aggregates + k-anon-suppresses at the
+ * administrative DIVISION (PO "Option A"): the departamento/partido everywhere, the
+ * barrio in CABA. Used by BOTH the division-fill choropleths (departamento polygon)
+ * AND the folded aggregated-point layers (perdidas/mordeduras/denuncias/zoonosis/
+ * sintomas — one graduated symbol per department centroid). The old shared
+ * `UNIT.locality = "localidad"` mislabeled that tier ("es una localidad") while the
+ * unit under it was a department. A feminine noun ("división") keeps the caption
+ * template's "es una {unit}" grammar correct; the parenthetical names the concrete
+ * unit at each scope. (reunificacion is NOT folded yet — it keeps UNIT.)
  */
 const UNIT_DIVISION: Record<AggregationLevel, string> = {
   province: "provincia",
@@ -68,7 +70,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       points: "clustered-points",
     },
     suppressionStyle: "muted",
-    caption: { unit: UNIT, measure: "reportes de mascotas perdidas", window: "period" },
+    caption: { unit: UNIT_DIVISION, measure: "reportes de mascotas perdidas", window: "period" },
   },
   {
     id: "mordeduras",
@@ -92,7 +94,11 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       points: "clustered-points",
     },
     suppressionStyle: "muted",
-    caption: { unit: UNIT, measure: "eventos de mordedura / antirrábica", window: "period" },
+    caption: {
+      unit: UNIT_DIVISION,
+      measure: "eventos de mordedura / antirrábica",
+      window: "period",
+    },
   },
   {
     id: "denuncias",
@@ -117,7 +123,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       points: "clustered-points",
     },
     suppressionStyle: "muted",
-    caption: { unit: UNIT, measure: "denuncias de bienestar", window: "period" },
+    caption: { unit: UNIT_DIVISION, measure: "denuncias de bienestar", window: "period" },
   },
   {
     id: "zoonosis",
@@ -136,7 +142,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "muted",
-    caption: { unit: UNIT, measure: "señales de zoonosis", window: "period" },
+    caption: { unit: UNIT_DIVISION, measure: "señales de zoonosis", window: "period" },
   },
   {
     id: "sintomas",
@@ -155,7 +161,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "muted",
-    caption: { unit: UNIT, measure: "síntomas reportados", window: "period" },
+    caption: { unit: UNIT_DIVISION, measure: "síntomas reportados", window: "period" },
   },
   {
     id: "reunificacion",

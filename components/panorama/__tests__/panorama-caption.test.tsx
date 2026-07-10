@@ -41,7 +41,7 @@ describe("PanoramaCaption", () => {
     );
     expect(
       screen.getByText(
-        "Cada burbuja es una localidad. Tamaño = eventos de mordedura / antirrábica, últimos 90 días.",
+        "Cada burbuja es una división (departamento/partido, o barrio en CABA). Tamaño = eventos de mordedura / antirrábica, últimos 90 días.",
       ),
     ).toBeInTheDocument();
   });

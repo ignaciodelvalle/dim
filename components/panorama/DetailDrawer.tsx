@@ -145,6 +145,19 @@ function str(props: Record<string, unknown>, key: string): string | null {
   return v === null || v === undefined ? null : String(v);
 }
 
+/**
+ * Row label for the administrative unit of a FOLDED detail cell (PO "Option A"):
+ * the detail tier aggregates at the departamento/partido (the barrio in CABA), so
+ * the value carried in `locality` is a DIVISION, never a bare locality — labeling
+ * it "Localidad" would misname it. Province level keeps "Provincia". Used by the
+ * folded layers (sintomas + the division-fill choropleths); reunificacion is not
+ * folded and keeps "Localidad".
+ */
+function unitRowLabel(properties: Record<string, unknown>, isProvince: boolean): string {
+  if (isProvince) return "Provincia";
+  return str(properties, "province") === "CABA" ? "Barrio" : "Departamento/partido";
+}
+
 /** Format an ISO date string to es-AR short date; "—" when absent/invalid. */
 function shortDate(iso: string | null): string {
   if (!iso) return "—";
@@ -326,7 +339,7 @@ export function FeatureBody({
       return (
         <>
           <dl>
-            <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
+            <Row label={unitRowLabel(properties, isProvince)} value={place || "—"} />
             <Row
               label="Síntomas reportados"
               value={
@@ -410,7 +423,7 @@ export function FeatureBody({
       return (
         <>
           <dl>
-            <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
+            <Row label={unitRowLabel(properties, isProvince)} value={place || "—"} />
             <Row
               label={valueLabel}
               value={
