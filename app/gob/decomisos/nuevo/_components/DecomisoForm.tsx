@@ -80,11 +80,11 @@ type DecomisoFormProps = {
 // ---------------------------------------------------------------------------
 
 const SEIZURE_MOTIVE_LABELS: Record<SeizureMotive, string> = {
-  maltrato_fisico: "Maltrato fisico",
+  maltrato_fisico: "Maltrato físico",
   abandono_extremo: "Abandono extremo",
-  acumulacion: "Acumulacion / hoarding",
-  trafico: "Trafico / comercio ilegal",
-  sin_refugio_critico: "Sin resguardo adecuado (situacion critica)",
+  acumulacion: "Acumulación / hoarding",
+  trafico: "Tráfico / comercio ilegal",
+  sin_refugio_critico: "Sin resguardo adecuado (situación crítica)",
   pelea_de_perros: "Pelea de perros",
   otro: "Otro",
 };

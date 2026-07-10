@@ -14,18 +14,27 @@ import { requireOwnedPetByToken } from "@/lib/infra/pets";
 
 export default async function BiteSuccessPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ caso?: string }>;
 }) {
   const { publicToken } = await params;
+  const { caso } = await searchParams;
   // Auth guard: only the owner can see this page (same guard as the form).
   await requireOwnedPetByToken(publicToken);
+
+  // Only surface a well-formed CAS-XXXX-XXXX code (defends against a hand-edited
+  // query param leaking arbitrary text into the receipt).
+  const caseCode = caso && /^CAS-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(caso) ? caso : undefined;
 
   return (
     <LnSheetWrap>
       <LnSheetCard>
         <LnSuccessScreen
           title="Mordedura registrada"
+          code={caseCode}
+          codeLabel="Caso registrado"
           description="Queda registrado en la libreta oficial. Comienza el período de observación antirrábica obligatoria de 10 días (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987)."
           next={[
             {

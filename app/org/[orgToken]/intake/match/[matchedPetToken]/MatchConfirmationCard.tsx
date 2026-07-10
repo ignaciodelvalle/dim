@@ -115,7 +115,7 @@ export function MatchConfirmationCard({
 
           {ownerFirstName && (
             <p className="text-[13px] text-ln-op-ink">
-              <span className="text-ln-op-mute">Dueno/a: </span>
+              <span className="text-ln-op-mute">Dueño/a: </span>
               <span className="font-medium">{ownerFirstName}</span>
             </p>
           )}
@@ -165,8 +165,8 @@ export function MatchConfirmationCard({
       </div>
 
       <p className="text-sm text-ln-op-mute">
-        Si es la misma mascota, se notificara al dueno/a para coordinar la devolucion. Si no es la
-        misma, esta acción queda registrada y podes continuar el ingreso normalmente.
+        Si es la misma mascota, se notificará al dueño/a para coordinar la devolución. Si no es la
+        misma, esta acción queda registrada y podés continuar el ingreso normalmente.
       </p>
     </div>
   );

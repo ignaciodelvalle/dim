@@ -80,7 +80,7 @@ type Deps = {
       openedReason: string;
     },
     tx: unknown,
-  ) => Promise<{ id: string }>;
+  ) => Promise<{ id: string; publicCode: string }>;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   findAuthoritiesForJurisdiction: (jurisdiction: {
     province: string;
@@ -88,7 +88,7 @@ type Deps = {
   }) => Promise<string[]>;
 };
 
-export type ReportBiteResult = UseCaseResult<{ petToken: string }>;
+export type ReportBiteResult = UseCaseResult<{ petToken: string; casePublicCode: string }>;
 
 // ---------------------------------------------------------------------------
 // Use-case
@@ -105,6 +105,9 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   const now = new Date();
   const observationUntil = computeObservationUntil(occurredAt);
   const pendingNotifications: NewNotification[] = [];
+  // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
+  // reporter can quote the incident later. Captured inside the tx.
+  let casePublicCode = "";
 
   try {
     await transaction(async (tx) => {
@@ -121,6 +124,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         },
         tx,
       );
+      casePublicCode = caseRow.publicCode;
 
       // 3. Insert incident_reported with idempotency key (owner path only).
       const incidentPayload = validateEventPayload("incident_reported", {
@@ -243,7 +247,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
 
   return {
     ok: true,
-    value: { petToken: pet.publicToken },
+    value: { petToken: pet.publicToken, casePublicCode },
     notifications: pendingNotifications,
   };
 }

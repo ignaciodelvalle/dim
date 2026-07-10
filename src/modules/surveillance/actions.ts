@@ -89,6 +89,8 @@ export type ReportBiteFromOrgFormState = {
   error: string | null;
   ok?: boolean;
   petToken?: string;
+  /** CAS-XXXX-XXXX code of the opened bite-incident case (receipt reference). */
+  casePublicCode?: string;
 };
 export type ProfessionalCloseResult = { error: string | null };
 
@@ -207,7 +209,10 @@ export async function reportBiteAction(
   // Wave 2 Item 9: trámite-style flows MUST end on SuccessScreen (Rule 4).
   // Redirect to the dedicated success page so the owner sees the observation-
   // period details and next steps, not a silent pet-profile redirect.
-  redirect(`/mis-mascotas/${publicToken}/eventos/nuevo/mordedura/exito`);
+  // Carry the opened bite-incident case code so the receipt can quote it.
+  redirect(
+    `/mis-mascotas/${publicToken}/eventos/nuevo/mordedura/exito?caso=${encodeURIComponent(result.value.casePublicCode)}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +384,7 @@ export async function reportBiteFromOrgAction(
       error: null,
       ok: true,
       petToken: String(formData.get("petPublicToken") ?? "").trim(),
+      casePublicCode: result.value.casePublicCode,
     };
   }
   redirect(`/org/${orgToken}?evento=mordedura_reportada`);

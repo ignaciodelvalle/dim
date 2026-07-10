@@ -144,6 +144,8 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
     return (
       <LnSuccessScreen
         title="Incidente registrado"
+        code={state.casePublicCode}
+        codeLabel="Caso registrado"
         description={
           obsEnd
             ? // Anchor at noon (not midnight) before formatting: obsEnd is a bare

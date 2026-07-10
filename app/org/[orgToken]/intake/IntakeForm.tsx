@@ -140,6 +140,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     return (
       <LnSuccessScreen
         title={`Mascota ingresada: ${state.createdPetName}`}
+        code={state.createdPetToken}
+        codeLabel="Credencial de la mascota"
         description="Quedó registrada bajo custodia del refugio. Podés continuar el flujo desde acá."
         next={[
           {

@@ -85,7 +85,7 @@ type Deps = {
       openedReason: string;
     },
     tx: unknown,
-  ) => Promise<{ id: string }>;
+  ) => Promise<{ id: string; publicCode: string }>;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   findAuthoritiesForJurisdiction: (jurisdiction: {
     province: string;
@@ -96,6 +96,7 @@ type Deps = {
 export type ReportBiteFromOrgResult = UseCaseResult<{
   petToken: string | undefined;
   noRedirect: boolean;
+  casePublicCode: string;
 }>;
 
 // ---------------------------------------------------------------------------
@@ -127,6 +128,9 @@ export async function reportBiteFromOrg(
   const now = new Date();
   const observationUntil = computeObservationUntil(occurredAt);
   const pendingNotifications: NewNotification[] = [];
+  // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
+  // clinic/refugio can quote the incident later. Captured inside the tx.
+  let casePublicCode = "";
 
   try {
     await transaction(async (tx) => {
@@ -144,6 +148,7 @@ export async function reportBiteFromOrg(
         },
         tx,
       );
+      casePublicCode = caseRow.publicCode;
 
       // 3. Idempotent insert (aligned with owner path — deduplicates on double-submit).
       const incidentPayload = validateEventPayload("incident_reported", {
@@ -276,6 +281,7 @@ export async function reportBiteFromOrg(
     value: {
       petToken: input.noRedirect ? pet.publicToken : undefined,
       noRedirect: input.noRedirect,
+      casePublicCode,
     },
     notifications: pendingNotifications,
   };

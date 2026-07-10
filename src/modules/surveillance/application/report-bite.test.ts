@@ -37,7 +37,7 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
 
 function makeDeps(repoOverrides: FakeRepo = {}) {
   const repo = makeRepo(repoOverrides);
-  const openCase = vi.fn().mockResolvedValue({ id: "case-1" });
+  const openCase = vi.fn().mockResolvedValue({ id: "case-1", publicCode: "CAS-AAAA-BBBB" });
   const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
     return cb("fake-tx");
   });
@@ -83,6 +83,14 @@ describe("reportBite (owner path)", () => {
     const deps = makeDeps();
     const result = await reportBite(BASE_INPUT, deps);
     expect(result.ok).toBe(true);
+  });
+
+  it("returns the opened case public code for the receipt", async () => {
+    const deps = makeDeps();
+    const result = await reportBite(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.casePublicCode).toBe("CAS-AAAA-BBBB");
   });
 
   it("calls openCase with bite_incident kind", async () => {

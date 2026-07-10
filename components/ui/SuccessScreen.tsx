@@ -25,6 +25,11 @@ export type LnSuccessScreenProps = {
   /** Optional confirmation code (e.g. DEN-A1B2-C3D4). Rendered as a hero
    * element with a "tap to copy" affordance. */
   code?: string;
+  /** Optional label above the code block. Defaults to "Tu código de
+   * seguimiento" (tracking-code framing). Pass a credential-appropriate
+   * label (e.g. "Credencial de la mascota") when the code is an identity
+   * token rather than a follow-up handle. */
+  codeLabel?: string;
   /** Optional one-line description below the title. */
   description?: string;
   /** Optional cautionary line (smaller, muted) shown under the code block. */
@@ -36,6 +41,7 @@ export type LnSuccessScreenProps = {
 export function LnSuccessScreen({
   title,
   code,
+  codeLabel,
   description,
   codeWarning,
   next,
@@ -87,7 +93,7 @@ export function LnSuccessScreen({
         {code ? (
           <div className="rounded-[var(--radius-sm)] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-6 py-6 space-y-3">
             <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
-              Tu código de seguimiento
+              {codeLabel ?? "Tu código de seguimiento"}
             </p>
             <button
               type="button"

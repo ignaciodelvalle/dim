@@ -30,7 +30,7 @@ function makeRepo(overrides: Partial<Record<keyof SurveillanceRepository, unknow
 
 function makeDeps(repoOverrides: Partial<Record<keyof SurveillanceRepository, unknown>> = {}) {
   const repo = makeRepo(repoOverrides);
-  const openCase = vi.fn().mockResolvedValue({ id: "case-org-1" });
+  const openCase = vi.fn().mockResolvedValue({ id: "case-org-1", publicCode: "CAS-ORG1-2222" });
   const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
     return cb("fake-tx");
   });
@@ -219,6 +219,7 @@ describe("reportBiteFromOrg (org path)", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.petToken).toBe("tok-pet-2");
+    expect(result.value.casePublicCode).toBe("CAS-ORG1-2222");
   });
 
   it("uses eventJurisdiction for case if provided (overrides pet jurisdiction)", async () => {
