@@ -41,9 +41,25 @@ test("segmento 02 — dueno", async ({ page }) => {
   // Paso 2 — "foto y más". The photo is OPTIONAL (skippable fast path), so
   // submit straight through to mint the credential.
   await fullScroll(page);
-  await page.getByRole("button", { name: /crear mascota/i }).click();
+  // Duplicate-detection guard (a real product feature, not a bug): if this
+  // owner already has a same-species/sex/name pet (seed data, or an earlier
+  // re-run of this journey), paso 2 surfaces "¿Es la misma mascota?" and the
+  // direct "Crear mascota" button is replaced by an explicit choice. Take the
+  // "crear igual" branch so the journey is idempotent across re-runs — the
+  // dedup panel appearing is itself confirmation the guard works.
+  const createAnyway = page.getByRole("button", { name: /no, es otra.*crear igual/i });
+  if (
+    await createAnyway
+      .count()
+      .then((c) => c > 0)
+      .catch(() => false)
+  ) {
+    await createAnyway.click();
+  } else {
+    await page.getByRole("button", { name: /crear mascota/i }).click();
+  }
   await page.waitForURL(/\/credencial/, { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page); // "aha" screen: issued QR credential
 
   const token = page.url().match(/\/nueva\/([^/]+)\/credencial/)?.[1];
@@ -66,7 +82,7 @@ test("segmento 02 — dueno", async ({ page }) => {
   // identically inside the sheet.
   await showScreen(page, `/mis-mascotas/${token}?sheet=anotar`);
   await page.getByRole("link", { name: "Registrar vacuna" }).click();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
   await page.locator('input[name="vaccineName"]').fill("Antirrábica");
   const nextDue = new Date();
@@ -84,7 +100,7 @@ test("segmento 02 — dueno", async ({ page }) => {
   await page.getByRole("button", { name: /registrar vacuna/i }).click();
   // Fail loud: createVaccinationAction redirects to the pet profile on success.
   await page.waitForURL((url) => !url.pathname.endsWith("/vacuna"), { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
 
   // 5. Proof on camera: Libreta face (consolidated timeline) + full history
@@ -118,27 +134,27 @@ test("segmento 02 — dueno", async ({ page }) => {
   await visit(page, "/turnos/buscar");
   await fullScroll(page); // service-kind picker
   await page.getByRole("link", { name: "Castración perro macho" }).click();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await pickLocality(page, "#locality_picker-input", "Palermo");
   await page.getByRole("button", { name: /^buscar$/i }).click();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
   const offering = page.locator('a[href^="/turnos/buscar/"]:not([href*="service_kind"])').first();
   await expect(offering, "an offering in /turnos/buscar (seed: materialize:slots)").toBeVisible();
   await offering.click();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
   const slot = page.locator('a[href*="/reservar/"]').first();
   await expect(slot, "an open slot on the offering").toBeVisible();
   await slot.click();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
   const petSelect = page.locator('select[name="petId"]');
   await expect(petSelect, "booking form pet selector").toBeVisible();
   await petSelect.selectOption({ label: "Luna" }).catch(() => petSelect.selectOption({ index: 1 }));
   await page.getByRole("button", { name: /confirmar reserva/i }).click();
   await page.waitForURL((url) => !url.pathname.includes("/reservar/"), { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
 
   // 7. My bookings
@@ -149,7 +165,7 @@ test("segmento 02 — dueno", async ({ page }) => {
   const report = page.locator('a[href^="/denuncias/"]:not([href*="nueva"])').first();
   if (await report.count()) {
     await report.click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 

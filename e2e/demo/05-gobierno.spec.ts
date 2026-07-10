@@ -102,7 +102,7 @@ test("segmento 05 — gobierno", async ({ page }) => {
     "an investigation opened, OR every ENO disease already had one open (pool exhausted)",
   ).toBe(true);
   if (opened) {
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page); // investigation detail page
   } else {
     test.info().annotations.push({
@@ -127,7 +127,7 @@ test("segmento 05 — gobierno", async ({ page }) => {
   const maltratoDetail = page.locator('a[href^="/gob/maltrato/"]').first();
   if (await maltratoDetail.count()) {
     await maltratoDetail.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page); // triage detail — LOOK, do not touch the action buttons
   }
   await showScreen(page, "/gob/decomisos"); // list only — no /nuevo on camera
@@ -141,7 +141,7 @@ test("segmento 05 — gobierno", async ({ page }) => {
   const colaDetail = page.locator('a[href^="/gob/cola/"]').first();
   if (await colaDetail.count()) {
     await colaDetail.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page); // registration detail — decision buttons stay untouched
   }
   await showScreen(page, "/gob/organizaciones");

@@ -27,7 +27,7 @@ export async function loginAs(page: Page, email: string): Promise<void> {
   // Let hydration finish before interacting — clicks dispatched before React
   // attaches handlers are silently dropped (clickthrough audit 2026-07-03,
   // task #39), which stranded a whole recording pass on the login screen.
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await page.waitForTimeout(1_500);
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
@@ -39,7 +39,7 @@ export async function loginAs(page: Page, email: string): Promise<void> {
     await page.getByLabel(/contraseña/i).press("Enter");
     await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
   }
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
 }
 
 /** Navigate to a path, tolerate 308 redirects, settle, then pause briefly for the recording. */
@@ -49,24 +49,41 @@ export async function visit(
   opts: { settle?: number } = {},
 ): Promise<void> {
   await page.goto(urlPath, { waitUntil: "domcontentloaded" }).catch(() => {});
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await page.waitForTimeout(opts.settle ?? 600);
 }
 
-/** Slow full-page scroll to the bottom and back — reveals long tables/dashboards on camera. */
+/**
+ * Slow full-page scroll to the bottom and back — reveals long tables/dashboards
+ * on camera. Pure choreography, NOT an assertion: if the page navigates or
+ * streams a re-render mid-scroll, the evaluate's execution context is destroyed
+ * and throws. That is benign for a camera pan, so we swallow it rather than
+ * failing an otherwise-complete journey (heavier operator surfaces made this a
+ * recurring false failure — the flow completed, the scroll just got interrupted).
+ */
 export async function fullScroll(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    const height = document.body.scrollHeight;
-    const step = Math.max(300, Math.floor(window.innerHeight * 0.8));
-    for (let y = 0; y <= height; y += step) {
-      window.scrollTo({ top: y, behavior: "smooth" });
-      await sleep(350);
+  try {
+    await page.evaluate(async () => {
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+      const height = document.body.scrollHeight;
+      const step = Math.max(300, Math.floor(window.innerHeight * 0.8));
+      for (let y = 0; y <= height; y += step) {
+        window.scrollTo({ top: y, behavior: "smooth" });
+        await sleep(350);
+      }
+      await sleep(300);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      await sleep(300);
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Only swallow the navigation/teardown races; re-throw anything real.
+    if (
+      !/execution context was destroyed|target page.*closed|page.*has been closed/i.test(message)
+    ) {
+      throw err;
     }
-    await sleep(300);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    await sleep(300);
-  });
+  }
 }
 
 /** Visit + full scroll, the default "show this screen" beat. */
@@ -193,7 +210,7 @@ export async function clickContinuar(page: Page): Promise<void> {
  */
 export async function resolveOrgToken(page: Page, orgNameHint: RegExp): Promise<string> {
   await page.goto("/org", { waitUntil: "domcontentloaded" }).catch(() => {});
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   let match = page.url().match(/\/org\/([^/?#]+)/);
   if (!match) {
     // Membership picker — click the org card matching the hint.
@@ -205,7 +222,7 @@ export async function resolveOrgToken(page: Page, orgNameHint: RegExp): Promise<
   }
   const token = match?.[1] ?? "";
   expect(token, "org token resolved from /org redirect or picker").toBeTruthy();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   return token;
 }
 
@@ -293,7 +310,7 @@ export async function walkDenunciaWizard(
 
   // createWelfareReportAction redirects to the comprobante on success.
   await page.waitForURL(/\/denuncias\/codigo\//, { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
   return decodeURIComponent(page.url().split("/codigo/")[1] ?? "").split("?")[0];
 }

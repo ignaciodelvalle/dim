@@ -65,7 +65,7 @@ test("segmento 04 — veterinaria", async ({ page }) => {
   await fullScroll(page);
   await step.getByRole("button", { name: /crear servicio/i }).click();
   await page.waitForURL((url) => url.pathname.endsWith("/servicios"), { timeout: 30_000 });
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
 
   // Open the offering we just created (it lands in pending_approval — the
@@ -75,7 +75,7 @@ test("segmento 04 — veterinaria", async ({ page }) => {
   await expect(newOffering, "newly created offering in the servicios list").toBeVisible();
   const newOfferingHref = (await newOffering.getAttribute("href")) ?? "";
   await newOffering.click();
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
 
   // Its agenda: schedule rules are gated on approval, so a pending offering's
@@ -115,7 +115,7 @@ test("segmento 04 — veterinaria", async ({ page }) => {
   const turno = page.locator(`a[href*="/agenda/turnos/"]`).first();
   if (await turno.count()) {
     await turno.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 
@@ -126,7 +126,7 @@ test("segmento 04 — veterinaria", async ({ page }) => {
   const patient = page.locator(`a[href^="${root}/mascotas/"]`).first();
   if (await patient.count()) {
     await patient.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 

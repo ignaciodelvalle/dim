@@ -33,6 +33,14 @@ export default defineConfig({
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // Bound individual actions so a selector that drifted from the current UI
+    // (a renamed button, a data-state branch the recording didn't anticipate)
+    // FAILS FAST with its own screenshot instead of silently waiting out the
+    // whole 18-25 min test budget. Playwright's default actionTimeout is 0
+    // (unbounded → inherits the test timeout), which turned every diverged
+    // click into an 18-minute hang. 20s is generous for a warm local server.
+    actionTimeout: 20_000,
+    navigationTimeout: 30_000,
     ...devices["Desktop Chrome"],
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

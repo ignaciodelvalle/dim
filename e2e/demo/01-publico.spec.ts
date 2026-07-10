@@ -26,12 +26,12 @@ test("segmento 01 — publico", async ({ page }) => {
     .getByRole("button", { name: /aplicar filtros/i })
     .click()
     .catch(() => {});
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
   const petCard = page.locator('a[href^="/adoptar/DIM"]').first();
   if (await petCard.count()) {
     await petCard.click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page); // ficha: historia, salud, refugio, CTA "iniciá sesión para postular"
   }
 
@@ -44,7 +44,7 @@ test("segmento 01 — publico", async ({ page }) => {
   const orgCard = page.locator('a[href^="/refugios/DIM"], a[href^="/refugios/"]').first();
   if (await orgCard.count()) {
     await orgCard.click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 
@@ -64,7 +64,7 @@ test("segmento 01 — publico", async ({ page }) => {
       .first()
       .click()
       .catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 

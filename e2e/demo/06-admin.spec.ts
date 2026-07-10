@@ -44,7 +44,7 @@ test("segmento 06 — admin", async ({ page }) => {
   const moderacionDetail = page.locator('a[href^="/admin/moderacion/"]').first();
   if (await moderacionDetail.count()) {
     await moderacionDetail.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page); // detail — action buttons stay untouched
   }
 
@@ -73,7 +73,7 @@ test("segmento 06 — admin", async ({ page }) => {
   const outboxDetail = page.locator('a[href^="/admin/outbox/"]').first();
   if (await outboxDetail.count()) {
     await outboxDetail.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 
@@ -95,7 +95,7 @@ test("segmento 06 — admin", async ({ page }) => {
   const jurisdictionLink = page.locator('a[href^="/admin/reglas/AR"]').first();
   if (await jurisdictionLink.count()) {
     await jurisdictionLink.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 

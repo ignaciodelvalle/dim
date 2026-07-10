@@ -50,7 +50,7 @@ test("segmento 03 — refugio", async ({ page }) => {
   const turno = page.locator(`a[href*="/agenda/turnos/"]`).first();
   if (await turno.count()) {
     await turno.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
 
@@ -194,7 +194,7 @@ test("segmento 03 — refugio", async ({ page }) => {
   const application = page.locator(`a[href^="${root}/adopciones/"]`).first();
   if (await application.count()) {
     await application.click().catch(() => {});
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     await fullScroll(page);
   }
   await showScreen(page, `${root}/checkins`);
@@ -258,7 +258,7 @@ test("segmento 03 — refugio", async ({ page }) => {
   await page
     .waitForURL((url) => !url.pathname.endsWith("/maltrato/nuevo"), { timeout: 30_000 })
     .catch(() => {});
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await fullScroll(page);
 
   // MORDEDURA — submission creates a NEW bite case (allowed). It targets the
