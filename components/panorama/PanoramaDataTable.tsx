@@ -23,12 +23,25 @@ type Props = {
   /** es-AR label of the ranked measure, used in the value column header. */
   measureLabel: string;
   onSelect?: (key: string) => void;
+  /**
+   * trust/safety invariant (2026-07-10): the base layer produced NO data, so an
+   * empty table must not read as "sin jurisdicciones bajo meta". Mirrors
+   * RankedUnitsPanel.dataUnavailable so both views of the same projection stay
+   * honest in lockstep.
+   */
+  dataUnavailable?: boolean;
 };
 
 const ariaSort = (active: boolean, dir: SortDir): "ascending" | "descending" | "none" =>
   active ? (dir === "asc" ? "ascending" : "descending") : "none";
 
-export function PanoramaDataTable({ rows, kind, measureLabel, onSelect }: Props) {
+export function PanoramaDataTable({
+  rows,
+  kind,
+  measureLabel,
+  onSelect,
+  dataUnavailable = false,
+}: Props) {
   // Default: worst first — rate by gap desc, density by value desc.
   const [sortKey, setSortKey] = useState<SortKey>(kind === "rate" ? "gap" : "value");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -73,6 +86,13 @@ export function PanoramaDataTable({ rows, kind, measureLabel, onSelect }: Props)
   };
 
   if (rows.length === 0) {
+    if (dataUnavailable) {
+      return (
+        <p className="text-xs leading-snug text-ln-op-warn">
+          No pudimos calcular el ranking en este momento.
+        </p>
+      );
+    }
     return (
       <p className="text-xs leading-snug text-ln-op-mute">
         {kind === "rate"

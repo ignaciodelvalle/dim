@@ -2165,6 +2165,22 @@ export function PanoramaConsole({
   // sentence construction.
   const readingKpis = useMemo(() => selectMetricKpis(kpis, metricIds), [kpis, metricIds]);
 
+  // trust/safety invariant (2026-07-10): the KPI fan-out resolved to the honest
+  // degraded payload (no real numbers). Every CONCLUSION surface fed by the KPI
+  // strip (reading, metrics column) must REPLACE its reassuring copy with an
+  // explicit "no pudimos calcular" state — a degraded view must never read as
+  // "all good". Pending (still streaming) is a separate, non-degraded state.
+  const kpisDegraded = kpis.degraded === true && !kpisPending;
+
+  // The ranking is layer-driven (the base layer's own fetch), NOT the KPI strip.
+  // Scoped to RATE layers (cobertura): an EMPTY rate feature collection means we
+  // have no jurisdictions to compare against meta, so the panel must NOT claim
+  // "sin jurisdicciones bajo meta" (a reassuring all-clear) — that all-clear may
+  // only show for a POPULATED layer where no unit is below meta. Density layers
+  // keep their already-honest "Sin datos suficientes en este alcance." copy.
+  const rankingDataUnavailable =
+    rankingKind === "rate" && (rankedActiveLayer?.features.features.length ?? 0) === 0;
+
   // panorama-vista-redesign Phase 4 (design Decision 4): temporal gating is
   // sourced EXCLUSIVELY from isTemporalLayer() over the ACTIVE layer set —
   // no scrubber-local temporal set (the regression the design flags). Adding
@@ -2276,7 +2292,12 @@ export function PanoramaConsole({
               per-vista KPI tiles → Peores-N ranking → footer → stale notice. */}
           {/* One-line auto-reading derived from the existing KPI deltas (no new
               query). Hidden while the KPIs are stale — the notice below covers it. */}
-          <PanoramaReading kpis={readingKpis} stale={kpisStale} pending={kpisPending} />
+          <PanoramaReading
+            kpis={readingKpis}
+            stale={kpisStale}
+            pending={kpisPending}
+            degraded={kpisDegraded}
+          />
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (
@@ -2302,7 +2323,12 @@ export function PanoramaConsole({
               tiles — replaces the flat 7-tile PanoramaKpiStrip body. Same
               getPanoramaKpis() result; only filtered/ordered by the active
               preset's `metrics` (null in manual mode → shows every KPI). */}
-          <PanoramaMetricsColumn kpis={kpis} metricIds={metricIds} pending={kpisPending} />
+          <PanoramaMetricsColumn
+            kpis={kpis}
+            metricIds={metricIds}
+            pending={kpisPending}
+            degraded={kpisDegraded}
+          />
           {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
               ordered list (hover-synced with the map), plus the accessible
               <table> view (Ley 26.653). Shown for rate/density base layers only
@@ -2316,6 +2342,7 @@ export function PanoramaConsole({
                 highlightedKey={highlightedUnitKey}
                 onHover={setHighlightedUnitKey}
                 onSelect={onRankedSelect}
+                dataUnavailable={rankingDataUnavailable}
               />
               {rankedRows.length > 0 && (
                 <button
@@ -2333,6 +2360,7 @@ export function PanoramaConsole({
                   kind={rankingKind}
                   measureLabel={captionLayer.caption.measure}
                   onSelect={onRankedSelect}
+                  dataUnavailable={rankingDataUnavailable}
                 />
               )}
             </section>

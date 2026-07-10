@@ -48,6 +48,17 @@ describe("PanoramaReading", () => {
     ).toBeInTheDocument();
   });
 
+  it("degraded: replaces the reassuring fallback with an explicit failure line (trust/safety)", () => {
+    // A degraded strip carries no deltas → buildPanoramaReading would emit the
+    // reassuring "Sin variación destacable…" fallback. The degraded flag must
+    // REPLACE it with an honest "no pudimos calcular" line — never both.
+    render(<PanoramaReading kpis={[]} stale={false} degraded={true} />);
+    expect(screen.getByText("No pudimos calcular la lectura en este momento.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sin variación destacable frente al período anterior."),
+    ).not.toBeInTheDocument();
+  });
+
   it("appends the absolute anchor when a compliance KPI headlines with its strip % value", () => {
     // design-QA 2026-07-04 nit 3: PanoramaKpi.value ("42%") flows structurally
     // into ReadingKpi.value — the sentence gains one actionable absolute.

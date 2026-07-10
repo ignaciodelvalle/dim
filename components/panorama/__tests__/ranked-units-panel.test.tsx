@@ -27,6 +27,16 @@ describe("RankedUnitsPanel", () => {
     expect(screen.getByText("Sin jurisdicciones bajo meta en este alcance.")).toBeInTheDocument();
   });
 
+  it("dataUnavailable: replaces the below-meta all-clear with an explicit failure state (trust/safety)", () => {
+    // No base-layer data loaded → an empty ranking must NOT read as "sin
+    // jurisdicciones bajo meta" (a reassuring all-clear).
+    render(<RankedUnitsPanel rows={[]} kind="rate" measureLabel="cobertura" dataUnavailable />);
+    expect(screen.getByText("No pudimos calcular el ranking en este momento.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sin jurisdicciones bajo meta en este alcance."),
+    ).not.toBeInTheDocument();
+  });
+
   it("bubbles the unit key on hover and clears it on leave (map sync)", () => {
     const onHover = vi.fn();
     render(

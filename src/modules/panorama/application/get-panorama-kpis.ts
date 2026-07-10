@@ -153,6 +153,17 @@ export type PanoramaKpis = {
    * valid; `null` on the degraded strip. The real fetcher always sets it.
    */
   coverageDenominator?: PanoramaCoverageDenominator | null;
+  /**
+   * trust/safety invariant (2026-07-10): TRUE only for the honest degraded
+   * payload (degradedPanoramaKpis) — the KPI fan-out failed and NO real numbers
+   * are on screen. Consumers thread this into every CONCLUSION surface (the
+   * one-line reading, the metrics column, the ranking) so a degraded view shows
+   * an explicit "no pudimos calcular" state that REPLACES any reassuring
+   * conclusion ("sin variación", "sin jurisdicciones bajo meta") — the two must
+   * never coexist. Optional/undefined on the real path (data loaded) and on
+   * pre-existing fixtures, which read as not-degraded.
+   */
+  degraded?: boolean;
 };
 
 /**
@@ -183,6 +194,10 @@ export function degradedPanoramaKpis(): PanoramaKpis {
       "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
     dataAsOf: null,
     coverageDenominator: null,
+    // Explicit degraded sentinel — see PanoramaKpis.degraded. Lets conclusion
+    // surfaces REPLACE their reassuring copy with an honest failure state
+    // instead of reading an empty strip as "all good".
+    degraded: true,
   };
 }
 

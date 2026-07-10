@@ -349,6 +349,32 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(isBefore(reading, strip)).toBe(true);
   });
 
+  it("degraded KPIs: KPI-driven conclusion surfaces show a failure state, never a reassuring one (trust/safety)", () => {
+    // The KPI fan-out resolved to the honest degraded payload. The one-line
+    // reading and the metrics column must REPLACE their reassuring copy with an
+    // explicit "no pudimos calcular/cargar" state — the two must never coexist.
+    setUrl("/gob/panorama?period=3y");
+    const DEGRADED_KPIS: PanoramaKpis = {
+      kpis: [],
+      recalculatedFor:
+        "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
+      dataAsOf: null,
+      degraded: true,
+    };
+    renderRedesignConsole({ initialKpis: DEGRADED_KPIS });
+
+    // Honest failure states present…
+    expect(screen.getByText("No pudimos calcular la lectura en este momento.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No pudimos cargar los indicadores en este momento."),
+    ).toBeInTheDocument();
+    // …and NO reassuring conclusion anywhere on the degraded view.
+    expect(
+      screen.queryByText("Sin variación destacable frente al período anterior."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Métricas no disponibles para esta vista.")).not.toBeInTheDocument();
+  });
+
   it("hosts the filters slot inside the 'Alcance y período' disclosure, next to CapasBox", () => {
     const { container } = renderRedesignConsole();
 

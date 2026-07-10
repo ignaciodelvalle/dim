@@ -96,4 +96,25 @@ describe("PanoramaMetricsColumn — switching vista updates the column", () => {
     expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
     expect(container).not.toBeEmptyDOMElement();
   });
+
+  it("degraded: shows an explicit failure state DISTINCT from loaded-empty copy (trust/safety)", () => {
+    // The KPI fan-out failed → the strip is empty AND degraded. It must NOT
+    // reuse the loaded-empty "Métricas no disponibles para esta vista." copy
+    // (which reads as "these metrics aren't in this vista"); it must say the
+    // load failed.
+    const degradedPayload: PanoramaKpis = {
+      kpis: [],
+      recalculatedFor:
+        "No pudimos cargar los indicadores en este momento. Reintentá en unos segundos.",
+      dataAsOf: null,
+      degraded: true,
+    };
+    const bienestar = getPreset("bienestar")!;
+    render(<PanoramaMetricsColumn kpis={degradedPayload} metricIds={bienestar.metrics} degraded />);
+
+    expect(
+      screen.getByText("No pudimos cargar los indicadores en este momento."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Métricas no disponibles para esta vista.")).not.toBeInTheDocument();
+  });
 });

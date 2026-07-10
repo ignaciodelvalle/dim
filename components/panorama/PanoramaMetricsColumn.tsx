@@ -27,6 +27,14 @@ type Props = {
    * awaited path byte-identical.
    */
   pending?: boolean;
+  /**
+   * trust/safety invariant (2026-07-10): the KPI fan-out DEGRADED (no real
+   * numbers). Renders an explicit "no pudimos cargar" state that is DISTINCT
+   * from the loaded-but-empty "Métricas no disponibles para esta vista." copy —
+   * a degraded strip must never read as "these metrics just aren't in this
+   * vista". Default false keeps the loaded paths byte-identical.
+   */
+  degraded?: boolean;
 };
 
 /**
@@ -48,8 +56,25 @@ export function selectMetricKpis(
         .filter((k): k is NonNullable<typeof k> => k !== undefined);
 }
 
-export function PanoramaMetricsColumn({ kpis, metricIds, pending = false }: Props) {
+export function PanoramaMetricsColumn({
+  kpis,
+  metricIds,
+  pending = false,
+  degraded = false,
+}: Props) {
   const shown = selectMetricKpis(kpis, metricIds);
+
+  if (degraded) {
+    // trust/safety invariant (2026-07-10): the fan-out failed — say so
+    // explicitly. This REPLACES the loaded-empty "Métricas no disponibles para
+    // esta vista." copy so a degraded strip is never mistaken for "these
+    // particular metrics aren't part of this vista".
+    return (
+      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-warn">
+        No pudimos cargar los indicadores en este momento.
+      </p>
+    );
+  }
 
   if (pending) {
     // perf plan 1.3: the KPI fan-out is streaming in — reuse the degraded-strip

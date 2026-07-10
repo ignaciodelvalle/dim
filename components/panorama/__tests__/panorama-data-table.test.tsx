@@ -62,4 +62,13 @@ describe("PanoramaDataTable — accessible view (Ley 26.653)", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Sin jurisdicciones bajo meta en este alcance.")).toBeInTheDocument();
   });
+
+  it("dataUnavailable: no rows + no data shows an explicit failure state, not the all-clear (trust/safety)", () => {
+    render(<PanoramaDataTable rows={[]} kind="rate" measureLabel="cobertura" dataUnavailable />);
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+    expect(screen.getByText("No pudimos calcular el ranking en este momento.")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sin jurisdicciones bajo meta en este alcance."),
+    ).not.toBeInTheDocument();
+  });
 });

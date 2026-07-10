@@ -30,6 +30,14 @@ type Props = {
   onHover?: (key: string | null) => void;
   /** Fired on row click/Enter — opens the DetailDrawer for that unit. */
   onSelect?: (key: string) => void;
+  /**
+   * trust/safety invariant (2026-07-10): the base layer produced NO data (its
+   * feature collection is empty — degraded/failed fetch, or nothing in scope),
+   * so an empty ranking cannot be read as "sin jurisdicciones bajo meta" (a
+   * reassuring all-clear). When true, render an explicit "no pudimos calcular"
+   * state instead. Only "no rows" + data-present may show the below-meta copy.
+   */
+  dataUnavailable?: boolean;
 };
 
 /** Format a metric value for display. Rate values are percentages. */
@@ -44,6 +52,7 @@ export function RankedUnitsPanel({
   highlightedKey = null,
   onHover,
   onSelect,
+  dataUnavailable = false,
 }: Props) {
   return (
     <section aria-labelledby="pano-worst-title" className="space-y-2">
@@ -54,11 +63,19 @@ export function RankedUnitsPanel({
         Peores {rows.length > 0 ? rows.length : 10} jurisdicciones
       </h3>
       {rows.length === 0 ? (
-        <p className="text-xs leading-snug text-ln-op-mute">
-          {kind === "rate"
-            ? "Sin jurisdicciones bajo meta en este alcance."
-            : "Sin datos suficientes en este alcance."}
-        </p>
+        dataUnavailable ? (
+          // trust/safety invariant: no data loaded — never claim "sin
+          // jurisdicciones bajo meta" (all-clear) when we simply have nothing.
+          <p className="text-xs leading-snug text-ln-op-warn">
+            No pudimos calcular el ranking en este momento.
+          </p>
+        ) : (
+          <p className="text-xs leading-snug text-ln-op-mute">
+            {kind === "rate"
+              ? "Sin jurisdicciones bajo meta en este alcance."
+              : "Sin datos suficientes en este alcance."}
+          </p>
+        )
       ) : (
         <ol className="space-y-1" aria-label={`Peores jurisdicciones por ${measureLabel}`}>
           {rows.map((row, i) => {
