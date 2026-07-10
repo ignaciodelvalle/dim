@@ -40,6 +40,7 @@ import {
   divisionValueBounds,
   joinCellsToDivisionsMulti,
 } from "@/components/panorama/division-fill";
+import { divisionLabelAnchors } from "@/components/panorama/division-labels";
 import {
   type Bbox,
   FRAMING_SNAP_MAX_ZOOM,
@@ -429,7 +430,10 @@ function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]]
 }
 
 /** One feature of a local division GeoJSON, as much of it as the join reads. */
-type DivisionRawFeature = { properties?: { code?: string; name?: string } | null };
+type DivisionRawFeature = {
+  geometry?: unknown;
+  properties?: { code?: string; name?: string } | null;
+};
 
 /** Same-origin fetch of a local GeoJSON asset → its features (null on failure).
  * Routed through the shared session cache so a repeat/concurrent request for the
@@ -567,6 +571,12 @@ export function SituationalMap({
     barrioCodes: Set<string>;
     names: Map<string, string>;
   } | null>(null);
+  // task #64: the HTML place-label markers currently on the map (department /
+  // barrio names at drill level). maplibregl.Marker anchors HTML to a lng/lat and
+  // auto-repositions it on pan/zoom — the glyph-free way to put text on the map
+  // (no glyph server; see the file docblock). Cleared + rebuilt with the division
+  // set; only ever present in division mode, so the province view stays clean.
+  const labelMarkersRef = useRef<maplibregl.Marker[]>([]);
   // Monotonic token so a superseded division resolution (rapid zoom/pan/switch)
   // never paints stale polygons over the newer viewport.
   const divisionTokenRef = useRef(0);
@@ -1201,6 +1211,8 @@ export function SituationalMap({
       },
     });
     divisionsRef.current = { signature, deptCodes, barrioCodes, names };
+    // task #64: render the drill-level place labels for this division set.
+    if (mlRef.current) renderDivisionLabels(map, mlRef.current, features);
     // Kick the fade-in on the next frame so MapLibre registers the 0→target step.
     const fadeMap = map;
     window.requestAnimationFrame(() => {
@@ -1452,9 +1464,39 @@ export function SituationalMap({
 
   // --- Always-visible divisions: fill + outline lifecycle. -------------------
 
+  // task #64: drill-level place labels (department / barrio names). HTML markers
+  // (glyph-free — the map has no glyph server), muted slate with a dark halo so
+  // they read over the navy land without shouting; non-interactive so they never
+  // block the polygon hover/click. Only ever created in division mode, so the
+  // province view stays label-free (province shapes are recognizable on their own).
+  function clearDivisionLabels() {
+    for (const m of labelMarkersRef.current) m.remove();
+    labelMarkersRef.current = [];
+  }
+
+  function renderDivisionLabels(
+    map: maplibregl.Map,
+    ml: typeof maplibregl,
+    features: readonly DivisionRawFeature[],
+  ) {
+    clearDivisionLabels();
+    for (const a of divisionLabelAnchors(features)) {
+      const el = document.createElement("div");
+      el.textContent = a.name;
+      el.setAttribute("aria-hidden", "true");
+      el.style.cssText =
+        "pointer-events:none;user-select:none;white-space:nowrap;font:600 11px/1 system-ui,sans-serif;color:#cbd5e1;text-shadow:0 0 2px #0b1020,0 0 2px #0b1020,0 0 3px #0b1020;";
+      const marker = new ml.Marker({ element: el, anchor: "center" })
+        .setLngLat([a.lng, a.lat])
+        .addTo(map);
+      labelMarkersRef.current.push(marker);
+    }
+  }
+
   /** Remove the shared division source, its outline, hover glow, and every
    * per-layer fill + suppression-hatch overlay. */
   function removeDivisions(map: maplibregl.Map) {
+    clearDivisionLabels();
     for (const id of mountedRef.current) {
       const fid = divisionFillLayerId(id);
       if (map.getLayer(fid)) map.removeLayer(fid);
