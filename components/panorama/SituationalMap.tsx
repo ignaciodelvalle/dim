@@ -9,6 +9,7 @@ import {
   PET_STATUS_LABEL,
   SEVERITY_LABEL,
 } from "@/components/panorama/DetailDrawer";
+import { SavedViewsPopover } from "@/components/panorama/SavedViewsPopover";
 import {
   BIVARIATE_LEGEND_GRID,
   bivariateFillColorExpr,
@@ -2668,6 +2669,8 @@ export function SituationalMap({
           >
             Copiar vista
           </button>
+          {/* task #66b: named bookmarks of the current view URL (localStorage). */}
+          <SavedViewsPopover />
           <button
             type="button"
             onClick={exportPng}
