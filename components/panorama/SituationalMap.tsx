@@ -2256,7 +2256,7 @@ export function SituationalMap({
     a.click();
   }
 
-  // map-QOL "Mi alcance": snap the camera back to the operator's scope — the
+  // Reset view: snap the camera back to the operator's scope — the
   // server-computed jurisdiction bbox (govt) or the national/data extent.
   function fitToScope() {
     const map = mapRef.current;
@@ -2264,6 +2264,10 @@ export function SituationalMap({
     const bbox = initialBoundsRef.current ?? nationalBboxRef.current ?? AR_BBOX;
     map.fitBounds(bbox, { padding: 56, animate: true, maxZoom: 11 });
   }
+  // Accessible label for the reset-view control. Named per operator type so the
+  // home icon's tooltip is honest: a scoped govt operator (initialBounds present)
+  // returns to their jurisdiction; admin/universal returns to the national view.
+  const resetViewLabel = initialBounds ? "Volver a mi jurisdicción" : "Vista nacional";
 
   // cursor Part2 — the active choropleth base layer whose CABA aggregates the
   // inset renders at barrio scale. Shown only at national/regional zoom (before
@@ -2354,13 +2358,33 @@ export function SituationalMap({
             ← Volver
           </button>
         )}
-        {/* map-QOL: one-click return to the operator's scope. */}
+        {/* Reset view (fix): a HOME icon is the universal "return to the default
+            frame" convention — replaces the internal-jargon "Mi alcance" text.
+            fitToScope re-frames the camera to the operator's scope default
+            (national for admin/universal; the jurisdiction frame for scoped govt).
+            The accessible label + tooltip name the destination honestly per
+            operator type; the visible control is the icon. */}
         <button
           type="button"
           onClick={fitToScope}
-          className="rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+          title={resetViewLabel}
+          aria-label={resetViewLabel}
+          className="flex items-center justify-center rounded-[var(--radius-sm)] border border-white/20 bg-black/55 p-1.5 text-white/90 hover:bg-black/70"
         >
-          Mi alcance
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 10.5 12 3l9 7.5" />
+            <path d="M5 9.5V21h14V9.5" />
+          </svg>
         </button>
       </div>
       {/* panorama-ia-v2 §3.6: briefing chrome — copy the deep-link + export a
