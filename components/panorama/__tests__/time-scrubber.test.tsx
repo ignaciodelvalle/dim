@@ -167,10 +167,10 @@ describe("TimeScrubber — loop windows", () => {
     const slider = screen.getByRole("slider") as HTMLInputElement;
     expect(slider.value).toBe(slider.max); // starts live
 
-    fireEvent.click(screen.getByRole("button", { name: "↺ 30 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ último mes" }));
 
     expect(Number(slider.value)).toBeLessThan(Number(slider.max));
-    expect(screen.getByRole("button", { name: "↺ 30 días" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "↺ último mes" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -187,8 +187,8 @@ describe("TimeScrubber — loop windows", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
+    expect(screen.getByRole("button", { name: "↺ última semana" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -197,7 +197,7 @@ describe("TimeScrubber — loop windows", () => {
 
     const slider = screen.getByRole("slider") as HTMLInputElement;
     expect(slider.value).toBe(slider.max);
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "↺ última semana" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
@@ -215,7 +215,7 @@ describe("TimeScrubber — loop windows", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
     const slider = screen.getByRole("slider") as HTMLInputElement;
     const startIndex = Number(slider.value);
 
@@ -288,7 +288,7 @@ describe("TimeScrubber — QA fix: resetToken forces a live reset independent of
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
     const slider = screen.getByRole("slider") as HTMLInputElement;
     expect(Number(slider.value)).toBeLessThan(Number(slider.max));
     onChange.mockClear();
@@ -307,7 +307,7 @@ describe("TimeScrubber — QA fix: resetToken forces a live reset independent of
     );
 
     expect(slider.value).toBe(slider.max);
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "↺ última semana" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
@@ -324,7 +324,7 @@ describe("TimeScrubber — QA fix: resetToken forces a live reset independent of
         onBasisChange={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
     const slider = screen.getByRole("slider") as HTMLInputElement;
     expect(Number(slider.value)).toBeLessThan(Number(slider.max));
   });
@@ -344,9 +344,9 @@ describe("TimeScrubber — QA fix: loop chips disabled for month-stepped (long) 
       />,
     );
 
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "↺ 30 días" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "↺ 90 días" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "↺ última semana" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "↺ último mes" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "↺ último trimestre" })).toBeDisabled();
     expect(screen.getByText(/no están disponibles para períodos largos/)).toBeInTheDocument();
   });
 
@@ -360,7 +360,7 @@ describe("TimeScrubber — QA fix: loop chips disabled for month-stepped (long) 
         onBasisChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
     expect(screen.queryByText(/no están disponibles para períodos largos/)).not.toBeInTheDocument();
   });
 });

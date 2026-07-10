@@ -57,6 +57,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const LOOP_WINDOWS = [7, 30, 90] as const;
 type LoopWindow = (typeof LOOP_WINDOWS)[number];
 
+/**
+ * PO copy fix (panorama v+1 review): the loop chips used to read "↺ 7/30/90
+ * días" — the exact same vocabulary as PeriodPicker's "30 días"/"90 días"
+ * chips ~200px away, but the two mean different things (this is the PLAYBACK
+ * window the scrubber cycles through, not the DATA window the dashboard
+ * queries). Naming the chips by calendar unit ("última semana/mes/trimestre")
+ * keeps the two controls' vocabularies from colliding.
+ */
+const LOOP_WINDOW_LABELS: Record<LoopWindow, string> = {
+  7: "última semana",
+  30: "último mes",
+  90: "último trimestre",
+};
+
 /** Number of date-tick references shown along the track in Detalle mode. */
 const TICK_COUNT = 5;
 
@@ -521,7 +535,7 @@ export function TimeScrubber({
               aria-hidden="true"
               className="mr-1 text-[var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
             >
-              Repetir
+              Ventana de reproducción
             </span>
             {LOOP_WINDOWS.map((days) => (
               <button
@@ -541,7 +555,7 @@ export function TimeScrubber({
                     : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
                 }`}
               >
-                ↺ {days} días
+                ↺ {LOOP_WINDOW_LABELS[days]}
               </button>
             ))}
           </div>

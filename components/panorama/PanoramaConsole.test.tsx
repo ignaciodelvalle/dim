@@ -189,7 +189,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     renderConsole();
     const pushSpy = vi.spyOn(window.history, "pushState");
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(pushSpy).toHaveBeenCalledTimes(1);
     // The URL updated in place — same document, no navigation.
@@ -205,7 +205,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   it("never calls router.push/replace/refresh — the commit bypasses the router entirely", () => {
     renderConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(routerPush).not.toHaveBeenCalled();
     expect(routerReplace).not.toHaveBeenCalled();
@@ -215,7 +215,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   it("fetches the preset's layers client-side against the NEW period", async () => {
     renderConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     await waitFor(() => {
       const layerCalls = fetchMock.mock.calls
@@ -231,7 +231,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   it("persists the committed board to localStorage for the bare-URL restore", () => {
     renderConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     const raw = window.localStorage.getItem("panorama:board:v1");
     expect(raw).not.toBeNull();
@@ -467,10 +467,10 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
-    expect(screen.getByRole("button", { name: /Brotes activos/ })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
+      "aria-checked",
       "true",
     );
     // Both the parent's duplicated "VISTA" headline + question line AND the
@@ -486,7 +486,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
   });
@@ -498,7 +498,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     // brotes-activos: base cobertura (current-state) + signal zoonosis (temporal)
     // → the scrubber stays active (zoonosis reproduces) but must state plainly
     // that the cobertura fill does not move with the fecha de corte.
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(screen.queryByText("No disponible en esta vista")).not.toBeInTheDocument();
     expect(
@@ -510,7 +510,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
     // Flip to Detalle so the mocked LayerPanel mounts and captures onToggle.
     fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
@@ -533,7 +533,7 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 1 });
   });
@@ -542,8 +542,8 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 2 });
   });
@@ -554,8 +554,8 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
 
     // bienestar is a locality-level drill-down preset — deliberately framing-less
     // (design-QA 2026-07-04: only national-overview presets frame the country).
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Bienestar/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
 
     expect(mapProps?.frame).toBeNull();
   });
@@ -581,8 +581,8 @@ describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 h
     // Preset row and map state are CONNECTED on first paint: the button reads
     // active. bienestar is a locality drill-down preset — deliberately
     // framing-less, so the map receives no national frame on the default land.
-    expect(screen.getByRole("button", { name: /Bienestar/ })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
+      "aria-checked",
       "true",
     );
     expect(mapProps?.frame).toBeNull();
@@ -694,8 +694,8 @@ describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2
 
     // The preset row + map connect on first paint (no fetch waited on).
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Bienestar/ })).toHaveAttribute(
-        "aria-pressed",
+      expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
+        "aria-checked",
         "true",
       );
     });
@@ -760,8 +760,8 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     renderRedesignConsole();
 
     // Two clicks inside the 200ms debounce window: only the LAST preset fetches.
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
-    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
     await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
     // brotes-activos' zoonosis layer was superseded before its burst fired.
@@ -779,11 +779,11 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
 
     // Burst B (cumplimiento) supersedes A's cobertura fetch.
-    fireEvent.click(screen.getByRole("button", { name: /cumplimiento/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
     await waitFor(() => expect(coberturaCalls()).toHaveLength(2));
 
     const [first, second] = coberturaCalls();
@@ -902,7 +902,7 @@ describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, r
   it("drills to LOCALITY when the camera zooms past Z_LOCALITY at national scope", async () => {
     renderConsole();
     // Activate a province-baseline preset with a choropleth base (cobertura).
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
     });
@@ -926,7 +926,7 @@ describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, r
 
   it("keeps PROVINCE at national scope while the camera stays below Z_LOCALITY", async () => {
     renderConsole();
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
     });
@@ -955,16 +955,16 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     renderRedesignConsole();
 
     // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     // Flip to Detalle so LayerPanel mounts and captures onToggle.
     fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
 
     // Start a scrub — the loop chip is enabled as soon as zoonosis is active
     // (activation is synchronous; it doesn't wait on the layer fetch).
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
     });
-    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
     await waitFor(() => {
       const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
         (l) => l.id === "cobertura",
@@ -994,15 +994,15 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
-    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "↺ 7 días" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
     });
 
     // Two rapid loop-chip clicks each move the scrub position, firing two
     // as-of fetches for the active temporal layer (zoonosis).
-    fireEvent.click(screen.getByRole("button", { name: "↺ 7 días" }));
-    fireEvent.click(screen.getByRole("button", { name: "↺ 30 días" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
+    fireEvent.click(screen.getByRole("button", { name: "↺ último mes" }));
 
     await waitFor(() => {
       const asOfCalls = deferred.filter(
@@ -1068,7 +1068,7 @@ describe("PanoramaConsole — reading aligned with the metrics column (QA fix, f
     // bienestar's curated metrics are denuncias/mordeduras/mascotas — cobertura
     // (the larger-magnitude delta) is excluded. The full-kpis reading would
     // headline cobertura; the aligned reading must headline mordeduras instead.
-    fireEvent.click(screen.getByRole("button", { name: /Bienestar/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
 
     await waitFor(() => {
       expect(screen.getByText(/Mordeduras empeora 5%/)).toBeInTheDocument();

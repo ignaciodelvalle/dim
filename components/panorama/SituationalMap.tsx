@@ -659,9 +659,14 @@ export function SituationalMap({
         // a meaningless world view.
         maxBounds: AR_MAX_BOUNDS,
         minZoom: MIN_ZOOM,
-        // panorama-ia-v2 §3.6: keep the drawing buffer so getCanvas().toDataURL()
-        // returns the rendered map for the PNG export (blank otherwise).
-        canvasContextAttributes: { preserveDrawingBuffer: true },
+        // preserveDrawingBuffer stays OFF (GL memory + compositor optimizations
+        // the always-on flag disables) — only "Exportar PNG" needs the buffer,
+        // and exportPng() below captures it on-demand instead: it forces a
+        // repaint and reads the canvas from INSIDE the resulting 'render'
+        // callback, synchronously before the browser clears the buffer for the
+        // next frame (the standard maplibre-gl v5 pattern for capturing a
+        // non-preserved canvas).
+        canvasContextAttributes: { preserveDrawingBuffer: false },
         // es-AR labels for MapLibre's built-in NavigationControl (zoom buttons)
         // — otherwise a govt user sees "Zoom in"/"Zoom out" tooltips in English.
         // "Map.Title" is the aria-label MapLibre stamps on the interactive canvas
@@ -2466,11 +2471,21 @@ export function SituationalMap({
   // panorama-ia-v2 §3.6: export the map as a PNG with an auditable metadata
   // footer (data-as-of · source · scope · period · suppressed cells). Composes
   // the map canvas onto a taller canvas and appends the footer strip.
+  //
+  // preserveDrawingBuffer is OFF on the map's GL context (memory/perf cost
+  // only "Exportar PNG" needed) — capture on-demand instead: trigger one
+  // repaint and read the canvas INSIDE the resulting 'render' event callback,
+  // which fires synchronously right after that frame paints, before the
+  // browser clears the (non-preserved) buffer for the next frame.
   function exportPng() {
     const map = mapRef.current;
     if (!map || !viewMeta) return;
-    const mapCanvas = map.getCanvas();
-    const footer = buildExportFooter(viewMeta);
+    map.once("render", () => capturePngFromCanvas(map.getCanvas(), viewMeta));
+    map.triggerRepaint();
+  }
+
+  function capturePngFromCanvas(mapCanvas: HTMLCanvasElement, meta: NonNullable<typeof viewMeta>) {
+    const footer = buildExportFooter(meta);
     const stripH = 34;
     const out = document.createElement("canvas");
     out.width = mapCanvas.width;
