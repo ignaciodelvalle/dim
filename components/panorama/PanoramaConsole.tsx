@@ -63,6 +63,7 @@ import {
 } from "@/lib/ui/map-layer-nav";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { buildBivariateCells } from "@/src/modules/panorama/domain/bivariate";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import {
   AGGREGATED_POINT_IDS,
@@ -998,6 +999,12 @@ export function PanoramaConsole({
   const scrubDetailRef = useRef(scrubDetail);
   scrubDetailRef.current = scrubDetail;
 
+  // task #63: the bivariate "riesgo-brotes" map encoding. Client-only view state
+  // (like opacities) — never URL-encoded. Offered ONLY for the "Brotes activos"
+  // preset at province framing (where cobertura × zoonosis both land in the
+  // province cache); default OFF so nothing changes until the operator opts in.
+  const [bivariateMode, setBivariateMode] = useState(false);
+
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
   // non-temporal layers are DIMMED (current-state data shown muted, never as if
@@ -1634,6 +1641,41 @@ export function PanoramaConsole({
     if (hasSeed) return seededPresetId;
     return null;
   });
+
+  // task #63: the bivariate "riesgo-brotes" encoding is OFFERED only for the
+  // "Brotes activos" preset at province framing with both inputs active — the
+  // gate for the toggle UI + the caption override under the map.
+  const bivariateEligible =
+    activePresetId === "brotes-activos" &&
+    level === "province" &&
+    (states.cobertura?.active ?? false) &&
+    (states.zoonosis?.active ?? false);
+  const bivariateActive = bivariateMode && bivariateEligible;
+
+  // task #63: the layer list actually painted by the map. When the bivariate
+  // encoding is active, REPLACE the two stacked layers visually — drop the
+  // zoonosis bubbles and repaint the cobertura province fill as the 3×3 matrix,
+  // computed client-side from the two ALREADY-fetched province results (reuse,
+  // no refetch). Otherwise it is `activeLayers` unchanged.
+  const mapLayers = useMemo<ActiveLayer[]>(() => {
+    // levelVersion/asOfVersion are the explicit recompute triggers for the
+    // province caches (refs), mirroring the activeLayers memo's `void` idiom.
+    void levelVersion;
+    void asOfVersion;
+    if (!bivariateActive) return activeLayers;
+    const cov = provinceDataRef.current.get("cobertura");
+    const sig = provinceDataRef.current.get("zoonosis");
+    if (!cov || !sig || cov.features.length === 0) return activeLayers;
+    const cells = buildBivariateCells(cov, sig);
+    return activeLayers
+      .filter((l) => l.id !== "zoonosis")
+      .map((l) =>
+        l.id === "cobertura"
+          ? { ...l, label: "Riesgo de brotes (cobertura × señales)", bivariateCells: cells }
+          : l,
+      );
+    // levelVersion/asOfVersion bump when the province caches (refs) change.
+  }, [activeLayers, bivariateActive, levelVersion, asOfVersion]);
 
   // panorama-redesign Fase 1: preset map framing (camera-only). Set on preset
   // activation from the preset's optional `framing` field; the token is a
@@ -2469,8 +2511,52 @@ export function PanoramaConsole({
               behind the collapsed "Alcance y período" disclosure. A clickable
               chip opens the full control it summarizes. */}
           <FilterChips chips={filterChips} />
+          {/* task #63: bivariate encoding toggle — offered ONLY on "Brotes
+              activos" at province framing (both inputs active). It is a map
+              ENCODING switch (how the two layers are drawn), not a data toggle:
+              on → the 3×3 risk matrix replaces the stacked coverage fill +
+              zoonosis bubbles; off → the two layers as usual. */}
+          {bivariateEligible && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2">
+              <div className="flex flex-col">
+                <span className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
+                  Ver riesgo combinado
+                </span>
+                <span className="text-[var(--text-xs)] text-ln-op-mute">
+                  Cobertura baja × señales altas — el rincón de riesgo del mapa bivariado
+                </span>
+              </div>
+              <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
+                <legend className="sr-only">Codificación del mapa de brotes</legend>
+                <button
+                  type="button"
+                  aria-pressed={!bivariateMode}
+                  onClick={() => setBivariateMode(false)}
+                  className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
+                    !bivariateMode
+                      ? "bg-ln-op-azul/10 text-ln-op-azul"
+                      : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
+                  }`}
+                >
+                  Capas
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={bivariateMode}
+                  onClick={() => setBivariateMode(true)}
+                  className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
+                    bivariateMode
+                      ? "bg-ln-op-azul/10 text-ln-op-azul"
+                      : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
+                  }`}
+                >
+                  Riesgo (bivariado)
+                </button>
+              </fieldset>
+            </div>
+          )}
           <SituationalMapDynamic
-            layers={activeLayers}
+            layers={mapLayers}
             label={mapLabel}
             onFeatureClick={onFeatureClick}
             onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
@@ -2488,8 +2574,19 @@ export function PanoramaConsole({
           />
           {/* panorama-ia-v2 §2.4: plain-language caption — re-states what a map
               mark means at the active VISTA + derived level. These "honesty
-              lines" live WITH the map they describe (design Decision 1). */}
-          <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+              lines" live WITH the map they describe (design Decision 1).
+              task #63: under the bivariate encoding the caption explains the 3×3
+              matrix + the tercile method (honest-caption pattern) instead. */}
+          {bivariateActive ? (
+            <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
+              Riesgo combinado por provincia: cobertura antirrábica (terciles) × señales de zoonosis
+              (terciles). El rincón de riesgo — cobertura baja · señales altas — resalta en rosa.
+              Terciles calculados sobre la distribución del alcance actual. Una provincia protegida
+              por privacidad (k-anonimato) se muestra con trama, nunca con color.
+            </p>
+          ) : (
+            <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+          )}
           {/* "Ver como tabla" (Ley 26.653): the accessible, downloadable view of
               what the map is painting — the map's own aria-label is only a point
               count. Lives WITH the map (design Decision 1). */}

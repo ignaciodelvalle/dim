@@ -1,0 +1,235 @@
+// Bivariate choropleth domain — the "riesgo-brotes" encoding (task #63).
+//
+// The "Brotes activos" preset stacks a rabies-COVERAGE choropleth (cobertura,
+// a rate) under a ZOONOSIS-signal overlay. The operator's real question is the
+// INTERSECTION: where is coverage LOW and the signal HIGH? A bivariate choropleth
+// answers it directly — coverage terciles × signal terciles = a 3×3 class matrix,
+// and the low-coverage / high-signal corner is the RISK corner.
+//
+// This module is PURE (no DB, no React, no maplibre — the domain purity the
+// biome noRestrictedImports override enforces for src/modules/*/domain/**). It
+// classifies into terciles, joins the two layer results per administrative unit,
+// and PROPAGATES k-anon suppression: a unit suppressed in EITHER input is
+// suppressed here too, so a bivariate color can NEVER be used to infer a value
+// the k=5 rule protected. The maplibre fill/legend live in the client helper
+// components/panorama/bivariate-fill.ts; the palette hexes live there (colors are
+// a presentation concern) — this module reasons only in class indices.
+
+import type { FeatureCollection } from "./types";
+
+// ---------------------------------------------------------------------------
+// Terciles
+// ---------------------------------------------------------------------------
+
+/** A tercile bucket: 0 = low, 1 = mid, 2 = high. */
+export type TercileClass = 0 | 1 | 2;
+
+/** The two cut-points that split a distribution into thirds (33rd / 67th pct). */
+export type TercileThresholds = { t1: number; t2: number };
+
+/** Linear-interpolated quantile of an ASCENDING-sorted array (q ∈ [0,1]). */
+function quantileSorted(sorted: readonly number[], q: number): number {
+  const n = sorted.length;
+  if (n === 0) return Number.NaN;
+  if (n === 1) return sorted[0];
+  const pos = (n - 1) * q;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  const lo = sorted[base];
+  const hi = sorted[base + 1];
+  return hi === undefined ? lo : lo + rest * (hi - lo);
+}
+
+/**
+ * Tercile cut-points over a value distribution (the CURRENT scope's values).
+ * Returns null for an empty distribution (nothing to classify against). A
+ * degenerate distribution (all equal) yields t1 === t2 — every value then lands
+ * in the same bucket via {@link classifyTercile}, which is the honest outcome
+ * (no spread ⇒ no low/high distinction to draw).
+ */
+export function tercileThresholds(values: readonly number[]): TercileThresholds | null {
+  const clean = values.filter((v) => typeof v === "number" && !Number.isNaN(v));
+  if (clean.length === 0) return null;
+  const sorted = [...clean].sort((a, b) => a - b);
+  return { t1: quantileSorted(sorted, 1 / 3), t2: quantileSorted(sorted, 2 / 3) };
+}
+
+/**
+ * Classify a value into its tercile. `value <= t1` → low (0); `<= t2` → mid (1);
+ * otherwise high (2). Using `<=` keeps a value AT a cut-point in the lower bucket
+ * (standard tercile boundary handling); with t1 === t2 every value below the
+ * shared cut is low, at-or-above is high (never mid) — an honest degenerate split.
+ */
+export function classifyTercile(value: number, th: TercileThresholds): TercileClass {
+  if (value <= th.t1) return 0;
+  if (value <= th.t2) return 1;
+  return 2;
+}
+
+// ---------------------------------------------------------------------------
+// 3×3 bivariate class matrix
+// ---------------------------------------------------------------------------
+
+/**
+ * Flat index into the 3×3 matrix from the two tercile classes: `sig * 3 + cov`.
+ * Row = signal tercile (0 low … 2 high), column = coverage tercile. The client
+ * palette is laid out in this exact order, so index N always names the same cell.
+ */
+export function bivariateIndex(cov: TercileClass, sig: TercileClass): number {
+  return sig * 3 + cov;
+}
+
+/** The RISK cell: LOW coverage (0) × HIGH signal (2) → index 6. */
+export const BIVARIATE_RISK_INDEX = bivariateIndex(0, 2);
+/** The CALM cell: HIGH coverage (2) × LOW signal (0) → index 2. */
+export const BIVARIATE_SAFE_INDEX = bivariateIndex(2, 0);
+
+/**
+ * A 0–4 combined-risk score: higher = worse. `sig + (2 - cov)` — a unit is most
+ * at risk when the signal is high AND coverage is low (risk corner → 4), least
+ * when coverage is high and the signal is absent (calm corner → 0).
+ */
+export function riskScore(cov: TercileClass, sig: TercileClass): number {
+  return sig + (2 - cov);
+}
+
+/** es-AR risk band from the score: 0–1 → bajo, 2 → medio, 3–4 → alto. */
+export function riskLabel(cov: TercileClass, sig: TercileClass): "bajo" | "medio" | "alto" {
+  const s = riskScore(cov, sig);
+  if (s >= 3) return "alto";
+  if (s === 2) return "medio";
+  return "bajo";
+}
+
+/** es-AR adjective for a COVERAGE tercile (feminine: "cobertura … baja"). */
+export function coverageClassLabel(cls: TercileClass): "baja" | "media" | "alta" {
+  return cls === 0 ? "baja" : cls === 1 ? "media" : "alta";
+}
+
+/** es-AR adjective for a SIGNAL tercile (feminine plural: "señales … altas"). */
+export function signalClassLabel(cls: TercileClass): "bajas" | "medias" | "altas" {
+  return cls === 0 ? "bajas" : cls === 1 ? "medias" : "altas";
+}
+
+// ---------------------------------------------------------------------------
+// The join: coverage × signal → per-unit bivariate cells
+// ---------------------------------------------------------------------------
+
+/** Coverage (rate choropleth) feature props the join reads. */
+type CoverageProps = {
+  provinceCode?: string;
+  province?: string;
+  value?: number | null;
+  suppressed?: boolean;
+};
+
+/** Signal (aggregated-point, province level) feature props the join reads. */
+type SignalProps = {
+  province?: string;
+  count?: number | null;
+  suppressed?: boolean;
+};
+
+/**
+ * One administrative unit's bivariate state. `provinceCode` is the polygon join
+ * key (from the coverage feature); `key` mirrors it for map lookups. A cell with
+ * `suppressed: true` NEVER carries classes — its color is withheld (hatch), so a
+ * k-anon-protected value can never be inferred from the bivariate color.
+ */
+export type BivariateCell = {
+  /** Polygon join key (ISO 3166-2:AR province code). */
+  provinceCode: string;
+  /** Display label (province name). */
+  place: string;
+  /** Raw coverage value (percentage) or null when absent. */
+  coverageValue: number | null;
+  /** Raw signal count or null when absent/suppressed. */
+  signalValue: number | null;
+  coverageClass: TercileClass | null;
+  signalClass: TercileClass | null;
+  /** True when EITHER input suppressed this unit (k-anon propagation → hatch). */
+  suppressed: boolean;
+};
+
+/** Normalize a province name for the coverage↔signal join (case/space tolerant). */
+function normName(raw: string): string {
+  return raw.trim().toLowerCase();
+}
+
+/**
+ * Join the coverage and signal FeatureCollections into per-province bivariate
+ * cells, classifying each over the CURRENT scope's tercile distribution.
+ *
+ * Suppression propagation (task #63c): a unit is `suppressed` when EITHER the
+ * coverage OR the signal input suppressed it (a null signal `count` is treated as
+ * suppressed — that is how the aggregated-point path k-anon-hides a small cell).
+ * A suppressed cell gets NO classes and NO color; the caller renders the hatch.
+ * A unit merely MISSING from the signal input is NOT suppressed — it is plain
+ * no-data (no signal to classify), which also withholds a bivariate color but is
+ * a distinct, honest state (never a hatch).
+ *
+ * Terciles are computed over the NON-suppressed values of each input separately
+ * (coverage terciles over coverage, signal terciles over signal), so a protected
+ * cell never influences the class boundaries either.
+ *
+ * The polygon set is defined by the COVERAGE features (they carry provinceCode,
+ * the map's fill join key); a province present only in the signal input has no
+ * polygon key here and is dropped (it would be coverage-no-data anyway).
+ */
+export function buildBivariateCells(
+  coverage: FeatureCollection,
+  signal: FeatureCollection,
+): BivariateCell[] {
+  // Index the signal by province name.
+  const signalByName = new Map<string, { value: number | null; suppressed: boolean }>();
+  const signalValues: number[] = [];
+  for (const f of signal.features) {
+    const p = (f.properties ?? {}) as SignalProps;
+    if (typeof p.province !== "string" || p.province.length === 0) continue;
+    const suppressed = p.suppressed === true || p.count == null;
+    const value = typeof p.count === "number" ? p.count : null;
+    signalByName.set(normName(p.province), { value, suppressed });
+    if (!suppressed && value != null) signalValues.push(value);
+  }
+
+  // Coverage distribution (non-suppressed) for the coverage terciles.
+  const coverageValues: number[] = [];
+  for (const f of coverage.features) {
+    const p = (f.properties ?? {}) as CoverageProps;
+    if (p.suppressed === true) continue;
+    if (typeof p.value === "number") coverageValues.push(p.value);
+  }
+
+  const covTh = tercileThresholds(coverageValues);
+  const sigTh = tercileThresholds(signalValues);
+
+  const cells: BivariateCell[] = [];
+  for (const f of coverage.features) {
+    const p = (f.properties ?? {}) as CoverageProps;
+    if (typeof p.provinceCode !== "string" || p.provinceCode.length === 0) continue;
+    const place = typeof p.province === "string" ? p.province : p.provinceCode;
+    const covSup = p.suppressed === true;
+    const covVal = typeof p.value === "number" ? p.value : null;
+
+    const sig = signalByName.get(normName(place));
+    const sigSup = sig?.suppressed === true;
+    const sigVal = sig?.value ?? null;
+
+    const suppressed = covSup || sigSup;
+    const coverageClass =
+      !suppressed && covVal != null && covTh ? classifyTercile(covVal, covTh) : null;
+    const signalClass =
+      !suppressed && sigVal != null && sigTh ? classifyTercile(sigVal, sigTh) : null;
+
+    cells.push({
+      provinceCode: p.provinceCode,
+      place,
+      coverageValue: covVal,
+      signalValue: sigVal,
+      coverageClass,
+      signalClass,
+      suppressed,
+    });
+  }
+  return cells;
+}

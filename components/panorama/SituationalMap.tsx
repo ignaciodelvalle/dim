@@ -9,6 +9,13 @@ import {
   PET_STATUS_LABEL,
   SEVERITY_LABEL,
 } from "@/components/panorama/DetailDrawer";
+import {
+  BIVARIATE_LEGEND_GRID,
+  bivariateFillColorExpr,
+  bivariateReadouts,
+  bivariateSuppressedCodes,
+  bivariateSuppressedFilter,
+} from "@/components/panorama/bivariate-fill";
 import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import {
   type GraduatedScale,
@@ -24,6 +31,7 @@ import {
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { type DomainBounds, resolveScrubDomain } from "@/components/panorama/scale-lock";
+import { type BivariateCell, riskLabel } from "@/src/modules/panorama/domain/bivariate";
 
 import {
   type DivisionLevel,
@@ -163,6 +171,15 @@ export type ActiveLayer = {
    * suppressed-cell muting and the F4 dim behavior are preserved underneath.
    */
   opacity?: number;
+  /**
+   * task #63 (bivariate "riesgo-brotes"): when present, this province choropleth
+   * is rendered as the 3×3 bivariate encoding (coverage terciles × signal
+   * terciles) INSTEAD of its normal single-value fill. The cells carry both raw
+   * values, both classes, and the k-anon suppression that PROPAGATED from either
+   * input (a suppressed province is hatched, never colored). Only meaningful for
+   * a province-level choropleth layer. Absent → normal single-value rendering.
+   */
+  bivariateCells?: BivariateCell[];
 };
 
 type Props = {
@@ -383,6 +400,10 @@ const DIVISION_HOVER_ID = "pano-div-hover";
 // both the colored data fill and the outline-only no-data cell.
 const DIVISION_SUPPRESS_ID = (id: string) => `pano-div-suppress-${id}`;
 const divisionFillLayerId = (id: string) => `pano-div-fill-${id}`;
+// task #63: the bivariate k-anon hatch overlay over the SHARED ar-provinces
+// source (province cells are structurally never suppressed today, but suppression
+// PROPAGATES through the bivariate join, so the honest trichotomy is kept intact).
+const provinceSuppressLayerId = (id: string) => `pano-prov-suppress-${id}`;
 
 /** Compute a [[minLng,minLat],[maxLng,maxLat]] bbox over many feature sets. */
 function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]] | null {
@@ -1275,6 +1296,8 @@ export function SituationalMap({
           addProvinceChoroplethLayer(map, layer, seqDomain);
           mountedRef.current.add(layer.id);
         }
+        // task #63: keep the bivariate suppression hatch in sync (no-op otherwise).
+        applyProvinceBivariateSuppression(map, layer);
         applyDim(map, layer);
         continue;
       }
@@ -1590,6 +1613,14 @@ export function SituationalMap({
     const out: LayerReadout[] = [];
     for (const l of layersRef.current) {
       if (l.geomType !== "choropleth" || l.level !== "province") continue;
+      // task #63: a bivariate layer reports BOTH raw values + their class + the
+      // combined risk band (or the protected state when suppressed) — never a
+      // single value, so the color can't be reverse-engineered into a hidden one.
+      if (l.bivariateCells) {
+        const cell = l.bivariateCells.find((c) => c.provinceCode === code);
+        if (cell) return bivariateReadouts(cell);
+        continue;
+      }
       let value: number | null = null;
       for (const f of l.features.features) {
         const p = f.properties as { provinceCode?: string; value?: number };
@@ -1947,6 +1978,11 @@ export function SituationalMap({
    * Rate layers with a complianceTarget render as a divergent scale (F5);
    * all others keep the sequential RAMP_BLUE path. */
   function provinceColorExprForLayer(layer: ActiveLayer, seqDomain?: DomainBounds | null) {
+    // task #63: a bivariate layer paints from its precomputed class matrix (a
+    // `match` on the polygon code → the 3×3 palette), not from a single value.
+    if (layer.bivariateCells) {
+      return bivariateFillColorExpr(layer.bivariateCells);
+    }
     if (layer.dataType === "rate" && typeof layer.complianceTarget === "number") {
       // panorama-ia-v2 §3.2: rate layers use the FIXED [0,100] domain so every
       // province is colored on the same axis (cross-province comparability); the
@@ -2012,6 +2048,29 @@ export function SituationalMap({
     }
   }
 
+  // task #63: hatch the provinces whose bivariate cell is k-anon suppressed (its
+  // color was withheld). A fill-pattern layer over the shared ar-provinces source,
+  // filtered to the suppressed codes, inserted ABOVE the bivariate fill. Removed
+  // when the layer is not bivariate or nothing is suppressed. Same fail-honest
+  // fallback as the division hatch (solid tone when the pattern image is absent).
+  function applyProvinceBivariateSuppression(map: maplibregl.Map, layer: ActiveLayer) {
+    const sid = provinceSuppressLayerId(layer.id);
+    const codes = layer.bivariateCells ? bivariateSuppressedCodes(layer.bivariateCells) : [];
+    if (codes.length === 0) {
+      if (map.getLayer(sid)) map.removeLayer(sid);
+      return;
+    }
+    if (!map.getSource("ar-provinces")) return;
+    const hasPattern = map.hasImage(HATCH_IMAGE_ID);
+    const paint: maplibregl.FillLayerSpecification["paint"] = hasPattern
+      ? { "fill-pattern": HATCH_IMAGE_ID, "fill-opacity": HATCH_FILL_OPACITY }
+      : { "fill-color": COLOR_SUPPRESSED, "fill-opacity": SUPPRESS_SOLID_OPACITY };
+    if (!map.getLayer(sid)) {
+      map.addLayer({ id: sid, type: "fill", source: "ar-provinces", paint });
+    }
+    map.setFilter(sid, bivariateSuppressedFilter(codes));
+  }
+
   function wireProvinceChoroplethInteractions(map: maplibregl.Map, layer: ActiveLayer) {
     const popup = popupRef.current;
     if (!popup) return;
@@ -2056,12 +2115,30 @@ export function SituationalMap({
         if (code) map.setFeatureState({ source: "ar-provinces", id: code }, { hover: true });
         hoveredProvinceRef.current = code || null;
       }
-      const value = valueFor(code);
       const place = props.name ?? code ?? "—";
-      const valueLine =
-        value === null
-          ? `<span style="color:#94a3b8">Sin datos</span>`
-          : `<strong>${value.toLocaleString("es-AR")}</strong>`;
+      // task #63: a bivariate layer's hover preview names the combined risk band
+      // (or the protected state), not a single value — the pinned popup carries
+      // the full both-values readout on click.
+      const current = layersRef.current.find((l) => l.id === layer.id);
+      let valueLine: string;
+      if (current?.bivariateCells) {
+        const cell = current.bivariateCells.find((c) => c.provinceCode === code);
+        if (!cell || (cell.coverageValue === null && cell.signalValue === null)) {
+          valueLine = `<span style="color:#94a3b8">Sin datos</span>`;
+        } else if (cell.suppressed) {
+          valueLine = `<span style="color:#94a3b8">Dato protegido (k-anonimato)</span>`;
+        } else if (cell.coverageClass !== null && cell.signalClass !== null) {
+          valueLine = `<strong>Riesgo ${escapeHtml(riskLabel(cell.coverageClass, cell.signalClass))}</strong>`;
+        } else {
+          valueLine = `<span style="color:#94a3b8">Sin datos</span>`;
+        }
+      } else {
+        const value = valueFor(code);
+        valueLine =
+          value === null
+            ? `<span style="color:#94a3b8">Sin datos</span>`
+            : `<strong>${value.toLocaleString("es-AR")}</strong>`;
+      }
       popup
         .setLngLat(e.lngLat)
         .setHTML(
@@ -2282,8 +2359,14 @@ export function SituationalMap({
   // compliance target. Rendered as an HTML overlay — no on-canvas text (privacy).
   // Legends are always visible (not gated on zoom) — fixes the "coropletas sin
   // leyenda" complaint: the overlay sits on top of the map at all zoom levels.
+  // task #63: the active bivariate layer (if any) drives the 3×3 matrix legend
+  // below; it is excluded from the ordinary province ramp legends.
+  const bivariateLayer =
+    layers.find((l) => l.geomType === "choropleth" && l.level === "province" && l.bivariateCells) ??
+    null;
+
   const provinceLegends = layers
-    .filter((l) => l.geomType === "choropleth" && l.level === "province")
+    .filter((l) => l.geomType === "choropleth" && l.level === "province" && !l.bivariateCells)
     .map((l) => ({
       layer: l,
       bounds: provinceValueBounds(l.features),
@@ -2576,11 +2659,59 @@ export function SituationalMap({
       {/* map-QOL merged single legend: ONE region (bottom-left) hosts every
           scale — province choropleth ramps, the division-fill ramp, AND the
           graduated-circle buckets. */}
-      {(provinceLegends.length > 0 || hasGraduatedLayer || divisionLegend !== null) && (
+      {(provinceLegends.length > 0 ||
+        hasGraduatedLayer ||
+        divisionLegend !== null ||
+        bivariateLayer !== null) && (
         <div
           aria-label="Leyenda del mapa"
           className="pointer-events-none absolute bottom-3 left-3 space-y-2"
         >
+          {/* task #63: the bivariate legend IS the 3×3 matrix — coverage terciles
+              (x, "Cobertura →") × signal terciles (y, "Señales ↑"). The risk
+              corner (low coverage · high signal) is marked. A hatch swatch names
+              the k-anon-protected state (color withheld, never inferred). */}
+          {bivariateLayer !== null && (
+            <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
+              <div className="mb-1.5 font-medium">Riesgo de brotes</div>
+              <div className="flex items-stretch gap-1.5">
+                {/* y-axis label */}
+                <div className="flex flex-col items-center justify-center">
+                  <span className="whitespace-nowrap text-[10px] text-white/60 [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                    Señales ↑
+                  </span>
+                </div>
+                <div>
+                  {/* 3 rows × 3 cols; grid is row-major, top row = high signal. */}
+                  <div className="grid grid-cols-3 gap-[2px]">
+                    {BIVARIATE_LEGEND_GRID.map((sw) => (
+                      <span
+                        key={`biv-${sw.cov}-${sw.sig}`}
+                        className={`h-4 w-4 rounded-[var(--radius-xs)] ${
+                          sw.risk ? "ring-1 ring-white/80" : "border border-white/10"
+                        }`}
+                        style={{ background: sw.color }}
+                        title={sw.risk ? "Riesgo alto: cobertura baja · señales altas" : undefined}
+                        aria-hidden="true"
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-0.5 text-center text-[10px] text-white/60">Cobertura →</div>
+                </div>
+              </div>
+              <div className="mt-1.5 flex items-center gap-1.5 text-white/70">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
+                  style={{
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
+                  }}
+                  aria-hidden="true"
+                />
+                Protegido (k-anonimato)
+              </div>
+            </div>
+          )}
           {/* Division-fill legend: sequential ramp for the active locality
               choropleth over the barrio/departamento polygons. Names the unit so
               the operator reads the fill as "por barrio/departamento", and states
@@ -2819,6 +2950,7 @@ function removeLayer(map: maplibregl.Map, id: string) {
     choroLayerId(id),
     provinceFillLayerId(id),
     provinceLineLayerId(id),
+    provinceSuppressLayerId(id),
     divisionFillLayerId(id),
     DIVISION_SUPPRESS_ID(id),
   ]) {
