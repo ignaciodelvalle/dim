@@ -1,7 +1,7 @@
 "use client";
 
 import type maplibregl from "maplibre-gl";
-import { useEffect, useRef, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { CabaInset } from "@/components/panorama/CabaInset";
 import {
@@ -2398,8 +2398,27 @@ export function SituationalMap({
   const insetLayer = insetLocalityLayer ?? (insetUniformFill !== null ? insetProvinceLayer : null);
   const insetVisible = insetLayer !== null && insetZoom < Z_DIVISIONS;
 
+  // Keyboard: Escape dismisses the pinned popup (Esri "documents are closeable").
+  // The popup's ✕ + "Ver detalle" are real, tab-reachable buttons; this adds the
+  // conventional Esc shortcut. Fires from anywhere in the map subtree (canvas,
+  // controls, or the popup itself hold focus after interaction).
+  function handleMapKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape" && pinnedPopupRef.current?.isOpen()) {
+      pinnedPopupRef.current.remove();
+    }
+  }
+
   return (
-    <div className="relative w-full" style={{ height }}>
+    <div className="relative w-full" style={{ height }} onKeyDown={handleMapKeyDown}>
+      {/* role="img" TRADEOFF (fix, keyboard/focus): the map is an interactive
+          canvas, but exposing it as role="img" gives assistive tech a single
+          static-image summary (the aria-label point count) instead of an
+          unlabeled, un-navigable canvas. The real interactive affordances —
+          zoom (NavigationControl), reset-view, ← Volver, and the pinned popup's
+          ✕ + "Ver detalle" — are all tab-reachable, labeled <button>s outside
+          this element, and Esc closes the popup (handleMapKeyDown). Full
+          keyboard PAN/feature-navigation on the canvas stays deferred (a larger
+          effort); this keeps the summary honest without a dead, silent canvas. */}
       <div
         ref={containerRef}
         className="h-full w-full overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line"
