@@ -10,5 +10,8 @@
     "app/api/cron/*/route.ts": {
       "maxDuration": 60
     }
-  }
+  },
+  "regions": [
+    "gru1"
+  ]
 }
