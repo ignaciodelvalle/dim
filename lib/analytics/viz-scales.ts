@@ -185,6 +185,59 @@ export function divergentStops(
   return stops;
 }
 
+/**
+ * Linear-interpolate between two `#rrggbb` colors at `t ∈ [0,1]` (t clamped).
+ * Used to evaluate a single fill color off a ramp when a flat scalar fill is
+ * needed instead of a MapLibre interpolate expression (e.g. the CABA inset's
+ * uniform province-value fill). Returns `#rrggbb`.
+ */
+export function lerpHex(a: string, b: string, t: number): string {
+  const clamp = Math.max(0, Math.min(1, t));
+  const pa = parseHex(a);
+  const pb = parseHex(b);
+  if (!pa || !pb) return a;
+  const mix = (x: number, y: number) => Math.round(x + (y - x) * clamp);
+  const r = mix(pa[0], pb[0]);
+  const g = mix(pa[1], pb[1]);
+  const bl = mix(pa[2], pb[2]);
+  return `#${toHex2(r)}${toHex2(g)}${toHex2(bl)}`;
+}
+
+function parseHex(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return null;
+  const n = Number.parseInt(m[1], 16);
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+function toHex2(n: number): string {
+  return n.toString(16).padStart(2, "0");
+}
+
+/**
+ * Evaluate MapLibre-style linear color stops `[[value, hex], ...]` at `value`,
+ * returning the interpolated `#rrggbb`. Stops must be ascending by value (as
+ * produced by {@link divergentStops} or a two-stop sequential ramp). Values
+ * outside the range clamp to the nearest endpoint. Returns COLOR_NO_DATA when
+ * there are no stops.
+ */
+export function sampleStops(stops: ReadonlyArray<[number, string]>, value: number): string {
+  if (stops.length === 0) return COLOR_NO_DATA;
+  if (value <= stops[0][0]) return stops[0][1];
+  const last = stops[stops.length - 1];
+  if (value >= last[0]) return last[1];
+  for (let i = 1; i < stops.length; i++) {
+    const [v0, c0] = stops[i - 1];
+    const [v1, c1] = stops[i];
+    if (value <= v1) {
+      const span = v1 - v0;
+      const t = span > 0 ? (value - v0) / span : 0;
+      return lerpHex(c0, c1, t);
+    }
+  }
+  return last[1];
+}
+
 // ---------------------------------------------------------------------------
 // "No data" color — always rendered as a separate token, never hardcoded
 // ---------------------------------------------------------------------------

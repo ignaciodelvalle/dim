@@ -60,7 +60,13 @@ import {
   provinceDivergentColorExpr,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
-import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE } from "@/lib/analytics/viz-scales";
+import {
+  COLOR_NO_DATA,
+  COLOR_SUPPRESSED,
+  RAMP_BLUE,
+  divergentStops,
+  sampleStops,
+} from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import { escapeHtml } from "@/lib/utils/escape-html";
 
@@ -1995,13 +2001,63 @@ export function SituationalMap({
   // inset renders at barrio scale. Shown only at national/regional zoom (before
   // the operator drills past Z_DIVISIONS, where CABA becomes readable on the main
   // map anyway). Privacy-safe: same aggregates, same tokens, same k-anon hatch.
-  // Judgment #6: only a LOCALITY-level choropleth carries per-barrio cells the
-  // inset can join to CABA's 48 barrios. A province-level choropleth has one
-  // value for the whole province → an empty barrio join, while the inset chrome
-  // says "por barrio" (an over-promise). Restrict the inset to locality data so
-  // the panel is honest: it appears only when there is real barrio granularity.
-  const insetLayer =
+  //
+  // #9 — CABA (~200 km²) is a pixel at national zoom on a web-mercator map, so
+  // the densest jurisdiction is invisible right where it matters. A LOCALITY-level
+  // choropleth fills the 48 barrios with real per-barrio data (the finest, honest
+  // case). A PROVINCE-level choropleth (e.g. rabies coverage at national zoom) has
+  // one CABA value: rather than hide CABA entirely (the original defect), fill the
+  // barrios UNIFORMLY with that single value, evaluated against the SAME scale the
+  // main map uses (divergent for rate layers, sequential otherwise) so the inset
+  // color matches CABA's tiny main-map polygon, and label the panel "valor
+  // provincial" so it never over-promises per-barrio granularity.
+  const insetLocalityLayer =
     layers.find((l) => l.geomType === "choropleth" && l.level === "locality") ?? null;
+  const insetProvinceLayer =
+    insetLocalityLayer === null
+      ? (layers.find((l) => l.geomType === "choropleth" && l.level === "province") ?? null)
+      : null;
+
+  // The single CABA province value + its flat fill color (province-level only).
+  let insetUniformFill: string | null = null;
+  if (insetProvinceLayer) {
+    const cabaFeature = insetProvinceLayer.features.features.find((f) =>
+      isCABA(String((f.properties as { provinceCode?: string } | null)?.provinceCode ?? "")),
+    );
+    const cabaValue = (cabaFeature?.properties as { value?: number } | null)?.value;
+    if (typeof cabaValue === "number") {
+      if (
+        insetProvinceLayer.dataType === "rate" &&
+        typeof insetProvinceLayer.complianceTarget === "number"
+      ) {
+        // Same FIXED [0,100] divergent axis + meta anchor as the main province fill.
+        insetUniformFill = sampleStops(
+          divergentStops(
+            insetProvinceLayer.complianceTarget,
+            FIXED_RATE_DOMAIN.min,
+            FIXED_RATE_DOMAIN.max,
+          ),
+          cabaValue,
+        );
+      } else {
+        // Sequential RAMP_BLUE over the observed province range (matches provinceColorExpr).
+        const b = provinceValueBounds(insetProvinceLayer.features);
+        if (b) {
+          insetUniformFill = sampleStops(
+            [
+              [b.min, RAMP_BLUE[0]],
+              [b.max, RAMP_BLUE[1]],
+            ],
+            cabaValue,
+          );
+        }
+      }
+    }
+  }
+
+  // The layer the inset renders: the locality layer if present, else the
+  // province layer ONLY when a CABA value resolved (avoids an empty panel).
+  const insetLayer = insetLocalityLayer ?? (insetUniformFill !== null ? insetProvinceLayer : null);
   const insetVisible = insetLayer !== null && insetZoom < Z_DIVISIONS;
 
   return (
@@ -2016,7 +2072,7 @@ export function SituationalMap({
       {/* cursor Part2: CABA/AMBA inset — a docked barrio-scale mini-map so the
           micro-jurisdiction is legible at national zoom (not an unreadable smear).
           Static camera, non-interactive, shares the choropleth + k-anon system. */}
-      <CabaInset layer={insetLayer} visible={insetVisible} />
+      <CabaInset layer={insetLayer} visible={insetVisible} uniformFill={insetUniformFill} />
       {/* map-QOL: one-click return to the operator's scope. */}
       <button
         type="button"

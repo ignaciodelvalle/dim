@@ -60,18 +60,30 @@ type Props = {
   layer: ActiveLayer | null;
   /** Whether the inset is shown (national/regional zoom, a choropleth active). */
   visible: boolean;
+  /**
+   * #9 — when the active base layer is PROVINCE-level (national zoom, e.g. rabies
+   * coverage), CABA has a single province value, not per-barrio granularity. The
+   * parent evaluates that value against the SAME scale the main map uses (divergent
+   * for rate layers, sequential otherwise) and passes the resulting flat color
+   * here; the inset then fills all 48 barrios uniformly with it so CABA is legible
+   * at national zoom and reads the SAME color as its (tiny) polygon on the main
+   * map. Null for a locality-level layer, which keeps the per-barrio join below.
+   */
+  uniformFill?: string | null;
 };
 
 /** One raw barrio feature, as much as the code read needs. */
 type BarrioRawFeature = { properties?: { code?: string } | null };
 
-export function CabaInset({ layer, visible }: Props) {
+export function CabaInset({ layer, visible, uniformFill = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const barrioCodesRef = useRef<Set<string>>(new Set());
   const loadedRef = useRef(false);
   const layerRef = useRef<ActiveLayer | null>(layer);
   layerRef.current = layer;
+  const uniformFillRef = useRef<string | null>(uniformFill);
+  uniformFillRef.current = uniformFill;
 
   // Mount the mini-map once the inset becomes visible; tear it down when hidden.
   useEffect(() => {
@@ -169,11 +181,12 @@ export function CabaInset({ layer, visible }: Props) {
     // Mount tied to visibility; the fill is reconciled by the effect below.
   }, [visible]);
 
-  // Recompute the barrio fill whenever the active base layer changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: layer is the intended trigger.
+  // Recompute the barrio fill whenever the active base layer OR the province-level
+  // uniform fill changes.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill are the intended triggers.
   useEffect(() => {
     if (loadedRef.current) syncFill();
-  }, [layer]);
+  }, [layer, uniformFill]);
 
   // Join the active layer's cells to the CABA barrios and repaint the data fill +
   // suppression hatch. A province-level layer (no locality names) simply yields
@@ -183,6 +196,19 @@ export function CabaInset({ layer, visible }: Props) {
     if (!map || !map.getLayer(DATA_FILL)) return;
     const l = layerRef.current;
     const codes = barrioCodesRef.current;
+    // #9 — province-level layer: CABA has one province value, not per-barrio data.
+    // Fill every barrio uniformly with the parent-evaluated color (same scale as
+    // the main map) so CABA is legible at national zoom; no k-anon hatch (a single
+    // province value is never suppressed). Honest: the chrome labels it a province
+    // value, and every barrio reads identically (no invented per-barrio variation).
+    const uniform = uniformFillRef.current;
+    if (uniform && codes.size > 0) {
+      map.setPaintProperty(DATA_FILL, "fill-color", uniform);
+      if (map.getLayer(SUPPRESS_FILL)) {
+        map.setFilter(SUPPRESS_FILL, divisionSuppressedFilter(new Set()));
+      }
+      return;
+    }
     if (!l || codes.size === 0) {
       map.setPaintProperty(DATA_FILL, "fill-color", divisionFillColorExpr(new Map()));
       if (map.getLayer(SUPPRESS_FILL)) {
@@ -205,7 +231,9 @@ export function CabaInset({ layer, visible }: Props) {
     <div className="absolute right-3 top-14 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-white/15 bg-black/60 shadow-[var(--shadow-md)]">
       <div className="flex items-baseline justify-between px-2 py-1 text-white/80">
         <span className="text-[var(--text-xs)] font-medium">CABA</span>
-        <span className="text-[var(--text-xs)] text-white/50">por barrio</span>
+        <span className="text-[var(--text-xs)] text-white/50">
+          {uniformFill ? "valor provincial" : "por barrio"}
+        </span>
       </div>
       <div ref={containerRef} className="h-[150px] w-full" style={{ background: COLOR_CANVAS }} />
     </div>
