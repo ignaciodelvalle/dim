@@ -2783,17 +2783,11 @@ export function PanoramaConsole({
           />
         </div>
         <div className="space-y-3">
-          {/* panorama-vista-redesign Phase 3 (design Decision 1): the metrics
-              column's right-rail order — Reading → Alcance y período →
-              per-vista KPI tiles → Peores-N ranking → footer → stale notice. */}
-          {/* One-line auto-reading derived from the existing KPI deltas (no new
-              query). Hidden while the KPIs are stale — the notice below covers it. */}
-          <PanoramaReading
-            kpis={readingKpis}
-            stale={kpisStale}
-            pending={kpisPending}
-            degraded={kpisDegraded}
-          />
+          {/* ARCHETYPE situation-room rail order — MONITORING, not narration:
+              scope (Alcance y período) → KPIs → freshness/honesty → Peores-N
+              ranking → one-line reading LAST. The numbers and the worst list
+              lead; the plain-language reading (narration) is the tail, so the
+              rail alerts before it tells a story. */}
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (
@@ -2830,10 +2824,32 @@ export function PanoramaConsole({
             pending={kpisPending}
             degraded={kpisDegraded}
           />
+          {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
+              by asOf in v1). The footer states the recalculation cue + freshness
+              chip + "Actualizar" (extracted from the retired PanoramaKpiStrip).
+              It qualifies the KPIs above, so it stays adjacent to them. */}
+          <PanoramaKpiFooter
+            kpis={kpis}
+            onRefresh={onRefresh}
+            refreshing={refreshing}
+            pending={kpisPending}
+          />
+          {kpisStale && (
+            // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
+            // the strip above is showing the last-known numbers, not live ones —
+            // say so instead of leaving the operator misled by a silent stale read.
+            <output
+              aria-live="polite"
+              className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+            >
+              No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
+            </output>
+          )}
           {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
               ordered list (hover-synced with the map), plus the accessible
               <table> view (Ley 26.653). Shown for rate/density base layers only
-              (reference layers carry no per-unit ranking). */}
+              (reference layers carry no per-unit ranking). Row click → the
+              existing drill/selection machinery (onRankedSelect → onFeatureClick). */}
           {rankingKind !== null && captionLayer !== null && (
             <section className="space-y-2">
               <RankedUnitsPanel
@@ -2867,28 +2883,18 @@ export function PanoramaConsole({
             </section>
           )}
           {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" (the LayerPanel
-              legend/toggle) now lives inside CapasBox's Detalle mode, in the
-              Vista panel above — panorama-vista-redesign Phase 2. */}
-          {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
-              by asOf in v1). The footer states the recalculation cue + freshness
-              chip + "Actualizar" (extracted from the retired PanoramaKpiStrip). */}
-          <PanoramaKpiFooter
-            kpis={kpis}
-            onRefresh={onRefresh}
-            refreshing={refreshing}
+              legend/toggle) now lives inside CapasBox's Detalle mode, behind the
+              Capas popover in the control bar above — panorama-vista-redesign. */}
+          {/* One-line auto-reading derived from the existing KPI deltas (no new
+              query) — narration LAST (monitoring, don't narrate). Hidden while the
+              KPIs are stale — the notice above covers it. Its degraded/empty
+              honesty states are unchanged. */}
+          <PanoramaReading
+            kpis={readingKpis}
+            stale={kpisStale}
             pending={kpisPending}
+            degraded={kpisDegraded}
           />
-          {kpisStale && (
-            // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
-            // the strip above is showing the last-known numbers, not live ones —
-            // say so instead of leaving the operator misled by a silent stale read.
-            <output
-              aria-live="polite"
-              className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
-            >
-              No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
-            </output>
-          )}
         </div>
       </div>
       <DetailDrawer selected={selected} onClose={closeDrawer} />

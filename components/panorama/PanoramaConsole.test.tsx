@@ -360,7 +360,7 @@ function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
 }
 
 describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases 1 & 3)", () => {
-  it("renders Vista panel → map → SuppressionNotice (map column) → Reading → footer (metrics column)", () => {
+  it("renders Vista strip → map → SuppressionNotice (map column) → KPIs → Reading LAST (monitoring rail order)", () => {
     // Explicit period → the first-visit default preset does NOT rewrite the
     // board, so the server-seeded perdidas layer (suppressedCount 3) stays on
     // and the suppression notice is visible for the DOM-order assertion.
@@ -374,15 +374,15 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     // SuppressionNotice lives WITH the map it describes (design Decision 1) —
     // it sits AFTER the map, inside the same map column.
     const notice = screen.getByText(/celdas con menos de 5 casos/);
-    // Reading + the footer moved into the metrics column (design Decision 3,
-    // Phase 3) — both now sit AFTER the map column, in the right rail.
-    const reading = screen.getByText("Sin variación destacable frente al período anterior.");
     const strip = screen.getByTestId("kpi-strip");
+    // ARCHETYPE monitoring rail: KPIs lead, the one-line reading (narration) is
+    // LAST — so it now sits AFTER the KPI strip, not before it.
+    const reading = screen.getByText("Sin variación destacable frente al período anterior.");
 
     expect(isBefore(presets, map)).toBe(true);
     expect(isBefore(map, notice)).toBe(true);
-    expect(isBefore(notice, reading)).toBe(true);
-    expect(isBefore(reading, strip)).toBe(true);
+    expect(isBefore(notice, strip)).toBe(true);
+    expect(isBefore(strip, reading)).toBe(true);
   });
 
   it("degraded KPIs: KPI-driven conclusion surfaces show a failure state, never a reassuring one (trust/safety)", () => {
