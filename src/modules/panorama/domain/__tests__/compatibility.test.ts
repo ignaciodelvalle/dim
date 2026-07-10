@@ -103,7 +103,7 @@ describe("checkCompatibility — base-slot constraint", () => {
     const result = checkCompatibility(["perdidas"], "denuncias", PANORAMA_LAYERS);
     expect(result.allowed).toBe(false);
     expect(result.hint).toMatch(/capa base activa/);
-    expect(result.hint).toMatch(/Perdidas \/ avistajes/);
+    expect(result.hint).toMatch(/Pérdidas \/ avistajes/);
   });
 
   it("blocks activating a second density layer (perdidas active, propose mordeduras)", () => {

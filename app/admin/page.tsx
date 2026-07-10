@@ -83,8 +83,8 @@ export default async function AdminDashboardPage() {
         <OpCardHead title="Analítica nacional" />
         <OpCardBody>
           <p className="text-[13px] text-ln-op-ink-2">
-            Vista de analítica con cobertura de todas las provincias. Ranking entre regiones, mapa
-            nacional y métricas agregadas del sistema.
+            Vista de analítica con cobertura de todas las provincias. Ranking entre regiones,
+            tendencias y métricas agregadas del sistema.
           </p>
           <Link
             href="/gob/analytics"

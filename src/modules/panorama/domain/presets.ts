@@ -123,7 +123,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
   },
   {
     id: "cumplimiento",
-    label: "% de cumplimiento",
+    label: "Cumplimiento antirrábico",
     description: "¿Qué jurisdicciones están por debajo de la meta de cobertura antirrábica?",
     // base: cobertura — the ONLY existing rate/compliance layer (antirrábica).
     // Future: a metric selector (microchip / PPP / esterilización) requires dedicated
@@ -168,7 +168,7 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
   },
   {
     id: "perdidas-reunificacion",
-    label: "Perdidas y reunificación (D4)",
+    label: "Pérdidas y reunificación",
     description: "¿Cuántas mascotas perdidas se están reencontrando con su familia?",
     // base: perdidas (density point) — lost/sighting activity.
     base: "perdidas",

@@ -51,7 +51,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   // --- point / cluster ---
   {
     id: "perdidas",
-    label: "Perdidas / avistajes",
+    label: "Pérdidas / avistajes",
     geomType: "point",
     source: "pet_events:lost",
     color: "#e15759",
@@ -165,7 +165,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "reunificacion",
-    label: "Reunificación (D4)",
+    label: "Reunificación",
     geomType: "point",
     source: "metrics:reunification",
     // NOT the stash's #59a14f — that collides with cobertura's green.

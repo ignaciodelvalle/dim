@@ -255,7 +255,7 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
 
 describe("getLayer / isLayerId", () => {
   it("getLayer returns the entry for each known id", () => {
-    expect(getLayer("perdidas")?.label).toBe("Perdidas / avistajes");
+    expect(getLayer("perdidas")?.label).toBe("Pérdidas / avistajes");
     expect(getLayer("mortalidad")?.geomType).toBe("choropleth");
   });
 
