@@ -1,0 +1,139 @@
+# Staging health — the detection layer's "nervous system".
+#
+# WHY (PO ask 2026-07-10 — detect staging outage / degradation automatically
+# instead of only when someone looks): two scheduled probes that run EXTERNALLY
+# to the app, so they fire even when the app itself is down. A failed workflow
+# run emails the repo owner — that email IS the alert. No new infra to operate.
+#
+#   (a) health-poll   — every ~15 min: curl the cheap /api/health endpoint and
+#                       fail the run if HTTP != 200 or status != "ok". Catches
+#                       outage, DB-down, slow pooler, and stuck-backend saturation
+#                       (the task #74 death spiral) within ~15 min of onset.
+#   (b) synthetic     — daily: drive the 4 critical user flows against staging
+#                       (e2e/synthetic-monitor.spec.ts). Deeper but slower.
+#
+# CONFIGURATION (must be set for full coverage):
+#   - Repository VARIABLE  STAGING_HEALTH_URL  (optional) — overrides the default
+#     https://dim-staging.vercel.app/api/health if the staging origin moves.
+#   - Repository SECRET    STAGING_URL         (required for job (b)) — the staging
+#     origin the synthetic monitor points at (e.g. https://dim-staging.vercel.app).
+#     When ABSENT, job (b) logs a notice and SKIPS (green, not failed) so a fresh
+#     clone/fork never red-Xes on missing config. Job (a) always runs.
+#   The staging deploy must carry the demo seed (DIM-DEMO-0001 + the demo
+#   accounts in e2e/demo/_helpers) for job (b) to pass.
+
+name: Staging health
+
+on:
+  schedule:
+    # Every 15 minutes — the liveness poll. GitHub may delay scheduled runs
+    # under load; ~15 min detection latency is the design target, not a SLA.
+    - cron: "*/15 * * * *"
+    # Once daily at 06:17 UTC (~03:17 in AR) — the deeper synthetic battery,
+    # off-peak so a synthetic denuncia never contends with real overnight use.
+    - cron: "17 6 * * *"
+  workflow_dispatch: {} # allow manual runs of both probes.
+
+# Never let two health runs overlap — a backed-up queue polling in lockstep
+# would spam duplicate alerts.
+concurrency:
+  group: staging-health
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # (a) Liveness poll — runs on BOTH schedules and manual dispatch. Cheap: no
+  # checkout, no toolchain, just curl + jq (both preinstalled on ubuntu-latest).
+  # ---------------------------------------------------------------------------
+  health-poll:
+    name: Health poll (/api/health)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STAGING_HEALTH_URL: ${{ vars.STAGING_HEALTH_URL || 'https://dim-staging.vercel.app/api/health' }}
+    steps:
+      - name: Curl /api/health and assert healthy
+        run: |
+          set -uo pipefail
+          echo "Polling ${STAGING_HEALTH_URL}"
+          HTTP=$(curl -sS -m 20 -o body.json -w '%{http_code}' "${STAGING_HEALTH_URL}" || echo "000")
+          echo "HTTP ${HTTP}"
+          echo "--- body ---"
+          cat body.json 2>/dev/null || echo "(no body)"
+          echo ""
+          echo "------------"
+          STATUS=$(jq -r '.status // "missing"' body.json 2>/dev/null || echo "missing")
+          if [ "${HTTP}" != "200" ] || [ "${STATUS}" != "ok" ]; then
+            echo "::error::Staging health check FAILED — http=${HTTP} status=${STATUS}. See body above; check the Vercel deploy + Supabase pooler."
+            exit 1
+          fi
+          echo "Staging healthy (http=200 status=ok)."
+
+  # ---------------------------------------------------------------------------
+  # (b) Synthetic monitor — the 4 critical flows. Runs on the DAILY schedule and
+  # manual dispatch only (the 15-min tick would be too heavy). No-op-skips when
+  # the STAGING_URL secret is absent so missing config never hard-fails.
+  # ---------------------------------------------------------------------------
+  synthetic:
+    name: Synthetic monitor (critical flows)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Skip the 15-min liveness tick — this job is for the daily cron + manual runs.
+    if: github.event.schedule != '*/15 * * * *'
+    steps:
+      - name: Gate on STAGING_URL secret
+        id: guard
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          if [ -z "${STAGING_URL}" ]; then
+            echo "::notice::STAGING_URL secret is not set — skipping the synthetic monitor. Set it (the staging origin, e.g. https://dim-staging.vercel.app) to enable this job."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        if: steps.guard.outputs.run == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser (chromium only)
+        if: steps.guard.outputs.run == 'true'
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run synthetic monitor against staging
+        if: steps.guard.outputs.run == 'true'
+        # The local3000 config has NO webServer (it never builds/starts a server),
+        # so nothing is built here; the spec's own `test.use({ baseURL: BASE })`
+        # (BASE = STAGING_URL) points every flow at the deployed staging origin.
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: pnpm exec playwright test e2e/synthetic-monitor.spec.ts --config=playwright.local3000.config.ts
+
+      - name: Upload Playwright report on failure
+        if: failure() && steps.guard.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: synthetic-monitor-report
+          path: playwright-report/
+          retention-days: 7
