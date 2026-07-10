@@ -28,19 +28,32 @@ type Props = {
 };
 
 export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack" }: Props) {
+  // Mobile fix (panorama v+1): in "row" layout the 6 full-height cards used to
+  // stack vertically on phones (space-y), pushing the map far below the fold.
+  // Below lg they now render as a single horizontally-scrollable strip of
+  // COMPACT chips (one row of height), so the map stays visible without
+  // scrolling; at lg the original full-width equal-width card row is unchanged.
+  const listClass =
+    layout === "row" ? "flex gap-2 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0" : "space-y-1";
+  const itemClass =
+    layout === "row" ? "min-w-[8.5rem] shrink-0 lg:min-w-0 lg:flex-1 lg:shrink" : undefined;
+  // Compact height on phones (touch-friendly ~44px), full card from lg up.
+  const cardSize =
+    layout === "row" ? "min-h-[2.75rem] px-3 py-2 lg:min-h-24 lg:py-4" : "min-h-24 px-3 py-4";
+
   return (
     <div className="space-y-1.5">
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Vista</p>
-      <ul className={layout === "row" ? "space-y-1 lg:flex lg:gap-2 lg:space-y-0" : "space-y-1"}>
+      <ul className={listClass}>
         {presets.map((preset) => {
           const isActive = activePresetId === preset.id;
           return (
-            <li key={preset.id} className={layout === "row" ? "lg:min-w-0 lg:flex-1" : undefined}>
+            <li key={preset.id} className={itemClass}>
               <button
                 type="button"
                 aria-pressed={isActive}
                 onClick={() => onPreset(preset.id)}
-                className={`flex min-h-24 w-full flex-col items-start justify-center rounded-[var(--radius-md)] border px-3 py-4 text-left transition-colors ${
+                className={`flex ${cardSize} w-full flex-col items-start justify-center rounded-[var(--radius-md)] border text-left transition-colors ${
                   isActive
                     ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul"
                     : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card"

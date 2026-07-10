@@ -125,7 +125,62 @@ export function joinCellsToDivisions(
  * back to its centroid circle (unmatched); k-anon is preserved exactly as in the
  * single-level path — a matched-but-suppressed cell adds no fill (outline only).
  */
+// --- Memoization -------------------------------------------------------------
+// SituationalMap.syncLayers calls joinCellsToDivisionsMulti on every repaint,
+// even when neither the choropleth cells nor the loaded division code sets have
+// changed (a dim/legend/asOf-driven re-sync). The join is a PURE function of
+// (features, levels), and the caller holds BOTH the features FeatureCollection
+// and the code Sets in refs (stable across repaints, rebuilt only on a data or
+// province-set change), so we memoize on the FeatureCollection reference — a
+// WeakMap key, so a superseded features object is GC'd with its cache entry (no
+// leak) — guarded by a cheap version string over the level code-set IDENTITIES.
+// A repaint that reuses the same features + same Sets returns the previously
+// computed DivisionJoin object BY REFERENCE (skipping the O(features) loop); any
+// change in either input misses and recomputes. Referential stability is pinned
+// by division-fill.test.ts.
+
+// Stable numeric id per Set instance, so the version string is O(levels) to
+// build (never O(codes)) and is identity- not content-based: a new Set with the
+// same members is a different scope and correctly misses the cache.
+let _setIdSeq = 0;
+const _setIds = new WeakMap<object, number>();
+function setId(s: ReadonlySet<string>): number {
+  let id = _setIds.get(s);
+  if (id === undefined) {
+    id = ++_setIdSeq;
+    _setIds.set(s, id);
+  }
+  return id;
+}
+
+function levelsVersion(
+  levels: ReadonlyArray<{ level: DivisionLevel; codes: ReadonlySet<string> }>,
+): string {
+  return levels.map((l) => `${l.level}#${setId(l.codes)}`).join("|");
+}
+
+type JoinCacheEntry = { version: string; result: DivisionJoin };
+// `let` (not `const`): WeakMap has no clear(), so the test-only reset rebinds it.
+let _joinCache = new WeakMap<FeatureCollection, JoinCacheEntry>();
+
+/** Test-only: drop the memo so referential-stability cases start from a clean slate. */
+export function __resetDivisionJoinCache(): void {
+  _joinCache = new WeakMap<FeatureCollection, JoinCacheEntry>();
+}
+
 export function joinCellsToDivisionsMulti(
+  features: FeatureCollection,
+  levels: ReadonlyArray<{ level: DivisionLevel; codes: ReadonlySet<string> }>,
+): DivisionJoin {
+  const version = levelsVersion(levels);
+  const cached = _joinCache.get(features);
+  if (cached && cached.version === version) return cached.result;
+  const result = computeDivisionJoin(features, levels);
+  _joinCache.set(features, { version, result });
+  return result;
+}
+
+function computeDivisionJoin(
   features: FeatureCollection,
   levels: ReadonlyArray<{ level: DivisionLevel; codes: ReadonlySet<string> }>,
 ): DivisionJoin {

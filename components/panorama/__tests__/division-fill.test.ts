@@ -1,9 +1,10 @@
 // Unit tests for the locality-choropleth division-fill join (pure, no maplibre).
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
 import {
+  __resetDivisionJoinCache,
   divisionCodeForCell,
   divisionFillColorExpr,
   divisionSuppressedFilter,
@@ -166,6 +167,55 @@ describe("joinCellsToDivisionsMulti — zoom-driven multi-province union", () =>
     const single = joinCellsToDivisions(cells, "barrio", barrioCodes);
     const multi = joinCellsToDivisionsMulti(cells, [{ level: "barrio", codes: barrioCodes }]);
     expect(multi.values.get("palermo")).toBe(single.values.get("palermo"));
+  });
+});
+
+describe("joinCellsToDivisionsMulti — memoization / referential stability", () => {
+  const deptCodes = new Set(["06441"]);
+  const barrioCodes = new Set(["palermo"]);
+  const levels = [
+    { level: "department" as const, codes: deptCodes },
+    { level: "barrio" as const, codes: barrioCodes },
+  ];
+
+  beforeEach(() => {
+    __resetDivisionJoinCache();
+  });
+
+  it("returns the SAME object reference for the same features + code Sets (no recompute)", () => {
+    const cells = fc([cell({ locality: "Palermo", value: 4, suppressed: false })]);
+    const first = joinCellsToDivisionsMulti(cells, levels);
+    // A fresh `levels` array literal but the SAME code-Set instances — mirrors
+    // syncLayers, which rebuilds the array each repaint from ref-held Sets.
+    const second = joinCellsToDivisionsMulti(cells, [
+      { level: "department", codes: deptCodes },
+      { level: "barrio", codes: barrioCodes },
+    ]);
+    expect(second).toBe(first); // identity — the memo skipped the O(features) join.
+  });
+
+  it("recomputes (new object) when the features reference changes", () => {
+    const a = joinCellsToDivisionsMulti(
+      fc([cell({ locality: "Palermo", value: 4, suppressed: false })]),
+      levels,
+    );
+    const b = joinCellsToDivisionsMulti(
+      fc([cell({ locality: "Palermo", value: 4, suppressed: false })]),
+      levels,
+    );
+    expect(b).not.toBe(a); // different FeatureCollection ref → cache miss.
+  });
+
+  it("recomputes when a code Set instance changes even if the members are equal", () => {
+    const cells = fc([cell({ locality: "Palermo", value: 4, suppressed: false })]);
+    const first = joinCellsToDivisionsMulti(cells, levels);
+    // Same members, NEW Set instance → a different scope → must not alias.
+    const second = joinCellsToDivisionsMulti(cells, [
+      { level: "department", codes: new Set(["06441"]) },
+      { level: "barrio", codes: new Set(["palermo"]) },
+    ]);
+    expect(second).not.toBe(first);
+    expect(second.values.get("palermo")).toBe(4); // still correct after recompute.
   });
 });
 
