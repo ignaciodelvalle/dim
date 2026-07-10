@@ -80,7 +80,7 @@ import {
 import {
   COLOR_NO_DATA,
   COLOR_SUPPRESSED,
-  RAMP_BLUE,
+  RAMP_BLUE_DARK,
   divergentStops,
   sampleStops,
 } from "@/lib/analytics/viz-scales";
@@ -2611,13 +2611,13 @@ export function SituationalMap({
           cabaValue,
         );
       } else {
-        // Sequential RAMP_BLUE over the observed province range (matches provinceColorExpr).
+        // Sequential dark-map ramp over the observed province range (matches provinceColorExpr).
         const b = provinceValueBounds(insetProvinceLayer.features);
         if (b) {
           insetUniformFill = sampleStops(
             [
-              [b.min, RAMP_BLUE[0]],
-              [b.max, RAMP_BLUE[1]],
+              [b.min, RAMP_BLUE_DARK[0]],
+              [b.max, RAMP_BLUE_DARK[1]],
             ],
             cabaValue,
           );
@@ -2826,7 +2826,7 @@ export function SituationalMap({
                   <span
                     className="h-2.5 w-24 rounded-full"
                     style={{
-                      background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
+                      background: `linear-gradient(to right, ${RAMP_BLUE_DARK[0]}, ${RAMP_BLUE_DARK[1]})`,
                     }}
                     aria-hidden="true"
                   />
@@ -2959,7 +2959,7 @@ export function SituationalMap({
                     <span
                       className="h-2.5 w-24 rounded-full"
                       style={{
-                        background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
+                        background: `linear-gradient(to right, ${RAMP_BLUE_DARK[0]}, ${RAMP_BLUE_DARK[1]})`,
                       }}
                       aria-hidden="true"
                     />

@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { COLOR_NO_DATA, RAMP_BLUE } from "@/lib/analytics/viz-scales";
+import { COLOR_NO_DATA, RAMP_BLUE_DARK } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { provinceColorExpr, provinceValueBounds } from "../province-choropleth-style";
@@ -43,11 +43,11 @@ describe("provinceColorExpr", () => {
     expect(valueMatch).toContain(61);
     expect(valueMatch).toContain("AR-X");
     expect(valueMatch).toContain(9);
-    // The interpolate path uses the tokenized RAMP_BLUE endpoints.
+    // The interpolate path uses the tokenized dark-map ramp endpoints.
     const interp = expr[3] as unknown[];
     expect(interp[0]).toBe("interpolate");
-    expect(interp).toContain(RAMP_BLUE[0]);
-    expect(interp).toContain(RAMP_BLUE[1]);
+    expect(interp).toContain(RAMP_BLUE_DARK[0]);
+    expect(interp).toContain(RAMP_BLUE_DARK[1]);
   });
 
   it("paints everything neutral when there is no data", () => {

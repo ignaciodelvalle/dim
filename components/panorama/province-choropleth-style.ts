@@ -17,7 +17,7 @@ import {
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
   COLOR_NO_DATA,
-  RAMP_BLUE,
+  RAMP_BLUE_DARK,
   divergentStops,
 } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
@@ -43,7 +43,8 @@ export type ScaleBounds = { min: number; max: number };
  * Build the data-driven `fill-color` for a province choropleth.
  *  1. a `match` maps each province code → its value (default -1 = "no data");
  *  2. provinces with no value (-1) get COLOR_NO_DATA;
- *  3. the rest are interpolated across [min,max] into RAMP_BLUE.
+ *  3. the rest are interpolated across [min,max] into RAMP_BLUE_DARK (the
+ *     dark-map ramp — luminance increases with value so hot cells stay bright).
  * Returns a flat COLOR_NO_DATA expression when the layer has no values, and
  * widens a degenerate single-value range so `interpolate` has distinct stops.
  */
@@ -87,7 +88,7 @@ export function provinceColorExpr(
     "case",
     ["==", valueMatch, -1],
     COLOR_NO_DATA,
-    ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE[0], hi, RAMP_BLUE[1]],
+    ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE_DARK[0], hi, RAMP_BLUE_DARK[1]],
   ] as unknown as ExpressionSpecification;
 }
 

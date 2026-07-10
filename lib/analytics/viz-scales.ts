@@ -40,8 +40,41 @@ export const SCALE_BLUE_SEQ: ColorScale5 = [
 /**
  * Two-stop ramp extracted from SCALE_BLUE_SEQ for backward compat.
  * Matches what MapChoropleth v1 expected for colorScale prop.
+ *
+ * WHITE-PAPER ramp (low value = near-white, high value = dark navy). Correct for
+ * LIGHT surfaces (MapChoropleth, dashboard charts). Do NOT use it on the dark
+ * situation-room map: its high end (#084594) is ≈ the navy canvas, so the
+ * strongest signals vanish into the background. The dark map uses
+ * {@link RAMP_BLUE_DARK} instead (luminance INCREASES with value).
  */
 export const RAMP_BLUE: ColorRamp = ["#eff3ff", "#084594"] as const;
+
+/**
+ * Blue→cyan sequential ramp for the DARK situation-room map (panorama).
+ * ColorBrewer Blues are white-paper ramps (light = low, dark = high); on the
+ * navy operator canvas (#0b1020 sky / #161d33 land) that inverts the figure/
+ * ground relationship — the highest value sits closest to the background and the
+ * strongest signal disappears. The dark-map rule is the opposite: **luminance
+ * must INCREASE with value** (dim = low, bright = high) so a hot cell reads as
+ * the brightest thing on the map.
+ *
+ * Built from the blue/cyan token family so it stays a single-hue sequential
+ * ramp (colorblind-safe for deuteranopia / protanopia — no red–green axis). The
+ * low anchor is a saturated blue that sits ABOVE the desaturated no-data slate
+ * ({@link COLOR_NO_DATA}) and the land fill in luminance, so "low signal" never
+ * reads darker than "no data"; the high anchor is a bright cyan that pops off
+ * the navy surface.
+ */
+export const SCALE_BLUE_DARK_SEQ: ColorScale5 = [
+  "#1b4d7e", // low — saturated blue, brighter than no-data slate
+  "#2273b0",
+  "#3aa0d6",
+  "#6fcbed",
+  "#bdeeff", // high — bright cyan, maximum luminance
+] as const;
+
+/** Two-stop dark-surface ramp extracted from {@link SCALE_BLUE_DARK_SEQ}. */
+export const RAMP_BLUE_DARK: ColorRamp = ["#1b4d7e", "#bdeeff"] as const;
 
 /**
  * Orange sequential — for coverage / compliance rates.

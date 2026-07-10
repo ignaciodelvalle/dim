@@ -19,7 +19,7 @@
 import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
 import type { DomainBounds } from "@/components/panorama/scale-lock";
-import { RAMP_BLUE } from "@/lib/analytics/viz-scales";
+import { RAMP_BLUE_DARK } from "@/lib/analytics/viz-scales";
 import { normalizeBarioCode, normalizeDepartmentCode } from "@/lib/infra/geo-join";
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
 
@@ -228,7 +228,7 @@ const TRANSPARENT = "rgba(0,0,0,0)";
 /**
  * Build the data-driven `fill-color` for the division choropleth. Mirrors the
  * province choropleth's structure (a `match` on the polygon `code` → value, then
- * a linear interpolation across RAMP_BLUE) but paints divisions WITHOUT a value
+ * a linear interpolation across RAMP_BLUE_DARK) but paints divisions WITHOUT a value
  * transparent instead of the no-data grey — the always-visible outline is the
  * "no data" signal, so an unfilled division must let it show through.
  *
@@ -271,7 +271,7 @@ export function divisionFillColorExpr(
     "case",
     ["==", valueMatch, -1],
     TRANSPARENT,
-    ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE[0], hi, RAMP_BLUE[1]],
+    ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE_DARK[0], hi, RAMP_BLUE_DARK[1]],
   ] as unknown as ExpressionSpecification;
 }
 
