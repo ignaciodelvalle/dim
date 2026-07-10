@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { suppressSmallCells } from "@/lib/metrics";
 import {
   type DepartmentRollupRow,
   aggregateCellsToDepartment,
@@ -112,5 +113,48 @@ describe("aggregateCellsToDepartment", () => {
       row({ province: "Córdoba", departmentCode: "99999", count: 6 }),
     ]);
     expect(out).toHaveLength(2);
+  });
+});
+
+// The aggregated POINT loaders (perdidas/mordeduras/denuncias/zoonosis/sintomas)
+// run the SAME pipeline the choropleth loaders do: aggregateCellsToDepartment →
+// suppressSmallCells(k=5). These tests pin the composition end-to-end (the fold
+// is what turns near-total locality-tier suppression into a readable department
+// map) without a database — suppressSmallCells is the exact k-anon primitive the
+// repository's toAggregatedCells calls.
+describe("department fold + k-anon (aggregated point loader pipeline)", () => {
+  it("makes a department VISIBLE whose member localities are each below k=5 but sum to >= 5", () => {
+    const folded = aggregateCellsToDepartment([
+      row({ locality: "A", departmentCode: "06035", departmentName: "Adolfo Alsina", count: 2 }),
+      row({ locality: "B", departmentCode: "06035", departmentName: "Adolfo Alsina", count: 2 }),
+      row({ locality: "C", departmentCode: "06035", departmentName: "Adolfo Alsina", count: 2 }),
+    ]);
+    const { visible, suppressed, suppressedCount } = suppressSmallCells(folded, {
+      count: (r) => r.count,
+      key: (r) => r.key,
+      k: 5,
+    });
+    // At locality granularity all three cells (count 2) are suppressed; folded to
+    // the department the total is 6 (>= 5) → exactly one visible cell, zero suppressed.
+    expect(suppressedCount).toBe(0);
+    expect(suppressed).toHaveLength(0);
+    expect(visible).toHaveLength(1);
+    expect((visible[0] as DepartmentRollupRow).count).toBe(6);
+    expect((visible[0] as DepartmentRollupRow).locality).toBe("Adolfo Alsina");
+  });
+
+  it("keeps a CABA barrio below k=5 suppressed (barrio path unchanged, never merged)", () => {
+    const folded = aggregateCellsToDepartment([
+      row({ province: "CABA", locality: "Palermo", departmentCode: null, count: 3 }),
+    ]);
+    const { visible, suppressedCount } = suppressSmallCells(folded, {
+      count: (r) => r.count,
+      key: (r) => r.key,
+      k: 5,
+    });
+    // The barrio is the unit in CABA — a below-k barrio stays suppressed (the fold
+    // never merges barrios into a department, so the privacy floor is unchanged).
+    expect(suppressedCount).toBe(1);
+    expect(visible).toHaveLength(0);
   });
 });

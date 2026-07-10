@@ -1414,6 +1414,10 @@ export async function loadPerdidasByUnit(
       locality: pets.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      // Department roll-up keys (PO "Option A") — pinned deterministically via MIN,
+      // same discipline as the centroid, so the fold matches the choropleth path.
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
       n: countDistinct(petEvents.id),
     })
     .from(petEvents)
@@ -1437,9 +1441,14 @@ export async function loadPerdidasByUnit(
       locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode,
+      departmentName: r.departmentName,
       count: r.n,
     }));
-  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
+  // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
+  // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -1611,6 +1620,10 @@ export async function loadMordedurassByUnit(
       locality: pets.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      // Department roll-up keys (PO "Option A") — pinned deterministically via MIN,
+      // same discipline as the centroid, so the fold matches the choropleth path.
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
       n: countDistinct(petEvents.id),
     })
     .from(petEvents)
@@ -1634,9 +1647,14 @@ export async function loadMordedurassByUnit(
       locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode,
+      departmentName: r.departmentName,
       count: r.n,
     }));
-  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
+  // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
+  // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -1720,6 +1738,9 @@ export async function loadDenunciasByUnit(
       // countDistinct: homonymous localities (same normalized name within a
       // province) make the arLocalities join fan out, so count() over-counts.
       n: countDistinct(welfareReports.id),
+      // Department roll-up keys (PO "Option A") — pinned deterministically via MIN.
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
     })
     .from(welfareReports)
     .leftJoin(
@@ -1741,9 +1762,14 @@ export async function loadDenunciasByUnit(
       locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode,
+      departmentName: r.departmentName,
       count: r.n,
     }));
-  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
+  // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
+  // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -1821,6 +1847,9 @@ export async function loadZoonosisByUnit(
       locality: sql<string>`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      // Department roll-up keys (PO "Option A") — pinned deterministically via MIN.
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
       n: countDistinct(petEvents.id),
     })
     .from(petEvents)
@@ -1846,9 +1875,14 @@ export async function loadZoonosisByUnit(
       locality: r.locality,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode,
+      departmentName: r.departmentName,
       count: r.n,
     }));
-  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
+  // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
+  // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -1921,6 +1955,9 @@ export async function loadSintomasByUnit(
       locality: pets.jurisdictionLocality,
       centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
       centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      // Department roll-up keys (PO "Option A") — pinned deterministically via MIN.
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
       n: countDistinct(petEvents.id),
     })
     .from(petEvents)
@@ -1944,9 +1981,14 @@ export async function loadSintomasByUnit(
       locality: r.locality as string,
       centroidLat: r.centroidLat,
       centroidLng: r.centroidLng,
+      departmentCode: r.departmentCode,
+      departmentName: r.departmentName,
       count: r.n,
     }));
-  const { cells, suppressedCount } = toAggregatedCells(rollup, true);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
+  // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
+  // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
   return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
