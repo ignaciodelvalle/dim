@@ -21,7 +21,7 @@
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { CapasBox } from "@/components/panorama/CapasBox";
+import { CapasPopover } from "@/components/panorama/CapasPopover";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { type FilterChip, FilterChips } from "@/components/panorama/FilterChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
@@ -2569,24 +2569,30 @@ export function PanoramaConsole({
 
   return (
     <div className="space-y-4">
-      {/* Vista panel: PresetPanel renders its own single "Vista" label + the
-          6-tab row (layout="row"). PO screenshot fix (2026-07-08, engram obs
-          1047): the parent used to duplicate that label AND repeat the active
-          preset's question above the cards — removed; PresetPanel's own
-          label is the only one left, and the cards now show label only (see
-          PresetPanel.tsx). */}
-      <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-4">
-        <PresetPanel
-          presets={PANORAMA_PRESETS}
-          activePresetId={activePresetId}
-          onPreset={onPreset}
-          layout="row"
-        />
-        {/* panorama-vista-redesign Phase 2 (design Decision 2): CapasBox
-            composes the unchanged LayerPanel for Detalle — checkCompatibility
-            and role rules are 100% preserved; Simple is a presentational
-            surface only. */}
-        <CapasBox
+      {/* ARCHETYPE situation-room control bar: the preset strip is the PRIMARY
+          control (one-line segmented tabs, presets-as-onboarding, space ∝
+          frequency); layers are SECONDARY behind the compact "Capas" popover.
+          The "Vista" caption labels the strip's radiogroup inline. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card px-3 py-2">
+        <span
+          id="panorama-vista-label"
+          className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
+        >
+          Vista
+        </span>
+        <div className="min-w-0 flex-1">
+          <PresetPanel
+            presets={PANORAMA_PRESETS}
+            activePresetId={activePresetId}
+            onPreset={onPreset}
+            layout="strip"
+            labelledBy="panorama-vista-label"
+          />
+        </div>
+        {/* CapasPopover composes the unchanged CapasBox (→ LayerPanel) —
+            checkCompatibility and role rules are 100% preserved; the popover is
+            presentational chrome only. */}
+        <CapasPopover
           states={states}
           onToggle={onToggle}
           scrubbing={scrubbing}

@@ -32,27 +32,39 @@ type Props = {
   /** Called when the operator clicks a preset button. */
   onPreset: (id: PresetId) => void;
   /**
-   * panorama-redesign Fase 1: layout mode. "stack" (default) keeps the
-   * original vertical list (side-column usage); "row" lays the presets out
-   * horizontally on lg screens for the promoted full-width placement above
-   * the map. Purely presentational — behavior is identical.
+   * Layout mode. "strip" (default) is the ARCHETYPE situation-room control: a
+   * single-line SEGMENTED strip — one row of compact tabs, space ∝ frequency,
+   * the presets stay first-class and visible (presets-as-onboarding) without
+   * the six ~90px cards that used to push the map below the fold. "stack" keeps
+   * the original vertical card list for any narrow side-column usage. Purely
+   * presentational — the radiogroup semantics and roving focus are identical.
    */
-  layout?: "stack" | "row";
+  layout?: "stack" | "strip";
+  /**
+   * Optional inline label id to associate this radiogroup with a label the
+   * PARENT renders (e.g. the "Vista" caption sitting beside the strip in the
+   * toolbar). When omitted, PresetPanel renders its own "Vista" label above.
+   */
+  labelledBy?: string;
 };
 
-export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack" }: Props) {
-  // Mobile fix (panorama v+1): in "row" layout the 6 full-height cards used to
-  // stack vertically on phones (space-y), pushing the map far below the fold.
-  // Below lg they now render as a single horizontally-scrollable strip of
-  // COMPACT chips (one row of height), so the map stays visible without
-  // scrolling; at lg the original full-width equal-width card row is unchanged.
-  const listClass =
-    layout === "row" ? "flex gap-2 overflow-x-auto pb-1 lg:overflow-visible lg:pb-0" : "space-y-1";
-  const itemClass =
-    layout === "row" ? "min-w-[8.5rem] shrink-0 lg:min-w-0 lg:flex-1 lg:shrink" : undefined;
-  // Compact height on phones (touch-friendly ~44px), full card from lg up.
-  const cardSize =
-    layout === "row" ? "min-h-[2.75rem] px-3 py-2 lg:min-h-24 lg:py-4" : "min-h-24 px-3 py-4";
+export function PresetPanel({
+  presets,
+  activePresetId,
+  onPreset,
+  layout = "strip",
+  labelledBy,
+}: Props) {
+  const strip = layout === "strip";
+  // Segmented strip: one bordered track holding equal-width single-line tabs.
+  // Below lg it scrolls horizontally (touch), keeping the map visible; from lg
+  // the tabs share the track width. "stack" keeps the original vertical cards.
+  const listClass = strip
+    ? "flex gap-0.5 overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-0.5 lg:overflow-visible"
+    : "space-y-1";
+  const itemClass = strip ? "min-w-[7.5rem] shrink-0 lg:min-w-0 lg:flex-1 lg:shrink" : undefined;
+  // A single touch-friendly line (~36px) in strip mode; the full card in stack.
+  const cardSize = strip ? "min-h-[2.25rem] px-3 py-1.5" : "min-h-24 px-3 py-4";
 
   // Roving tabindex (WAI-ARIA radiogroup pattern): the active preset is the
   // tab stop; when none is active (manual "modo avanzado"), the first one is.
@@ -106,6 +118,63 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
     }
   }
 
+  // In strip mode the bordered track carries the frame; each tab is borderless
+  // and the active one fills. In stack mode each preset keeps its own card border.
+  const buttonBase = strip
+    ? "flex w-full items-center justify-center rounded-[calc(var(--radius-md)-2px)] text-center transition-colors"
+    : "flex w-full flex-col items-start justify-center rounded-[var(--radius-md)] border text-left transition-colors";
+  const activeClass = strip
+    ? "bg-ln-op-azul/15 text-ln-op-azul"
+    : "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul";
+  const idleClass = strip
+    ? "text-ln-op-ink-2 hover:bg-ln-op-stripe"
+    : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card";
+
+  // The blur handler only resets the roving tab stop (focus bookkeeping); the
+  // radios carry all interactive semantics. Focus left the whole group → drop
+  // the roving position so a later Tab-in lands on the SELECTED radio (APG).
+  const list = (
+    <ul
+      className={listClass}
+      role="radiogroup"
+      aria-labelledby={labelledBy ?? "panorama-vista-label"}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIndex(null);
+      }}
+    >
+      {presets.map((preset, index) => {
+        const isActive = activePresetId === preset.id;
+        return (
+          <li key={preset.id} className={itemClass}>
+            <button
+              ref={(el) => {
+                btnRefs.current[index] = el;
+              }}
+              type="button"
+              // biome-ignore lint/a11y/useSemanticElements: a native <input type="radio"> can't carry this tab's Tailwind visual (segmented fill / card stack) without a hidden-input + styled-label rework — the WAI-ARIA APG explicitly documents this div/button radiogroup pattern as an accepted alternative.
+              role="radio"
+              aria-checked={isActive}
+              tabIndex={index === rovingIndex ? 0 : -1}
+              title={preset.label}
+              onClick={() => onPreset(preset.id)}
+              onKeyDown={(e) => handleKeyDown(e, index)}
+              className={`${buttonBase} ${cardSize} ${isActive ? activeClass : idleClass}`}
+            >
+              <span
+                className={`block text-sm font-medium leading-tight ${strip ? "truncate" : ""}`}
+              >
+                {preset.label}
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  // When the parent supplies the label (toolbar placement) render just the
+  // strip; otherwise keep the self-labeled block for standalone use.
+  if (labelledBy) return list;
   return (
     <div className="space-y-1.5">
       <p
@@ -114,45 +183,7 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
       >
         Vista
       </p>
-      {/* The blur handler only resets the roving tab stop (focus bookkeeping);
-          the radios carry all interactive semantics. Focus left the whole group
-          → drop the roving position so a later Tab-in lands on the SELECTED radio
-          (APG), not the last-browsed one. */}
-      <ul
-        className={listClass}
-        role="radiogroup"
-        aria-labelledby="panorama-vista-label"
-        onBlur={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIndex(null);
-        }}
-      >
-        {presets.map((preset, index) => {
-          const isActive = activePresetId === preset.id;
-          return (
-            <li key={preset.id} className={itemClass}>
-              <button
-                ref={(el) => {
-                  btnRefs.current[index] = el;
-                }}
-                type="button"
-                // biome-ignore lint/a11y/useSemanticElements: a native <input type="radio"> can't carry this card's Tailwind visual (border/background/label stack) without a hidden-input + styled-label rework — the WAI-ARIA APG explicitly documents this div/button radiogroup pattern as an accepted alternative.
-                role="radio"
-                aria-checked={isActive}
-                tabIndex={index === rovingIndex ? 0 : -1}
-                onClick={() => onPreset(preset.id)}
-                onKeyDown={(e) => handleKeyDown(e, index)}
-                className={`flex ${cardSize} w-full flex-col items-start justify-center rounded-[var(--radius-md)] border text-left transition-colors ${
-                  isActive
-                    ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul"
-                    : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card"
-                }`}
-              >
-                <span className="block text-sm font-medium leading-tight">{preset.label}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      {list}
     </div>
   );
 }

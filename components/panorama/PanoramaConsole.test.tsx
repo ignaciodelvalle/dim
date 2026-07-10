@@ -311,7 +311,9 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
       expect(params.get("layers")).toBe("zoonosis,cobertura");
     });
     // Missing capasDetail/scrubDetail default to Simple (false) — both
-    // Simple/Detalle toggles read "Simple" as pressed.
+    // Simple/Detalle toggles read "Simple" as pressed. (Open the Capas popover
+    // so the toggle mounts — layers are secondary chrome in the redesign.)
+    openCapas();
     expect(screen.getByRole("button", { name: "Modo simple de capas" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -326,6 +328,19 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
 /** True when `a` precedes `b` in DOM order. */
 function isBefore(a: Element, b: Element): boolean {
   return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+}
+
+/**
+ * Open the "Capas" popover so its CapasBox (Simple/Detalle toggle, LayerPanel)
+ * mounts. The ARCHETYPE redesign moved the layer catalog behind a compact
+ * popover button — layers are secondary to the preset strip — so any test that
+ * interacts with the Simple/Detalle controls must open it first.
+ */
+function openCapas(): void {
+  // The popover trigger is the only "Capas" button carrying aria-expanded — the
+  // bivariate encoding toggle (Brotes vista) is also labelled "Capas" but has no
+  // expanded state, so filtering by `expanded` disambiguates them.
+  fireEvent.click(screen.getByRole("button", { name: /Capas/, expanded: false }));
 }
 
 function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
@@ -439,11 +454,11 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(container.contains(filterSelect)).toBe(true);
   });
 
-  it("first paint: Vista tabs + CapasBox Simple chips + the compact TimeScrubber are all visible (no disclosures)", () => {
-    // panorama-vista-redesign supersedes the 2026-07-04 P0 control-budget rule
-    // (flagged explicitly at design/verify time, Phase 4): CapasBox is
-    // deliberately "additive-looking" and the scrubber is now a compact
-    // always-present element under the map — neither hides behind a click.
+  it("first paint: Vista strip + the Capas button + the compact TimeScrubber are all visible (no disclosures); layers open in the popover", () => {
+    // ARCHETYPE redesign: the preset strip stays first-paint (presets-as-
+    // onboarding), the layer catalog moved behind a compact "Capas" popover
+    // (layers secondary), and the scrubber is a compact always-present element
+    // under the map — none hides behind a details disclosure.
     const { container } = renderRedesignConsole({ defaultSuppressedCount: 3 });
 
     // The 6 preset tabs are first-paint.
@@ -452,7 +467,13 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
         (b) => b.closest("details:not([open])") === null,
       ).length,
     ).toBeGreaterThanOrEqual(6);
-    // CapasBox's Simple/Detalle toggle is visible (not hidden behind a disclosure).
+    // The "Capas" trigger is visible at first paint (not behind a disclosure);
+    // the Simple/Detalle toggle only mounts once the popover is opened.
+    const capasBtn = screen.getByRole("button", { name: /Capas/, expanded: false });
+    expect(capasBtn).toBeVisible();
+    expect(capasBtn.closest("details:not([open])")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Modo simple de capas" })).not.toBeInTheDocument();
+    openCapas();
     expect(screen.getByRole("button", { name: "Modo simple de capas" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Modo detalle de capas" })).toBeVisible();
     // The scrubber's range input IS first-paint now — no "Reproducir en el
@@ -513,6 +534,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
     // Flip to Detalle so the mocked LayerPanel mounts and captures onToggle.
+    openCapas();
     fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
 
     // zoonosis is temporal — activating it must flip temporalAvailable true.
@@ -776,6 +798,7 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     renderRedesignConsole();
     // CapasBox mounts LayerPanel only in Detalle mode (panorama-vista-redesign
     // Phase 2) — flip to Detalle so the mocked LayerPanel captures `states`.
+    openCapas();
     fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
@@ -957,6 +980,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     // Flip to Detalle so LayerPanel mounts and captures onToggle.
+    openCapas();
     fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
 
     // Start a scrub — the loop chip is enabled as soon as zoonosis is active
@@ -1191,6 +1215,7 @@ describe("PanoramaConsole — saved-board Simple/Detalle strict boolean coercion
       const params = new URLSearchParams(window.location.search);
       expect(params.get("layers")).toBe("cobertura");
     });
+    openCapas();
     expect(screen.getByRole("button", { name: "Modo simple de capas" })).toHaveAttribute(
       "aria-pressed",
       "true",
