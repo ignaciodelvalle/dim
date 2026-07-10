@@ -18,6 +18,7 @@
 
 import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
+import type { DomainBounds } from "@/components/panorama/scale-lock";
 import { RAMP_BLUE } from "@/lib/analytics/viz-scales";
 import { normalizeBarioCode, normalizeDepartmentCode } from "@/lib/infra/geo-join";
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
@@ -237,6 +238,10 @@ const TRANSPARENT = "rgba(0,0,0,0)";
  */
 export function divisionFillColorExpr(
   values: ReadonlyMap<string, number>,
+  // Optional domain override (fix: time-scrub color-scale lock). When supplied,
+  // the ramp spans this fixed [min,max] instead of the current frame's observed
+  // range, so a value keeps the same color across every as-of frame of a scrub.
+  domainOverride?: DomainBounds | null,
 ): ExpressionSpecification {
   if (values.size === 0) return TRANSPARENT as unknown as ExpressionSpecification;
 
@@ -247,6 +252,10 @@ export function divisionFillColorExpr(
     pairs.push([code, value]);
     if (value < min) min = value;
     if (value > max) max = value;
+  }
+  if (domainOverride) {
+    min = domainOverride.min;
+    max = domainOverride.max;
   }
   const lo = Number.isFinite(min) ? min : 0;
   const hi = Number.isFinite(max) && max > lo ? max : lo + 1;

@@ -47,7 +47,13 @@ export type ScaleBounds = { min: number; max: number };
  * Returns a flat COLOR_NO_DATA expression when the layer has no values, and
  * widens a degenerate single-value range so `interpolate` has distinct stops.
  */
-export function provinceColorExpr(features: FeatureCollection): ExpressionSpecification {
+export function provinceColorExpr(
+  features: FeatureCollection,
+  // Optional domain override (fix: time-scrub color-scale lock). When supplied,
+  // the sequential ramp spans this fixed [min,max] instead of the frame's
+  // observed range, so a value keeps the same color across every as-of frame.
+  domainOverride?: { min: number; max: number } | null,
+): ExpressionSpecification {
   const pairs: Array<[string, number]> = [];
   let min = Number.POSITIVE_INFINITY;
   let max = Number.NEGATIVE_INFINITY;
@@ -61,6 +67,10 @@ export function provinceColorExpr(features: FeatureCollection): ExpressionSpecif
   // No data at all — paint everything neutral.
   if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
 
+  if (domainOverride) {
+    min = domainOverride.min;
+    max = domainOverride.max;
+  }
   const lo = Number.isFinite(min) ? min : 0;
   const hi = Number.isFinite(max) && max > lo ? max : lo + 1;
 

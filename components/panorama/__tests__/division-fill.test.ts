@@ -282,6 +282,22 @@ describe("divisionFillColorExpr", () => {
     expect(Array.isArray(expr)).toBe(true);
     expect(expr[0]).toBe("case");
   });
+
+  it("locks the ramp to a domain override so two as-of frames share one scale", () => {
+    // The scrub-lock passes a frozen live-edge domain. Two DIFFERENT frames
+    // (values 10 vs 90) must interpolate over the SAME [0,100] domain, so a value
+    // keeps its color across the scrub (no per-frame rebasing = no flicker).
+    const domain = { min: 0, max: 100 };
+    const frameA = divisionFillColorExpr(new Map([["palermo", 10]]), domain) as unknown[];
+    const frameB = divisionFillColorExpr(new Map([["palermo", 90]]), domain) as unknown[];
+    // expr = ["case", cond, transparent, ["interpolate",["linear"],match, lo,c0, hi,c1]]
+    const interpA = frameA[3] as unknown[];
+    const interpB = frameB[3] as unknown[];
+    expect(interpA[3]).toBe(0); // lo
+    expect(interpA[5]).toBe(100); // hi
+    expect(interpB[3]).toBe(0);
+    expect(interpB[5]).toBe(100);
+  });
 });
 
 describe("divisionValueBounds", () => {
