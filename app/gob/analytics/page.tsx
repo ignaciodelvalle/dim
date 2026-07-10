@@ -303,13 +303,17 @@ export default async function GobAnalyticsPage({
           <OpCardHead
             title={
               <span id={panelRankingId}>
-                Ranking por cobertura antirrábica{" "}
+                Ranking · {RABIES_VACCINATION_RATE_LABEL_ES}{" "}
                 <span className="text-[11px] font-normal text-ln-op-mute">por provincia</span>
               </span>
             }
           />
           <OpCardBody>
-            <RegionRankingTable top={regionRanking.top} bottom={regionRanking.bottom} />
+            <RegionRankingTable
+              top={regionRanking.top}
+              bottom={regionRanking.bottom}
+              coverageLabel={RABIES_VACCINATION_RATE_LABEL_ES}
+            />
           </OpCardBody>
         </OpCard>
       )}
