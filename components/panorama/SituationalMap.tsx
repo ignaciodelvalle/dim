@@ -2378,6 +2378,18 @@ export function SituationalMap({
   // returns to their jurisdiction; admin/universal returns to the national view.
   const resetViewLabel = initialBounds ? "Volver a mi jurisdicción" : "Vista nacional";
 
+  // task #70 — audience-aware empty-state copy. "en tu cobertura" is GOVT copy;
+  // showing it to a universal-scope admin/superadmin (no assigned jurisdiction)
+  // leaks the wrong audience's framing. Same operator-type signal the reset label
+  // uses (initialBounds ⟺ scoped govt). An admin who DRILLED into a province by
+  // choice reads a neutral "en este alcance" — they have no assigned "cobertura".
+  const emptyStateScope =
+    selectedLocalityCenter != null || selectedProvinceCode != null
+      ? "en este alcance"
+      : initialBounds
+        ? "en tu cobertura"
+        : "en todo el país";
+
   // cursor Part2 — the active choropleth base layer whose CABA aggregates the
   // inset renders at barrio scale. Shown only at national/regional zoom (before
   // the operator drills past Z_DIVISIONS, where CABA becomes readable on the main
@@ -2557,7 +2569,7 @@ export function SituationalMap({
       {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[var(--text-md)] text-white/80">
-            Sin datos para esta capa en tu cobertura.
+            Sin datos para esta capa {emptyStateScope}.
           </p>
         </div>
       )}

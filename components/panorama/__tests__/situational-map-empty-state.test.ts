@@ -1,7 +1,8 @@
 // Unit tests for the SituationalMap empty-state logic.
 //
-// The empty-state overlay "Sin datos para esta capa en tu cobertura" must NOT
-// appear when the only active layer is a province-choropleth (geometry: null
+// The empty-state overlay "Sin datos para esta capa {scope}." (scope is
+// audience-aware — task #70) must NOT appear when the only active layer is a
+// province-choropleth (geometry: null
 // features that color the shared basemap polygons) — those layers ARE visible
 // on the map even though their features carry no GeoJSON Point geometry.
 //
