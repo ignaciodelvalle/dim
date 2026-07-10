@@ -20,6 +20,7 @@
 
 import { NextResponse } from "next/server";
 
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import {
   type CachedJurisdiction,
   type CachedProfile,
@@ -27,6 +28,16 @@ import {
   getProfileCached,
 } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
+
+// SECURITY (MED-2, pre-national security review): per-operator aggregate cap on
+// the analytics fan-out. Each panorama query is bounded individually by
+// withDbBudget, but the cache key varies on many caller-controllable dimensions
+// (level, asOf, basis, verified, custom from/to, drill), so an authenticated
+// institutional session could force cache misses and saturate the 2-connection
+// analytics pool in aggregate. This per-profile cap is deliberately generous
+// (well above any legitimate console interaction) — it only clips a burst abuse
+// pattern, never a real operator paging through the map.
+const PANORAMA_API_MAX_PER_MINUTE = 120;
 
 export type PanoramaActor = {
   profile: CachedProfile;
@@ -72,6 +83,27 @@ export async function resolveInstitutionalPanoramaActor(): Promise<PanoramaGuard
     profile.deactivatedAt !== null
   ) {
     return { ok: false, response: NextResponse.json({ error: "forbidden" }, { status: 403 }) };
+  }
+
+  // Aggregate per-operator request cap (MED-2). Applied AFTER auth resolves so
+  // only authenticated institutional actors are counted, keyed on profile id so
+  // it bounds a single account (or a stolen session) regardless of source IP.
+  // On breach, answer 429 rather than throwing (an API route can't redirect).
+  try {
+    await enforceRateLimit("panorama_api", profile.id, {
+      maxPerMinute: PANORAMA_API_MAX_PER_MINUTE,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "rate_limited" },
+          { status: 429, headers: { "Retry-After": "60" } },
+        ),
+      };
+    }
+    throw err;
   }
 
   const role = profile.role;

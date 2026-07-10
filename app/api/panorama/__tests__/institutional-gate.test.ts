@@ -31,6 +31,27 @@ vi.mock("@/lib/infra/request-cache", () => ({
   getJurisdictionsCached: (...args: unknown[]) => mockGetJurisdictionsCached(...args),
 }));
 
+// Mock the DB-backed rate limiter so the guard's per-operator cap (MED-2) does
+// not hit Postgres in this pure unit test. Provide a faithful RateLimitError so
+// the guard's `instanceof` check matches when we simulate a breach.
+const mockEnforceRateLimit = vi.fn();
+vi.mock("@/lib/infra/rate-limit", () => {
+  class RateLimitError extends Error {
+    resetAt: Date;
+    reason: string;
+    constructor(resetAt: Date, reason: string) {
+      super(`Rate limit exceeded: ${reason}`);
+      this.name = "RateLimitError";
+      this.resetAt = resetAt;
+      this.reason = reason;
+    }
+  }
+  return {
+    RateLimitError,
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  };
+});
+
 const mockGetPanoramaKpis = vi.fn();
 vi.mock("@/src/modules/panorama/application/get-panorama-kpis", () => ({
   getPanoramaKpis: (...args: unknown[]) => mockGetPanoramaKpis(...args),
@@ -44,6 +65,7 @@ vi.mock("@/src/modules/panorama/application/get-panorama-kpis", () => ({
   }),
 }));
 
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 import { GET as kpisGET } from "../kpis/route";
 
@@ -186,6 +208,38 @@ describe("resolveInstitutionalPanoramaActor — admits legit operators", () => {
       expect(r.actor.jurisdictions).toEqual([{ province: "Buenos Aires", locality: "La Plata" }]);
     }
     expect(mockGetJurisdictionsCached).toHaveBeenCalledWith("govt-ok");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MED-2 — per-operator aggregate request cap on /api/panorama/*
+// ---------------------------------------------------------------------------
+
+describe("resolveInstitutionalPanoramaActor — per-operator rate cap (MED-2)", () => {
+  it("enforces the panorama_api limit keyed on profile id, after auth resolves", async () => {
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+    const r = await resolveInstitutionalPanoramaActor();
+    expect(r.ok).toBe(true);
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith("panorama_api", "admin-ok", {
+      maxPerMinute: 120,
+    });
+  });
+
+  it("429s (Retry-After) when the operator exceeds the aggregate cap", async () => {
+    mockGetUser.mockResolvedValue(session("admin-ok"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "admin-ok", role: "admin" }));
+    mockEnforceRateLimit.mockRejectedValueOnce(
+      new RateLimitError(new Date(Date.now() + 60_000), "panorama_api breach"),
+    );
+    const r = await resolveInstitutionalPanoramaActor();
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.response.status).toBe(429);
+      expect(r.response.headers.get("Retry-After")).toBe("60");
+    }
+    // Rejected before any scope lookup.
+    expect(mockGetJurisdictionsCached).not.toHaveBeenCalled();
   });
 });
 
