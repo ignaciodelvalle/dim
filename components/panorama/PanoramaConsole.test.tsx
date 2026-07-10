@@ -445,6 +445,21 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
   });
 
+  it("current-state base (brotes-activos: cobertura base): active scrubber carries the honest 'estado actual' disclaimer (trust/safety)", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+
+    // brotes-activos: base cobertura (current-state) + signal zoonosis (temporal)
+    // → the scrubber stays active (zoonosis reproduces) but must state plainly
+    // that the cobertura fill does not move with the fecha de corte.
+    fireEvent.click(screen.getByRole("button", { name: /Brotes activos/ }));
+
+    expect(screen.queryByText("No disponible en esta vista")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Estado actual — cobertura antirrábica no varía con la fecha de corte."),
+    ).toBeInTheDocument();
+  });
+
   it("activating a temporal layer self-enables the scrubber without a reload", async () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();

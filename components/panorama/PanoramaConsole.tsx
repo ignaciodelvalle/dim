@@ -2199,6 +2199,19 @@ export function PanoramaConsole({
     (l) => states[l.id]?.active && isTemporalLayer(l.id),
   );
 
+  // trust/safety (2026-07-10): the scrubber reproduces only TEMPORAL layers;
+  // current-state layers are dimmed (never reconstructed as-of-t). When the
+  // PRIMARY/base (caption) layer is current-state — e.g. cobertura in the
+  // brotes-activos vista, whose caption reads "estado actual" — the scrubber's
+  // dated "Situación al …" framing overreaches: the headline metric cannot vary
+  // with the fecha de corte. Surface the base measure so the scrubber can state
+  // that honestly instead of fabricating a dated situation over it. Undefined
+  // when the base is temporal (no disclaimer needed) or absent.
+  const currentStateBaseLabel =
+    captionLayer != null && !isTemporalLayer(captionLayer.id)
+      ? captionLayer.caption.measure
+      : undefined;
+
   // QA fix (finding 1): the active layer set losing its last temporal layer
   // must park the scrubber back at live — otherwise `scrubbing` stays true
   // (asOf non-null) and the map keeps every non-temporal layer DIMMED while
@@ -2291,6 +2304,7 @@ export function PanoramaConsole({
             basis={timeBasis}
             onBasisChange={onBasisChange}
             temporalAvailable={temporalAvailable}
+            currentStateBaseLabel={currentStateBaseLabel}
             scrubDetail={scrubDetail}
             onScrubDetailChange={setScrubDetail}
             resetToken={scrubResetToken}

@@ -85,6 +85,16 @@ type Props = {
    * Defaults to true so existing callers (pre-redesign) keep today's behavior.
    */
   temporalAvailable?: boolean;
+  /**
+   * trust/safety (2026-07-10): es-AR measure of the PRIMARY/base layer when it
+   * is CURRENT-STATE (e.g. "cobertura antirrábica"). The scrubber reproduces
+   * only temporal layers; a current-state base is dimmed, never reconstructed —
+   * so its dated "Situación al …" framing would fabricate a dated situation over
+   * a metric that cannot vary with the fecha de corte. When set, the scrubber
+   * renders an honest "estado actual — no varía con la fecha de corte" note.
+   * Undefined when the base is temporal (no disclaimer needed).
+   */
+  currentStateBaseLabel?: string;
   /** Simple (default false) / Detalle (true) — persisted by the parent. */
   scrubDetail?: boolean;
   /**
@@ -112,6 +122,7 @@ export function TimeScrubber({
   basis,
   onBasisChange,
   temporalAvailable = true,
+  currentStateBaseLabel,
   scrubDetail = false,
   onScrubDetailChange,
   resetToken,
@@ -323,6 +334,16 @@ export function TimeScrubber({
         </p>
       ) : (
         <>
+          {/* trust/safety (2026-07-10): the base metric is current-state — the
+              scrubber reproduces only temporal overlays, so state plainly that
+              the dated corte does NOT move the headline layer (it is dimmed,
+              not reconstructed). Without this the "Situación al …" label reads
+              as if the whole map were as-of-t. */}
+          {currentStateBaseLabel && (
+            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+              Estado actual — {currentStateBaseLabel} no varía con la fecha de corte.
+            </p>
+          )}
           <div className="flex items-center gap-2.5">
             <button
               type="button"

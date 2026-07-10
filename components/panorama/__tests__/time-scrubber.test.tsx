@@ -65,6 +65,42 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
     expect(screen.getByRole("slider")).toBeInTheDocument();
   });
 
+  it("current-state base: shows the honest 'estado actual' disclaimer alongside the active track (trust/safety)", () => {
+    // A temporal overlay keeps the scrubber active, but the base metric is
+    // current-state — the dated label must not imply it varies with the corte.
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        temporalAvailable={true}
+        currentStateBaseLabel="cobertura antirrábica"
+      />,
+    );
+
+    expect(screen.getByRole("slider")).toBeInTheDocument();
+    expect(
+      screen.getByText("Estado actual — cobertura antirrábica no varía con la fecha de corte."),
+    ).toBeInTheDocument();
+  });
+
+  it("temporal base: no current-state disclaimer is rendered", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        temporalAvailable={true}
+      />,
+    );
+
+    expect(screen.queryByText(/no varía con la fecha de corte/)).not.toBeInTheDocument();
+  });
+
   it("defaults to available (temporalAvailable omitted) — backward compatible", () => {
     render(
       <TimeScrubber
