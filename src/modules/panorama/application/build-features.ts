@@ -324,6 +324,128 @@ export function buildChoroplethFeatures(
   return featureCollection(features);
 }
 
+// --- detail-tier DEPARTMENT aggregation (pure) ------------------------------
+//
+// The Panorama detail tier draws real administrative DIVISION polygons: barrios
+// for CABA (caba-barrios.geojson), departamentos/partidos everywhere else
+// (ar-departments.geojson). But the per-(province, locality) rollups aggregated —
+// and k-anon-suppressed (k=5) — the DATA at LOCALITY granularity, one or two
+// orders of magnitude finer than the polygon the operator actually sees. At
+// panorama-seed scale that suppressed ~all cells (locality counts sit in 1–4, all
+// below k=5), so the detail map read as empty even where a department had ample
+// signal.
+//
+// The fix (PO decision "Option A"): make the DATA unit match the POLYGON unit —
+// aggregate the locality rollup up to the department (CABA up to the barrio, which
+// IS its locality and has no department in ar_localities) BEFORE k-anon. k=5 then
+// applies at the department, which clears the threshold far more often (multiple
+// localities per department), so the detail tier stops being suppressed-by-
+// construction while the privacy floor is unchanged (a coarser unit is strictly
+// MORE anonymising, never less).
+//
+// This is a PURE fold over the already-resolved locality rollup rows: each
+// locality was pinned to ONE department via MIN(department_code) upstream, so
+// summing localities into departments counts every pet exactly once even where a
+// locality NAME is ambiguous across departments (57/3953 seed pairs). Kept here
+// (not in the @/db repository) so it is unit-testable without a database.
+
+/** Minimal per-locality rollup row shape the department fold reads/produces. It
+ * mirrors the repository's internal RollupRow (a subset the pure fold needs). */
+export type DepartmentRollupRow = {
+  key: string;
+  province: string;
+  /** Locality name on input; on output it carries the DETAIL UNIT label
+   * (department/partido name, or the barrio name for CABA). */
+  locality: string;
+  centroidLat: string | null;
+  centroidLng: string | null;
+  departmentCode?: string | null;
+  departmentName?: string | null;
+  count: number;
+};
+
+/** The province whose detail unit is the BARRIO (no ar_localities department). */
+const BARRIO_ONLY_PROVINCE = "CABA";
+
+/**
+ * Fold a per-(province, locality) rollup up to the DETAIL UNIT:
+ *  - CABA          → the barrio (the locality itself; carries no departmentCode).
+ *  - every other   → the INDEC department/partido (via the row's departmentCode).
+ *  - a locality that resolved NO department keeps its own bucket, so its pets are
+ *    never dropped from the province total (preserves the U5 sum-reconciliation
+ *    invariant: a province total still equals the sum of its detail cells).
+ *
+ * Counts are SUMMED (each pet is in exactly one locality → exactly one unit). The
+ * centroid is the unweighted average of the constituent locality centroids (the
+ * department centroid; for CABA that is just the single barrio centroid). The
+ * returned row's `locality` becomes the unit display label and `departmentCode`
+ * the division-fill join key (null for CABA — the map derives the barrio slug
+ * from the label).
+ */
+export function aggregateCellsToDepartment(
+  localityRows: readonly DepartmentRollupRow[],
+): DepartmentRollupRow[] {
+  type Acc = {
+    province: string;
+    label: string;
+    departmentCode: string | null;
+    departmentName: string | null;
+    latSum: number;
+    lngSum: number;
+    centroidN: number;
+    count: number;
+  };
+  const byUnit = new Map<string, Acc>();
+
+  for (const r of localityRows) {
+    const isBarrio = r.province === BARRIO_ONLY_PROVINCE;
+    const unitCode = isBarrio
+      ? `barrio:${r.locality}`
+      : r.departmentCode
+        ? `dept:${r.departmentCode}`
+        : `loc:${r.locality}`;
+    const key = `${r.province}|${unitCode}`;
+
+    let acc = byUnit.get(key);
+    if (!acc) {
+      acc = {
+        province: r.province,
+        label: isBarrio ? r.locality : (r.departmentName ?? r.locality),
+        departmentCode: isBarrio ? null : (r.departmentCode ?? null),
+        departmentName: isBarrio ? null : (r.departmentName ?? null),
+        latSum: 0,
+        lngSum: 0,
+        centroidN: 0,
+        count: 0,
+      };
+      byUnit.set(key, acc);
+    }
+    acc.count += r.count;
+    const lat = r.centroidLat != null ? Number(r.centroidLat) : Number.NaN;
+    const lng = r.centroidLng != null ? Number(r.centroidLng) : Number.NaN;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      acc.latSum += lat;
+      acc.lngSum += lng;
+      acc.centroidN += 1;
+    }
+  }
+
+  const out: DepartmentRollupRow[] = [];
+  for (const [key, acc] of byUnit) {
+    out.push({
+      key,
+      province: acc.province,
+      locality: acc.label,
+      centroidLat: acc.centroidN > 0 ? String(acc.latSum / acc.centroidN) : null,
+      centroidLng: acc.centroidN > 0 ? String(acc.lngSum / acc.centroidN) : null,
+      departmentCode: acc.departmentCode,
+      departmentName: acc.departmentName,
+      count: acc.count,
+    });
+  }
+  return out;
+}
+
 // --- F1 aggregated point layer (one graduated symbol per administrative unit) -
 
 /**

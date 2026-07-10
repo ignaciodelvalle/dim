@@ -52,16 +52,17 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { findDisease } from "@/lib/reference/diseases";
 
-import type {
-  AggregatedPointCell,
-  BiteRow,
-  ChoroplethCell,
-  DecomisoRow,
-  DenunciaCentroidRow,
-  LostPointRow,
-  OutbreakRow,
-  ProvinceChoroplethCell,
-  ShelterRow,
+import {
+  type AggregatedPointCell,
+  type BiteRow,
+  type ChoroplethCell,
+  type DecomisoRow,
+  type DenunciaCentroidRow,
+  type LostPointRow,
+  type OutbreakRow,
+  type ProvinceChoroplethCell,
+  type ShelterRow,
+  aggregateCellsToDepartment,
 } from "@/src/modules/panorama/application/build-features";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
@@ -941,7 +942,13 @@ export async function loadRabiesCoverage(
     rollupPetsPerLocality([predicate], scope),
     countPetsNoLocality([predicate], scope),
   ]);
-  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the
+  // department — the barrio for CABA — so the DATA + k-anon unit matches the
+  // division polygon the map actually draws. k=5 then applies at the department,
+  // which clears the threshold far more often than the near-always-suppressed
+  // locality cells did. `truncated` still reflects the LOCALITY query cap (the
+  // fold only reduces the cell count).
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -962,7 +969,13 @@ export async function loadSterilizationCoverage(
     rollupPetsPerLocality([metricPredicate("sterilization-coverage")], scope),
     countPetsNoLocality([metricPredicate("sterilization-coverage")], scope),
   ]);
-  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the
+  // department — the barrio for CABA — so the DATA + k-anon unit matches the
+  // division polygon the map actually draws. k=5 then applies at the department,
+  // which clears the threshold far more often than the near-always-suppressed
+  // locality cells did. `truncated` still reflects the LOCALITY query cap (the
+  // fold only reduces the cell count).
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -980,7 +993,13 @@ export async function loadMicrochipCoverage(
     rollupPetsPerLocality([metricPredicate("microchip-penetration")], scope),
     countPetsNoLocality([metricPredicate("microchip-penetration")], scope),
   ]);
-  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the
+  // department — the barrio for CABA — so the DATA + k-anon unit matches the
+  // division polygon the map actually draws. k=5 then applies at the department,
+  // which clears the threshold far more often than the near-always-suppressed
+  // locality cells did. `truncated` still reflects the LOCALITY query cap (the
+  // fold only reduces the cell count).
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -998,7 +1017,13 @@ export async function loadPppCompliance(
     rollupPetsPerLocality([metricPredicate("ppp-compliance")], scope),
     countPetsNoLocality([metricPredicate("ppp-compliance")], scope),
   ]);
-  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the
+  // department — the barrio for CABA — so the DATA + k-anon unit matches the
+  // division polygon the map actually draws. k=5 then applies at the department,
+  // which clears the threshold far more often than the near-always-suppressed
+  // locality cells did. `truncated` still reflects the LOCALITY query cap (the
+  // fold only reduces the cell count).
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -1015,7 +1040,13 @@ export async function loadMortality(
     rollupPetsPerLocality([metricPredicate("mortality")], scope),
     countPetsNoLocality([metricPredicate("mortality")], scope),
   ]);
-  const { cells, suppressedCount } = toChoroplethCells(rollup);
+  // Detail tier (PO "Option A"): fold the per-locality rollup up to the
+  // department — the barrio for CABA — so the DATA + k-anon unit matches the
+  // division polygon the map actually draws. k=5 then applies at the department,
+  // which clears the threshold far more often than the near-always-suppressed
+  // locality cells did. `truncated` still reflects the LOCALITY query cap (the
+  // fold only reduces the cell count).
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 

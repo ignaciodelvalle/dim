@@ -40,12 +40,20 @@ describe("captionFor", () => {
     expect(captionFor(layer("esterilizacion"), "province", period90d)).toContain("Meta 70%.");
   });
 
-  it("names the unit per level (provincia vs localidad)", () => {
+  it("names the unit per level (provincia vs the detail division)", () => {
     expect(captionFor(layer("cobertura"), "province", period90d)).toContain("es una provincia");
-    // esterilizacion locality is choropleth-fill in the descriptor → still área.
+    // A choropleth layer's DETAIL tier draws + aggregates at the administrative
+    // DIVISION (departamento/partido, barrio in CABA), not the far-finer locality —
+    // the caption names that unit honestly (PO "Option A").
     expect(captionFor(layer("esterilizacion"), "locality", period90d)).toContain(
-      "es una localidad",
+      "es una división (departamento/partido, o barrio en CABA)",
     );
+  });
+
+  it("point-layer detail tier still names the locality (unchanged by Option A)", () => {
+    // Density/signal point layers still aggregate per locality (their detail-tier
+    // department fold is a separate follow-up), so their caption stays "localidad".
+    expect(captionFor(layer("mordeduras"), "locality", period90d)).toContain("es una localidad");
   });
 
   it("reference (clustered-points) layers produce a non-empty caption without a Meta clause", () => {

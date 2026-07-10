@@ -20,6 +20,20 @@ const UNIT: Record<AggregationLevel, string> = {
 };
 
 /**
+ * Unit noun for the DIVISION-FILL (choropleth) layers, whose detail tier draws —
+ * and, since PO "Option A", aggregates + k-anon-suppresses at — the administrative
+ * DIVISION the map actually renders: the departamento/partido everywhere, the
+ * barrio in CABA. The old shared `UNIT.locality = "localidad"` mislabeled that
+ * tier ("Cada área es una localidad") while the polygon under it was a department.
+ * A feminine noun ("división") keeps the caption template's "es una {unit}" grammar
+ * correct; the parenthetical names the concrete unit at each scope.
+ */
+const UNIT_DIVISION: Record<AggregationLevel, string> = {
+  province: "provincia",
+  locality: "división (departamento/partido, o barrio en CABA)",
+};
+
+/**
  * Nacional overview forces the province mark below the locality camera threshold
  * (design §3.1 render-policy — kills the "green blob"). Z_LOCALITY ≈ 5.
  */
@@ -221,7 +235,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "hatched",
-    caption: { unit: UNIT, measure: "cobertura de esterilización", window: "current" },
+    caption: { unit: UNIT_DIVISION, measure: "cobertura de esterilización", window: "current" },
   },
   {
     id: "microchip",
@@ -243,7 +257,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "hatched",
-    caption: { unit: UNIT, measure: "penetración de microchip", window: "current" },
+    caption: { unit: UNIT_DIVISION, measure: "penetración de microchip", window: "current" },
   },
   {
     id: "ppp",
@@ -265,7 +279,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "hatched",
-    caption: { unit: UNIT, measure: "registro PPP", window: "current" },
+    caption: { unit: UNIT_DIVISION, measure: "registro PPP", window: "current" },
   },
   {
     id: "cobertura",
@@ -290,7 +304,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "hatched",
-    caption: { unit: UNIT, measure: "cobertura antirrábica", window: "current" },
+    caption: { unit: UNIT_DIVISION, measure: "cobertura antirrábica", window: "current" },
   },
   {
     id: "mortalidad",
@@ -311,7 +325,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "hatched",
-    caption: { unit: UNIT, measure: "mortalidad registrada", window: "current" },
+    caption: { unit: UNIT_DIVISION, measure: "mortalidad registrada", window: "current" },
   },
 ] as const;
 
