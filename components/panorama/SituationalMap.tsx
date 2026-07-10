@@ -15,6 +15,7 @@ import {
   graduatedMaxCount,
 } from "@/components/panorama/graduated-scale";
 import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
+import { histogramPeak, valueHistogram } from "@/components/panorama/legend-histogram";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 
 import {
@@ -2128,83 +2129,133 @@ export function SituationalMap({
               </div>
             </div>
           )}
-          {provinceLegends.map(({ layer, bounds, isDivergent }) => (
-            <div
-              key={layer.id}
-              className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90"
-            >
-              <div className="mb-1 font-medium">{layer.label}</div>
-              {isDivergent && typeof layer.complianceTarget === "number" ? (
-                // F5: divergent legend — two poles with the target anchor labeled.
-                // Colorblind-safe: orange=below, white=at target, teal=above.
-                // Text labels accompany every color swatch (not color-only).
-                <div className="space-y-1">
+          {provinceLegends.map(({ layer, bounds, isDivergent }) => {
+            // #5: the actual province values, for the in-legend distribution. On
+            // the FIXED [0,100] divergent axis they otherwise vanish into the mid
+            // band — the histogram shows the real spread (and the empty above-meta
+            // half) so the reader sees more than the two endpoints.
+            const values = layer.features.features
+              .map((f) => (f.properties as { value?: number } | null)?.value)
+              .filter((v): v is number => typeof v === "number");
+            const hist =
+              isDivergent && typeof layer.complianceTarget === "number"
+                ? valueHistogram(values, FIXED_RATE_DOMAIN.min, FIXED_RATE_DOMAIN.max, 16)
+                : [];
+            const histPeak = histogramPeak(hist);
+            const metaPct =
+              typeof layer.complianceTarget === "number"
+                ? (100 * (layer.complianceTarget - FIXED_RATE_DOMAIN.min)) /
+                  (FIXED_RATE_DOMAIN.max - FIXED_RATE_DOMAIN.min)
+                : 0;
+            return (
+              <div
+                key={layer.id}
+                className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90"
+              >
+                <div className="mb-1 font-medium">{layer.label}</div>
+                {isDivergent && typeof layer.complianceTarget === "number" ? (
+                  // F5: divergent legend — two poles with the target anchor labeled.
+                  // Colorblind-safe: orange=below, white=at target, teal=above.
+                  // Text labels accompany every color swatch (not color-only).
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      {/* panorama-ia-v2 §3.2: FIXED [0,100] endpoints flank the
+                          gradient (below-pole → neutral-at-meta → above-pole) so the
+                          scale reads the same for every province. */}
+                      <span className="tabular-nums text-white/70">0</span>
+                      {/* #5: gradient + overlaid value distribution + meta marker,
+                          all on the SAME [0,100] axis so the reader sees where the
+                          provinces actually fall relative to the meta. */}
+                      <span className="relative h-6 w-28 flex-none">
+                        {histPeak > 0 && (
+                          <span
+                            className="absolute inset-x-0 top-0 flex h-3.5 items-end gap-px"
+                            aria-hidden="true"
+                          >
+                            {hist.map((b) => (
+                              <span
+                                key={b.lo}
+                                className="flex-1 rounded-t-[1px] bg-white/45"
+                                style={{ height: `${Math.round((100 * b.count) / histPeak)}%` }}
+                              />
+                            ))}
+                          </span>
+                        )}
+                        <span
+                          className="absolute inset-x-0 bottom-0 block h-2.5 rounded-full"
+                          style={{
+                            background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
+                          }}
+                          aria-hidden="true"
+                        />
+                        {/* meta anchor — a vertical tick at the compliance target */}
+                        <span
+                          className="absolute bottom-0 block h-5 w-px bg-white/80"
+                          style={{ left: `${metaPct}%` }}
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <span className="tabular-nums text-white/70">100</span>
+                    </div>
+                    {histPeak > 0 && (
+                      <div className="text-[var(--text-xs)] leading-tight text-white/45">
+                        Distribución de {values.length}{" "}
+                        {values.length === 1 ? "provincia" : "provincias"} (barras) · meta marcada
+                      </div>
+                    )}
+                    <div className="flex justify-between text-[var(--text-xs)] text-white/55">
+                      <span>bajo meta</span>
+                      <span>sobre meta</span>
+                    </div>
+                    {/* Target anchor — the pivotal reference point */}
+                    <div className="flex items-center gap-1.5 text-white/60">
+                      <span
+                        className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/30"
+                        style={{ background: COLOR_DIVERGENT_NEUTRAL }}
+                        aria-hidden="true"
+                      />
+                      <span>
+                        meta{" "}
+                        <strong className="text-white/80">
+                          {layer.complianceTarget.toLocaleString("es-AR")}%
+                        </strong>
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  // Sequential legend for density/count choropleths.
                   <div className="flex items-center gap-2">
-                    {/* panorama-ia-v2 §3.2: FIXED [0,100] endpoints flank the
-                        gradient (below-pole → neutral-at-meta → above-pole) so the
-                        scale reads the same for every province. */}
-                    <span className="tabular-nums text-white/70">0</span>
+                    <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
                     <span
-                      className="h-2.5 w-28 flex-none rounded-full"
+                      className="h-2.5 w-24 rounded-full"
                       style={{
-                        background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
+                        background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
                       }}
                       aria-hidden="true"
                     />
-                    <span className="tabular-nums text-white/70">100</span>
+                    <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
                   </div>
-                  <div className="flex justify-between text-[var(--text-xs)] text-white/55">
-                    <span>bajo meta</span>
-                    <span>sobre meta</span>
-                  </div>
-                  {/* Target anchor — the pivotal reference point */}
-                  <div className="flex items-center gap-1.5 text-white/60">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/30"
-                      style={{ background: COLOR_DIVERGENT_NEUTRAL }}
-                      aria-hidden="true"
-                    />
-                    <span>
-                      meta{" "}
-                      <strong className="text-white/80">
-                        {layer.complianceTarget.toLocaleString("es-AR")}%
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                // Sequential legend for density/count choropleths.
-                <div className="flex items-center gap-2">
-                  <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
+                )}
+                <div className="mt-1 flex items-center gap-1.5 text-white/70">
                   <span
-                    className="h-2.5 w-24 rounded-full"
-                    style={{
-                      background: `linear-gradient(to right, ${RAMP_BLUE[0]}, ${RAMP_BLUE[1]})`,
-                    }}
+                    className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
+                    style={{ background: COLOR_NO_DATA }}
                     aria-hidden="true"
                   />
-                  <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
+                  Sin datos
                 </div>
-              )}
-              <div className="mt-1 flex items-center gap-1.5 text-white/70">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
-                  style={{ background: COLOR_NO_DATA }}
-                  aria-hidden="true"
-                />
-                Sin datos
-              </div>
-              {/* k-anon disclosure: province cells with fewer than 5 records are
+                {/* k-anon disclosure: province cells with fewer than 5 records are
                   suppressed server-side (AGENTS.md k=5 policy) and fall back to
                   the same neutral fill as genuine no-data. Spell out WHY so a
                   govt user reads a blank cell as privacy protection, not a gap.
                   Copy parity with MapChoropleth ("protegidos por privacidad ·
                   k-anonimato"). */}
-              <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
-                Dato protegido — menos de 5 registros (k-anonimato)
+                <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
+                  Dato protegido — menos de 5 registros (k-anonimato)
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
               Does NOT depend on zoom — circles are non-clustered, one per unit. */}
           {hasGraduatedLayer && graduatedScale && (
