@@ -117,6 +117,42 @@ export const RAW_CITIZEN_STATUS =
   /\b(?:bg|text|border|ring)-(?:\[var\(--color-)?ln-(?:ok|warn|err|danger|violeta)(?:-\d+)?/g;
 
 // ---------------------------------------------------------------------------
+// Undefined operator-token guard (silent-invisible class)
+//
+// In Tailwind v4 an undefined utility emits NO CSS — the element renders
+// transparent/invisible with no error. `ln-op-verde` / `ln-op-rojo` /
+// `ln-op-amarillo` (Spanish color names that were never defined tokens) shipped
+// this way across ~11 gob/admin screens: adoption/health bars that rendered
+// blank. This guard FAILS on any `<util>-ln-op-<name>` whose <name> is not a
+// defined `--color-ln-op-*` token. The allowlist is PARSED from app/globals.css
+// (parseDefinedOpTokens) so it stays in sync with the theme automatically.
+// ---------------------------------------------------------------------------
+
+// Path to the theme file that declares the --color-ln-op-* tokens. It is a .css
+// file, so it is never in the ts/tsx FILES glob — read explicitly for the allowlist.
+const OP_TOKENS_CSS_PATH = "app/globals.css";
+
+/**
+ * Parse the set of DEFINED operator token names from theme CSS, e.g.
+ * `--color-ln-op-ok: …` → "ok", `--color-ln-op-danger-bd: …` → "danger-bd".
+ * Exported for unit tests.
+ */
+export function parseDefinedOpTokens(css: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of css.matchAll(/--color-ln-op-([a-z0-9]+(?:-[a-z0-9]+)*)\s*:/g)) {
+    out.add(m[1]);
+  }
+  return out;
+}
+
+// Matches an operator token utility `<util>-ln-op-<name>`, after any variant
+// prefix (hover:, focus:) and before any opacity suffix (/40). Capture group 1
+// is <name> (may be compound: ok-bg, danger-bd, azul-700, celeste-050). Checked
+// against the parsed allowlist; any <name> not present is a hard error.
+export const OP_TOKEN_UTILITY =
+  /\b(?:bg|text|border|ring|divide|from|to|via|outline|fill|stroke|placeholder|caret|decoration|accent)-ln-op-([a-z0-9]+(?:-[a-z0-9]+)*)/g;
+
+// ---------------------------------------------------------------------------
 // Rules 4–8 (new ratchet rules — fail only on NEW violations above baseline)
 // ---------------------------------------------------------------------------
 
@@ -189,6 +225,18 @@ function countMatches(src: string, re: RegExp): number {
 function runChecks(): void {
   const baseline = loadBaseline();
 
+  // Parse the defined --color-ln-op-* allowlist from theme CSS. If the file is
+  // unreadable, disable the undefined-token guard rather than flag every token.
+  let definedOpTokens = new Set<string>();
+  try {
+    definedOpTokens = parseDefinedOpTokens(readFileSync(OP_TOKENS_CSS_PATH, "utf8"));
+  } catch {
+    console.warn(
+      `[warn] ${OP_TOKENS_CSS_PATH} not readable — undefined ln-op-* token guard skipped.`,
+    );
+  }
+  const opGuardActive = definedOpTokens.size > 0;
+
   let hits = 0;
 
   // Ratchet per-file totals for rules 4–8
@@ -231,6 +279,17 @@ function runChecks(): void {
           `${file}:${i + 1}:${(match.index ?? 0) + 1}: arbitrary hex "${match[0]}" — use a ln-* token utility (e.g. bg-[var(--color-ln-ok-050)]). Autofix: pnpm tsx scripts/codemod-status-tints.cjs`,
         );
         hits += 1;
+      }
+      if (opGuardActive) {
+        for (const match of line.matchAll(OP_TOKEN_UTILITY)) {
+          const name = match[1];
+          if (!definedOpTokens.has(name)) {
+            console.error(
+              `${file}:${i + 1}:${(match.index ?? 0) + 1}: undefined operator token "ln-op-${name}" (in "${match[0]}") — not a defined --color-ln-op-* token. Tailwind v4 emits no CSS for it, so the element renders invisible. Use a defined token from ${OP_TOKENS_CSS_PATH}.`,
+            );
+            hits += 1;
+          }
+        }
       }
       if (STATUS_COMPONENTS.has(file)) {
         // Skip comment lines (TSX single-line comments // …) for both status rules.
