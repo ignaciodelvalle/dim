@@ -20,3 +20,21 @@ export function isIncrementalCacheMissing(err: unknown): boolean {
   const code = (err as { __NEXT_ERROR_CODE?: string }).__NEXT_ERROR_CODE;
   return code === "E469" || err.message.includes("incrementalCache missing");
 }
+
+/**
+ * One-shot observability for the incremental-cache-missing fallback. In unit
+ * tests / scripts the Data Cache is legitimately absent, so the Panorama loaders
+ * degrade to UNCACHED compute silently. In PRODUCTION every render path has the
+ * incremental cache, so this fallback firing signals a real Data Cache outage —
+ * which otherwise degrades performance INVISIBLY (every layer/KPI request recomputes
+ * the full fan-out). Warn ONCE per process so a prod outage is visible in the logs
+ * without spamming a line per request (or per test).
+ */
+let warnedIncrementalCacheMissing = false;
+export function warnIncrementalCacheMissingOnce(context: string): void {
+  if (warnedIncrementalCacheMissing) return;
+  warnedIncrementalCacheMissing = true;
+  console.warn(
+    `[panorama-cache] Data Cache unavailable (incrementalCache missing) — serving ${context} UNCACHED. Expected in unit tests/scripts; in production this signals a Data Cache outage (every request recomputes the full fan-out). Logged once per process.`,
+  );
+}

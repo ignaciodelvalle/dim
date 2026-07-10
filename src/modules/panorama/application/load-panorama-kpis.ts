@@ -23,7 +23,7 @@ import { unstable_cache } from "next/cache";
 
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
-import { isIncrementalCacheMissing } from "./data-cache";
+import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./data-cache";
 import { withDbBudget } from "./db-budget";
 import { type PanoramaKpis, degradedPanoramaKpis, getPanoramaKpis } from "./get-panorama-kpis";
 import { type CachedKpisResult, getCachedPanoramaKpis, kpiCacheKey } from "./kpis-cache";
@@ -106,9 +106,13 @@ function computeCachedKpiFanOut(
   return cached().catch((err) => {
     // The sentinel means "degraded" → return it UNCACHED.
     if (err instanceof DegradedKpiStripError) return degradedPanoramaKpis();
-    // No Data Cache in this context (unit test / script) → run the fan-out
-    // uncached (getPanoramaKpis throws on a real failure → propagates as before).
-    if (isIncrementalCacheMissing(err)) return fanOut();
+    // No Data Cache in this context (unit test / script; or a prod outage) → run
+    // the fan-out uncached (getPanoramaKpis throws on a real failure → propagates
+    // as before). Warn once so a production outage is visible in the logs.
+    if (isIncrementalCacheMissing(err)) {
+      warnIncrementalCacheMissingOnce("KPI fan-out");
+      return fanOut();
+    }
     // Any other rejection (a real fetcher failure) propagates so the caller degrades.
     throw err;
   });

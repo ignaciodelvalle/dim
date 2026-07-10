@@ -22,7 +22,7 @@ import {
   emptyLayerFeatures,
   resolvePointsMode,
 } from "@/src/modules/panorama/application/get-layer-features";
-import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
+import { loadLayerFeaturesCachedWithMeta } from "@/src/modules/panorama/application/load-layer-features-cached";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf, parseTimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 
@@ -135,10 +135,14 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   const windowUntil = asOf ?? until;
 
   try {
-    const result = await withDbBudget(
+    const { result, status } = await withDbBudget(
       // Cross-request Data Cache stays INSIDE the budget so a degraded/empty
       // fallback is never cached; points mode bypasses the cache internally.
-      loadLayerFeaturesCached(
+      // The meta variant reports how the result was served (hit|miss|bypass) so
+      // we can echo an `x-layer-cache` header mirroring the KPI route's
+      // `x-kpi-cache`. On a budget timeout the fallback reads as "miss" (a
+      // degraded/empty result was NOT served from the cache).
+      loadLayerFeaturesCachedWithMeta(
         layer,
         actor,
         scoped,
@@ -151,7 +155,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
       ),
       LAYER_BUDGET_MS,
       `GET /api/panorama/${layer}`,
-      emptyLayerFeatures(),
+      { result: emptyLayerFeatures(), status: pointsMode ? "bypass" : "miss" },
     );
 
     return NextResponse.json(
@@ -166,13 +170,13 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         mode: result.mode,
         sinUbicacionCount: result.sinUbicacionCount ?? 0,
       },
-      { headers: { "cache-control": "no-store" } },
+      { headers: { "cache-control": "no-store", "x-layer-cache": status } },
     );
   } catch (err) {
     console.error(`[GET /api/panorama/${layer}] failed:`, err);
     return NextResponse.json(
       { error: "panorama_layer_unavailable" },
-      { status: 503, headers: { "cache-control": "no-store" } },
+      { status: 503, headers: { "cache-control": "no-store", "x-layer-cache": "miss" } },
     );
   }
 }

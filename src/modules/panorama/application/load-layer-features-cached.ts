@@ -25,7 +25,7 @@
 //
 // KEY STABILITY: preset periods resolve `until`/`asOf` to `Date.now()`, so a raw
 // timestamp key would miss on every request. `bucket()` floors the window
-// endpoints to the 60s TTL — stable within a bucket, staleness bounded by it.
+// endpoints to the 300s TTL — stable within a bucket, staleness bounded by it.
 // CRITICAL: Next's `unstable_cache` folds the wrapped fn's ARGUMENTS into the
 // cache key (invocationKey = fixedKey + JSON.stringify(args)). So the varying
 // scope is carried ENTIRELY by `keyParts` (the bucketed key string) and the
@@ -42,7 +42,7 @@ import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel, LayerId } from "@/src/modules/panorama/domain/types";
 
-import { isIncrementalCacheMissing } from "./data-cache";
+import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./data-cache";
 import { type LayerFeaturesResult, type LayerPeriod, getLayerFeatures } from "./get-layer-features";
 
 /**
@@ -61,8 +61,9 @@ export const LAYER_KEY_BUCKET_MS = 300_000;
 
 /**
  * How long a cached layer envelope lives in the Data Cache before it goes stale
- * and is revalidated. Independent of the key bucket: the 60s bucket controls key
- * stability; this 5-minute revalidate controls entry lifetime.
+ * and is revalidated. Aligned with the key bucket (`LAYER_KEY_BUCKET_MS`): the
+ * 300s bucket controls key stability; this 5-minute revalidate controls entry
+ * lifetime — a key stays live for exactly one revalidate window.
  */
 export const LAYER_CACHE_REVALIDATE_S = 300;
 
@@ -126,15 +127,28 @@ export function layerCacheKey(
   ].join("|");
 }
 
+/** Whether a layer result came from the Data Cache, was recomputed, or bypassed it. */
+export type LayerCacheStatus = "hit" | "miss" | "bypass";
+
+/** A layer result paired with how it was served (for the `x-layer-cache` header). */
+export type LayerFeaturesWithMeta = {
+  result: LayerFeaturesResult;
+  status: LayerCacheStatus;
+};
+
 /**
- * Cross-request cached variant of `getLayerFeatures`. A DROP-IN replacement with
- * the same signature — wire it INSIDE the existing `withDbBudget` at the call
- * sites so the budget/degraded boundary stays outside the cache.
+ * Cross-request cached variant of `getLayerFeatures` that ALSO reports how the
+ * result was served (`hit` | `miss` | `bypass`) so a route handler can surface an
+ * `x-layer-cache` response header (mirrors the KPI route's `x-kpi-cache`).
+ *
+ * `unstable_cache` has no hit/miss signal, so we detect it structurally: the
+ * wrapped fn only runs on a MISS, so a closure flag it flips distinguishes the
+ * two deterministically (a hit resolves from the Data Cache without invoking it).
  *
  * Caches the post-k-anon envelope for `LAYER_CACHE_REVALIDATE_S`, keyed by the
  * bucketed `layerCacheKey`. Bypasses the cache for points-mode requests.
  */
-export function loadLayerFeaturesCached(
+export function loadLayerFeaturesCachedWithMeta(
   layer: LayerId,
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -144,7 +158,7 @@ export function loadLayerFeaturesCached(
   adminLocality?: string,
   pointsMode = false,
   verifiedOnly = false,
-): Promise<LayerFeaturesResult> {
+): Promise<LayerFeaturesWithMeta> {
   // Direct (uncached) compute — the source of truth. Used for the points-mode
   // bypass, as the cached fn's body, and as the fallback when no Data Cache is
   // available (non-render contexts). `directPointsMode` lets the cached path
@@ -163,7 +177,7 @@ export function loadLayerFeaturesCached(
     );
 
   // Points mode bypasses the cache: real, volatile, single-viewport coordinates.
-  if (pointsMode) return directLoad(true);
+  if (pointsMode) return directLoad(true).then((result) => ({ result, status: "bypass" }));
 
   const key = layerCacheKey({
     role: actor.role,
@@ -178,13 +192,59 @@ export function loadLayerFeaturesCached(
     verifiedOnly,
   });
 
-  const cached = unstable_cache(() => directLoad(false), [key], {
-    revalidate: LAYER_CACHE_REVALIDATE_S,
-  });
+  // The wrapped fn runs ONLY on a cache miss; the closure flag it flips lets us
+  // report hit vs miss (a hit resolves from the Data Cache without calling it).
+  let computed = false;
+  const cached = unstable_cache(
+    () => {
+      computed = true;
+      return directLoad(false);
+    },
+    [key],
+    { revalidate: LAYER_CACHE_REVALIDATE_S },
+  );
 
-  return cached().catch((err) => {
-    // No Data Cache in this context (unit test / script) → compute uncached.
-    if (isIncrementalCacheMissing(err)) return directLoad(false);
-    throw err;
-  });
+  return cached()
+    .then<LayerFeaturesWithMeta>((result) => ({ result, status: computed ? "miss" : "hit" }))
+    .catch((err) => {
+      // No Data Cache in this context (unit test / script; or a prod outage) →
+      // compute uncached. Warn once so a production outage is visible in logs.
+      if (isIncrementalCacheMissing(err)) {
+        warnIncrementalCacheMissingOnce(`layer '${layer}'`);
+        return directLoad(false).then((result) => ({ result, status: "miss" as const }));
+      }
+      throw err;
+    });
+}
+
+/**
+ * Cross-request cached variant of `getLayerFeatures`. A DROP-IN replacement with
+ * the same signature — wire it INSIDE the existing `withDbBudget` at the call
+ * sites so the budget/degraded boundary stays outside the cache.
+ *
+ * Thin wrapper over `loadLayerFeaturesCachedWithMeta` for callers (the SSR pages)
+ * that don't need the cache-status meta.
+ */
+export function loadLayerFeaturesCached(
+  layer: LayerId,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  period: LayerPeriod,
+  level: AggregationLevel = "locality",
+  adminProvince?: string,
+  adminLocality?: string,
+  pointsMode = false,
+  verifiedOnly = false,
+): Promise<LayerFeaturesResult> {
+  return loadLayerFeaturesCachedWithMeta(
+    layer,
+    actor,
+    jurisdictions,
+    period,
+    level,
+    adminProvince,
+    adminLocality,
+    pointsMode,
+    verifiedOnly,
+  ).then((r) => r.result);
 }

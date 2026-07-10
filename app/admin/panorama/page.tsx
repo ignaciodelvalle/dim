@@ -173,7 +173,12 @@ export default async function AdminPanoramaPage({
             lid,
             actor,
             scoped,
-            { since: seedPeriod.since },
+            // Pass the window's UPPER bound (`asOf`) too, exactly like the layer
+            // API route does (`windowUntil = asOf ?? until`). Omitting it (a) let
+            // a custom `?from=&to=` window leak past its chosen `to`, and (b)
+            // minted a DIFFERENT cache key than the API for the same logical
+            // window (SSR asOf="" vs API asOf=bucketed) — halving cache reuse.
+            { since: seedPeriod.since, asOf: seedPeriod.until },
             seedLevel,
             adminProvince,
             adminLocality,
@@ -244,7 +249,10 @@ export default async function AdminPanoramaPage({
       "perdidas",
       actor,
       scoped,
-      { since },
+      // Include the window's UPPER bound so a custom `?from=&to=` window honors
+      // its chosen `to`, and the SSR cache key unifies with the layer API's
+      // (both key on `asOf=bucket(until)` for the same logical window).
+      { since, asOf: period.until },
       initialLevel,
       adminProvince,
       adminLocality,

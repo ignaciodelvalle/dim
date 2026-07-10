@@ -4,7 +4,7 @@
 // IS the isolation boundary. Two requests with different authorization scopes —
 // role, jurisdiction set, admin drill-down, layer, level, window, basis, or the
 // verified-only toggle — MUST map to different keys (no cross-scope leakage),
-// while requests that differ only WITHIN a 60s window bucket must share a key
+// while requests that differ only WITHIN a 300s window bucket must share a key
 // (so a moving preset `until`/`asOf` still hits the cache). Pure — no DB, no
 // timers, no Next runtime (only the key builder is exercised; the unstable_cache
 // wrapper needs an incremental cache and is verified at runtime, not in a unit).
@@ -183,14 +183,14 @@ describe("layerCacheKey — window bucketing (moving-preset stability)", () => {
   };
   const AT = new Date("2026-07-04T12:00:00.000Z").getTime();
 
-  it("two `since` timestamps in the SAME 60s bucket → same key", () => {
+  it("two `since` timestamps in the SAME 300s bucket → same key", () => {
     const a = layerCacheKey({ ...base, since: new Date(AT), asOf });
-    // 5s later — still inside the same 60s bucket → identical key.
+    // 5s later — still inside the same 300s bucket → identical key.
     const b = layerCacheKey({ ...base, since: new Date(AT + 5_000), asOf });
     expect(a).toBe(b);
   });
 
-  it("two `asOf` timestamps in the SAME 60s bucket → same key", () => {
+  it("two `asOf` timestamps in the SAME 300s bucket → same key", () => {
     const a = layerCacheKey({ ...base, since, asOf: new Date(AT) });
     const b = layerCacheKey({ ...base, since, asOf: new Date(AT + 5_000) });
     expect(a).toBe(b);
