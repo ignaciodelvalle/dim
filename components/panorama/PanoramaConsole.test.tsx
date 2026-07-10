@@ -1218,3 +1218,88 @@ describe("PanoramaConsole — streamed KPIs (perf plan 1.3)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("PanoramaConsole — click-to-drill province (task #55)", () => {
+  const mockAssign = vi.fn();
+  const originalLocation = window.location;
+
+  function stubLocation(url: string) {
+    const u = new URL(url, "http://localhost");
+    // jsdom's real location.assign is unspyable + throws on navigation — swap in
+    // a stub exposing the fields the drill callbacks read plus a spyable assign.
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      writable: true,
+      value: { ...originalLocation, pathname: u.pathname, search: u.search, assign: mockAssign },
+    });
+  }
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      writable: true,
+      value: originalLocation,
+    });
+    mockAssign.mockClear();
+  });
+
+  it("drills into a clicked province via full navigation, reusing ?province + clearing locality", () => {
+    setUrl("/gob/panorama?period=3y");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+      />,
+    );
+    expect(mapProps?.onProvinceDrill).toBeInstanceOf(Function);
+    // No explicit province yet → no "← Volver".
+    expect(mapProps?.onReturnNational).toBeUndefined();
+
+    stubLocation("/gob/panorama?period=3y&locality=stale");
+    mockAssign.mockClear();
+    (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+
+    expect(mockAssign).toHaveBeenCalledTimes(1);
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost");
+    expect(url.pathname).toBe("/gob/panorama");
+    expect(url.searchParams.get("province")).toBe("AR-B");
+    expect(url.searchParams.get("period")).toBe("3y");
+    expect(url.searchParams.get("locality")).toBeNull();
+  });
+
+  it("does NOT offer a drill or return to a jurisdiction-scoped operator", () => {
+    setUrl("/gob/panorama?period=3y");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        initialDivisionProvince="AR-C"
+      />,
+    );
+    expect(mapProps?.onProvinceDrill).toBeUndefined();
+    expect(mapProps?.onReturnNational).toBeUndefined();
+  });
+
+  it("offers ← Volver only for an explicit province pick and pops back to national", () => {
+    setUrl("/gob/panorama?period=3y&province=AR-B");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+      />,
+    );
+    expect(mapProps?.onReturnNational).toBeInstanceOf(Function);
+
+    stubLocation("/gob/panorama?period=3y&province=AR-B");
+    mockAssign.mockClear();
+    (mapProps!.onReturnNational as () => void)();
+
+    expect(mockAssign).toHaveBeenCalledTimes(1);
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost");
+    expect(url.searchParams.get("province")).toBeNull();
+    expect(url.searchParams.get("period")).toBe("3y");
+  });
+});

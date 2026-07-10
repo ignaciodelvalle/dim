@@ -918,6 +918,28 @@ export function PanoramaConsole({
   );
   const closeDrawer = useCallback(() => setSelected(null), []);
 
+  // Click-to-drill (task #55): commit a clicked province to the scope. Reuses the
+  // existing `?province` param AND the JurisdictionSwitcher full-navigation
+  // pattern (window.location.assign) — the one mechanism immune to the Next
+  // router-drop defect (engram #621/#622), so the server re-scopes reliably and
+  // the scope-wins rule forces locality/department level on the reloaded map.
+  // Clears any locality, exactly as picking a province in the switcher does.
+  const onProvinceDrill = useCallback((provinceCode: string) => {
+    const params = new URLSearchParams(window.location.search);
+    params.set("province", provinceCode);
+    params.delete("locality");
+    window.location.assign(`${window.location.pathname}?${params.toString()}`);
+  }, []);
+  // Pop the province scope drill back to the national view (the in-map "← Volver"
+  // control). Same full-navigation primitive; drops province + locality.
+  const onReturnNational = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.delete("province");
+    params.delete("locality");
+    const qsStr = params.toString();
+    window.location.assign(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
+  }, []);
+
   // Province-fetch version counter — bumped after a province-level choropleth
   // fetch resolves so the activeLayers memo recomputes (the cache is a ref).
   const [levelVersion, setLevelVersion] = useState(0);
@@ -2150,6 +2172,14 @@ export function PanoramaConsole({
   // server-computed jurisdiction bbox (initialBounds) keeps the initial frame.
   const selectedProvinceCode = searchParams.get("province") ?? initialDivisionProvince ?? null;
   const selectedLocalitySlug = searchParams.get("locality") ?? null;
+  // Click-to-drill (task #55) gating:
+  //  - a province drill is offered only to operators NOT pinned to a jurisdiction
+  //    (admin/universal, initialDivisionProvince null) — a scoped govt operator
+  //    cannot cross into another province;
+  //  - "← Volver" is offered only when the province came from an EXPLICIT pick
+  //    (a `?province` in the URL), never for the implicit jurisdiction scope.
+  const canDrillProvince = initialDivisionProvince == null;
+  const canReturnNational = searchParams.get("province") != null;
   const selectedLocalityCenter: [number, number] | null =
     selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
 
@@ -2272,6 +2302,8 @@ export function PanoramaConsole({
             layers={activeLayers}
             label={mapLabel}
             onFeatureClick={onFeatureClick}
+            onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
+            onReturnNational={canReturnNational ? onReturnNational : undefined}
             initialBounds={initialBounds}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}

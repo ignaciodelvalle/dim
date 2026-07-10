@@ -177,6 +177,22 @@ type Props = {
    */
   onFeatureClick?: (layerId: string, properties: Record<string, unknown>) => void;
   /**
+   * Click-to-drill (task #55): fired when a PROVINCE polygon is clicked at
+   * NATIONAL scope. The console commits the province to the scope (reusing the
+   * existing `?province` param + the JurisdictionSwitcher full-navigation
+   * pattern) so the scope-wins rule forces locality/department level and the map
+   * re-renders the province's divisions. Absent → province clicks fall back to
+   * pinning the popup (no drill target).
+   */
+  onProvinceDrill?: (provinceCode: string) => void;
+  /**
+   * Click-to-drill: fired by the in-map "← Volver" control to pop the scope drill
+   * back to the national view. Provided ONLY when the operator can return to
+   * national (an explicit province pick, not a forced jurisdiction) — its
+   * presence is what renders the control.
+   */
+  onReturnNational?: () => void;
+  /**
    * Pre-zoomed bounding box for the map's initial viewport.
    * When provided (govt operators with assigned jurisdictions), the map opens
    * fitted to this bbox instead of the data-extent bbox.
@@ -396,6 +412,8 @@ export function SituationalMap({
   label,
   height = 560,
   onFeatureClick,
+  onProvinceDrill,
+  onReturnNational,
   initialBounds,
   selectedProvinceCode = null,
   selectedLocalityCenter = null,
@@ -433,6 +451,13 @@ export function SituationalMap({
   // Keep the latest click callback accessible inside one-time map handlers.
   const onFeatureClickRef = useRef(onFeatureClick);
   onFeatureClickRef.current = onFeatureClick;
+  // Click-to-drill: latest handler for the one-time province click wiring, plus a
+  // re-entrancy guard so a click that lands on BOTH the province choropleth fill
+  // and the base province fill drills exactly once (the console navigation is
+  // idempotent, but the guard also spares a double fitBounds).
+  const onProvinceDrillRef = useRef(onProvinceDrill);
+  onProvinceDrillRef.current = onProvinceDrill;
+  const drillingRef = useRef(false);
   // panorama-ia-v2 §1.1: keep the latest zoom callback for the one-time map
   // handler that reports the camera zoom to the console (derived level).
   const onZoomRef = useRef(onZoom);
@@ -751,6 +776,31 @@ export function SituationalMap({
           // Precompute each province's bbox ONCE for the zoom-driven division
           // resolution (viewport → intersecting provinces).
           provinceBboxesRef.current = computeProvinceBboxes(basemapFeaturesRef.current);
+          // Click-to-drill (task #55): the BASE province fill drills when national
+          // AND no province choropleth is on top (a choropleth fill covers every
+          // province and owns the click via its own handler; the guard avoids a
+          // double drill). Wired once — the base layer is never torn down.
+          map.on("click", "ar-prov-fill", (e) => {
+            if (selectedProvinceRef.current != null) return; // already scoped
+            if (!onProvinceDrillRef.current) return; // no drill target
+            const hasProvChoropleth = layersRef.current.some(
+              (l) => l.geomType === "choropleth" && l.level === "province",
+            );
+            if (hasProvChoropleth) return; // the choropleth handler owns the click
+            const f = e.features?.[0];
+            if (!f) return;
+            const code = (f.properties as { code?: string }).code ?? "";
+            drillToProvince(map, code);
+          });
+          // Pointer affordance on the drillable base fill (national scope only).
+          map.on("mouseenter", "ar-prov-fill", () => {
+            if (selectedProvinceRef.current == null && onProvinceDrillRef.current) {
+              map.getCanvas().style.cursor = "pointer";
+            }
+          });
+          map.on("mouseleave", "ar-prov-fill", () => {
+            map.getCanvas().style.cursor = "";
+          });
         } catch {
           // Basemap unavailable — points still render over the dark canvas.
         }
@@ -764,15 +814,35 @@ export function SituationalMap({
         // when no initialBounds was supplied (admin = national view).
         const bbox = initialBoundsRef.current ?? layersBbox(layersRef.current);
         if (bbox) {
-          map.fitBounds(bbox, {
+          // A1 PR-7: store as the national fallback for subsequent autozoom.
+          nationalBboxRef.current = bbox;
+        }
+        // Click-to-drill (task #55): when the operator drilled into a province
+        // (explicit `?province`, no server jurisdiction bbox), FRAME that province
+        // polygon on load — the drill committed via navigation, so the reloaded
+        // map must land fitted to the province, not the national data extent.
+        let frameBbox = bbox;
+        if (
+          !initialBoundsRef.current &&
+          selectedProvinceRef.current &&
+          basemapFeaturesRef.current.length > 0
+        ) {
+          const vp = computeJurisdictionViewport(
+            selectedProvinceRef.current,
+            null,
+            basemapFeaturesRef.current,
+            bbox ?? AR_BBOX,
+          );
+          if (vp.kind === "fitBounds") frameBbox = vp.bbox;
+        }
+        if (frameBbox) {
+          map.fitBounds(frameBbox, {
             padding: FRAME_PADDING,
             animate: false,
             // Magnetic snap: a first fit that would land right on the flip is
             // clamped just below it so the derived level starts unambiguous.
-            maxZoom: framingMaxZoom(map, bbox),
+            maxZoom: framingMaxZoom(map, frameBbox),
           });
-          // A1 PR-7: store as the national fallback for subsequent autozoom.
-          nationalBboxRef.current = bbox;
         }
         // cursor #9: sync insetZoom to the map's ACTUAL zoom after the initial
         // fitBounds. insetZoom otherwise only updates on zoomend, so a govt
@@ -1495,6 +1565,38 @@ export function SituationalMap({
     }
   }
 
+  // --- Click-to-drill (task #55) -------------------------------------------
+  /** The precomputed bbox for a province code, or null (basemap not yet loaded). */
+  function provinceBboxFor(code: string): [[number, number], [number, number]] | null {
+    return provinceBboxesRef.current.find((p) => p.code === code)?.bbox ?? null;
+  }
+
+  // Drill into a province: immediate camera feedback (fitBounds) + hand the code
+  // to the console, which commits it to the `?province` scope. The scope-wins
+  // rule then forces locality/department level and re-renders the province's
+  // divisions. Idempotent + re-entrancy-guarded so a click over two stacked fills
+  // drills once. Returns false when there is no drill target (caller pins instead).
+  function drillToProvince(map: maplibregl.Map, code: string): boolean {
+    if (!onProvinceDrillRef.current || !code) return false;
+    if (drillingRef.current) return true;
+    drillingRef.current = true;
+    const bbox = provinceBboxFor(code);
+    if (bbox) {
+      map.fitBounds(bbox, {
+        padding: FRAME_PADDING,
+        animate: true,
+        maxZoom: framingMaxZoom(map, bbox),
+      });
+    }
+    onProvinceDrillRef.current(code);
+    // Release the guard on the next tick — a fresh click can drill again (e.g.
+    // when the console did not navigate, only updated state).
+    window.setTimeout(() => {
+      drillingRef.current = false;
+    }, 0);
+    return true;
+  }
+
   // Hover names the division (barrio/departamento) + its value; a CLICK pins the
   // persistent popup (selectable, multi-layer) with a "Ver detalle →" affordance
   // that opens the DetailDrawer.
@@ -1858,14 +1960,15 @@ export function SituationalMap({
         )
         .addTo(map);
     });
-    // Clicking a province pins the persistent popup (multi-layer readout) with a
-    // "Ver detalle →" affordance that opens the DetailDrawer. (Fix: province
-    // drill-down is layered on top of this in a later step.)
+    // Clicking a province at NATIONAL scope DRILLS into it (task #55). When
+    // already scoped (or no drill target), it pins the persistent popup
+    // (multi-layer readout) with a "Ver detalle →" affordance.
     map.on("click", fillId, (e) => {
       const f = e.features?.[0];
       if (!f) return;
       const props = f.properties as { code?: string; name?: string };
       const code = props.code ?? "";
+      if (selectedProvinceRef.current == null && drillToProvince(map, code)) return;
       openPinnedPopup({
         map,
         lngLat: e.lngLat,
@@ -2238,14 +2341,28 @@ export function SituationalMap({
           micro-jurisdiction is legible at national zoom (not an unreadable smear).
           Static camera, non-interactive, shares the choropleth + k-anon system. */}
       <CabaInset layer={insetLayer} visible={insetVisible} uniformFill={insetUniformFill} />
-      {/* map-QOL: one-click return to the operator's scope. */}
-      <button
-        type="button"
-        onClick={fitToScope}
-        className="absolute left-3 top-3 rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
-      >
-        Mi alcance
-      </button>
+      {/* Top-left control cluster: scope drill ("← Volver") + camera reset. */}
+      <div className="absolute left-3 top-3 flex items-center gap-2">
+        {/* Click-to-drill (task #55): pop the province scope back to national.
+            Rendered only when the operator can return (explicit province pick). */}
+        {onReturnNational && (
+          <button
+            type="button"
+            onClick={onReturnNational}
+            className="rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+          >
+            ← Volver
+          </button>
+        )}
+        {/* map-QOL: one-click return to the operator's scope. */}
+        <button
+          type="button"
+          onClick={fitToScope}
+          className="rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+        >
+          Mi alcance
+        </button>
+      </div>
       {/* panorama-ia-v2 §3.6: briefing chrome — copy the deep-link + export a
           PNG with an auditable metadata footer. */}
       {viewMeta && (
