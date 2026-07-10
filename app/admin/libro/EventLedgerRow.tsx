@@ -64,7 +64,7 @@ export function EventLedgerRow({ row }: Props) {
           <div className="flex flex-col gap-1">
             <span className="font-medium text-ln-op-ink">{row.eventTypeLabel}</span>
             {row.hasAmendment && (
-              <span className="inline-flex items-center gap-[5px] text-[11px] text-ln-op-amarillo">
+              <span className="inline-flex items-center gap-[5px] text-[11px] text-ln-op-warn">
                 <span aria-hidden="true">✎</span>
                 Corregido por enmienda
               </span>
@@ -90,7 +90,7 @@ export function EventLedgerRow({ row }: Props) {
           <span className="inline-flex items-center gap-1">
             {actorLabel}
             {row.authorVerified && (
-              <span className="text-ln-op-verde" title="Verificado" aria-label="verificado">
+              <span className="text-ln-op-ok" title="Verificado" aria-label="verificado">
                 ✓
               </span>
             )}

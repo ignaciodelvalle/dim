@@ -319,10 +319,10 @@ export default async function AdminPoblacionPage({
                       const tone = toneForTarget(row.ratePct, TARGETS.STERILIZATION_COVERAGE_PCT);
                       const rateColor =
                         tone === "ok"
-                          ? "text-ln-op-verde"
+                          ? "text-ln-op-ok"
                           : tone === "warn"
-                            ? "text-ln-op-amarillo"
-                            : "text-ln-op-rojo";
+                            ? "text-ln-op-warn"
+                            : "text-ln-op-danger";
                       const drillHref = adminProvinceHref(row.province);
                       return (
                         <tr

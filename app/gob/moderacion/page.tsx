@@ -267,7 +267,7 @@ export default async function GobModeracionPage({
                             {" · "}
                             {r.flaggedAt && formatDateTime(r.flaggedAt)}
                             {r.moderationResolvedAt && (
-                              <span className="ml-2 text-ln-op-verde">
+                              <span className="ml-2 text-ln-op-ok">
                                 ✓ resuelta {formatDate(r.moderationResolvedAt)}
                               </span>
                             )}

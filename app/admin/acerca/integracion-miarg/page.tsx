@@ -56,7 +56,7 @@ export default function IntegracionMiArgPage() {
             <p className="text-sm text-ln-op-ink-2">DNI 30.485.211</p>
           </div>
 
-          <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
+          <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
               Mascotas registradas en MiMAR
             </p>
@@ -66,7 +66,7 @@ export default function IntegracionMiArgPage() {
             </ul>
           </div>
 
-          <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-bg px-4 py-3 space-y-1">
+          <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
               Acciones disponibles
             </p>

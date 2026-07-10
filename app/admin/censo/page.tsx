@@ -250,10 +250,10 @@ export default async function AdminCensoPage({
                   const tone = toneForTarget(chipPct, TARGETS.MICROCHIP_PENETRATION_PCT);
                   const barColor =
                     tone === "ok"
-                      ? "bg-ln-op-verde"
+                      ? "bg-ln-op-ok"
                       : tone === "warn"
-                        ? "bg-ln-op-amarillo"
-                        : "bg-ln-op-rojo";
+                        ? "bg-ln-op-warn"
+                        : "bg-ln-op-danger";
                   return (
                     <li
                       className="flex items-center gap-3"

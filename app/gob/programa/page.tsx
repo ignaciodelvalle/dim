@@ -386,7 +386,7 @@ export default async function GobProgramaPage({
                       <td
                         className={[
                           "py-2 pr-4 text-right tabular-nums font-medium",
-                          row.isOutlier ? "text-ln-op-danger" : "text-ln-op-verde",
+                          row.isOutlier ? "text-ln-op-danger" : "text-ln-op-ok",
                         ].join(" ")}
                         aria-label={`Cobertura: ${formatPercent(row.rate)}`}
                       >
@@ -496,9 +496,9 @@ export default async function GobProgramaPage({
                       className={[
                         "text-[13px] font-semibold tabular-nums",
                         dataQuality.completenessPct >= 80
-                          ? "text-ln-op-verde"
+                          ? "text-ln-op-ok"
                           : dataQuality.completenessPct >= 60
-                            ? "text-ln-op-amarillo"
+                            ? "text-ln-op-warn"
                             : "text-ln-op-danger",
                       ].join(" ")}
                       aria-label={`Completitud: ${dataQuality.completenessPct}%`}
@@ -515,10 +515,10 @@ export default async function GobProgramaPage({
                       className={[
                         "h-full rounded transition-all",
                         dataQuality.completenessPct >= 80
-                          ? "bg-ln-op-verde"
+                          ? "bg-ln-op-ok"
                           : dataQuality.completenessPct >= 60
-                            ? "bg-ln-op-amarillo"
-                            : "bg-ln-op-rojo",
+                            ? "bg-ln-op-warn"
+                            : "bg-ln-op-danger",
                       ].join(" ")}
                       style={{ width: `${dataQuality.completenessPct}%` }}
                     />
@@ -548,7 +548,7 @@ export default async function GobProgramaPage({
                     <span
                       className={[
                         "tabular-nums font-medium",
-                        dataQuality.orphans > 0 ? "text-ln-op-amarillo" : "text-ln-op-ink",
+                        dataQuality.orphans > 0 ? "text-ln-op-warn" : "text-ln-op-ink",
                       ].join(" ")}
                     >
                       {dataQuality.orphans.toLocaleString("es-AR")}

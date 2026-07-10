@@ -240,7 +240,7 @@ export default async function GobSistemaPage({
                   queue.oldestPendingDaysAgo !== null && queue.oldestPendingDaysAgo > 30
                     ? "text-ln-op-danger"
                     : queue.oldestPendingDaysAgo !== null && queue.oldestPendingDaysAgo > 14
-                      ? "text-ln-op-amarillo"
+                      ? "text-ln-op-warn"
                       : "text-ln-op-ink",
                 ].join(" ")}
               >

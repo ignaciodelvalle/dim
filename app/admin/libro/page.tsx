@@ -253,7 +253,7 @@ export default async function AdminLibroPage({
           {hasActiveFilters && (
             <Link
               href="/admin/libro"
-              className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-hover"
+              className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-stripe"
             >
               Limpiar
             </Link>
@@ -285,7 +285,7 @@ export default async function AdminLibroPage({
                 <div className="mt-4 flex justify-center">
                   <Link
                     href={buildLoadMoreHref(sp, nextCursor)}
-                    className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-hover"
+                    className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-stripe"
                   >
                     Cargar más
                   </Link>
