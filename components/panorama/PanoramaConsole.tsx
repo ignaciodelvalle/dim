@@ -2180,7 +2180,17 @@ export function PanoramaConsole({
   // strip (reading, metrics column) must REPLACE its reassuring copy with an
   // explicit "no pudimos calcular" state — a degraded view must never read as
   // "all good". Pending (still streaming) is a separate, non-degraded state.
-  const kpisDegraded = kpis.degraded === true && !kpisPending;
+  //
+  // Belt-and-suspenders (PO instrumented-review finding #1, 2026-07-10): treat
+  // an EMPTY strip as degraded even when the `degraded` flag is absent. The real
+  // fan-out returns 8 tiles on success and throws (→ degradedPanoramaKpis, flag
+  // set) on failure, so `kpis: []` while NOT pending only ever means "no real
+  // numbers". Without this, any empty strip that slipped through without the
+  // flag (an older payload, a 503 body, a fixture) would fall through to
+  // buildPanoramaReading([]) → "Sin variación destacable…" — a reassuring
+  // all-clear on a failed load, the single most dangerous defect in a
+  // surveillance tool (empty ≠ all-clear).
+  const kpisDegraded = (kpis.degraded === true || kpis.kpis.length === 0) && !kpisPending;
 
   // The ranking is layer-driven (the base layer's own fetch), NOT the KPI strip.
   // Scoped to RATE layers (cobertura): an EMPTY rate feature collection means we

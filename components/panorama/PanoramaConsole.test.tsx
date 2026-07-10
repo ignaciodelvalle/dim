@@ -90,6 +90,25 @@ import { PanoramaConsole } from "./PanoramaConsole";
 
 const EMPTY_FC = { type: "FeatureCollection" as const, features: [] };
 const INITIAL_KPIS = { kpis: [], recalculatedFor: "Nacional · este mes", dataAsOf: null };
+// A REAL (non-empty) loaded strip with a flat/no-delta tile — buildPanoramaReading
+// falls back to "Sin variación destacable…" (the legit all-clear for a LOADED but
+// flat strip), and the strip is NOT degraded (tiles present). Distinct from the
+// EMPTY strip, which now reads as a failure state (empty ≠ all-clear, fix #1).
+const REAL_KPIS: PanoramaKpis = {
+  kpis: [
+    {
+      id: "mordeduras",
+      label: "Mordeduras / 10k hab.",
+      value: "1,2",
+      tone: "warn",
+      info: { definition: "d" },
+      href: "/gob/vigilancia",
+      source: "s",
+    },
+  ],
+  recalculatedFor: "Nacional · este mes",
+  dataAsOf: null,
+};
 const OK_ENVELOPE = { features: EMPTY_FC, truncated: false, suppressedCount: 0 };
 
 // Deferred-promise mode (panorama-redesign abort tests): when `deferMode` is
@@ -331,7 +350,9 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     // board, so the server-seeded perdidas layer (suppressedCount 3) stays on
     // and the suppression notice is visible for the DOM-order assertion.
     setUrl("/gob/panorama?period=3y");
-    renderRedesignConsole({ defaultSuppressedCount: 3 });
+    // A REAL loaded strip (flat tile) so the reading is the legit "Sin variación
+    // destacable…" landmark — an EMPTY strip now reads as a failure state (fix #1).
+    renderRedesignConsole({ defaultSuppressedCount: 3, initialKpis: REAL_KPIS });
 
     const presets = screen.getByText("Vista");
     const map = screen.getByTestId("map-region");
@@ -373,6 +394,31 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
       screen.queryByText("Sin variación destacable frente al período anterior."),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Métricas no disponibles para esta vista.")).not.toBeInTheDocument();
+  });
+
+  it("empty KPI strip WITHOUT the degraded flag still reads as a failure, never all-clear (empty ≠ all-clear)", () => {
+    // PO instrumented-review finding #1 (2026-07-10): a strip that is EMPTY but
+    // carries NO explicit `degraded` sentinel (an older/serialized payload, a
+    // 503 body, a partial fixture) must STILL replace the reassuring conclusion
+    // — never fall through to buildPanoramaReading([]) → "Sin variación
+    // destacable…". Empty ≠ all-clear in a surveillance tool.
+    setUrl("/gob/panorama?period=3y");
+    const EMPTY_KPIS: PanoramaKpis = {
+      kpis: [],
+      recalculatedFor: "Recalculado para Nacional",
+      dataAsOf: null,
+    };
+    renderRedesignConsole({ initialKpis: EMPTY_KPIS });
+
+    // Honest failure states present (reading + metrics column)…
+    expect(screen.getByText("No pudimos calcular la lectura en este momento.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No pudimos cargar los indicadores en este momento."),
+    ).toBeInTheDocument();
+    // …and NO reassuring conclusion despite the missing flag.
+    expect(
+      screen.queryByText("Sin variación destacable frente al período anterior."),
+    ).not.toBeInTheDocument();
   });
 
   it("hosts the filters slot inside the 'Alcance y período' disclosure, next to CapasBox", () => {
@@ -1149,10 +1195,14 @@ describe("PanoramaConsole — streamed KPIs (perf plan 1.3)", () => {
       );
     });
 
-    // The client refetch resolved to an empty strip (no tiles) and cleared the
-    // pending state — the metrics column shows the degraded copy, not loading.
+    // The client refetch resolved to an EMPTY strip (no tiles) and cleared the
+    // pending state — an empty settled strip now reads as a FAILURE state, never
+    // an all-clear (empty ≠ all-clear, fix #1), so the metrics column shows the
+    // degraded copy, not loading and not a reassuring "no disponibles".
     await waitFor(() => {
-      expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
+      expect(
+        screen.getByText("No pudimos cargar los indicadores en este momento."),
+      ).toBeInTheDocument();
     });
 
     // NOW the slow streamed seed resolves LATE with a stale payload. The guard
@@ -1163,6 +1213,8 @@ describe("PanoramaConsole — streamed KPIs (perf plan 1.3)", () => {
     });
 
     expect(screen.queryByText("Mordeduras / 10k hab.")).not.toBeInTheDocument();
-    expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No pudimos cargar los indicadores en este momento."),
+    ).toBeInTheDocument();
   });
 });
