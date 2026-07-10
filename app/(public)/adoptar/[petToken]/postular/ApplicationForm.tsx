@@ -266,8 +266,10 @@ export function ApplicationForm({
     return (
       <LnSuccessScreen
         title={`Tu postulación a ${petName} fue enviada`}
-        description={`Te van a contactar a ${applicantEmail} cuando tengan novedades. Guardá este código por si necesitás referenciarla.`}
+        description={`Te van a contactar a ${applicantEmail} cuando tengan novedades. Podés seguir el estado desde "Mis postulaciones".`}
         code={submittedCode}
+        codeLabel="Referencia de tu postulación"
+        codeWarning="Es un número de referencia interno: no hace falta guardarlo. Seguí tu postulación desde tu cuenta."
         next={[
           {
             label: "Ver mis postulaciones",
