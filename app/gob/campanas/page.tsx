@@ -60,7 +60,9 @@ export default async function GobCampanasPage({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             MiMAR Gobierno · Campañas
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
+          <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+            Performance de campañas
+          </h1>
         </header>
         <LnEmptyState
           icon="lock"
@@ -153,8 +155,10 @@ export default async function GobCampanasPage({
       {/* Page header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Campañas</p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Performance de campañas</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+          Performance de campañas
+        </h1>
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
             : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
@@ -274,7 +278,7 @@ export default async function GobCampanasPage({
               title={
                 <span id={panelOfferingsId}>
                   Performance por servicio
-                  <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
+                  <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
                     ({dashboard.offerings.length} servicio
                     {dashboard.offerings.length !== 1 ? "s" : ""})
                   </span>
@@ -297,17 +301,17 @@ export default async function GobCampanasPage({
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[13px] font-medium text-ln-op-ink">
+                          <p className="text-[var(--text-md)] font-medium text-ln-op-ink">
                             {offering.displayName}
                           </p>
-                          <p className="text-[11px] text-ln-op-mute">
+                          <p className="text-[var(--text-sm)] text-ln-op-mute">
                             {kindLabel}
                             {location ? ` · ${location}` : ""}
                           </p>
                         </div>
                         <a
                           href={`/gob/servicios/${offering.offeringToken}`}
-                          className="shrink-0 text-[11px] text-ln-azul hover:underline"
+                          className="shrink-0 text-[var(--text-sm)] text-ln-azul hover:underline"
                         >
                           Ver servicio →
                         </a>
@@ -320,7 +324,7 @@ export default async function GobCampanasPage({
                           <p className="text-lg font-semibold font-ln-serif text-ln-op-ink leading-none">
                             {offering.enrollment}
                           </p>
-                          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Inscripciones
                           </p>
                         </div>
@@ -343,13 +347,13 @@ export default async function GobCampanasPage({
                           >
                             {offering.completionRate !== null ? `${offering.completionRate}%` : "—"}
                           </p>
-                          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Completitud
                           </p>
                           {/* Icon + text a11y (Item 11 pattern: no color-only) */}
                           {offering.completionRate !== null &&
                             offering.completionRate < TARGETS.CAMPAIGN_COMPLETION_PCT * 0.6 && (
-                              <p className="text-[9px] text-ln-op-danger mt-0.5 flex items-center justify-center gap-0.5">
+                              <p className="text-[var(--text-xs)] text-ln-op-danger mt-0.5 flex items-center justify-center gap-0.5">
                                 <span aria-hidden="true">↓</span>
                                 <span>Baja</span>
                               </p>
@@ -366,11 +370,11 @@ export default async function GobCampanasPage({
                           >
                             {offering.noShow}
                           </p>
-                          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Ausencias
                           </p>
                           {offering.noShow > 0 && (
-                            <p className="text-[9px] text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
+                            <p className="text-[var(--text-xs)] text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
                               <span aria-hidden="true">⚠</span>
                               <span>No-show</span>
                             </p>
@@ -382,11 +386,11 @@ export default async function GobCampanasPage({
                           <p className="text-lg font-semibold font-ln-serif text-ln-op-ok leading-none">
                             {offering.sanitaryOutcome}
                           </p>
-                          <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Prestaciones
                           </p>
                           {offering.outcomeConversionRate !== null && (
-                            <p className="text-[9px] text-ln-op-mute mt-0.5">
+                            <p className="text-[var(--text-xs)] text-ln-op-mute mt-0.5">
                               {offering.outcomeConversionRate}% conv.
                             </p>
                           )}
@@ -409,7 +413,7 @@ export default async function GobCampanasPage({
                 title={
                   <span id={panelGeoId}>
                     Alcance geográfico
-                    <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
+                    <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
                       localidades con asistencias
                     </span>
                   </span>

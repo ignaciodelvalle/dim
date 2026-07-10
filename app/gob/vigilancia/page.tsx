@@ -248,8 +248,8 @@ export default async function GobVigilanciaPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Vigilancia epidemiológica
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
             : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
@@ -274,12 +274,12 @@ export default async function GobVigilanciaPage({
           href="/gob/vigilancia/investigaciones"
           className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
         >
-          <span className="text-[22px]" aria-hidden="true">
+          <span className="text-[var(--text-2xl)]" aria-hidden="true">
             🔬
           </span>
           <div>
-            <p className="text-[13px] font-semibold text-ln-op-ink">Investigaciones</p>
-            <p className="text-[11px] text-ln-op-mute">Casos bajo investigación activa</p>
+            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">Investigaciones</p>
+            <p className="text-[var(--text-sm)] text-ln-op-mute">Casos bajo investigación activa</p>
           </div>
         </Link>
       </div>
@@ -440,7 +440,7 @@ export default async function GobVigilanciaPage({
             title={<span id={panelComplianceId}>Cumplimiento legal — observación rábica</span>}
           />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
               <dt className="text-ln-op-mute">Cumplimiento 10 días (A8)</dt>
               <dd className="text-right font-semibold text-ln-op-ink">
                 {pct(rabiesCompliance.compliancePct)}
@@ -474,7 +474,7 @@ export default async function GobVigilanciaPage({
             }
           />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
               <dt className="text-ln-op-mute">Entregadas en SLA (A7)</dt>
               <dd className="text-right font-semibold text-ln-op-ink">{pct(enoSla.onTimePct)}</dd>
               <dt className="text-ln-op-mute">Fuera de SLA (abiertas)</dt>
@@ -490,7 +490,7 @@ export default async function GobVigilanciaPage({
                 {enoSla.medianLatencyHours === null ? "—" : `${enoSla.medianLatencyHours} h`}
               </dd>
             </dl>
-            <p className="mt-3 text-[11px] text-ln-op-mute">
+            <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
               Mide nuestra cola de notificación interna, no la entrega externa.
             </p>
           </OpCardBody>
@@ -516,7 +516,7 @@ export default async function GobVigilanciaPage({
                 />
               </div>
             ) : (
-              <ul className="px-4 py-2 text-[13px]">
+              <ul className="px-4 py-2 text-[var(--text-md)]">
                 {reportableCells.map((c) => (
                   <li
                     key={c.key}
@@ -531,7 +531,7 @@ export default async function GobVigilanciaPage({
               </ul>
             )}
             {reportableIncidence.byDisease.suppressedCount > 0 && (
-              <p className="px-4 pb-3 text-[11px] text-ln-op-mute">
+              <p className="px-4 pb-3 text-[var(--text-sm)] text-ln-op-mute">
                 {reportableIncidence.byDisease.suppressedCount} celda(s) ocultas por privacidad
                 (k-anonimato).
               </p>
@@ -542,7 +542,7 @@ export default async function GobVigilanciaPage({
         <OpCard aria-labelledby={panelAmrId}>
           <OpCardHead title={<span id={panelAmrId}>AMR — densidad de antimicrobianos</span>} />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
               <dt className="text-ln-op-mute">Densidad (A12)</dt>
               <dd className="text-right font-semibold text-ln-op-ink">
                 {amrDensity.per1000 === null ? "—" : `${amrDensity.per1000} / 1.000 pets`}
@@ -555,7 +555,7 @@ export default async function GobVigilanciaPage({
               <dd className="text-right font-semibold text-ln-op-ink">{amrDensity.activePets}</dd>
             </dl>
             {amrDensity.provisionalUnclassified > 0 && (
-              <p className="mt-3 text-[11px] text-ln-op-mute">
+              <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
                 {amrDensity.provisionalUnclassified} evento(s) con fármaco sin clasificar — conteo
                 provisional (clasificación provisional), no incluido en la tasa.
               </p>
@@ -584,28 +584,34 @@ export default async function GobVigilanciaPage({
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.total.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[11px] text-ln-op-mute mt-0.5">Movimientos totales</div>
+                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
+                    Movimientos totales
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.jurisdictionChanged.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[11px] text-ln-op-mute mt-0.5">Cambios de jurisdicción</div>
+                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
+                    Cambios de jurisdicción
+                  </div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.cviIssued.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[11px] text-ln-op-mute mt-0.5">CVI emitidos</div>
+                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">CVI emitidos</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.transportRecorded.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[11px] text-ln-op-mute mt-0.5">Transportes registrados</div>
+                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
+                    Transportes registrados
+                  </div>
                 </div>
               </div>
-              <p className="mt-3 text-[11px] text-ln-op-mute">
+              <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
                 Eventos movement_recorded en el período, scoped a la jurisdicción de origen de la
                 mascota. Un cambio de jurisdicción reasigna el hogar de la mascota al destino.
               </p>

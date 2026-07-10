@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2392,
+    "totalViolations": 2334,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -1063,13 +1063,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/vigilancia/page.tsx": {
-      "text": 17,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/gob/vigilancia/_components/DiseaseSummaryTable.tsx": {
       "text": 1,
       "space": 0,
@@ -1441,13 +1434,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/campanas/page.tsx": {
-      "text": 15,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/gob/analytics/page.tsx": {
       "text": 6,
       "space": 0,
@@ -1478,13 +1464,6 @@
     },
     "app/gob/analytics/export/page.tsx": {
       "text": 2,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/adopciones/page.tsx": {
-      "text": 21,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1771,7 +1750,7 @@
       "hexStyle": 0
     },
     "app/(public)/perdidas/page.tsx": {
-      "text": 6,
+      "text": 1,
       "space": 1,
       "rounded": 3,
       "shadow": 0,
