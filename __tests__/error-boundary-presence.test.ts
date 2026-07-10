@@ -19,6 +19,11 @@ const REQUIRED_BOUNDARIES: Array<{ segment: string; expectedHome: string | null 
   { segment: "app/(app)/error.tsx", expectedHome: "/inicio" },
   { segment: "app/gob/error.tsx", expectedHome: "/gob" },
   { segment: "app/admin/error.tsx", expectedHome: "/admin" },
+  // Panorama consoles (RESILIENCE 2026-07-10, PO finding #1): the board streams
+  // its slow seed behind <Suspense>, so a throw there must land on a panorama-
+  // local boundary — otherwise the operator is stranded on the parent skeleton.
+  { segment: "app/admin/panorama/error.tsx", expectedHome: "/admin" },
+  { segment: "app/gob/panorama/error.tsx", expectedHome: "/gob" },
   { segment: "app/(public)/p/[publicToken]/error.tsx", expectedHome: "/" },
   // Added nav-QOL/error-path audit 2026-07-04 N5/E2:
   { segment: "app/(app)/mis-mascotas/[publicToken]/error.tsx", expectedHome: "/mis-mascotas" },
