@@ -26,6 +26,7 @@ import { DetailDrawer, type SelectedFeature } from "@/components/panorama/Detail
 import { type FilterChip, FilterChips } from "@/components/panorama/FilterChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { MapDataTable, type MapTableRow } from "@/components/panorama/MapDataTable";
+import { MapLegends } from "@/components/panorama/MapLegends";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
@@ -37,10 +38,15 @@ import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
 import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
-import type { ActiveLayer, PointRenderMode } from "@/components/panorama/SituationalMap";
+import type {
+  ActiveLayer,
+  DivisionLegendDescriptor,
+  PointRenderMode,
+} from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
+import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { binTimestamps } from "@/components/panorama/signal-histogram";
 import {
@@ -1024,6 +1030,13 @@ export function PanoramaConsole({
   // preset at province framing (where cobertura × zoonosis both land in the
   // province cache); default OFF so nothing changes until the operator opts in.
   const [bivariateMode, setBivariateMode] = useState(false);
+
+  // ARCHETYPE A: the map's scale legends render OFF-canvas in the "Referencias"
+  // rail section (MapLegends). The province ramp + bivariate legends are derived
+  // there from mapLayers; these two descriptors are computed imperatively inside
+  // SituationalMap's syncLayers (from the rendered data) and lifted here.
+  const [divisionLegend, setDivisionLegend] = useState<DivisionLegendDescriptor | null>(null);
+  const [graduatedScale, setGraduatedScale] = useState<GraduatedScale | null>(null);
 
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
@@ -2728,6 +2741,8 @@ export function PanoramaConsole({
               bottomDock={scrubberDock}
               aggregationLabel={aggregationLabel}
               conditionsSlot={<FilterChips chips={filterChips} />}
+              onDivisionLegendChange={setDivisionLegend}
+              onGraduatedScaleChange={setGraduatedScale}
               onFeatureClick={onFeatureClick}
               onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
               onReturnNational={canReturnNational ? onReturnNational : undefined}
@@ -2811,6 +2826,15 @@ export function PanoramaConsole({
               (narration) is the tail, so the rail alerts before it tells a story. */}
           {/* task #63: bivariate map-encoding toggle (only on Brotes activos). */}
           {bivariateControl}
+          {/* ARCHETYPE A: "Referencias" — the map's scale legends, moved off the
+              canvas (they covered geography) into a named rail section. One block
+              per active layer scale (province ramp / division fill / graduated
+              circles / bivariate 3×3). Renders nothing when no scale is active. */}
+          <MapLegends
+            layers={mapLayers}
+            divisionLegend={divisionLegend}
+            graduatedScale={graduatedScale}
+          />
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (

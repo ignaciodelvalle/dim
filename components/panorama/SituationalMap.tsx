@@ -17,7 +17,6 @@ import {
 } from "@/components/panorama/DetailDrawer";
 import { SavedViewsPopover } from "@/components/panorama/SavedViewsPopover";
 import {
-  BIVARIATE_LEGEND_GRID,
   bivariateFillColorExpr,
   bivariateReadouts,
   bivariateSuppressedCodes,
@@ -30,7 +29,6 @@ import {
   graduatedMaxCount,
 } from "@/components/panorama/graduated-scale";
 import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
-import { histogramPeak, valueHistogram } from "@/components/panorama/legend-histogram";
 import {
   type LayerReadout,
   buildLayerReadout,
@@ -74,17 +72,12 @@ import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama
 // per-map-component in this repo (see LocationMap/LocationPicker), not globally.
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
-  COLOR_DIVERGENT_ABOVE,
-  COLOR_DIVERGENT_BELOW,
-  COLOR_DIVERGENT_NEUTRAL,
   FIXED_RATE_DOMAIN,
-  type ScaleBounds,
   provinceColorExpr,
   provinceDivergentColorExpr,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import {
-  COLOR_NO_DATA,
   COLOR_SUPPRESSED,
   RAMP_BLUE_DARK,
   divergentStops,
@@ -188,6 +181,26 @@ export type ActiveLayer = {
    * a province-level choropleth layer. Absent → normal single-value rendering.
    */
   bivariateCells?: BivariateCell[];
+};
+
+/**
+ * Legend descriptor for the active locality-choropleth DIVISION fill (min/max
+ * over the visible barrio/departamento polygons). Computed inside syncLayers
+ * (from the rendered division data) and lifted to the console so the "Referencias"
+ * rail section can render this legend off-canvas (ARCHETYPE A).
+ */
+export type DivisionLegendDescriptor = {
+  label: string;
+  unitNoun: string;
+  min: number;
+  max: number;
+  /** Whether a value ramp is shown (there is at least one visible division). */
+  hasRamp: boolean;
+  /**
+   * cursor #2 — at least one visible division is k-anon suppressed (hatched), so
+   * the legend shows the "Suprimido (k-anon)" hatch swatch.
+   */
+  suppressed: boolean;
 };
 
 type Props = {
@@ -318,6 +331,16 @@ type Props = {
    * geography below the fold.
    */
   conditionsSlot?: ReactNode;
+  /**
+   * ARCHETYPE A: lift the imperatively-computed legend descriptors OUT of the
+   * canvas so the "Referencias" rail section can render them off-canvas. Fired
+   * whenever the committed division-fill legend / graduated-symbol scale changes
+   * (including → null when the layer set no longer produces one). The province
+   * ramp + bivariate legends are render-derived from `layers` and don't need a
+   * callback — the console recomputes them itself.
+   */
+  onDivisionLegendChange?: (legend: DivisionLegendDescriptor | null) => void;
+  onGraduatedScaleChange?: (scale: GraduatedScale | null) => void;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -504,6 +527,8 @@ export function SituationalMap({
   bottomDock,
   aggregationLabel,
   conditionsSlot,
+  onDivisionLegendChange,
+  onGraduatedScaleChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -649,17 +674,7 @@ export function SituationalMap({
   // Legend descriptor for the active locality choropleth division fill (min/max
   // over the visible divisions). State (not a ref) so the legend overlay repaints
   // when the fill changes; guarded setState avoids a render loop.
-  const [divisionLegend, setDivisionLegend] = useState<{
-    label: string;
-    unitNoun: string;
-    min: number;
-    max: number;
-    // Whether a value ramp is shown (there is at least one visible division).
-    hasRamp: boolean;
-    // cursor #2 — at least one visible division is k-anon suppressed (hatched),
-    // so the legend shows the "Suprimido (k-anon)" hatch swatch.
-    suppressed: boolean;
-  } | null>(null);
+  const [divisionLegend, setDivisionLegend] = useState<DivisionLegendDescriptor | null>(null);
   // #6/#7: the data-driven graduated-symbol scale (bubble legend bins + radius
   // stops), anchored on the observed maximum count across the active graduated
   // layers. State so the legend repaints when the data range changes; the map's
@@ -667,6 +682,20 @@ export function SituationalMap({
   // legend bubble always matches its on-map bubble. Guarded setState (like
   // divisionLegend) avoids a render loop.
   const [graduatedScale, setGraduatedScale] = useState<GraduatedScale | null>(null);
+  // ARCHETYPE A: notify the console when the imperatively-committed legend
+  // descriptors change, so the off-canvas "Referencias" rail section can render
+  // them. Ref mirrors keep the notify effects from re-subscribing on every
+  // parent render (the callbacks are recreated each render in the console).
+  const onDivisionLegendChangeRef = useRef(onDivisionLegendChange);
+  onDivisionLegendChangeRef.current = onDivisionLegendChange;
+  const onGraduatedScaleChangeRef = useRef(onGraduatedScaleChange);
+  onGraduatedScaleChangeRef.current = onGraduatedScaleChange;
+  useEffect(() => {
+    onDivisionLegendChangeRef.current?.(divisionLegend);
+  }, [divisionLegend]);
+  useEffect(() => {
+    onGraduatedScaleChangeRef.current?.(graduatedScale);
+  }, [graduatedScale]);
   // cursor Part2 — the live camera zoom, tracked in state (not just the ref) so
   // the CABA/AMBA inset panel can show at national scope and hide on drill.
   const [insetZoom, setInsetZoom] = useState(AR_ZOOM);
@@ -2491,56 +2520,13 @@ export function SituationalMap({
   // is 0, so the "Sin datos" overlay must be suppressed when this is true.
   const hasProvChoro = hasProvinceChoroplethLayer(layers);
 
-  // U5 + F5: province-choropleth scale legend. One entry per active province-mode
-  // choropleth layer, with its value min→max range and (for rate layers) the
-  // compliance target. Rendered as an HTML overlay — no on-canvas text (privacy).
-  // Legends are always visible (not gated on zoom) — fixes the "coropletas sin
-  // leyenda" complaint: the overlay sits on top of the map at all zoom levels.
-  // task #63: the active bivariate layer (if any) drives the 3×3 matrix legend
-  // below; it is excluded from the ordinary province ramp legends.
-  const bivariateLayer =
-    layers.find((l) => l.geomType === "choropleth" && l.level === "province" && l.bivariateCells) ??
-    null;
-
-  const provinceLegends = layers
-    .filter((l) => l.geomType === "choropleth" && l.level === "province" && !l.bivariateCells)
-    .map((l) => ({
-      layer: l,
-      bounds: provinceValueBounds(l.features),
-      isDivergent: l.dataType === "rate" && typeof l.complianceTarget === "number",
-    }))
-    .filter(
-      (
-        x,
-      ): x is {
-        layer: ActiveLayer;
-        bounds: ScaleBounds;
-        isDivergent: boolean;
-      } => x.bounds !== null,
-    );
-
-  // F1 Panorama v2: FIXED graduated-circle legend for density+signal layers.
-  // Shows the circle-size → count-bucket mapping from the step expression in
-  // addGraduatedPointLayer. Independent of zoom (circles are non-clustered, one
-  // per unit, so this legend is always accurate). Shown when at least one
-  // graduated layer is active.
-  // #6/#7: the graduated legend is data-driven — its sample bubbles come from
-  // `graduatedScale` (built in syncLayers from the observed max), so they show the
-  // scale the data actually occupies (e.g. 1–4 when the signals are tiny) at the
-  // exact area-proportional sizes rendered on the map. Only shown when a graduated
-  // layer is active AND the scale has resolved with real data.
-  const hasGraduatedLayer =
-    layers.some((l) => l.renderMode === "graduated") &&
-    graduatedScale !== null &&
-    graduatedScale.bins.length > 0;
-  // Name the stacked graduated legend by its layer(s), so it reads "Eventos por
-  // unidad — Zoonosis" rather than a context-free "Eventos por unidad" that never
-  // says WHICH metric the bubbles encode (PO finding: each stacked legend must
-  // name its layer).
-  const graduatedLayerLabel = layers
-    .filter((l) => l.renderMode === "graduated")
-    .map((l) => l.label)
-    .join(" · ");
+  // ARCHETYPE A: the map's scale legends (province ramp, division fill, graduated
+  // circles, bivariate 3×3) moved OFF the canvas into the "Referencias" rail
+  // section (components/panorama/MapLegends.tsx). The render-derived legends are
+  // recomputed there from `layers`; the imperatively-computed divisionLegend +
+  // graduatedScale are lifted to the console via onDivisionLegendChange /
+  // onGraduatedScaleChange. Only the empty-state overlay + on-canvas controls
+  // remain here.
 
   // panorama-ia-v2 §3.6: copy the canonical view URL (deep-link) to clipboard.
   const [copied, setCopied] = useState(false);
@@ -2834,293 +2820,6 @@ export function SituationalMap({
             <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[var(--text-md)] text-white/80">
               Sin datos para esta capa {emptyStateScope}.
             </p>
-          </div>
-        )}
-        {/* map-QOL merged single legend: ONE region (bottom-left) hosts every
-          scale — province choropleth ramps, the division-fill ramp, AND the
-          graduated-circle buckets. */}
-        {(provinceLegends.length > 0 ||
-          hasGraduatedLayer ||
-          divisionLegend !== null ||
-          bivariateLayer !== null) && (
-          <div
-            aria-label="Leyenda del mapa"
-            className="pointer-events-none absolute bottom-3 left-3 space-y-2"
-          >
-            {/* task #63: the bivariate legend IS the 3×3 matrix — coverage terciles
-              (x, "Cobertura →") × signal terciles (y, "Señales ↑"). The risk
-              corner (low coverage · high signal) is marked. A hatch swatch names
-              the k-anon-protected state (color withheld, never inferred). */}
-            {bivariateLayer !== null && (
-              <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
-                <div className="mb-1.5 font-medium">Riesgo de brotes</div>
-                <div className="flex items-stretch gap-1.5">
-                  {/* y-axis label */}
-                  <div className="flex flex-col items-center justify-center">
-                    <span className="whitespace-nowrap text-[10px] text-white/60 [writing-mode:vertical-rl] [transform:rotate(180deg)]">
-                      Señales ↑
-                    </span>
-                  </div>
-                  <div>
-                    {/* 3 rows × 3 cols; grid is row-major, top row = high signal. */}
-                    <div className="grid grid-cols-3 gap-[2px]">
-                      {BIVARIATE_LEGEND_GRID.map((sw) => (
-                        <span
-                          key={`biv-${sw.cov}-${sw.sig}`}
-                          className={`h-4 w-4 rounded-[var(--radius-xs)] ${
-                            sw.risk ? "ring-1 ring-white/80" : "border border-white/10"
-                          }`}
-                          style={{ background: sw.color }}
-                          title={
-                            sw.risk ? "Riesgo alto: cobertura baja · señales altas" : undefined
-                          }
-                          aria-hidden="true"
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-0.5 text-center text-[10px] text-white/60">Cobertura →</div>
-                  </div>
-                </div>
-                <div className="mt-1.5 flex items-center gap-1.5 text-white/70">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
-                    style={{
-                      backgroundImage:
-                        "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
-                    }}
-                    aria-hidden="true"
-                  />
-                  Protegido (k-anonimato)
-                </div>
-              </div>
-            )}
-            {/* Division-fill legend: sequential ramp for the active locality
-              choropleth over the barrio/departamento polygons. Names the unit so
-              the operator reads the fill as "por barrio/departamento", and states
-              that an unfilled division is a genuine no-data (or k-anon protected)
-              cell — the always-on outline is the "no data" signal, not a gap. */}
-            {divisionLegend !== null && (
-              <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
-                <div className="mb-1 font-medium">
-                  {divisionLegend.label}{" "}
-                  <span className="font-normal text-white/60">· por {divisionLegend.unitNoun}</span>
-                </div>
-                {divisionLegend.hasRamp && (
-                  <div className="flex items-center gap-2">
-                    <span className="tabular-nums">
-                      {divisionLegend.min.toLocaleString("es-AR")}
-                    </span>
-                    <span
-                      className="h-2.5 w-24 rounded-full"
-                      style={{
-                        background: `linear-gradient(to right, ${RAMP_BLUE_DARK[0]}, ${RAMP_BLUE_DARK[1]})`,
-                      }}
-                      aria-hidden="true"
-                    />
-                    <span className="tabular-nums">
-                      {divisionLegend.max.toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                )}
-                {/* cursor #2: the three states are trichotomous — a colored fill is a
-                  value, a DIAGONAL HATCH is a k-anon-protected division, and an
-                  outline-only cell is genuine no-data. Each swatch matches its map
-                  mark exactly so a govt user never reads "protegido" as "cero". */}
-                {divisionLegend.suppressed && (
-                  <div className="mt-1 flex items-center gap-1.5 text-white/70">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
-                      style={{
-                        backgroundImage:
-                          "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
-                      }}
-                      aria-hidden="true"
-                    />
-                    Suprimido (k-anonimato)
-                  </div>
-                )}
-                <div className="mt-1 flex items-center gap-1.5 text-white/70">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
-                    aria-hidden="true"
-                  />
-                  Sin datos (solo contorno)
-                </div>
-              </div>
-            )}
-            {provinceLegends.map(({ layer, bounds, isDivergent }) => {
-              // #5: the actual province values, for the in-legend distribution. On
-              // the FIXED [0,100] divergent axis they otherwise vanish into the mid
-              // band — the histogram shows the real spread (and the empty above-meta
-              // half) so the reader sees more than the two endpoints.
-              const values = layer.features.features
-                .map((f) => (f.properties as { value?: number } | null)?.value)
-                .filter((v): v is number => typeof v === "number");
-              const hist =
-                isDivergent && typeof layer.complianceTarget === "number"
-                  ? valueHistogram(values, FIXED_RATE_DOMAIN.min, FIXED_RATE_DOMAIN.max, 16)
-                  : [];
-              const histPeak = histogramPeak(hist);
-              const metaPct =
-                typeof layer.complianceTarget === "number"
-                  ? (100 * (layer.complianceTarget - FIXED_RATE_DOMAIN.min)) /
-                    (FIXED_RATE_DOMAIN.max - FIXED_RATE_DOMAIN.min)
-                  : 0;
-              return (
-                <div
-                  key={layer.id}
-                  className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90"
-                >
-                  <div className="mb-1 font-medium">{layer.label}</div>
-                  {isDivergent && typeof layer.complianceTarget === "number" ? (
-                    // F5: divergent legend — two poles with the target anchor labeled.
-                    // Colorblind-safe: orange=below, white=at target, teal=above.
-                    // Text labels accompany every color swatch (not color-only).
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        {/* panorama-ia-v2 §3.2: FIXED [0,100] endpoints flank the
-                          gradient (below-pole → neutral-at-meta → above-pole) so the
-                          scale reads the same for every province. */}
-                        <span className="tabular-nums text-white/70">0</span>
-                        {/* #5: gradient + overlaid value distribution + meta marker,
-                          all on the SAME [0,100] axis so the reader sees where the
-                          provinces actually fall relative to the meta. */}
-                        <span className="relative h-6 w-28 flex-none">
-                          {histPeak > 0 && (
-                            <span
-                              className="absolute inset-x-0 top-0 flex h-3.5 items-end gap-px"
-                              aria-hidden="true"
-                            >
-                              {hist.map((b) => (
-                                <span
-                                  key={b.lo}
-                                  className="flex-1 rounded-t-[1px] bg-white/45"
-                                  style={{ height: `${Math.round((100 * b.count) / histPeak)}%` }}
-                                />
-                              ))}
-                            </span>
-                          )}
-                          <span
-                            className="absolute inset-x-0 bottom-0 block h-2.5 rounded-full"
-                            style={{
-                              background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
-                            }}
-                            aria-hidden="true"
-                          />
-                          {/* meta anchor — a vertical tick at the compliance target */}
-                          <span
-                            className="absolute bottom-0 block h-5 w-px bg-white/80"
-                            style={{ left: `${metaPct}%` }}
-                            aria-hidden="true"
-                          />
-                        </span>
-                        <span className="tabular-nums text-white/70">100</span>
-                      </div>
-                      {histPeak > 0 && (
-                        <div className="text-[var(--text-xs)] leading-tight text-white/45">
-                          Distribución de {values.length}{" "}
-                          {values.length === 1 ? "provincia" : "provincias"} (barras) · meta marcada
-                        </div>
-                      )}
-                      <div className="flex justify-between text-[var(--text-xs)] text-white/55">
-                        <span>bajo meta</span>
-                        <span>sobre meta</span>
-                      </div>
-                      {/* Target anchor — the pivotal reference point */}
-                      <div className="flex items-center gap-1.5 text-white/60">
-                        <span
-                          className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/30"
-                          style={{ background: COLOR_DIVERGENT_NEUTRAL }}
-                          aria-hidden="true"
-                        />
-                        <span>
-                          meta{" "}
-                          <strong className="text-white/80">
-                            {layer.complianceTarget.toLocaleString("es-AR")}%
-                          </strong>
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    // Sequential legend for density/count choropleths.
-                    <div className="flex items-center gap-2">
-                      <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
-                      <span
-                        className="h-2.5 w-24 rounded-full"
-                        style={{
-                          background: `linear-gradient(to right, ${RAMP_BLUE_DARK[0]}, ${RAMP_BLUE_DARK[1]})`,
-                        }}
-                        aria-hidden="true"
-                      />
-                      <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
-                    </div>
-                  )}
-                  <div className="mt-1 flex items-center gap-1.5 text-white/70">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
-                      style={{ background: COLOR_NO_DATA }}
-                      aria-hidden="true"
-                    />
-                    Sin datos
-                  </div>
-                  {/* k-anon disclosure: province cells with fewer than 5 records are
-                  suppressed server-side (AGENTS.md k=5 policy) and fall back to
-                  the same neutral fill as genuine no-data. Spell out WHY so a
-                  govt user reads a blank cell as privacy protection, not a gap.
-                  Copy parity with MapChoropleth ("protegidos por privacidad ·
-                  k-anonimato"). */}
-                  <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
-                    Dato protegido — menos de 5 registros (k-anonimato)
-                  </div>
-                </div>
-              );
-            })}
-            {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
-              Does NOT depend on zoom — circles are non-clustered, one per unit. */}
-            {hasGraduatedLayer && graduatedScale && (
-              <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
-                <div className="mb-1.5 font-medium text-white/80">
-                  Eventos por unidad
-                  {graduatedLayerLabel && (
-                    <span className="font-normal text-white/60"> — {graduatedLayerLabel}</span>
-                  )}
-                </div>
-                <div className="flex flex-col gap-1">
-                  {graduatedScale.bins.map((b) => (
-                    <div key={b.value} className="flex items-center gap-2">
-                      <span
-                        className="flex-none rounded-full"
-                        style={{
-                          width: b.r * 2,
-                          height: b.r * 2,
-                          background: "rgba(255,255,255,0.25)",
-                          border: "1.5px solid rgba(255,255,255,0.5)",
-                        }}
-                        aria-hidden="true"
-                      />
-                      <span className="tabular-nums text-white/70">{b.label}</span>
-                    </div>
-                  ))}
-                  <div className="mt-0.5 flex items-center gap-2">
-                    <span
-                      className="flex-none rounded-full"
-                      style={{
-                        width: 10,
-                        height: 10,
-                        background: COLOR_SUPPRESSED,
-                        opacity: 0.6,
-                      }}
-                      aria-hidden="true"
-                    />
-                    {/* Copy parity with MapChoropleth's legend ("Datos
-                      insuficientes (privacidad)") — design-QA 2026-07-04 P2:
-                      the same suppression state must read the same across
-                      dashboard and situational surfaces. */}
-                    <span className="text-white/50">Datos insuficientes (privacidad)</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
