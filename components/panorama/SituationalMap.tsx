@@ -17,6 +17,11 @@ import {
 } from "@/components/panorama/graduated-scale";
 import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
 import { histogramPeak, valueHistogram } from "@/components/panorama/legend-histogram";
+import {
+  type LayerReadout,
+  buildLayerReadout,
+  buildPinnedPopupHtml,
+} from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 
 import {
@@ -404,6 +409,15 @@ export function SituationalMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const mlRef = useRef<typeof maplibregl | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
+  // The PINNED popup (fix: popup-as-document). Separate from the hover popupRef so
+  // the fast hover preview and the persistent, selectable, multi-layer readout can
+  // coexist. Constructed with a close button + closeOnClick:false so it survives a
+  // pointer move (the hover popup does not) and is dismissable via ✕ or Esc.
+  const pinnedPopupRef = useRef<maplibregl.Popup | null>(null);
+  // Latest viewMeta, read inside one-time map handlers to stamp the pinned popup's
+  // fecha-de-corte context line without re-wiring handlers on every scrub.
+  const viewMetaRef = useRef(viewMeta);
+  viewMetaRef.current = viewMeta;
   const loadedRef = useRef(false);
   // Track which layer ids are currently mounted on the map so we can reconcile.
   const mountedRef = useRef<Set<string>>(new Set());
@@ -624,6 +638,16 @@ export function SituationalMap({
         closeButton: false,
         closeOnClick: false,
         className: "panorama-popup",
+      });
+      // The pinned popup: a persistent, selectable document (close button, never
+      // auto-removed on pointer move or map click). One instance reused across
+      // clicks; each open replaces its content + anchor.
+      pinnedPopupRef.current = new maplibregl.Popup({
+        closeButton: true,
+        closeOnClick: false,
+        className: "panorama-popup panorama-popup-pinned",
+        maxWidth: "280px",
+        focusAfterOpen: false,
       });
 
       map.on("load", async () => {
@@ -1381,8 +1405,99 @@ export function SituationalMap({
     }
   }
 
-  // Hover names the division (barrio/departamento) + its value; click opens the
-  // DetailDrawer, mirroring the old centroid-circle click where feasible.
+  // --- Pinned popup (popup-as-document) ------------------------------------
+  // The fecha-de-corte context line for the pinned popup: the as-of date under a
+  // scrub, otherwise the active period label. Null when no viewMeta is supplied.
+  function pinnedCutoffLabel(): string | null {
+    const vm = viewMetaRef.current;
+    if (!vm) return null;
+    if (vm.asOf) return `Al ${vm.asOf.toLocaleDateString("es-AR")}`;
+    return vm.periodLabel || null;
+  }
+
+  // Aggregate the readout across ALL active PROVINCE-choropleth layers at one
+  // province code — the multi-layer readout (each value labeled by its layer).
+  function provinceReadouts(code: string): LayerReadout[] {
+    const out: LayerReadout[] = [];
+    for (const l of layersRef.current) {
+      if (l.geomType !== "choropleth" || l.level !== "province") continue;
+      let value: number | null = null;
+      for (const f of l.features.features) {
+        const p = f.properties as { provinceCode?: string; value?: number };
+        if (p.provinceCode === code) {
+          value = p.value ?? 0;
+          break;
+        }
+      }
+      out.push(
+        buildLayerReadout({
+          label: l.label,
+          value,
+          dataType: l.dataType,
+          complianceTarget: l.complianceTarget,
+        }),
+      );
+    }
+    return out;
+  }
+
+  // Aggregate the readout across ALL active LOCALITY-choropleth layers currently
+  // in division-fill mode, at one normalized division code (dept/barrio). Reads
+  // the same value + k-anon refs the fill + hover popup already use.
+  function divisionReadouts(code: string): LayerReadout[] {
+    const out: LayerReadout[] = [];
+    for (const l of layersRef.current) {
+      if (l.geomType !== "choropleth" || l.level !== "locality") continue;
+      const values = divisionValuesRef.current.get(l.id);
+      if (!values) continue; // not in division-fill mode for this layer
+      const suppressed = divisionSuppressedRef.current.get(l.id)?.has(code) === true;
+      const value = values.get(code) ?? null;
+      out.push(
+        buildLayerReadout({
+          label: l.label,
+          value,
+          suppressed,
+          dataType: l.dataType,
+          complianceTarget: l.complianceTarget,
+        }),
+      );
+    }
+    return out;
+  }
+
+  // Pin the persistent popup at a unit: selectable multi-layer readout + a
+  // "Ver detalle →" affordance that opens the DetailDrawer (keeps both patterns —
+  // the popup is the quick layer, the drawer the deep layer). Works on touch: a
+  // tap fires the same "click" event that pins it.
+  function openPinnedPopup(opts: {
+    map: maplibregl.Map;
+    lngLat: maplibregl.LngLatLike;
+    place: string;
+    readouts: LayerReadout[];
+    detail?: { layerId: string; properties: Record<string, unknown> };
+  }) {
+    const pinned = pinnedPopupRef.current;
+    if (!pinned) return;
+    const html = buildPinnedPopupHtml({
+      place: opts.place,
+      readouts: opts.readouts,
+      cutoffLabel: pinnedCutoffLabel(),
+      withDetail: opts.detail !== undefined,
+    });
+    pinned.setLngLat(opts.lngLat).setHTML(html).addTo(opts.map);
+    // Wire the "Ver detalle →" affordance to the DetailDrawer (deep layer).
+    const detail = opts.detail;
+    if (detail) {
+      const el = pinned.getElement()?.querySelector<HTMLButtonElement>("[data-pano-detail]");
+      el?.addEventListener("click", () => {
+        onFeatureClickRef.current?.(detail.layerId, detail.properties);
+      });
+    }
+  }
+
+  // Hover names the division (barrio/departamento) + its value; a CLICK pins the
+  // persistent popup (selectable, multi-layer) with a "Ver detalle →" affordance
+  // that opens the DetailDrawer.
   function wireDivisionInteractions(map: maplibregl.Map, layer: ActiveLayer) {
     const popup = popupRef.current;
     if (!popup) return;
@@ -1456,16 +1571,28 @@ export function SituationalMap({
       // the "protegido por privacidad · k-anonimato" branch instead of a bogus
       // "0". A suppressed division has no value to reveal — never a count.
       const isSuppressed = divisionSuppressedRef.current.get(layer.id)?.has(code) === true;
-      onFeatureClickRef.current?.(layer.id, {
-        // Barrio divisions map 1:1 to a locality, so surface the name as the
-        // locality (unit-history keyed by locality still works). Departamento
-        // fills aggregate several localities — carry the department name instead
-        // and leave locality null (no single locality to drill).
-        locality: isBarrio ? (props.name ?? null) : null,
-        departmentName: props.name ?? null,
-        value,
-        level: "locality",
-        suppressed: isSuppressed,
+      // Pin the persistent popup: the multi-layer readout across every active
+      // locality choropleth, plus a "Ver detalle →" that opens the DetailDrawer
+      // with the SAME payload the direct click used to emit.
+      openPinnedPopup({
+        map,
+        lngLat: e.lngLat,
+        place: props.name ?? props.code ?? "—",
+        readouts: divisionReadouts(code),
+        detail: {
+          layerId: layer.id,
+          properties: {
+            // Barrio divisions map 1:1 to a locality, so surface the name as the
+            // locality (unit-history keyed by locality still works). Departamento
+            // fills aggregate several localities — carry the department name
+            // instead and leave locality null (no single locality to drill).
+            locality: isBarrio ? (props.name ?? null) : null,
+            departmentName: props.name ?? null,
+            value,
+            level: "locality",
+            suppressed: isSuppressed,
+          },
+        },
       });
     });
   }
@@ -1731,17 +1858,28 @@ export function SituationalMap({
         )
         .addTo(map);
     });
-    // Clicking a province opens the DetailDrawer with the province cell props.
+    // Clicking a province pins the persistent popup (multi-layer readout) with a
+    // "Ver detalle →" affordance that opens the DetailDrawer. (Fix: province
+    // drill-down is layered on top of this in a later step.)
     map.on("click", fillId, (e) => {
       const f = e.features?.[0];
       if (!f) return;
       const props = f.properties as { code?: string; name?: string };
       const code = props.code ?? "";
-      onFeatureClickRef.current?.(layer.id, {
-        provinceCode: code,
-        province: props.name ?? code,
-        value: valueFor(code),
-        level: "province",
+      openPinnedPopup({
+        map,
+        lngLat: e.lngLat,
+        place: props.name ?? code ?? "—",
+        readouts: provinceReadouts(code),
+        detail: {
+          layerId: layer.id,
+          properties: {
+            provinceCode: code,
+            province: props.name ?? code,
+            value: valueFor(code),
+            level: "province",
+          },
+        },
       });
     });
   }
@@ -1963,6 +2101,14 @@ export function SituationalMap({
     layers.some((l) => l.renderMode === "graduated") &&
     graduatedScale !== null &&
     graduatedScale.bins.length > 0;
+  // Name the stacked graduated legend by its layer(s), so it reads "Eventos por
+  // unidad — Zoonosis" rather than a context-free "Eventos por unidad" that never
+  // says WHICH metric the bubbles encode (PO finding: each stacked legend must
+  // name its layer).
+  const graduatedLayerLabel = layers
+    .filter((l) => l.renderMode === "graduated")
+    .map((l) => l.label)
+    .join(" · ");
 
   // panorama-ia-v2 §3.6: copy the canonical view URL (deep-link) to clipboard.
   const [copied, setCopied] = useState(false);
@@ -2335,7 +2481,12 @@ export function SituationalMap({
               Does NOT depend on zoom — circles are non-clustered, one per unit. */}
           {hasGraduatedLayer && graduatedScale && (
             <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
-              <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
+              <div className="mb-1.5 font-medium text-white/80">
+                Eventos por unidad
+                {graduatedLayerLabel && (
+                  <span className="font-normal text-white/60"> — {graduatedLayerLabel}</span>
+                )}
+              </div>
               <div className="flex flex-col gap-1">
                 {graduatedScale.bins.map((b) => (
                   <div key={b.value} className="flex items-center gap-2">

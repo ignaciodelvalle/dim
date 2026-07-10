@@ -3611,6 +3611,79 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
 .panorama-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
   border-left-color: rgba(11, 16, 32, 0.95);
 }
+/* Pinned popup (popup-as-document): a persistent, SELECTABLE card. The close
+   button must read on the dark navy skin, and its text is user-selectable so an
+   operator can copy the value/place (the old hover tooltip could not be copied). */
+.panorama-popup-pinned .maplibregl-popup-content {
+  padding: 8px 12px;
+  user-select: text;
+}
+.panorama-popup .maplibregl-popup-close-button {
+  color: #cbd5e1;
+  font-size: 16px;
+  padding: 0 6px;
+}
+.panorama-popup .maplibregl-popup-close-button:hover {
+  background: transparent;
+  color: #f8fafc;
+}
+.pano-pin-title {
+  font-weight: 600;
+  color: #f8fafc;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.pano-pin-readouts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pano-pin-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.pano-pin-layer {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+.pano-pin-value {
+  font-weight: 600;
+  color: #f8fafc;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.pano-pin-meta,
+.pano-pin-muted {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.pano-pin-context {
+  margin-top: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+.pano-pin-detail {
+  margin-top: 8px;
+  display: inline-block;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 500;
+  background: transparent;
+  border: 0;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.pano-pin-detail:hover {
+  color: #bfdbfe;
+  text-decoration: underline;
+}
+.pano-pin-detail:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
 
 /* ---- MapChoropleth cartography popups (keeper-map panorama form) ---------- */
 /* Opt-in `cartography="panorama"` keeper maps (gob/vigilancia, gob/poblacion)
