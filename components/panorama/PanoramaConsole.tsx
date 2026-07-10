@@ -23,6 +23,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 
 import { CapasBox } from "@/components/panorama/CapasBox";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
+import { type FilterChip, FilterChips } from "@/components/panorama/FilterChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { MapDataTable, type MapTableRow } from "@/components/panorama/MapDataTable";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
@@ -60,6 +61,7 @@ import {
   pushMapStateUrl,
   replaceMapStateUrl,
 } from "@/lib/ui/map-layer-nav";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import {
@@ -2173,6 +2175,58 @@ export function PanoramaConsole({
   }, [activeLayers]);
   const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
 
+  // FilterChips (task #53 seed): the "Alcance y período" controls ship collapsed,
+  // hiding the conditions that qualify the whole board. Lift the disclosure's open
+  // state to React so an always-visible chip can open it; onToggle keeps state in
+  // sync when the operator clicks the summary directly.
+  const filtersDetailsRef = useRef<HTMLDetailsElement>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const openFilterControls = useCallback(() => {
+    setFiltersOpen(true);
+    // The controls live in the right rail — bring them into view once open.
+    requestAnimationFrame(() =>
+      filtersDetailsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }),
+    );
+  }, []);
+  const canOpenFilters = filtersSlot !== undefined;
+  const filterChips = useMemo<FilterChip[]>(() => {
+    // Period + scope come from viewMeta, whose window derives from committedPeriod
+    // (the shallow-committed window), NOT bare searchParams — so the chip tracks
+    // the loaded period, not the stale default (the desync already fixed for the
+    // period chrome). onClick is wired only when the controls exist to open.
+    const chips: FilterChip[] = [
+      {
+        label: "Alcance",
+        value: viewMeta.scopeLabel,
+        onClick: canOpenFilters ? openFilterControls : undefined,
+        ariaLabel: "Editar alcance",
+      },
+      {
+        label: "Período",
+        value: viewMeta.periodLabel,
+        onClick: canOpenFilters ? openFilterControls : undefined,
+        ariaLabel: "Editar período",
+      },
+    ];
+    // Data cutoff watermark: the last-event timestamp (honest — the data is batch,
+    // not "en vivo"). Static (there is no control to open for it).
+    if (kpis.dataAsOf) {
+      const time = new Date(kpis.dataAsOf).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: AR_TIME_ZONE,
+      });
+      chips.push({ label: "Al", value: `último evento ${time}` });
+    }
+    return chips;
+  }, [
+    viewMeta.scopeLabel,
+    viewMeta.periodLabel,
+    kpis.dataAsOf,
+    canOpenFilters,
+    openFilterControls,
+  ]);
+
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
   // "Copiar vista" fidelity: mirror the map camera (zoom + center) into the URL
@@ -2410,6 +2464,11 @@ export function PanoramaConsole({
       </div>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_342px]">
         <div className="min-w-0 space-y-3">
+          {/* Task #53 seed: always-visible condition chips (scope / period / data
+              cutoff) so the CONDITIONS that qualify the board are never hidden
+              behind the collapsed "Alcance y período" disclosure. A clickable
+              chip opens the full control it summarizes. */}
+          <FilterChips chips={filterChips} />
           <SituationalMapDynamic
             layers={activeLayers}
             label={mapLabel}
@@ -2502,7 +2561,12 @@ export function PanoramaConsole({
           {/* RSC slot: scope/period filters owned by the SERVER shell, placed
               behind progressive disclosure — identical behavior, one click away. */}
           {filtersSlot !== undefined && (
-            <details className="group space-y-2">
+            <details
+              ref={filtersDetailsRef}
+              open={filtersOpen}
+              onToggle={(e) => setFiltersOpen(e.currentTarget.open)}
+              className="group space-y-2"
+            >
               <summary className="cursor-pointer list-none text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute [&::-webkit-details-marker]:hidden">
                 <span
                   aria-hidden="true"
