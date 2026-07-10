@@ -1256,7 +1256,9 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     // No explicit province yet → no "← Volver".
     expect(mapProps?.onReturnNational).toBeUndefined();
 
-    stubLocation("/gob/panorama?period=3y&locality=stale");
+    // A national camera is pinned in the URL (z/lat/lng) — the drill must DROP it
+    // so the reloaded province frames itself instead of restoring the national camera.
+    stubLocation("/gob/panorama?period=3y&locality=stale&z=4.2&lat=-38&lng=-63");
     mockAssign.mockClear();
     (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
 
@@ -1266,6 +1268,10 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     expect(url.searchParams.get("province")).toBe("AR-B");
     expect(url.searchParams.get("period")).toBe("3y");
     expect(url.searchParams.get("locality")).toBeNull();
+    // Camera dropped — the province fit runs on reload.
+    expect(url.searchParams.get("z")).toBeNull();
+    expect(url.searchParams.get("lat")).toBeNull();
+    expect(url.searchParams.get("lng")).toBeNull();
   });
 
   it("does NOT offer a drill or return to a jurisdiction-scoped operator", () => {
@@ -1293,7 +1299,7 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     );
     expect(mapProps?.onReturnNational).toBeInstanceOf(Function);
 
-    stubLocation("/gob/panorama?period=3y&province=AR-B");
+    stubLocation("/gob/panorama?period=3y&province=AR-B&z=7.1&lat=-36&lng=-59");
     mockAssign.mockClear();
     (mapProps!.onReturnNational as () => void)();
 
@@ -1301,5 +1307,9 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost");
     expect(url.searchParams.get("province")).toBeNull();
     expect(url.searchParams.get("period")).toBe("3y");
+    // The province-framed camera is dropped so the national view re-frames itself.
+    expect(url.searchParams.get("z")).toBeNull();
+    expect(url.searchParams.get("lat")).toBeNull();
+    expect(url.searchParams.get("lng")).toBeNull();
   });
 });

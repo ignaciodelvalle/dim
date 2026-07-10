@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  CAMERA_PARAM_KEYS,
   encodeAsOfToParams,
   encodeCameraToParams,
   isSameRouteUrl,
@@ -13,6 +14,7 @@ import {
   parseCameraFromParams,
   pushMapStateUrl,
   replaceMapStateUrl,
+  stripCameraParams,
 } from "./map-layer-nav";
 
 describe("pushMapStateUrl / replaceMapStateUrl — history-API state machine", () => {
@@ -79,6 +81,32 @@ describe("camera encode/decode — 'Copiar vista' round-trip", () => {
   it("returns null for an out-of-range or non-finite coordinate (hand-edited URL)", () => {
     expect(parseCameraFromParams(new URLSearchParams("z=6&lat=999&lng=-63"))).toBeNull();
     expect(parseCameraFromParams(new URLSearchParams("z=x&lat=-40&lng=-63"))).toBeNull();
+  });
+});
+
+describe("stripCameraParams — scope change drops a stale camera", () => {
+  it("removes z/lat/lng but keeps scope/period/asOf (a date is scope-independent)", () => {
+    const params = new URLSearchParams(
+      "province=AR-B&period=3y&asOf=2026-06-01&z=6.12&lat=-40&lng=-63.617",
+    );
+    stripCameraParams(params);
+    expect(params.has("z")).toBe(false);
+    expect(params.has("lat")).toBe(false);
+    expect(params.has("lng")).toBe(false);
+    expect(params.get("province")).toBe("AR-B");
+    expect(params.get("period")).toBe("3y");
+    // asOf deliberately survives — a scrub day is valid at any scope.
+    expect(params.get("asOf")).toBe("2026-06-01");
+  });
+
+  it("is a no-op when no camera is present (e.g. a route without a map)", () => {
+    const params = new URLSearchParams("province=AR-C");
+    stripCameraParams(params);
+    expect(params.toString()).toBe("province=AR-C");
+  });
+
+  it("exposes the camera keys as the single source for strip/round-trips", () => {
+    expect([...CAMERA_PARAM_KEYS]).toEqual(["z", "lat", "lng"]);
   });
 });
 

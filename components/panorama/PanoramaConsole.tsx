@@ -61,6 +61,7 @@ import {
   parseCameraFromParams,
   pushMapStateUrl,
   replaceMapStateUrl,
+  stripCameraParams,
 } from "@/lib/ui/map-layer-nav";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -960,14 +961,20 @@ export function PanoramaConsole({
     const params = new URLSearchParams(window.location.search);
     params.set("province", provinceCode);
     params.delete("locality");
+    // Scope CHANGES → drop the national camera (z/lat/lng), or the camera-restore
+    // path wins over the province fit on reload and leaves the drilled scope framed
+    // at the national camera (a stale camera is only valid for its capture scope).
+    stripCameraParams(params);
     window.location.assign(`${window.location.pathname}?${params.toString()}`);
   }, []);
   // Pop the province scope drill back to the national view (the in-map "← Volver"
-  // control). Same full-navigation primitive; drops province + locality.
+  // control). Same full-navigation primitive; drops province + locality + the
+  // province-framed camera so the national view re-frames itself.
   const onReturnNational = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
     params.delete("province");
     params.delete("locality");
+    stripCameraParams(params);
     const qsStr = params.toString();
     window.location.assign(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
   }, []);

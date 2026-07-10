@@ -66,6 +66,22 @@ const CAMERA_LAT_KEY = "lat";
 const CAMERA_LNG_KEY = "lng";
 const AS_OF_KEY = "asOf";
 
+/** The camera (zoom + center) query keys, as one list for strip/round-trips. */
+export const CAMERA_PARAM_KEYS = [CAMERA_ZOOM_KEY, CAMERA_LAT_KEY, CAMERA_LNG_KEY] as const;
+
+/**
+ * Drop the camera (zoom + center) keys from `params` (mutates in place). A camera
+ * is only valid for the scope it was captured in: a national frame pinned in the
+ * URL must NOT survive a drill into a province (or a jurisdiction switch, or a
+ * return to national), or the scope's own framing logic (A1 autozoom / province
+ * fit) is overridden by a stale camera on reload. Scope-changing navigations call
+ * this so the new scope frames itself. The `asOf` scrub position is deliberately
+ * NOT dropped — a date is scope-independent and stays valid across the change.
+ */
+export function stripCameraParams(params: URLSearchParams): void {
+  for (const key of CAMERA_PARAM_KEYS) params.delete(key);
+}
+
 /** Round to `dp` decimals (avoids float-tail noise like 3.4000000000000004). */
 function round(value: number, dp: number): number {
   const factor = 10 ** dp;

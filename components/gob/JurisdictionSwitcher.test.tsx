@@ -115,4 +115,34 @@ describe("JurisdictionSwitcher — full navigation on change (router-drop fix)",
     expect(routerReplace).not.toHaveBeenCalled();
     expect(routerRefresh).not.toHaveBeenCalled();
   });
+
+  it("drops the caller-nominated params (panorama camera) on a scope change", () => {
+    setUrl("/gob/panorama?period=30d&z=4.2&lat=-38&lng=-63");
+    render(
+      <JurisdictionSwitcher
+        allowedProvinces={ALLOWED_PROVINCES}
+        dropParamsOnNavigate={["z", "lat", "lng"]}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/panorama");
+    expect(url.searchParams.get("province")).toBe("AR-B");
+    expect(url.searchParams.get("period")).toBe("30d");
+    // The stale national camera is dropped so the province frames itself.
+    expect(url.searchParams.get("z")).toBeNull();
+    expect(url.searchParams.get("lat")).toBeNull();
+    expect(url.searchParams.get("lng")).toBeNull();
+  });
+
+  it("preserves camera params when no drop list is passed (default routes)", () => {
+    setUrl("/gob/vigilancia?period=30d&z=4.2");
+    render(<JurisdictionSwitcher allowedProvinces={ALLOWED_PROVINCES} />);
+
+    fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+
+    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost/gob/vigilancia");
+    expect(url.searchParams.get("z")).toBe("4.2");
+  });
 });

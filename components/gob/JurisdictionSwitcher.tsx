@@ -45,6 +45,14 @@ export type JurisdictionSwitcherProps = {
    * Default: { province: "province", locality: "locality" }.
    */
   paramKeys?: { province: string; locality: string };
+  /**
+   * Params extra a ELIMINAR en cada cambio de scope (además de actualizar
+   * provincia/localidad). El caller del panorama pasa las claves de cámara
+   * (z/lat/lng): una cámara sólo es válida para el scope en que se capturó, así
+   * que al cambiar de jurisdicción hay que soltarla para que el nuevo scope se
+   * encuadre solo. Vacío por defecto (p. ej. /gob/vigilancia no tiene cámara).
+   */
+  dropParamsOnNavigate?: readonly string[];
   className?: string;
 };
 
@@ -59,6 +67,7 @@ export function JurisdictionSwitcher({
   allowedProvinces,
   localities = [],
   paramKeys = { province: "province", locality: "locality" },
+  dropParamsOnNavigate = [],
   className = "",
 }: JurisdictionSwitcherProps) {
   const searchParams = useSearchParams();
@@ -101,6 +110,9 @@ export function JurisdictionSwitcher({
         params.set(key, value);
       }
     }
+    // Scope change → drop any caller-nominated params tied to the OLD scope
+    // (the panorama passes its camera keys; a stale frame must not survive).
+    for (const key of dropParamsOnNavigate) params.delete(key);
     window.location.assign(`?${params.toString()}`);
   }
 
