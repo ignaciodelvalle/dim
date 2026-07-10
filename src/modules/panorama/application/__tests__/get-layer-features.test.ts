@@ -62,6 +62,7 @@ function aggRows(over: Partial<AggregatedPointRows> = {}): AggregatedPointRows {
       },
     ],
     suppressedCount: 0,
+    noLocalityCount: 0,
     truncated: false,
     ...over,
   };

@@ -152,8 +152,10 @@ function aggregatedPointResult(
     features: buildAggregatedPointFeatures(result.cells),
     truncated: result.truncated,
     suppressedCount: result.suppressedCount,
-    // Point layers aggregate by event coords, not jurisdiction — no residual.
-    noLocalityCount: 0,
+    // Detail-tier reconciliation (WARNING 4): events with a province but no locality
+    // are counted at province level and dropped from the locality/detail rollup, so
+    // surface the residual the same way the choropleth path does. 0 at province level.
+    noLocalityCount: result.noLocalityCount,
     level,
   };
 }

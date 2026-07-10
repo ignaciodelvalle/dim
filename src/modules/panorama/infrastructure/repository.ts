@@ -1293,6 +1293,14 @@ export function loadChoroplethByLevel(
 export type AggregatedPointRows = {
   cells: AggregatedPointCell[];
   suppressedCount: number;
+  /**
+   * Events matching scope+period whose HOME jurisdiction has a province but NO
+   * locality — counted at province level, invisible at the locality/detail tier
+   * (the rollup filters `jurisdiction_locality IS NOT NULL`). Surfaced for the same
+   * reconciliation honesty as the choropleth path (WARNING 4): the two aggregation
+   * levels must not silently disagree. 0 at province level and for rate loaders.
+   */
+  noLocalityCount: number;
   truncated: boolean;
 };
 
@@ -1427,7 +1435,13 @@ export async function loadPerdidasByUnit(
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
-    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+    // Province level counts every event in the province — nothing is invisible.
+    return {
+      cells,
+      suppressedCount,
+      noLocalityCount: 0,
+      truncated: rollup.length >= PER_LAYER_CAP,
+    };
   }
 
   // Locality level: group by (province, locality), left-join ar_localities for centroid.
@@ -1468,11 +1482,20 @@ export async function loadPerdidasByUnit(
       departmentName: r.departmentName,
       count: r.n,
     }));
+  // Events whose pet home jurisdiction has a province but NO locality — invisible at
+  // the detail tier, counted at province level (WARNING 4 reconciliation). Same
+  // predicate + scope as the rollup (conditions already pins isNotNull(province)).
+  const [residual] = await db
+    .select({ n: countDistinct(petEvents.id) })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...conditions, sql`${pets.jurisdictionLocality} IS NULL`));
+  const noLocalityCount = residual?.n ?? 0;
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // ---------------------------------------------------------------------------
@@ -1634,7 +1657,13 @@ export async function loadMordedurassByUnit(
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
-    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+    // Province level counts every event in the province — nothing is invisible.
+    return {
+      cells,
+      suppressedCount,
+      noLocalityCount: 0,
+      truncated: rollup.length >= PER_LAYER_CAP,
+    };
   }
 
   const rows = await db
@@ -1674,11 +1703,20 @@ export async function loadMordedurassByUnit(
       departmentName: r.departmentName,
       count: r.n,
     }));
+  // Events whose pet home jurisdiction has a province but NO locality — invisible at
+  // the detail tier, counted at province level (WARNING 4 reconciliation). Same
+  // predicate + scope as the rollup (conditions already pins isNotNull(province)).
+  const [residual] = await db
+    .select({ n: countDistinct(petEvents.id) })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...conditions, sql`${pets.jurisdictionLocality} IS NULL`));
+  const noLocalityCount = residual?.n ?? 0;
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // ---------------------------------------------------------------------------
@@ -1749,7 +1787,13 @@ export async function loadDenunciasByUnit(
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
-    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+    // Province level counts every event in the province — nothing is invisible.
+    return {
+      cells,
+      suppressedCount,
+      noLocalityCount: 0,
+      truncated: rollup.length >= PER_LAYER_CAP,
+    };
   }
 
   const rows = await db
@@ -1789,11 +1833,18 @@ export async function loadDenunciasByUnit(
       departmentName: r.departmentName,
       count: r.n,
     }));
+  // Reports with a province but NO locality — invisible at the detail tier, counted
+  // at province level (WARNING 4 reconciliation). Same predicate + scope as the rollup.
+  const [residual] = await db
+    .select({ n: countDistinct(welfareReports.id) })
+    .from(welfareReports)
+    .where(and(...conditions, sql`${welfareReports.jurisdictionLocality} IS NULL`));
+  const noLocalityCount = residual?.n ?? 0;
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // ---------------------------------------------------------------------------
@@ -1861,7 +1912,13 @@ export async function loadZoonosisByUnit(
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
-    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+    // Province level counts every event in the province — nothing is invisible.
+    return {
+      cells,
+      suppressedCount,
+      noLocalityCount: 0,
+      truncated: rollup.length >= PER_LAYER_CAP,
+    };
   }
 
   const rows = await db
@@ -1902,11 +1959,18 @@ export async function loadZoonosisByUnit(
       departmentName: r.departmentName,
       count: r.n,
     }));
+  // Signals whose payload jurisdiction snapshot has a province but NO locality —
+  // invisible at the detail tier, counted at province level (WARNING 4).
+  const [residual] = await db
+    .select({ n: countDistinct(petEvents.id) })
+    .from(petEvents)
+    .where(and(...conditions, sql`(${petEvents.payload}->>'pet_jurisdiction_locality') IS NULL`));
+  const noLocalityCount = residual?.n ?? 0;
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // ---------------------------------------------------------------------------
@@ -1969,7 +2033,13 @@ export async function loadSintomasByUnit(
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
-    return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+    // Province level counts every event in the province — nothing is invisible.
+    return {
+      cells,
+      suppressedCount,
+      noLocalityCount: 0,
+      truncated: rollup.length >= PER_LAYER_CAP,
+    };
   }
 
   const rows = await db
@@ -2008,11 +2078,20 @@ export async function loadSintomasByUnit(
       departmentName: r.departmentName,
       count: r.n,
     }));
+  // Events whose pet home jurisdiction has a province but NO locality — invisible at
+  // the detail tier, counted at province level (WARNING 4 reconciliation). Same
+  // predicate + scope as the rollup (conditions already pins isNotNull(province)).
+  const [residual] = await db
+    .select({ n: countDistinct(petEvents.id) })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...conditions, sql`${pets.jurisdictionLocality} IS NULL`));
+  const noLocalityCount = residual?.n ?? 0;
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
-  return { cells, suppressedCount, truncated: rollup.length >= PER_LAYER_CAP };
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
 // ---------------------------------------------------------------------------
@@ -2044,7 +2123,9 @@ export async function loadReunificacionByUnit(
   );
   const { byUnit, suppressedCount } = await fetchReunificationByUnit(ctx, level);
   if (byUnit.length === 0) {
-    return { cells: [], suppressedCount, truncated: false };
+    // Rate loader: the graduated symbol encodes a ratePct, not a summable count, so
+    // there is no province-vs-detail count residual to reconcile (WARNING 4 N/A).
+    return { cells: [], suppressedCount, noLocalityCount: 0, truncated: false };
   }
 
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
@@ -2096,7 +2177,8 @@ export async function loadReunificacionByUnit(
   });
 
   const { cells } = toAggregatedCells(rollup, false);
-  return { cells, suppressedCount, truncated: false };
+  // Rate loader — ratePct per unit, no count residual to reconcile (WARNING 4 N/A).
+  return { cells, suppressedCount, noLocalityCount: 0, truncated: false };
 }
 
 // ---------------------------------------------------------------------------
