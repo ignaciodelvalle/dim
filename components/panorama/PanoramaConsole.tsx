@@ -24,6 +24,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { CapasBox } from "@/components/panorama/CapasBox";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
+import { MapDataTable, type MapTableRow } from "@/components/panorama/MapDataTable";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
@@ -39,6 +40,7 @@ import type { ActiveLayer, PointRenderMode } from "@/components/panorama/Situati
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
+import { buildLayerReadout } from "@/components/panorama/map-popup";
 import {
   Z_LOCALITY,
   Z_LOCALITY_ENTER,
@@ -2123,6 +2125,54 @@ export function PanoramaConsole({
     return { asOf, scopeLabel, periodLabel, suppressedCount };
   }, [searchParams, since, until, states, asOf]);
 
+  // "Ver como tabla" (accessibility): the map is the least accessible surface, so
+  // mirror what it is painting into a real table. Flatten every ACTIVE AGGREGATE
+  // layer (choropleth fills + graduated per-unit circles — reference/points layers
+  // are individual entities, not per-unit values) into rows, reusing the pinned
+  // popup's buildLayerReadout so the value/unit/protected formatting is identical.
+  // A k-anon-suppressed cell reads "Protegido (k<5)", never a number.
+  const [showMapTable, setShowMapTable] = useState(false);
+  const mapTableRows = useMemo<MapTableRow[]>(() => {
+    const rows: MapTableRow[] = [];
+    for (const layer of activeLayers) {
+      const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
+      if (!isAggregate) continue;
+      for (const f of layer.features.features) {
+        const p = f.properties as Record<string, unknown>;
+        const unit = String(
+          p.name ??
+            p.localityName ??
+            p.province ??
+            p.provinceName ??
+            p.department ??
+            p.provinceCode ??
+            p.code ??
+            "—",
+        );
+        const suppressed = p.suppressed === true;
+        const rawValue =
+          typeof p.value === "number" ? p.value : typeof p.count === "number" ? p.count : null;
+        const readout = buildLayerReadout({
+          label: layer.label,
+          value: rawValue,
+          suppressed,
+          dataType: layer.dataType,
+          complianceTarget: layer.complianceTarget,
+        });
+        const value =
+          readout.state === "suppressed"
+            ? "Protegido (k<5)"
+            : readout.state === "nodata"
+              ? "Sin dato"
+              : (readout.valueText ?? "Sin dato");
+        rows.push({ layer: layer.label, unit, value });
+      }
+    }
+    rows.sort((a, b) => a.layer.localeCompare(b.layer, "es") || a.unit.localeCompare(b.unit, "es"));
+    return rows;
+  }, [activeLayers]);
+  const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
+
   const onScrub = useCallback((next: Date | null) => setAsOf(next), []);
 
   // "Copiar vista" fidelity: mirror the map camera (zoom + center) into the URL
@@ -2381,6 +2431,26 @@ export function PanoramaConsole({
               mark means at the active VISTA + derived level. These "honesty
               lines" live WITH the map they describe (design Decision 1). */}
           <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+          {/* "Ver como tabla" (Ley 26.653): the accessible, downloadable view of
+              what the map is painting — the map's own aria-label is only a point
+              count. Lives WITH the map (design Decision 1). */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              aria-expanded={showMapTable}
+              onClick={() => setShowMapTable((v) => !v)}
+              className="text-xs font-medium text-ln-op-azul hover:underline"
+            >
+              {showMapTable ? "Ocultar tabla" : "Ver como tabla"}
+            </button>
+            {showMapTable && (
+              <MapDataTable
+                rows={mapTableRows}
+                caption={mapTableCaption}
+                filename="panorama-mapa"
+              />
+            )}
+          </div>
           {/* panorama-event-points: honest points-mode disclosure — one line per
               active points-capable layer, stating the mark is now REAL locations
               (or coarse locality centroids for denuncias), plus the cap ("los N más
