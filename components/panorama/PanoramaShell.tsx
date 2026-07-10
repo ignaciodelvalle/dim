@@ -121,7 +121,18 @@ export function PanoramaShell({
   seededLayers,
 }: Props) {
   return (
-    <div className="space-y-4">
+    // ARCHETYPE A route-scoped DARK theme (Centro de Situación). data-theme
+    // "situation-room" re-maps the ln-op-* token set to a dark palette for this
+    // route only (see globals.css) — the dark map canvas becomes the surface
+    // rather than a lit card floating over it. The wrapper bleeds the dark page
+    // background to the content-region edges (negative margins cancel the shell's
+    // px-6 py-[22px] padding, then re-add a tighter inner pad) so "dark
+    // end-to-end" reaches below the topbar and beside the rail without forking
+    // the shared AppShell/topbar.
+    <div
+      data-theme="situation-room"
+      className="-mx-6 -my-[22px] min-h-[calc(100%+44px)] space-y-4 bg-ln-op-page px-6 py-5 text-ln-op-ink"
+    >
       {/* PO screenshot fix (2026-07-08, engram obs 1047): the h1 "Panorama"
           was redundant with the breadcrumb + the active nav-rail item (both
           stay elsewhere in the shell). The scope chip — previously floating

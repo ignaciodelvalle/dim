@@ -322,6 +322,83 @@
   --color-st-info-bd: var(--color-ln-op-viol-bd);
 }
 
+/* ---- Situation Room — route-scoped DARK operator theme --------------------- */
+/* ARCHETYPE A (Centro de Situación). The panorama route (/admin/panorama,
+ * /gob/panorama) renders dark END-TO-END so the dark MapLibre canvas
+ * (COLOR_CANVAS #0b1020) is the surface, not a lit BI card floating over it.
+ *
+ * The ln-op-* tokens are a GLOBAL LIGHT palette shared across every gob/admin
+ * operator surface — they can't be flipped in place. Instead this data-theme
+ * wrapper (applied to the panorama shell only) RE-MAPS the whole token set to a
+ * cohesive dark palette keyed off the map canvas. Because every ln-op-*
+ * utility (bg-ln-op-card, text-ln-op-ink, border-ln-op-line, …) resolves the
+ * CSS variable at use-time, re-declaring the variables here cascades to every
+ * KPI card, chip, accordion, drawer, and legend inside the wrapper with ZERO
+ * component forks. The st-* status tokens are re-remapped too (this block wins
+ * under .op-surface) so OpPill/OpKpi tints track the dark skin.
+ *
+ * Contrast: ink/ink-2/mute verified ≥ 4.5:1 on card/page; every status tint is
+ * a dark-surface pairing (light text on a deep tinted panel). */
+[data-theme="situation-room"] {
+  /* Page canvas — page sits just under the map canvas (#0b1020) so the map
+     edge reads as a seam, not a jump; card floats one step lighter. */
+  --color-ln-op-page: #0a0f1c;
+  --color-ln-op-card: #111a2b;
+  --color-ln-op-stripe: #16233a;
+  --color-ln-op-line: #26374f;
+  --color-ln-op-line-2: #1d2c42;
+
+  /* Text — near-white ink down to a legible faint. */
+  --color-ln-op-ink: #e9eef6;
+  --color-ln-op-ink-2: #bccadb;
+  --color-ln-op-mute: #8698ab;
+  --color-ln-op-faint: #647688;
+
+  /* Accent — the light-tier azul (#0e5a99) is far too dark on a dark panel;
+     lift links/active states to a legible celeste. */
+  --color-ln-op-azul: #5aa9e6;
+  --color-ln-op-azul-700: #7cbcee;
+  --color-ln-op-celeste: #7cbcee;
+  --color-ln-op-celeste-100: #1c2f49;
+  --color-ln-op-celeste-050: #16243a;
+
+  /* Semantic status — light text on deep tinted panels. */
+  --color-ln-op-danger: #f4a19d;
+  --color-ln-op-danger-bg: #2a1417;
+  --color-ln-op-danger-bd: #56272b;
+  --color-ln-op-warn: #f0c274;
+  --color-ln-op-warn-bg: #2a2112;
+  --color-ln-op-warn-bd: #574521;
+  --color-ln-op-ok: #74d494;
+  --color-ln-op-ok-bg: #10261a;
+  --color-ln-op-ok-bd: #235438;
+  --color-ln-op-viol: #c4aff0;
+  --color-ln-op-viol-bg: #1e1830;
+  --color-ln-op-viol-bd: #3b3059;
+  --color-ln-op-blue-bg: #14243a;
+  --color-ln-op-blue-bd: #294263;
+
+  /* Severity — brightened for the dark skin. */
+  --color-ln-op-sev-crit: #f4a19d;
+  --color-ln-op-sev-high: #f0a868;
+  --color-ln-op-sev-med: #f0c274;
+  --color-ln-op-sev-low: #74d494;
+
+  /* st-* re-remap (wins under .op-surface) so status components track dark. */
+  --color-st-ok: var(--color-ln-op-ok);
+  --color-st-ok-bg: var(--color-ln-op-ok-bg);
+  --color-st-ok-bd: var(--color-ln-op-ok-bd);
+  --color-st-warn: var(--color-ln-op-warn);
+  --color-st-warn-bg: var(--color-ln-op-warn-bg);
+  --color-st-warn-bd: var(--color-ln-op-warn-bd);
+  --color-st-err: var(--color-ln-op-danger);
+  --color-st-err-bg: var(--color-ln-op-danger-bg);
+  --color-st-err-bd: var(--color-ln-op-danger-bd);
+  --color-st-info: var(--color-ln-op-viol);
+  --color-st-info-bg: var(--color-ln-op-viol-bg);
+  --color-st-info-bd: var(--color-ln-op-viol-bd);
+}
+
 /* ---- Base ------------------------------------------------------------------ */
 
 html {
