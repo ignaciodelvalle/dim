@@ -159,6 +159,7 @@ const {
   arLocalities,
   jurisdictionsCensus,
   cases,
+  caseEvents,
   custodyDisputes,
   enoProcessingQueue,
   eventNotificationOutbox,
@@ -986,6 +987,54 @@ async function runClean(): Promise<void> {
 
   // 10d. PANO synthetic owner profile
   await db.execute(sql`DELETE FROM profiles WHERE display_name = 'PANO-Seed-Owner'`);
+
+  // 10e. Reset the ENO outbreak-investigation pool.
+  //
+  // The manual "abrir investigación" flow (app/gob/vigilancia/investigaciones/
+  // nuevo + the 05-gobierno recording) dedupes ONE open investigation per
+  // (ENO disease, jurisdiction). The ENO catalog is LOCKED by spec at a
+  // handful of diseases (ENO-D1 — src/modules/surveillance/domain/eno-catalog.ts,
+  // "DO NOT add diseases here"), so the govt jurisdiction's openable pool is
+  // tiny AND these cases are NOT PANO-tagged, so they persist across recording
+  // runs. Once every disease already has an open investigation the flow can no
+  // longer open a fresh one and the journey exhausts. Widening the catalog is
+  // off the table (spec-locked, each disease is a legal ENO entry), so the
+  // honest lever is to PURGE the manually-opened investigations on each reseed,
+  // restoring the full openable pool. Scoped to opened_reason LIKE 'manual [%'
+  // so only manual-apertura cases are touched (bite/rabies auto-cases carry
+  // other reasons). case_events is append-only (case_events_mutation_override
+  // trigger), so the GUC pair must be set before the cascade delete fires.
+  const manualInvestigations = await db
+    .select({ id: cases.id })
+    .from(cases)
+    .where(
+      and(eq(cases.caseKind, "outbreak_investigation"), like(cases.openedReason, "manual [%")),
+    );
+
+  if (manualInvestigations.length > 0) {
+    const actorRows = (await db.execute(sql`SELECT id FROM profiles LIMIT 1`)) as unknown as Array<{
+      id: string;
+    }>;
+    const actorId = actorRows[0]?.id ?? null;
+
+    if (!actorId) {
+      log("WARN", "  No profile found — skipping outbreak-investigation pool reset");
+    } else {
+      const ids = manualInvestigations.map((r) => r.id);
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT set_config('app.allow_event_mutation', 'true', true)`);
+        await tx.execute(
+          sql`SELECT set_config('app.allow_event_mutation_actor', ${actorId}, true)`,
+        );
+        await tx.delete(caseEvents).where(inArray(caseEvents.caseId, ids));
+        await tx.delete(cases).where(inArray(cases.id, ids));
+      });
+      log(
+        "OK",
+        `  Reset ${manualInvestigations.length} manual outbreak investigation(s) — ENO pool restored`,
+      );
+    }
+  }
 
   log("DONE", "Clean complete");
 }
