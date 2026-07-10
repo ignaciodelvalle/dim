@@ -329,7 +329,7 @@ export default async function GobAdopcionesPage({
                     aria-hidden="true"
                   >
                     <div
-                      className="h-full rounded bg-ln-op-verde"
+                      className="h-full rounded bg-ln-op-ok"
                       style={{ width: `${fPct.adoptionPct}%` }}
                     />
                   </div>
@@ -353,7 +353,7 @@ export default async function GobAdopcionesPage({
                     aria-hidden="true"
                   >
                     <div
-                      className={`h-full rounded ${returnRatePct != null && returnRatePct > 10 ? "bg-ln-op-rojo" : returnRatePct != null && returnRatePct > 5 ? "bg-ln-op-amarillo" : "bg-ln-op-azul"}`}
+                      className={`h-full rounded ${returnRatePct != null && returnRatePct > 10 ? "bg-ln-op-danger" : returnRatePct != null && returnRatePct > 5 ? "bg-ln-op-warn" : "bg-ln-op-azul"}`}
                       style={{ width: `${fPct.reversedPct}%` }}
                     />
                   </div>
@@ -405,7 +405,7 @@ export default async function GobAdopcionesPage({
                   <div className="text-[11px] text-ln-op-mute mt-0.5">Resueltas</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-xl font-semibold text-ln-op-verde tabular-nums">
+                  <div className="text-xl font-semibold text-ln-op-ok tabular-nums">
                     {appFunnel.approved.toLocaleString("es-AR")}
                   </div>
                   <div className="text-[11px] text-ln-op-mute mt-0.5">Aprobadas</div>
@@ -537,7 +537,7 @@ export default async function GobAdopcionesPage({
                         de {shelterOccupancy.capacity.toLocaleString("es-AR")} cupos declarados
                         {shelterOccupancy.pct != null && (
                           <span
-                            className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-rojo" : shelterOccupancy.pct > 70 ? "text-ln-op-amarillo" : "text-ln-op-verde"}`}
+                            className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-danger" : shelterOccupancy.pct > 70 ? "text-ln-op-warn" : "text-ln-op-ok"}`}
                           >
                             ({shelterOccupancy.pct}%)
                           </span>
@@ -555,7 +555,7 @@ export default async function GobAdopcionesPage({
                     role="presentation"
                   >
                     <div
-                      className={`h-full rounded transition-all ${shelterOccupancy.pct > 90 ? "bg-ln-op-rojo" : shelterOccupancy.pct > 70 ? "bg-ln-op-amarillo" : "bg-ln-op-verde"}`}
+                      className={`h-full rounded transition-all ${shelterOccupancy.pct > 90 ? "bg-ln-op-danger" : shelterOccupancy.pct > 70 ? "bg-ln-op-warn" : "bg-ln-op-ok"}`}
                       style={{ width: `${Math.min(100, shelterOccupancy.pct)}%` }}
                     />
                   </div>
