@@ -1679,6 +1679,23 @@ export function PanoramaConsole({
   // scrub disables it (with an honest note by the toggle). CRITICAL-2 fix.
   const bivariateActive = bivariateMode && bivariateEligible && !scrubbing;
 
+  // Reset the encoding toggle when its eligibility drops (preset/level/layer
+  // change) — otherwise bivariateMode stays "on" invisibly and silently re-engages
+  // the moment eligibility returns, surprising the operator. The toggle only
+  // exists while eligible, so this keeps its state honest to what's on screen.
+  useEffect(() => {
+    if (!bivariateEligible && bivariateMode) setBivariateMode(false);
+  }, [bivariateEligible, bivariateMode]);
+
+  // Scale-lock honesty (WARNING 6): opening via a shared ?asOf link mounts the map
+  // mid-scrub, so the color/size scale locks to THAT day's domain — it never saw
+  // the live edge to anchor against. Disclose that anchor until the operator
+  // visits the live edge once (returning to live refreshes the lock correctly).
+  const [scaleAnchoredToAsOf, setScaleAnchoredToAsOf] = useState(initialAsOf !== null);
+  useEffect(() => {
+    if (asOf === null) setScaleAnchoredToAsOf(false);
+  }, [asOf]);
+
   // task #63: the layer list actually painted by the map. When the bivariate
   // encoding is active, REPLACE the two stacked layers visually — drop the
   // zoonosis bubbles and repaint the cobertura province fill as the 3×3 matrix,
@@ -2649,6 +2666,14 @@ export function PanoramaConsole({
             </p>
           ) : (
             <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+          )}
+          {/* WARNING 6: honest note when the color scale is anchored to a shared
+              link's day rather than the live edge (the map mounted mid-scrub). */}
+          {scaleAnchoredToAsOf && scrubbing && (
+            <p className="text-xs leading-snug text-ln-op-mute" aria-live="polite">
+              Escala de color anclada a este día (se abrió desde un enlace con fecha). Volvé al
+              último evento para fijarla al borde en vivo.
+            </p>
           )}
           {/* "Ver como tabla" (Ley 26.653): the accessible, downloadable view of
               what the map is painting — the map's own aria-label is only a point

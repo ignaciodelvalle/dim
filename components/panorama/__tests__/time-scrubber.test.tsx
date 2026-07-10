@@ -394,3 +394,55 @@ describe("TimeScrubber — Simple/Detalle", () => {
     expect(screen.getByText("Según lo conocido al momento")).toBeInTheDocument();
   });
 });
+
+describe("TimeScrubber — shared-asOf mount does not flash live (WARNING 5)", () => {
+  it("does not emit the pre-seek live (null) when an initialAsOf is pending", () => {
+    const onChange = vi.fn();
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        initialAsOf={new Date("2026-06-15T00:00:00Z")}
+      />,
+    );
+    // The mount emission is the restored day, never a transient live (null) — a
+    // null would flash the parent's ?asOf URL and yield a live copy-during-flash.
+    expect(onChange).toHaveBeenCalled();
+    const firstArg = onChange.mock.calls[0][0] as Date | null;
+    expect(firstArg).not.toBeNull();
+    expect(firstArg?.toISOString().slice(0, 10)).toBe("2026-06-15");
+    expect(onChange.mock.calls.every((c) => c[0] !== null)).toBe(true);
+  });
+
+  it("still emits live (null) on a normal mount (no initialAsOf)", () => {
+    const onChange = vi.fn();
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("emits live (null) when initialAsOf falls outside the window (clamped, no restore)", () => {
+    const onChange = vi.fn();
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        initialAsOf={new Date("2025-01-01T00:00:00Z")}
+      />,
+    );
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+});

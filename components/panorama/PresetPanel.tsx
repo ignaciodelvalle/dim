@@ -8,8 +8,11 @@
 // reader announcing "toggle button, pressed" on each of 6 buttons never
 // conveys the single-choice semantics; "radio button 2 of 6, selected" does).
 // Roving tabindex per the WAI-ARIA radiogroup pattern: only the active (or
-// first, when none is active) radio is tab-stoppable; arrow keys move focus
-// AND selection between siblings.
+// first, when none is active) radio is tab-stoppable; arrow keys move FOCUS
+// between siblings WITHOUT committing — selection commits on Enter/Space (or a
+// click). The APG documents this "selection does NOT follow focus" variant as
+// an accepted alternative; it stops each arrow keypress from firing a full
+// preset switch (a fresh fetch burst) while the operator is merely browsing.
 //
 // Each preset shows ONLY its label (PO screenshot fix, 2026-07-08, engram
 // obs 1047 — the description/question line was dropped from the card; the
@@ -17,7 +20,7 @@
 // metricIds). Clicking/selecting a radio calls onPreset(id) and the parent
 // (PanoramaConsole) activates the corresponding compatibility-valid layer set.
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import type { PanoramaPreset, PresetId } from "@/src/modules/panorama/domain/presets";
 
@@ -53,15 +56,24 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
 
   // Roving tabindex (WAI-ARIA radiogroup pattern): the active preset is the
   // tab stop; when none is active (manual "modo avanzado"), the first one is.
+  // While the operator arrows through the group, the tab stop follows FOCUS
+  // (focusIndex), not selection — reset to null so a fresh Tab-in lands on the
+  // selected radio again.
   const activeIndex = presets.findIndex((p) => p.id === activePresetId);
-  const rovingIndex = activeIndex >= 0 ? activeIndex : 0;
+  const selectedIndex = activeIndex >= 0 ? activeIndex : 0;
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  const rovingIndex = focusIndex ?? selectedIndex;
   const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
-  function selectAt(index: number) {
+  function focusAt(index: number) {
+    const clamped = (index + presets.length) % presets.length;
+    setFocusIndex(clamped);
+    btnRefs.current[clamped]?.focus();
+  }
+
+  function commitAt(index: number) {
     const target = presets[index];
-    if (!target) return;
-    btnRefs.current[index]?.focus();
-    onPreset(target.id);
+    if (target) onPreset(target.id);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
@@ -69,20 +81,25 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
       case "ArrowRight":
       case "ArrowDown":
         e.preventDefault();
-        selectAt((index + 1) % presets.length);
+        focusAt(index + 1);
         break;
       case "ArrowLeft":
       case "ArrowUp":
         e.preventDefault();
-        selectAt((index - 1 + presets.length) % presets.length);
+        focusAt(index - 1);
         break;
       case "Home":
         e.preventDefault();
-        selectAt(0);
+        focusAt(0);
         break;
       case "End":
         e.preventDefault();
-        selectAt(presets.length - 1);
+        focusAt(presets.length - 1);
+        break;
+      case " ":
+      case "Enter":
+        e.preventDefault();
+        commitAt(index);
         break;
       default:
         break;
@@ -97,7 +114,18 @@ export function PresetPanel({ presets, activePresetId, onPreset, layout = "stack
       >
         Vista
       </p>
-      <ul className={listClass} role="radiogroup" aria-labelledby="panorama-vista-label">
+      {/* The blur handler only resets the roving tab stop (focus bookkeeping);
+          the radios carry all interactive semantics. Focus left the whole group
+          → drop the roving position so a later Tab-in lands on the SELECTED radio
+          (APG), not the last-browsed one. */}
+      <ul
+        className={listClass}
+        role="radiogroup"
+        aria-labelledby="panorama-vista-label"
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIndex(null);
+        }}
+      >
         {presets.map((preset, index) => {
           const isActive = activePresetId === preset.id;
           return (

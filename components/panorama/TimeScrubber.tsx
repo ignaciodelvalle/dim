@@ -224,13 +224,25 @@ export function TimeScrubber({
   // runs on mount, parking at live). A day outside the active window clamps to
   // the live edge via dateToDayIndex → treated as "no restore" (idx === steps).
   const initialAsOfSeekedRef = useRef(false);
+  // While a URL-restored asOf is pending its mount seek, the scrubber sits at the
+  // live edge and would emit a transient onChange(null) BEFORE the seek lands —
+  // the parent's URL-sync then deletes ?asOf and re-adds it, a live flash that a
+  // copy-during-flash captures as a live link. Suppress that pre-seek null (see
+  // the onChange effect). Only armed when a restore is actually pending.
+  const awaitingInitialSeekRef = useRef(initialAsOf !== null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only restore; win/initialAsOf read live.
   useEffect(() => {
     if (initialAsOfSeekedRef.current) return;
     initialAsOfSeekedRef.current = true;
-    if (initialAsOf === null || win.steps === 0) return;
+    if (initialAsOf === null || win.steps === 0) {
+      awaitingInitialSeekRef.current = false;
+      return;
+    }
     const idx = dateToDayIndex(win, initialAsOf);
+    // A day inside the window restores; a clamped-out day is treated as "no
+    // restore" — clear the guard so the normal live (null) emit is not swallowed.
     if (idx > 0 && idx < win.steps) setIndex(idx);
+    else awaitingInitialSeekRef.current = false;
   }, []);
 
   // Derive the as-of Date for the current index. At the live edge → null.
@@ -251,6 +263,12 @@ export function TimeScrubber({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   useEffect(() => {
+    if (awaitingInitialSeekRef.current) {
+      // Swallow the pre-seek live (null); wait for the restored day to land so
+      // the parent never sees a transient live edge (avoids the ?asOf URL flash).
+      if (asOf === null) return;
+      awaitingInitialSeekRef.current = false;
+    }
     onChangeRef.current(asOf);
   }, [asOf]);
 

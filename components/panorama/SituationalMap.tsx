@@ -536,6 +536,11 @@ export function SituationalMap({
   // stacks another full set of hover/click handlers → duplicate popups + double
   // feature-state writes. We wire ONCE per layer id and never re-bind.
   const divisionWiredRef = useRef<Set<string>>(new Set());
+  // Same wire-once discipline for the PROVINCE choropleth fill (mirrors
+  // divisionWiredRef): a layer toggle removes + re-adds the province fill, and
+  // re-wiring would stack duplicate map.on('click'/'mousemove') handlers on the
+  // same layer id (multi-fire popups + double hover-state writes).
+  const provinceWiredRef = useRef<Set<string>>(new Set());
   // Capture initialBounds once at mount — it's a stable server-computed value
   // (jurisdiction bbox) that must not change after the map is constructed.
   const initialBoundsRef = useRef(initialBounds);
@@ -962,7 +967,26 @@ export function SituationalMap({
   // biome-ignore lint/correctness/useExhaustiveDependencies: layers is the intended trigger.
   useEffect(() => {
     if (loadedRef.current) syncLayers();
+    // The pinned popup is a frozen HTML snapshot: a layer toggle, level flip,
+    // scope drill, or as-of scrub all change `layers` but leave STALE numbers
+    // visible. A popup that cannot refresh itself must not survive the change —
+    // close it so the operator re-clicks for fresh values (honest over stale).
+    pinnedPopupRef.current?.remove();
   }, [layers]);
+
+  // Esc closes the pinned popup even when focus has left the map subtree. The
+  // onKeyDown on the map container (handleMapKeyDown) only fires while focus is
+  // inside it; after pinning, focus can be anywhere, so mirror the shortcut at
+  // the document level. Cheap no-op when nothing is pinned; cleaned up on unmount.
+  useEffect(() => {
+    function onDocKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && pinnedPopupRef.current?.isOpen()) {
+        pinnedPopupRef.current.remove();
+      }
+    }
+    document.addEventListener("keydown", onDocKeyDown);
+    return () => document.removeEventListener("keydown", onDocKeyDown);
+  }, []);
 
   // --- A1 PR-7: autozoom on jurisdiction select. ---------------------------
   // Fires when the operator picks a province or locality in the
@@ -1726,6 +1750,10 @@ export function SituationalMap({
   }) {
     const pinned = pinnedPopupRef.current;
     if (!pinned) return;
+    // Pinning supersedes the transient hover preview — dismiss it so the two
+    // popups never show simultaneously (a scoped-province click pinned WITHOUT
+    // clearing the hover popup, leaving both on screen).
+    popupRef.current?.remove();
     const html = buildPinnedPopupHtml({
       place: opts.place,
       readouts: opts.readouts,
@@ -2122,6 +2150,12 @@ export function SituationalMap({
   function wireProvinceChoroplethInteractions(map: maplibregl.Map, layer: ActiveLayer) {
     const popup = popupRef.current;
     if (!popup) return;
+    // Bind ONCE per layer id — the handlers persist across the fill layer's
+    // remove/re-add cycles (see provinceWiredRef / divisionWiredRef), so
+    // re-wiring would stack duplicate handlers (multi-fire popups + double
+    // hover-state writes).
+    if (provinceWiredRef.current.has(layer.id)) return;
+    provinceWiredRef.current.add(layer.id);
     const fillId = provinceFillLayerId(layer.id);
     // Look up the value for a province code from the layer's current features.
     const valueFor = (code: string): number | null => {
@@ -2187,10 +2221,13 @@ export function SituationalMap({
             ? `<span style="color:#94a3b8">Sin datos</span>`
             : `<strong>${value.toLocaleString("es-AR")}</strong>`;
       }
+      // Read the label live too (handlers are wired once — a captured label
+      // would go stale when e.g. the bivariate encoding renames the layer).
+      const label = current?.label ?? layer.label;
       popup
         .setLngLat(e.lngLat)
         .setHTML(
-          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${escapeHtml(place)}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(layer.label)}</em></div>`,
+          `<div style="font-size:12px;padding:2px 6px"><div style="color:#cbd5e1">${escapeHtml(place)}</div>${valueLine}<br/><em style="font-size:11px;color:#94a3b8">${escapeHtml(label)}</em></div>`,
         )
         .addTo(map);
     });
