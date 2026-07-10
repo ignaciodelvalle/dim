@@ -9,6 +9,7 @@ import {
   PET_STATUS_LABEL,
   SEVERITY_LABEL,
 } from "@/components/panorama/DetailDrawer";
+import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import {
   type GraduatedScale,
   buildGraduatedScale,
@@ -372,11 +373,13 @@ function layersBbox(layers: ActiveLayer[]): [[number, number], [number, number]]
 /** One feature of a local division GeoJSON, as much of it as the join reads. */
 type DivisionRawFeature = { properties?: { code?: string; name?: string } | null };
 
-/** Same-origin fetch of a local GeoJSON asset → its features (null on failure). */
+/** Same-origin fetch of a local GeoJSON asset → its features (null on failure).
+ * Routed through the shared session cache so a repeat/concurrent request for the
+ * same asset (province drills, re-mounts, the CABA inset) reuses one fetch. */
 async function fetchGeojsonFeatures(url: string): Promise<DivisionRawFeature[] | null> {
   try {
     // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
-    const raw = (await fetch(url).then((r) => r.json())) as any;
+    const raw = await fetchGeojsonCached<any>(url);
     return (raw.features ?? []) as DivisionRawFeature[];
   } catch {
     return null; // Divisions unavailable — the provinces basemap still renders.
@@ -549,7 +552,11 @@ export function SituationalMap({
         canvasContextAttributes: { preserveDrawingBuffer: true },
         // es-AR labels for MapLibre's built-in NavigationControl (zoom buttons)
         // — otherwise a govt user sees "Zoom in"/"Zoom out" tooltips in English.
+        // "Map.Title" is the aria-label MapLibre stamps on the interactive canvas
+        // (default "Map"); override it so a screen-reader user in a Spanish app
+        // hears an es-AR name instead of an English one.
         locale: {
+          "Map.Title": "Mapa de situación",
           "NavigationControl.ZoomIn": "Acercar",
           "NavigationControl.ZoomOut": "Alejar",
           "NavigationControl.ResetBearing": "Restablecer orientación",
@@ -625,7 +632,7 @@ export function SituationalMap({
         // / clicks — purely a spatial-reference basemap.
         try {
           // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
-          const context = (await fetch(CONTEXT_URL).then((r) => r.json())) as any;
+          const context = await fetchGeojsonCached<any>(CONTEXT_URL);
           if (cancelled) return;
           map.addSource("sudamerica-context", { type: "geojson", data: context });
           map.addLayer({
@@ -647,7 +654,7 @@ export function SituationalMap({
         // Local basemap: Argentine province polygons (no external tiles).
         try {
           // biome-ignore lint/suspicious/noExplicitAny: runtime JSON from local GeoJSON asset.
-          const basemap = (await fetch(BASEMAP_URL).then((r) => r.json())) as any;
+          const basemap = await fetchGeojsonCached<any>(BASEMAP_URL);
           if (cancelled) return;
           // promoteId: "code" so feature-state can key on the province code
           // (panorama-ia-v2 §3.3 row→map highlight).
