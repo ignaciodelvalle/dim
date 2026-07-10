@@ -120,6 +120,15 @@ type Props = {
    * ignored (the slider stays at the live edge). Absent → open at the live edge.
    */
   initialAsOf?: Date | null;
+  /**
+   * Watermark honesty (task #69): the last-event timestamp (data freshness). The
+   * data is BATCH, not "en vivo", so the live edge reads "Al último evento: HH:MM"
+   * (not "Ahora (en vivo)") and the DISPLAY axis quantizes its upper bound to this
+   * watermark instead of Date.now() — a client-side presentation clamp only, so
+   * the server's 300s cache-key bucketing is untouched. Absent/null → the label
+   * degrades to a neutral "Al último evento" and the axis keeps `until`.
+   */
+  watermark?: Date | null;
 };
 
 export function TimeScrubber({
@@ -134,11 +143,20 @@ export function TimeScrubber({
   onScrubDetailChange,
   resetToken,
   initialAsOf = null,
+  watermark = null,
 }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
   // by timestamp so a new Date object with the same instant does not rebuild.
   const sinceMs = since.getTime();
-  const untilMs = until.getTime();
+  // Watermark honesty: the DISPLAY axis ends at the last-event watermark, not at
+  // `until` (≈ Date.now()). The data is batch, so the live edge is the last event
+  // — clamp the axis to it when it falls within the window (never past `until`).
+  const untilRawMs = until.getTime();
+  const watermarkMs = watermark?.getTime() ?? null;
+  const untilMs =
+    watermarkMs !== null && watermarkMs > sinceMs && watermarkMs <= untilRawMs
+      ? watermarkMs
+      : untilRawMs;
   const win: ScrubWindow = useMemo(
     () => buildScrubWindow(new Date(sinceMs), new Date(untilMs)),
     [sinceMs, untilMs],
@@ -193,7 +211,15 @@ export function TimeScrubber({
   // Derive the as-of Date for the current index. At the live edge → null.
   const atLive = index >= win.steps;
   const asOf = useMemo(() => (atLive ? null : dayIndexToDate(win, index)), [win, index, atLive]);
-  const asOfLabel = atLive ? "Ahora (en vivo)" : formatAsOfLabel(dayIndexToDate(win, index));
+  // Watermark honesty (task #69): the live edge is the last INGESTED event, not a
+  // real-time "now" — the data is batch. Label it as such and keep "en vivo" out.
+  const watermarkTime =
+    watermark !== null && !Number.isNaN(watermark.getTime())
+      ? watermark.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null;
+  const liveEdgeLabel =
+    watermarkTime !== null ? `Al último evento: ${watermarkTime}` : "Al último evento";
+  const asOfLabel = atLive ? liveEdgeLabel : formatAsOfLabel(dayIndexToDate(win, index));
 
   // Notify the parent whenever the resolved as-of changes (onChange via a ref so
   // a new callback identity each render does not re-fire the effect).
@@ -413,7 +439,7 @@ export function TimeScrubber({
               type="button"
               onClick={reset}
               disabled={atLive && !playing && looping === null}
-              aria-label="Volver a ahora (en vivo)"
+              aria-label="Volver al último evento"
               className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[var(--text-sm)] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
             >
               Ahora
@@ -422,7 +448,7 @@ export function TimeScrubber({
 
           <div className="flex items-center justify-between text-xs text-ln-op-mute">
             <span className="tabular-nums">{sinceLabel}</span>
-            <span className="tabular-nums">Ahora</span>
+            <span className="tabular-nums">Último evento</span>
           </div>
 
           {/* Detalle: date-tick references along the track. */}
@@ -533,9 +559,11 @@ export function TimeScrubber({
         </>
       )}
 
-      {/* Live region: announces the as-of date to assistive tech as it changes. */}
+      {/* Live region: announces the as-of date to assistive tech as it changes.
+          At the live edge the label already reads "Al último evento: HH:MM", so
+          skip the "Situación al" prefix there to avoid a doubled "al". */}
       <p id={liveId} className="sr-only" aria-live="polite">
-        Situación al {asOfLabel}
+        {atLive ? asOfLabel : `Situación al ${asOfLabel}`}
       </p>
     </section>
   );

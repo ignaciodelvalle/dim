@@ -20,6 +20,43 @@ afterEach(() => {
 const SINCE = new Date("2026-06-01T00:00:00Z");
 const UNTIL = new Date("2026-07-01T00:00:00Z");
 
+describe("TimeScrubber — watermark honesty (task #69)", () => {
+  it("labels the live edge as the last event (no 'en vivo')", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        watermark={new Date("2026-06-30T14:37:00Z")}
+      />,
+    );
+
+    // The live edge reads "Al último evento: HH:MM" (rendered in both the visible
+    // header and the sr-only live region — hence getAllByText); "en vivo" is gone,
+    // and the axis upper bound is relabeled from "Ahora" to "Último evento".
+    expect(screen.getAllByText(/Al último evento:/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/en vivo/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Último evento")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Volver al último evento" })).toBeInTheDocument();
+  });
+
+  it("degrades to a neutral 'Al último evento' when no watermark is provided", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText("Al último evento").length).toBeGreaterThan(0);
+    expect(screen.queryByText(/en vivo/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("TimeScrubber — temporal gating (design Decision 4)", () => {
   it("non-temporal vista: temporalAvailable=false shows the empty state instead of the track", () => {
     render(
@@ -156,7 +193,7 @@ describe("TimeScrubber — loop windows", () => {
       "true",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Volver a ahora (en vivo)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Volver al último evento" }));
 
     const slider = screen.getByRole("slider") as HTMLInputElement;
     expect(slider.value).toBe(slider.max);

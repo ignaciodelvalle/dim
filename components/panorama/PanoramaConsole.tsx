@@ -2544,6 +2544,7 @@ export function PanoramaConsole({
             onScrubDetailChange={setScrubDetail}
             resetToken={scrubResetToken}
             initialAsOf={initialAsOf}
+            watermark={kpis.dataAsOf ? new Date(kpis.dataAsOf) : null}
           />
         </div>
         <div className="space-y-3">
