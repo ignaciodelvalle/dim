@@ -9,6 +9,11 @@ import {
   PET_STATUS_LABEL,
   SEVERITY_LABEL,
 } from "@/components/panorama/DetailDrawer";
+import {
+  type GraduatedScale,
+  buildGraduatedScale,
+  graduatedMaxCount,
+} from "@/components/panorama/graduated-scale";
 import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 
@@ -494,6 +499,13 @@ export function SituationalMap({
     // so the legend shows the "Suprimido (k-anon)" hatch swatch.
     suppressed: boolean;
   } | null>(null);
+  // #6/#7: the data-driven graduated-symbol scale (bubble legend bins + radius
+  // stops), anchored on the observed maximum count across the active graduated
+  // layers. State so the legend repaints when the data range changes; the map's
+  // circle-radius interpolate is driven from the SAME scale in syncLayers, so a
+  // legend bubble always matches its on-map bubble. Guarded setState (like
+  // divisionLegend) avoids a render loop.
+  const [graduatedScale, setGraduatedScale] = useState<GraduatedScale | null>(null);
   // cursor Part2 — the live camera zoom, tracked in state (not just the ref) so
   // the CABA/AMBA inset panel can show at national scope and hide on drill.
   const [insetZoom, setInsetZoom] = useState(AR_ZOOM);
@@ -1024,6 +1036,18 @@ export function SituationalMap({
       }
     }
 
+    // #6/#7: derive the graduated-symbol scale ONCE per sync from the observed
+    // maximum count across every active graduated layer, so all bubbles (and the
+    // single shared legend) size on the same data-driven, area-proportional axis.
+    const graduatedCollections = active
+      .filter((l) => l.renderMode === "graduated")
+      .map((l) => ({
+        features: l.features.features as ReadonlyArray<{
+          properties?: { count?: number | null } | null;
+        }>,
+      }));
+    const gradScale = buildGraduatedScale(graduatedMaxCount(graduatedCollections));
+
     // The division-fill legend descriptor for the active locality choropleth (at
     // most one base layer is active at a time). Collected during the loop and
     // committed once, so the legend overlay repaints with the current fill range.
@@ -1130,6 +1154,16 @@ export function SituationalMap({
         mountedPointModeRef.current.get(layer.id) !== layer.renderMode;
       if (existing && !pointModeFlipped) {
         existing.setData(data);
+        // #6/#7: the source's data changed but its paint did not — re-apply the
+        // freshly derived area-proportional radius stops so the bubbles track the
+        // new observed maximum instead of a stale add-time scale.
+        if (layer.renderMode === "graduated" && map.getLayer(pointLayerId(layer.id))) {
+          map.setPaintProperty(
+            pointLayerId(layer.id),
+            "circle-radius",
+            graduatedRadiusExpr(gradScale.radiusStops),
+          );
+        }
       } else {
         if (pointModeFlipped) {
           removeLayer(map, layer.id);
@@ -1140,7 +1174,7 @@ export function SituationalMap({
           addChoroplethLayer(map, layer, data);
         } else if (layer.renderMode === "graduated") {
           // F1: density+signal layers render as per-unit graduated circles (no clustering).
-          addGraduatedPointLayer(map, layer, data);
+          addGraduatedPointLayer(map, layer, data, gradScale.radiusStops);
           mountedPointModeRef.current.set(layer.id, "graduated");
         } else {
           // Reference layers (refugios, decomisos) AND perdidas real-dots (points):
@@ -1171,6 +1205,10 @@ export function SituationalMap({
           prev.suppressed === nextDivisionLegend.suppressed);
       return same ? prev : nextDivisionLegend;
     });
+
+    // #6/#7: commit the graduated-symbol scale for the legend, guarded (same
+    // reason as divisionLegend) — a stable maxValue must not re-trigger a render.
+    setGraduatedScale((prev) => (prev?.maxValue === gradScale.maxValue ? prev : gradScale));
 
     // cursors #4 + #5: reconcile basemap luminance + border hierarchy after every
     // layer change (a province choropleth toggling on/off flips the basemap dim).
@@ -1418,10 +1456,29 @@ export function SituationalMap({
    * This replaces MapLibre's generic point clustering for these layers so the
    * map shows a STABLE, DETERMINISTIC symbol per unit regardless of zoom level.
    */
+  /**
+   * #6/#7 — the AREA-proportional, data-driven `circle-radius` expression for a
+   * graduated layer. Suppressed cells keep the fixed small muted radius; visible
+   * cells interpolate over `radiusStops` derived from the observed maximum count
+   * (r ∝ √count — see graduated-scale.ts). Stops come from the shared scale so
+   * the on-map bubble matches the legend bubble for any value.
+   */
+  function graduatedRadiusExpr(
+    radiusStops: ReadonlyArray<readonly [number, number]>,
+  ): maplibregl.ExpressionSpecification {
+    return [
+      "case",
+      ["==", ["get", "suppressed"], true],
+      5,
+      ["interpolate", ["linear"], ["coalesce", ["get", "count"], 0], ...radiusStops.flat()],
+    ] as unknown as maplibregl.ExpressionSpecification;
+  }
+
   function addGraduatedPointLayer(
     map: maplibregl.Map,
     layer: ActiveLayer,
     data: GeoJSON.FeatureCollection,
+    radiusStops: ReadonlyArray<readonly [number, number]>,
   ) {
     // Non-clustered source — one feature per unit is already the aggregation unit.
     map.addSource(srcId(layer.id), { type: "geojson", data });
@@ -1437,30 +1494,7 @@ export function SituationalMap({
           layer.color,
         ],
         "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.45, 0.82],
-        // Graduated radius by count. Suppressed cells render at a fixed small
-        // radius (coalesce null → 0 then the case catches suppressed before
-        // the interpolate). Province-level units carry larger counts so the
-        // higher end of the scale is wider.
-        "circle-radius": [
-          "case",
-          ["==", ["get", "suppressed"], true],
-          5,
-          [
-            "interpolate",
-            ["linear"],
-            ["coalesce", ["get", "count"], 0],
-            0,
-            6,
-            10,
-            10,
-            50,
-            16,
-            200,
-            24,
-            500,
-            32,
-          ],
-        ],
+        "circle-radius": graduatedRadiusExpr(radiusStops),
         "circle-stroke-color": COLOR_CANVAS,
         "circle-stroke-width": 1.5,
       },
@@ -1894,17 +1928,15 @@ export function SituationalMap({
   // addGraduatedPointLayer. Independent of zoom (circles are non-clustered, one
   // per unit, so this legend is always accurate). Shown when at least one
   // graduated layer is active.
-  const hasGraduatedLayer = layers.some((l) => l.renderMode === "graduated");
-
-  // Graduated-circle legend buckets: [radius-px, label]. Mirrors the step
-  // expression in addGraduatedPointLayer: 0→6, 10→10, 50→16, 200→24, 500→32.
-  const GRADUATED_BUCKETS: Array<{ r: number; label: string }> = [
-    { r: 6, label: "1–9" },
-    { r: 10, label: "10–49" },
-    { r: 16, label: "50–199" },
-    { r: 24, label: "200–499" },
-    { r: 32, label: "500+" },
-  ];
+  // #6/#7: the graduated legend is data-driven — its sample bubbles come from
+  // `graduatedScale` (built in syncLayers from the observed max), so they show the
+  // scale the data actually occupies (e.g. 1–4 when the signals are tiny) at the
+  // exact area-proportional sizes rendered on the map. Only shown when a graduated
+  // layer is active AND the scale has resolved with real data.
+  const hasGraduatedLayer =
+    layers.some((l) => l.renderMode === "graduated") &&
+    graduatedScale !== null &&
+    graduatedScale.bins.length > 0;
 
   // panorama-ia-v2 §3.6: copy the canonical view URL (deep-link) to clipboard.
   const [copied, setCopied] = useState(false);
@@ -2175,12 +2207,12 @@ export function SituationalMap({
           ))}
           {/* F1 graduated-circle legend: fixed size → count-bucket mapping.
               Does NOT depend on zoom — circles are non-clustered, one per unit. */}
-          {hasGraduatedLayer && (
+          {hasGraduatedLayer && graduatedScale && (
             <div className="rounded-[var(--radius-md)] bg-black/55 px-3 py-2 text-[var(--text-sm)] text-white/90">
               <div className="mb-1.5 font-medium text-white/80">Eventos por unidad</div>
               <div className="flex flex-col gap-1">
-                {GRADUATED_BUCKETS.map((b) => (
-                  <div key={b.label} className="flex items-center gap-2">
+                {graduatedScale.bins.map((b) => (
+                  <div key={b.value} className="flex items-center gap-2">
                     <span
                       className="flex-none rounded-full"
                       style={{
