@@ -10,6 +10,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui
 import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { CapacityEditor } from "./CapacityEditor";
@@ -26,7 +27,13 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium" });
+  // Pin the AR timezone: without it the server (UTC) formats a late-evening ART
+  // timestamp as the following calendar day. Mirrors the AR_TIME_ZONE convention
+  // in lib/utils/format.ts.
+  return new Date(d).toLocaleDateString("es-AR", {
+    dateStyle: "medium",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 export default async function OfferingDetailPage({

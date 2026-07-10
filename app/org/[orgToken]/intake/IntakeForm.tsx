@@ -27,7 +27,7 @@ import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
 // not something a refugio self-records through this form. Seizures go
@@ -477,7 +477,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               {custodyRole === "shelter_custody" ? "Custodia temporal" : "Dueño/a permanente"}
             </dd>
             <dt className="text-ln-op-mute">Fecha</dt>
-            <dd className="col-span-2 text-ln-op-ink">{occurredAt}</dd>
+            {/* Anchor the bare YYYY-MM-DD at local noon before formatting so the
+                AR-timezone formatter renders the picked day, not the day before. */}
+            <dd className="col-span-2 text-ln-op-ink">
+              {occurredAt ? formatDate(`${occurredAt}T12:00:00`) : "—"}
+            </dd>
           </dl>
         </div>
 
