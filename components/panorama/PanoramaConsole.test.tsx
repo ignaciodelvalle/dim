@@ -1019,6 +1019,100 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
   });
 });
 
+describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITICAL-2)", () => {
+  it("fetches the as-of frame at level=province when scrubbing at province framing", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+
+    // brotes-activos at national scope → province is the derived level; zoonosis
+    // (temporal) is active.
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
+    });
+    fetchMock.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
+
+    // The zoonosis as-of fetch now carries the province level flag, so the frame
+    // matches the province-aggregated map. Before the fix it fetched locality-level
+    // and the province map silently kept painting the LIVE cache.
+    await waitFor(() => {
+      const asOfCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/zoonosis") && u.includes("asOf="));
+      expect(asOfCalls.length).toBeGreaterThan(0);
+      expect(asOfCalls.every((u) => u.includes("level=province"))).toBe(true);
+    });
+  });
+
+  it("renders the as-of frame as the zoonosis data source (not the live province cache)", async () => {
+    // Distinct payloads: the province-level as-of zoonosis returns ONE feature;
+    // every other fetch stays empty. If the reorder is correct, the map's zoonosis
+    // layer carries that as-of feature while scrubbing.
+    const asOfFeature = {
+      type: "Feature" as const,
+      properties: { provinceCode: "AR-B", value: 42 },
+      geometry: { type: "Point" as const, coordinates: [-60, -36] },
+    };
+    const custom = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      const isAsOfZoonosisProvince =
+        url.includes("/api/panorama/zoonosis") &&
+        url.includes("asOf=") &&
+        url.includes("level=province");
+      const body = url.includes("/api/panorama/kpis")
+        ? INITIAL_KPIS
+        : isAsOfZoonosisProvince
+          ? { features: { type: "FeatureCollection", features: [asOfFeature] }, truncated: false }
+          : OK_ENVELOPE;
+      return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+    });
+    vi.stubGlobal("fetch", custom);
+
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
+
+    await waitFor(() => {
+      const zoonosis = (
+        mapProps?.layers as Array<{ id: string; features: { features: unknown[] } }>
+      )?.find((l) => l.id === "zoonosis");
+      expect(zoonosis?.features.features.length).toBe(1);
+    });
+  });
+});
+
+describe("PanoramaConsole — bivariate is honest under a scrub (CRITICAL-2)", () => {
+  it("disables the bivariate encoding while scrubbing and shows an honest note", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderRedesignConsole();
+
+    // brotes-activos + province level + cobertura & zoonosis active → the encoding
+    // toggle is offered.
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    const bivariateBtn = await screen.findByRole("button", { name: "Riesgo (bivariado)" });
+    expect(bivariateBtn).toBeEnabled();
+
+    // Start a scrub — cobertura is non-temporal (frozen), so a bivariate join would
+    // mix time bases. The encoding must be disabled with an honest caption.
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Riesgo (bivariado)" })).toBeDisabled();
+    });
+    expect(screen.getByText(/solo al último evento/i)).toBeInTheDocument();
+  });
+});
+
 describe("PanoramaConsole — reading aligned with the metrics column (QA fix, finding 5)", () => {
   it("PanoramaReading headlines only the active preset's curated metrics, not the full KPI set", async () => {
     setUrl("/gob/panorama?period=3y");

@@ -897,6 +897,12 @@ export function PanoramaConsole({
     }
     const iso = asOf.toISOString();
     const baseQs = searchParams.toString();
+    // The as-of frame must be fetched at the SAME aggregation axis it will render
+    // at, or the province-framed map reads locality features (or vice-versa) and
+    // the scrubber silently paints nothing. Mirror the province-cache fetch's
+    // level logic. `level` (the state, in the deps) is read directly so a mid-scrub
+    // level flip refetches the active temporal layers at the new axis.
+    const currentLevel = level;
     const activeTemporal = PANORAMA_LAYERS.filter(
       (l) => statesRef.current[l.id]?.active && isTemporalLayer(l.id),
     );
@@ -909,6 +915,8 @@ export function PanoramaConsole({
       activeTemporal.map(async (l) => {
         const params = new URLSearchParams(baseQs);
         params.set("asOf", iso);
+        if (currentLevel === "province") params.set("level", "province");
+        else if (isAggregatedPointLayer(l.id)) params.set("level", "locality");
         // task #77: replay by recorded_at when the operator picked transaction time.
         if (timeBasis === "transaction") params.set("basis", "transaction");
         try {
@@ -935,7 +943,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [asOf, searchParams, timeBasis, signalFor]);
+  }, [asOf, searchParams, timeBasis, signalFor, level]);
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
@@ -1040,12 +1048,18 @@ export function PanoramaConsole({
       // province cache — the server returned province-grouped AggregatedPointCells.
       const usesProvinceCache =
         !usesPoints && (CHOROPLETH_IDS.has(l.id) || isAggregatedPoint) && level === "province";
+      // Order matters: a SCRUB on a temporal layer reads the as-of frame FIRST,
+      // even at province framing — the as-of effect now fetches that frame at the
+      // active level (province/locality), so it is the correct axis. Before this
+      // reorder, `usesProvinceCache` short-circuited ahead of the scrub branch and
+      // province-framed temporal layers always painted the LIVE province cache
+      // (the scrubber moved, the bubbles never did).
       const features = usesPoints
         ? (pointsDataRef.current.get(l.id) ?? EMPTY_FC)
-        : usesProvinceCache
-          ? (provinceDataRef.current.get(l.id) ?? EMPTY_FC)
-          : scrubbing && temporal
-            ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
+        : scrubbing && temporal
+          ? (asOfDataRef.current.get(l.id) ?? EMPTY_FC)
+          : usesProvinceCache
+            ? (provinceDataRef.current.get(l.id) ?? EMPTY_FC)
             : (dataRef.current.get(l.id) ?? EMPTY_FC);
 
       // Resolve the point render mode:
@@ -1658,7 +1672,12 @@ export function PanoramaConsole({
     level === "province" &&
     (states.cobertura?.active ?? false) &&
     (states.zoonosis?.active ?? false);
-  const bivariateActive = bivariateMode && bivariateEligible;
+  // The bivariate join reads the LIVE province cache for both axes. cobertura is
+  // non-temporal (it can't be replayed), so during a scrub it stays frozen at the
+  // live edge while zoonosis has an as-of frame — mixing two time bases into one
+  // cell would be dishonest. So the encoding is offered ONLY at the live edge; a
+  // scrub disables it (with an honest note by the toggle). CRITICAL-2 fix.
+  const bivariateActive = bivariateMode && bivariateEligible && !scrubbing;
 
   // task #63: the layer list actually painted by the map. When the bivariate
   // encoding is active, REPLACE the two stacked layers visually — drop the
@@ -2576,10 +2595,14 @@ export function PanoramaConsole({
                 </button>
                 <button
                   type="button"
-                  aria-pressed={bivariateMode}
+                  aria-pressed={bivariateMode && !scrubbing}
+                  // The bivariate join can't mix a frozen (non-temporal) cobertura
+                  // with an as-of zoonosis frame — offered only at the live edge.
+                  disabled={scrubbing}
+                  title={scrubbing ? "Riesgo bivariado — solo al último evento" : undefined}
                   onClick={() => setBivariateMode(true)}
-                  className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
-                    bivariateMode
+                  className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    bivariateMode && !scrubbing
                       ? "bg-ln-op-azul/10 text-ln-op-azul"
                       : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
                   }`}
@@ -2587,6 +2610,12 @@ export function PanoramaConsole({
                   Riesgo (bivariado)
                 </button>
               </fieldset>
+              {scrubbing && (
+                <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
+                  Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el
+                  tiempo).
+                </p>
+              )}
             </div>
           )}
           <SituationalMapDynamic
