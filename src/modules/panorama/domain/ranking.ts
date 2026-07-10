@@ -41,22 +41,40 @@ type UnitProps = {
   label?: unknown;
   place?: unknown;
   name?: unknown;
+  /** Province display name carried by the choropleth features (build-features). */
+  province?: unknown;
+  /** Locality display name carried by the locality-choropleth features. */
+  locality?: unknown;
   value?: unknown;
   count?: unknown;
   suppressed?: unknown;
 };
 
-/** Pick the stable key + display label from any panorama feature-props shape. */
+/**
+ * Pick the stable key + display label from any panorama feature-props shape.
+ *
+ * Bug fix (2026-07-10): the province/locality CHOROPLETH features
+ * (build-features.ts ProvinceChoroplethProps / ChoroplethProps) carry their
+ * display name in `province`/`locality`, NOT `label`/`place`/`name` — so this
+ * used to return null for EVERY cobertura (rate) cell, leaving rankWorstUnits
+ * empty and the panel falsely reporting "Sin jurisdicciones bajo meta" even when
+ * every jurisdiction was under meta. `locality` is preferred over `province` so
+ * a locality-level cell labels as its locality, not its (repeated) province.
+ */
 function identify(p: UnitProps): { key: string; label: string } | null {
   const label =
     (typeof p.label === "string" && p.label) ||
     (typeof p.place === "string" && p.place) ||
     (typeof p.name === "string" && p.name) ||
+    (typeof p.locality === "string" && p.locality) ||
+    (typeof p.province === "string" && p.province) ||
     null;
   const key =
     (typeof p.provinceCode === "string" && p.provinceCode) ||
     (typeof p.place === "string" && p.place) ||
     (typeof p.name === "string" && p.name) ||
+    (typeof p.locality === "string" && p.locality) ||
+    (typeof p.province === "string" && p.province) ||
     label;
   if (!label || !key) return null;
   return { key, label };

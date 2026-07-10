@@ -75,6 +75,59 @@ describe("rankWorstUnits — rate layers (brecha vs meta)", () => {
   });
 });
 
+// Regression (2026-07-10): the REAL province/locality choropleth features carry
+// their display name in `province`/`locality`, NOT `label`/`place`/`name`. The
+// helper above fabricated a `label` field production never emits, so the bug
+// (identify() returning null → empty ranking → false "Sin jurisdicciones bajo
+// meta") slipped past. These use the ACTUAL build-features prop shapes.
+describe("rankWorstUnits — production choropleth prop shapes", () => {
+  // Matches build-features.ts ProvinceChoroplethProps exactly.
+  function provinceCell(provinceCode: string, province: string, value: number) {
+    return {
+      type: "Feature" as const,
+      geometry: null,
+      properties: { provinceCode, province, value, suppressed: false },
+    };
+  }
+  // Matches build-features.ts ChoroplethProps (locality level) exactly.
+  function localityCell(province: string, locality: string, value: number) {
+    return {
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [-60, -35] as [number, number] },
+      properties: {
+        province,
+        locality,
+        departmentCode: null,
+        departmentName: null,
+        value,
+        suppressed: false,
+      },
+    };
+  }
+
+  it("ranks province-choropleth cells that key off `province`/`provinceCode` (real cobertura shape)", () => {
+    const features = fc([
+      provinceCell("AR-A", "Salta", 34),
+      provinceCell("AR-X", "Córdoba", 65),
+      provinceCell("AR-B", "Buenos Aires", 90), // above meta — excluded
+    ] as never);
+
+    const rows = rankWorstUnits(features, { kind: "rate", target: 80, limit: 10 });
+
+    // Every real-world province (34–65%) is under the 80% meta → the ranking is
+    // POPULATED, not the false "Sin jurisdicciones bajo meta" empty result.
+    expect(rows.map((r) => r.label)).toEqual(["Salta", "Córdoba"]);
+    expect(rows[0]).toMatchObject({ key: "AR-A", value: 34, gap: 46 });
+  });
+
+  it("labels locality-choropleth cells by `locality`, keyed for map sync", () => {
+    const features = fc([localityCell("Salta", "Tartagal", 40)] as never);
+    const rows = rankWorstUnits(features, { kind: "rate", target: 80 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ key: "Tartagal", label: "Tartagal", value: 40, gap: 40 });
+  });
+});
+
 describe("rankWorstUnits — density layers (count desc)", () => {
   it("ranks by count descending, gap null, dropping suppressed cells", () => {
     const features = fc([

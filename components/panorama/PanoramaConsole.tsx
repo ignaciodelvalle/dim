@@ -2036,7 +2036,17 @@ export function PanoramaConsole({
       if (!captionLayer || !rankedActiveLayer) return;
       const feature = rankedActiveLayer.features.features.find((f) => {
         const p = f.properties as Record<string, unknown>;
-        return p.provinceCode === key || p.place === key || p.name === key;
+        // Mirror rankWorstUnits' identify() key precedence — the choropleth
+        // features key off provinceCode/locality/province, not place/name, so
+        // matching only place/name left every ranked-row click a no-op for the
+        // cobertura (rate) layer (2026-07-10 fix).
+        return (
+          p.provinceCode === key ||
+          p.place === key ||
+          p.name === key ||
+          p.locality === key ||
+          p.province === key
+        );
       });
       if (feature) {
         onFeatureClick(captionLayer.id, feature.properties as Record<string, unknown>);
