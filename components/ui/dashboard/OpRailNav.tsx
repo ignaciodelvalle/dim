@@ -62,6 +62,14 @@ function NavLink({
   return (
     <Link
       href={item.href}
+      // RESILIENCE (2026-07-10, PO instrumented-review finding #1): the operator
+      // rail carries ~30 links to HEAVY SSR dashboards (10s+ render, some 503
+      // under load). Next's default link prefetch fired an RSC request for EVERY
+      // one on mount — ~248 requests on a single panorama load — and the backend
+      // saturated ITSELF, amplifying the panorama's own ~25s. Opt out of
+      // prefetch on the rail: navigation still works (fetched on click), the
+      // self-DoS is gone.
+      prefetch={false}
       aria-current={active ? "page" : undefined}
       className={[
         "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",

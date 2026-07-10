@@ -160,6 +160,10 @@ export function OpMobileDrawer({
                       <Link
                         key={item.href}
                         href={item.href}
+                        // RESILIENCE (2026-07-10, PO finding #1): mirror the rail
+                        // — no RSC prefetch of the heavy operator dashboards, so
+                        // the drawer never joins the self-saturation storm.
+                        prefetch={false}
                         aria-current={active ? "page" : undefined}
                         className={[
                           "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
