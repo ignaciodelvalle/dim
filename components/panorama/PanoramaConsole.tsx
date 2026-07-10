@@ -2818,7 +2818,9 @@ export function PanoramaConsole({
           {/* k-anon disclosure — suppression is visible without any click. */}
           <PanoramaSuppressionNotice states={states} />
         </div>
-        <div className="space-y-3">
+        {/* ARCHETYPE A density: the monitoring rail scrolls independently of the
+            full-bleed map, tightened to operator density (not consumer air). */}
+        <div className="space-y-2.5">
           {/* ARCHETYPE situation-room rail order — MONITORING, not narration:
               [map encoding toggle] → scope (Alcance y período) → KPIs →
               freshness/honesty → Peores-N ranking → one-line reading LAST. The

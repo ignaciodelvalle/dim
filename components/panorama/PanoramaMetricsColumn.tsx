@@ -102,7 +102,7 @@ export function PanoramaMetricsColumn({
   }
 
   return (
-    <section aria-label="Indicadores de esta vista" className="space-y-3">
+    <section aria-label="Indicadores de esta vista" className="space-y-2">
       {shown.map((kpi) => (
         <PanoramaKpiTile key={kpi.id} kpi={kpi} />
       ))}
