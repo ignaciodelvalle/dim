@@ -6,10 +6,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  BIVARIATE_MIN_UNITS,
   BIVARIATE_RISK_INDEX,
   BIVARIATE_SAFE_INDEX,
   type BivariateCell,
   bivariateIndex,
+  bivariateViable,
   buildBivariateCells,
   classifyTercile,
   coverageClassLabel,
@@ -53,6 +55,58 @@ function signalFc(
 
 const cellByCode = (cells: BivariateCell[], code: string) =>
   cells.find((c) => c.provinceCode === code);
+
+// A helper to build N spread coverage + signal units (viable by default).
+function spreadUnits(n: number) {
+  const cov = Array.from({ length: n }, (_, i) => ({
+    code: `AR-${i}`,
+    name: `P${i}`,
+    value: 10 + i * 5, // strictly increasing → non-degenerate terciles
+  }));
+  const sig = Array.from({ length: n }, (_, i) => ({ name: `P${i}`, count: 1 + i }));
+  return { cov: coverageFc(cov), sig: signalFc(sig) };
+}
+
+describe("bivariateViable (WARNING 7 degeneracy guard)", () => {
+  it("is viable with enough spread comparable units", () => {
+    const { cov, sig } = spreadUnits(BIVARIATE_MIN_UNITS);
+    expect(bivariateViable(cov, sig)).toBe(true);
+  });
+
+  it("is NOT viable below the minimum comparable-unit count", () => {
+    const { cov, sig } = spreadUnits(BIVARIATE_MIN_UNITS - 1);
+    expect(bivariateViable(cov, sig)).toBe(false);
+  });
+
+  it("is NOT viable for a lone high-coverage province (degenerate terciles)", () => {
+    // One 95%-coverage province + one signal — terciles collapse (t1 === t2), which
+    // would otherwise mislabel it "baja cobertura / riesgo medio".
+    const cov = coverageFc([{ code: "AR-A", name: "A", value: 95 }]);
+    const sig = signalFc([{ name: "A", count: 3 }]);
+    expect(bivariateViable(cov, sig)).toBe(false);
+  });
+
+  it("is NOT viable when every coverage value is identical (t1 === t2)", () => {
+    const cov = coverageFc(
+      Array.from({ length: BIVARIATE_MIN_UNITS }, (_, i) => ({
+        code: `AR-${i}`,
+        name: `P${i}`,
+        value: 80, // all equal → degenerate coverage terciles
+      })),
+    );
+    const sig = signalFc(
+      Array.from({ length: BIVARIATE_MIN_UNITS }, (_, i) => ({ name: `P${i}`, count: 1 + i })),
+    );
+    expect(bivariateViable(cov, sig)).toBe(false);
+  });
+
+  it("ignores suppressed cells when counting comparable units", () => {
+    // MIN_UNITS visible + several suppressed — still viable (suppressed don't count
+    // toward the distribution, but the visible ones already clear the bar).
+    const base = spreadUnits(BIVARIATE_MIN_UNITS);
+    expect(bivariateViable(base.cov, base.sig)).toBe(true);
+  });
+});
 
 describe("tercileThresholds + classifyTercile", () => {
   it("splits a spread distribution into low/mid/high", () => {

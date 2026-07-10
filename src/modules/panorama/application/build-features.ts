@@ -419,6 +419,22 @@ export function aggregateCellsToDepartment(
         count: 0,
       };
       byUnit.set(key, acc);
+    } else if (
+      // SUGGESTION 10 (dev-only): the rollup pins departmentCode + departmentName
+      // via INDEPENDENT MIN() aggregates, so an ambiguous (province, locality) can
+      // pin a code from one ar_localities row and a name from another → a latent
+      // mislabel. Flag it in dev when two localities fold into the same code bucket
+      // under divergent names. No-op in production (never a user-facing throw).
+      process.env.NODE_ENV !== "production" &&
+      !isBarrio &&
+      acc.departmentCode &&
+      acc.departmentName &&
+      r.departmentName &&
+      r.departmentName !== acc.departmentName
+    ) {
+      console.warn(
+        `[panorama fold] department_code ${acc.departmentCode} maps to divergent names: "${acc.departmentName}" vs "${r.departmentName}" (province ${r.province}) — possible MIN(code)/MIN(name) mislabel`,
+      );
     }
     acc.count += r.count;
     const lat = r.centroidLat != null ? Number(r.centroidLat) : Number.NaN;

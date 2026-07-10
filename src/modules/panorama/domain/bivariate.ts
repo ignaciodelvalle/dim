@@ -151,9 +151,57 @@ export type BivariateCell = {
   suppressed: boolean;
 };
 
-/** Normalize a province name for the coverage↔signal join (case/space tolerant). */
+/** Normalize a province name for the coverage↔signal join. Case/space tolerant AND
+ * accent-stripped (NFD + diacritic removal) to mirror the DB-side normNameSql
+ * (which uses `unaccent`) — so "Córdoba" on one axis joins "Cordoba" on the other
+ * even if one side lost its accent upstream (SUGGESTION 8). */
 function normName(raw: string): string {
-  return raw.trim().toLowerCase();
+  return raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+/** Minimum comparable units for a non-degenerate bivariate encoding (WARNING 7). */
+export const BIVARIATE_MIN_UNITS = 6;
+
+/**
+ * Whether the bivariate encoding is statistically viable for the current scope.
+ *
+ * With too few comparable units — or a degenerate distribution where the tercile
+ * cut-points collapse (t1 === t2) — the 3×3 class matrix stops carrying honest
+ * meaning: a lone 95%-coverage province would still be labelled "baja cobertura /
+ * riesgo medio" purely because it is the only value to classify. Refuse to encode
+ * in that case so the caller can show an honest note instead of a false risk band.
+ *
+ * Viable ⇔ BOTH axes have ≥ `minUnits` non-suppressed values AND neither
+ * distribution is tercile-degenerate. Values are extracted with the SAME rules as
+ * {@link buildBivariateCells} (suppressed / null cells never count).
+ */
+export function bivariateViable(
+  coverage: FeatureCollection,
+  signal: FeatureCollection,
+  minUnits: number = BIVARIATE_MIN_UNITS,
+): boolean {
+  const coverageValues: number[] = [];
+  for (const f of coverage.features) {
+    const p = (f.properties ?? {}) as CoverageProps;
+    if (p.suppressed === true) continue;
+    if (typeof p.value === "number") coverageValues.push(p.value);
+  }
+  const signalValues: number[] = [];
+  for (const f of signal.features) {
+    const p = (f.properties ?? {}) as SignalProps;
+    if (p.suppressed === true || p.count == null) continue;
+    if (typeof p.count === "number") signalValues.push(p.count);
+  }
+  if (coverageValues.length < minUnits || signalValues.length < minUnits) return false;
+  const covTh = tercileThresholds(coverageValues);
+  const sigTh = tercileThresholds(signalValues);
+  if (!covTh || !sigTh) return false;
+  if (covTh.t1 === covTh.t2 || sigTh.t1 === sigTh.t2) return false;
+  return true;
 }
 
 /**

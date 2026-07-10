@@ -38,6 +38,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import {
   type ScrubWindow,
   type TimeBasis,
@@ -252,7 +253,13 @@ export function TimeScrubber({
   // real-time "now" — the data is batch. Label it as such and keep "en vivo" out.
   const watermarkTime =
     watermark !== null && !Number.isNaN(watermark.getTime())
-      ? watermark.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      ? // Pin AR_TIME_ZONE (WARNING 6): FilterChips/KPI footer already render AR time,
+        // so an unpinned local hour here would print two different times on one screen.
+        watermark.toLocaleTimeString("es-AR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: AR_TIME_ZONE,
+        })
       : null;
   const liveEdgeLabel =
     watermarkTime !== null ? `Al último evento: ${watermarkTime}` : "Al último evento";

@@ -65,7 +65,11 @@ import {
 } from "@/lib/ui/map-layer-nav";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { buildBivariateCells } from "@/src/modules/panorama/domain/bivariate";
+import {
+  BIVARIATE_MIN_UNITS,
+  bivariateViable,
+  buildBivariateCells,
+} from "@/src/modules/panorama/domain/bivariate";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import {
   AGGREGATED_POINT_IDS,
@@ -1677,7 +1681,21 @@ export function PanoramaConsole({
   // live edge while zoonosis has an as-of frame — mixing two time bases into one
   // cell would be dishonest. So the encoding is offered ONLY at the live edge; a
   // scrub disables it (with an honest note by the toggle). CRITICAL-2 fix.
-  const bivariateActive = bivariateMode && bivariateEligible && !scrubbing;
+  // task #63 / WARNING 7: with a tiny scope (1–3 comparable units) the tercile
+  // cut-points degenerate and a 95%-coverage lone province would still be labelled
+  // "baja cobertura / riesgo medio". Detect that from the LIVE province caches and
+  // disable the encoding (with an honest note by the toggle) instead of emitting a
+  // false risk band. levelVersion/asOfVersion are the recompute triggers (refs).
+  const bivariateDegenerate = useMemo(() => {
+    void levelVersion;
+    void asOfVersion;
+    if (!bivariateEligible) return false;
+    const cov = provinceDataRef.current.get("cobertura");
+    const sig = provinceDataRef.current.get("zoonosis");
+    if (!cov || !sig || cov.features.length === 0) return false;
+    return !bivariateViable(cov, sig, BIVARIATE_MIN_UNITS);
+  }, [bivariateEligible, levelVersion, asOfVersion]);
+  const bivariateActive = bivariateMode && bivariateEligible && !scrubbing && !bivariateDegenerate;
 
   // Reset the encoding toggle when its eligibility drops (preset/level/layer
   // change) — otherwise bivariateMode stays "on" invisibly and silently re-engages
@@ -2253,9 +2271,15 @@ export function PanoramaConsole({
       if (!isAggregate) continue;
       for (const f of layer.features.features) {
         const p = f.properties as Record<string, unknown>;
+        // Mirror ranking.identify(): a detail-tier cell's own unit label
+        // (locality/place/departmentName) BEFORE the province, so N departments of
+        // one province don't all render as rows named after the province (WARNING 5).
         const unit = String(
           p.name ??
             p.localityName ??
+            p.locality ??
+            p.place ??
+            p.departmentName ??
             p.province ??
             p.provinceName ??
             p.department ??
@@ -2612,14 +2636,21 @@ export function PanoramaConsole({
                 </button>
                 <button
                   type="button"
-                  aria-pressed={bivariateMode && !scrubbing}
+                  aria-pressed={bivariateActive}
                   // The bivariate join can't mix a frozen (non-temporal) cobertura
-                  // with an as-of zoonosis frame — offered only at the live edge.
-                  disabled={scrubbing}
-                  title={scrubbing ? "Riesgo bivariado — solo al último evento" : undefined}
+                  // with an as-of zoonosis frame — offered only at the live edge; and
+                  // it needs enough comparable units to classify (WARNING 7).
+                  disabled={scrubbing || bivariateDegenerate}
+                  title={
+                    scrubbing
+                      ? "Riesgo bivariado — solo al último evento"
+                      : bivariateDegenerate
+                        ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables`
+                        : undefined
+                  }
                   onClick={() => setBivariateMode(true)}
                   className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                    bivariateMode && !scrubbing
+                    bivariateActive
                       ? "bg-ln-op-azul/10 text-ln-op-azul"
                       : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
                   }`}
@@ -2631,6 +2662,12 @@ export function PanoramaConsole({
                 <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
                   Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el
                   tiempo).
+                </p>
+              )}
+              {!scrubbing && bivariateDegenerate && (
+                <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
+                  Riesgo bivariado requiere al menos {BIVARIATE_MIN_UNITS} unidades comparables en
+                  la vista.
                 </p>
               )}
             </div>
@@ -2729,7 +2766,13 @@ export function PanoramaConsole({
             onScrubDetailChange={setScrubDetail}
             resetToken={scrubResetToken}
             initialAsOf={initialAsOf}
-            watermark={kpis.dataAsOf ? new Date(kpis.dataAsOf) : null}
+            // SUGGESTION 9: while a scope/period refetch is in flight the last-known
+            // kpis.dataAsOf belongs to the PREVIOUS scope — showing its time would
+            // print a stale watermark. Drop to null (scrubber falls back to the
+            // generic "Al último evento") until the new cutoff lands.
+            watermark={
+              kpisPending || kpisStale ? null : kpis.dataAsOf ? new Date(kpis.dataAsOf) : null
+            }
             histogramBins={signalHistogramBins}
           />
         </div>
