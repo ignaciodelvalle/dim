@@ -1,5 +1,6 @@
 import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { coarsenPoint, readPoint } from "@/lib/domain/location";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
@@ -16,6 +17,7 @@ import {
 } from "@/src/modules/welfare/domain/types";
 import { eq } from "drizzle-orm";
 import dynamic from "next/dynamic";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -27,6 +29,36 @@ const LocationMap = dynamic(() => import("@/components/LocationMap"), {
     <div className="w-full h-64 rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
+
+// Resolve the trusted caller IP from request headers for the per-IP rate limit.
+// Falls back to "unknown" if headers() is unavailable (non-request context).
+async function callerIpFromHeaders(): Promise<string> {
+  try {
+    const reqHeaders = await headers();
+    return callerIp(reqHeaders);
+  } catch {
+    return "unknown";
+  }
+}
+
+// Soft throttle notice shown when a single IP exceeds the receipt read limit.
+// A friendly message (not a hard error) so a legitimate reporter is never
+// locked out of their own denuncia — mirrors the /p/[publicToken] ThrottleNotice.
+function ReceiptThrottleNotice() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-ln-paper)]">
+      <div className="mx-auto max-w-[400px] px-6 py-12 text-center text-[var(--color-ln-ink)]">
+        <p className="mb-3 text-lg font-semibold" style={{ fontFamily: "var(--font-ln-serif)" }}>
+          Demasiadas consultas
+        </p>
+        <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
+          Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
+          intentarlo.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // Terminal statuses where the "integration pending" banner contradicts the
 // status badge and should be hidden (UI-7 B7).
@@ -85,6 +117,22 @@ export default async function WelfareReportByCodePage({
   const { nueva } = await searchParams;
   const code = normalizeReferenceCode(decodeURIComponent(rawCode));
   if (!isValidReferenceCodeFormat(code)) notFound();
+
+  // Per-IP rate limit BEFORE any data fetch. This public receipt discloses the
+  // full report (description, approximate location, masked contact, evidence
+  // signed URLs) to any holder of the DEN-XXXX-XXXX code. The code is high
+  // entropy (~31^8), so blind enumeration is impractical, but the page is
+  // otherwise an unbounded, unauthenticated read that issues DB queries and
+  // mints signed URLs on every hit — mirror the /p/[publicToken] guard so a
+  // single IP cannot scrape or hammer it. Soft throttle notice (not a hard
+  // error) preserves UX for a legitimate reporter refreshing their own code.
+  const ip = await callerIpFromHeaders();
+  try {
+    await enforceRateLimit("denuncia_receipt", ip, { maxPerMinute: 30, maxPerHour: 200 });
+  } catch (err) {
+    if (err instanceof RateLimitError) return <ReceiptThrottleNotice />;
+    throw err;
+  }
 
   const [report] = await db
     .select()
