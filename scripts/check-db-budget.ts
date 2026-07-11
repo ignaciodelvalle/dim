@@ -49,6 +49,19 @@ export const DASHBOARD_PAGES = [
   "app/admin/panorama/page.tsx",
   "app/gob/panorama/page.tsx",
   "app/admin/programa/page.tsx",
+  // D2 analytics pages (same shape as admin/programa — already wrapped with
+  // loadWithTimeout today; enforced here so a future silent drop is caught).
+  "app/admin/censo/page.tsx",
+  "app/admin/poblacion/page.tsx",
+  "app/admin/inteligencia/page.tsx",
+  "app/gob/programa/page.tsx",
+  "app/gob/censo/page.tsx",
+  "app/gob/poblacion/page.tsx",
+  // DB2 resilience finding: heavy multi-query fan-outs with no time budget —
+  // wrapped with loadWithTimeout in the same pass that added this line.
+  "app/gob/analytics/page.tsx",
+  "app/gob/page.tsx",
+  "app/gob/vigilancia/page.tsx",
 ] as const;
 
 // The route-handler globs scanned.

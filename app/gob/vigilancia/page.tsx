@@ -13,7 +13,9 @@ import {
   OpCardHead,
   OpKpi,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
   type DashboardJurisdiction,
@@ -111,6 +113,61 @@ export default async function GobVigilanciaPage({
   // presentational.
   const complianceCtx = buildProjectionContext(actor, filteredJurisdictions, period);
 
+  // Page header — rendered in both the data and degraded (D2) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Vigilancia epidemiológica
+      </p>
+      <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
+      <p className="text-[var(--text-md)] text-ln-op-mute">
+        {profile.role === "admin"
+          ? "Vista universal — todas las jurisdicciones."
+          : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
+      </p>
+    </header>
+  );
+
+  // D2: bound the fetcher set with a deadline so a pathological query degrades
+  // to an honest "tardando… reintentar" state instead of hanging the page.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchVigilanciaMetrics(actor, filteredJurisdictions),
+      fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
+      fetchCasesPerLocality(actor, filteredJurisdictions),
+      fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
+      periodMatchesSummary
+        ? null
+        : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+      // When a province is selected, fetch department/barrio-level case counts.
+      // For the national view (no province), this is null and the choropleth
+      // stays at province level (no behavior change).
+      selectedProvinceIso
+        ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
+        : Promise.resolve(null),
+      fetchSurveillanceCompliance(complianceCtx),
+      // Sparklines for KPI tiles (Fase 0).
+      fetchKpiTrend("outbreak_signal", complianceCtx),
+      fetchKpiTrend("rabies_observation_started", complianceCtx),
+      fetchKpiTrend("vaccination_administered", complianceCtx),
+      // Movilidad jurisdiccional / CVI — mobility is an epidemiological vector
+      // (a moved animal carries its exposure into a new jurisdiction).
+      fetchMovementCorridors(complianceCtx),
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/vigilancia", sp)}
+        />
+      </div>
+    );
+  }
+
   const [
     metrics,
     signals30d,
@@ -123,27 +180,7 @@ export default async function GobVigilanciaPage({
     rabiesSparkline,
     vacSparkline,
     movement,
-  ] = await Promise.all([
-    fetchVigilanciaMetrics(actor, filteredJurisdictions),
-    fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
-    fetchCasesPerLocality(actor, filteredJurisdictions),
-    fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
-    periodMatchesSummary ? null : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
-    // When a province is selected, fetch department/barrio-level case counts.
-    // For the national view (no province), this is null and the choropleth
-    // stays at province level (no behavior change).
-    selectedProvinceIso
-      ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
-      : Promise.resolve(null),
-    fetchSurveillanceCompliance(complianceCtx),
-    // Sparklines for KPI tiles (Fase 0).
-    fetchKpiTrend("outbreak_signal", complianceCtx),
-    fetchKpiTrend("rabies_observation_started", complianceCtx),
-    fetchKpiTrend("vaccination_administered", complianceCtx),
-    // Movilidad jurisdiccional / CVI — mobility is an epidemiological vector
-    // (a moved animal carries its exposure into a new jurisdiction).
-    fetchMovementCorridors(complianceCtx),
-  ]);
+  ] = load.value;
 
   const signals = signalsPeriod ?? signals30d;
   const summary = computeDiseaseSummary(signals30d);
@@ -244,17 +281,7 @@ export default async function GobVigilanciaPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Vigilancia epidemiológica
-        </p>
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
-        </p>
-      </header>
+      {header}
 
       {/* No-scope warning */}
       {noScope && (

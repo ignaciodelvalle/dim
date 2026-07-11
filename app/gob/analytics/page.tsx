@@ -3,7 +3,9 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics/analytics-ranking";
 import {
@@ -110,6 +112,50 @@ export default async function GobAnalyticsPage({
   // ProjectionContext for the D1 trend fetcher (scope-aware, period-aware).
   const trendCtx = buildProjectionContext(actor, filteredJurisdictions, period);
 
+  // Page header — rendered in both the data and degraded (D2) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Vigilancia sanitaria · Analítica
+      </p>
+      <h1 className="text-[22px] font-semibold text-ln-op-ink">Analítica</h1>
+      <p className="text-[13px] text-ln-op-mute">
+        {profile.role === "admin"
+          ? "Vista universal — todas las jurisdicciones."
+          : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
+      </p>
+    </header>
+  );
+
+  // D2: bound the fetcher set with a deadline so a pathological query degrades
+  // to an honest "tardando… reintentar" state instead of hanging the page.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
+      fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
+      fetchDeathCauses(actor, filteredJurisdictions, { since }),
+      fetchOutbreakHistory(actor, filteredJurisdictions),
+      fetchRegionRanking(actor, filteredJurisdictions),
+      fetchOutbreakSignalsTrend(trendCtx),
+      // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
+      fetchKpiTrend("pet_registered", trendCtx),
+      // Access-to-care gap: vet visits per 1k active pets by locality (care deserts).
+      fetchVetAccessByLocality(trendCtx),
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/analytics", sp)}
+        />
+      </div>
+    );
+  }
+
   const [
     metrics,
     acquisitionTrend,
@@ -119,18 +165,7 @@ export default async function GobAnalyticsPage({
     signalsTrend,
     petRegisteredTrend,
     vetAccess,
-  ] = await Promise.all([
-    fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
-    fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
-    fetchDeathCauses(actor, filteredJurisdictions, { since }),
-    fetchOutbreakHistory(actor, filteredJurisdictions),
-    fetchRegionRanking(actor, filteredJurisdictions),
-    fetchOutbreakSignalsTrend(trendCtx),
-    // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
-    fetchKpiTrend("pet_registered", trendCtx),
-    // Access-to-care gap: vet visits per 1k active pets by locality (care deserts).
-    fetchVetAccessByLocality(trendCtx),
-  ]);
+  ] = load.value;
 
   // Shape the outbreak-signals trend for TimeSeriesChart.
   const signalsTrendPoints = signalsTrend.points.map((p) => ({ x: p.x, y: p.y }));
@@ -159,17 +194,7 @@ export default async function GobAnalyticsPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Vigilancia sanitaria · Analítica
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Analítica</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
-        </p>
-      </header>
+      {header}
 
       {/* Filters row */}
       <div className="grid md:grid-cols-2 gap-3">

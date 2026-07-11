@@ -15,8 +15,10 @@ import { CaseBadge } from "@/components/CaseBadge";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { auditLog, db } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
@@ -122,9 +124,11 @@ export default async function GobiernoDashboardPage({
           ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
           : `${jurisdictions.length} localidades`;
 
-  // --- All live queries in one Promise.all (7-way) -----------------------
-  // pending, recentDecisions, and the 5 KPI queries are all independent —
-  // merge them to eliminate two sequential waterfall steps.
+  // --- All live queries in one bounded Promise.all (18-way, D2) ----------
+  // pending, recentDecisions, the KPI queries, and the casos-regulatorios
+  // preview are all independent — merged into one fetcher set bounded by
+  // loadWithTimeout so a degraded pooler renders an honest fallback instead
+  // of hanging the whole page (task #74 death-spiral class).
 
   const actor = { role: profile.role } as const;
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -134,6 +138,108 @@ export default async function GobiernoDashboardPage({
   // passed to fetchSterilizationMetrics separately via ctx.period.since.
   const ctx12m = buildProjectionContext(actor, filteredJurisdictions, windows.trailing12m());
   const ctx30d = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
+
+  // Page header — rendered in both the data and degraded (D2) branches.
+  const header = (
+    <header className="space-y-2">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        MiMAR Gobierno · {roleLabel} · {scopeLabel}
+      </p>
+      <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Panel de jurisdicción</h1>
+
+      {/* Header actions */}
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <Link
+          href="/gob/cola"
+          className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
+        >
+          Cola de aprobaciones
+        </Link>
+        <Link
+          href="/gob/organizaciones"
+          className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
+        >
+          Habilitación
+        </Link>
+        <Link
+          href="/gob/maltrato"
+          className="rounded-[var(--radius-md)] border border-ln-op-danger px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
+        >
+          Acta de infracción
+        </Link>
+      </div>
+    </header>
+  );
+
+  // D2: bound the fetcher set with a deadline so a pathological query degrades
+  // to an honest "tardando… reintentar" state instead of hanging the page.
+  const load = await loadWithTimeout(
+    Promise.all([
+      // Headline count only — a real scoped COUNT(*), so a queue larger than any
+      // list cap still shows its true size (the card renders the number, not rows).
+      countVisiblePendingRequests(profile, jurisdictions),
+      db
+        .select({
+          id: auditLog.id,
+          action: auditLog.action,
+          performedAt: auditLog.performedAt,
+        })
+        .from(auditLog)
+        .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
+        .orderBy(desc(auditLog.performedAt))
+        .limit(10),
+      fetchRabiesCoverage(ctx12m),
+      fetchSterilizationMetrics(ctx30d),
+      fetchBitesPer10k(ctx12m),
+      // "Zoonosis activas" composite decomposed (PO-ratified) into 3 legible signals.
+      fetchOpenRabiesObservations(ctx12m),
+      fetchOpenBiteCases(ctx12m),
+      fetchNotifiedDiseases(ctx12m),
+      fetchOpenWelfareReportsCount(ctx12m),
+      // Item 4 compliance headline KPIs (C1 microchip penetration, C7 PPP registry).
+      // Penetration/compliance are population-state metrics ("now"); the 12m window
+      // is carried for ctx consistency but not used as a numerator filter.
+      fetchMicrochipPenetration(ctx12m),
+      fetchDangerousBreedCompliance(ctx12m),
+      // D1 — mordeduras por período (trend), so the operator sees direction, not
+      // just the "Mordeduras / 10k hab." snapshot KPI above. Reuses the 12m ctx.
+      fetchBitesTrend(ctx12m),
+      // Sparklines for KPI tiles (Fase 0).
+      fetchKpiTrend("sterilization_performed", ctx30d),
+      fetchKpiTrend("rabies_observation_started", ctx12m),
+      fetchKpiTrend("vaccination_administered", ctx12m),
+      // §5 narrative: mortality & disposition — the third citizen-traceable
+      // projection (death_recorded events + how traceable their disposition is).
+      fetchMortalityDisposition(ctx12m),
+      // Pérdidas activas — SAME fetcher + scope as /gob/perdidas and the Panorama
+      // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
+      // detail list shows N active (val-2-govt M2). filteredJurisdictions applies
+      // the same province/locality narrowing the KPI strip uses.
+      fetchPerdidasMetrics(actor, filteredJurisdictions),
+      // Casos regulatorios (open/escalated, top 5) — status filter + LIMIT 5
+      // are pushed into SQL: admin sees universal scope, govt is
+      // jurisdiction-scoped. Previously this loaded up to 500/300 rows and
+      // sliced 5 in JS — a full table scan on every dashboard render.
+      profile.role === "admin"
+        ? listOpenCasesForAdminPreview(5)
+        : listOpenCasesForGovtPreview(filteredJurisdictions, 5),
+    ]),
+  );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob", {
+            province: selectedProvinceIso ?? undefined,
+            locality: selectedLocalitySlug ?? undefined,
+          })}
+        />
+      </div>
+    );
+  }
 
   const [
     pendingCount,
@@ -153,99 +259,20 @@ export default async function GobiernoDashboardPage({
     rabiesVaxTrend,
     mortality,
     perdidas,
-  ] = await Promise.all([
-    // Headline count only — a real scoped COUNT(*), so a queue larger than any
-    // list cap still shows its true size (the card renders the number, not rows).
-    countVisiblePendingRequests(profile, jurisdictions),
-    db
-      .select({
-        id: auditLog.id,
-        action: auditLog.action,
-        performedAt: auditLog.performedAt,
-      })
-      .from(auditLog)
-      .where(and(eq(auditLog.actorUserId, user.id), gte(auditLog.performedAt, sevenDaysAgo)))
-      .orderBy(desc(auditLog.performedAt))
-      .limit(10),
-    fetchRabiesCoverage(ctx12m),
-    fetchSterilizationMetrics(ctx30d),
-    fetchBitesPer10k(ctx12m),
-    // "Zoonosis activas" composite decomposed (PO-ratified) into 3 legible signals.
-    fetchOpenRabiesObservations(ctx12m),
-    fetchOpenBiteCases(ctx12m),
-    fetchNotifiedDiseases(ctx12m),
-    fetchOpenWelfareReportsCount(ctx12m),
-    // Item 4 compliance headline KPIs (C1 microchip penetration, C7 PPP registry).
-    // Penetration/compliance are population-state metrics ("now"); the 12m window
-    // is carried for ctx consistency but not used as a numerator filter.
-    fetchMicrochipPenetration(ctx12m),
-    fetchDangerousBreedCompliance(ctx12m),
-    // D1 — mordeduras por período (trend), so the operator sees direction, not
-    // just the "Mordeduras / 10k hab." snapshot KPI above. Reuses the 12m ctx.
-    fetchBitesTrend(ctx12m),
-    // Sparklines for KPI tiles (Fase 0).
-    fetchKpiTrend("sterilization_performed", ctx30d),
-    fetchKpiTrend("rabies_observation_started", ctx12m),
-    fetchKpiTrend("vaccination_administered", ctx12m),
-    // §5 narrative: mortality & disposition — the third citizen-traceable
-    // projection (death_recorded events + how traceable their disposition is).
-    fetchMortalityDisposition(ctx12m),
-    // Pérdidas activas — SAME fetcher + scope as /gob/perdidas and the Panorama
-    // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
-    // detail list shows N active (val-2-govt M2). filteredJurisdictions applies
-    // the same province/locality narrowing the KPI strip uses.
-    fetchPerdidasMetrics(actor, filteredJurisdictions),
-  ]);
+    openCasesPreview,
+  ] = load.value;
 
   // Shape the bites trend for TimeSeriesChart (x/y points).
   const bitesTrendPoints = bitesTrend.points.map((p) => ({ x: p.x, y: p.y }));
   const bitesBucketWord = bitesTrend.granularity === "month" ? "mes" : "semana";
 
-  // --- Casos regulatorios (open/escalated, top 5) -------------------------
-  // Status filter + LIMIT 5 are pushed into SQL: admin sees universal scope,
-  // govt is jurisdiction-scoped. Previously this loaded up to 500/300 rows and
-  // sliced 5 in JS — a full table scan on every dashboard render.
-
-  const openCasesPreview =
-    profile.role === "admin"
-      ? await listOpenCasesForAdminPreview(5)
-      : await listOpenCasesForGovtPreview(filteredJurisdictions, 5);
   const openCases = openCasesPreview.items;
   const openCasesTotal = openCasesPreview.total;
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · {roleLabel} · {scopeLabel}
-        </p>
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
-          Panel de jurisdicción
-        </h1>
-
-        {/* Header actions */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <Link
-            href="/gob/cola"
-            className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
-          >
-            Cola de aprobaciones
-          </Link>
-          <Link
-            href="/gob/organizaciones"
-            className="rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
-          >
-            Habilitación
-          </Link>
-          <Link
-            href="/gob/maltrato"
-            className="rounded-[var(--radius-md)] border border-ln-op-danger px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
-          >
-            Acta de infracción
-          </Link>
-        </div>
-      </header>
+      {header}
 
       {/* Jurisdiction filter — same URL contract (province=ISO, locality=slug)
           as every /gob sub-page, so scope carries across drill-downs. */}
