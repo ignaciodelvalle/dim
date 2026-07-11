@@ -3671,14 +3671,6 @@ export const caseEvents = pgTable(
 export type CaseEvent = typeof caseEvents.$inferSelect;
 export type NewCaseEvent = typeof caseEvents.$inferInsert;
 
-// Legacy aliases kept during migration window — callers updated progressively.
-/** @deprecated Use `caseEvents` */
-export const investigationNotes = caseEvents;
-/** @deprecated Use `CaseEvent` */
-export type InvestigationNote = CaseEvent;
-/** @deprecated Use `NewCaseEvent` */
-export type NewInvestigationNote = NewCaseEvent;
-
 // ============================================================================
 // Physical tag interest — §4.20 placeholder for the future physical-QR-tag
 // product. Captures demand signal without building manufacturer / serial /
