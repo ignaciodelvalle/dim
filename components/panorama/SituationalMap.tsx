@@ -396,15 +396,27 @@ const AR_DEPARTMENTS_URL = "/geo/ar-departments.geojson";
 const CONTEXT_URL = "/geo/sudamerica-context.geojson";
 
 // map-QOL zoom-bounds clamp: the camera can never wander away from the
-// national territory. AR_BBOX (lib/ui/map-bounds) padded by a small margin so
-// border jurisdictions aren't pinned against the viewport edge — but NOT so much
-// that the operator can drag the country into a corner and roam the open ocean.
-// panorama redesign Theme 2 (anchor the camera): tightened 6° → 1.5° (~165 km at
-// this latitude) so Argentina fills the frame and manual pan stays over land.
-const MAX_BOUNDS_PAD_DEG = 1.5;
+// national territory. AR_BBOX (lib/ui/map-bounds) padded so border
+// jurisdictions aren't pinned against the viewport edge.
+//
+// v2C QA fix (2026-07-11) — the pads are now ASYMMETRIC and the longitude pad
+// is wide, because MapLibre's maxBounds also acts as a MINIMUM-ZOOM clamp: the
+// camera can never zoom out past the point where the viewport would exceed the
+// bounds. Argentina is portrait (≈23° wide × 33° tall) while the v2C
+// full-bleed console is landscape (≈1700×900 css px at 1920), so fitting the
+// country's HEIGHT requires the viewport to span ≈60-90° of LONGITUDE. The old
+// symmetric 1.5° pad (tuned for the narrow v1 map card) capped min-zoom ABOVE
+// the national frame — «Vista nacional» / «← Volver a Nacional» / fitBounds
+// silently no-opped and the constrained transform even mis-painted fills
+// (live-QA find: unqueryable choropleth color over the open ocean). 31° of
+// longitude headroom admits the national fit up to ~2560px-wide consoles while
+// panning stays bounded (no roaming to other continents); latitude keeps a
+// tight 2° so the country never scrolls away vertically.
+const MAX_BOUNDS_PAD_LNG_DEG = 31;
+const MAX_BOUNDS_PAD_LAT_DEG = 2;
 const AR_MAX_BOUNDS: [[number, number], [number, number]] = [
-  [AR_BBOX[0][0] - MAX_BOUNDS_PAD_DEG, AR_BBOX[0][1] - MAX_BOUNDS_PAD_DEG],
-  [AR_BBOX[1][0] + MAX_BOUNDS_PAD_DEG, AR_BBOX[1][1] + MAX_BOUNDS_PAD_DEG],
+  [AR_BBOX[0][0] - MAX_BOUNDS_PAD_LNG_DEG, AR_BBOX[0][1] - MAX_BOUNDS_PAD_LAT_DEG],
+  [AR_BBOX[1][0] + MAX_BOUNDS_PAD_LNG_DEG, AR_BBOX[1][1] + MAX_BOUNDS_PAD_LAT_DEG],
 ];
 const MIN_ZOOM = 3;
 // The default max-zoom every programmatic fitBounds uses (before the magnetic
@@ -1167,7 +1179,14 @@ export function SituationalMap({
     // (The map-click drill was unaffected — `drillToProvince` fits imperatively via
     // `provinceBboxesRef`.) Fall back to the static AR extent so a province-scope
     // commit always reframes; the national fallback is only reached with no scope.
-    const nationalBbox = nationalBboxRef.current ?? AR_BBOX;
+    //
+    // v2C QA fix (2026-07-11): the no-selection (return-to-national) frame now
+    // uses the STATIC national extent, never nationalBboxRef — that ref is the
+    // DATA-EXTENT snapshot captured at map load, and on a camera-restored
+    // session it equals the restored regional view, so «← Volver a Nacional»
+    // re-framed to the same regional camera (a visible no-op). The reset
+    // promises the national picture; only the static extent delivers it.
+    const nationalBbox = AR_BBOX;
 
     let cancelled = false;
 
@@ -2816,11 +2835,18 @@ export function SituationalMap({
   }
 
   // Reset view: snap the camera back to the operator's scope — the
-  // server-computed jurisdiction bbox (govt) or the national/data extent.
+  // server-computed jurisdiction bbox (govt) or the NATIONAL frame (admin).
+  //
+  // v2C QA fix (2026-07-11): this used to fall back to nationalBboxRef — the
+  // DATA-EXTENT bbox captured at map load. With a camera-restored session
+  // (?z/lat/lng from a saved board) that snapshot is whatever regional extent
+  // the restored layers happened to span, so "Vista nacional" fit right back
+  // to the current regional view — a visible no-op. The button PROMISES the
+  // national frame: use the static AR extent, never a data snapshot.
   function fitToScope() {
     const map = mapRef.current;
     if (!map) return;
-    const bbox = initialBoundsRef.current ?? nationalBboxRef.current ?? AR_BBOX;
+    const bbox = initialBoundsRef.current ?? AR_BBOX;
     map.fitBounds(bbox, { padding: 56, animate: true, maxZoom: 11 });
   }
   // Accessible label for the reset-view control. Named per operator type so the
@@ -3060,8 +3086,10 @@ export function SituationalMap({
         {/* Top-CENTER control cluster (v2C): scope drill ("← Volver a
             Nacional") + camera reset + aggregation-level badge — centered so
             the top corners stay free for the overlay clusters. Light chrome
-            (the dark skin is retired). */}
-        <div className="absolute left-1/2 top-3.5 z-10 flex -translate-x-1/2 items-center gap-2">
+            (the dark skin is retired). Below xl the corner clusters converge on
+            the middle (1366×768 responsive pass), so the centered group drops
+            BELOW them instead of overlapping the scope pill. */}
+        <div className="absolute left-1/2 top-36 z-10 flex -translate-x-1/2 items-center gap-2 xl:top-3.5">
           {/* Click-to-drill (task #55): pop the province scope back to national.
             Rendered only when the operator can return (explicit province pick). */}
           {onReturnNational && (

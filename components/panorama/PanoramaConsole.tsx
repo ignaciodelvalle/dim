@@ -3443,7 +3443,10 @@ export function PanoramaConsole({
             first row, the stacked KPI chips below (click → re-base the
             choropleth), then the stale-KPI notice and the bivariate encoding
             toggle when eligible. Absolute — never re-layouts the map. */}
-        <div className="absolute left-3.5 top-3.5 z-10 flex w-72 max-w-[calc(100%-1.75rem)] flex-col gap-2">
+        {/* Responsive (1366x768 pass): the cluster narrows below xl so the
+            corner overlays release the map center; the centered map controls
+            drop below the clusters at the same breakpoint (SituationalMap). */}
+        <div className="absolute left-3.5 top-3.5 z-10 flex w-64 max-w-[calc(100%-1.75rem)] flex-col gap-2 xl:w-72">
           <div className="flex items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/95 p-2 shadow-md">
             <OverlayDisclosure
               closeSignal={activePresetId}

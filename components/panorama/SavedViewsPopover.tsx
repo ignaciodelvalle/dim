@@ -22,8 +22,9 @@ import {
   upsertView,
 } from "@/components/panorama/saved-views";
 
+// v2C light chrome (dark skin retired) — matches the sibling briefing actions.
 const CHROME_BTN =
-  "rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70";
+  "rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe";
 
 export function SavedViewsPopover() {
   const [open, setOpen] = useState(false);
@@ -93,7 +94,7 @@ export function SavedViewsPopover() {
         // controls are individually labelled, so the container needs no role.
         <div
           id={panelId}
-          className="absolute right-0 bottom-full mb-2 w-64 space-y-2 rounded-[var(--radius-md)] border border-white/15 bg-black/85 p-2 text-white/90 shadow-lg backdrop-blur"
+          className="absolute right-0 top-full mt-2 z-30 w-64 space-y-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink-2 shadow-lg"
         >
           <div className="flex items-center gap-1.5">
             <input
@@ -105,19 +106,19 @@ export function SavedViewsPopover() {
               }}
               placeholder="Nombre de la vista"
               aria-label="Nombre de la vista a guardar"
-              className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-white/20 bg-black/40 px-2 py-1 text-xs text-white placeholder:text-white/40 focus:border-white/50 focus:outline-none"
+              className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-1 text-xs text-ln-op-ink placeholder:text-ln-op-faint focus:border-ln-op-azul focus:outline-none"
             />
             <button
               type="button"
               onClick={saveCurrent}
               disabled={name.trim().length === 0}
-              className="shrink-0 rounded-[var(--radius-sm)] border border-white/20 bg-white/10 px-2 py-1 text-xs font-medium text-white/90 hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="shrink-0 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-2 py-1 text-xs font-medium text-ln-op-ink-2 hover:bg-ln-op-line/60 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Guardar
             </button>
           </div>
           {views.length === 0 ? (
-            <p className="px-1 py-1 text-xs text-white/50">
+            <p className="px-1 py-1 text-xs text-ln-op-mute">
               Guardá la vista actual (capas, período, alcance, cámara) con un nombre para volver más
               tarde.
             </p>
@@ -128,7 +129,7 @@ export function SavedViewsPopover() {
                   <button
                     type="button"
                     onClick={() => applyView(v.url)}
-                    className="min-w-0 flex-1 truncate rounded-[var(--radius-sm)] px-2 py-1 text-left text-xs text-white/90 hover:bg-white/10"
+                    className="min-w-0 flex-1 truncate rounded-[var(--radius-sm)] px-2 py-1 text-left text-xs text-ln-op-ink hover:bg-ln-op-stripe"
                     title={`Aplicar "${v.name}"`}
                   >
                     {v.name}
@@ -137,7 +138,7 @@ export function SavedViewsPopover() {
                     type="button"
                     onClick={() => deleteView(v.name)}
                     aria-label={`Eliminar la vista ${v.name}`}
-                    className="shrink-0 rounded-[var(--radius-sm)] px-1.5 py-1 text-xs text-white/50 hover:bg-white/10 hover:text-white/90"
+                    className="shrink-0 rounded-[var(--radius-sm)] px-1.5 py-1 text-xs text-ln-op-mute hover:bg-ln-op-stripe hover:text-ln-op-ink"
                   >
                     ✕
                   </button>
