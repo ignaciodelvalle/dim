@@ -12,6 +12,7 @@ import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localid
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
+import { ScrollToSignal } from "../_components/ScrollToSignal";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
 
 // All provinces in the GeoJSON placeholder (same list as the parent page).
@@ -109,6 +110,13 @@ export default async function GobVigilanciaBrotesPage({
           .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
           .filter((p) => p.code !== "");
 
+  // Deep-link target (?signalId=): highlight + scroll the matching row into
+  // view. Only activates when the requested signal is actually present in the
+  // current (filtered) result set — a stale or out-of-window id is a no-op.
+  const targetSignalId = sp.signalId ?? null;
+  const hasSignalTarget =
+    targetSignalId != null && signals.some((s) => s.signalEventId === targetSignalId);
+
   const panelId = "panel-brotes-titulo";
 
   return (
@@ -172,12 +180,18 @@ export default async function GobVigilanciaBrotesPage({
           ) : (
             <ul className="px-3">
               {signals.map((s) => (
-                <OutbreakSignalRow key={s.signalEventId} signal={s} />
+                <OutbreakSignalRow
+                  key={s.signalEventId}
+                  signal={s}
+                  highlighted={s.signalEventId === targetSignalId}
+                />
               ))}
             </ul>
           )}
         </OpCardBody>
       </OpCard>
+
+      {hasSignalTarget && targetSignalId != null && <ScrollToSignal signalId={targetSignalId} />}
     </div>
   );
 }

@@ -8,6 +8,12 @@ import { speciesLabel } from "@/lib/utils/format";
 
 type OutbreakSignalRowProps = {
   signal: SurveillanceSignal;
+  /**
+   * When true, this row is the deep-link target (`?signalId=`). It renders a
+   * highlight ring and marks itself as the current item so the client-side
+   * `ScrollToSignal` helper can bring it into view.
+   */
+  highlighted?: boolean;
 };
 
 /** Format a Date as a human-readable "time ago" string in es-AR. */
@@ -33,8 +39,11 @@ function timeAgo(date: Date): string {
  * Compact card-style row for a single outbreak signal.
  * Clicking navigates to the brotes drill-down pre-filtered by signalId.
  * Shows a confidence badge derived from the event's provenance (plan §A.5).
+ *
+ * The stable DOM id `signal-<eventId>` is the scroll anchor the brotes
+ * `?signalId=` deep-link targets (see ScrollToSignal).
  */
-export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
+export function OutbreakSignalRow({ signal, highlighted = false }: OutbreakSignalRowProps) {
   const href = `/gob/vigilancia/brotes?signalId=${signal.signalEventId}`;
   const confidenceTier = computeConfidence({
     authorRole: signal.authorRole,
@@ -44,7 +53,14 @@ export function OutbreakSignalRow({ signal }: OutbreakSignalRowProps) {
   });
 
   return (
-    <li className="border-b border-ln-op-line-2 last:border-b-0">
+    <li
+      id={`signal-${signal.signalEventId}`}
+      aria-current={highlighted ? "true" : undefined}
+      className={[
+        "border-b border-ln-op-line-2 last:border-b-0 scroll-mt-24",
+        highlighted ? "rounded-[var(--radius-md)] bg-ln-op-stripe ring-2 ring-ln-op-azul" : "",
+      ].join(" ")}
+    >
       <Link
         href={href}
         className="flex items-start justify-between gap-3 px-1 py-3 rounded-[var(--radius-md)] hover:bg-ln-op-stripe transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1"
