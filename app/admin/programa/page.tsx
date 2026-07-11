@@ -50,6 +50,7 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -382,7 +383,7 @@ export default async function AdminProgramaPage({
                             ? "bg-ln-op-danger-bg/30"
                             : "hover:bg-ln-op-stripe/50 transition-colors",
                         ].join(" ")}
-                        aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${row.rate}% (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
+                        aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${formatPercent(row.rate)} (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
                       >
                         <td className="py-2 pr-4">
                           {drillHref ? (
@@ -404,9 +405,9 @@ export default async function AdminProgramaPage({
                             "py-2 pr-4 text-right tabular-nums font-medium",
                             row.isOutlier ? "text-ln-op-danger" : "text-ln-op-ok",
                           ].join(" ")}
-                          aria-label={`Cobertura: ${row.rate}%`}
+                          aria-label={`Cobertura: ${formatPercent(row.rate)}`}
                         >
-                          {row.rate}%
+                          {formatPercent(row.rate)}
                         </td>
                         <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
                           {row.target}%
@@ -418,9 +419,9 @@ export default async function AdminProgramaPage({
                           ].join(" ")}
                         >
                           {row.gap > 0
-                            ? `−${row.gap}%`
+                            ? `−${formatPercent(row.gap)}`
                             : row.gap < 0
-                              ? `+${Math.abs(row.gap)}%`
+                              ? `+${formatPercent(Math.abs(row.gap))}`
                               : "—"}
                         </td>
                       </tr>
