@@ -831,6 +831,43 @@ async function countPetsNoLocality(whereExtra: SQL[], scopeClause: SQL | null): 
   return row?.n ?? 0;
 }
 
+/**
+ * Per-PROVINCE breakdown of the metric's no-locality residual (province set,
+ * locality NULL) — the WARNING-4 pets invisible to the department grain. Same
+ * `metricPredicate` + `petsScope` as the choropleth loaders, grouped by province,
+ * so the numbers reconcile exactly with `countPetsNoLocality` (whose national
+ * total is this summed over provinces).
+ *
+ * Added for the aggregate cube (migration 0139): the TS cube-builder stores each
+ * province's residual on the province-grain rows so the cube reader can reproduce
+ * the loader's `noLocalityCount` for both the national view (sum) and a
+ * province drill (that province's value) WITHOUT a live query. Lives here so the
+ * scope-aware SELECT stays inside the repository (the module's single @/db seam).
+ */
+export async function noLocalityByProvince(
+  metric: ChoroplethMetric,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<{ province: string; count: number }[]> {
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const conditions = [
+    metricPredicate(metric),
+    isNotNull(pets.jurisdictionProvince),
+    sql`${pets.jurisdictionLocality} IS NULL`,
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+  const rows = await db
+    .select({ province: pets.jurisdictionProvince, n: countDistinct(pets.id) })
+    .from(pets)
+    .where(and(...conditions))
+    .groupBy(pets.jurisdictionProvince);
+  return rows
+    .filter((r) => r.province !== null)
+    .map((r) => ({ province: r.province as string, count: r.n }));
+}
+
 // Build the per-locality rollup join. `whereExtra` adds the metric-specific
 // predicate (e.g. rabies vaccination). `scopeClause` is the pets-scope clause.
 async function rollupPetsPerLocality(

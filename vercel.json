@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/daily",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-cube",
+      "schedule": "*/15 * * * *"
     }
   ],
   "functions": {

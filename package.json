@@ -47,6 +47,7 @@
     "deploy:provision": "tsx scripts/deploy-provision.ts",
     "rls:smoke": "tsx scripts/rls-smoke.ts",
     "rebuild:projections": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/rebuild-projections.ts",
+    "cube:refresh": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/refresh-cube.ts",
     "seed:test": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-test-users.ts",
     "seed:perf": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-perf.ts",
     "seed:demo": "node --import ./scripts/register-server-only-stub.mjs --import tsx scripts/seed-demo.ts",

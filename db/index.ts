@@ -165,6 +165,14 @@ export const db: PostgresJsDatabase<typeof schema> = DATABASE_URL_PRESENT
 //     mode DOES honor startup GUCs (verified: SQLSTATE 57014 cancellation), so
 //     the runaway-query backstop is real on this pool.
 //
+// Analytics statement_timeout (ms). Default 15s — the request-path backstop. A
+// background job (the panorama cube builder) sets ANALYTICS_STATEMENT_TIMEOUT_MS to
+// a generous value (e.g. 120000) so its heavier, off-request rollups are not cut at
+// 15s; request paths leave it unset and keep the 15s backstop.
+const ANALYTICS_STATEMENT_TIMEOUT_MS = Number(
+  process.env.ANALYTICS_STATEMENT_TIMEOUT_MS ?? "15000",
+);
+
 // In tests both exports share ONE pool (max 3): the analytics split is a
 // production concern, and a second pool would double connections per test file.
 const analyticsClient = isTest
@@ -191,7 +199,12 @@ const analyticsClient = isTest
       idle_timeout: 5, // seconds — release session-pooler backends fast (was 10; see max note)
       max_lifetime: 300, // seconds — recycle to avoid stale/degraded connections
       connection: {
-        options: "-c statement_timeout=15000 -c idle_in_transaction_session_timeout=15000",
+        // Session mode honors this startup GUC (verified: SQLSTATE 57014). Default
+        // 15s is the request-path backstop; a BACKGROUND builder (the panorama cube
+        // refresh) raises it via ANALYTICS_STATEMENT_TIMEOUT_MS so its heavier,
+        // uncontended national rollups are not cut at 15s. Request paths never set
+        // the env, so their backstop is unchanged.
+        options: `-c statement_timeout=${ANALYTICS_STATEMENT_TIMEOUT_MS} -c idle_in_transaction_session_timeout=${ANALYTICS_STATEMENT_TIMEOUT_MS}`,
       },
     }));
 
