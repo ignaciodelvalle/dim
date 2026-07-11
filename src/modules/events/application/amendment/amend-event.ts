@@ -8,7 +8,10 @@
 // Amendment-of-amendment is allowed (D5 edge): the action always resolves the
 // original target_event_id, so the chain stays one hop from the root event.
 
+import { createHash } from "node:crypto";
+
 import { auditLog, db, notifications, ownerships, petEvents, profiles } from "@/db";
+import { deriveBulkIdempotencyKey, insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { ADMIN_AMENDMENT_NOTIFICATION_TYPE, isAmendableEventType } from "@/lib/infra/amendment";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
@@ -17,6 +20,26 @@ import { revalidatePath } from "next/cache";
 
 import { refreshPetCacheAfterAmendment } from "./refresh-pet-cache-after-amendment";
 import type { AmendEventInput, AmendEventResult } from "./types";
+
+/**
+ * Server-derived idempotency key for an amendment (EL-F1). Deterministic in
+ * (targetEventId, actorUserId, changes) so a double-click on "Corregir" that
+ * fires the same correction twice dedupes at the DB unique index instead of
+ * appending a second event_amended row (+ duplicate audit_log + notification).
+ * Distinct corrections (different changes) still produce distinct keys and
+ * append normally. No form/client change required.
+ */
+export function deriveAmendmentIdempotencyKey(
+  targetEventId: string,
+  actorUserId: string,
+  changes: unknown,
+): string {
+  const changesHash = createHash("sha256")
+    .update(JSON.stringify(changes ?? []))
+    .digest("hex")
+    .slice(0, 16);
+  return deriveBulkIdempotencyKey(`amend:${targetEventId}:${changesHash}`, actorUserId);
+}
 
 export async function amendEvent(
   user: { id: string },
@@ -115,12 +138,17 @@ export async function amendEvent(
   // caches too, not only in the projection read boundaries). The D5 audit +
   // notify writes join the same tx so a partial correction can never surface.
   const now = new Date();
+  // EL-F1: server-derived key so an identical rapid resubmit dedupes.
+  const idempotencyKey = deriveAmendmentIdempotencyKey(resolvedTargetEventId, user.id, changes);
   let amendmentEventId: string;
   try {
     amendmentEventId = await db.transaction(async (tx) => {
-      const [amendmentEvent] = await tx
-        .insert(petEvents)
-        .values({
+      // Route the append through the idempotency path (advisory lock + partial
+      // unique index) instead of a raw insert (EL-F1): a double-submit with the
+      // same key is a no-op that returns the original row rather than appending
+      // a second event_amended (+ duplicate audit_log + notification).
+      const { event: amendmentEvent, wasNoop } = await insertEventIdempotent(
+        {
           petId: pet.id,
           eventType: "event_amended",
           occurredAt: now,
@@ -131,12 +159,15 @@ export async function amendEvent(
           authorVerified: eventAuthorship.authorVerified,
           payload: validatedPayload,
           notes: null,
-        })
-        .returning({ id: petEvents.id });
+          clientIdempotencyKey: idempotencyKey,
+        },
+        tx as Parameters<typeof insertEventIdempotent>[1],
+      );
 
-      if (!amendmentEvent) {
-        throw new Error("amendment insert returned no row");
-      }
+      // Identical resubmit → the amendment already exists. Skip the cache
+      // refresh, audit_log and notification so the append-only log isn't
+      // polluted with duplicate correction side effects.
+      if (wasNoop) return amendmentEvent.id;
 
       // Re-derive any pets cache column the corrected (root) event feeds. Reads
       // the full stream INCLUDING the row just inserted, so the correction is
