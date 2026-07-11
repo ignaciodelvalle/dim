@@ -20,6 +20,7 @@
 
 import { NextResponse } from "next/server";
 
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import { listLocalitiesByProvince, listLocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -46,10 +47,27 @@ export async function GET(request: Request) {
   const provinceIso = url.searchParams.get("province");
   const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
 
-  // No province (national scope) or an unknown ISO code → an empty bundle. The
-  // console resets the switcher's locality list + the map's centroids to empty,
-  // exactly as the server page does when no province is selected.
-  if (!provinceObj) {
+  // Defense-in-depth (QA fix, 2026-07-11 §1): narrow a govt actor's requested
+  // province to their actual assignments — the SAME narrowGovtScope guard the
+  // sibling [layer]/kpis routes apply. Harmless TODAY: this bundle is public
+  // padrón reference data (the ar_localities list + centroids for whatever
+  // province is requested), not scoped PII, and the console only ever offers
+  // a govt operator their own allowedProvinces to begin with. But without this
+  // guard, a crafted `?province=` outside an operator's assignments would
+  // still resolve — the guard is added NOW, before any scope-derived field is
+  // ever added to this route, so that day can't turn into a leak. Admin is
+  // universal scope (mirrors [layer]/route.ts's admin bypass); an unknown ISO
+  // code (`!provinceObj`) and an out-of-scope province both fall to the same
+  // empty bundle the console already handles for "no province selected".
+  const inScope =
+    auth.actor.role === "admin" ||
+    narrowGovtScope(auth.actor.jurisdictions, provinceObj?.name ?? null, null).length > 0;
+
+  // No province (national scope), an unknown ISO code, or an out-of-scope
+  // province → an empty bundle. The console resets the switcher's locality
+  // list + the map's centroids to empty, exactly as the server page does when
+  // no province is selected.
+  if (!provinceObj || !inScope) {
     return NextResponse.json(
       { localities: [], localityCentroids: {} },
       { headers: { "cache-control": "no-store" } },
