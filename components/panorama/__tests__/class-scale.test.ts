@@ -170,6 +170,16 @@ describe("colorForValue — scalar JS mirror of the step expression", () => {
       expect(colorForValue(scale, v)).toBe(painted(v));
     }
   });
+
+  it("NaN hardening: returns null (no-data) instead of silently falling into the lowest class", () => {
+    // Every `value >= breaks[i]` comparison is false for NaN, so an unguarded
+    // version fell through to idx=0 (colors[0], the LOWEST class) —
+    // indistinguishable from a genuinely low real value. Must return null so
+    // the caller renders its own no-data state instead of a fake "low" color.
+    expect(colorForValue(scale, Number.NaN)).toBeNull();
+    expect(colorForValue(scale, Number.POSITIVE_INFINITY)).toBeNull();
+    expect(colorForValue(scale, Number.NEGATIVE_INFINITY)).toBeNull();
+  });
 });
 
 describe("classSwatches", () => {

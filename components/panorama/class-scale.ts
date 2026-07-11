@@ -167,8 +167,15 @@ export function stepColorExpr(input: unknown, scale: ClassScale): unknown {
  * breaks[i] → colors[i]; value ≥ last break → last color). Used off-map where a
  * lone value must be painted its class color (e.g. the CABA inset uniform fill),
  * so the inset chip matches the main choropleth's class palette exactly.
+ *
+ * NaN hardening: every `value >= breaks[i]` comparison is false for NaN, so an
+ * unguarded version silently fell through to `idx = 0` (the LOWEST class) —
+ * indistinguishable from a genuinely low real value. Returns `null` for a
+ * non-finite value instead, so the caller can render its own no-data state
+ * rather than paint a fake "low" color.
  */
-export function colorForValue(scale: ClassScale, value: number): string {
+export function colorForValue(scale: ClassScale, value: number): string | null {
+  if (!Number.isFinite(value)) return null;
   let idx = 0;
   for (let i = 0; i < scale.breaks.length; i++) {
     if (value >= scale.breaks[i]) idx = i + 1;
