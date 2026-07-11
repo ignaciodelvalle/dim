@@ -310,7 +310,7 @@ export function getScale5(key: ScaleKey): ColorScale5 {
 }
 
 // ---------------------------------------------------------------------------
-// Chart line / area colors (for TimeSeriesChart / DashboardChart)
+// Chart line / area colors (for TimeSeriesChart / StackedTimeSeriesChart)
 // ---------------------------------------------------------------------------
 
 /** Named stroke colors for recharts series — single-hue, accessible. */
