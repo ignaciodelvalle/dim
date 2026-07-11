@@ -267,3 +267,15 @@ describe("getLayer / isLayerId", () => {
     expect(isLayerId("")).toBe(false);
   });
 });
+
+describe("layer descriptions (task #38 Filtro method notes)", () => {
+  it("every layer carries a non-empty es-AR method line", () => {
+    for (const layer of PANORAMA_LAYERS) {
+      expect(layer.description.length, `${layer.id} description`).toBeGreaterThan(20);
+    }
+  });
+
+  it("the denuncias note is honest about coarse (centroid) location", () => {
+    expect(getLayer("denuncias")?.description).toMatch(/centroide|localidad/i);
+  });
+});

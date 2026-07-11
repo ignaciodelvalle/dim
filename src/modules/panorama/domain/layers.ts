@@ -52,6 +52,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "perdidas",
     label: "Pérdidas / avistajes",
+    description:
+      "Reportes de mascotas perdidas y avistajes en el período, agregados por unidad (localidad o departamento).",
     geomType: "point",
     source: "pet_events:lost",
     color: "#e15759",
@@ -75,6 +77,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "mordeduras",
     label: "Mordeduras / antirrábica",
+    description:
+      "Eventos de mordedura registrados en el período (insumo de vigilancia antirrábica), agregados por unidad.",
     geomType: "point",
     source: "pet_events:bite",
     color: "#f28e2b",
@@ -103,6 +107,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "denuncias",
     label: "Denuncias de bienestar",
+    description:
+      "Denuncias de bienestar animal activas en el período, ubicadas por localidad (centroide) — nunca la ubicación exacta de la denuncia.",
     geomType: "point",
     source: "welfare_reports",
     color: "#b07aa1",
@@ -128,6 +134,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "zoonosis",
     label: "Zoonosis / señales",
+    description:
+      "Señales de vigilancia zoonótica (rabia, leptospirosis, hidatidosis) activas en el período, agregadas por unidad.",
     geomType: "point",
     source: "outbreak_signals",
     color: "#9c755f",
@@ -147,6 +155,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "sintomas",
     label: "Síntomas / vigilancia sindrómica",
+    description:
+      "Síntomas reportados en el período (vigilancia sindrómica temprana), agregados por unidad.",
     geomType: "point",
     source: "pet_events:symptom",
     color: "#edc948",
@@ -166,6 +176,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "reunificacion",
     label: "Reunificación",
+    description:
+      "Porcentaje de episodios de pérdida reencontrados con su familia en el período, por unidad (el tamaño del símbolo es la tasa).",
     geomType: "point",
     source: "metrics:reunification",
     // NOT the stash's #59a14f — that collides with cobertura's green.
@@ -186,6 +198,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "refugios",
     label: "Refugios",
+    description:
+      "Refugios y organizaciones registradas — directorio actual (ubicación puntual), no es un conteo de eventos del período.",
     geomType: "point",
     source: "organizations:shelter",
     color: "#4e79a7",
@@ -203,6 +217,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "decomisos",
     label: "Decomisos",
+    description:
+      "Expedientes de decomiso en el período — cada punto es un caso (ubicación puntual del expediente).",
     geomType: "point",
     source: "cases:decomiso",
     color: "#76b7b2",
@@ -220,6 +236,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "esterilizacion",
     label: "Cobertura de esterilización",
+    description:
+      "Mascotas activas con esterilización registrada sobre el total de la unidad (meta 70% · control poblacional).",
     geomType: "choropleth",
     source: "metrics:sterilization-coverage",
     color: "#af7aa1",
@@ -246,6 +264,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "microchip",
     label: "Penetración microchip (C1)",
+    description:
+      "Mascotas activas con microchip ISO activo sobre el total de la unidad (Ley Prov 14.107 · meta 80%).",
     geomType: "choropleth",
     source: "metrics:microchip-penetration",
     // NOT the stash's #4e79a7 — that collides with refugios' blue.
@@ -268,6 +288,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "ppp",
     label: "Registro PPP (C7)",
+    description:
+      "Perros potencialmente peligrosos registrados sobre el total estimado de la unidad (Ley Prov 14.107 · benchmark 80%).",
     geomType: "choropleth",
     source: "metrics:ppp-compliance",
     color: "#ff9da7",
@@ -290,6 +312,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "cobertura",
     label: "Cobertura antirrábica (perros, 12m)",
+    description:
+      "Perros del padrón con vacuna antirrábica en los últimos 12 meses sobre el total, por unidad (Ley 22.953 · meta 80%).",
     geomType: "choropleth",
     source: "metrics:rabies-coverage",
     color: "#59a14f",
@@ -315,6 +339,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "mortalidad",
     label: "Mortalidad / disposición",
+    description:
+      "Mascotas con estado 'fallecida' registrado y su disposición, por unidad (estado actual, no ventana temporal).",
     geomType: "choropleth",
     source: "metrics:mortality",
     color: "#bab0ac",

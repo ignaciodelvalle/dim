@@ -143,6 +143,14 @@ export type PanoramaLayer = {
   id: LayerId;
   /** Human label (es-AR) shown in the LayerPanel legend. */
   label: string;
+  /**
+   * task #38 (Filtro panel): one honest es-AR method line stating EXACTLY what
+   * this layer measures and how it is located — shown in the Filtro panel's
+   * Detalle mode under each layer row. Written to be truthful about aggregation
+   * and privacy (e.g. "ubicadas por localidad (centroide)"), never marketing
+   * copy. Synergy with the KPI method notes (task #15).
+   */
+  description: string;
   geomType: GeomType;
   /** Loader key the infrastructure repository switches on (e.g. "pet_events:lost"). */
   source: string;
