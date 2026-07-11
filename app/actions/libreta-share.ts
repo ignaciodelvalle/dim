@@ -18,9 +18,11 @@
 // function. Types are re-exported with `export type` (erased at runtime).
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import type { LibretaShareToken } from "@/db";
 import { requirePetAccess } from "@/lib/infra/pet-access";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { createLibretaShareForUser as _createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
 import { getActiveLibretaShares as _getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
@@ -101,6 +103,29 @@ export async function logLibretaShareViewAction(input: {
   shareToken: string;
   userAgent: string | null;
 }): Promise<void> {
+  // Per-(shareToken, IP) rate limit BEFORE the delegated write. This action is
+  // independently invocable — an attacker can POST it directly (bypassing the
+  // page's own `libreta_share_page` guard) to flood share_telemetry inserts and
+  // hammer the view-counter update transaction. Cap it at the same generous rate
+  // as the page render so a legitimate viewer refreshing is never affected, then
+  // silently drop on breach (telemetry is best-effort; ViewLogger swallows the
+  // outcome regardless).
+  let ip = "unknown";
+  try {
+    ip = callerIp(await headers());
+  } catch {
+    // Non-request context (e.g. direct test invocation) — fall back to "unknown".
+  }
+  try {
+    await enforceRateLimit(`libreta_share_view:${input.shareToken}`, ip, {
+      maxPerMinute: 30,
+      maxPerHour: 200,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) return;
+    throw err;
+  }
+
   await _logLibretaShareViewForToken(input);
 }
 
