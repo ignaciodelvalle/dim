@@ -3361,24 +3361,276 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   }
 
   // ---------------------------------------------------------------------------
-  // Execute both queries, then compute byType from the events list.
+  // Per-type breakdown — a SEPARATE grouped COUNT(*) over the FULL window, NOT a
+  // tally of the capped `events` list (KA5). The events array is limited to
+  // EVENT_LIMIT (20) most-recent rows, so a unit with >20 events in-window would
+  // otherwise report a per-type breakdown that undercounts (only the newest 20
+  // are tallied). This query groups by each layer's synthetic type key over the
+  // whole [since, until] window with no LIMIT, mirroring the queryEvents/queryTrend
+  // predicates (a third self-contained copy, matching the queryTrend pattern).
   // ---------------------------------------------------------------------------
 
-  const [rawEvents, trend] = await Promise.all([queryEvents(), queryTrend()]);
+  async function queryByType(): Promise<Record<string, number>> {
+    function payloadJurisdictionFilter(): SQL[] {
+      const filters: SQL[] = [
+        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${province}`,
+      ];
+      if (locality)
+        filters.push(unitLocalityFilter(sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`));
+      return filters;
+    }
+
+    function columnJurisdictionFilter(provinceCol: SQL, localityCol: SQL): SQL[] {
+      const filters: SQL[] = [sql`${provinceCol} = ${province}`];
+      if (locality) filters.push(unitLocalityFilter(localityCol));
+      return filters;
+    }
+
+    function petsJurisdictionFilter(): SQL[] {
+      const filters: SQL[] = [sql`${pets.jurisdictionProvince} = ${province}`];
+      if (locality) filters.push(unitLocalityFilter(sql`${pets.jurisdictionLocality}`));
+      return filters;
+    }
+
+    // Fold grouped {type,n} rows into a Record, coalescing NULL keys (matches the
+    // `?? fallback` the queryEvents mapping applies). Empty rows → empty object,
+    // preserving the prior "no events → {}" behavior.
+    const tally = (
+      rows: Array<{ type: string | null; n: number }>,
+      fallback: string,
+    ): Record<string, number> => {
+      const out: Record<string, number> = {};
+      for (const r of rows) {
+        const key = r.type ?? fallback;
+        out[key] = (out[key] ?? 0) + r.n;
+      }
+      return out;
+    };
+
+    // Single-type layers: one COUNT(*) over the window → { [type]: n } (or {} when
+    // there are none), so byType always reconciles with the true windowed total.
+    const single = async (
+      constType: string,
+      countQuery: PromiseLike<Array<{ n: number }>>,
+    ): Promise<Record<string, number>> => {
+      const [row] = await countQuery;
+      const n = row?.n ?? 0;
+      return n > 0 ? { [constType]: n } : {};
+    };
+
+    switch (layer) {
+      case "perdidas": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          perdidasEventPredicate(),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({ type: perdidasKindExpr(), n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .groupBy(perdidasKindExpr());
+        return tally(rows, "pet_lost");
+      }
+
+      case "mordeduras": {
+        const scope = petsScope(actor, jurisdictions);
+        const typeExpr = sql<string | null>`(${petEvents.payload}->>'incident_type')`;
+        const conditions: SQL[] = [
+          mordedurasEventPredicate(),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({ type: typeExpr, n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .groupBy(typeExpr);
+        return tally(rows, "bite_inflicted");
+      }
+
+      case "denuncias": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${welfareReports.jurisdictionProvince}`,
+          sql`${welfareReports.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          gte(welfareReports.createdAt, since),
+          lte(welfareReports.createdAt, until),
+          sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+          ...columnJurisdictionFilter(
+            sql`${welfareReports.jurisdictionProvince}`,
+            sql`${welfareReports.jurisdictionLocality}`,
+          ),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({ type: welfareReports.kind, n: count() })
+          .from(welfareReports)
+          .where(and(...conditions))
+          .groupBy(welfareReports.kind);
+        return tally(rows, "other");
+      }
+
+      case "zoonosis": {
+        const scope = petEventsScope(actor, jurisdictions);
+        const typeExpr = sql<string | null>`(${petEvents.payload}->>'disease_code')`;
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "outbreak_signal"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...payloadJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({ type: typeExpr, n: count() })
+          .from(petEvents)
+          .where(and(...conditions))
+          .groupBy(typeExpr);
+        return tally(rows, "outbreak_signal");
+      }
+
+      case "decomisos": {
+        const scope = jurisdictionColumnsScope(
+          actor,
+          jurisdictions,
+          sql`${cases.jurisdictionProvince}`,
+          sql`${cases.jurisdictionLocality}`,
+        );
+        const conditions: SQL[] = [
+          eq(cases.caseKind, "custody_episode"),
+          gte(cases.openedAt, since),
+          lte(cases.openedAt, until),
+          ...columnJurisdictionFilter(
+            sql`${cases.jurisdictionProvince}`,
+            sql`${cases.jurisdictionLocality}`,
+          ),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        return single(
+          "custody_episode",
+          db
+            .select({ n: count() })
+            .from(cases)
+            .where(and(...conditions)),
+        );
+      }
+
+      case "cobertura": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "vaccination_administered"),
+          sql`unaccent(lower(coalesce(${amendedPayloadText("vaccine_name")}, ''))) LIKE '%rabi%'`,
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        return single(
+          "vaccination_administered",
+          db
+            .select({ n: count() })
+            .from(petEvents)
+            .innerJoin(pets, eq(petEvents.petId, pets.id))
+            .where(and(...conditions)),
+        );
+      }
+
+      case "mortalidad": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "death_recorded"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        return single(
+          "death_recorded",
+          db
+            .select({ n: count() })
+            .from(petEvents)
+            .innerJoin(pets, eq(petEvents.petId, pets.id))
+            .where(and(...conditions)),
+        );
+      }
+
+      case "sintomas":
+      case "esterilizacion":
+      case "ppp": {
+        const cfg = {
+          sintomas: "symptom_observed",
+          esterilizacion: "sterilization_performed",
+          ppp: "dangerous_breed_attested",
+        }[layer as "sintomas" | "esterilizacion" | "ppp"];
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, cfg),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        return single(
+          cfg,
+          db
+            .select({ n: count() })
+            .from(petEvents)
+            .innerJoin(pets, eq(petEvents.petId, pets.id))
+            .where(and(...conditions)),
+        );
+      }
+
+      case "microchip": {
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petIdentifications.kind, "microchip_iso"),
+          sql`${petIdentifications.deletedAt} IS NULL`,
+          gte(petIdentifications.recordedAt, since.toISOString().slice(0, 10)),
+          lte(petIdentifications.recordedAt, until.toISOString().slice(0, 10)),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        return single(
+          "microchip_iso",
+          db
+            .select({ n: count() })
+            .from(petIdentifications)
+            .innerJoin(pets, eq(petIdentifications.petId, pets.id))
+            .where(and(...conditions)),
+        );
+      }
+
+      default:
+        return {};
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Execute the three queries in parallel. byType is computed independently over
+  // the FULL window (KA5) — NOT tallied from the EVENT_LIMIT-capped events list.
+  // ---------------------------------------------------------------------------
+
+  const [rawEvents, trend, byType] = await Promise.all([
+    queryEvents(),
+    queryTrend(),
+    queryByType(),
+  ]);
 
   const events: UnitHistoryEvent[] = rawEvents.map((e) => ({
     date: e.date ? e.date.toISOString() : new Date().toISOString(),
     type: e.type,
     label: e.label,
   }));
-
-  // byType: tally from the full event list (capped at EVENT_LIMIT, which is
-  // representative; a separate count query is not worth the extra round-trip
-  // given the 20-event cap and the "recent context" framing).
-  const byType: Record<string, number> = {};
-  for (const e of events) {
-    byType[e.type] = (byType[e.type] ?? 0) + 1;
-  }
 
   return { events, trend, byType };
 }
