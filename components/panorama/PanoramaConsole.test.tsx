@@ -1528,4 +1528,39 @@ describe("PanoramaConsole — embedded scope drill (Theme 1: no reload)", () => 
     expect(mapProps?.selectedProvinceCode).toBeNull();
     pushSpy.mockRestore();
   });
+
+  it("browser Back (popstate) reverts a drill: scope follows the POPPED URL, no reload", async () => {
+    setUrl("/gob/panorama?period=3y");
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+      />,
+    );
+
+    // Drill into AR-B — the map reflects the drilled province (client-committed).
+    stubLocation("/gob/panorama?period=3y");
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    pushSpy.mockClear();
+    mockAssign.mockClear();
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+    });
+    expect(mapProps?.selectedProvinceCode).toBe("AR-B");
+
+    // Browser Back: the popped history entry is the national URL. A native
+    // popstate does NOT re-sync useSearchParams in this Next version, so the
+    // console must read the POPPED URL straight off window.location and revert
+    // the client-committed scope — otherwise URL and view diverge (the bug).
+    stubLocation("/gob/panorama?period=3y"); // national again — no ?province
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    // Scope tracks the popped URL (national) — no divergence, no full reload.
+    expect(mapProps?.selectedProvinceCode).toBeNull();
+    expect(mockAssign).not.toHaveBeenCalled();
+    pushSpy.mockRestore();
+  });
 });

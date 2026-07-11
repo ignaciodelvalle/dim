@@ -468,6 +468,11 @@ export function PanoramaConsole({
   const effectiveScopeLocality = scopeOverride
     ? scopeOverride.locality
     : (searchParams.get("locality") ?? null);
+  // Ref mirror of the effective province so the popstate handler (below) can
+  // read the CURRENT scope without re-subscribing the listener on every scope
+  // change — it decides whether a reverted URL needs a fresh scope bundle.
+  const effectiveScopeProvinceRef = useRef(effectiveScopeProvince);
+  effectiveScopeProvinceRef.current = effectiveScopeProvince;
 
   // The selected province's localities + centroids. Seeded from the server props
   // (the scope the page rendered); an embedded drill refreshes it from
@@ -1046,32 +1051,18 @@ export function PanoramaConsole({
   // GRACEFUL FALLBACK: if the scope-bundle fetch fails (network/500), fall back
   // to a full document navigation so a broken drill degrades to today's behavior
   // (the server re-renders the drilled scope), never a half-updated dead map.
-  const commitScopeDrill = useCallback(
-    (province: string | null, locality: string | null) => {
-      const params = new URLSearchParams(window.location.search);
-      if (province) params.set("province", province);
-      else params.delete("province");
-      if (locality) params.set("locality", locality);
-      else params.delete("locality");
-      stripCameraParams(params);
-      const qsStr = params.toString();
-      const targetUrl = `${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`;
-      const provinceChanged = province !== effectiveScopeProvince;
-      pushMapStateUrl(targetUrl);
-      setScopeOverride({ province, locality });
-
-      // National scope (return-to-national) needs no bundle — reset in place.
-      if (!province) {
-        setScopeData({ localities: [], centroids: {} });
-        return;
-      }
-      // Only the PROVINCE change needs a fresh localities/centroids bundle; a
-      // locality-only pick keeps the already-loaded province bundle.
-      if (!provinceChanged) return;
+  // Shared scope-bundle fetch — refreshes the switcher localities + the map's
+  // locality-autozoom centroids for `province`, using the caller-supplied abort
+  // signal (so both the drill path and the popstate path get last-write-wins
+  // cancellation via the same "scope" key). A non-abort failure degrades to a
+  // full document navigation to `fallbackUrl` (the server re-renders the scope),
+  // never a half-updated dead map.
+  const fetchScopeBundle = useCallback(
+    (province: string, signal: AbortSignal, fallbackUrl: string) => {
       const sp = new URLSearchParams({ province });
       fetch(`/api/panorama/scope?${sp.toString()}`, {
         headers: { accept: "application/json" },
-        signal: signalFor("scope"),
+        signal,
       })
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -1089,10 +1080,40 @@ export function PanoramaConsole({
         .catch((err) => {
           // Superseded fetch (a newer drill supersedes this one) — not a failure.
           if (isAbortError(err)) return;
-          window.location.assign(targetUrl);
+          window.location.assign(fallbackUrl);
         });
     },
-    [signalFor, effectiveScopeProvince],
+    [],
+  );
+  const commitScopeDrill = useCallback(
+    (province: string | null, locality: string | null) => {
+      const params = new URLSearchParams(window.location.search);
+      if (province) params.set("province", province);
+      else params.delete("province");
+      if (locality) params.set("locality", locality);
+      else params.delete("locality");
+      stripCameraParams(params);
+      const qsStr = params.toString();
+      const targetUrl = `${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`;
+      const provinceChanged = province !== effectiveScopeProvince;
+      // Finding 3: abort any in-flight scope bundle UNCONDITIONALLY — a
+      // return-to-national (or a locality-only pick) must not let a slow province
+      // bundle resolve LATER and clobber scopeData back to the abandoned province.
+      const scopeSignal = signalFor("scope");
+      pushMapStateUrl(targetUrl);
+      setScopeOverride({ province, locality });
+
+      // National scope (return-to-national) needs no bundle — reset in place.
+      if (!province) {
+        setScopeData({ localities: [], centroids: {} });
+        return;
+      }
+      // Only the PROVINCE change needs a fresh localities/centroids bundle; a
+      // locality-only pick keeps the already-loaded province bundle.
+      if (!provinceChanged) return;
+      fetchScopeBundle(province, scopeSignal, targetUrl);
+    },
+    [signalFor, effectiveScopeProvince, fetchScopeBundle],
   );
 
   // Click-to-drill (task #55): a clicked province → embedded scope commit.
@@ -1107,6 +1128,37 @@ export function PanoramaConsole({
     (scope: JurisdictionScope) => commitScopeDrill(scope.province, scope.locality),
     [commitScopeDrill],
   );
+
+  // panorama embedded-drill — browser Back/Forward. A drill commits scope via a
+  // NATIVE history.pushState (immune to the router-drop defect, engram
+  // #621/#622) and mirrors it in `scopeOverride`, which SHADOWS useSearchParams.
+  // But useSearchParams does NOT observe a native popstate in this Next version
+  // either — so without this, Back would pop the URL while the map/KPIs/switcher
+  // stayed drilled (URL ⇄ view diverge). On popstate we read the POPPED URL
+  // straight off window.location and drive the SAME state the drill path does —
+  // state-driven, so it is correct whether or not the router re-syncs. The
+  // reverted scope's bundle is refreshed for a ?province= URL, aborting any
+  // in-flight bundle via the shared "scope" key.
+  useEffect(() => {
+    function onPopState() {
+      const params = new URLSearchParams(window.location.search);
+      const province = params.get("province");
+      const locality = params.get("locality");
+      const prevProvince = effectiveScopeProvinceRef.current;
+      setScopeOverride({ province, locality });
+      if (!province) {
+        // Return-to-national: abort any in-flight province bundle, reset in place.
+        signalFor("scope");
+        setScopeData({ localities: [], centroids: {} });
+        return;
+      }
+      // Same province popped (locality-only change) — the loaded bundle still holds.
+      if (province === prevProvince) return;
+      fetchScopeBundle(province, signalFor("scope"), window.location.href);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [signalFor, fetchScopeBundle]);
 
   // Province-fetch version counter — bumped after a province-level choropleth
   // fetch resolves so the activeLayers memo recomputes (the cache is a ref).
