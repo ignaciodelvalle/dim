@@ -91,6 +91,12 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   "_dim_migrations",
   "govt_business_rules",
   "jurisdictions_census",
+  // Precomputed panorama aggregate cube (migration 0139): deny-all, read only
+  // via analyticsDb service-role (BYPASSRLS). Values are already k-anon'd at
+  // build (no sub-k value stored), but the tables still carry RLS-enabled
+  // deny-all so PostgREST can never read them. Same posture as rate_limit_buckets.
+  "panorama_cube",
+  "panorama_cube_meta",
 ];
 
 // ---------------------------------------------------------------------------

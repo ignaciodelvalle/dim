@@ -27,7 +27,13 @@ const CRON_DIR = join(ROOT, "app", "api", "cron");
 // Dispatcher routes are the scheduled orchestrators — they appear in
 // vercel.json and have a route directory, but they are NOT individual jobs
 // (they run the jobs) so they are excluded from the job-registry checks.
-const DISPATCHER_DIRS = ["daily"];
+// Routes scheduled DIRECTLY in vercel.json that are NOT fleet jobs (so they are
+// excluded from the job-registry/DAILY_JOB_ORDER checks): the daily dispatcher,
+// plus any standalone cron that legitimately cannot fold into it. `refresh-cube`
+// is standalone because the cube build (~105s) exceeds the 60s daily-dispatcher
+// budget — it needs its own Vercel Pro function (maxDuration 300, */15). On
+// Hobby its schedule never fires and the cube stays inert (reader falls to live).
+const DISPATCHER_DIRS = ["daily", "refresh-cube"];
 
 function snake(dir: string): string {
   return dir.replace(/-/g, "_");
