@@ -11,6 +11,7 @@ import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petIdentifications, pets } from "@/db";
+import { fetchComplianceStatesForPets } from "@/lib/analytics/owner-dashboard";
 import {
   batchFetchActiveIdentifications,
   fetchActiveIdentifications,
@@ -93,5 +94,33 @@ describe("batchFetchActiveIdentifications", () => {
     const map = await batchFetchActiveIdentifications(seedPetIds);
     expect(map.get(seedPetIds[0])?.microchip?.code).toBe(CHIP_CODE);
     expect(map.has(seedPetIds[1])).toBe(false);
+  });
+});
+
+describe("fetchComplianceStatesForPets microchip sourcing", () => {
+  // Regression for the list-vs-profile mismatch: the list surface used to pass
+  // microchipCode: null, so a pet with a declared chip read "Sin registro" on
+  // /mis-mascotas while the profile said "Declarada · sin verificar". The list
+  // now sources the code from batchFetchActiveIdentifications — same source the
+  // profile header uses.
+  // The userId only scopes event/reminder lookups; identifications are fetched
+  // by petId. A throwaway UUID yields zero events — exactly the declared-code,
+  // no-professional-event branch this regression pins.
+  const strangerId = crypto.randomUUID();
+
+  it("feeds the pet's active chip code into the list compliance state", async () => {
+    const states = await fetchComplianceStatesForPets(strangerId, seedPetIds);
+    const chipCard = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
+    expect(chipCard).toBeDefined();
+    // Code known from identifications, no professional implant event → declared.
+    expect(chipCard?.state).toBe("Declarada · sin verificar");
+    expect(chipCard?.detail).toBe(CHIP_CODE);
+  });
+
+  it("keeps 'Sin registro' for a pet without identifications", async () => {
+    const states = await fetchComplianceStatesForPets(strangerId, [seedPetIds[1]]);
+    const chipCard = states.get(seedPetIds[1])?.cards.find((c) => c.key === "microchip");
+    expect(chipCard?.state).toBe("Sin registro");
+    expect(chipCard?.detail).toBeNull();
   });
 });

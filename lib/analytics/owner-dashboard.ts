@@ -54,6 +54,7 @@ import {
 import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
+import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
   type ComplianceEvent,
   type ComplianceState,
@@ -1098,11 +1099,11 @@ const RABIES_TITLE_RE = /antirr[aá]b|rabi/i;
  * AL DÍA / REGISTRADA chip the pet-profile header derives — QA round 2
  * (2026-07-03 #4) caught three different status truths for one pet.
  *
- * Deviation from the profile header's inputs: `microchipCode` is passed as
- * null. The code only affects the card's detail text and the
- * "Declarada · sin verificar" wording for an identification-without-implant
- * pet — never whether the microchip obligation counts as ok — so the chip
- * (ok ⇔ every obligation ok) is unaffected.
+ * `microchipCode` is now sourced from `batchFetchActiveIdentifications` (one
+ * bounded query keyed by petId, same source the profile header uses via
+ * `fetchActiveIdentifications`) so a pet with a declared chip reads "Microchip
+ * declarado" on the list exactly as it does on the profile, instead of the
+ * "Sin registro" the previous `null` produced (QA: list vs profile mismatch).
  *
  * Never throws — returns an empty map when petIds is empty.
  */
@@ -1113,7 +1114,7 @@ export async function fetchComplianceStatesForPets(
   if (petIds.length === 0) return new Map();
   const now = new Date();
 
-  const [eventRows, reminderRows, petRows, turnoRows] = await Promise.all([
+  const [eventRows, reminderRows, petRows, turnoRows, identsByPet] = await Promise.all([
     // Obligation events with provenance (H1: only professional/institutional
     // events clear an obligation). `id` feeds overlayAmendments' target match.
     db
@@ -1187,6 +1188,10 @@ export async function fetchComplianceStatesForPets(
         ),
       )
       .orderBy(asc(timeSlots.startsAt)),
+    // Active chip/tattoo rows (bounded — one query keyed by petId, list capped
+    // at 200). Feeds `microchipCode` so the list's microchip card matches the
+    // profile's "Declarada · sin verificar" wording instead of "Sin registro".
+    batchFetchActiveIdentifications(petIds),
   ]);
 
   // Project corrections BEFORE grouping (D2 at the read boundary —
@@ -1254,7 +1259,7 @@ export async function fetchComplianceStatesForPets(
         events: eventsByPet.get(petId) ?? [],
         rabiesReminder: rabiesReminderByPet.get(petId) ?? null,
         reservedRabiesTurno: turnoByPet.get(petId) ?? null,
-        microchipCode: null,
+        microchipCode: identsByPet.get(petId)?.microchip?.code ?? null,
         pppApplies: Boolean(petInfo?.ppp),
         // Same PPP-determinability inputs the profile passes (review 02-6).
         species: petInfo?.species ?? null,
