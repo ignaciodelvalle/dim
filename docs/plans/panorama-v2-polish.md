@@ -43,8 +43,11 @@ Current layout to replace: 2-col grid with fixed 342px right rail + `h-[76vh]` m
    inspector campaign).
 6. **Bottom dock with tabs: `Registros | Estadísticas | Línea de tiempo`.** A collapsible,
    drag/click-expandable panel docked to the map's bottom edge (DevTools-style):
-   - **Collapsed** (default): slim bar with live counts ("267 denuncias · Ver registros").
-   - **Expanded**: ~45% of viewport, map stays live above.
+   - **Collapsed (THE DEFAULT — PO re-ratified 2026-07-11: "MÁS MAPA, la lista es opcional")**:
+     a 37px bar with live counts ("Registros 267"). The map owns everything above it.
+   - **Expanded** (opt-in only): ~38% of viewport, map stays live above; collapses back anytime.
+   - Reference mockup: `docs/design/handoffs/2026-07-11-panorama-v2-mockup.html` (v2,
+     PO-validated layout — annotations toggleable for the design handoff).
    - **Registros**: a GOOD record list for the current scope+period+layers (the "bandeja" the
      map never had). **Inventory verdict (2026-07-11): don't build a new primitive — promote
      what exists.** `components/panorama/MapDataTable.tsx` (multi-layer per-unit values, sticky

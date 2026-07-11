@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panorama v2 — consola fija (mockup)</title>
+<style>
+  /* ============ Base ============ */
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; } /* THE POINT: the page never scrolls */
+  body {
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+    background:#0a0f1e; color:#e6ebf5; font-size:13px;
+  }
+  button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+
+  .app { display:grid; grid-template-columns:200px 1fr; height:100vh; }
+
+  /* ============ Sidebar (existing AppShell — unchanged, shown as context) ============ */
+  aside {
+    background:#0d1424; border-right:1px solid #1c2740; padding:14px 0;
+    display:flex; flex-direction:column; gap:2px; overflow:hidden;
+  }
+  .logo { display:flex; align-items:center; gap:8px; padding:0 14px 14px; }
+  .logo .mark { width:26px; height:26px; border-radius:6px; background:#111a2e; border:1px solid #2a3a5c; display:grid; place-items:center; font-weight:700; font-size:12px; }
+  .logo b { font-size:13px; letter-spacing:.02em; }
+  .logo span { display:block; font-size:8.5px; color:#8fa0bd; letter-spacing:.14em; }
+  .nav-item { padding:7px 14px; color:#aab8d4; font-size:12.5px; display:flex; justify-content:space-between; align-items:center; }
+  .nav-item.active { color:#fff; background:#141e36; border-left:2px solid #3b82f6; }
+  .nav-item .badge { background:#243049; border-radius:8px; font-size:10px; padding:1px 6px; color:#cbd7ee; }
+  .nav-sep { font-size:9px; color:#5b6a8a; letter-spacing:.14em; padding:12px 14px 4px; }
+
+  /* ============ Main column ============ */
+  main { display:flex; flex-direction:column; min-width:0; height:100vh; }
+
+  /* --- Row 1: masthead --- */
+  .masthead {
+    display:flex; align-items:center; gap:10px; padding:4px 16px;
+    border-bottom:1px solid #1c2740; background:#0d1424; flex:0 0 auto;
+  }
+  .masthead .crumb { color:#8fa0bd; font-size:12px; }
+  .masthead .title { font-weight:600; font-size:12px; letter-spacing:.12em; color:#cbd7ee; }
+  .masthead .right { margin-left:auto; display:flex; gap:8px; align-items:center; color:#8fa0bd; font-size:12px; }
+
+  /* --- Row 2: VISTA presets (kept as-is) --- */
+  .vista {
+    display:flex; align-items:center; gap:2px; padding:3px 12px;
+    border-bottom:1px solid #1c2740; background:#0d1424; flex:0 0 auto; overflow-x:auto;
+  }
+  .vista .label { font-size:10px; letter-spacing:.12em; color:#5b6a8a; margin-right:8px; }
+  .vista button { padding:5px 12px; border-radius:7px; color:#aab8d4; font-size:12.5px; white-space:nowrap; }
+  .vista button.active { background:#15233f; color:#7db4fb; }
+  .vista .capas { margin-left:auto; border:1px solid #2a3a5c; border-radius:7px; padding:5px 10px; display:flex; gap:6px; align-items:center; white-space:nowrap; }
+  .vista .capas .n { background:#3b82f6; color:#fff; border-radius:8px; font-size:10px; padding:0 6px; }
+
+  /* --- Row 3: the single control strip (KPIs + scope + period + actions) --- */
+  .controls {
+    display:flex; align-items:center; gap:8px; padding:5px 12px;
+    border-bottom:1px solid #1c2740; background:#0b1120; flex:0 0 auto; overflow-x:auto; white-space:nowrap;
+  }
+  .kpi {
+    display:flex; align-items:baseline; gap:6px; padding:3px 10px;
+    background:#111a2e; border:1px solid #24304a; border-radius:8px;
+  }
+  .kpi b { font-size:14px; }
+  .kpi span { font-size:10.5px; color:#8fa0bd; }
+  .kpi.alert b { color:#fbbf24; }
+  .sep { width:1px; height:22px; background:#24304a; flex:0 0 auto; }
+  .scope-pill {
+    display:flex; align-items:center; gap:6px; padding:4px 10px; border-radius:16px;
+    background:#15233f; border:1px solid #2a3a5c; color:#cfe3ff; font-size:12.5px;
+  }
+  .scope-pill:hover { border-color:#3b82f6; }
+  .dates { display:flex; gap:4px; align-items:center; }
+  .dates button { padding:4px 9px; border-radius:14px; color:#aab8d4; font-size:12px; border:1px solid transparent; }
+  .dates button.active { background:#15233f; border-color:#2a3a5c; color:#fff; }
+  .dates .more { color:#7db4fb; }
+  .actions { margin-left:auto; display:flex; gap:6px; }
+  .actions button { padding:4px 10px; border:1px solid #24304a; border-radius:7px; color:#aab8d4; font-size:12px; }
+
+  /* ============ Map (fills everything left) ============ */
+  .map { position:relative; flex:1 1 auto; min-height:0; background:#0a0f1e; overflow:hidden; }
+  .map svg { width:100%; height:100%; display:block; }
+  .map-ctl { position:absolute; display:flex; gap:6px; }
+  .map-ctl.tl { top:10px; left:12px; }
+  .map-ctl.tr { top:10px; right:12px; flex-direction:column; }
+  .map-ctl button {
+    background:#0e1830ee; border:1px solid #2a3a5c; border-radius:7px;
+    padding:5px 10px; font-size:12px; color:#cbd7ee;
+  }
+  .map-ctl.tr button { width:30px; height:30px; padding:0; font-size:15px; }
+
+  /* single-line legend overlay */
+  .legend {
+    position:absolute; left:12px; bottom:12px; display:flex; align-items:center; gap:12px;
+    background:#0e1830ee; border:1px solid #2a3a5c; border-radius:9px; padding:6px 12px; font-size:11.5px; color:#cbd7ee;
+  }
+  .legend .t { color:#8fa0bd; }
+  .legend .dot { display:inline-block; border-radius:50%; background:#b06fa8cc; border:1px solid #d9a6d2; vertical-align:middle; margin-right:4px; }
+  .legend .sup { display:inline-block; width:11px; height:11px; border-radius:50%; vertical-align:middle; margin-right:4px;
+    background:repeating-linear-gradient(45deg,#d1d5db 0 2px,#4a5568 2px 4px); border:1px solid #9aa4b8; }
+
+  /* ============ Bottom dock ============ */
+  .dock { flex:0 0 auto; border-top:1px solid #24304a; background:#0d1424; display:flex; flex-direction:column; transition:height .18s ease; height:38vh; }
+  .dock.collapsed { height:37px; }
+  .dock-bar { display:flex; align-items:center; gap:2px; padding:0 10px; height:37px; flex:0 0 auto; border-bottom:1px solid #1c2740; }
+  .dock-grip { color:#5b6a8a; margin-right:6px; cursor:ns-resize; font-size:14px; letter-spacing:2px; }
+  .dock-tab { padding:8px 13px; font-size:12.5px; color:#aab8d4; border-bottom:2px solid transparent; }
+  .dock-tab.active { color:#fff; border-bottom-color:#3b82f6; }
+  .dock-tab .cnt { color:#7db4fb; margin-left:5px; font-size:11px; }
+  .dock-meta { margin-left:auto; color:#8fa0bd; font-size:11.5px; display:flex; align-items:center; gap:10px; }
+  .dock-toggle { border:1px solid #24304a; border-radius:6px; padding:2px 8px; color:#cbd7ee; }
+  .dock-body { flex:1 1 auto; min-height:0; overflow:auto; padding:10px 14px; }
+  .dock.collapsed .dock-body { display:none; }
+  .dock-pane { display:none; }
+  .dock-pane.active { display:block; }
+
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  th { text-align:left; color:#8fa0bd; font-weight:500; font-size:11px; letter-spacing:.06em; padding:6px 10px; border-bottom:1px solid #24304a; position:sticky; top:-10px; background:#0d1424; }
+  td { padding:7px 10px; border-bottom:1px solid #16203a; }
+  tr:hover td { background:#111a2e; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; border:1px solid #2a3a5c; color:#cbd7ee; }
+  .pill.warn { color:#fbbf24; border-color:#7c5b12; }
+  .pill.prot { color:#9aa4b8; border-color:#3d4763; background:repeating-linear-gradient(45deg,transparent 0 3px,#ffffff08 3px 6px); }
+  .bar { display:inline-block; height:7px; border-radius:4px; background:#3b82f6; vertical-align:middle; }
+  .muted { color:#8fa0bd; }
+  .rank { color:#5b6a8a; }
+  th .sort { color:#7db4fb; font-size:10px; }
+
+  /* timeline pane */
+  .tl-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+  .tl-play { width:30px; height:30px; border-radius:7px; background:#15233f; border:1px solid #2a3a5c; font-size:13px; }
+  .tl-hist { display:flex; align-items:flex-end; gap:2px; height:44px; flex:1; min-width:280px; padding:0 4px; border-bottom:1px solid #24304a; }
+  .tl-hist i { flex:1; background:#3b82f680; border-radius:2px 2px 0 0; }
+  .tl-track { position:relative; height:4px; background:#24304a; border-radius:2px; flex-basis:100%; }
+  .tl-track .win { position:absolute; left:58%; right:6%; top:0; bottom:0; background:#3b82f6; border-radius:2px; }
+  .tl-track .knob { position:absolute; right:6%; top:-4px; width:12px; height:12px; border-radius:50%; background:#fbbf24; }
+  .tl-opts { display:flex; gap:6px; flex-wrap:wrap; }
+  .tl-opts button { padding:3px 9px; border:1px solid #24304a; border-radius:12px; font-size:11.5px; color:#aab8d4; }
+  .tl-opts button.active { background:#15233f; color:#fff; border-color:#2a3a5c; }
+  .tl-lbl { font-size:10px; letter-spacing:.1em; color:#5b6a8a; align-self:center; margin-right:2px; }
+
+  /* ============ Annotations (validation layer — hide before handing to design) ============ */
+  .anno {
+    position:absolute; z-index:40; max-width:230px;
+    background:#3b2f0c; border:1px solid #fbbf24; color:#fde68a;
+    border-radius:8px; padding:6px 9px; font-size:11px; line-height:1.35;
+    box-shadow:0 4px 14px #0008;
+  }
+  .anno b { display:inline-grid; place-items:center; width:16px; height:16px; border-radius:50%; background:#fbbf24; color:#1c1503; font-size:10.5px; margin-right:5px; }
+  body.no-annos .anno { display:none; }
+  .anno-toggle {
+    position:fixed; right:14px; bottom:14px; z-index:50;
+    background:#fbbf24; color:#1c1503; font-weight:600; border-radius:9px; padding:7px 12px; font-size:12px;
+    box-shadow:0 4px 14px #000a;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Sidebar: the EXISTING AppShell, untouched — the map becomes "fixed like this bar" -->
+  <aside>
+    <div class="logo"><div class="mark">m·</div><div><b>MiMAR</b><span>ADMINISTRACIÓN</span></div></div>
+    <div class="nav-item">Alertas <span class="badge">1</span></div>
+    <div class="nav-item">Casos</div>
+    <div class="nav-item">Moderación</div>
+    <div class="nav-item active">Panorama</div>
+    <div class="nav-sep">CONFIABILIDAD</div>
+    <div class="nav-item">Sistema</div>
+    <div class="nav-item">Bandeja de salida <span class="badge">12</span></div>
+    <div class="nav-item">Auditoría</div>
+    <div class="nav-sep">IDENTIDAD Y ACCESO</div>
+    <div class="nav-item">Usuarios</div>
+    <div class="nav-item">Organizaciones</div>
+    <div class="nav-item muted">···</div>
+  </aside>
+
+  <main>
+    <!-- Row 1: masthead -->
+    <div class="masthead">
+      <span class="crumb">Dashboard › Panorama</span>
+      <span class="title">CENTRO DE SITUACIÓN NACIONAL</span>
+      <div class="right"><span>Administrador/a · Universal</span><span>Portales ▾</span></div>
+    </div>
+
+    <!-- Row 2: VISTA presets (unchanged) -->
+    <div class="vista">
+      <span class="label">VISTA</span>
+      <button>Brotes activos</button>
+      <button>Síntomas / vigilancia</button>
+      <button>Cumplimiento antirrábico</button>
+      <button class="active">Bienestar y fiscalización</button>
+      <button>Control poblacional</button>
+      <button>Pérdidas y reunificación</button>
+      <button class="capas">☰ Capas <span class="n">2</span></button>
+    </div>
+
+    <!-- Row 3: single control strip -->
+    <div class="controls">
+      <div class="kpi alert"><b>267</b><span>denuncias activas</span></div>
+      <div class="kpi"><b>12</b><span>decomisos</span></div>
+      <div class="kpi"><b>69,1%</b><span>cobertura antirrábica</span></div>
+      <div class="sep"></div>
+      <button class="scope-pill">📍 Córdoba <span style="color:#7db4fb">▾</span></button>
+      <div class="sep"></div>
+      <div class="dates">
+        <button>7 días</button><button>30 días</button><button class="active">90 días</button><button>12 meses</button>
+        <button class="more" id="dates-more">▾ más</button>
+        <span id="dates-extra" style="display:none">
+          <button>Año en curso</button><button>3 años</button><button>5 años</button><button>Personalizado…</button>
+        </span>
+      </div>
+      <div class="actions">
+        <button>Copiar vista</button><button>Vistas guardadas</button><button>Exportar PNG</button>
+      </div>
+    </div>
+
+    <!-- The map: fills ALL remaining space, never moves -->
+    <div class="map">
+      <svg viewBox="0 0 1180 640" preserveAspectRatio="xMidYMid slice" aria-label="Mapa de Córdoba (mockup)">
+        <defs>
+          <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+            <rect width="6" height="6" fill="#2b3350"/><line x1="0" y1="0" x2="0" y2="6" stroke="#8b93a8" stroke-width="1.6"/>
+          </pattern>
+        </defs>
+        <!-- department polygons (abstract shapes, evocative of the Córdoba drill) -->
+        <g stroke="#2a3a5c" stroke-width="1.2" fill="#111a2e">
+          <polygon points="330,40 480,25 560,70 540,150 420,170 320,130"/>
+          <polygon points="560,70 720,50 800,110 760,190 620,200 540,150"/>
+          <polygon points="800,110 960,95 1040,170 980,250 850,240 760,190"/>
+          <polygon points="180,140 320,130 420,170 400,270 260,290 160,230"/>
+          <polygon points="420,170 540,150 620,200 600,300 470,320 400,270"/>
+          <polygon points="620,200 760,190 850,240 820,340 680,350 600,300"/>
+          <polygon points="850,240 980,250 1060,330 990,420 870,410 820,340"/>
+          <polygon points="160,230 260,290 240,400 120,430 70,320"/>
+          <polygon points="260,290 400,270 470,320 450,430 300,450 240,400"/>
+          <polygon points="470,320 600,300 680,350 660,460 520,480 450,430"/>
+          <polygon points="680,350 820,340 870,410 840,510 700,520 660,460"/>
+          <polygon points="240,400 300,450 280,560 150,580 120,430"/>
+          <polygon points="450,430 520,480 500,590 340,600 280,560 300,450"/>
+          <polygon points="520,480 660,460 700,520 670,610 500,590"/>
+          <!-- k-anon suppressed department: hatch, NOT a value -->
+          <polygon points="870,410 990,420 1010,520 900,560 840,510" fill="url(#hatch)"/>
+        </g>
+        <!-- department labels -->
+        <g fill="#8fa0bd" font-size="12" font-family="ui-sans-serif,system-ui">
+          <text x="405" y="95">Sobremonte</text><text x="640" y="120">Río Seco</text><text x="880" y="165">Tulumba</text>
+          <text x="245" y="215">Cruz del Eje</text><text x="480" y="245">Ischilín</text><text x="700" y="270">Totoral</text>
+          <text x="900" y="330">Río Primero</text><text x="140" y="330">Minas</text><text x="330" y="370">Punilla</text>
+          <text x="540" y="400">Colón</text><text x="730" y="430">Capital</text><text x="380" y="520">Santa María</text>
+          <text x="560" y="545">Río Segundo</text><text x="895" y="495" fill="#6b7690">San Justo</text>
+        </g>
+        <!-- graduated circles — BIG map = readable circles -->
+        <g fill="#b06fa877" stroke="#d9a6d2" stroke-width="1.5">
+          <circle cx="345" cy="395" r="34"/>
+          <circle cx="555" cy="425" r="27"/>
+          <circle cx="735" cy="455" r="40"/>
+          <circle cx="905" cy="345" r="20"/>
+          <circle cx="480" cy="260" r="14"/>
+          <circle cx="700" cy="285" r="22"/>
+          <circle cx="255" cy="230" r="10"/>
+          <circle cx="590" cy="555" r="17"/>
+          <circle cx="425" cy="120" r="8"/>
+        </g>
+        <g fill="#f3d9ef" font-size="11" font-weight="600" text-anchor="middle" font-family="ui-sans-serif,system-ui">
+          <text x="345" y="399">38</text><text x="555" y="429">24</text><text x="735" y="459">51</text>
+          <text x="905" y="349">15</text><text x="700" y="289">18</text>
+        </g>
+      </svg>
+
+      <div class="map-ctl tl">
+        <button>← Volver</button><button>⌂</button><button>Departamentos/partidos</button>
+      </div>
+      <div class="map-ctl tr"><button>+</button><button>−</button></div>
+
+      <!-- single-line legend -->
+      <div class="legend">
+        <span class="t">Eventos por unidad</span>
+        <span><i class="dot" style="width:7px;height:7px"></i>1</span>
+        <span><i class="dot" style="width:11px;height:11px"></i>5</span>
+        <span><i class="dot" style="width:15px;height:15px"></i>10</span>
+        <span><i class="dot" style="width:19px;height:19px"></i>25+</span>
+        <span>·</span>
+        <span><i class="sup"></i>Datos insuficientes (privacidad)</span>
+      </div>
+
+      <!-- annotations (validation layer) -->
+      <div class="anno" style="top:52px; left:200px"><b>1</b>El mapa es LA página: 100% del alto libre, fijo como la barra izquierda. La página nunca scrollea.</div>
+      <div class="anno" style="top:10px; right:60px; max-width:200px"><b>2</b>Alcance implícito: chau selects. Drilleás clickeando; el pill «Córdoba ▾» (arriba) abre el selector para teclado/acceso directo.</div>
+      <div class="anno" style="bottom:64px; left:12px"><b>3</b>«Eventos por unidad» en una sola línea, overlay sobre el mapa. La supresión k&lt;5 sigue visible (unidad rayada).</div>
+    </div>
+
+    <!-- Bottom dock: Registros | Estadísticas | Línea de tiempo — COLLAPSED by default -->
+    <div class="dock collapsed" id="dock">
+      <div class="dock-bar">
+        <span class="dock-grip">≡</span>
+        <button class="dock-tab active" data-pane="registros">Registros <span class="cnt">267</span></button>
+        <button class="dock-tab" data-pane="stats">Estadísticas</button>
+        <button class="dock-tab" data-pane="timeline">Línea de tiempo</button>
+        <div class="dock-meta">
+          <span>Córdoba · últimos 90 días · 2 capas</span>
+          <button class="dock-toggle">Exportar CSV</button>
+          <button class="dock-toggle" id="dock-toggle">▴ Expandir</button>
+        </div>
+      </div>
+      <div class="dock-body">
+        <!-- Registros -->
+        <div class="dock-pane active" id="pane-registros">
+          <table>
+            <thead><tr><th>Fecha</th><th>Unidad</th><th>Capa</th><th>Detalle</th><th>Estado</th></tr></thead>
+            <tbody>
+              <tr><td>09 jul 2026</td><td>Capital</td><td>Denuncias de bienestar</td><td>Denuncia activa · triage pendiente</td><td><span class="pill warn">Abierta</span></td></tr>
+              <tr><td>08 jul 2026</td><td>Colón</td><td>Denuncias de bienestar</td><td>Denuncia activa · asignada</td><td><span class="pill">En curso</span></td></tr>
+              <tr><td>08 jul 2026</td><td>Punilla</td><td>Decomisos</td><td>Decomiso registrado</td><td><span class="pill">Cerrado</span></td></tr>
+              <tr><td>05 jul 2026</td><td>Río Primero</td><td>Denuncias de bienestar</td><td>Denuncia activa · triage pendiente</td><td><span class="pill warn">Abierta</span></td></tr>
+              <tr><td>04 jul 2026</td><td class="muted">San Justo</td><td>Denuncias de bienestar</td><td class="muted">—</td><td><span class="pill prot">Protegido (k&lt;5)</span></td></tr>
+              <tr><td>02 jul 2026</td><td>Capital</td><td>Decomisos</td><td>Decomiso registrado</td><td><span class="pill">Cerrado</span></td></tr>
+              <tr><td>30 jun 2026</td><td>Totoral</td><td>Denuncias de bienestar</td><td>Denuncia activa · asignada</td><td><span class="pill">En curso</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Estadísticas -->
+        <div class="dock-pane" id="pane-stats">
+          <table>
+            <thead><tr><th>#</th><th>Unidad <span class="sort">▾</span></th><th>Denuncias</th><th>vs. período anterior</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="rank">1</td><td>Capital</td><td><b>51</b></td><td>+8</td><td><span class="bar" style="width:120px"></span></td></tr>
+              <tr><td class="rank">2</td><td>Colón</td><td><b>38</b></td><td>+2</td><td><span class="bar" style="width:90px"></span></td></tr>
+              <tr><td class="rank">3</td><td>Punilla</td><td><b>24</b></td><td>−5</td><td><span class="bar" style="width:57px"></span></td></tr>
+              <tr><td class="rank">4</td><td>Totoral</td><td><b>18</b></td><td>+1</td><td><span class="bar" style="width:42px"></span></td></tr>
+              <tr><td class="rank">5</td><td>Río Primero</td><td><b>15</b></td><td>0</td><td><span class="bar" style="width:35px"></span></td></tr>
+              <tr><td class="rank">6</td><td class="muted">San Justo</td><td><span class="pill prot">k&lt;5</span></td><td class="muted">—</td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <!-- Línea de tiempo (the scrubber, now opt-in) -->
+        <div class="dock-pane" id="pane-timeline">
+          <div class="tl-row">
+            <button class="tl-play">▶</button>
+            <div class="tl-hist">
+              <i style="height:20%"></i><i style="height:35%"></i><i style="height:25%"></i><i style="height:55%"></i><i style="height:40%"></i><i style="height:70%"></i><i style="height:45%"></i><i style="height:85%"></i><i style="height:60%"></i><i style="height:95%"></i><i style="height:75%"></i><i style="height:50%"></i>
+            </div>
+            <span class="muted">Al último evento: <b style="color:#fbbf24">11:43 p. m.</b></span>
+          </div>
+          <div class="tl-row"><div class="tl-track"><div class="win"></div><div class="knob"></div></div></div>
+          <div class="tl-row" style="justify-content:space-between">
+            <div class="tl-opts">
+              <span class="tl-lbl">VENTANA</span>
+              <button>↺ última semana</button><button class="active">↺ último mes</button><button>↺ último trimestre</button>
+            </div>
+            <div class="tl-opts">
+              <span class="tl-lbl">BASE</span>
+              <button class="active">Cuándo ocurrió</button><button>Según lo conocido al momento</button>
+              <span class="tl-lbl" style="margin-left:10px">MODO</span>
+              <button class="active">Simple</button><button>Detalle</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- dock annotations (fixed above the collapsed bar) -->
+<div class="anno" style="position:fixed; right:280px; bottom:48px"><b>4</b>La lista es OPCIONAL: colapsada por defecto a esta barra de 37px (con conteos). Se expande solo si la pedís, y se vuelve a achicar. El mapa nunca se mueve.</div>
+<div class="anno" style="position:fixed; left:240px; bottom:48px"><b>5</b>La reproducción temporal ya no ocupa espacio fijo: es una tab del dock (tu «capa opcional»).</div>
+
+<!-- control-strip annotations -->
+<div class="anno" style="top:96px; left:215px"><b>6</b>KPIs SIEMPRE visibles como chips, reactivos a filtros. Click → vista filtrada.</div>
+<div class="anno" style="top:96px; left:640px"><b>7</b>Fechas en una línea: 7/30/90/12m + «▾ más» (año en curso, 3a, 5a, personalizado).</div>
+
+<button class="anno-toggle" id="anno-toggle">Ocultar anotaciones</button>
+
+<script>
+  // Dock expand/collapse
+  const dock = document.getElementById('dock');
+  const dockToggle = document.getElementById('dock-toggle');
+  dockToggle.addEventListener('click', () => {
+    dock.classList.toggle('collapsed');
+    dockToggle.textContent = dock.classList.contains('collapsed') ? '▴ Expandir' : '▾ Colapsar';
+  });
+  // Dock tabs
+  document.querySelectorAll('.dock-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      dock.classList.remove('collapsed');
+      dockToggle.textContent = '▾ Colapsar';
+      document.querySelectorAll('.dock-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.dock-pane').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('pane-' + tab.dataset.pane).classList.add('active');
+    });
+  });
+  // Date "ver más"
+  document.getElementById('dates-more').addEventListener('click', () => {
+    const x = document.getElementById('dates-extra');
+    x.style.display = x.style.display === 'none' ? 'inline' : 'none';
+  });
+  // Annotations toggle (hide before handing to design)
+  const annoBtn = document.getElementById('anno-toggle');
+  annoBtn.addEventListener('click', () => {
+    document.body.classList.toggle('no-annos');
+    annoBtn.textContent = document.body.classList.contains('no-annos') ? 'Ver anotaciones' : 'Ocultar anotaciones';
+  });
+</script>
+</body>
+</html>
