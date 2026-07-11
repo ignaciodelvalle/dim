@@ -358,6 +358,75 @@ describe("jurisdictionPairClause — CABA whole-province subsumption", () => {
 });
 
 // ---------------------------------------------------------------------------
+// NULL-locality subsumption (FIX #3B, QA 2026-07-10)
+//
+// Residual/legacy welfare_reports can carry a province but a NULL
+// jurisdiction_locality (a point that couldn't be reverse-geocoded to a
+// locality). PO decision: such rows must reach WHOLE-PROVINCE operators of that
+// province, but NOT specific-locality operators, and cross-province isolation
+// must hold. The whole-province branch tests province ONLY (so it matches NULL
+// locality); the specific-locality branch's `locality = Y` is UNKNOWN for NULL,
+// so it never widens. These tests pin that contract against a real NULL row.
+// ---------------------------------------------------------------------------
+
+describe("jurisdictionPairClause — NULL-locality subsumption", () => {
+  const CABA_WHOLE = "Ciudad Autónoma de Buenos Aires";
+  let nullLocalityReportId: string | null = null;
+
+  beforeAll(async () => {
+    // A CABA report whose locality is NULL (point without a resolved locality).
+    wrSeq += 1;
+    const [row] = await db
+      .insert(welfareReports)
+      .values({
+        referenceCode: `JPT-WR-NULLLOC-${Date.now()}-${wrSeq}`,
+        kind: "neglect",
+        severity: "medium",
+        description: "Fixture: CABA report with a NULL jurisdiction_locality.",
+        subjectKind: "unowned_animal",
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: null,
+      })
+      .returning({ id: welfareReports.id });
+    nullLocalityReportId = row.id;
+  });
+
+  afterAll(async () => {
+    if (nullLocalityReportId) {
+      await db.delete(welfareReports).where(inArray(welfareReports.id, [nullLocalityReportId]));
+    }
+  });
+
+  async function nullRowMatches(
+    jurisdictions: { province: string; locality: string }[],
+  ): Promise<boolean> {
+    const pairs = jurisdictionPairClause(
+      jurisdictions,
+      sql`${welfareReports.jurisdictionProvince}`,
+      sql`${welfareReports.jurisdictionLocality}`,
+    );
+    if (!pairs || !nullLocalityReportId) return false;
+    const rows = await db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(inArray(welfareReports.id, [nullLocalityReportId]), sql`(${pairs})`));
+    return (rows[0]?.n ?? 0) > 0;
+  }
+
+  it("a whole-province (CABA) operator SEES the null-locality report", async () => {
+    expect(await nullRowMatches([{ province: "CABA", locality: CABA_WHOLE }])).toBe(true);
+  });
+
+  it("a specific-locality operator (CABA / Palermo) does NOT see it", async () => {
+    expect(await nullRowMatches([{ province: "CABA", locality: "Palermo" }])).toBe(false);
+  });
+
+  it("a different-province operator (Salta) does NOT see it (isolation holds)", async () => {
+    expect(await nullRowMatches([{ province: "Salta", locality: "Salta" }])).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Equivalence — cases columns
 // ---------------------------------------------------------------------------
 

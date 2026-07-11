@@ -52,6 +52,15 @@ export function jurisdictionPairClause(
     // subsumes every locality/barrio in that province — match on province alone.
     // Province equality is always kept, so other provinces stay invisible.
     // A barrio-specific assignment (CABA / Palermo) keeps the exact pair.
+    //
+    // NULL-locality rows (residual/legacy welfare_reports where the point could
+    // not be reverse-geocoded to a locality — see FIX #3A/#3B, QA 2026-07-10):
+    // the whole-province branch tests province ONLY, so it also matches rows with
+    // jurisdiction_locality IS NULL — those reach the broad-jurisdiction operators
+    // exactly as the PO decided. The specific-locality branch compares
+    // `locality = Y`, which is UNKNOWN (never true) for a NULL locality, so a
+    // barrio/locality-scoped operator is deliberately NOT widened by them. This is
+    // the intended subsumption — no separate `IS NULL` disjunction is needed.
     isWholeProvinceLocality(j.province, j.locality)
       ? sql`(${provinceExpr} = ${j.province})`
       : sql`(${provinceExpr} = ${j.province} AND ${localityExpr} = ${j.locality})`,
