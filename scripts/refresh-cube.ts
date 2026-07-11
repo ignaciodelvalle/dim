@@ -28,12 +28,10 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  // Give the analytics READ pool a generous timeout for this background build (the
-  // national rollups can exceed the 15s request-path backstop on a cold/local DB).
-  // Set BEFORE the dynamic import so @/db reads it when it constructs the pool.
-  if (!process.env.ANALYTICS_STATEMENT_TIMEOUT_MS) {
-    process.env.ANALYTICS_STATEMENT_TIMEOUT_MS = "120000";
-  }
+  // NOTE (task #22): no ANALYTICS_STATEMENT_TIMEOUT_MS hack anymore. The builder
+  // constructs its OWN lazy read client with a long statement_timeout (default
+  // 120s; override via CUBE_BUILDER_STATEMENT_TIMEOUT_MS) — the shared analytics
+  // pool keeps its 15s request-path backstop untouched.
 
   // Dynamic import AFTER env load so @/db constructs its pools with the right URLs.
   const { refreshCube } = await import("@/src/modules/panorama/infrastructure/cube-builder");

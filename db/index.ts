@@ -7,6 +7,8 @@
 // values/enums from the schema, import from "@/db/schema" in client code.)
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { type PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
@@ -165,13 +167,34 @@ export const db: PostgresJsDatabase<typeof schema> = DATABASE_URL_PRESENT
 //     mode DOES honor startup GUCs (verified: SQLSTATE 57014 cancellation), so
 //     the runaway-query backstop is real on this pool.
 //
-// Analytics statement_timeout (ms). Default 15s — the request-path backstop. A
-// background job (the panorama cube builder) sets ANALYTICS_STATEMENT_TIMEOUT_MS to
-// a generous value (e.g. 120000) so its heavier, off-request rollups are not cut at
-// 15s; request paths leave it unset and keep the 15s backstop.
-const ANALYTICS_STATEMENT_TIMEOUT_MS = Number(
-  process.env.ANALYTICS_STATEMENT_TIMEOUT_MS ?? "15000",
-);
+// Analytics statement_timeout (ms). Default 15s — the request-path backstop.
+//
+// NOTE (task #22, cube read-handle): raising ANALYTICS_STATEMENT_TIMEOUT_MS is NOT
+// how a background job escapes the 15s backstop anymore. The value bakes into the
+// pool at MODULE LOAD, and on Vercel env vars are per-deployment — so the old
+// "the cube builder sets it to 120000" wiring never worked there (the cron imports
+// the builder statically → the pool is constructed with 15s before the handler
+// runs). Background builders now construct their OWN lazy read client and route
+// downstream reads to it via runWithAnalyticsReadHandle (below). This env stays
+// honored as a deliberate project-wide override only.
+/** Resolve the analytics pool's statement_timeout (ms) from env; default 15000 —
+ * the request-path backstop (task #74 death-spiral protection). Pure; exported so
+ * tests can pin the default without constructing a pool. */
+export function analyticsStatementTimeoutMs(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  return Number(env.ANALYTICS_STATEMENT_TIMEOUT_MS ?? "15000");
+}
+
+/** libpq startup `options` string carrying the server-side query + idle-txn
+ * ceilings. Session-pooler and direct connections honor it (verified SQLSTATE
+ * 57014); the transaction pooler ignores it. Pure; shared by every client here
+ * and by the cube builder's dedicated clients. */
+export function statementTimeoutOptions(ms: number): string {
+  return `-c statement_timeout=${ms} -c idle_in_transaction_session_timeout=${ms}`;
+}
+
+const ANALYTICS_STATEMENT_TIMEOUT_MS = analyticsStatementTimeoutMs();
 
 // In tests both exports share ONE pool (max 3): the analytics split is a
 // production concern, and a second pool would double connections per test file.
@@ -199,12 +222,12 @@ const analyticsClient = isTest
       idle_timeout: 5, // seconds — release session-pooler backends fast (was 10; see max note)
       max_lifetime: 300, // seconds — recycle to avoid stale/degraded connections
       connection: {
-        // Session mode honors this startup GUC (verified: SQLSTATE 57014). Default
-        // 15s is the request-path backstop; a BACKGROUND builder (the panorama cube
-        // refresh) raises it via ANALYTICS_STATEMENT_TIMEOUT_MS so its heavier,
-        // uncontended national rollups are not cut at 15s. Request paths never set
-        // the env, so their backstop is unchanged.
-        options: `-c statement_timeout=${ANALYTICS_STATEMENT_TIMEOUT_MS} -c idle_in_transaction_session_timeout=${ANALYTICS_STATEMENT_TIMEOUT_MS}`,
+        // Session mode honors this startup GUC (verified: SQLSTATE 57014). 15s is
+        // the request-path backstop, ALWAYS. A background builder (the panorama
+        // cube refresh) does NOT raise it here — it brings its own lazy read client
+        // with a long timeout and routes reads to it via runWithAnalyticsReadHandle
+        // (task #22; see cube-builder.ts).
+        options: statementTimeoutOptions(ANALYTICS_STATEMENT_TIMEOUT_MS),
       },
     }));
 
@@ -232,15 +255,71 @@ if (process.env.NODE_ENV === "production" && !process.env.ANALYTICS_DATABASE_URL
   );
 }
 
+// The REAL analytics handle (15s request-path backstop baked in). Internal —
+// consumers get the `analyticsDb` proxy below, which resolves to this unless a
+// background builder has installed an override for the current async context.
+const realAnalyticsDb: PostgresJsDatabase<typeof schema> = DATABASE_URL_PRESENT
+  ? drizzle(analyticsClient, { schema })
+  : missingDbProxy("analyticsDb");
+
+// ---------------------------------------------------------------------------
+// Analytics READ-handle override (task #22 — cube refresh read-timeout fix).
+//
+// PROBLEM: the cube builder's heavy reads reuse the live panorama loaders, which
+// (transitively, across lib/metrics + lib/analytics fetchers) all resolve to the
+// module-level `analyticsDb` — whose 15s statement_timeout is baked at module
+// load. A national-scale rollup (a Buenos Aires department read measures ~96s)
+// is cancelled at 15s (SQLSTATE 57014) → the whole atomic build fails → the
+// reader falls back to live for everything. Raising the timeout project-wide
+// would reopen the request-path death-spiral the 15s backstop prevents (#74).
+//
+// FIX: an AsyncLocalStorage override. A background builder constructs its own
+// session-pooler client with a LONG statement_timeout, LAZILY (per invocation,
+// not at module load), and runs its read phase inside
+// `runWithAnalyticsReadHandle(readDb, …)`. Every `analyticsDb` method call in
+// that async context — at ANY module depth, with ZERO call-site changes —
+// dispatches to the override. Request paths never install an override, so they
+// keep the 15s backstop untouched.
+// ---------------------------------------------------------------------------
+const analyticsReadOverride = new AsyncLocalStorage<PostgresJsDatabase<typeof schema>>();
+
+/** Run `fn` with every `analyticsDb` call in its async context dispatched to
+ * `handle` (a dedicated long-timeout client). Background builders ONLY — never
+ * install an override on a request path. */
+export async function runWithAnalyticsReadHandle<T>(
+  handle: PostgresJsDatabase<typeof schema>,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return analyticsReadOverride.run(handle, fn);
+}
+
+/** The analytics handle active in the current async context: the installed
+ * override, or the real request-path handle. Exported as a test seam. */
+export function resolveAnalyticsReadHandle(): PostgresJsDatabase<typeof schema> {
+  return analyticsReadOverride.getStore() ?? realAnalyticsDb;
+}
+
 /**
  * Drizzle handle for HEAVY READ-ONLY analytics (panorama fan-out + the
  * dashboard fetchers it composes). Routed through the session pooler in
  * production (`ANALYTICS_DATABASE_URL`). Never use this for writes or for
  * request-path OLTP reads — those belong on `db`.
+ *
+ * Dispatch note: this is a thin per-call proxy over `resolveAnalyticsReadHandle()`
+ * so a background builder's read-handle override (above) is honored transparently.
+ * With no override installed it is behaviorally identical to the raw handle.
  */
-export const analyticsDb: PostgresJsDatabase<typeof schema> = DATABASE_URL_PRESENT
-  ? drizzle(analyticsClient, { schema })
-  : missingDbProxy("analyticsDb");
+export const analyticsDb: PostgresJsDatabase<typeof schema> = new Proxy(realAnalyticsDb, {
+  get(_target, prop) {
+    const active = resolveAnalyticsReadHandle();
+    const value = Reflect.get(active as object, prop, active);
+    // Bind methods to the RESOLVED handle so drizzle's internal `this` stays
+    // consistent (never the proxy). Fluent chains continue on `active` directly.
+    return typeof value === "function"
+      ? (value as (...args: unknown[]) => unknown).bind(active)
+      : value;
+  },
+});
 
 // Re-export everything from schema so app code can `import { pets, db } from "@/db"`.
 export * from "./schema";
