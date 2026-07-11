@@ -48,7 +48,7 @@ import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
-import { binTimestamps } from "@/components/panorama/signal-histogram";
+import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
 import {
   Z_LOCALITY,
   Z_LOCALITY_ENTER,
@@ -1778,6 +1778,86 @@ export function PanoramaConsole({
     return binTimestamps(times, since.getTime(), until.getTime(), 48);
   }, [activeLayers, since, until]);
 
+  // NIGHT-3 item #3: at AGGREGATE level the temporal layers carry only a count
+  // per unit — no per-event timestamps — so `signalHistogramBins` above is empty
+  // and the scrubber histogram was blind. Fetch SCOPE-TOTAL per-day counts from
+  // the layer endpoint (?histogram=1), sum across the active temporal layers, and
+  // bin them into the same 48-bucket track. Runs ONLY when the client has no
+  // timestamps (points mode already feeds the histogram above). The counts are
+  // scope totals, never per-unit, so they reveal no k-anon-suppressed cell.
+  const activeTemporalKey = useMemo(
+    () =>
+      activeLayers
+        .filter((l) => isTemporalLayer(l.id as LayerId))
+        .map((l) => l.id)
+        .join(","),
+    [activeLayers],
+  );
+  const [aggregateHistogramBins, setAggregateHistogramBins] = useState<number[] | undefined>(
+    undefined,
+  );
+  useEffect(() => {
+    // Points-mode timestamps already feed the histogram — don't double-count.
+    if (signalHistogramBins !== undefined || activeTemporalKey === "") {
+      setAggregateHistogramBins(undefined);
+      return;
+    }
+    const ids = activeTemporalKey.split(",") as LayerId[];
+    const baseQs = searchParams.toString();
+    const currentLevel = level;
+    let cancelled = false;
+    Promise.all(
+      ids.map(async (id) => {
+        const params = new URLSearchParams(baseQs);
+        // No asOf: the histogram shows the FULL-period activity distribution the
+        // scrub cursor navigates within — it must not shrink as the operator
+        // scrubs back. Strip any asOf the scrub wrote into the URL (baseQs).
+        params.delete("asOf");
+        params.set("histogram", "1");
+        if (currentLevel === "province") params.set("level", "province");
+        else if (isAggregatedPointLayer(id)) params.set("level", "locality");
+        // Basis still matters (valid vs transaction time).
+        if (timeBasis === "transaction") params.set("basis", "transaction");
+        try {
+          const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
+            headers: { accept: "application/json" },
+            signal: signalFor(`${id}:histogram`),
+          });
+          if (!res.ok) return [] as Array<{ date: string; count: number }>;
+          const body = (await res.json()) as {
+            histogram?: Array<{ date: string; count: number }>;
+          };
+          return body.histogram ?? [];
+        } catch (err) {
+          if (isAbortError(err)) return null; // superseded — bail on merge
+          return [] as Array<{ date: string; count: number }>;
+        }
+      }),
+    ).then((results) => {
+      if (cancelled || results.some((r) => r === null)) return;
+      // Sum per-day counts across all active temporal layers, then bin.
+      const byDay = new Map<string, number>();
+      for (const days of results) {
+        for (const d of days ?? []) byDay.set(d.date, (byDay.get(d.date) ?? 0) + d.count);
+      }
+      const merged = Array.from(byDay, ([date, count]) => ({ date, count }));
+      const bins = binDailyCounts(merged, since.getTime(), until.getTime(), 48);
+      setAggregateHistogramBins(bins.some((b) => b > 0) ? bins : undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    signalHistogramBins,
+    activeTemporalKey,
+    searchParams,
+    level,
+    timeBasis,
+    signalFor,
+    since,
+    until,
+  ]);
+
   // panorama-redesign Fase 1: preset map framing (camera-only). Set on preset
   // activation from the preset's optional `framing` field; the token is a
   // monotonic counter so re-clicking the same preset re-frames (new object
@@ -2614,7 +2694,7 @@ export function PanoramaConsole({
       // print a stale watermark. Drop to null (scrubber falls back to the
       // generic "Al último evento") until the new cutoff lands.
       watermark={kpisPending || kpisStale ? null : kpis.dataAsOf ? new Date(kpis.dataAsOf) : null}
-      histogramBins={signalHistogramBins}
+      histogramBins={signalHistogramBins ?? aggregateHistogramBins}
     />
   );
 

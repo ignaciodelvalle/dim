@@ -69,7 +69,7 @@ import {
   aggregateCellsToDepartment,
 } from "@/src/modules/panorama/application/build-features";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
-import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
+import type { AggregationLevel, LayerId } from "@/src/modules/panorama/domain/types";
 
 // Per-layer hard cap. Each loader limits at this; when the row count equals the
 // cap the result is (potentially) truncated and the envelope says so.
@@ -2254,6 +2254,150 @@ export async function loadReunificacionByUnit(
   const { cells } = toAggregatedCells(rollup, false);
   // Rate loader — ratePct per unit, no count residual to reconcile (WARNING 4 N/A).
   return { cells, suppressedCount, noLocalityCount: 0, truncated: false };
+}
+
+// ---------------------------------------------------------------------------
+// Scope-total daily event counts — the TimeScrubber histogram for AGGREGATE views.
+//
+// The client-side histogram (signal-histogram.ts) bins per-event timestamps that
+// ALREADY reached the client — which only exist in POINTS mode (real dots). An
+// aggregated bubble carries only a count, so the scrubber was blind at aggregate
+// level. This returns per-DAY event counts over [since, until] for the active
+// temporal layer, bounded to the SAME scope the aggregate map uses (govt
+// jurisdictions + optional admin drill).
+//
+// PRIVACY: the counts are SCOPE-TOTAL, one number per day across the whole
+// visible scope — NOT per-unit. A scope total is strictly coarser than the
+// per-unit aggregation that k-anon already governs, so it reveals no suppressed
+// cell (a national/province event-per-day total is not a unit-level disclosure —
+// same posture the signal-histogram.ts header documents for the points path).
+// k-anon is therefore intentionally NOT applied here.
+//
+// Mirrors each layer's By-Unit predicate + time column + scope helper EXACTLY
+// (same source of truth), minus the per-unit GROUP BY and centroid join.
+// ---------------------------------------------------------------------------
+
+/** One day's scope-total event count for the scrubber histogram. */
+export type ScopeDailyCount = { date: string; count: number };
+
+export async function loadScopeDailyCounts(params: {
+  layer: LayerId;
+  actor: DashboardActor;
+  jurisdictions: DashboardJurisdiction[];
+  since: Date;
+  until: Date;
+  basis?: TimeBasis;
+  adminProvince?: string;
+  adminLocality?: string;
+}): Promise<ScopeDailyCount[]> {
+  const {
+    layer,
+    actor,
+    jurisdictions,
+    since,
+    until,
+    basis = "valid",
+    adminProvince,
+    adminLocality,
+  } = params;
+
+  const dayBucket = (tsCol: SQL) => sql<string>`to_char(date_trunc('day', ${tsCol}), 'YYYY-MM-DD')`;
+  const tcol = eventWindowCol(basis);
+
+  let rows: Array<{ day: string; n: number }> = [];
+
+  switch (layer) {
+    case "perdidas":
+    case "mordeduras": {
+      const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+      const conditions: SQL[] = [
+        layer === "perdidas" ? perdidasEventPredicate() : mordedurasEventPredicate(),
+        gte(tcol, since),
+        lte(tcol, until),
+        isNotNull(pets.jurisdictionProvince),
+      ];
+      if (scope) conditions.push(sql`(${scope})`);
+      rows = await db
+        .select({ day: dayBucket(sql`${tcol}`), n: countDistinct(petEvents.id) })
+        .from(petEvents)
+        .innerJoin(pets, eq(petEvents.petId, pets.id))
+        .where(and(...conditions))
+        .groupBy(dayBucket(sql`${tcol}`))
+        .orderBy(dayBucket(sql`${tcol}`));
+      break;
+    }
+
+    case "sintomas": {
+      const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+      const conditions: SQL[] = [
+        eq(petEvents.eventType, "symptom_observed"),
+        gte(tcol, since),
+        lte(tcol, until),
+        isNotNull(pets.jurisdictionProvince),
+      ];
+      if (scope) conditions.push(sql`(${scope})`);
+      rows = await db
+        .select({ day: dayBucket(sql`${tcol}`), n: countDistinct(petEvents.id) })
+        .from(petEvents)
+        .innerJoin(pets, eq(petEvents.petId, pets.id))
+        .where(and(...conditions))
+        .groupBy(dayBucket(sql`${tcol}`))
+        .orderBy(dayBucket(sql`${tcol}`));
+      break;
+    }
+
+    case "zoonosis": {
+      const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
+      const conditions: SQL[] = [
+        eq(petEvents.eventType, "outbreak_signal"),
+        gte(tcol, since),
+        lte(tcol, until),
+        isNotNull(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`),
+      ];
+      if (scope) conditions.push(sql`(${scope})`);
+      rows = await db
+        .select({ day: dayBucket(sql`${tcol}`), n: countDistinct(petEvents.id) })
+        .from(petEvents)
+        .where(and(...conditions))
+        .groupBy(dayBucket(sql`${tcol}`))
+        .orderBy(dayBucket(sql`${tcol}`));
+      break;
+    }
+
+    case "denuncias": {
+      // Welfare reports window by createdAt (basis-agnostic, mirrors the By-Unit
+      // loader), with the same moderation gate.
+      const scope = jurisdictionColumnsScope(
+        actor,
+        jurisdictions,
+        sql`${welfareReports.jurisdictionProvince}`,
+        sql`${welfareReports.jurisdictionLocality}`,
+        adminProvince,
+        adminLocality,
+      );
+      const conditions: SQL[] = [
+        gte(welfareReports.createdAt, since),
+        lte(welfareReports.createdAt, until),
+        sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+        isNotNull(welfareReports.jurisdictionProvince),
+      ];
+      if (scope) conditions.push(sql`(${scope})`);
+      rows = await db
+        .select({ day: dayBucket(sql`${welfareReports.createdAt}`), n: count() })
+        .from(welfareReports)
+        .where(and(...conditions))
+        .groupBy(dayBucket(sql`${welfareReports.createdAt}`))
+        .orderBy(dayBucket(sql`${welfareReports.createdAt}`));
+      break;
+    }
+
+    // reunificacion is a RATE (no meaningful per-day event volume); every other
+    // layer is non-temporal or reference — no histogram.
+    default:
+      return [];
+  }
+
+  return rows.map((r) => ({ date: r.day, count: r.n }));
 }
 
 // ---------------------------------------------------------------------------

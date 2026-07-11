@@ -25,6 +25,7 @@ import {
 import { loadLayerFeaturesCubeOrCachedWithMeta } from "@/src/modules/panorama/application/load-layer-features-cube";
 import { isLayerId } from "@/src/modules/panorama/domain/layers";
 import { clampAsOf, parseAsOf, parseTimeBasis } from "@/src/modules/panorama/domain/time-scrub";
+import { loadScopeDailyCounts } from "@/src/modules/panorama/infrastructure/repository";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
@@ -133,6 +134,38 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
   // bound of the event-windowed layers and ignores it for current-state layers,
   // so `asOf ?? until` bounds custom periods without touching the loader signature.
   const windowUntil = asOf ?? until;
+
+  // TimeScrubber histogram (aggregate views): return per-day scope-total event
+  // counts instead of features, over the SAME scope/period/drill resolved above.
+  // Scope-total counts carry no per-unit disclosure, so no k-anon (see
+  // loadScopeDailyCounts). Bounded + never throws to the runtime like the feature
+  // path: budget expiry → empty histogram (200); rejection → 503 JSON envelope.
+  if (url.searchParams.get("histogram") === "1") {
+    try {
+      const histogram = await withDbBudget(
+        loadScopeDailyCounts({
+          layer,
+          actor,
+          jurisdictions: scoped,
+          since,
+          until: windowUntil,
+          basis,
+          adminProvince,
+          adminLocality,
+        }),
+        LAYER_BUDGET_MS,
+        `GET /api/panorama/${layer}?histogram`,
+        [],
+      );
+      return NextResponse.json({ histogram }, { headers: { "cache-control": "no-store" } });
+    } catch (err) {
+      console.error(`[GET /api/panorama/${layer}?histogram] failed:`, err);
+      return NextResponse.json(
+        { error: "panorama_histogram_unavailable" },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
+  }
 
   try {
     const sourced = await withDbBudget(

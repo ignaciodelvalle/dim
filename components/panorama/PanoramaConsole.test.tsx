@@ -223,7 +223,12 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     await waitFor(() => {
       const layerCalls = fetchMock.mock.calls
         .map((c) => String(c[0]))
-        .filter((u) => u.startsWith("/api/panorama/") && !u.includes("/kpis"));
+        // Feature fetches only — the scrubber histogram (?histogram=1) is a
+        // separate scope-total call with its own period lifecycle.
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
       expect(layerCalls.some((u) => u.includes("/api/panorama/cobertura"))).toBe(true);
       expect(layerCalls.some((u) => u.includes("/api/panorama/zoonosis"))).toBe(true);
       // Every layer fetch carries the preset's period — no stale closure.
@@ -765,7 +770,13 @@ describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2
     const liveLayerCalls = fetchMock.mock.calls
       .map((c) => String(c[0]))
       .filter(
-        (u) => u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("asOf="),
+        (u) =>
+          u.startsWith("/api/panorama/") &&
+          !u.includes("/kpis") &&
+          !u.includes("asOf=") &&
+          // The scrubber histogram (?histogram=1) is a separate scope-total call,
+          // not a seeded-layer FEATURE load — this assertion guards the latter.
+          !u.includes("histogram=1"),
       );
     const kpiCalls = fetchMock.mock.calls
       .map((c) => String(c[0]))
@@ -789,9 +800,12 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
     await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
-    // brotes-activos' zoonosis layer was superseded before its burst fired.
-    const zoonosisCalls = fetchMock.mock.calls.filter((c) =>
-      String(c[0]).includes("/api/panorama/zoonosis"),
+    // brotes-activos' zoonosis layer was superseded before its burst fired. The
+    // scrubber histogram (?histogram=1) is a separate scope-total call, not the
+    // superseded FEATURE fetch this test guards.
+    const zoonosisCalls = fetchMock.mock.calls.filter(
+      (c) =>
+        String(c[0]).includes("/api/panorama/zoonosis") && !String(c[0]).includes("histogram=1"),
     );
     expect(zoonosisCalls).toHaveLength(0);
   });

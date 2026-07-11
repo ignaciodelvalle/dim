@@ -41,3 +41,31 @@ export function binTimestamps(
   }
   return valueHistogram(ms, sinceMs, untilMs, binCount).map((b) => b.count);
 }
+
+/**
+ * Bin per-DAY scope-total counts (from /api/panorama/[layer]?histogram=1) into
+ * `binCount` equal-width buckets over [sinceMs, untilMs] — the AGGREGATE-view
+ * counterpart to binTimestamps, where the client has one count per day instead of
+ * per-event timestamps. Each day's count is added (weighted) to the bin its date
+ * falls in; dates outside the window clamp into the edge bins. Returns an empty
+ * array for a degenerate window (since ≥ until) or a non-positive binCount.
+ */
+export function binDailyCounts(
+  days: ReadonlyArray<{ date: string; count: number }>,
+  sinceMs: number,
+  untilMs: number,
+  binCount = 48,
+): number[] {
+  if (!(untilMs > sinceMs) || binCount <= 0) return [];
+  const bins = new Array<number>(binCount).fill(0);
+  const span = untilMs - sinceMs;
+  for (const d of days) {
+    const t = Date.parse(d.date);
+    if (!Number.isFinite(t) || !(d.count > 0)) continue;
+    let idx = Math.floor(((t - sinceMs) / span) * binCount);
+    if (idx < 0) idx = 0;
+    if (idx >= binCount) idx = binCount - 1;
+    bins[idx] += d.count;
+  }
+  return bins;
+}
