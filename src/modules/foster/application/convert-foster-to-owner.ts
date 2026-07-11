@@ -3,7 +3,7 @@
 // The fostering user keeps the pet permanently. In ONE transaction:
 //   1. Auth: verify the caller holds an active foster ownership for this pet.
 //   2. End the foster ownership row (sets endedAt).
-//   3. Emit foster_ended event (reason: "adopted_by_foster").
+//   3. Emit foster_ended event (reason: "adoption").
 //   4. Close the open foster_placement case (if any).
 //   5. Close any prior owner/shelter_custody ownership rows (parity with
 //      TransfersRepository.closeOwnerOwnerships — prevents unique-active-owner

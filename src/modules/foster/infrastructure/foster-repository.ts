@@ -1447,8 +1447,11 @@ export const FosterRepository = {
    *   b. findOpenCaseForPetAndKind("foster_placement") → caseId
    *   c. insertPetEvent(foster_ended, UPFRONT UUID)
    *   d. closeCase(foster_placement, "resolved") if open
-   *   e. closeOwnerOwnerships (end any prior owner rows — prevents
-   *      unique-active-owner partial index violation at tx commit)
+   *   e. closeOwnerOwnerships + closeShelterCustody (end any prior owner rows
+   *      AND the org's active shelter_custody — a foster always coexists with an
+   *      active shelter_custody; leaving it open = permanent double custody.
+   *      Mirrors insertAdoptionFinalized, which closes BOTH. Prevents the
+   *      unique-active-owner partial index violation at tx commit.)
    *   f. insertOwnerOwnership (new role='owner' row for the foster user)
    *   g. insertPetEvent(custody_transferred, references foster_ended UUID)
    */
@@ -1484,7 +1487,11 @@ export const FosterRepository = {
     // c. Emit foster_ended (upfront UUID for ordering).
     const fosterEndedPayload = validateEventPayload("foster_ended", {
       foster_user_id: fosterUserId,
-      reason: "adopted_by_foster",
+      // "adoption" is the canonical programmatic reason for a foster→owner
+      // transition (see event-schemas.ts fosterEnded catalog). The old
+      // "adopted_by_foster" value is NOT in the enum, so this whole path threw
+      // an EventPayloadValidationError at runtime — the convert flow was dead.
+      reason: "adoption",
       notes: null,
     });
     await tx.insert(petEvents).values({
@@ -1513,6 +1520,24 @@ export const FosterRepository = {
       .set({ endedAt: now })
       .where(
         and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      );
+
+    // e2. Close the org's active shelter_custody row (AF-C1). A foster ALWAYS
+    //     coexists with an active shelter_custody (the org holds custody while
+    //     the volunteer holds foster). Closing only the foster + owner rows
+    //     leaves shelter_custody ACTIVE = permanent double custody: the org
+    //     could still re-foster / list / finalize the pet to a different
+    //     adopter, and metrics double-count. insertAdoptionFinalized closes
+    //     BOTH; convert must too. Custody moves cleanly to the new owner.
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
       );
 
     // f. Insert new owner ownership row.
