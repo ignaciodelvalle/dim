@@ -32,3 +32,17 @@ export function getPriorityBadge(
   }
   return { kind: "none" };
 }
+
+/**
+ * Whether a personal-list ownership row is a tránsito (foster) placement.
+ *
+ * The "Mis mascotas" list joins ownerships on ownerUserId = user.id, so only
+ * user-held roles appear here. A foster is `role='foster'`; shelter_custody is
+ * org-level (ownerUserId is null) and NEVER surfaces in this list. Matching on
+ * "shelter_custody" therefore made the "En tránsito" badge permanently dead
+ * (AF-H2) — fostered pets rendered as owned. The pet profile page keys the same
+ * badge off role==='foster', which this mirrors as the single source of truth.
+ */
+export function isTransitRole(ownershipRole: string): boolean {
+  return ownershipRole === "foster";
+}

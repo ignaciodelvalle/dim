@@ -8,6 +8,7 @@
 // (reclamar, postulaciones, transferencias) are all preserved unchanged.
 
 import { ActionLinkCard } from "@/components/ActionLinkCard";
+import { isTransitRole } from "@/components/PetCard.helpers";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
@@ -163,7 +164,7 @@ export default async function MisMascotasPage({
                   compliance,
                 )
               : "registered";
-            const isTransit = ownershipRole === "shelter_custody";
+            const isTransit = isTransitRole(ownershipRole);
             const breedLine = [
               pet.breed,
               pet.sex ? (pet.sex === "male" ? "Macho" : "Hembra") : null,

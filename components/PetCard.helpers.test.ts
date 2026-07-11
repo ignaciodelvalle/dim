@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPriorityBadge } from "./PetCard.helpers";
+import { getPriorityBadge, isTransitRole } from "./PetCard.helpers";
 
 describe("getPriorityBadge — PetCard priority logic", () => {
   it("status='lost' wins over any vaccine variant", () => {
@@ -34,5 +34,25 @@ describe("getPriorityBadge — PetCard priority logic", () => {
   it("unknown variants are ignored (returns none for active)", () => {
     // success variant: doesn't warrant a chip
     expect(getPriorityBadge("active", { variant: "success" as never })).toEqual({ kind: "none" });
+  });
+});
+
+describe("isTransitRole — 'En tránsito' badge predicate (AF-H2)", () => {
+  it("fires for a foster placement (the role that surfaces in Mis mascotas)", () => {
+    // A fostered pet joins on ownerUserId=user.id with role='foster'; it must
+    // render the "En tránsito" badge. This is the exact case the dead
+    // shelter_custody predicate silently missed.
+    expect(isTransitRole("foster")).toBe(true);
+  });
+
+  it("does not fire for an owner", () => {
+    expect(isTransitRole("owner")).toBe(false);
+  });
+
+  it("does not fire for shelter_custody (org-level, never in the personal list)", () => {
+    // The old predicate matched here — which is precisely why the badge was
+    // dead: shelter_custody rows have ownerUserId=null and never join into this
+    // list. Guards against regressing to the broken behavior.
+    expect(isTransitRole("shelter_custody")).toBe(false);
   });
 });

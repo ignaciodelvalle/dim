@@ -6,7 +6,7 @@ import type { Pet } from "@/db";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { petStatusToPhotoStatus } from "@/lib/infra/poncho-status";
 import { speciesLabel } from "@/lib/utils/format";
-import { type PriorityBadge, getPriorityBadge } from "./PetCard.helpers";
+import { type PriorityBadge, getPriorityBadge, isTransitRole } from "./PetCard.helpers";
 
 // Shared pet card. Used by /mis-mascotas (full grid), /inicio (top 6
 // snippet), and future surfaces. Self-contained — only depends on the
@@ -86,7 +86,7 @@ export function PetCard({
   ownershipRole: string;
   vaccineReminderState?: VaccineReminderState;
 }) {
-  const isTransit = ownershipRole === "shelter_custody";
+  const isTransit = isTransitRole(ownershipRole);
 
   return (
     <li>
