@@ -38,7 +38,14 @@
 
 import { and, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
 
-import { db, petEvents, petIdentifications, pets } from "@/db";
+// Heavy read-only analytics — routed through the ANALYTICS pool (session pooler
+// in production; see db/index.ts, task #74 dual-pool split). Mirrors the sibling
+// lib/analytics/govt-home-kpis.ts. Using analyticsDb (not the OLTP db) is also
+// what lets the cube builder's read-handle override (runWithAnalyticsReadHandle)
+// reach the ByProvince fetchers it composes — otherwise those reads bypass the
+// long-timeout builder handle and drift onto the request-path pool (dual-pool
+// drift, task #34).
+import { analyticsDb as db, petEvents, petIdentifications, pets } from "@/db";
 import {
   type Cell,
   type MetricResult,
