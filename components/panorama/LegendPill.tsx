@@ -31,11 +31,14 @@ export function LegendPill({ baseLabel, rampColors, layerDots, children }: Props
       summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card/95 px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-sm hover:border-ln-op-celeste"
       summary={
         <>
-          <span className="font-semibold">{baseLabel}</span>
+          {/* min-w-0 + truncate: a long metric name ellipsizes instead of hard-
+              clipping the whole strip (the trailing ramp / k-anon pill / caret
+              stay pinned via shrink-0) — legend-truncation fix, PO round-2 QA. */}
+          <span className="min-w-0 flex-shrink truncate font-semibold">{baseLabel}</span>
           {rampColors !== null && rampColors.length > 0 && (
             <span
               aria-hidden="true"
-              className="inline-flex overflow-hidden rounded-[var(--radius-xs)] border border-ln-op-line-2"
+              className="inline-flex shrink-0 overflow-hidden rounded-[var(--radius-xs)] border border-ln-op-line-2"
             >
               {rampColors.map((color) => (
                 <span
@@ -49,7 +52,7 @@ export function LegendPill({ baseLabel, rampColors, layerDots, children }: Props
             </span>
           )}
           {layerDots.map((dot) => (
-            <span key={dot.label} className="inline-flex items-center gap-1">
+            <span key={dot.label} className="inline-flex shrink-0 items-center gap-1">
               <span
                 aria-hidden="true"
                 className="inline-block h-2 w-2 rounded-full border border-ln-op-line"
@@ -61,7 +64,7 @@ export function LegendPill({ baseLabel, rampColors, layerDots, children }: Props
           {/* k-anon pill — NEVER hidden (suppression stays visible on the
               collapsed strip; the expanded panel carries the full notice). */}
           <span
-            className="rounded-full border border-ln-op-line px-2 py-0.5 text-[var(--text-xs)] text-ln-op-mute"
+            className="shrink-0 rounded-full border border-ln-op-line px-2 py-0.5 text-[var(--text-xs)] text-ln-op-mute"
             style={{
               backgroundImage:
                 "repeating-linear-gradient(45deg, var(--color-ln-op-stripe) 0 3px, var(--color-ln-op-line-2) 3px 6px)",
@@ -70,7 +73,7 @@ export function LegendPill({ baseLabel, rampColors, layerDots, children }: Props
           >
             ⊘ k&lt;5 protegido
           </span>
-          <span aria-hidden="true" className="text-[var(--text-xs)] text-ln-op-faint">
+          <span aria-hidden="true" className="shrink-0 text-[var(--text-xs)] text-ln-op-faint">
             ▴
           </span>
         </>
