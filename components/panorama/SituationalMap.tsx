@@ -3086,17 +3086,21 @@ export function SituationalMap({
         {/* Top-CENTER control cluster (v2C): scope drill ("← Volver a
             Nacional") + camera reset + aggregation-level badge — centered so
             the top corners stay free for the overlay clusters. Light chrome
-            (the dark skin is retired). Below xl the corner clusters converge on
-            the middle (1366×768 responsive pass), so the centered group drops
-            BELOW them instead of overlapping the scope pill. */}
-        <div className="absolute left-1/2 top-36 z-10 flex -translate-x-1/2 items-center gap-2 xl:top-3.5">
+            (the dark skin is retired). Below 2xl the corner clusters converge
+            on the middle (1366×768 sits INSIDE Tailwind's xl, so xl: was the
+            wrong gate — responsive pass), and the centered group drops BELOW
+            them instead of overlapping the scope pill. */}
+        {/* pointer-events-none on the GROUP (its box floats over drillable
+            geography at narrow widths — clicks must fall through to the map);
+            each interactive button re-enables its own pointer events. */}
+        <div className="pointer-events-none absolute left-1/2 top-36 z-10 flex -translate-x-1/2 items-center gap-2 2xl:top-3.5">
           {/* Click-to-drill (task #55): pop the province scope back to national.
             Rendered only when the operator can return (explicit province pick). */}
           {onReturnNational && (
             <button
               type="button"
               onClick={onReturnNational}
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
+              className="pointer-events-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
             >
               ← Volver a Nacional
             </button>
@@ -3112,7 +3116,7 @@ export function SituationalMap({
             onClick={fitToScope}
             title={resetViewLabel}
             aria-label={resetViewLabel}
-            className="flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
+            className="pointer-events-auto flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
           >
             <svg
               width="16"
