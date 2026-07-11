@@ -90,12 +90,25 @@ export async function bookSlotWriter(
         throw new BookingError("El turno ya pasó.");
       }
 
-      // Step 3 — Fetch offering to denormalize organizationId.
+      // Step 3 — Fetch offering to denormalize organizationId AND re-check its
+      // status under the lock (SC3). The UI hides slots of paused/archived
+      // offerings, but a pre-materialized slot of a non-approved offering is
+      // still bookable via the server action directly. Reject anything but an
+      // approved offering — matching the UI gate — so a paused offering can't be
+      // booked out of band.
       const offeringRows = await tx.execute(
-        sql`SELECT organization_id FROM service_offerings WHERE id = ${slot.serviceOfferingId} LIMIT 1`,
+        sql`SELECT organization_id, status FROM service_offerings WHERE id = ${slot.serviceOfferingId} LIMIT 1`,
       );
-      const offeringRow = offeringRows[0] as { organization_id: string | null } | undefined;
-      const organizationId = offeringRow?.organization_id ?? null;
+      const offeringRow = offeringRows[0] as
+        | { organization_id: string | null; status: string }
+        | undefined;
+      if (!offeringRow) {
+        throw new BookingError("El servicio no está disponible.");
+      }
+      if (offeringRow.status !== "approved") {
+        throw new BookingError("Este servicio no está tomando turnos en este momento.");
+      }
+      const organizationId = offeringRow.organization_id ?? null;
 
       // Step 4 — INSERT appointment.
       await tx.insert(appointments).values({

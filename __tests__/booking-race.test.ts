@@ -216,3 +216,56 @@ describe("bookSlotWriter — race condition", () => {
     expect(slot!.bookingsCount).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// SC3 — server-side offering-status gate. A pre-materialized slot of a
+// paused/archived offering must NOT be bookable via the writer directly, even
+// though the UI hides it.
+// ---------------------------------------------------------------------------
+
+describe("bookSlotWriter — offering status gate (SC3)", () => {
+  it("rejects booking a slot whose parent offering is not approved (paused)", async () => {
+    const [pausedOffering] = await db
+      .insert(serviceOfferings)
+      .values({
+        publicToken: generateOfferingToken(),
+        providerUserId,
+        serviceKind: "general_checkup",
+        displayName: "Paused Offering (SC3)",
+        durationMinutes: 15,
+        slotCapacity: 1,
+        status: "paused",
+      })
+      .returning();
+
+    const [pausedSlot] = await db
+      .insert(timeSlots)
+      .values({
+        serviceOfferingId: pausedOffering.id,
+        startsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 15 * 60 * 1000),
+        capacity: 1,
+        bookingsCount: 0,
+        status: "open",
+      })
+      .returning();
+
+    try {
+      const result = await bookSlotWriter(pausedSlot.id, petAId, ownerAUserId);
+      expect("error" in result).toBe(true);
+      expect((result as { error: string }).error).toMatch(/no está tomando turnos/i);
+
+      // No booking landed — capacity untouched.
+      const [slot] = await db
+        .select({ bookingsCount: timeSlots.bookingsCount })
+        .from(timeSlots)
+        .where(eq(timeSlots.id, pausedSlot.id))
+        .limit(1);
+      expect(slot!.bookingsCount).toBe(0);
+    } finally {
+      await db.delete(appointments).where(eq(appointments.slotId, pausedSlot.id));
+      await db.delete(timeSlots).where(eq(timeSlots.id, pausedSlot.id));
+      await db.delete(serviceOfferings).where(eq(serviceOfferings.id, pausedOffering.id));
+    }
+  });
+});
