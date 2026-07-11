@@ -2750,6 +2750,40 @@ export function SituationalMap({
     }
   }
 
+  // Keyboard PAN (keyboard-minimal): when the focusable map canvas holds focus,
+  // the arrow keys pan the camera (map.panBy), so an operator who cannot use a
+  // mouse can still move the view. Respects prefers-reduced-motion (no eased
+  // glide) and preventDefault so the arrows pan the map instead of scrolling the
+  // page. Zoom stays on the tab-reachable NavigationControl buttons.
+  function handleCanvasKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    const map = mapRef.current;
+    if (!map) return;
+    const STEP = 80; // px per keypress — a comfortable, deterministic nudge.
+    let dx = 0;
+    let dy = 0;
+    switch (e.key) {
+      case "ArrowUp":
+        dy = -STEP;
+        break;
+      case "ArrowDown":
+        dy = STEP;
+        break;
+      case "ArrowLeft":
+        dx = -STEP;
+        break;
+      case "ArrowRight":
+        dx = STEP;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    map.panBy([dx, dy], { animate: !reducedMotion });
+  }
+
   return (
     <div
       className={`relative flex w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line ${
@@ -2818,15 +2852,21 @@ export function SituationalMap({
             unlabeled, un-navigable canvas. The real interactive affordances —
             zoom (NavigationControl), reset-view, ← Volver, and the pinned popup's
             ✕ + "Ver detalle" — are all tab-reachable, labeled <button>s outside
-            this element, and Esc closes the popup (handleMapKeyDown). Full
-            keyboard PAN/feature-navigation on the canvas stays deferred (a larger
-            effort); this keeps the summary honest without a dead, silent canvas. */}
+            this element, and Esc closes the popup (handleMapKeyDown).
+            KEYBOARD-MINIMAL: the canvas is now focusable (tabIndex) with a visible
+            focus ring, and the arrow keys pan it (handleCanvasKeyDown). FLAGGED:
+            role="img" on a now-focusable, keyboard-interactive element is a
+            contradiction — retiring it (→ a labeled interactive role + full
+            feature-navigation) stays a deferred, larger effort. */}
         <div
           ref={containerRef}
-          className="h-full w-full"
+          className="h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ln-op-azul"
           style={{ background: COLOR_CANVAS }}
           role="img"
-          aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista.`}
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-minimal interim — the canvas is arrow-pannable so it must be focusable; the role="img"/tabindex contradiction resolves when role="img" is retired (deferred, flagged above).
+          tabIndex={0}
+          aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista. Usá las flechas para desplazar el mapa.`}
+          onKeyDown={handleCanvasKeyDown}
         />
         {/* cursor Part2: CABA/AMBA inset — a docked barrio-scale mini-map so the
             micro-jurisdiction is legible at national zoom (not an unreadable smear).
