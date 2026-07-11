@@ -87,7 +87,7 @@ export function FiltroPanel({
                 return (
                   <li key={layer.id}>
                     <label
-                      className={`flex min-h-9 items-center gap-2 rounded-[var(--radius-md)] px-1.5 py-1 text-[var(--text-sm)] text-ln-op-ink-2 ${
+                      className={`flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] px-1.5 py-0.5 text-[var(--text-sm)] text-ln-op-ink-2 ${
                         isBlocked
                           ? "cursor-not-allowed opacity-40"
                           : "cursor-pointer hover:bg-ln-op-stripe"

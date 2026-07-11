@@ -183,7 +183,7 @@ function RailPanel({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[var(--text-sm)] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
           >
             ✕
           </button>
