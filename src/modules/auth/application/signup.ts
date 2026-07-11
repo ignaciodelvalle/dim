@@ -62,11 +62,30 @@ export async function signupAction(
   }
 
   const supabase = await createClient();
+  // POSTURE (PO decision 2026-07-10): email confirmation is intentionally OFF —
+  // single-step signup, no verification for now. With confirmations OFF, signUp
+  // returns a session immediately, so step 2 (completeIdentityAction) runs with
+  // an authenticated user and its getUser() gate passes cleanly.
+  //
+  // If confirmations are EVER turned ON in the Supabase dashboard, signUp returns
+  // NO session; step 2's getUser() gate then finds no user. That branch used to
+  // silently redirect back to step 1 → a silent loop that also discarded the
+  // name the user typed. Mitigations, in order of preference, before flipping the
+  // dashboard switch:
+  //   1. Collect the real name in step 1 and pass it here via
+  //      `options: { data: { display_name } }` so handle_new_user (db/triggers.sql,
+  //      migration 0135) persists it even when no session is returned — the trigger
+  //      reads raw_user_meta_data->>'display_name' and only falls back to the email
+  //      local-part when it is absent.
+  //   2. completeIdentityAction now fails HONESTLY on a missing session (shows a
+  //      "confirmá tu correo / volvé a iniciar sesión" message) instead of looping.
+  // In the current two-step ordering the name is not known until step 2, so no
+  // display_name metadata is supplied here; the trigger derives a provisional
+  // display_name from the email local-part and completeIdentityAction overwrites
+  // it with the real "First Last" in the happy path.
   const { error } = await supabase.auth.signUp({
     email,
     password,
-    // No display_name metadata — the handle_new_user trigger will derive it
-    // from the email local-part. completeIdentityAction overwrites it in step 2.
   });
 
   if (error) {

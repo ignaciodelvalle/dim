@@ -24,7 +24,6 @@ import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { createClient } from "@/lib/supabase/server";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
-import { redirect } from "next/navigation";
 
 import type { IdentityFormState } from "./types";
 
@@ -72,8 +71,20 @@ export async function completeIdentityAction(
   } = await supabase.auth.getUser();
 
   if (!user) {
-    // Session expired between steps — send them back to start.
-    redirect("/signup");
+    // No active session at step 2. With email confirmation OFF (the current
+    // posture — see signup.ts), step 1's signUp returns a session, so reaching
+    // here means either the session was lost (cookies cleared / expired) or
+    // confirmations were turned ON in the dashboard (signUp then returns no
+    // session). Previously this silently redirected back to step 1, which both
+    // LOOPED and discarded the name the user had just typed. Fail HONESTLY
+    // instead: keep the user on step 2, echo their name back (no data loss), and
+    // tell them what to do. This never silently bounces them to step 1.
+    return {
+      error:
+        "Tu cuenta se creó, pero tu sesión no está activa. Si te pedimos confirmar tu correo, revisá tu casilla; si no, iniciá sesión para completar tus datos.",
+      firstName,
+      lastName,
+    };
   }
 
   const displayName = `${firstName} ${lastName}`.trim();
