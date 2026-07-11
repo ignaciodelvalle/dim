@@ -73,7 +73,7 @@ export function CapasPopover(props: Props) {
         <span aria-hidden="true">▤</span>
         <span>Capas</span>
         {overlays > 0 && (
-          <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-ln-op-azul/20 px-1 text-[10px] font-semibold tabular-nums text-ln-op-azul">
+          <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-ln-op-azul/20 px-1 text-[var(--text-xs)] font-semibold tabular-nums text-ln-op-azul">
             {overlays}
           </span>
         )}

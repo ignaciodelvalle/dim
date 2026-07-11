@@ -29,7 +29,7 @@ export function PanoramaBoardSkeleton() {
         {/* Map canvas placeholder — dark, matching SituationalMapDynamic. */}
         <div
           className="w-full animate-pulse rounded-[var(--radius-lg)] border border-ln-op-line"
-          style={{ height: 560, background: "#0b1020" }}
+          style={{ height: 560, background: "var(--color-ln-op-page)" }}
           aria-hidden="true"
         />
         {/* Right-rail indicator placeholders */}

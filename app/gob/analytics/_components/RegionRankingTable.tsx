@@ -50,12 +50,14 @@ function RankingHalf({
 }) {
   if (rows.length === 0) {
     return (
-      <p className="text-[13px] text-ln-op-mute italic">Sin datos suficientes para el ranking.</p>
+      <p className="text-[var(--text-md)] text-ln-op-mute italic">
+        Sin datos suficientes para el ranking.
+      </p>
     );
   }
 
   return (
-    <table className="w-full text-[13px]" aria-labelledby={id}>
+    <table className="w-full text-[var(--text-md)]" aria-labelledby={id}>
       <caption id={id} className="sr-only">
         {captionText}
       </caption>
@@ -123,7 +125,7 @@ export function RegionRankingTable({ top, bottom, coverageLabel }: Props) {
       {/* metric-disambiguation (2026-07-10): make the difference from the
           Panorama compliance figure legible right here, so the two rabies
           numbers can be reconciled instead of read as contradictory. */}
-      <p className="text-[11px] text-ln-op-mute">
+      <p className="text-[var(--text-sm)] text-ln-op-mute">
         Métrica histórica de toda especie con ≥1 dosis registrada. Distinta de la cobertura de
         cumplimiento del Panel/Panorama (perros con dosis en los últimos 12 meses, Ley 22.953).
       </p>

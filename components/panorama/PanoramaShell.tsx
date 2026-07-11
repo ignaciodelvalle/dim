@@ -126,12 +126,17 @@ export function PanoramaShell({
     // route only (see globals.css) — the dark map canvas becomes the surface
     // rather than a lit card floating over it. The wrapper bleeds the dark page
     // background to the content-region edges (negative margins cancel the shell's
-    // px-6 py-[22px] padding, then re-add a tighter inner pad) so "dark
+    // px-6 vertical padding, then re-add a tighter inner pad) so "dark
     // end-to-end" reaches below the topbar and beside the rail without forking
     // the shared AppShell/topbar.
     <div
       data-theme="situation-room"
-      className="-mx-6 -my-[22px] min-h-[calc(100%+44px)] space-y-2.5 bg-ln-op-page px-6 py-3.5 text-ln-op-ink"
+      className="-mx-6 -my-5.5 space-y-2.5 bg-ln-op-page px-6 py-3.5 text-ln-op-ink"
+      // The negative margins shrink the box by the cancelled shell padding
+      // (2 × 22px); stretch min-height back so the dark page background always
+      // reaches the content-region bottom edge even on short states (px math
+      // lives in style= because the token ratchet bans arbitrary px classes).
+      style={{ minHeight: "calc(100% + 44px)" }}
     >
       {/* PO screenshot fix (2026-07-08, engram obs 1047): the h1 "Panorama"
           was redundant with the breadcrumb + the active nav-rail item (both
@@ -146,11 +151,11 @@ export function PanoramaShell({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Centro de Situación Nacional
         </p>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[11px] text-ln-op-ink-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-sm)] text-ln-op-ink-2">
           <span aria-hidden="true">📍</span>
           {scopeLabel}
         </span>
-        <details className="group text-[13px] text-ln-op-mute">
+        <details className="group text-[var(--text-md)] text-ln-op-mute">
           <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
             <span
               aria-hidden="true"
@@ -213,7 +218,7 @@ export function PanoramaShell({
         <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
           Acerca de estas métricas
         </summary>
-        <ul className="mt-2 space-y-1.5 text-[11px] leading-relaxed">
+        <ul className="mt-2 space-y-1.5 text-[var(--text-sm)] leading-relaxed">
           <li>
             <span className="font-medium text-ln-op-ink">Cálculo.</span> Los indicadores reusan los
             mismos cálculos que los dashboards de detalle (idéntico denominador): el Panorama no los

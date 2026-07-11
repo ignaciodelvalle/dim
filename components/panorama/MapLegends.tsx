@@ -104,13 +104,13 @@ export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
             </div>
             <div className="flex items-stretch gap-1.5">
               <div className="flex flex-col items-center justify-center">
-                <span className="whitespace-nowrap text-[10px] text-white/60 [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                <span className="whitespace-nowrap text-[var(--text-xs)] text-white/60 [writing-mode:vertical-rl] [transform:rotate(180deg)]">
                   Señales ↑
                 </span>
               </div>
               <div>
                 {/* 3 rows × 3 cols; grid is row-major, top row = high signal. */}
-                <div className="grid grid-cols-3 gap-[2px]">
+                <div className="grid grid-cols-3 gap-0.5">
                   {BIVARIATE_LEGEND_GRID.map((sw) => (
                     <span
                       key={`biv-${sw.cov}-${sw.sig}`}
@@ -123,7 +123,9 @@ export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
                     />
                   ))}
                 </div>
-                <div className="mt-0.5 text-center text-[10px] text-white/60">Cobertura →</div>
+                <div className="mt-0.5 text-center text-[var(--text-xs)] text-white/60">
+                  Cobertura →
+                </div>
               </div>
             </div>
             <div className="mt-1.5 flex items-center gap-1.5 text-white/70">

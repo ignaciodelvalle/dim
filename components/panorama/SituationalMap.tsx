@@ -2702,14 +2702,14 @@ export function SituationalMap({
           {viewMeta && (
             <div className="flex flex-wrap items-center justify-end gap-1.5">
               {copied && (
-                <output className="rounded-[var(--radius-sm)] bg-ln-op-ok-bg px-2 py-1 text-[11px] font-medium text-ln-op-ok">
+                <output className="rounded-[var(--radius-sm)] bg-ln-op-ok-bg px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ok">
                   Vista copiada
                 </output>
               )}
               <button
                 type="button"
                 onClick={copyView}
-                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[11px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
               >
                 Copiar vista
               </button>
@@ -2718,7 +2718,7 @@ export function SituationalMap({
               <button
                 type="button"
                 onClick={exportPng}
-                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[11px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
               >
                 Exportar PNG
               </button>
@@ -2730,7 +2730,7 @@ export function SituationalMap({
                 disabled
                 aria-disabled="true"
                 title="En desarrollo"
-                className="cursor-not-allowed rounded-[var(--radius-sm)] border border-ln-op-line/60 px-2.5 py-1 text-[11px] font-medium text-ln-op-faint"
+                className="cursor-not-allowed rounded-[var(--radius-sm)] border border-ln-op-line/60 px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-faint"
               >
                 Informe de situación (en desarrollo)
               </button>
@@ -2808,7 +2808,7 @@ export function SituationalMap({
             so the reader knows the granularity's meaning changed on drill. */}
           {aggregationLabel && (
             <span
-              className="rounded-[var(--radius-sm)] border border-white/15 bg-black/55 px-2 py-1 text-[11px] font-medium text-white/90"
+              className="rounded-[var(--radius-sm)] border border-white/15 bg-black/55 px-2 py-1 text-[var(--text-sm)] font-medium text-white/90"
               title="Nivel de agregación del mapa"
             >
               {aggregationLabel}
