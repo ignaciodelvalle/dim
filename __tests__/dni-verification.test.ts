@@ -155,7 +155,7 @@ describe("verifyDniForUser", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("unique collision: returns friendly error when DNI belongs to another account", async () => {
+  it("unique collision (AU-1 oracle defense): returns the GENERIC message, never a DNI-confirming one", async () => {
     // userIdB already has dni7; try to set the same value on a new user.
     const EMAIL_C = "dni-verify-c@dim-test.local";
     await deleteTestUser(EMAIL_C);
@@ -171,7 +171,15 @@ describe("verifyDniForUser", () => {
       const dni7 = userIdB.replace(/\D/g, "").slice(0, 7).padEnd(7, "2");
       const result = await verifyDniForUser(userIdC, dni7);
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toMatch(/ya está registrado/i);
+      if (!result.ok) {
+        // The collision MUST surface the generic, non-confirming copy — a
+        // distinct "ya está registrado" message would confirm the DNI exists.
+        expect(result.error).toBe(
+          "No pudimos guardar tus datos. Revisá la información e intentá de nuevo.",
+        );
+        expect(result.error).not.toMatch(/ya está registrado/i);
+        expect(result.error).not.toMatch(/DNI/);
+      }
     } finally {
       await deleteTestUser(EMAIL_C);
     }

@@ -110,11 +110,28 @@ export async function verifyDniForUser(userId: string, rawDni: string): Promise<
       });
     });
   } catch (err) {
+    // DNI enumeration defense (audit 28-#3, Tier-2 authz critique AU-1).
+    // A distinct "ese DNI ya está registrado por otra cuenta" message confirmed
+    // to an authenticated attacker which DNIs already exist — probing the
+    // profiles_dni_hash_unique index (migration 0106) turns this verify flow
+    // into a DNI oracle, and this path has no rate limit. Mirror the sibling
+    // hardening in complete-identity.ts: the USER-FACING string is GENERIC and
+    // identical whether the failure is a DNI collision or any other write error,
+    // so the two are indistinguishable. The duplicate is still prevented
+    // server-side — the partial unique index rejects the second insert.
+    //
+    // The isDniUniqueViolation branch is KEPT for server-side logging only
+    // (differentiated observability) — only the copy returned to the user is
+    // collapsed to the generic message.
     if (isDniUniqueViolation(err)) {
-      return { ok: false, error: "Ese DNI ya está registrado por otra cuenta." };
+      console.warn("[verifyDniForUser] dni_hash unique violation (duplicate DNI collision)");
+    } else {
+      console.error("[verifyDniForUser] DNI write failed:", err);
     }
-    const msg = err instanceof Error ? err.message : "error desconocido";
-    return { ok: false, error: `No se pudo guardar el DNI: ${msg}` };
+    return {
+      ok: false,
+      error: "No pudimos guardar tus datos. Revisá la información e intentá de nuevo.",
+    };
   }
 
   return { ok: true };
