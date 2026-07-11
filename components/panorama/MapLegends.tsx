@@ -289,10 +289,12 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                 />
                 Sin datos
               </div>
-              {/* k-anon disclosure — copy parity with MapChoropleth. */}
-              <div className="mt-0.5 text-[var(--text-xs)] leading-tight text-white/55">
-                Dato protegido — menos de 5 registros (k-anonimato)
-              </div>
+              {/* NO k-anon disclosure here (QA fix): provinces are never
+                  suppressed — only the division (departamento/barrio) and
+                  locality choropleths carry a k-anon-protected class, and
+                  their own legend blocks below already state it. Showing the
+                  "Dato protegido" line under the province legend announced a
+                  category this choropleth never renders. */}
             </div>
           );
         })}

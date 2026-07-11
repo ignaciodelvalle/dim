@@ -76,6 +76,11 @@ describe("MapLegends — META'd rate layer renders the discrete threshold-class 
     expect(html).not.toContain("sobre meta");
   });
 
+  it("never renders the k-anon 'Dato protegido' line for a province legend (QA fix — provinces are never suppressed)", () => {
+    const html = renderLegend(metaLayer());
+    expect(html).not.toContain("Dato protegido");
+  });
+
   it("swatch ranges track the LIFTED scale (map/legend parity, e.g. under scrub)", () => {
     // The map lifts the same breaks/colors it paints; the legend must render them.
     const lifted = {
