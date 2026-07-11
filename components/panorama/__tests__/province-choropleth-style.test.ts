@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { COLOR_NO_DATA, RAMP_BLUE_DARK } from "@/lib/analytics/viz-scales";
+import { COLOR_NO_DATA, SCALE_BLUE_DARK_SEQ } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { provinceColorExpr, provinceValueBounds } from "../province-choropleth-style";
@@ -23,11 +23,14 @@ function provinceFC(cells: Array<{ provinceCode: string; value: number }>): Feat
 }
 
 describe("provinceColorExpr", () => {
-  it("builds a case→match→interpolate expression keyed on the polygon `code`", () => {
+  it("builds a case→match→step (classed) expression keyed on the polygon `code`", () => {
     const expr = provinceColorExpr(
       provinceFC([
         { provinceCode: "AR-B", value: 61 },
         { provinceCode: "AR-X", value: 9 },
+        { provinceCode: "AR-S", value: 22 },
+        { provinceCode: "AR-C", value: 40 },
+        { provinceCode: "AR-M", value: 77 },
       ]),
     ) as unknown as unknown[];
 
@@ -43,26 +46,27 @@ describe("provinceColorExpr", () => {
     expect(valueMatch).toContain(61);
     expect(valueMatch).toContain("AR-X");
     expect(valueMatch).toContain(9);
-    // The interpolate path uses the tokenized dark-map ramp endpoints.
-    const interp = expr[3] as unknown[];
-    expect(interp[0]).toBe("interpolate");
-    expect(interp).toContain(RAMP_BLUE_DARK[0]);
-    expect(interp).toContain(RAMP_BLUE_DARK[1]);
+    // The classed path is a MapLibre `step` over the dark-map ramp colors.
+    const step = expr[3] as unknown[];
+    expect(step[0]).toBe("step");
+    // The base color (below the first break) is the ramp's low anchor; the
+    // top class is the ramp's high anchor.
+    expect(step[2]).toBe(SCALE_BLUE_DARK_SEQ[0]);
+    expect(step).toContain(SCALE_BLUE_DARK_SEQ[SCALE_BLUE_DARK_SEQ.length - 1]);
   });
 
   it("paints everything neutral when there is no data", () => {
     expect(provinceColorExpr(provinceFC([]))).toBe(COLOR_NO_DATA);
   });
 
-  it("widens a degenerate single-value range so interpolate has distinct stops", () => {
+  it("collapses a degenerate single-value range to a flat class fill", () => {
     const expr = provinceColorExpr(
       provinceFC([{ provinceCode: "AR-V", value: 4 }]),
     ) as unknown as unknown[];
-    const interp = expr[3] as unknown[];
-    // interpolate signature: ["interpolate", ["linear"], input, in0, out0, in1, out1]
-    const lo = interp[3] as number;
-    const hi = interp[5] as number;
-    expect(hi).toBeGreaterThan(lo);
+    // A single value has no ascending break → the classed path is a flat color
+    // string (MapLibre `step` needs ≥ 1 threshold), not a step array.
+    expect(typeof expr[3]).toBe("string");
+    expect(SCALE_BLUE_DARK_SEQ).toContain(expr[3]);
   });
 });
 

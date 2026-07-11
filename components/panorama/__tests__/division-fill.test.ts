@@ -277,26 +277,39 @@ describe("divisionFillColorExpr", () => {
     expect(divisionFillColorExpr(new Map())).toBe("rgba(0,0,0,0)");
   });
 
-  it("builds a case/match/interpolate expression when values exist", () => {
-    const expr = divisionFillColorExpr(new Map([["palermo", 3]])) as unknown[];
+  it("builds a case/match/step (classed) expression when values exist", () => {
+    const expr = divisionFillColorExpr(
+      new Map([
+        ["a", 3],
+        ["b", 20],
+        ["c", 40],
+        ["d", 60],
+        ["e", 90],
+      ]),
+    ) as unknown[];
     expect(Array.isArray(expr)).toBe(true);
     expect(expr[0]).toBe("case");
+    expect((expr[3] as unknown[])[0]).toBe("step");
   });
 
-  it("locks the ramp to a domain override so two as-of frames share one scale", () => {
+  it("locks the classed breaks to a domain override so two as-of frames share one scale", () => {
     // The scrub-lock passes a frozen live-edge domain. Two DIFFERENT frames
-    // (values 10 vs 90) must interpolate over the SAME [0,100] domain, so a value
-    // keeps its color across the scrub (no per-frame rebasing = no flicker).
+    // (values 10 vs 90) must CLASS over the SAME [0,100] domain, so a value keeps
+    // its class-color across the scrub (no per-frame rebasing = no flicker). The
+    // locked domain uses deterministic equal-interval breaks [20,40,60,80].
     const domain = { min: 0, max: 100 };
     const frameA = divisionFillColorExpr(new Map([["palermo", 10]]), domain) as unknown[];
     const frameB = divisionFillColorExpr(new Map([["palermo", 90]]), domain) as unknown[];
-    // expr = ["case", cond, transparent, ["interpolate",["linear"],match, lo,c0, hi,c1]]
-    const interpA = frameA[3] as unknown[];
-    const interpB = frameB[3] as unknown[];
-    expect(interpA[3]).toBe(0); // lo
-    expect(interpA[5]).toBe(100); // hi
-    expect(interpB[3]).toBe(0);
-    expect(interpB[5]).toBe(100);
+    // expr = ["case", cond, transparent, ["step", match, c0, t1,c1, t2,c2, …]]
+    const stepA = frameA[3] as unknown[];
+    const stepB = frameB[3] as unknown[];
+    expect(stepA[0]).toBe("step");
+    expect(stepB[0]).toBe("step");
+    // Interior thresholds live at odd indices 3,5,7,9 — identical across frames.
+    const breaksA = [stepA[3], stepA[5], stepA[7], stepA[9]];
+    const breaksB = [stepB[3], stepB[5], stepB[7], stepB[9]];
+    expect(breaksA).toEqual([20, 40, 60, 80]);
+    expect(breaksB).toEqual([20, 40, 60, 80]);
   });
 });
 

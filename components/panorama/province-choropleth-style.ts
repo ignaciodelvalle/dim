@@ -12,12 +12,12 @@
 
 import type { ExpressionSpecification } from "maplibre-gl";
 
+import { computeClassScale, stepColorExpr } from "@/components/panorama/class-scale";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
   COLOR_NO_DATA,
-  RAMP_BLUE_DARK,
   divergentStops,
 } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
@@ -43,37 +43,30 @@ export type ScaleBounds = { min: number; max: number };
  * Build the data-driven `fill-color` for a province choropleth.
  *  1. a `match` maps each province code → its value (default -1 = "no data");
  *  2. provinces with no value (-1) get COLOR_NO_DATA;
- *  3. the rest are interpolated across [min,max] into RAMP_BLUE_DARK (the
- *     dark-map ramp — luminance increases with value so hot cells stay bright).
- * Returns a flat COLOR_NO_DATA expression when the layer has no values, and
- * widens a degenerate single-value range so `interpolate` has distinct stops.
+ *  3. the rest are THRESHOLD-CLASSED into the dark-map ramp via a MapLibre
+ *     `["step", …]` expression — each class a distinct color so tight-clustered
+ *     values read at a glance (see class-scale.ts). Sequential province layers
+ *     carry no policy meta (rate layers with a `complianceTarget` take the
+ *     DIVERGENT path instead), so the breaks are QUANTILE over the value set —
+ *     or deterministic EQUAL-INTERVAL when a scrub domain is locked.
+ * Returns a flat COLOR_NO_DATA expression when the layer has no values.
  */
 export function provinceColorExpr(
   features: FeatureCollection,
   // Optional domain override (fix: time-scrub color-scale lock). When supplied,
-  // the sequential ramp spans this fixed [min,max] instead of the frame's
-  // observed range, so a value keeps the same color across every as-of frame.
+  // the classed scale uses equal-interval breaks over this fixed [min,max]
+  // instead of the frame's own quantiles, so a value keeps the same class-color
+  // across every as-of frame.
   domainOverride?: { min: number; max: number } | null,
 ): ExpressionSpecification {
   const pairs: Array<[string, number]> = [];
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
   for (const f of features.features) {
     const p = f.properties as ProvinceFeatureProps;
     if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
     pairs.push([p.provinceCode, p.value]);
-    if (p.value < min) min = p.value;
-    if (p.value > max) max = p.value;
   }
   // No data at all — paint everything neutral.
   if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
-
-  if (domainOverride) {
-    min = domainOverride.min;
-    max = domainOverride.max;
-  }
-  const lo = Number.isFinite(min) ? min : 0;
-  const hi = Number.isFinite(max) && max > lo ? max : lo + 1;
 
   // value-by-code lookup (default -1 → "no data"). MapLibre `match` labels are
   // string|number; province codes are strings.
@@ -84,11 +77,16 @@ export function provinceColorExpr(
     -1,
   ] as unknown as ExpressionSpecification;
 
+  const scale = computeClassScale(
+    pairs.map(([, v]) => v),
+    { lockedDomain: domainOverride ?? null },
+  );
+
   return [
     "case",
     ["==", valueMatch, -1],
     COLOR_NO_DATA,
-    ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE_DARK[0], hi, RAMP_BLUE_DARK[1]],
+    stepColorExpr(valueMatch, scale),
   ] as unknown as ExpressionSpecification;
 }
 

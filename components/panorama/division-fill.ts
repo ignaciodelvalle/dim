@@ -18,8 +18,8 @@
 
 import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
+import { computeClassScale, stepColorExpr } from "@/components/panorama/class-scale";
 import type { DomainBounds } from "@/components/panorama/scale-lock";
-import { RAMP_BLUE_DARK } from "@/lib/analytics/viz-scales";
 import { normalizeBarioCode, normalizeDepartmentCode } from "@/lib/infra/geo-join";
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
 
@@ -228,37 +228,33 @@ const TRANSPARENT = "rgba(0,0,0,0)";
 /**
  * Build the data-driven `fill-color` for the division choropleth. Mirrors the
  * province choropleth's structure (a `match` on the polygon `code` → value, then
- * a linear interpolation across RAMP_BLUE_DARK) but paints divisions WITHOUT a value
- * transparent instead of the no-data grey — the always-visible outline is the
- * "no data" signal, so an unfilled division must let it show through.
+ * a THRESHOLD-CLASSED `["step", …]` across the dark-map ramp — see class-scale.ts)
+ * but paints divisions WITHOUT a value transparent instead of the no-data grey —
+ * the always-visible outline is the "no data" signal, so an unfilled division must
+ * let it show through.
+ *
+ * Division fill is a drill-level view with no policy meta (the divergent-vs-meta
+ * scale is province-only in v1), so the breaks are QUANTILE over the visible
+ * division values — or deterministic EQUAL-INTERVAL when a scrub domain is locked,
+ * so a division keeps the same class-color across every as-of frame.
  *
  * Returns a flat transparent expression when there are no values (nothing to
- * fill — only outlines), and widens a degenerate single-value range so
- * `interpolate` always has distinct stops.
+ * fill — only outlines).
  */
 export function divisionFillColorExpr(
   values: ReadonlyMap<string, number>,
   // Optional domain override (fix: time-scrub color-scale lock). When supplied,
-  // the ramp spans this fixed [min,max] instead of the current frame's observed
-  // range, so a value keeps the same color across every as-of frame of a scrub.
+  // the classed scale uses equal-interval breaks over this fixed [min,max]
+  // instead of the frame's own quantiles, so a value keeps the same class-color
+  // across every as-of frame of a scrub.
   domainOverride?: DomainBounds | null,
 ): ExpressionSpecification {
   if (values.size === 0) return TRANSPARENT as unknown as ExpressionSpecification;
 
-  let min = Number.POSITIVE_INFINITY;
-  let max = Number.NEGATIVE_INFINITY;
   const pairs: Array<[string, number]> = [];
   for (const [code, value] of values) {
     pairs.push([code, value]);
-    if (value < min) min = value;
-    if (value > max) max = value;
   }
-  if (domainOverride) {
-    min = domainOverride.min;
-    max = domainOverride.max;
-  }
-  const lo = Number.isFinite(min) ? min : 0;
-  const hi = Number.isFinite(max) && max > lo ? max : lo + 1;
 
   const valueMatch = [
     "match",
@@ -267,11 +263,16 @@ export function divisionFillColorExpr(
     -1,
   ] as unknown as ExpressionSpecification;
 
+  const scale = computeClassScale(
+    pairs.map(([, v]) => v),
+    { lockedDomain: domainOverride ?? null },
+  );
+
   return [
     "case",
     ["==", valueMatch, -1],
     TRANSPARENT,
-    ["interpolate", ["linear"], valueMatch, lo, RAMP_BLUE_DARK[0], hi, RAMP_BLUE_DARK[1]],
+    stepColorExpr(valueMatch, scale),
   ] as unknown as ExpressionSpecification;
 }
 
