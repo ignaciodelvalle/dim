@@ -292,14 +292,14 @@ describe("divisionFillColorExpr", () => {
     expect((expr[3] as unknown[])[0]).toBe("step");
   });
 
-  it("locks the classed breaks to a domain override so two as-of frames share one scale", () => {
-    // The scrub-lock passes a frozen live-edge domain. Two DIFFERENT frames
-    // (values 10 vs 90) must CLASS over the SAME [0,100] domain, so a value keeps
-    // its class-color across the scrub (no per-frame rebasing = no flicker). The
-    // locked domain uses deterministic equal-interval breaks [20,40,60,80].
-    const domain = { min: 0, max: 100 };
-    const frameA = divisionFillColorExpr(new Map([["palermo", 10]]), domain) as unknown[];
-    const frameB = divisionFillColorExpr(new Map([["palermo", 90]]), domain) as unknown[];
+  it("locks the classed breaks to frozen live-edge quantiles so two as-of frames share one scale", () => {
+    // The scrub-lock passes the FROZEN live-edge quantile breaks. Two DIFFERENT
+    // frames (values 10 vs 90) must CLASS over the SAME frozen breaks, so a value
+    // keeps its class-color across the scrub (no per-frame rebasing = no flicker).
+    // The frozen breaks are painted verbatim — NOT re-derived as equal-interval.
+    const frozen = [3, 5, 8, 200];
+    const frameA = divisionFillColorExpr(new Map([["palermo", 10]]), frozen) as unknown[];
+    const frameB = divisionFillColorExpr(new Map([["palermo", 90]]), frozen) as unknown[];
     // expr = ["case", cond, transparent, ["step", match, c0, t1,c1, t2,c2, …]]
     const stepA = frameA[3] as unknown[];
     const stepB = frameB[3] as unknown[];
@@ -308,8 +308,8 @@ describe("divisionFillColorExpr", () => {
     // Interior thresholds live at odd indices 3,5,7,9 — identical across frames.
     const breaksA = [stepA[3], stepA[5], stepA[7], stepA[9]];
     const breaksB = [stepB[3], stepB[5], stepB[7], stepB[9]];
-    expect(breaksA).toEqual([20, 40, 60, 80]);
-    expect(breaksB).toEqual([20, 40, 60, 80]);
+    expect(breaksA).toEqual([3, 5, 8, 200]);
+    expect(breaksB).toEqual([3, 5, 8, 200]);
   });
 });
 

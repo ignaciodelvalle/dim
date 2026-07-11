@@ -112,19 +112,21 @@ describe("provinceSeqClassScale — the lifted province legend scale (map/legend
     expect(scale?.colors).toEqual(painted.colors);
   });
 
-  it("under a scrub-locked domain the legend scale tracks the LOCKED fill, not the live edge", () => {
-    const locked = { min: 0, max: 100 };
-    const legendScale = provinceSeqClassScale(fc, locked);
+  it("under scrub-frozen breaks the legend scale tracks the LOCKED fill, not the live edge", () => {
+    // A scrub freezes the live-edge QUANTILE breaks (e.g. captured on an earlier
+    // frame whose distribution differed) and reuses them verbatim.
+    const frozen = [12, 24, 48, 96];
+    const legendScale = provinceSeqClassScale(fc, frozen);
     const paintedLocked = decodeStep(
-      (provinceColorExpr(fc, locked) as unknown as unknown[])[3] as unknown[],
+      (provinceColorExpr(fc, frozen) as unknown as unknown[])[3] as unknown[],
     );
     // Parity holds WITH the lock: the legend swatch ranges equal the painted
-    // class breaks for the SAME locked frame.
+    // class breaks for the SAME frozen frame.
     expect(legendScale?.breaks).toEqual(paintedLocked.breaks);
-    // Equal-interval over [0,100] → [20,40,60,80]; deterministic, frame-stable.
-    expect(legendScale?.breaks).toEqual([20, 40, 60, 80]);
-    // And the locked scale genuinely DIFFERS from the live-edge (quantile) scale
-    // — so a legend that recomputed live-edge would mis-describe the scrubbed map.
+    // The frozen breaks are painted verbatim (quantile, NOT equal-interval).
+    expect(legendScale?.breaks).toEqual([12, 24, 48, 96]);
+    // And the frozen scale genuinely DIFFERS from the live-edge scale — so a legend
+    // that recomputed live-edge would mis-describe the scrubbed map.
     const liveScale = provinceSeqClassScale(fc);
     expect(liveScale?.breaks).not.toEqual(legendScale?.breaks);
   });

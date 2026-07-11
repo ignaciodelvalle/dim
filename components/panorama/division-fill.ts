@@ -19,7 +19,6 @@
 import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
 import { computeClassScale, stepColorExpr } from "@/components/panorama/class-scale";
-import type { DomainBounds } from "@/components/panorama/scale-lock";
 import { normalizeBarioCode, normalizeDepartmentCode } from "@/lib/infra/geo-join";
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
 
@@ -235,19 +234,19 @@ const TRANSPARENT = "rgba(0,0,0,0)";
  *
  * Division fill is a drill-level view with no policy meta (the divergent-vs-meta
  * scale is province-only in v1), so the breaks are QUANTILE over the visible
- * division values — or deterministic EQUAL-INTERVAL when a scrub domain is locked,
- * so a division keeps the same class-color across every as-of frame.
+ * division values — frozen across a scrub via `lockedBreaks` (still quantile), so a
+ * division keeps the same class-color across every as-of frame.
  *
  * Returns a flat transparent expression when there are no values (nothing to
  * fill — only outlines).
  */
 export function divisionFillColorExpr(
   values: ReadonlyMap<string, number>,
-  // Optional domain override (fix: time-scrub color-scale lock). When supplied,
-  // the classed scale uses equal-interval breaks over this fixed [min,max]
-  // instead of the frame's own quantiles, so a value keeps the same class-color
-  // across every as-of frame of a scrub.
-  domainOverride?: DomainBounds | null,
+  // Optional frozen breaks (fix: time-scrub color-scale lock). When supplied, the
+  // classed scale renders these frozen live-edge quantile breaks instead of the
+  // frame's own quantiles, so a value keeps the same class-color across every
+  // as-of frame of a scrub.
+  lockedBreaks?: readonly number[] | null,
 ): ExpressionSpecification {
   if (values.size === 0) return TRANSPARENT as unknown as ExpressionSpecification;
 
@@ -265,7 +264,7 @@ export function divisionFillColorExpr(
 
   const scale = computeClassScale(
     pairs.map(([, v]) => v),
-    { lockedDomain: domainOverride ?? null },
+    { lockedBreaks: lockedBreaks ?? null },
   );
 
   return [

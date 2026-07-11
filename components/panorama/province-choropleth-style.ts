@@ -52,7 +52,7 @@ export type ScaleBounds = { min: number; max: number };
  *     values read at a glance (see class-scale.ts). Sequential province layers
  *     carry no policy meta (rate layers with a `complianceTarget` take the classed
  *     META path — provinceMetaColorExpr — instead), so the breaks are QUANTILE over
- *     the value set — or deterministic EQUAL-INTERVAL when a scrub domain is locked.
+ *     the value set — frozen across a scrub via `lockedBreaks` (still quantile).
  * Returns a flat COLOR_NO_DATA expression when the layer has no values.
  */
 /**
@@ -60,13 +60,14 @@ export type ScaleBounds = { min: number; max: number };
  * renders — the single source of truth shared by the map fill (provinceColorExpr,
  * below) and the off-canvas legend (lifted through SituationalMap so the swatch
  * ranges always describe the painted colors, including under a scrub scale-lock).
- * `domainOverride` is the frozen [min,max] a scrub locks; when present the scale
- * uses deterministic equal-interval breaks instead of the frame's own quantiles.
+ * `lockedBreaks` are the frozen live-edge quantile breaks a scrub reuses; when
+ * present the scale renders those exact breaks instead of re-deriving quantiles
+ * from the current frame (frame-stable colors, still quantile-balanced).
  * Returns null when the layer has no numeric values (the fill paints all neutral).
  */
 export function provinceSeqClassScale(
   features: FeatureCollection,
-  domainOverride?: { min: number; max: number } | null,
+  lockedBreaks?: readonly number[] | null,
 ): ClassScale | null {
   const values: number[] = [];
   for (const f of features.features) {
@@ -75,16 +76,16 @@ export function provinceSeqClassScale(
     values.push(p.value);
   }
   if (values.length === 0) return null;
-  return computeClassScale(values, { lockedDomain: domainOverride ?? null });
+  return computeClassScale(values, { lockedBreaks: lockedBreaks ?? null });
 }
 
 export function provinceColorExpr(
   features: FeatureCollection,
-  // Optional domain override (fix: time-scrub color-scale lock). When supplied,
-  // the classed scale uses equal-interval breaks over this fixed [min,max]
-  // instead of the frame's own quantiles, so a value keeps the same class-color
-  // across every as-of frame.
-  domainOverride?: { min: number; max: number } | null,
+  // Optional frozen breaks (fix: time-scrub color-scale lock). When supplied, the
+  // classed scale renders these frozen live-edge quantile breaks instead of the
+  // frame's own quantiles, so a value keeps the same class-color across every
+  // as-of frame.
+  lockedBreaks?: readonly number[] | null,
 ): ExpressionSpecification {
   const pairs: Array<[string, number]> = [];
   for (const f of features.features) {
@@ -92,7 +93,7 @@ export function provinceColorExpr(
     if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
     pairs.push([p.provinceCode, p.value]);
   }
-  const scale = provinceSeqClassScale(features, domainOverride);
+  const scale = provinceSeqClassScale(features, lockedBreaks);
   // No data at all — paint everything neutral.
   if (pairs.length === 0 || scale === null) {
     return COLOR_NO_DATA as unknown as ExpressionSpecification;

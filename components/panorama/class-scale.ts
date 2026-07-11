@@ -16,10 +16,14 @@
 //   - QUANTILE: no meta → data-driven quantile breaks over the value set, so each
 //             class holds roughly the same number of units (balanced contrast).
 //
-// A LOCKED domain (time-scrub scale-lock) overrides the value-derived breaks with
-// deterministic EQUAL-INTERVAL cutoffs over the frozen [min,max], so a unit keeps
-// the same class-color across every as-of frame of a scrub (no per-frame rebasing
-// = no flicker). This mirrors the pre-existing `domainOverride` contract.
+// LOCKED BREAKS (time-scrub scale-lock) reuse the QUANTILE breaks captured at the
+// live edge, so a unit keeps the same class-color across every as-of frame of a
+// scrub (no per-frame rebasing = no flicker) WITHOUT collapsing the classing to
+// equal-interval. Older code froze a [min,max] domain and re-derived EQUAL-INTERVAL
+// cutoffs from it — but because the live edge ALSO passed a domain, quantile never
+// fired and skewed distributions read flat (the "dead quantile branch" bug). Freezing
+// the quantile breaks themselves keeps the classing quantile-balanced on skew while
+// staying frame-stable across the scrub.
 //
 // Kept pure (no maplibre runtime, no DOM) so the bucketing + color assignment are
 // unit-testable in isolation. Callers (province-choropleth-style, division-fill,
@@ -85,26 +89,25 @@ function quantileSorted(sorted: readonly number[], p: number): number {
  * @param values  every unit's value (no-data / suppressed cells are excluded by
  *                the caller — they are painted their own category, never a class).
  * @param opts.target       a policy meta → META policy (fixed cutoffs on the meta).
- * @param opts.lockedDomain a frozen [min,max] (scrub scale-lock) → EQUAL-INTERVAL
- *                          cutoffs, deterministic across frames. Wins over target.
+ * @param opts.lockedBreaks frozen interior breaks (scrub scale-lock) captured from
+ *                          the live-edge QUANTILE scale → reused verbatim so a unit
+ *                          keeps its class-color across frames. Wins over target.
  */
 export function computeClassScale(
   values: readonly number[],
-  opts?: { target?: number | null; lockedDomain?: { min: number; max: number } | null },
+  opts?: { target?: number | null; lockedBreaks?: readonly number[] | null },
 ): ClassScale {
   const target = opts?.target ?? null;
-  const locked = opts?.lockedDomain ?? null;
+  const lockedBreaks = opts?.lockedBreaks ?? null;
   const finite = values.filter((v) => typeof v === "number" && Number.isFinite(v));
 
-  // Scale-lock: equal-interval over the frozen domain (frame-stable colors).
-  if (locked && locked.max > locked.min) {
-    const breaks = dedupeAscending(
-      Array.from(
-        { length: CLASS_COUNT - 1 },
-        (_, i) => locked.min + ((locked.max - locked.min) * (i + 1)) / CLASS_COUNT,
-      ),
-    );
-    return { breaks, colors: classColors(breaks.length + 1), method: "interval" };
+  // Scrub scale-lock: reuse the FROZEN quantile breaks captured at the live edge
+  // (frame-stable colors, still quantile-balanced — not equal-interval).
+  if (lockedBreaks && lockedBreaks.length > 0) {
+    const breaks = dedupeAscending([...lockedBreaks]);
+    if (breaks.length > 0) {
+      return { breaks, colors: classColors(breaks.length + 1), method: "quantile" };
+    }
   }
 
   // Meta policy: fixed cutoffs at half / three-quarters / the meta itself.

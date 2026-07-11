@@ -68,24 +68,51 @@ describe("computeClassScale — quantile policy", () => {
     expect(scale.breaks).toEqual([]);
     expect(scale.colors).toHaveLength(1);
   });
+
+  it("MAP-1: a right-skewed distribution classes by QUANTILE, NOT equal-interval", () => {
+    // A skewed dept distribution (many small, a few large) — the shape that made
+    // the dead equal-interval branch read "flat". Quantile breaks must follow the
+    // DATA density (bunched low, sparse high), so the interior break gaps are NOT
+    // uniform. Regression guard for the dead quantile branch.
+    const values = [1, 2, 3, 4, 5, 6, 7, 8, 200, 400];
+    const scale = computeClassScale(values);
+    expect(scale.method).toBe("quantile");
+    expect(scale.breaks).toHaveLength(CLASS_COUNT - 1);
+    // Equal-interval over [1,400] would put the breaks ~80 apart (uniform gaps).
+    // Quantile hugs the dense low tail, so consecutive gaps differ markedly.
+    const gaps = scale.breaks.slice(1).map((b, i) => b - scale.breaks[i]);
+    const allGapsEqual = gaps.every((g) => Math.abs(g - gaps[0]) < 1e-9);
+    expect(allGapsEqual).toBe(false);
+    // Concretely: the low breaks sit in the single digits (data density), far from
+    // the ~80/160/240 an equal-interval split of [1,400] would produce.
+    expect(scale.breaks[0]).toBeLessThan(10);
+  });
 });
 
-describe("computeClassScale — locked domain (scrub scale-lock)", () => {
-  it("uses deterministic equal-interval breaks over the frozen domain", () => {
-    const a = computeClassScale([5], { lockedDomain: { min: 0, max: 100 } });
-    const b = computeClassScale([95], { lockedDomain: { min: 0, max: 100 } });
-    expect(a.method).toBe("interval");
-    expect(a.breaks).toEqual([20, 40, 60, 80]);
+describe("computeClassScale — locked breaks (scrub scale-lock)", () => {
+  it("reuses the frozen live-edge quantile breaks verbatim (frame-stable colors)", () => {
+    const frozen = [3, 5, 8, 200];
+    const a = computeClassScale([5], { lockedBreaks: frozen });
+    const b = computeClassScale([95], { lockedBreaks: frozen });
+    expect(a.method).toBe("quantile");
+    // The frozen breaks are painted verbatim — NOT re-derived as equal-interval.
+    expect(a.breaks).toEqual([3, 5, 8, 200]);
     // Frame-stable: same breaks regardless of the frame's own values.
     expect(b.breaks).toEqual(a.breaks);
   });
 
-  it("locked domain wins over a meta target", () => {
+  it("locked breaks win over a meta target", () => {
     const scale = computeClassScale([50], {
       target: 80,
-      lockedDomain: { min: 0, max: 100 },
+      lockedBreaks: [3, 5, 8, 200],
     });
-    expect(scale.method).toBe("interval");
+    expect(scale.method).toBe("quantile");
+    expect(scale.breaks).toEqual([3, 5, 8, 200]);
+  });
+
+  it("empty locked breaks fall through to the live computation", () => {
+    const scale = computeClassScale([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], { lockedBreaks: [] });
+    expect(scale.method).toBe("quantile");
   });
 });
 

@@ -36,7 +36,7 @@ import {
   buildPinnedPopupHtml,
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
-import { type DomainBounds, resolveScrubDomain } from "@/components/panorama/scale-lock";
+import { resolveScrubDomain } from "@/components/panorama/scale-lock";
 import { type BivariateCell, riskLabel } from "@/src/modules/panorama/domain/bivariate";
 
 import {
@@ -374,9 +374,9 @@ const BASEMAP_URL = "/geo/ar-provinces.geojson";
 // Always-visible admin divisions for a single-province scope (PO directive
 // "siempre mostrar la división"). Loaded LAZILY (same-origin — CSP allows only
 // 'self') and ONLY when a province scope is active, never on the national view:
-// caba-barrios (353 KB) for CABA, ar-departments (693 KB, filtered client-side to
-// the active province) for everyone else. The national view keeps the provinces
-// basemap untouched.
+// caba-barrios (353 KB) for CABA, ar-departments (~2.0 MB on disk, filtered
+// client-side to the active province) for everyone else. The national view keeps
+// the provinces basemap untouched.
 const CABA_BARRIOS_URL = "/geo/caba-barrios.geojson";
 const AR_DEPARTMENTS_URL = "/geo/ar-departments.geojson";
 // Regional context basemap: neighbouring South American countries (Chile,
@@ -605,13 +605,15 @@ export function SituationalMap({
   onProvinceDrillRef.current = onProvinceDrill;
   const drillingRef = useRef(false);
   // Time-scrub color-scale lock (fixes the flicker bug). While an as-of scrub is
-  // active, the choropleth/division/bubble domains are FROZEN at the live-edge
-  // value so a datum keeps the same color/size across frames. Refreshed on every
-  // live frame; keyed by layer id (province/division) for a single global max
-  // (graduated). See resolveScrubDomain (scale-lock.ts).
+  // active, the graduated bubble MAX and the choropleth/division classed BREAKS are
+  // FROZEN at the live-edge frame so a datum keeps the same color/size across
+  // frames. Refreshed on every live frame; keyed by layer id (province/division)
+  // for a single global max (graduated). The classed layers freeze their live-edge
+  // QUANTILE breaks (not a min/max domain), so classing stays quantile-balanced on
+  // skew AND frame-stable across the scrub. See resolveScrubDomain (scale-lock.ts).
   const lockedGraduatedMaxRef = useRef<number | null>(null);
-  const lockedDivisionDomainRef = useRef<Map<string, DomainBounds>>(new Map());
-  const lockedProvinceDomainRef = useRef<Map<string, DomainBounds>>(new Map());
+  const lockedDivisionBreaksRef = useRef<Map<string, number[]>>(new Map());
+  const lockedProvinceBreaksRef = useRef<Map<string, number[]>>(new Map());
   // panorama-ia-v2 §1.1: keep the latest zoom callback for the one-time map
   // handler that reports the camera zoom to the console (derived level).
   const onZoomRef = useRef(onZoom);
@@ -831,7 +833,7 @@ export function SituationalMap({
         onZoomRef.current?.(z);
         // cursor #7: warm the department GeoJSON cache BEFORE the camera crosses
         // Z_DIVISIONS so outlines fade in immediately on drill instead of popping
-        // after the 693 KB file resolves post-moveend. Same-origin, cached once.
+        // after the ~2.0 MB file resolves post-moveend. Same-origin, cached once.
         if (z >= Z_DIVISIONS - 0.5 && departmentsRawRef.current === null) {
           void fetchGeojsonFeatures(AR_DEPARTMENTS_URL).then((raw) => {
             if (raw !== null && departmentsRawRef.current === null) {
@@ -1468,11 +1470,11 @@ export function SituationalMap({
       // has no own GeoJSON source, so it can't be reconciled via getSource. We
       // recompute its data-driven color expression in place on every sync.
       if (layer.geomType === "choropleth" && layer.level === "province") {
-        // Sequential province layers lock their color domain across a scrub. Rate
-        // layers already render on the FIXED [0,100] domain (comparability), so
-        // they are stable frame-to-frame and need no lock.
+        // Sequential province layers freeze their classed BREAKS across a scrub.
+        // Rate layers already render on target-anchored META breaks (frame-stable
+        // by construction), so they need no lock.
         const isMeta = layer.dataType === "rate" && typeof layer.complianceTarget === "number";
-        let seqDomain: DomainBounds | null = null;
+        let seqBreaks: number[] | null = null;
         if (isMeta && typeof layer.complianceTarget === "number") {
           // META'd rate layer: the classed scale's breaks are fixed by the target
           // ([0.5T, 0.75T, T]), so they are frame-stable and need no scrub lock.
@@ -1486,25 +1488,30 @@ export function SituationalMap({
             };
           }
         } else {
+          // MAP-1 fix: derive the live-edge QUANTILE breaks from the current frame,
+          // then freeze THOSE across a scrub (not a min/max domain), so classing is
+          // quantile-balanced AND frame-stable. resolveScrubDomain reuses the frozen
+          // breaks while scrubbing and refreshes them at the live edge.
+          const liveBreaks = provinceSeqClassScale(layer.features, null)?.breaks ?? null;
           const lock = resolveScrubDomain({
-            live: provinceValueBounds(layer.features),
+            live: liveBreaks && liveBreaks.length > 0 ? liveBreaks : null,
             scrubbing,
-            locked: lockedProvinceDomainRef.current.get(layer.id) ?? null,
+            locked: lockedProvinceBreaksRef.current.get(layer.id) ?? null,
           });
-          if (lock.locked) lockedProvinceDomainRef.current.set(layer.id, lock.locked);
-          else lockedProvinceDomainRef.current.delete(layer.id);
-          seqDomain = lock.domain;
-          // Lift the SAME classed scale the fill renders (same values + locked
-          // domain) so the off-canvas legend swatches match the painted colors.
-          const seqScale = provinceSeqClassScale(layer.features, seqDomain);
+          if (lock.locked) lockedProvinceBreaksRef.current.set(layer.id, lock.locked);
+          else lockedProvinceBreaksRef.current.delete(layer.id);
+          seqBreaks = lock.domain;
+          // Lift the SAME classed scale the fill renders (same values + frozen
+          // breaks) so the off-canvas legend swatches match the painted colors.
+          const seqScale = provinceSeqClassScale(layer.features, seqBreaks);
           if (seqScale) {
             nextProvinceSeqLegend[layer.id] = { breaks: seqScale.breaks, colors: seqScale.colors };
           }
         }
         if (mountedRef.current.has(layer.id)) {
-          updateProvinceChoroplethLayer(map, layer, seqDomain);
+          updateProvinceChoroplethLayer(map, layer, seqBreaks);
         } else {
-          addProvinceChoroplethLayer(map, layer, seqDomain);
+          addProvinceChoroplethLayer(map, layer, seqBreaks);
           mountedRef.current.add(layer.id);
         }
         // task #63: keep the bivariate suppression hatch in sync (no-op otherwise).
@@ -1537,16 +1544,21 @@ export function SituationalMap({
         const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
         if (existing) existing.setData(circleData);
         else addChoroplethLayer(map, layer, circleData);
-        // Lock the division-fill color domain across a scrub so a division keeps
-        // the same color across as-of frames (the legend ramp uses the SAME
-        // locked bounds, so swatch and map agree).
+        // Lock the division-fill classed BREAKS across a scrub so a division keeps
+        // the same color across as-of frames (the legend swatches use the SAME
+        // frozen breaks, so swatch and map agree). MAP-1 fix: freeze the live-edge
+        // QUANTILE breaks, not a min/max domain — classing stays quantile-balanced
+        // on skew AND frame-stable.
+        const liveDivBreaks = computeClassScale([...join.values.values()], {
+          lockedBreaks: null,
+        }).breaks;
         const divLock = resolveScrubDomain({
-          live: divisionValueBounds(join.values),
+          live: liveDivBreaks.length > 0 ? liveDivBreaks : null,
           scrubbing,
-          locked: lockedDivisionDomainRef.current.get(layer.id) ?? null,
+          locked: lockedDivisionBreaksRef.current.get(layer.id) ?? null,
         });
-        if (divLock.locked) lockedDivisionDomainRef.current.set(layer.id, divLock.locked);
-        else lockedDivisionDomainRef.current.delete(layer.id);
+        if (divLock.locked) lockedDivisionBreaksRef.current.set(layer.id, divLock.locked);
+        else lockedDivisionBreaksRef.current.delete(layer.id);
         if (map.getLayer(divisionFillLayerId(layer.id))) {
           updateDivisionFillLayer(map, layer, join.values, divLock.domain);
         } else {
@@ -1558,13 +1570,13 @@ export function SituationalMap({
         addDivisionSuppressionLayer(map, layer, join.suppressed);
         mountedRef.current.add(layer.id);
         applyDim(map, layer);
-        const bounds = divLock.domain;
+        const bounds = divisionValueBounds(join.values);
         const hasSuppressed = join.suppressed.size > 0;
         if (bounds || hasSuppressed) {
           // Theme 3: resolve the SAME classed scale the fill expression renders
-          // (same values + locked domain) so the legend swatches match the map.
+          // (same values + frozen breaks) so the legend swatches match the map.
           const divScale = computeClassScale([...join.values.values()], {
-            lockedDomain: divLock.domain ?? null,
+            lockedBreaks: divLock.domain ?? null,
           });
           nextDivisionLegend = {
             label: layer.label,
@@ -1788,9 +1800,9 @@ export function SituationalMap({
     map: maplibregl.Map,
     layer: ActiveLayer,
     values: Map<string, number>,
-    // Fix: time-scrub color-scale lock — the frozen live-edge domain (or null at
-    // the live edge, where the expr computes the domain from `values`).
-    domain?: DomainBounds | null,
+    // Fix: time-scrub color-scale lock — the frozen live-edge quantile breaks (or
+    // null at the live edge, where the expr computes quantiles from `values`).
+    lockedBreaks?: readonly number[] | null,
   ) {
     if (!map.getSource(DIVISION_SRC)) return;
     const fillId = divisionFillLayerId(layer.id);
@@ -1801,14 +1813,14 @@ export function SituationalMap({
           type: "fill",
           source: DIVISION_SRC,
           paint: {
-            "fill-color": divisionFillColorExpr(values, domain),
+            "fill-color": divisionFillColorExpr(values, lockedBreaks),
             "fill-opacity": DATA_FILL_OPACITY,
           },
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
       );
     } else {
-      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values, domain));
+      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values, lockedBreaks));
     }
     wireDivisionInteractions(map, layer);
   }
@@ -1817,13 +1829,13 @@ export function SituationalMap({
     map: maplibregl.Map,
     layer: ActiveLayer,
     values: Map<string, number>,
-    domain?: DomainBounds | null,
+    lockedBreaks?: readonly number[] | null,
   ) {
     const fillId = divisionFillLayerId(layer.id);
     if (map.getLayer(fillId)) {
-      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values, domain));
+      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values, lockedBreaks));
     } else {
-      addDivisionFillLayer(map, layer, values, domain);
+      addDivisionFillLayer(map, layer, values, lockedBreaks);
     }
   }
 
@@ -2315,7 +2327,7 @@ export function SituationalMap({
    * Rate layers with a complianceTarget render as the classed-step META scale (the
    * 4 threshold classes anchored on the target); all others keep the sequential
    * classed path. */
-  function provinceColorExprForLayer(layer: ActiveLayer, seqDomain?: DomainBounds | null) {
+  function provinceColorExprForLayer(layer: ActiveLayer, seqBreaks?: readonly number[] | null) {
     // task #63: a bivariate layer paints from its precomputed class matrix (a
     // `match` on the polygon code → the 3×3 palette), not from a single value.
     if (layer.bivariateCells) {
@@ -2326,18 +2338,18 @@ export function SituationalMap({
       // esterilización, microchip, ppp) render on the classed 4-threshold scale
       // anchored on the compliance target ([0.5T, 0.75T, T]), NOT the amber/teal
       // divergent scale. The breaks are fixed by the target — comparable across
-      // provinces and frame-stable under a scrub, so no domain lock is needed.
+      // provinces and frame-stable under a scrub, so no lock is needed.
       return provinceMetaColorExpr(layer.features, layer.complianceTarget);
     }
-    // Sequential layers: `seqDomain` is the scrub-locked domain (null at the live
-    // edge, where the expr computes the domain from the frame's own values).
-    return provinceColorExpr(layer.features, seqDomain);
+    // Sequential layers: `seqBreaks` are the scrub-frozen live-edge quantile breaks
+    // (null at the live edge, where the expr computes quantiles from the frame).
+    return provinceColorExpr(layer.features, seqBreaks);
   }
 
   function addProvinceChoroplethLayer(
     map: maplibregl.Map,
     layer: ActiveLayer,
-    seqDomain?: DomainBounds | null,
+    seqBreaks?: readonly number[] | null,
   ) {
     if (!map.getSource("ar-provinces")) return;
     const fillId = provinceFillLayerId(layer.id);
@@ -2348,7 +2360,7 @@ export function SituationalMap({
         type: "fill",
         source: "ar-provinces",
         paint: {
-          "fill-color": provinceColorExprForLayer(layer, seqDomain),
+          "fill-color": provinceColorExprForLayer(layer, seqBreaks),
           "fill-opacity": DATA_FILL_OPACITY,
         },
       });
@@ -2376,14 +2388,14 @@ export function SituationalMap({
   function updateProvinceChoroplethLayer(
     map: maplibregl.Map,
     layer: ActiveLayer,
-    seqDomain?: DomainBounds | null,
+    seqBreaks?: readonly number[] | null,
   ) {
     const fillId = provinceFillLayerId(layer.id);
     if (map.getLayer(fillId)) {
-      map.setPaintProperty(fillId, "fill-color", provinceColorExprForLayer(layer, seqDomain));
+      map.setPaintProperty(fillId, "fill-color", provinceColorExprForLayer(layer, seqBreaks));
     } else {
       // Basemap may have loaded after the first sync attempt — try to add now.
-      addProvinceChoroplethLayer(map, layer, seqDomain);
+      addProvinceChoroplethLayer(map, layer, seqBreaks);
     }
   }
 
