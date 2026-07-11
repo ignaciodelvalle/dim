@@ -116,7 +116,25 @@ export async function loadLayerFeaturesFromCube(
 
   // --- read + rebuild the envelope ---
   const rows = await readCubeRows(metric, adminProvince);
+  return { builtAt, result: assembleCubeLayerResult(rows, level) };
+}
 
+/**
+ * Rebuild the loader's LayerFeaturesResult envelope from stored cube rows. Pure
+ * (no DB) — exported so the truncation threading is testable without a build.
+ *
+ * TRUNCATION (CB1): the builder captures each province's department-grain
+ * `truncated` flag (its LOCALITY rollup hitting PER_LAYER_CAP — reachable at
+ * Buenos Aires scale, ~2000 INDEC localities) in the province row's `den` column
+ * (0/1 — reserved-column reuse, see buildProvinceCubeRows). The department grain
+ * threads it through here so a cube-served drill can never claim false
+ * completeness (live parity: the live loader would say truncated too). The
+ * province grain is structurally never truncated (≤24 rows from the loader).
+ */
+export function assembleCubeLayerResult(
+  rows: PanoramaCubeRow[],
+  level: AggregationLevel,
+): LayerFeaturesResult {
   if (level === "province") {
     const cells: ProvinceChoroplethCell[] = rows
       .filter((r) => r.unitLevel === "province")
@@ -126,14 +144,11 @@ export async function loadLayerFeaturesFromCube(
         value: Number(r.value ?? 0),
       }));
     return {
-      builtAt,
-      result: {
-        features: buildProvinceChoroplethFeatures(cells),
-        truncated: false,
-        suppressedCount: 0,
-        noLocalityCount: 0,
-        level: "province",
-      },
+      features: buildProvinceChoroplethFeatures(cells),
+      truncated: false,
+      suppressedCount: 0,
+      noLocalityCount: 0,
+      level: "province",
     };
   }
 
@@ -141,21 +156,20 @@ export async function loadLayerFeaturesFromCube(
   const deptRows = rows.filter((r) => r.unitLevel === "department");
   const cells: ChoroplethCell[] = deptRows.map((r) => cellFromRow(r));
   const suppressedCount = deptRows.reduce((n, r) => n + (r.suppressed ? 1 : 0), 0);
+  const provinceRows = rows.filter((r) => r.unitLevel === "province");
   // noLocalityCount: sum the province-grain residual over the in-scope provinces
   // (national = all rows; a province drill already filtered to that province).
-  const noLocalityCount = rows
-    .filter((r) => r.unitLevel === "province")
-    .reduce((n, r) => n + (r.noLocality ?? 0), 0);
+  const noLocalityCount = provinceRows.reduce((n, r) => n + (r.noLocality ?? 0), 0);
+  // Truncated iff ANY in-scope province's department rollup hit the cap at build
+  // (den = 1 on its province row; eligibility means "any" is a single province).
+  const truncated = provinceRows.some((r) => (r.den ?? 0) !== 0);
 
   return {
-    builtAt,
-    result: {
-      features: buildChoroplethFeatures(cells),
-      truncated: false,
-      suppressedCount,
-      noLocalityCount,
-      level: "locality",
-    },
+    features: buildChoroplethFeatures(cells),
+    truncated,
+    suppressedCount,
+    noLocalityCount,
+    level: "locality",
   };
 }
 

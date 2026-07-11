@@ -31,7 +31,13 @@ import { type SQL, sql } from "drizzle-orm";
 import { type PostgresJsDatabase, drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-import { analyticsDb, panoramaCube, panoramaCubeMeta, petEvents } from "@/db";
+import {
+  panoramaCube,
+  panoramaCubeMeta,
+  petEvents,
+  runWithAnalyticsReadHandle,
+  statementTimeoutOptions,
+} from "@/db";
 import * as schema from "@/db/schema";
 import type { NewPanoramaCubeRow } from "@/db/schema";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
@@ -85,6 +91,68 @@ function num(v: number | null | undefined): string | null {
   return v == null ? null : String(v);
 }
 
+// ---------------------------------------------------------------------------
+// Dedicated BUILDER READ client (task #22 — read-timeout architecture fix).
+//
+// The builder's reads reuse the live loaders, which resolve to the module-level
+// `analyticsDb` — a pool whose 15s request-path statement_timeout is baked at
+// MODULE LOAD (env is per-deployment on Vercel, and the cron imports this module
+// statically, so no per-invocation env can reach that pool). A national-scale
+// rollup (a Buenos Aires department read measures ~96s) is cancelled at 15s
+// (SQLSTATE 57014) → the whole build fails → reader falls back to live for
+// everything. Raising the env project-wide would reopen the request-path
+// death-spiral the 15s backstop prevents (#74).
+//
+// So the builder constructs its OWN session-pooler read client, LAZILY inside
+// refreshCube (env read per invocation, mirroring the write client), with a long
+// statement_timeout, and routes the read phase to it via
+// runWithAnalyticsReadHandle — covering every downstream analyticsDb call
+// (repository loaders + the lib/metrics + lib/analytics fetchers they compose)
+// with zero call-site changes. Request paths keep the 15s backstop untouched.
+// ---------------------------------------------------------------------------
+
+/** Default statement_timeout for the builder's read client. 120s: the worst
+ * measured single read (Buenos Aires department rollup) is ~96s; the cron route
+ * pins maxDuration=300s, so there is headroom without letting a truly wedged
+ * query eat the whole invocation. */
+export const CUBE_BUILDER_DEFAULT_STATEMENT_TIMEOUT_MS = 120_000;
+
+/** Resolve the builder read client's statement_timeout (ms) from env
+ * (CUBE_BUILDER_STATEMENT_TIMEOUT_MS), falling back to the 120s default on
+ * unset/invalid values. Pure; exported for tests. */
+export function cubeBuilderStatementTimeoutMs(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const n = Number(env.CUBE_BUILDER_STATEMENT_TIMEOUT_MS ?? "");
+  return Number.isFinite(n) && n > 0 ? n : CUBE_BUILDER_DEFAULT_STATEMENT_TIMEOUT_MS;
+}
+
+/** Construct the dedicated read client. Session pooler (honors the startup GUC —
+ * same reasoning as the write client), tiny pool, long timeout. Lazy by design:
+ * called per refreshCube invocation, never at module load. */
+function createBuilderReadClient(): ReturnType<typeof postgres> {
+  const readUrl = (process.env.ANALYTICS_DATABASE_URL ?? process.env.DATABASE_URL) as string;
+  const timeoutMs = cubeBuilderStatementTimeoutMs();
+  return postgres(readUrl, {
+    prepare: false,
+    // max: 3 — the per-metric fan-out (province + residual in parallel, then 6-way
+    // mapLimit over provinces) multiplexes over these. Session mode pins one
+    // backend per connection, so keep it small; the build is off the request path
+    // and total wall-clock (not per-query latency) is what matters.
+    max: 3,
+    connect_timeout: 15,
+    idle_timeout: 5,
+    max_lifetime: 300,
+    connection: {
+      options: statementTimeoutOptions(timeoutMs),
+      // Distinct name: exempt from the stuck-backend reaper (migration 0136
+      // targets application_name='Supavisor' only) and identifiable in pg_stat.
+      application_name: "cube-builder-read",
+    },
+    onnotice: () => {},
+  });
+}
+
 /** Map with bounded concurrency (the analytics pool is small; don't fan out 24
  * province reads at once). Preserves input order in the output. */
 async function mapLimit<T, R>(
@@ -136,11 +204,16 @@ async function buildMetricRows(
   const provinceCells = prov.cells as ProvinceChoroplethCell[];
   const provinceNames = provinceCells.map((c) => c.label);
 
-  // Department cells per province (complete, untruncated) — matches a live province
-  // drill exactly (same loader call).
+  // Department cells per province — matches a live province drill exactly (same
+  // loader call). Normally complete; at extreme scale a single province's LOCALITY
+  // rollup can hit PER_LAYER_CAP (Buenos Aires ~2000 INDEC localities), so each
+  // result's `truncated` flag is CAPTURED per province and stored on that
+  // province's grain row (CB1) — the reader must not claim false completeness.
   const deptPerProvince = await mapLimit(provinceNames, 6, (p) =>
     loadChoroplethByLevel(metric, "locality", ADMIN, NO_JURISDICTIONS, p),
   );
+  const deptTruncatedByProvince = new Map<string, boolean>();
+  provinceNames.forEach((p, i) => deptTruncatedByProvince.set(p, deptPerProvince[i].truncated));
 
   const rows: NewPanoramaCubeRow[] = [];
 
@@ -175,31 +248,53 @@ async function buildMetricRows(
     }
   }
 
-  // Province grain. unit_code = provinceCode (unique, non-null, from the loader);
-  // province + label = the province display name. value = ratePct or count.
-  for (const cell of provinceCells) {
-    rows.push({
-      metric,
-      unitLevel: "province",
-      province: cell.label,
-      unitCode: cell.provinceCode,
-      label: cell.label,
-      departmentCode: null,
-      departmentName: null,
-      centroidLat: null,
-      centroidLng: null,
-      value: num(cell.value),
-      den: null,
-      noLocality: residualByProvince.get(cell.label) ?? 0,
-      suppressed: false,
-      complementary: false,
-    });
-  }
+  rows.push(
+    ...buildProvinceCubeRows(metric, provinceCells, residualByProvince, deptTruncatedByProvince),
+  );
 
   return {
     rows,
     stat: { metric, departmentRows, provinceRows: provinceCells.length, suppressed },
   };
+}
+
+/**
+ * Province-grain cube rows. unit_code = provinceCode (unique, non-null, from the
+ * loader); province + label = the province display name. value = ratePct or count.
+ *
+ * `den` REUSE (CB1, fork A — decided 2026-07-11): the department-grain truncation
+ * flag for this (metric, province) is stored in the province row's `den` column as
+ * 0/1. `den` was reserved for a future rate-by-num/den reader and has been
+ * write-only NULL since 0139; reusing it avoids a migration while CUBE_READS is
+ * still OFF. A future rate reader MUST first migrate this flag to its own column.
+ * Province-grain truncation itself needs no flag: the province loader returns ≤24
+ * rows, structurally under PER_LAYER_CAP.
+ *
+ * Pure; exported for the DB-free truncation-threading tests.
+ */
+export function buildProvinceCubeRows(
+  metric: ChoroplethMetric,
+  provinceCells: readonly ProvinceChoroplethCell[],
+  residualByProvince: ReadonlyMap<string, number>,
+  deptTruncatedByProvince: ReadonlyMap<string, boolean>,
+): NewPanoramaCubeRow[] {
+  return provinceCells.map((cell) => ({
+    metric,
+    unitLevel: "province",
+    province: cell.label,
+    unitCode: cell.provinceCode,
+    label: cell.label,
+    departmentCode: null,
+    departmentName: null,
+    centroidLat: null,
+    centroidLng: null,
+    value: num(cell.value),
+    // den ⇒ department-grain truncated flag (0/1) for this province — see jsdoc.
+    den: deptTruncatedByProvince.get(cell.label) ? 1 : 0,
+    noLocality: residualByProvince.get(cell.label) ?? 0,
+    suppressed: false,
+    complementary: false,
+  }));
 }
 
 /** Chunked multi-row insert (bounds the bind-parameter count well under 65535). */
@@ -214,39 +309,31 @@ async function insertRows(
 }
 
 /**
- * Full-rebuild the cube. Reads (loaders) run OUTSIDE the write transaction on the
- * analytics pool; the write (DELETE + INSERT + meta) runs INSIDE one transaction on
- * a DEDICATED session-pooler client with a generous 120s statement_timeout (this is
- * a background build — NOT withDbBudget's 8s request budget). Postgres MVCC gives
- * every reader the ENTIRE old cube or the ENTIRE new one, never a half-swap.
+ * Full-rebuild the cube. Reads (loaders) run OUTSIDE the write transaction on a
+ * DEDICATED lazy session-pooler READ client with a long statement_timeout (task
+ * #22 — see createBuilderReadClient; the shared analyticsDb pool's 15s
+ * request-path backstop would cancel a national-scale rollup). The write
+ * (DELETE + INSERT + meta) runs INSIDE one transaction on its own dedicated
+ * session-pooler client, also long-timeout (a background build — NOT
+ * withDbBudget's 8s request budget). Postgres MVCC gives every reader the ENTIRE
+ * old cube or the ENTIRE new one, never a half-swap.
  *
- * On any failure the write transaction rolls back (last-good cube untouched) and the
- * meta row is stamped status='error' in a separate statement — an honest, detectable
- * degradation the reader's staleness gate catches.
+ * On any failure — READ phase included (previously a read error THREW out of
+ * this function, bypassing the error result the cron's 57014 retry inspects) —
+ * the last-good cube stays untouched (write txn rolls back or never starts), the
+ * meta row is stamped status='error' in a separate statement, and a structured
+ * error result is returned — an honest, detectable degradation the reader's
+ * staleness gate catches.
  */
 export async function refreshCube(): Promise<CubeBuildResult> {
   const t0 = Date.now();
   const builtAt = new Date();
 
-  // Build watermark: transaction time — "what the system knew when the cube was
-  // built" (MAX(recorded_at)). A row inserted mid-build is attributed to the NEXT
-  // refresh (watermark is a floor, not a fence) — acceptable at day granularity.
-  const [wm] = await analyticsDb
-    .select({ w: sql<string | null>`max(${petEvents.recordedAt})` })
-    .from(petEvents);
-  // Raw max() comes back as a string; normalize to Date for the meta column + report.
-  const watermark = wm?.w ? new Date(wm.w) : null;
-
-  // Reuse the live loaders for all 5 metrics (reads, no transaction). Sequential
-  // per metric to bound concurrency on the small analytics pool (each metric's 3
-  // queries still run in parallel inside buildMetricRows) — the build is off the
-  // request path, so total wall-clock, not per-metric latency, is what matters.
-  const built: { rows: NewPanoramaCubeRow[]; stat: CubeBuildMetricStat }[] = [];
-  for (const m of CUBE_METRICS) {
-    built.push(await buildMetricRows(m));
-  }
-  const allRows = built.flatMap((b) => b.rows);
-  const perMetric = built.map((b) => b.stat);
+  // Both clients are constructed LAZILY here (per invocation): postgres() does
+  // not connect until first query, and env (URLs, timeout override) is read at
+  // call time — never baked at module load like the shared analyticsDb pool.
+  const readClient = createBuilderReadClient();
+  const readDb = drizzle(readClient, { schema });
 
   // Dedicated write client: session pooler (honors the GUC), generous timeout.
   const writeUrl = (process.env.ANALYTICS_DATABASE_URL ?? process.env.DATABASE_URL) as string;
@@ -257,8 +344,8 @@ export async function refreshCube(): Promise<CubeBuildResult> {
     idle_timeout: 5,
     max_lifetime: 300,
     connection: {
-      // 120s — a background build, not a request. Session mode honors this GUC.
-      options: "-c statement_timeout=120000 -c idle_in_transaction_session_timeout=120000",
+      // A background build, not a request. Session mode honors this GUC.
+      options: statementTimeoutOptions(cubeBuilderStatementTimeoutMs()),
       // Distinct name exempts the build from the stuck-backend reaper
       // (migration 0136 targets application_name='Supavisor' only). The write
       // txn is seconds-long anyway; this is belt-and-braces.
@@ -268,9 +355,39 @@ export async function refreshCube(): Promise<CubeBuildResult> {
   });
   const writeDb = drizzle(writeClient, { schema });
 
+  let watermark: Date | null = null;
+
   try {
+    // ---- READ PHASE — on the dedicated long-timeout client. ----
+
+    // Build watermark: transaction time — "what the system knew when the cube was
+    // built" (MAX(recorded_at)). A row inserted mid-build is attributed to the NEXT
+    // refresh (watermark is a floor, not a fence) — acceptable at day granularity.
+    const [wm] = await readDb
+      .select({ w: sql<string | null>`max(${petEvents.recordedAt})` })
+      .from(petEvents);
+    // Raw max() comes back as a string; normalize to Date for the meta column + report.
+    watermark = wm?.w ? new Date(wm.w) : null;
+
+    // Reuse the live loaders for all 5 metrics (reads, no transaction), with every
+    // downstream analyticsDb call in this async context dispatched to the dedicated
+    // read client (runWithAnalyticsReadHandle — covers the repository loaders AND
+    // the lib/metrics + lib/analytics fetchers they compose, zero call-site edits).
+    // Sequential per metric to bound concurrency on the small read pool (each
+    // metric's queries still run in parallel inside buildMetricRows) — the build is
+    // off the request path, so total wall-clock, not per-metric latency, matters.
+    const built = await runWithAnalyticsReadHandle(readDb, async () => {
+      const out: { rows: NewPanoramaCubeRow[]; stat: CubeBuildMetricStat }[] = [];
+      for (const m of CUBE_METRICS) {
+        out.push(await buildMetricRows(m));
+      }
+      return out;
+    });
+    const allRows = built.flatMap((b) => b.rows);
+    const perMetric = built.map((b) => b.stat);
+
+    // ---- WRITE PHASE — atomic full swap in one transaction. ----
     await writeDb.transaction(async (tx) => {
-      // Atomic full swap: clear then repopulate inside one transaction.
       await tx.delete(panoramaCube);
       await insertRows(tx, allRows);
       const durationMs = Date.now() - t0;
@@ -295,8 +412,10 @@ export async function refreshCube(): Promise<CubeBuildResult> {
       perMetric,
     };
   } catch (err) {
-    // Failed transaction rolled back → last-good cube intact. Record the failure so
-    // the reader's staleness gate falls back to live (status != 'ok').
+    // Read-phase failure → nothing was written; write-phase failure → transaction
+    // rolled back. Either way the last-good cube is intact. Record the failure so
+    // the reader's staleness gate falls back to live (status != 'ok') and return a
+    // structured result (the cron route's 57014 retry inspects `error`).
     const message = err instanceof Error ? err.message : String(err);
     try {
       await writeDb
@@ -312,10 +431,10 @@ export async function refreshCube(): Promise<CubeBuildResult> {
       durationMs: Date.now() - t0,
       watermark,
       builtAt,
-      perMetric,
+      perMetric: [],
       error: message,
     };
   } finally {
-    await writeClient.end({ timeout: 5 });
+    await Promise.all([readClient.end({ timeout: 5 }), writeClient.end({ timeout: 5 })]);
   }
 }
