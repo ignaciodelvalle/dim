@@ -45,9 +45,12 @@ import type { HistorialEventRow, LibretaFaceData } from "./types";
 // Owner-path guard against the welfare_denuncia bridge-event leak
 // (pet-document-redesign REQ-1.2/1.3): excludes any pet_events row whose
 // case_id belongs to a hidden-from-subject case. Filtered by caseId, NOT by
-// event_type, so it's future-proof against new welfare-bridge event types
-// (`symptom_observed` has no welfare caseId so it stays visible). NULL
-// case_id events are NEVER touched — `not(exists(...))` correlates on
+// event_type, so it's future-proof against new welfare-bridge event types.
+// `symptom_observed` is emitted two ways: an owner/sanitaria observation with a
+// NULL case_id (stays visible), OR a welfare-denuncia bridge event that DOES
+// carry the denuncia's case_id (create-welfare-report.ts) — the latter is
+// correctly HIDDEN here when that case is hidden-from-subject. NULL case_id
+// events are NEVER touched — `not(exists(...))` correlates on
 // `cases.id = pet_events.case_id`, which never matches a NULL caseId, so
 // those rows always keep passing through.
 function notHiddenCaseClause() {
