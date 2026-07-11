@@ -38,6 +38,7 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { BRANDING } from "@/lib/ui/branding";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { capCount } from "@/lib/utils/format";
 import { greetingFirstName } from "@/lib/utils/greeting";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
@@ -312,6 +313,9 @@ export default async function InicioPage() {
                       meta={new Date(slot.startsAt).toLocaleTimeString("es-AR", {
                         hour: "2-digit",
                         minute: "2-digit",
+                        // Server renders in UTC on Vercel — without the pin a
+                        // 14:00 ART turno displays as 17:00 on the owner home.
+                        timeZone: AR_TIME_ZONE,
                       })}
                     />
                   ))}

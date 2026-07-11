@@ -65,7 +65,16 @@ const FILES = globSync("{app,components,lib,src}/**/*.{ts,tsx}").filter((f) => {
 
 const CALL_PATTERNS: RegExp[] = [
   /\.toLocaleDateString\s*\([^)]*\)/gs,
-  /\.toLocaleString\s*\([^)]*\)/gs,
+  /\.toLocaleTimeString\s*\([^)]*\)/gs,
+  // Bare `.toLocaleString(` is OVERWHELMINGLY Number formatting (thousands
+  // separators — timeZone is meaningless there) and only dangerous on a Date
+  // receiver. A regex can't type the receiver, so we flag it ONLY when the
+  // receiver expression smells like a date: a name containing date/time/
+  // watermark/asOf, an `…At`-suffixed field (occurredAt, createdAt…), or a
+  // direct `new Date(...)`/`Date` receiver. Plain numeric formatting
+  // (`count.toLocaleString("es-AR")`) stays un-flagged — the first guard
+  // version tripped on 12 legend/popup number sites (all false positives).
+  /(?:new\s+Date\s*\([^)]*\)|\b(?:[A-Za-z_$][\w$]*(?:date|time|watermark|asof)[\w$]*|[A-Za-z_$][\w$]*At))\s*\.toLocaleString\s*\([^)]*\)/gis,
   /\bnew\s+Intl\.DateTimeFormat\s*\([^)]*\)/gs,
 ];
 
