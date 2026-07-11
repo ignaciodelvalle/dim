@@ -2286,34 +2286,106 @@ export function PanoramaConsole({
   /** F3: explicit preset click — a back-button-undoable board commit. */
   const onPreset = useCallback((id: PresetId) => applyPreset(id, "push"), [applyPreset]);
 
-  // MAP-2: re-derive the board (preset + layers) from a popped URL. useSearchParams
-  // does not observe popstate (engram #621/#622), so browser Back reverted
-  // ?preset/?layers in the URL while the active tab, legend, bubbles and KPIs stayed
-  // on the previous preset. Drive the SAME state a preset commit does. Assigned to a
-  // ref during render (the popstate listener is declared above, before applyPreset).
+  // MAP-2: re-derive the board from a popped URL. useSearchParams does not
+  // observe popstate (engram #621/#622), so browser Back reverted
+  // ?preset/?layers/?period in the URL while the active tab, legend, bubbles and
+  // KPIs stayed on the previous preset. Assigned to a ref during render (the
+  // popstate listener is declared above, before this closure's dependencies).
+  //
+  // Adversarial-review fix (2026-07-11, MED #1): this used to reuse the
+  // click-path applyPreset(preset, "replace"), which FORCES the period back to
+  // preset.periodPreset, clears every cache, and re-applies the preset's camera
+  // framing. Repro: preset A → change period to 12m (URL keeps period=12m) →
+  // preset B → Back: the popped URL still says period=12m but the view rewrote
+  // it to A's default (and jumped the camera). A popped URL is a HISTORICAL
+  // board — restore its fields (preset, layers, period) verbatim:
+  //   - period: from ?period (committedPeriod), never the preset default;
+  //   - layers: from ?layers, falling back to the preset's canonical set;
+  //   - caches: kept (Back is instant) unless the period actually changed —
+  //     a different window makes every period-sensitive cache stale;
+  //   - framing: NEVER re-applied (no camera jump on Back);
+  //   - URL: never rewritten (it is already the popped one).
   resyncBoardFromUrlRef.current = (params: URLSearchParams) => {
     const rawPreset = params.get("preset");
     const poppedPreset =
       rawPreset !== null && getPreset(rawPreset as PresetId) ? (rawPreset as PresetId) : null;
-    // No change vs the current board — nothing to re-derive.
-    if (poppedPreset === activePresetIdRef.current) return;
-    if (poppedPreset !== null) {
-      // Reproduce the preset exactly as a click would (state + layers + period +
-      // framing). "replace" — the URL is already the popped one, so add no history.
-      applyPreset(poppedPreset, "replace");
-      return;
-    }
-    // Popped to a manual (no-preset) board: clear the active preset and flip the
-    // active layer set to the popped `layers`, fetching whatever is not cached.
-    const ids = parseLayersParam(params.get("layers")) ?? [];
+    const poppedPeriod = params.get("period");
+
+    // Resolve the loaded vs popped period through the SAME fallback chain the
+    // since/until memo uses, so "changed" means the WINDOW actually changes.
+    const fallbackPeriod = searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET;
+    const loadedPeriod = committedPeriod ?? fallbackPeriod;
+    const nextPeriod = poppedPeriod ?? fallbackPeriod;
+    const periodChanged = nextPeriod !== loadedPeriod;
+
+    // Popped layer set: explicit ?layers wins; a preset URL without ?layers
+    // falls back to the preset's canonical set; a bare manual URL is all-off.
+    const poppedPresetObj = poppedPreset !== null ? getPreset(poppedPreset) : null;
+    const ids =
+      parseLayersParam(params.get("layers")) ??
+      (poppedPresetObj ? presetLayerIds(poppedPresetObj) : []);
     const idSet = new Set<LayerId>(ids);
-    setActivePresetId(null);
+    const currentKey = canonicalLayersKey(
+      PANORAMA_LAYERS.filter((l) => statesRef.current[l.id]?.active).map((l) => l.id),
+    );
+    const layersChanged = canonicalLayersKey(ids) !== currentKey;
+
+    // No change vs the current board — nothing to re-derive.
+    if (poppedPreset === activePresetIdRef.current && !periodChanged && !layersChanged) return;
+
+    setActivePresetId(poppedPreset);
+    // The popped URL's period is the truth (null → the bare-URL default).
+    setCommittedPeriod(poppedPeriod);
+
+    if (periodChanged) {
+      // The loaded caches belong to the previous window — stale for the popped
+      // one. Same invalidation set as the scope/period effect: as-of frames,
+      // province rollups, and the period-sensitive locality entries.
+      asOfDataRef.current.clear();
+      provinceDataRef.current.clear();
+      for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
+      for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
+      setAsOf(null);
+      setScrubResetToken((v) => v + 1);
+      // If the searchParams-keyed invalidation effect DOES observe this pop
+      // (dev/router-version variance), skip its redundant clear+refetch run.
+      presetCommittedQsRef.current = scopePeriodQsOf(params);
+      // KPIs are keyed on scopePeriodQs (useSearchParams), which popstate does
+      // not update — refetch them explicitly at the popped window. The shared
+      // "kpis" abort key dedupes against any concurrent refetch (last wins).
+      clientKpiTookOverRef.current = true;
+      const kpiQs = scopePeriodQsOf(params);
+      fetch(`/api/panorama/kpis${kpiQs ? `?${kpiQs}` : ""}`, {
+        headers: { accept: "application/json" },
+        signal: signalFor("kpis"),
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
+        .then((body) => {
+          if (body) {
+            setKpis(body);
+            setKpisStale(false);
+          } else {
+            setKpisStale(true);
+          }
+        })
+        .catch((err) => {
+          if (isAbortError(err)) return;
+          console.error("[PanoramaConsole] popstate KPI refetch failed", err);
+          setKpisStale(true);
+        });
+    }
+
+    // Flip the layer states to the popped set. Layers that need a fetch (period
+    // changed, or missing from cache) flip to loading; already-cached layers
+    // activate in place (Back stays instant — no cache wipe, no spinner).
+    const toFetch = periodChanged ? ids : missingFromCache(ids, levelRef.current);
+    const toFetchSet = new Set(toFetch);
     setStates((s) => {
       const next = { ...s };
       for (const l of PANORAMA_LAYERS) {
         const shouldActive = idSet.has(l.id);
         const isActive = s[l.id]?.active ?? false;
-        if (shouldActive && !isActive) {
+        if (shouldActive && toFetchSet.has(l.id)) {
           next[l.id] = {
             active: true,
             loading: true,
@@ -2321,14 +2393,15 @@ export function PanoramaConsole({
             suppressedCount: 0,
             truncated: false,
           };
+        } else if (shouldActive && !isActive) {
+          next[l.id] = { ...s[l.id], active: true, loading: false };
         } else if (!shouldActive && isActive) {
           next[l.id] = { ...s[l.id], active: false, compatibilityHint: undefined };
         }
       }
       return next;
     });
-    const missing = missingFromCache(ids, levelRef.current);
-    if (missing.length > 0) void fetchLayersInto(missing, levelRef.current, params);
+    if (toFetch.length > 0) void fetchLayersInto(toFetch, levelRef.current, params);
   };
 
   // panorama magnetic-zoom Phase 2: DERIVE the aggregation level from (scope,

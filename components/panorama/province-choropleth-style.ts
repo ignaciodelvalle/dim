@@ -30,6 +30,18 @@ import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 type ProvinceFeatureProps = { provinceCode?: string; value?: number };
 
 /**
+ * Adversarial-review fix (2026-07-11, MED #3): NaN hardening for the MAPLIBRE
+ * fill path, not just the JS mirror (colorForValue). `typeof value === "number"`
+ * is true for NaN, so a NaN-carrying feature entered the `match` pairs and the
+ * `["step", …]` expression painted it as the LOWEST class — indistinguishable
+ * from a genuinely low value. A finite check routes NaN to the match default
+ * (-1 → COLOR_NO_DATA) instead. Type predicate so the narrowing survives.
+ */
+function isFiniteValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
  * panorama-ia-v2 §3.2 — the FIXED scale domain for `dataType: "rate"` layers.
  *
  * Rate choropleths (cobertura, esterilización) are percentages: color every
@@ -72,7 +84,7 @@ export function provinceSeqClassScale(
   const values: number[] = [];
   for (const f of features.features) {
     const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
     values.push(p.value);
   }
   if (values.length === 0) return null;
@@ -90,7 +102,7 @@ export function provinceColorExpr(
   const pairs: Array<[string, number]> = [];
   for (const f of features.features) {
     const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
     pairs.push([p.provinceCode, p.value]);
   }
   const scale = provinceSeqClassScale(features, lockedBreaks);
@@ -139,7 +151,7 @@ export function provinceMetaClassScale(
 ): ClassScale | null {
   for (const f of features.features) {
     const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode === "string" && typeof p.value === "number") {
+    if (typeof p.provinceCode === "string" && isFiniteValue(p.value)) {
       // The META path ignores the value set (breaks come from the target only);
       // an empty array is enough to trigger it once we know data exists.
       return computeClassScale([], { target });
@@ -165,7 +177,7 @@ export function provinceMetaColorExpr(
   const pairs: Array<[string, number]> = [];
   for (const f of features.features) {
     const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
     pairs.push([p.provinceCode, p.value]);
   }
   // No data at all — paint everything neutral.
@@ -213,7 +225,7 @@ export function provinceDivergentColorExpr(
   let max = Number.NEGATIVE_INFINITY;
   for (const f of features.features) {
     const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
     pairs.push([p.provinceCode, p.value]);
     if (p.value < min) min = p.value;
     if (p.value > max) max = p.value;
@@ -255,7 +267,7 @@ export function provinceValueBounds(features: FeatureCollection): ScaleBounds | 
   let max = Number.NEGATIVE_INFINITY;
   for (const f of features.features) {
     const v = (f.properties as ProvinceFeatureProps).value;
-    if (typeof v !== "number") continue;
+    if (!isFiniteValue(v)) continue;
     if (v < min) min = v;
     if (v > max) max = v;
   }

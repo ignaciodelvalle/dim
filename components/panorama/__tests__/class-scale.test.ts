@@ -90,11 +90,14 @@ describe("computeClassScale — quantile policy", () => {
 });
 
 describe("computeClassScale — locked breaks (scrub scale-lock)", () => {
-  it("reuses the frozen live-edge quantile breaks verbatim (frame-stable colors)", () => {
+  it("reuses the frozen live-edge breaks verbatim (frame-stable colors)", () => {
     const frozen = [3, 5, 8, 200];
     const a = computeClassScale([5], { lockedBreaks: frozen });
     const b = computeClassScale([95], { lockedBreaks: frozen });
-    expect(a.method).toBe("quantile");
+    // Honest label (adversarial review 2026-07-11 LOW #4): the lock stores
+    // breaks only — the origin method (quantile vs interval) is unknown here,
+    // so the locked path reports "locked", never a fabricated "quantile".
+    expect(a.method).toBe("locked");
     // The frozen breaks are painted verbatim — NOT re-derived as equal-interval.
     expect(a.breaks).toEqual([3, 5, 8, 200]);
     // Frame-stable: same breaks regardless of the frame's own values.
@@ -106,7 +109,7 @@ describe("computeClassScale — locked breaks (scrub scale-lock)", () => {
       target: 80,
       lockedBreaks: [3, 5, 8, 200],
     });
-    expect(scale.method).toBe("quantile");
+    expect(scale.method).toBe("locked");
     expect(scale.breaks).toEqual([3, 5, 8, 200]);
   });
 

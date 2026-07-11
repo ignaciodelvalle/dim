@@ -3018,7 +3018,20 @@ export function SituationalMap({
         {/* cursor Part2: CABA/AMBA inset — a docked barrio-scale mini-map so the
             micro-jurisdiction is legible at national zoom (not an unreadable smear).
             Static camera, non-interactive, shares the choropleth + k-anon system. */}
-        <CabaInset layer={insetLayer} visible={insetVisible} uniformFill={insetUniformFill} />
+        <CabaInset
+          layer={insetLayer}
+          visible={insetVisible}
+          uniformFill={insetUniformFill}
+          // LOW #6 (M1 twin): hand the inset the EFFECTIVE division breaks the
+          // main fill renders with (lockedDivisionBreaksRef refreshes to the
+          // live-edge breaks on every live sync and freezes them mid-scrub), so
+          // the barrio colors classify on the SAME scale as the main map.
+          lockedBreaks={
+            insetLocalityLayer !== null
+              ? (lockedDivisionBreaksRef.current.get(insetLocalityLayer.id) ?? null)
+              : null
+          }
+        />
         {/* Top-left control cluster: scope drill ("← Volver") + camera reset +
             aggregation-level badge. */}
         <div className="absolute left-3 top-3 flex items-center gap-2">

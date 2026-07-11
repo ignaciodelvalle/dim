@@ -367,6 +367,69 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
       "false",
     );
   });
+
+  it("preserves the popped URL's period + layers across Back — never rewrites them to the preset default (adversarial review MED #1)", async () => {
+    renderConsole();
+
+    // Preset A at its default window (90d)…
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    // …then the operator customizes the period to 12m — a shallow replace that
+    // keeps preset=A in the URL (the period picker's commit shape).
+    act(() => {
+      const params = new URLSearchParams(window.location.search);
+      params.set("period", "12m");
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    });
+    const urlAfterPeriod = `${window.location.pathname}${window.location.search}`;
+    expect(new URLSearchParams(window.location.search).get("period")).toBe("12m");
+
+    // Preset B — a new history entry back at B's default window.
+    fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
+    expect(new URLSearchParams(window.location.search).get("preset")).toBe("bienestar");
+    fetchMock.mockClear();
+
+    // Browser Back → the popped URL still says preset=A & period=12m.
+    act(() => {
+      window.history.replaceState(null, "", urlAfterPeriod);
+      cachedSearchKey = null;
+      cachedSearchParams = null;
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    // Preset A is active again…
+    expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    // …and the POPPED board fields survive verbatim: the resync must restore
+    // period/layers FROM the popped URL — the old reuse of the click-path
+    // applyPreset forced period back to A's default (90d) and rewrote the URL.
+    const popped = new URLSearchParams(window.location.search);
+    expect(popped.get("period")).toBe("12m");
+    expect(popped.get("preset")).toBe("brotes-activos");
+    expect(popped.get("layers")).toBe("zoonosis,cobertura");
+
+    // The restored layer set refetches at the POPPED window (12m), never 90d.
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      expect(layerCalls.some((u) => u.includes("/api/panorama/cobertura"))).toBe(true);
+      expect(layerCalls.some((u) => u.includes("/api/panorama/zoonosis"))).toBe(true);
+      for (const u of layerCalls) expect(u).toContain("period=12m");
+    });
+    // The KPIs follow the popped window too (popstate is not observed by
+    // useSearchParams, so the resync refetches them explicitly).
+    await waitFor(() => {
+      const kpiCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/kpis"));
+      expect(kpiCalls.some((u) => u.includes("period=12m"))).toBe(true);
+    });
+  });
 });
 
 describe("PanoramaConsole — deep-link level guard (MAP-5)", () => {

@@ -72,12 +72,22 @@ type Props = {
    * map. Null for a locality-level layer, which keeps the per-barrio join below.
    */
   uniformFill?: string | null;
+  /**
+   * Adversarial-review fix (2026-07-11, LOW #6 — twin of M1): the EFFECTIVE
+   * classed breaks the MAIN division fill renders with (the live-edge breaks,
+   * frozen across a time-scrub by SituationalMap's scale-lock). Without them
+   * the inset derived its own quantiles over CABA-only values, so barrio colors
+   * diverged from the main choropleth — visibly so mid-scrub. Threaded into the
+   * per-barrio divisionFillColorExpr join below; ignored in uniform-fill mode
+   * (the parent already classifies the single province value).
+   */
+  lockedBreaks?: readonly number[] | null;
 };
 
 /** One raw barrio feature, as much as the code read needs. */
 type BarrioRawFeature = { properties?: { code?: string } | null };
 
-export function CabaInset({ layer, visible, uniformFill = null }: Props) {
+export function CabaInset({ layer, visible, uniformFill = null, lockedBreaks = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const barrioCodesRef = useRef<Set<string>>(new Set());
@@ -86,6 +96,8 @@ export function CabaInset({ layer, visible, uniformFill = null }: Props) {
   layerRef.current = layer;
   const uniformFillRef = useRef<string | null>(uniformFill);
   uniformFillRef.current = uniformFill;
+  const lockedBreaksRef = useRef<readonly number[] | null>(lockedBreaks);
+  lockedBreaksRef.current = lockedBreaks;
 
   // Mount the mini-map once the inset becomes visible; tear it down when hidden.
   useEffect(() => {
@@ -183,12 +195,12 @@ export function CabaInset({ layer, visible, uniformFill = null }: Props) {
     // Mount tied to visibility; the fill is reconciled by the effect below.
   }, [visible]);
 
-  // Recompute the barrio fill whenever the active base layer OR the province-level
-  // uniform fill changes.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill are the intended triggers.
+  // Recompute the barrio fill whenever the active base layer, the province-level
+  // uniform fill, or the main map's effective classed breaks change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill + lockedBreaks are the intended triggers.
   useEffect(() => {
     if (loadedRef.current) syncFill();
-  }, [layer, uniformFill]);
+  }, [layer, uniformFill, lockedBreaks]);
 
   // Join the active layer's cells to the CABA barrios and repaint the data fill +
   // suppression hatch. A province-level layer (no locality names) simply yields
@@ -221,7 +233,14 @@ export function CabaInset({ layer, visible, uniformFill = null }: Props) {
     const join = joinCellsToDivisionsMulti(l.features, [
       { level: "barrio" as DivisionLevel, codes },
     ]);
-    map.setPaintProperty(DATA_FILL, "fill-color", divisionFillColorExpr(join.values));
+    // LOW #6 (M1 twin): classify the barrios with the MAIN map's effective
+    // breaks (live-edge, scrub-frozen) so the inset colors match the main
+    // choropleth on every frame — never a CABA-only quantile re-derivation.
+    map.setPaintProperty(
+      DATA_FILL,
+      "fill-color",
+      divisionFillColorExpr(join.values, lockedBreaksRef.current),
+    );
     if (map.getLayer(SUPPRESS_FILL)) {
       map.setFilter(SUPPRESS_FILL, divisionSuppressedFilter(join.suppressed));
     }

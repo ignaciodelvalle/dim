@@ -36,11 +36,19 @@ import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 export const CLASS_COUNT = 5;
 
 /** A resolved classed scale: ascending interior breaks + one color per class.
- *  Invariant: `colors.length === breaks.length + 1`. */
+ *  Invariant: `colors.length === breaks.length + 1`.
+ *
+ *  `method` — how the breaks were derived: `meta` (target-anchored cutoffs),
+ *  `quantile` (data-driven), `interval` (equal-interval, < CLASS_COUNT units),
+ *  `flat` (degenerate single class), or `locked` (frozen live-edge breaks
+ *  reused verbatim under a time-scrub scale-lock — the lock stores breaks only,
+ *  so the ORIGIN method (quantile vs interval) is not reconstructable here;
+ *  labeling it "quantile" unconditionally was a lie when the live edge had
+ *  fallen to equal-interval — adversarial review 2026-07-11, LOW #4). */
 export type ClassScale = {
   breaks: number[];
   colors: string[];
-  method: "meta" | "quantile" | "interval" | "flat";
+  method: "meta" | "quantile" | "interval" | "flat" | "locked";
 };
 
 /**
@@ -102,12 +110,15 @@ export function computeClassScale(
   const lockedBreaks = opts?.lockedBreaks ?? null;
   const finite = values.filter((v) => typeof v === "number" && Number.isFinite(v));
 
-  // Scrub scale-lock: reuse the FROZEN quantile breaks captured at the live edge
-  // (frame-stable colors, still quantile-balanced — not equal-interval).
+  // Scrub scale-lock: reuse the FROZEN breaks captured at the live edge
+  // (frame-stable colors; quantile-balanced when the live edge had ≥ CLASS_COUNT
+  // units). Reported as "locked" — the origin method is not reconstructable
+  // from the breaks alone, so claiming "quantile" would be dishonest when the
+  // live edge fell to equal-interval (adversarial review 2026-07-11, LOW #4).
   if (lockedBreaks && lockedBreaks.length > 0) {
     const breaks = dedupeAscending([...lockedBreaks]);
     if (breaks.length > 0) {
-      return { breaks, colors: classColors(breaks.length + 1), method: "quantile" };
+      return { breaks, colors: classColors(breaks.length + 1), method: "locked" };
     }
   }
 
