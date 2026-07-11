@@ -177,6 +177,32 @@ export async function acceptCrossOrgTransfer(
         throw new Error("Este caso ya no está abierto.");
       }
 
+      // SOURCE-CUSTODY GUARD (TR-H1): re-verify the source org STILL HOLDS the
+      // custody row we are about to end, under the lock. The case being open is
+      // not enough — a concurrent return-to-owner (or any release) could have
+      // ended the source's shelter_custody/owner row after the pre-tx read.
+      // endShelterCustody/endOwnerOwnershipForOrg silently no-op when the source
+      // no longer holds, but insertShelterCustody(receiver) would land anyway →
+      // a phantom custodian (there is no unique-active-shelter index to catch
+      // it). Abort here instead so nothing is written.
+      const sourceCustody =
+        fromRole === "owner"
+          ? await repo.findActiveOwnerOwnershipForOrg(
+              caseRow.primaryPetId as string,
+              canonicalSenderOrgId,
+              tx as Parameters<typeof repo.findActiveOwnerOwnershipForOrg>[2],
+            )
+          : await repo.findActiveShelterCustody(
+              caseRow.primaryPetId as string,
+              canonicalSenderOrgId,
+              tx as Parameters<typeof repo.findActiveShelterCustody>[2],
+            );
+      if (!sourceCustody) {
+        throw new Error(
+          "La organización de origen ya no tiene la custodia de esta mascota. La transferencia no es válida.",
+        );
+      }
+
       // Foster cascade — close the active foster + emit foster_ended FIRST
       // (upfront UUID) so custody_transferred can reference it. A fostered pet
       // handed off via the direct-custody front door used to have its foster

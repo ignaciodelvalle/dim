@@ -127,6 +127,7 @@ function makeFakeRepo(
     insertPetEvent: vi.fn().mockResolvedValue({ id: "evt-new" }),
     // cross-org reads
     findActiveShelterCustody: vi.fn().mockResolvedValue({ id: "cust-1" }),
+    findActiveOwnerOwnershipForOrg: vi.fn().mockResolvedValue({ id: "own-src" }),
     findReceiverOrg: vi.fn().mockResolvedValue(makeOrg()),
     findOpenHandshakeCase: vi.fn().mockResolvedValue(null),
     findOpenDispute: vi.fn().mockResolvedValue(null),
@@ -1389,6 +1390,29 @@ describe("acceptCrossOrgTransfer", () => {
       expect.objectContaining({ caseId: "case-1", reason: "resolved" }),
       fakeTx,
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // TR-H1: the source org must STILL HOLD custody under the lock. A concurrent
+  // return-to-owner that ended the source's shelter_custody would otherwise
+  // leave insertShelterCustody(receiver) landing anyway → phantom custodian.
+  // -------------------------------------------------------------------------
+
+  it("rejects when the source org no longer holds custody (concurrent release), writing no phantom row", async () => {
+    const repo = makeFakeRepo({
+      findActiveShelterCustody: vi.fn().mockResolvedValue(null),
+    });
+    const result = await acceptCrossOrgTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/ya no tiene la custodia/i);
+    // No custody mutation happened — no phantom shelter_custody for the receiver.
+    expect(repo.insertShelterCustody).not.toHaveBeenCalled();
+    expect(repo.endShelterCustody).not.toHaveBeenCalled();
+    expect(repo.closeCase).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------

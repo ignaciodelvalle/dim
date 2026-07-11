@@ -437,6 +437,33 @@ export const TransfersRepository = {
   },
 
   /**
+   * Returns the active `owner`-role ownership row an org holds on a pet, or
+   * null. The owner-side mirror of findActiveShelterCustody — used to re-verify
+   * the source still holds custody under the accept lock (TR-H1) when the
+   * proposal's from_role is `owner` (santuario/decomiso handoff).
+   */
+  async findActiveOwnerOwnershipForOrg(
+    petId: string,
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ id: string } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "owner"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
    * Returns the receiver org row (id, displayName, verified, status) or null.
    */
   async findReceiverOrg(
