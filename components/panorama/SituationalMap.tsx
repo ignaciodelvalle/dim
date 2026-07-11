@@ -46,7 +46,11 @@ import {
   divisionValueBounds,
   joinCellsToDivisionsMulti,
 } from "@/components/panorama/division-fill";
-import { divisionLabelAnchors } from "@/components/panorama/division-labels";
+import {
+  type DivisionLabelAnchor,
+  divisionLabelAnchors,
+  visibleDivisionLabels,
+} from "@/components/panorama/division-labels";
 import {
   type Bbox,
   FRAMING_SNAP_MAX_ZOOM,
@@ -712,6 +716,10 @@ export function SituationalMap({
   // (no glyph server; see the file docblock). Cleared + rebuilt with the division
   // set; only ever present in division mode, so the province view stays clean.
   const labelMarkersRef = useRef<maplibregl.Marker[]>([]);
+  // task #36 fix 3/6 — the current division set's label anchors (with size
+  // weights), stashed so a zoom change can re-paint the visible subset without a
+  // full division rebuild.
+  const labelAnchorsRef = useRef<DivisionLabelAnchor[]>([]);
   // Monotonic token so a superseded division resolution (rapid zoom/pan/switch)
   // never paints stale polygons over the newer viewport.
   const divisionTokenRef = useRef(0);
@@ -873,6 +881,10 @@ export function SituationalMap({
             }
           });
         }
+        // task #36 fix 3/6 — re-paint the division labels for the new zoom: they
+        // stay hidden until the camera is close enough to read them, then reveal
+        // largest-first. Cheap (marker churn only); no division rebuild.
+        if (mlRef.current) paintDivisionLabels(map, mlRef.current);
       });
       // PO directive 2026-07-07: divisions are ALSO zoom-driven. After the camera
       // settles (moveend covers both zoom and pan), re-resolve which province(s)
@@ -1766,18 +1778,36 @@ export function SituationalMap({
     labelMarkersRef.current = [];
   }
 
+  // Compute + stash the label anchors for a division set, then paint the subset
+  // legible at the current zoom (task #36 fix 3/6). Called on each division sync.
   function renderDivisionLabels(
     map: maplibregl.Map,
     ml: typeof maplibregl,
     features: readonly DivisionRawFeature[],
   ) {
+    labelAnchorsRef.current = divisionLabelAnchors(features);
+    paintDivisionLabels(map, ml);
+  }
+
+  // Re-paint the division labels for the CURRENT zoom from the stashed anchors.
+  // Cheap (marker create/remove only) so it can run on every zoom settle: labels
+  // stay hidden until the camera is close enough to read them, and the largest
+  // units surface first (progressive disclosure). Hoisted so the one-time
+  // construction effect's zoom handler can call it lint-clean.
+  function paintDivisionLabels(map: maplibregl.Map, ml: typeof maplibregl) {
     clearDivisionLabels();
-    for (const a of divisionLabelAnchors(features)) {
+    const anchors = labelAnchorsRef.current;
+    if (anchors.length === 0) return;
+    for (const a of visibleDivisionLabels(anchors, map.getZoom())) {
       const el = document.createElement("div");
       el.textContent = a.name;
       el.setAttribute("aria-hidden", "true");
+      // LIGHT-theme label (dark skin retired 2026-07-11): dark slate ink with a
+      // white halo so the name reads over BOTH the light land and the saturated
+      // choropleth fills. The old #cbd5e1-on-#0b1020 treatment was a dark-skin
+      // leftover, near-invisible on the v2C light canvas.
       el.style.cssText =
-        "pointer-events:none;user-select:none;white-space:nowrap;font:600 11px/1 system-ui,sans-serif;color:#cbd5e1;text-shadow:0 0 2px #0b1020,0 0 2px #0b1020,0 0 3px #0b1020;";
+        "pointer-events:none;user-select:none;white-space:nowrap;font:600 11px/1 system-ui,sans-serif;color:#0f172a;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff,0 1px 2px rgba(255,255,255,0.9);";
       const marker = new ml.Marker({ element: el, anchor: "center" })
         .setLngLat([a.lng, a.lat])
         .addTo(map);
