@@ -3358,7 +3358,11 @@ export const panoramaCube = pgTable(
     centroidLng: numeric("centroid_lng"),
     /** department: k-anon count (NULL if suppressed); province: ratePct or count. */
     value: numeric("value"),
-    /** province rate rows: denominator (reserved, NULL in v1). */
+    /** REUSED (CB1, 2026-07-11): on PROVINCE rows this carries the department-grain
+     * truncation flag (0/1) for that (metric, province) — the province's locality
+     * rollup hit PER_LAYER_CAP at build. Originally reserved as a rate denominator
+     * (never written); a future rate-by-num/den reader MUST first migrate this
+     * flag to its own column. See cube-builder.ts buildProvinceCubeRows. */
     den: integer("den"),
     /** province grain: that province's no-locality residual for the metric. */
     noLocality: integer("no_locality"),
