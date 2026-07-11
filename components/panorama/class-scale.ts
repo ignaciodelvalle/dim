@@ -158,6 +158,21 @@ export function stepColorExpr(input: unknown, scale: ClassScale): unknown {
   return out;
 }
 
+/**
+ * The class color a single scalar value lands in — the JS mirror of the MapLibre
+ * `["step", …]` semantics (value < breaks[0] → colors[0]; breaks[i-1] ≤ value <
+ * breaks[i] → colors[i]; value ≥ last break → last color). Used off-map where a
+ * lone value must be painted its class color (e.g. the CABA inset uniform fill),
+ * so the inset chip matches the main choropleth's class palette exactly.
+ */
+export function colorForValue(scale: ClassScale, value: number): string {
+  let idx = 0;
+  for (let i = 0; i < scale.breaks.length; i++) {
+    if (value >= scale.breaks[i]) idx = i + 1;
+  }
+  return scale.colors[idx];
+}
+
 /** One legend swatch row: the class color + its half-open value range [lo, hi).
  *  `lo` is null for the first (open-below) class; `hi` is null for the last
  *  (open-above) class. Callers format the numbers for display. */

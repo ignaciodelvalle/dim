@@ -10,6 +10,7 @@ import {
   CLASS_COUNT,
   classColors,
   classSwatches,
+  colorForValue,
   computeClassScale,
   stepColorExpr,
 } from "../class-scale";
@@ -102,6 +103,45 @@ describe("stepColorExpr", () => {
   it("returns a flat color string for a break-less (flat) scale", () => {
     const scale = computeClassScale([7, 7, 7, 7, 7, 7]);
     expect(stepColorExpr(["get", "value"], scale)).toBe(scale.colors[0]);
+  });
+});
+
+describe("colorForValue — scalar JS mirror of the step expression", () => {
+  // META scale for target 80 → breaks [40, 60, 80], 4 class colors.
+  const scale = computeClassScale([], { target: 80 });
+
+  it("maps a value below the first break to the base (low) color", () => {
+    expect(colorForValue(scale, 12)).toBe(scale.colors[0]);
+    // Class boundaries are half-open [lo, hi): exactly at a break lands in the
+    // upper class, mirroring MapLibre `step` semantics.
+    expect(colorForValue(scale, 39.99)).toBe(scale.colors[0]);
+  });
+
+  it("maps a value in an interior class to that class color (break is inclusive-low)", () => {
+    expect(colorForValue(scale, 40)).toBe(scale.colors[1]);
+    expect(colorForValue(scale, 55)).toBe(scale.colors[1]);
+    expect(colorForValue(scale, 60)).toBe(scale.colors[2]);
+  });
+
+  it("maps a value at/above the meta to the top (open-above) class color", () => {
+    expect(colorForValue(scale, 80)).toBe(scale.colors[3]);
+    expect(colorForValue(scale, 99)).toBe(scale.colors[scale.colors.length - 1]);
+  });
+
+  it("agrees with the painted step expression at every class", () => {
+    // Decode the step the map fill renders, then check colorForValue lands in the
+    // same class for representative values — legend/inset chip never disagrees.
+    const step = stepColorExpr(["get", "value"], scale) as unknown[];
+    const painted = (v: number): string => {
+      let color = step[2] as string;
+      for (let i = 3; i < step.length; i += 2) {
+        if (v >= (step[i] as number)) color = step[i + 1] as string;
+      }
+      return color;
+    };
+    for (const v of [0, 40, 59, 60, 79, 80, 100]) {
+      expect(colorForValue(scale, v)).toBe(painted(v));
+    }
   });
 });
 

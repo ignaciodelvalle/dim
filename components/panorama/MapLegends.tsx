@@ -33,12 +33,7 @@ import {
   computeClassScale,
 } from "@/components/panorama/class-scale";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
-import { histogramPeak, valueHistogram } from "@/components/panorama/legend-histogram";
 import {
-  COLOR_DIVERGENT_ABOVE,
-  COLOR_DIVERGENT_BELOW,
-  COLOR_DIVERGENT_NEUTRAL,
-  FIXED_RATE_DOMAIN,
   type ScaleBounds,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
@@ -68,12 +63,15 @@ function formatBound(n: number): string {
   return rounded.toLocaleString("es-AR");
 }
 
-/** The value-range label for one class swatch (open-below / range / open-above). */
-function swatchLabel(s: ClassSwatch): string {
+/** The value-range label for one class swatch (open-below / range / open-above).
+ *  `unit` is appended to the numbers (e.g. "%" for rate layers); `meta` tags the
+ *  open-above class as the compliance-target class ("≥ 80% (meta)"). */
+function swatchLabel(s: ClassSwatch, opts?: { unit?: string; meta?: boolean }): string {
+  const u = opts?.unit ?? "";
   if (s.lo === null && s.hi === null) return "Todos";
-  if (s.lo === null) return `< ${formatBound(s.hi as number)}`;
-  if (s.hi === null) return `≥ ${formatBound(s.lo)}`;
-  return `${formatBound(s.lo)} – ${formatBound(s.hi)}`;
+  if (s.lo === null) return `< ${formatBound(s.hi as number)}${u}`;
+  if (s.hi === null) return `≥ ${formatBound(s.lo)}${u}${opts?.meta ? " (meta)" : ""}`;
+  return `${formatBound(s.lo)} – ${formatBound(s.hi)}${u}`;
 }
 
 /**
@@ -81,8 +79,21 @@ function swatchLabel(s: ClassSwatch): string {
  * one colored chip per class with its value range, replacing the old continuous
  * gradient bar that hid where the data actually fell. The swatches are built from
  * the SAME ClassScale the map fill renders, so legend and map never disagree.
+ *
+ * `unit` suffixes the numeric labels (e.g. "%" for META'd rate layers) and `meta`
+ * tags the top (open-above) class as the compliance-target class — the PO-ratified
+ * discrete legend for cobertura / esterilización / microchip / ppp (was the
+ * continuous divergent gradient bar).
  */
-function ClassSwatchLegend({ scale }: { scale: ClassScale }) {
+function ClassSwatchLegend({
+  scale,
+  unit,
+  meta,
+}: {
+  scale: ClassScale;
+  unit?: string;
+  meta?: boolean;
+}) {
   const swatches = classSwatches(scale);
   return (
     <div className="flex flex-col gap-0.5">
@@ -93,7 +104,9 @@ function ClassSwatchLegend({ scale }: { scale: ClassScale }) {
             style={{ background: s.color }}
             aria-hidden="true"
           />
-          <span className="tabular-nums text-white/75">{swatchLabel(s)}</span>
+          <span className="tabular-nums text-white/75">
+            {swatchLabel(s, { unit, meta: meta && i === swatches.length - 1 })}
+          </span>
         </div>
       ))}
     </div>
@@ -112,11 +125,13 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     .map((l) => ({
       layer: l,
       bounds: provinceValueBounds(l.features),
-      isDivergent: l.dataType === "rate" && typeof l.complianceTarget === "number",
+      // META'd rate layers (a `complianceTarget`) now render the discrete classed
+      // scale anchored on the target — same discrete swatch legend as the
+      // meta-less sequential layers, only with a "%" unit + a "(meta)" top class.
+      isMeta: l.dataType === "rate" && typeof l.complianceTarget === "number",
     }))
     .filter(
-      (x): x is { layer: ActiveLayer; bounds: ScaleBounds; isDivergent: boolean } =>
-        x.bounds !== null,
+      (x): x is { layer: ActiveLayer; bounds: ScaleBounds; isMeta: boolean } => x.bounds !== null,
     );
 
   // #6/#7: the graduated legend is data-driven — sample bubbles come from
@@ -237,104 +252,35 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
             </div>
           </div>
         )}
-        {provinceLegends.map(({ layer, isDivergent }) => {
-          // #5: the actual province values, for the in-legend distribution. On
-          // the FIXED [0,100] divergent axis they otherwise vanish into the mid
-          // band — the histogram shows the real spread.
+        {provinceLegends.map(({ layer, isMeta }) => {
           const values = layer.features.features
             .map((f) => (f.properties as { value?: number } | null)?.value)
             .filter((v): v is number => typeof v === "number");
-          const hist =
-            isDivergent && typeof layer.complianceTarget === "number"
-              ? valueHistogram(values, FIXED_RATE_DOMAIN.min, FIXED_RATE_DOMAIN.max, 16)
-              : [];
-          const histPeak = histogramPeak(hist);
-          const metaPct =
-            typeof layer.complianceTarget === "number"
-              ? (100 * (layer.complianceTarget - FIXED_RATE_DOMAIN.min)) /
-                (FIXED_RATE_DOMAIN.max - FIXED_RATE_DOMAIN.min)
-              : 0;
+          const target =
+            isMeta && typeof layer.complianceTarget === "number" ? layer.complianceTarget : null;
+          // Prefer the scale LIFTED from the map (built from the same values +
+          // locked domain / meta target the fill renders, so the swatch ranges
+          // describe the PAINTED colors even mid-scrub); fall back to a live-edge
+          // recompute only when the lift is not yet present. A META'd layer's
+          // fallback uses the target (fixed [0.5T, 0.75T, T] breaks) so it still
+          // matches the classed-step META fill.
+          const lifted = provinceSeqLegend[layer.id];
+          const scale: ClassScale = lifted
+            ? {
+                breaks: lifted.breaks,
+                colors: lifted.colors,
+                method: isMeta ? "meta" : "interval",
+              }
+            : computeClassScale(values, { target });
           return (
             <div key={layer.id} className={CARD}>
               <div className="mb-1 font-medium text-ln-op-ink-2">{layer.label}</div>
-              {isDivergent && typeof layer.complianceTarget === "number" ? (
-                // F5: divergent legend — two poles with the target anchor labeled.
-                // Colorblind-safe: orange=below, white=at target, teal=above.
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="tabular-nums text-white/70">0</span>
-                    <span className="relative h-6 w-28 flex-none">
-                      {histPeak > 0 && (
-                        <span
-                          className="absolute inset-x-0 top-0 flex h-3.5 items-end gap-px"
-                          aria-hidden="true"
-                        >
-                          {hist.map((b) => (
-                            <span
-                              key={b.lo}
-                              className="flex-1 rounded-t-[1px] bg-white/45"
-                              style={{ height: `${Math.round((100 * b.count) / histPeak)}%` }}
-                            />
-                          ))}
-                        </span>
-                      )}
-                      <span
-                        className="absolute inset-x-0 bottom-0 block h-2.5 rounded-full"
-                        style={{
-                          background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
-                        }}
-                        aria-hidden="true"
-                      />
-                      <span
-                        className="absolute bottom-0 block h-5 w-px bg-white/80"
-                        style={{ left: `${metaPct}%` }}
-                        aria-hidden="true"
-                      />
-                    </span>
-                    <span className="tabular-nums text-white/70">100</span>
-                  </div>
-                  {histPeak > 0 && (
-                    <div className="text-[var(--text-xs)] leading-tight text-white/45">
-                      Distribución de {values.length}{" "}
-                      {values.length === 1 ? "provincia" : "provincias"} (barras) · meta marcada
-                    </div>
-                  )}
-                  <div className="flex justify-between text-[var(--text-xs)] text-white/55">
-                    <span>bajo meta</span>
-                    <span>sobre meta</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-white/60">
-                    <span
-                      className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/30"
-                      style={{ background: COLOR_DIVERGENT_NEUTRAL }}
-                      aria-hidden="true"
-                    />
-                    <span>
-                      meta{" "}
-                      <strong className="text-white/80">
-                        {layer.complianceTarget.toLocaleString("es-AR")}%
-                      </strong>
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                // Theme 3: discrete CLASS swatches for density/count choropleths
-                // (was a continuous gradient bar). Prefer the scale LIFTED from
-                // the map (computed WITH the scrub-locked domain, so the swatch
-                // ranges describe the PAINTED colors even mid-scrub); only fall
-                // back to a live-edge recompute when the lift is not yet present.
-                <ClassSwatchLegend
-                  scale={
-                    provinceSeqLegend[layer.id]
-                      ? {
-                          breaks: provinceSeqLegend[layer.id].breaks,
-                          colors: provinceSeqLegend[layer.id].colors,
-                          method: "interval",
-                        }
-                      : computeClassScale(values)
-                  }
-                />
-              )}
+              {/* Theme 3 + PO decision: discrete CLASS swatches for every province
+                  choropleth. META'd rate layers (cobertura / esterilización /
+                  microchip / ppp) show a "%" unit and mark the top class as the
+                  compliance target ("≥ 80% (meta)"), replacing the old continuous
+                  divergent gradient bar. */}
+              <ClassSwatchLegend scale={scale} unit={isMeta ? "%" : undefined} meta={isMeta} />
               <div className="mt-1 flex items-center gap-1.5 text-white/70">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"

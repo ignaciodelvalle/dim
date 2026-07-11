@@ -50,9 +50,9 @@ export type ScaleBounds = { min: number; max: number };
  *  3. the rest are THRESHOLD-CLASSED into the dark-map ramp via a MapLibre
  *     `["step", …]` expression — each class a distinct color so tight-clustered
  *     values read at a glance (see class-scale.ts). Sequential province layers
- *     carry no policy meta (rate layers with a `complianceTarget` take the
- *     DIVERGENT path instead), so the breaks are QUANTILE over the value set —
- *     or deterministic EQUAL-INTERVAL when a scrub domain is locked.
+ *     carry no policy meta (rate layers with a `complianceTarget` take the classed
+ *     META path — provinceMetaColorExpr — instead), so the breaks are QUANTILE over
+ *     the value set — or deterministic EQUAL-INTERVAL when a scrub domain is locked.
  * Returns a flat COLOR_NO_DATA expression when the layer has no values.
  */
 /**
@@ -100,6 +100,78 @@ export function provinceColorExpr(
 
   // value-by-code lookup (default -1 → "no data"). MapLibre `match` labels are
   // string|number; province codes are strings.
+  const valueMatch = [
+    "match",
+    ["get", "code"],
+    ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
+    -1,
+  ] as unknown as ExpressionSpecification;
+
+  return [
+    "case",
+    ["==", valueMatch, -1],
+    COLOR_NO_DATA,
+    stepColorExpr(valueMatch, scale),
+  ] as unknown as ExpressionSpecification;
+}
+
+/**
+ * The THRESHOLD-CLASSED scale (breaks + colors) a META'd rate province choropleth
+ * renders — the classed-step META path (class-scale.ts): fixed cutoffs anchored on
+ * the compliance target T at [0.5T, 0.75T, T] → 4 classes (<0.5T / 0.5–0.75T /
+ * 0.75–T / ≥T). PO decision (ratified in live QA): cobertura / esterilización /
+ * microchip / ppp render on these fixed threshold classes, NOT the amber/teal
+ * divergent scale they used before — the meta breaks are comparable across
+ * jurisdictions and stable over time, and the classes read at a glance on the navy
+ * canvas.
+ *
+ * Frame-stable BY CONSTRUCTION: the breaks depend only on the target, never on the
+ * frame's values, so a time-scrub needs no domain lock here (contrast the
+ * sequential path, which locks its quantile domain). The single source of truth
+ * shared by the map fill (provinceMetaColorExpr) and the off-canvas legend swatches
+ * (lifted through SituationalMap, parity with provinceSeqClassScale). Returns null
+ * when the layer has no numeric values (the fill paints all neutral).
+ */
+export function provinceMetaClassScale(
+  features: FeatureCollection,
+  target: number,
+): ClassScale | null {
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode === "string" && typeof p.value === "number") {
+      // The META path ignores the value set (breaks come from the target only);
+      // an empty array is enough to trigger it once we know data exists.
+      return computeClassScale([], { target });
+    }
+  }
+  return null;
+}
+
+/**
+ * Build the data-driven `fill-color` for a META'd rate province choropleth — the
+ * classed-step META replacement for the divergent path (see provinceMetaClassScale).
+ *  1. a `match` maps each province code → its value (default -1 = "no data");
+ *  2. provinces with no value (-1) get COLOR_NO_DATA (k-anon honesty: a suppressed
+ *     or absent cell never enters a color class — the short-circuit stays in front);
+ *  3. the rest are THRESHOLD-CLASSED into the dark-map ramp via a MapLibre
+ *     `["step", …]` expression using the META breaks [0.5T, 0.75T, T].
+ * Returns a flat COLOR_NO_DATA expression when the layer has no values.
+ */
+export function provinceMetaColorExpr(
+  features: FeatureCollection,
+  target: number,
+): ExpressionSpecification {
+  const pairs: Array<[string, number]> = [];
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    pairs.push([p.provinceCode, p.value]);
+  }
+  // No data at all — paint everything neutral.
+  if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
+
+  const scale = computeClassScale([], { target });
+
   const valueMatch = [
     "match",
     ["get", "code"],

@@ -8,8 +8,11 @@ import { describe, expect, it } from "vitest";
 import { COLOR_NO_DATA, SCALE_BLUE_DARK_SEQ } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
+import { classSwatches } from "../class-scale";
 import {
   provinceColorExpr,
+  provinceMetaClassScale,
+  provinceMetaColorExpr,
   provinceSeqClassScale,
   provinceValueBounds,
 } from "../province-choropleth-style";
@@ -124,6 +127,99 @@ describe("provinceSeqClassScale — the lifted province legend scale (map/legend
     // — so a legend that recomputed live-edge would mis-describe the scrubbed map.
     const liveScale = provinceSeqClassScale(fc);
     expect(liveScale?.breaks).not.toEqual(legendScale?.breaks);
+  });
+});
+
+describe("provinceMetaColorExpr — META'd rate layers (PO: classed threshold scale, NOT divergent)", () => {
+  const fc = provinceFC([
+    { provinceCode: "AR-B", value: 34 }, // <40 → class 0
+    { provinceCode: "AR-X", value: 55 }, // 40–60 → class 1
+    { provinceCode: "AR-S", value: 72 }, // 60–80 → class 2
+    { provinceCode: "AR-M", value: 88 }, // ≥80 (meta) → class 3
+  ]);
+
+  it("builds a case→match→step (classed) expression, NOT an interpolate (no continuous scale)", () => {
+    const expr = provinceMetaColorExpr(fc, 80) as unknown as unknown[];
+    expect(expr[0]).toBe("case");
+    // The no-data short-circuit stays in front of the step (k-anon honesty).
+    expect(expr[2]).toBe(COLOR_NO_DATA);
+    const body = expr[3] as unknown[];
+    expect(body[0]).toBe("step");
+    // Must NOT be a continuous interpolation.
+    expect(body[0]).not.toBe("interpolate");
+    // Value lookup joins on the LOCAL polygon `code`.
+    const valueMatch = (expr[1] as unknown[])[1] as unknown[];
+    expect(valueMatch[0]).toBe("match");
+    expect(valueMatch[1]).toEqual(["get", "code"]);
+  });
+
+  it("uses the META breaks [0.5T, 0.75T, T] — T=80 → [40, 60, 80]", () => {
+    const { breaks, colors } = decodeStep(
+      (provinceMetaColorExpr(fc, 80) as unknown as unknown[])[3] as unknown[],
+    );
+    expect(breaks).toEqual([40, 60, 80]);
+    // 3 breaks → 4 classes; low anchor + high anchor of the dark ramp.
+    expect(colors).toHaveLength(4);
+    expect(colors[0]).toBe(SCALE_BLUE_DARK_SEQ[0]);
+    expect(colors[colors.length - 1]).toBe(SCALE_BLUE_DARK_SEQ[SCALE_BLUE_DARK_SEQ.length - 1]);
+  });
+
+  it("uses the META breaks for a non-round target — T=70 → [35, 52.5, 70]", () => {
+    const { breaks } = decodeStep(
+      (provinceMetaColorExpr(fc, 70) as unknown as unknown[])[3] as unknown[],
+    );
+    expect(breaks).toEqual([35, 52.5, 70]);
+  });
+
+  it("returns a flat COLOR_NO_DATA when the feature collection is empty", () => {
+    expect(provinceMetaColorExpr(provinceFC([]), 80)).toBe(COLOR_NO_DATA);
+  });
+
+  it("carries each province code → value pair in the match lookup", () => {
+    const match = (provinceMetaColorExpr(fc, 80) as unknown as unknown[])[1] as unknown[];
+    expect(match[0]).toBe("==");
+    const valueMatch = match[1] as unknown[];
+    expect(valueMatch[0]).toBe("match");
+    expect(valueMatch[1]).toEqual(["get", "code"]);
+    expect(valueMatch).toContain("AR-B");
+    expect(valueMatch).toContain(34);
+    expect(valueMatch).toContain("AR-M");
+    expect(valueMatch).toContain(88);
+  });
+});
+
+describe("provinceMetaClassScale — lifted legend scale (map/legend parity for META layers)", () => {
+  const fc = provinceFC([
+    { provinceCode: "AR-B", value: 34 },
+    { provinceCode: "AR-M", value: 88 },
+  ]);
+
+  it("returns null when there are no numeric values", () => {
+    expect(provinceMetaClassScale(provinceFC([]), 80)).toBeNull();
+  });
+
+  it("returns the META breaks [40, 60, 80] for T=80 (frame-stable, value-independent)", () => {
+    const scale = provinceMetaClassScale(fc, 80);
+    expect(scale?.method).toBe("meta");
+    expect(scale?.breaks).toEqual([40, 60, 80]);
+  });
+
+  it("legend swatch ranges EXACTLY equal the painted step breaks (the DoD parity check)", () => {
+    const scale = provinceMetaClassScale(fc, 80);
+    expect(scale).not.toBeNull();
+    // The off-canvas legend swatches are built from `scale`; the map paints the
+    // step expression. Their break boundaries MUST be identical.
+    const painted = decodeStep(
+      (provinceMetaColorExpr(fc, 80) as unknown as unknown[])[3] as unknown[],
+    );
+    // Interior swatch boundaries (drop the open-below lo and open-above hi nulls).
+    const swatchBreaks = classSwatches(scale as NonNullable<typeof scale>)
+      .map((s) => s.hi)
+      .filter((h): h is number => h !== null);
+    expect(swatchBreaks).toEqual(painted.breaks);
+    expect(swatchBreaks).toEqual([40, 60, 80]);
+    // Colors line up class-for-class too.
+    expect(scale?.colors).toEqual(painted.colors);
   });
 });
 

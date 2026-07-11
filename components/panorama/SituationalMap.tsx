@@ -22,7 +22,7 @@ import {
   bivariateSuppressedCodes,
   bivariateSuppressedFilter,
 } from "@/components/panorama/bivariate-fill";
-import { computeClassScale } from "@/components/panorama/class-scale";
+import { colorForValue, computeClassScale } from "@/components/panorama/class-scale";
 import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import {
   type GraduatedScale,
@@ -73,18 +73,13 @@ import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama
 // per-map-component in this repo (see LocationMap/LocationPicker), not globally.
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
-  FIXED_RATE_DOMAIN,
   provinceColorExpr,
-  provinceDivergentColorExpr,
+  provinceMetaClassScale,
+  provinceMetaColorExpr,
   provinceSeqClassScale,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
-import {
-  COLOR_SUPPRESSED,
-  RAMP_BLUE_DARK,
-  divergentStops,
-  sampleStops,
-} from "@/lib/analytics/viz-scales";
+import { COLOR_SUPPRESSED, RAMP_BLUE_DARK, sampleStops } from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -219,8 +214,8 @@ export type DivisionLegendDescriptor = {
  * `seqDomain` where a scrub is active) exactly like DivisionLegendDescriptor, so
  * the off-canvas province legend swatch ranges describe the PAINTED colors — even
  * mid-scrub, where a per-frame recompute would diverge from the locked map fill.
- * Divergent (rate/meta) province layers are excluded: they render on the fixed
- * [0,100] axis and carry no classed scale.
+ * META'd rate layers are ALSO lifted here (their breaks are fixed by the compliance
+ * target, so frame-stable and lift-parity-safe without a scrub lock).
  */
 export type ProvinceSeqLegend = Record<string, { breaks: number[]; colors: string[] }>;
 
@@ -1464,11 +1459,21 @@ export function SituationalMap({
         // Sequential province layers lock their color domain across a scrub. Rate
         // layers already render on the FIXED [0,100] domain (comparability), so
         // they are stable frame-to-frame and need no lock.
-        const isSequential = !(
-          layer.dataType === "rate" && typeof layer.complianceTarget === "number"
-        );
+        const isMeta = layer.dataType === "rate" && typeof layer.complianceTarget === "number";
         let seqDomain: DomainBounds | null = null;
-        if (isSequential) {
+        if (isMeta && typeof layer.complianceTarget === "number") {
+          // META'd rate layer: the classed scale's breaks are fixed by the target
+          // ([0.5T, 0.75T, T]), so they are frame-stable and need no scrub lock.
+          // Lift the SAME scale the fill renders so the off-canvas legend swatch
+          // ranges describe the painted class colors (parity with the fill).
+          const metaScale = provinceMetaClassScale(layer.features, layer.complianceTarget);
+          if (metaScale) {
+            nextProvinceSeqLegend[layer.id] = {
+              breaks: metaScale.breaks,
+              colors: metaScale.colors,
+            };
+          }
+        } else {
           const lock = resolveScrubDomain({
             live: provinceValueBounds(layer.features),
             scrubbing,
@@ -2295,8 +2300,9 @@ export function SituationalMap({
   // MapChoropleth color-expression approach but on the local polygons). If the
   // basemap source is missing (fetch failed), there is nothing to fill.
   /** Choose the fill-color expression for a province choropleth based on dataType.
-   * Rate layers with a complianceTarget render as a divergent scale (F5);
-   * all others keep the sequential RAMP_BLUE path. */
+   * Rate layers with a complianceTarget render as the classed-step META scale (the
+   * 4 threshold classes anchored on the target); all others keep the sequential
+   * classed path. */
   function provinceColorExprForLayer(layer: ActiveLayer, seqDomain?: DomainBounds | null) {
     // task #63: a bivariate layer paints from its precomputed class matrix (a
     // `match` on the polygon code → the 3×3 palette), not from a single value.
@@ -2304,11 +2310,12 @@ export function SituationalMap({
       return bivariateFillColorExpr(layer.bivariateCells);
     }
     if (layer.dataType === "rate" && typeof layer.complianceTarget === "number") {
-      // panorama-ia-v2 §3.2: rate layers use the FIXED [0,100] domain so every
-      // province is colored on the same axis (cross-province comparability); the
-      // observed range would rescale per dataset and let a hot province wash out
-      // the rest.
-      return provinceDivergentColorExpr(layer.features, layer.complianceTarget, FIXED_RATE_DOMAIN);
+      // PO decision (ratified in live QA): the META'd rate layers (cobertura,
+      // esterilización, microchip, ppp) render on the classed 4-threshold scale
+      // anchored on the compliance target ([0.5T, 0.75T, T]), NOT the amber/teal
+      // divergent scale. The breaks are fixed by the target — comparable across
+      // provinces and frame-stable under a scrub, so no domain lock is needed.
+      return provinceMetaColorExpr(layer.features, layer.complianceTarget);
     }
     // Sequential layers: `seqDomain` is the scrub-locked domain (null at the live
     // edge, where the expr computes the domain from the frame's own values).
@@ -2828,13 +2835,11 @@ export function SituationalMap({
         insetProvinceLayer.dataType === "rate" &&
         typeof insetProvinceLayer.complianceTarget === "number"
       ) {
-        // Same FIXED [0,100] divergent axis + meta anchor as the main province fill.
-        insetUniformFill = sampleStops(
-          divergentStops(
-            insetProvinceLayer.complianceTarget,
-            FIXED_RATE_DOMAIN.min,
-            FIXED_RATE_DOMAIN.max,
-          ),
+        // Same classed META scale as the main province fill: CABA's value is
+        // painted the class color it lands in ([0.5T, 0.75T, T] thresholds), so
+        // the inset chip matches the main choropleth's class palette.
+        insetUniformFill = colorForValue(
+          computeClassScale([], { target: insetProvinceLayer.complianceTarget }),
           cabaValue,
         );
       } else {
