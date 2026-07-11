@@ -139,9 +139,8 @@ describe("signTimelineAttachments", () => {
   describe("tenant isolation (IDOR fence)", () => {
     it("scopes the attachments query to the accessed pet's pet_id — not just eventIds", async () => {
       // Cross-tenant IDOR guard: requirePetAccess authorizes the caller for
-      // `pet`, but eventIds are caller-supplied. The query MUST fence on
-      // attachments.pet_id = pet.id so a caller with access to pet A can never
-      // sign pet B's clinical attachments by passing B's eventIds.
+      // `pet`, but eventIds are caller-supplied — the query MUST fence on
+      // attachments.pet_id so caller-of-pet-A can't sign pet-B's via B's eventIds.
       mockRequirePetAccess.mockResolvedValue(makeOwnerAccess("user-1", "pet-1"));
       const chain = chainReturning([]);
       mockSelect.mockReturnValue(chain);
