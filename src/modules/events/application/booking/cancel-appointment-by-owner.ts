@@ -4,7 +4,7 @@
 // Auth guard (requireUserOrRedirect) is handled by the thin shim in
 // app/actions/booking.ts before delegating here.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { appointments, db, notifications, timeSlots } from "@/db";
 
@@ -61,9 +61,17 @@ export async function cancelAppointmentByOwner(
 
   const now = new Date();
 
+  // TOCTOU guard (SC1): the status check above is a stale read. Two concurrent
+  // cancels would both pass it and each decrement bookings_count → capacity
+  // double-freed → overbooking. Make the status flip CONDITIONAL on
+  // status='confirmed' and only decrement when THIS call actually flipped the
+  // row (rowCount===1). The loser matches zero rows and aborts without touching
+  // capacity. Mirrors book-slot's guard against a stale read.
+  let raced = false;
+
   await db.transaction(async (tx) => {
-    // 1. Update appointment status.
-    await tx
+    // 1. Conditionally flip the appointment status (only while still confirmed).
+    const updated = await tx
       .update(appointments)
       .set({
         status: "cancelled_by_owner",
@@ -71,7 +79,15 @@ export async function cancelAppointmentByOwner(
         cancelledByUserId: ownerUserId,
         updatedAt: now,
       })
-      .where(eq(appointments.id, row.id));
+      .where(and(eq(appointments.id, row.id), eq(appointments.status, "confirmed")))
+      .returning({ id: appointments.id });
+
+    if (updated.length === 0) {
+      // A concurrent writer already processed this appointment — do NOT free
+      // capacity a second time.
+      raced = true;
+      return;
+    }
 
     // 2. Decrement bookings_count (free capacity).
     await tx
@@ -106,6 +122,8 @@ export async function cancelAppointmentByOwner(
       }
     }
   });
+
+  if (raced) return { error: "El turno ya fue procesado." };
 
   return { ok: true };
 }

@@ -38,8 +38,7 @@ import {
   generateOfferingToken,
   generatePublicToken,
 } from "@/lib/infra/publicToken";
-// Writer imports from the application module, not the "use server" shim
-// (impersonation triage, review 07).
+import { cancelAppointmentByOrg } from "@/src/modules/events/application/attendance/cancel-appointment-by-org";
 import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -765,6 +764,113 @@ describe("markAppointmentAttendedWriter (vet provider path)", () => {
     expect(ev.authorRole).toBe("vet");
     expect(ev.authorOrganizationId).toBeNull();
     expect(ev.authorVerified).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SC1 — concurrent double-cancel must free capacity only ONCE (no overbooking).
+// ---------------------------------------------------------------------------
+
+describe("cancelAppointmentByOrg — TOCTOU (SC1)", () => {
+  it("two concurrent cancels of the same appointment free capacity exactly once", async () => {
+    // Fresh slot (bookings_count=1) + confirmed appointment on the org offering.
+    // cancelAppointmentByOrg does the status flip + capacity decrement with no
+    // pre-tx status check, so two concurrent calls exercise the in-tx guard
+    // directly (unlike owner-cancel, whose pre-tx read can accidentally
+    // serialize).
+    const slotId = await createSlot(offeringOrgId, 11);
+    const { id: apptId } = await createAppointment(
+      slotId,
+      petId,
+      ownerUserId,
+      orgId,
+      offeringOrgId,
+    );
+    const appt = { id: apptId, slotId, ownerUserId };
+
+    const [a, b] = await Promise.all([
+      cancelAppointmentByOrg(appt, orgMemberUserId, "Clinica Test", "motivo A"),
+      cancelAppointmentByOrg(appt, orgMemberUserId, "Clinica Test", "motivo B"),
+    ]);
+
+    // Exactly one wins; the other is a friendly "already processed" error.
+    const oks = [a, b].filter((r) => "ok" in r);
+    const errs = [a, b].filter((r) => "error" in r);
+    expect(oks).toHaveLength(1);
+    expect(errs).toHaveLength(1);
+    expect((errs[0] as { error: string }).error).toMatch(/ya fue procesado/i);
+
+    // bookings_count decremented from 1 to exactly 0 — never -1 (overbooking).
+    const [slot] = await db
+      .select({ bookingsCount: timeSlots.bookingsCount })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, slotId))
+      .limit(1);
+    expect(slot!.bookingsCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SC2 — a mark-attended racing an already-processed appointment must NOT write
+// an immutable medical pet_event. Two concurrent attends → exactly one event.
+// ---------------------------------------------------------------------------
+
+describe("markAppointmentAttendedWriter — TOCTOU (SC2)", () => {
+  it("two concurrent attends of the same appointment write exactly one medical event", async () => {
+    const slotId = await createSlot(offeringOrgId, 12);
+    const { id: apptId } = await createAppointment(
+      slotId,
+      petId,
+      ownerUserId,
+      orgId,
+      offeringOrgId,
+    );
+
+    const author: AuthorDescriptor = {
+      actorUserId: orgMemberUserId,
+      authorRole: "vet",
+      authorOrganizationId: orgId,
+      authorVerified: true,
+    };
+    const payload: AttendancePayload = {
+      kind: "vaccination",
+      vaccine_name: "SC2 Race Vaccine",
+      brand: null,
+      batch: null,
+      administered_by: null,
+      next_due_at: null,
+    };
+
+    const countBefore = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "vaccination_administered")),
+    );
+
+    const [a, b] = await Promise.all([
+      markAppointmentAttendedWriter(apptId, payload, author),
+      markAppointmentAttendedWriter(apptId, payload, author),
+    ]);
+
+    // Exactly one attend wins; the loser gets a friendly "already processed".
+    const oks = [a, b].filter((r) => "ok" in r);
+    const errs = [a, b].filter((r) => "error" in r);
+    expect(oks).toHaveLength(1);
+    expect(errs).toHaveLength(1);
+    expect((errs[0] as { error: string }).error).toMatch(/ya fue procesado/i);
+
+    // CRITICAL: only ONE immutable medical event landed for this appointment.
+    const countAfter = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "vaccination_administered")),
+    );
+    expect(countAfter).toBe(countBefore + 1);
+
+    const [appt] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.id, apptId))
+      .limit(1);
+    expect(appt!.status).toBe("attended");
   });
 });
 

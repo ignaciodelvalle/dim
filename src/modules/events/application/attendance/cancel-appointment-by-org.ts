@@ -4,7 +4,7 @@
 // Auth guard (requireCapability) is handled by the thin shim in
 // app/actions/attendance.ts before delegating here.
 
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { appointments, db, notifications, timeSlots } from "@/db";
 
@@ -23,9 +23,16 @@ export async function cancelAppointmentByOrg(
 ): Promise<AttendanceResult> {
   const now = new Date();
 
+  // TOCTOU guard (SC1): the caller's status check is a stale read. Concurrent
+  // cancels (or a cancel racing an attend/no-show) would each decrement
+  // bookings_count → capacity double-freed → overbooking. Flip the status
+  // CONDITIONALLY on status='confirmed' and only free capacity when this call
+  // actually flipped the row.
+  let raced = false;
+
   await db.transaction(async (tx) => {
-    // 1. Update appointment status.
-    await tx
+    // 1. Conditionally flip the appointment status (only while still confirmed).
+    const updated = await tx
       .update(appointments)
       .set({
         status: "cancelled_by_org",
@@ -34,7 +41,13 @@ export async function cancelAppointmentByOrg(
         cancellationReason: reason || null,
         updatedAt: now,
       })
-      .where(eq(appointments.id, appt.id));
+      .where(and(eq(appointments.id, appt.id), eq(appointments.status, "confirmed")))
+      .returning({ id: appointments.id });
+
+    if (updated.length === 0) {
+      raced = true;
+      return;
+    }
 
     // 2. Decrement bookings_count on the slot (free capacity).
     await tx
@@ -61,6 +74,8 @@ export async function cancelAppointmentByOrg(
       });
     }
   });
+
+  if (raced) return { error: "El turno ya fue procesado." };
 
   return { ok: true };
 }

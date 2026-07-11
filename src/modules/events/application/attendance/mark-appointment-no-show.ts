@@ -4,7 +4,7 @@
 // Auth guard (requireCapability) is handled by the thin shim in
 // app/actions/attendance.ts before delegating here.
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { appointments, db } from "@/db";
 
@@ -19,7 +19,9 @@ export async function markAppointmentNoShow(
   reason: string,
 ): Promise<AttendanceResult> {
   const now = new Date();
-  await db
+  // TOCTOU guard (SC2): flip CONDITIONALLY on status='confirmed'. Without it a
+  // no-show racing a cancel/attend would blindly overwrite the final status.
+  const updated = await db
     .update(appointments)
     .set({
       status: "no_show",
@@ -27,7 +29,12 @@ export async function markAppointmentNoShow(
       notesFromOrg: reason || null,
       updatedAt: now,
     })
-    .where(eq(appointments.id, appointmentId));
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.status, "confirmed")))
+    .returning({ id: appointments.id });
+
+  if (updated.length === 0) {
+    return { error: "El turno ya fue procesado (asistido, cancelado o ausente)." };
+  }
 
   return { ok: true };
 }

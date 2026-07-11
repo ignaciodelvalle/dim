@@ -25,6 +25,17 @@ import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules
 
 import type { AttendancePayload, AttendanceResult, AuthorDescriptor } from "./types";
 
+// Sentinel thrown inside the tx when the conditional status flip matches no row
+// (the appointment was cancelled/attended/no-show by a concurrent writer). It
+// rolls back the whole tx so NO medical pet_event is written against a
+// non-confirmed appointment (SC2).
+class AppointmentRaceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AppointmentRaceError";
+  }
+}
+
 /**
  * Core attendance writer. Validates the payload, updates the appointment,
  * inserts the pet_event, and optionally inserts a vaccination reminder.
@@ -137,8 +148,12 @@ export async function markAppointmentAttendedWriter(
         : false;
 
     await db.transaction(async (tx) => {
-      // 1. UPDATE appointment status.
-      await tx
+      // 1. CONDITIONALLY flip the appointment status (SC2). The status check
+      //    above is a stale read — a concurrent cancel/no-show may have already
+      //    processed this appointment. Guard on status='confirmed' and abort the
+      //    whole tx if it matched no row, so we NEVER write an immutable medical
+      //    pet_event against a cancelled/attended appointment.
+      const updated = await tx
         .update(appointments)
         .set({
           status: "attended",
@@ -146,7 +161,14 @@ export async function markAppointmentAttendedWriter(
           attendedByUserId: author.actorUserId,
           updatedAt: now,
         })
-        .where(eq(appointments.id, appointmentId));
+        .where(and(eq(appointments.id, appointmentId), eq(appointments.status, "confirmed")))
+        .returning({ id: appointments.id });
+
+      if (updated.length === 0) {
+        throw new AppointmentRaceError(
+          "El turno ya fue procesado (asistido, cancelado o ausente).",
+        );
+      }
 
       // 2. INSERT pet_event.
       const [newEvent] = await tx
@@ -207,6 +229,9 @@ export async function markAppointmentAttendedWriter(
 
     return { ok: true };
   } catch (err: unknown) {
+    if (err instanceof AppointmentRaceError) {
+      return { error: err.message };
+    }
     if (err instanceof Error && err.name === "EventPayloadValidationError") {
       return { error: err.message };
     }
