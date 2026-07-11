@@ -18,12 +18,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import { db, organizations, ownerships, petEvents, pets } from "@/db";
 import {
   LONG_STAY_DAYS,
+  type OrgQueueKey,
   actionReasonIcon,
   actionReasonLabel,
+  applicableOrgQueues,
   fetchActiveAdoptions,
   fetchAvailableForAdoption,
   fetchIntakesLastWeek,
   fetchOrgDashboardMetrics,
+  fetchOrgQueueCounts,
   fetchRequiresAction,
 } from "@/lib/analytics/org-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -384,5 +387,99 @@ describe("actionReasonIcon", () => {
     for (const r of reasons) {
       expect(actionReasonIcon(r).length).toBeGreaterThan(0);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applicableOrgQueues — pure org-type/capability/role gating (no DB) (task #18)
+// ---------------------------------------------------------------------------
+
+describe("applicableOrgQueues — org-type gating", () => {
+  // Admin implicitly holds every capability; model that as the full grant set
+  // for the capabilities the queues gate on.
+  const ALL_CAPS = new Set([
+    "pet.read_held",
+    "org.transfer.accept",
+    "foster.assign",
+    "adoption.review",
+    "capability.grant",
+  ]);
+
+  const keysFor = (orgType: string, granted = ALL_CAPS, role = "admin"): OrgQueueKey[] =>
+    applicableOrgQueues(orgType, granted, role).map((q) => q.key);
+
+  it("shelter admin gets the full rehoming set", () => {
+    const keys = keysFor("shelter");
+    expect(keys).toContain("pendingFosterProposals");
+    expect(keys).toContain("activeAdoptions");
+    expect(keys).toContain("overdueCheckins");
+    expect(keys).toContain("activeFosters");
+    expect(keys).toContain("openCases");
+    expect(keys).toContain("derivedWelfare");
+  });
+
+  it("rescue_network admin also gets the rehoming queues", () => {
+    const keys = keysFor("rescue_network");
+    expect(keys).toContain("pendingFosterProposals");
+    expect(keys).toContain("activeAdoptions");
+    expect(keys).toContain("activeFosters");
+  });
+
+  it("clinic admin never gets structurally-impossible foster/adoption queues", () => {
+    const keys = keysFor("clinic");
+    expect(keys).not.toContain("pendingFosterProposals");
+    expect(keys).not.toContain("activeAdoptions");
+    expect(keys).not.toContain("overdueCheckins");
+    expect(keys).not.toContain("activeFosters");
+    // But universal queues remain.
+    expect(keys).toContain("openCases");
+    expect(keys).toContain("pendingTransfers");
+    expect(keys).toContain("pendingPermits");
+  });
+
+  it("sanitary_authority admin gets casos + welfare-derived work, no foster/adoption clutter", () => {
+    const keys = keysFor("sanitary_authority");
+    expect(keys).toContain("openCases");
+    expect(keys).toContain("derivedWelfare");
+    expect(keys).not.toContain("pendingFosterProposals");
+    expect(keys).not.toContain("activeAdoptions");
+  });
+
+  it("welfare queue is role-gated — a foster never sees derived maltrato", () => {
+    const keys = keysFor("shelter", ALL_CAPS, "foster");
+    expect(keys).not.toContain("derivedWelfare");
+  });
+
+  it("a zero-capability member with no role gets no queues", () => {
+    expect(applicableOrgQueues("shelter", new Set(), undefined)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchOrgQueueCounts — batched counts (task #18)
+// ---------------------------------------------------------------------------
+
+describe("fetchOrgQueueCounts — empty org", () => {
+  it("returns 0 for every requested queue on a fresh org", async () => {
+    const orgId = await makeOrg();
+    const keys: OrgQueueKey[] = [
+      "openCases",
+      "pendingTransfers",
+      "pendingFosterProposals",
+      "activeAdoptions",
+      "overdueCheckins",
+      "activeFosters",
+      "derivedWelfare",
+      "pendingPermits",
+    ];
+    const counts = await fetchOrgQueueCounts(orgId, keys);
+    for (const k of keys) expect(counts[k]).toBe(0);
+  });
+
+  it("only the requested keys are computed; unrequested default to 0", async () => {
+    const orgId = await makeOrg();
+    const counts = await fetchOrgQueueCounts(orgId, ["openCases"]);
+    expect(counts.openCases).toBe(0);
+    expect(counts.activeAdoptions).toBe(0);
   });
 });

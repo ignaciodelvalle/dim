@@ -11,11 +11,14 @@
 //
 // Import computeOccupancyBreakdown from lib/org-census.ts for the Ocupación KPI.
 
-import { and, count, eq, gt, gte, isNull, lt, sql } from "drizzle-orm";
+import { and, count, eq, gt, gte, isNull, lt, notInArray, sql } from "drizzle-orm";
 
 import {
   appointments,
+  cases,
   db,
+  fosterProposals,
+  organizationCapabilityGrants,
   organizations,
   ownerships,
   petEvents,
@@ -23,8 +26,13 @@ import {
   profiles,
   serviceOfferings,
   timeSlots,
+  welfareReports,
 } from "@/db";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import {
+  type OrganizationCapability,
+  capabilityAppliesToOrgType,
+} from "@/src/modules/organizations/domain/capabilities";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -410,4 +418,323 @@ export function actionReasonIcon(reason: ActionReason): string {
     case "long_stay":
       return "clock";
   }
+}
+
+// ===========================================================================
+// Org pending-queue engine (task #18 — org-admin process-clarity)
+//
+// A single, org-type-gated model of the operator's actionable queues. It powers
+// three surfaces from ONE definition + ONE batched fetch:
+//   - the panel "Pendientes" card (app/org/[orgToken]/page.tsx)
+//   - the sanitary_authority / specialized surfaces (same page)
+//   - the nav pending-count badges (app/org/[orgToken]/layout.tsx)
+//
+// Org-type applicability is derived from the capability model
+// (capabilityAppliesToOrgType / SHELTER_ONLY_CAPABILITIES) — the same gate the
+// panel action cards and the org nav already use — so a queue is NEVER shown to
+// a type that structurally can't have it (no always-zero foster rows on a
+// clinic / sanitary authority). Welfare (maltrato) is role-gated, mirroring the
+// welfare inbox page + nav, and applies to every org type that receives
+// derivations.
+// ===========================================================================
+
+/** Stable identifier for each actionable org queue. */
+export type OrgQueueKey =
+  | "derivedWelfare"
+  | "openCases"
+  | "pendingTransfers"
+  | "pendingFosterProposals"
+  | "activeAdoptions"
+  | "overdueCheckins"
+  | "activeFosters"
+  | "pendingPermits";
+
+/**
+ * Pure descriptor for an actionable org queue. Gating fields mirror the org nav
+ * (`buildOrgNav`) exactly so the panel surface and the sidebar can never
+ * disagree about which queues a given member/org-type has.
+ */
+export type OrgQueueDef = {
+  key: OrgQueueKey;
+  /** es-AR row label for the Pendientes surface. */
+  label: string;
+  /** Route path relative to `/org/{orgToken}/` (the click-through target). */
+  path: string;
+  /**
+   * Nav item href suffix (relative to `/org/{orgToken}/`) whose badge this
+   * queue feeds. Omitted for queues that have no matching nav item OR that are
+   * informational (no badge). Matched against the built nav's item.href.
+   */
+  navPath?: string;
+  requiredCapability?: OrganizationCapability;
+  requiredAnyCapability?: readonly OrganizationCapability[];
+  requiredRoles?: ReadonlySet<string>;
+};
+
+// Welfare inbox roles — mirrors ALLOWED_ROLES in
+// app/org/[orgToken]/maltrato/recibidos/page.tsx and WELFARE_NAV_ROLES in
+// nav-presets.ts.
+const WELFARE_QUEUE_ROLES: ReadonlySet<string> = new Set([
+  "admin",
+  "coordinator",
+  "member",
+  "vet_individual",
+]);
+
+/**
+ * Ordered catalog of actionable org queues (daily-loop priority: welfare and
+ * open cases first, adoption pipeline next, informational load last, team admin
+ * last). Filtered per org-type + grants + role by `applicableOrgQueues`.
+ */
+export const ORG_QUEUE_DEFS: readonly OrgQueueDef[] = [
+  {
+    key: "derivedWelfare",
+    label: "Denuncias de maltrato derivadas",
+    path: "maltrato/recibidos",
+    navPath: "maltrato/recibidos",
+    requiredRoles: WELFARE_QUEUE_ROLES,
+  },
+  {
+    key: "openCases",
+    label: "Casos abiertos",
+    path: "casos",
+    navPath: "casos",
+    requiredCapability: "pet.read_held",
+  },
+  {
+    key: "pendingTransfers",
+    label: "Transferencias entrantes pendientes",
+    path: "transferencias/recibidas",
+    navPath: "transferencias",
+    requiredAnyCapability: ["org.transfer.accept"],
+  },
+  {
+    key: "pendingFosterProposals",
+    label: "Propuestas de tránsito pendientes",
+    path: "voluntarios/propuestas",
+    navPath: "voluntarios",
+    requiredCapability: "foster.assign",
+  },
+  {
+    key: "activeAdoptions",
+    label: "Adopciones en curso",
+    path: "adopciones",
+    navPath: "adopciones",
+    requiredCapability: "adoption.review",
+  },
+  {
+    key: "overdueCheckins",
+    label: "Check-ins vencidos",
+    path: "checkins",
+    navPath: "checkins",
+    requiredCapability: "adoption.review",
+  },
+  {
+    key: "activeFosters",
+    // Informational load, not a "pending" alert — surfaced on the panel but
+    // deliberately NOT badged (no navPath), so the sidebar shows badges only
+    // for work that needs a decision.
+    label: "Tránsitos activos",
+    path: "transitos",
+    requiredCapability: "foster.assign",
+  },
+  {
+    key: "pendingPermits",
+    label: "Permisos por aprobar",
+    path: "admin/permisos",
+    navPath: "admin/permisos",
+    requiredCapability: "capability.grant",
+  },
+] as const;
+
+/**
+ * Whether a queue applies to the given org-type + grants + role. Capability
+ * gates additionally pass through `capabilityAppliesToOrgType`, so a shelter-
+ * only capability (foster/adoption) that a clinic/authority admin implicitly
+ * holds still does NOT surface its queue for those types.
+ */
+function queueApplies(
+  def: OrgQueueDef,
+  orgType: string,
+  granted: ReadonlySet<string>,
+  role: string | undefined,
+): boolean {
+  if (def.requiredCapability) {
+    const cap = def.requiredCapability;
+    if (!(granted.has(cap) && capabilityAppliesToOrgType(cap, orgType))) return false;
+  }
+  if (def.requiredAnyCapability) {
+    const anyOk = def.requiredAnyCapability.some(
+      (cap) => granted.has(cap) && capabilityAppliesToOrgType(cap, orgType),
+    );
+    if (!anyOk) return false;
+  }
+  if (def.requiredRoles) {
+    if (role === undefined || !def.requiredRoles.has(role)) return false;
+  }
+  return true;
+}
+
+/** The ordered queues that apply to this org-type / member, from the catalog. */
+export function applicableOrgQueues(
+  orgType: string,
+  granted: ReadonlySet<string>,
+  role: string | undefined,
+): OrgQueueDef[] {
+  return ORG_QUEUE_DEFS.filter((def) => queueApplies(def, orgType, granted, role));
+}
+
+// ---------------------------------------------------------------------------
+// Per-queue count helpers (each cheap + indexed). New ones (activeFosters,
+// overdueCheckins, derivedWelfare, pendingPermits) fill the inventory gaps the
+// pre-verification flagged.
+// ---------------------------------------------------------------------------
+
+/** Open cases opened by this org (matches the panel's existing count). */
+async function countOpenCases(orgId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(cases)
+    .where(and(eq(cases.openedByOrganizationId, orgId), eq(cases.status, "open")));
+  return Number(row?.n ?? 0);
+}
+
+/** Open incoming custody-transfer handshakes where this org is the receiver. */
+async function countPendingTransfers(orgId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(cases)
+    .where(
+      and(
+        eq(cases.caseKind, "custody_transfer_handshake"),
+        eq(cases.receiverOrganizationId, orgId),
+        eq(cases.status, "open"),
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+/** Pending foster proposals emitted by this org. */
+async function countPendingFosterProposals(orgId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(fosterProposals)
+    .where(and(eq(fosterProposals.organizationId, orgId), eq(fosterProposals.status, "pending")));
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Active foster placements on pets this org currently holds in custody.
+ * EXISTS keeps it a single indexed scan (owner_organization_id, pet_id).
+ */
+async function countActiveFosters(orgId: string): Promise<number> {
+  const rows = await db.execute<{ n: string | number }>(sql`
+    SELECT COUNT(*)::int AS n
+    FROM ownerships f
+    WHERE f.role = 'foster'
+      AND f.ended_at IS NULL
+      AND EXISTS (
+        SELECT 1 FROM ownerships c
+        WHERE c.pet_id = f.pet_id
+          AND c.owner_organization_id = ${orgId}
+          AND c.role = 'shelter_custody'
+          AND c.ended_at IS NULL
+      )
+  `);
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * Overdue post-adoption check-in reminders for pets this org adopted out.
+ * Promotes the page-local `overdue.length` (checkins/page.tsx) to a shared,
+ * bounded count. previous_owner_organization_id is denormalized on the
+ * adoption_finalized event precisely so this stays a single EXISTS.
+ */
+async function countOverdueCheckins(orgId: string): Promise<number> {
+  const rows = await db.execute<{ n: string | number }>(sql`
+    SELECT COUNT(*)::int AS n
+    FROM reminders r
+    WHERE r.reminder_type = 'post_adoption_checkin'
+      AND r.completed_at IS NULL
+      AND r.due_at < NOW()
+      AND EXISTS (
+        SELECT 1 FROM pet_events e
+        WHERE e.pet_id = r.pet_id
+          AND e.event_type = 'adoption_finalized'
+          AND e.payload->>'previous_owner_organization_id' = ${orgId}
+      )
+  `);
+  return Number(rows[0]?.n ?? 0);
+}
+
+/**
+ * Welfare reports derived to this org that are still open work: not closed/
+ * duplicate/invalid, and not already returned to the government. Fills the
+ * inventory gap (maltrato had no count query).
+ */
+async function countDerivedWelfare(orgId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(welfareReports)
+    .where(
+      and(
+        eq(welfareReports.derivedToOrganizationId, orgId),
+        notInArray(welfareReports.status, ["closed", "duplicate", "invalid"]),
+        sql`${welfareReports.orgInterventionStatus} IS DISTINCT FROM 'devuelto'`,
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+/** Pending capability-grant requests awaiting an approver in this org. */
+async function countPendingPermits(orgId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(organizationCapabilityGrants)
+    .where(
+      and(
+        eq(organizationCapabilityGrants.organizationId, orgId),
+        eq(organizationCapabilityGrants.status, "pending"),
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+const QUEUE_COUNTERS: Record<OrgQueueKey, (orgId: string) => Promise<number>> = {
+  derivedWelfare: countDerivedWelfare,
+  openCases: countOpenCases,
+  pendingTransfers: countPendingTransfers,
+  pendingFosterProposals: countPendingFosterProposals,
+  activeAdoptions: fetchActiveAdoptions,
+  overdueCheckins: countOverdueCheckins,
+  activeFosters: countActiveFosters,
+  pendingPermits: countPendingPermits,
+};
+
+/**
+ * Batch-fetch the live counts for exactly the requested queue keys, in
+ * parallel. Callers pass the keys from `applicableOrgQueues`, so only queues
+ * that apply to this org-type/member ever run a query (ONE shared fetch — the
+ * panel surface and the nav badges consume the same result).
+ */
+export async function fetchOrgQueueCounts(
+  orgId: string,
+  keys: readonly OrgQueueKey[],
+): Promise<Record<OrgQueueKey, number>> {
+  const unique = Array.from(new Set(keys));
+  const results = await Promise.all(unique.map((key) => QUEUE_COUNTERS[key](orgId)));
+  const counts = {
+    derivedWelfare: 0,
+    openCases: 0,
+    pendingTransfers: 0,
+    pendingFosterProposals: 0,
+    activeAdoptions: 0,
+    overdueCheckins: 0,
+    activeFosters: 0,
+    pendingPermits: 0,
+  } as Record<OrgQueueKey, number>;
+  unique.forEach((key, i) => {
+    counts[key] = results[i];
+  });
+  return counts;
 }
