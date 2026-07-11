@@ -154,6 +154,12 @@ export default async function PermisosPage({
         {/* No page-level OpCrumbs here — the topbar (OrgBreadcrumbs) already
             renders "Panel > Permisos" for this route (#815 audit finding #4:
             the two used to disagree, showing 3 conflicting labels at once). */}
+        {/* Org-name eyebrow — standardized identity marker across the
+            Administración section (audit #13: servicios/miembros/permisos now
+            all mark tenancy the same way). */}
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName}
+        </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
         <p className="text-[13px] text-ln-op-mute">
           Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.

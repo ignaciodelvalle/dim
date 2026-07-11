@@ -19,6 +19,10 @@ import { IntakeForm } from "./IntakeForm";
 
 type TabKey = "cola" | "registrar";
 
+// Intake queue is recency-bounded; cap the fetch and signal truncation (audit
+// #15) so a high-volume org isn't silently shown a partial list with no notice.
+const INTAKE_CAP = 100;
+
 export default async function IntakePage({
   params,
   searchParams,
@@ -75,8 +79,12 @@ export default async function IntakePage({
             ),
           )
           .orderBy(desc(petEvents.occurredAt))
-          .limit(100)
+          .limit(INTAKE_CAP + 1)
       : [];
+
+  // Truncation signal (audit #15): fetch one extra to detect "there are more".
+  const intakeTruncated = intakeRows.length > INTAKE_CAP;
+  const displayIntakeRows = intakeTruncated ? intakeRows.slice(0, INTAKE_CAP) : intakeRows;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -135,11 +143,21 @@ export default async function IntakePage({
           <OpCard>
             <OpCardHead
               title="Ingresos recientes"
-              actions={`${intakeRows.length} registro${intakeRows.length !== 1 ? "s" : ""}`}
+              actions={
+                intakeTruncated
+                  ? `Últimos ${INTAKE_CAP}`
+                  : `${displayIntakeRows.length} registro${displayIntakeRows.length !== 1 ? "s" : ""}`
+              }
             />
             <OpCardBody className="p-0">
+              {intakeTruncated && (
+                <p className="px-4 pt-3 text-sm text-ln-op-mute">
+                  Mostrando los {INTAKE_CAP} ingresos más recientes. Hay más en el historial del
+                  animal.
+                </p>
+              )}
               <ul className="divide-y divide-ln-op-line">
-                {intakeRows.map((row) => (
+                {displayIntakeRows.map((row) => (
                   <li
                     key={row.eventId}
                     className="flex items-center justify-between gap-3 px-4 py-3"

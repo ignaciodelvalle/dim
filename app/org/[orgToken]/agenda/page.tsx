@@ -10,7 +10,7 @@ import { and, eq, gte, lt } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
@@ -168,6 +168,8 @@ export default async function OrgAgendaPage({
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs (audit #18 — was missing on the day view). */}
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Agenda" }]} />
       {/* Page header */}
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">

@@ -14,11 +14,13 @@ import { logoutAction } from "@/app/actions/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { buildOrgNav } from "@/components/layout/nav-presets";
+import type { NavSection } from "@/components/ui/dashboard";
 import { OpOmnibox } from "@/components/ui/dashboard";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import type { OrganizationCapability } from "@/db";
+import { applicableOrgQueues, fetchOrgQueueCounts } from "@/lib/analytics/org-dashboard";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -58,6 +60,52 @@ export default async function OrgLayout({
     // Configuración admin-only) so the sidebar matches each page's own guard.
     role: membership.role,
   });
+
+  // Nav pending-count badges (task #18): reuse the org pending-queue engine —
+  // the SAME applicability + counts as the panel "Pendientes" surface — and
+  // overlay each actionable nav item with its live count. ONE batched fetch
+  // covers every badge. Only badgeable queues (those that map to a nav item)
+  // participate; informational queues (tránsitos activos) carry no badge.
+  //
+  // Resilient like the admin outbox/alertas badges: a badge-count failure must
+  // never take down the org shell (badges are UX, not a security gate), and
+  // Next does not wrap a segment's own layout.tsx in its sibling error.tsx —
+  // an unguarded throw here would bypass app/org/[orgToken]/error.tsx and fall
+  // through to the fullscreen root boundary. Default to no badges on failure.
+  const badgeQueues = applicableOrgQueues(organization.orgType, granted, membership.role).filter(
+    (q) => q.navPath !== undefined,
+  );
+  const queueCounts =
+    badgeQueues.length > 0
+      ? await fetchOrgQueueCounts(
+          organization.id,
+          badgeQueues.map((q) => q.key),
+        ).catch((err) => {
+          console.error("[OrgLayout] fetchOrgQueueCounts failed", err);
+          return null;
+        })
+      : null;
+
+  const badgeByHref = new Map<string, number>();
+  if (queueCounts) {
+    for (const q of badgeQueues) {
+      const n = queueCounts[q.key];
+      if (q.navPath && n > 0) {
+        badgeByHref.set(`/org/${orgToken}/${q.navPath}`, n);
+      }
+    }
+  }
+
+  const navSections: NavSection[] =
+    badgeByHref.size > 0
+      ? orgNavSections.map((section) => ({
+          ...section,
+          items: section.items.map((item) => {
+            const badge = badgeByHref.get(item.href);
+            return badge ? { ...item, badge } : item;
+          }),
+        }))
+      : orgNavSections;
 
   // Omnibox: show only for members with pet read access.
   const canSearchPets = granted.has("pet.read_held") || membership.role === "admin";
@@ -101,7 +149,7 @@ export default async function OrgLayout({
       variant="operator"
       rail={
         <OpRail
-          sections={orgNavSections}
+          sections={navSections}
           variant="org"
           brandSubtitle="Organización"
           user={{ name: displayName, role: "ORG" }}
@@ -110,7 +158,7 @@ export default async function OrgLayout({
       topbar={
         <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
-          <AppShellDrawer sections={orgNavSections} variant="org" brandSubtitle="Organización" />
+          <AppShellDrawer sections={navSections} variant="org" brandSubtitle="Organización" />
           {/* Left: org breadcrumbs (client component, uses usePathname) */}
           <OrgBreadcrumbs orgToken={orgToken} />
           {/* Scope chip */}

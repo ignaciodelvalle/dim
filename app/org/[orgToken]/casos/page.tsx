@@ -16,6 +16,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { OpCrumbs } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/infra/case-queries";
@@ -104,6 +105,8 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs (audit #18 — casos had only an H1, no breadcrumb). */}
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Casos" }]} />
       <header className="space-y-1">
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
         <p className="text-[13px] text-ln-op-mute">

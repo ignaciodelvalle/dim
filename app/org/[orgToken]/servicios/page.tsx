@@ -56,7 +56,8 @@ export default async function ServiciosPage({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Mis servicios</h1>
+          {/* H1 matches the nav label "Servicios" (audit #17 — nav↔H1 parity). */}
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios</h1>
           <p className="text-[13px] text-ln-op-mute">
             {offerings.length === 0
               ? "Todavía no hay servicios registrados."

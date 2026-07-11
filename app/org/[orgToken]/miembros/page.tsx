@@ -158,10 +158,13 @@ export default async function MiembrosPage({
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Equipo</p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
-            Miembros activos e invitaciones pendientes de {organization.displayName}
-          </h1>
+          {/* Identity marker standardized to the org-name eyebrow (audit #13),
+              so every Administración page marks tenancy the same way. H1 matches
+              the nav label "Miembros" (audit #17 — nav↔H1 parity). */}
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            {organization.displayName}
+          </p>
+          <h1 className="text-[22px] font-semibold text-ln-op-ink">Miembros</h1>
         </div>
         {canInvite && (
           <Link

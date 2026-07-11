@@ -12,7 +12,7 @@
 // Spec: docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md (Items 17, 19)
 // Depends on Item 16: lib/org-census.ts (fetchOrgCensus, computeOccupancyBreakdown)
 
-import { and, count, desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
@@ -28,9 +28,7 @@ import {
 } from "@/components/ui/dashboard";
 import {
   type OrganizationCapability,
-  cases,
   db,
-  fosterProposals,
   organizationCapabilityGrants,
   organizationCoverage,
   organizationMemberships,
@@ -38,11 +36,14 @@ import {
 } from "@/db";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
 import {
+  type OrgQueueKey,
   actionReasonIcon,
   actionReasonLabel,
+  applicableOrgQueues,
   fetchActiveAdoptions,
   fetchAvailableForAdoption,
   fetchIntakesLastWeek,
+  fetchOrgQueueCounts,
   fetchRequiresAction,
   fetchTodayAgenda,
 } from "@/lib/analytics/org-dashboard";
@@ -55,6 +56,7 @@ import {
 } from "@/src/modules/organizations/domain/capabilities";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
+import { OrgDailyLoopOrientation } from "./OrgDailyLoopOrientation";
 import { RequestCapabilityForm } from "./RequestCapabilityForm";
 import { SoloVetAgendaLanding } from "./SoloVetAgendaLanding";
 
@@ -105,6 +107,16 @@ const STATE_DOT: Record<CapabilityState["kind"], string> = {
   revoked: "bg-ln-op-danger",
   none: "bg-ln-op-line",
 };
+
+// Pending-queue pill tone. Time-sensitive / legally-sensitive queues (derived
+// welfare reports, overdue post-adoption check-ins) read as danger when
+// non-empty; everything else uses the neutral "open" work tone. Zero is always
+// the calm neutral "all clear".
+function pendingQueueTone(key: OrgQueueKey, n: number): "open" | "danger" | "neutral" {
+  if (n === 0) return "neutral";
+  if (key === "derivedWelfare" || key === "overdueCheckins") return "danger";
+  return "open";
+}
 
 // ---------------------------------------------------------------------------
 // Occupancy KPI helpers (pure)
@@ -276,36 +288,22 @@ export default async function OrgDashboardPage({
     );
   }
 
+  // Org-type-gated pending-queue surface (task #18). The applicable queues are
+  // derived from the capability model + role (same gate as the nav), so a queue
+  // structurally impossible for this org-type (e.g. foster proposals on a
+  // clinic) is never surfaced. ONE batched fetch covers every visible row.
+  const orgQueues = applicableOrgQueues(orgType, granted, membership.role);
+
   // Dashboard projections — all run in parallel.
   // Occupancy requires fetchOrgCensus + org capacity columns (Item 16).
-  const [openCasesRow, pendingTransfersRow, pendingFosterRow, census, actionItems] =
-    await Promise.all([
-      db
-        .select({ n: count() })
-        .from(cases)
-        .where(and(eq(cases.openedByOrganizationId, organization.id), eq(cases.status, "open"))),
-      db
-        .select({ n: count() })
-        .from(cases)
-        .where(
-          and(
-            eq(cases.caseKind, "custody_transfer_handshake"),
-            eq(cases.receiverOrganizationId, organization.id),
-            eq(cases.status, "open"),
-          ),
-        ),
-      db
-        .select({ n: count() })
-        .from(fosterProposals)
-        .where(
-          and(
-            eq(fosterProposals.organizationId, organization.id),
-            eq(fosterProposals.status, "pending"),
-          ),
-        ),
-      isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
-      isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
-    ]);
+  const [queueCounts, census, actionItems] = await Promise.all([
+    fetchOrgQueueCounts(
+      organization.id,
+      orgQueues.map((q) => q.key),
+    ),
+    isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
+    isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
+  ]);
 
   // Shelter-only KPIs run in parallel.
   const [intakesLastWeek, availableForAdopt, activeAdoptions] = isShelter
@@ -315,12 +313,6 @@ export default async function OrgDashboardPage({
         fetchActiveAdoptions(organization.id),
       ])
     : [0, 0, 0];
-
-  const pendingCounts = {
-    openCases: openCasesRow[0]?.n ?? 0,
-    pendingTransfers: pendingTransfersRow[0]?.n ?? 0,
-    pendingFosterProposals: pendingFosterRow[0]?.n ?? 0,
-  };
 
   // Occupancy breakdown — only meaningful for shelters with capacity columns.
   const occupancyBreakdown =
@@ -432,6 +424,14 @@ export default async function OrgDashboardPage({
       {/* Setup checklist (Item 19) — shown to admins until all steps complete. */}
       {showChecklist && isAdmin && (
         <OrgSetupChecklist steps={setupSteps} orgToken={orgToken} autoFocusFirst />
+      )}
+
+      {/* Post-onboarding transition (task #18): once setup is complete the
+          checklist is gone — this one-time, org-type-aware "your daily loop"
+          orientation takes its place instead of nothing. Client-side dismissal
+          persists in localStorage; renders null once dismissed. */}
+      {!showChecklist && isAdmin && (
+        <OrgDailyLoopOrientation orgToken={orgToken} orgType={orgType} />
       )}
 
       {/* KPI row — shelter operations metrics (Item 17, shelters only) */}
@@ -567,47 +567,35 @@ export default async function OrgDashboardPage({
         </OpCard>
       )}
 
-      {/* OpCard "Pendientes" — the original 3 KPIs, demoted to secondary card */}
-      <OpCard>
-        <OpCardHead title="Pendientes" />
-        <OpCardBody className="p-0">
-          <ul className="divide-y divide-ln-op-line-2">
-            <li className="flex items-center justify-between px-4 py-3">
-              <Link
-                href={`/org/${orgToken}/casos`}
-                className="text-[13px] text-ln-op-ink hover:underline no-underline"
-              >
-                Casos abiertos
-              </Link>
-              <OpPill tone={pendingCounts.openCases > 0 ? "open" : "neutral"}>
-                {pendingCounts.openCases}
-              </OpPill>
-            </li>
-            <li className="flex items-center justify-between px-4 py-3">
-              <Link
-                href={`/org/${orgToken}/transferencias/recibidas`}
-                className="text-[13px] text-ln-op-ink hover:underline no-underline"
-              >
-                Transferencias pendientes
-              </Link>
-              <OpPill tone={pendingCounts.pendingTransfers > 0 ? "open" : "neutral"}>
-                {pendingCounts.pendingTransfers}
-              </OpPill>
-            </li>
-            <li className="flex items-center justify-between px-4 py-3">
-              <Link
-                href={`/org/${orgToken}/voluntarios/propuestas`}
-                className="text-[13px] text-ln-op-ink hover:underline no-underline"
-              >
-                Propuestas de tránsito
-              </Link>
-              <OpPill tone={pendingCounts.pendingFosterProposals > 0 ? "open" : "neutral"}>
-                {pendingCounts.pendingFosterProposals}
-              </OpPill>
-            </li>
-          </ul>
-        </OpCardBody>
-      </OpCard>
+      {/* OpCard "Pendientes" — org-type-gated, complete actionable surface
+          (task #18). Every queue this org-type actually has, each a live count
+          that is itself a next-step shortcut to the filtered queue. No
+          structurally always-zero rows: applicability comes from the capability
+          model + role, the same gate the nav uses. */}
+      {orgQueues.length > 0 && (
+        <OpCard>
+          <OpCardHead title="Pendientes" />
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line-2">
+              {orgQueues.map((q) => {
+                const n = queueCounts[q.key];
+                const tone = pendingQueueTone(q.key, n);
+                return (
+                  <li key={q.key} className="flex items-center justify-between px-4 py-3">
+                    <Link
+                      href={`/org/${orgToken}/${q.path}`}
+                      className="text-[13px] text-ln-op-ink hover:underline no-underline"
+                    >
+                      {q.label}
+                    </Link>
+                    <OpPill tone={tone}>{n}</OpPill>
+                  </li>
+                );
+              })}
+            </ul>
+          </OpCardBody>
+        </OpCard>
+      )}
 
       {/* Capability action cards */}
       {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (

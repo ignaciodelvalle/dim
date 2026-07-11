@@ -24,6 +24,10 @@ function daysFromNow(dueAt: Date | string, now: Date): number {
   return Math.round((due.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 }
 
+// Both lists are recency-bounded; cap the fetch and signal truncation (audit
+// #15) so a high-volume org isn't silently shown a partial list with no notice.
+const CHECKIN_CAP = 30;
+
 export default async function CheckinsPage({
   params,
 }: {
@@ -100,7 +104,9 @@ export default async function CheckinsPage({
     .leftJoin(profiles, eq(profiles.id, petEvents.recordedByUserId))
     .where(and(eq(petEvents.eventType, "post_adoption_checkin"), inArray(petEvents.petId, petIds)))
     .orderBy(desc(petEvents.occurredAt))
-    .limit(30);
+    .limit(CHECKIN_CAP + 1);
+  const checkinsTruncated = recentCheckins.length > CHECKIN_CAP;
+  const displayCheckins = checkinsTruncated ? recentCheckins.slice(0, CHECKIN_CAP) : recentCheckins;
 
   // Open reminders. Reminder.userId is the adopter; join to profiles gives
   // the display name. Split into overdue vs upcoming at render time.
@@ -125,11 +131,13 @@ export default async function CheckinsPage({
       ),
     )
     .orderBy(asc(reminders.dueAt))
-    .limit(30);
+    .limit(CHECKIN_CAP + 1);
+  const remindersTruncated = openReminders.length > CHECKIN_CAP;
+  const displayReminders = remindersTruncated ? openReminders.slice(0, CHECKIN_CAP) : openReminders;
 
   const now = new Date();
-  const overdue = openReminders.filter((r) => new Date(r.dueAt).getTime() < now.getTime());
-  const upcoming = openReminders.filter((r) => new Date(r.dueAt).getTime() >= now.getTime());
+  const overdue = displayReminders.filter((r) => new Date(r.dueAt).getTime() < now.getTime());
+  const upcoming = displayReminders.filter((r) => new Date(r.dueAt).getTime() >= now.getTime());
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -185,6 +193,11 @@ export default async function CheckinsPage({
           Próximos{" "}
           <span className="text-[13px] font-normal text-ln-op-mute">({upcoming.length})</span>
         </h2>
+        {remindersTruncated && (
+          <p className="text-sm text-ln-op-mute">
+            Mostrando los primeros {CHECKIN_CAP} recordatorios por vencimiento; puede haber más.
+          </p>
+        )}
         {upcoming.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute">No hay próximos check-ins en agenda.</p>
         ) : (
@@ -225,15 +238,20 @@ export default async function CheckinsPage({
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">
           Check-ins recibidos{" "}
-          <span className="text-[13px] font-normal text-ln-op-mute">({recentCheckins.length})</span>
+          <span className="text-[13px] font-normal text-ln-op-mute">
+            ({checkinsTruncated ? `${CHECKIN_CAP}+` : displayCheckins.length})
+          </span>
         </h2>
-        {recentCheckins.length === 0 ? (
+        {checkinsTruncated && (
+          <p className="text-sm text-ln-op-mute">Mostrando los {CHECKIN_CAP} más recientes.</p>
+        )}
+        {displayCheckins.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute">Ningún check-in registrado todavía.</p>
         ) : (
           <OpCard>
             <OpCardBody className="p-0">
               <ul className="divide-y divide-ln-op-line">
-                {recentCheckins.map((row) => (
+                {displayCheckins.map((row) => (
                   <li key={row.eventId} className="px-4 py-3 space-y-1">
                     <p className="text-[13px] font-medium text-ln-op-ink">
                       <Link

@@ -1,6 +1,6 @@
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpCrumbs } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { speciesLabel } from "@/lib/utils/format";
@@ -65,6 +65,8 @@ export default async function VoluntariosPage({
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs (audit #18 — voluntarios had no breadcrumb). */}
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Voluntarios" }]} />
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Voluntarios</p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Pool de voluntarios</h1>
