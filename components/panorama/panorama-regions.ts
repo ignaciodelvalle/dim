@@ -131,9 +131,12 @@ export function regionBboxUnion(
 /**
  * The region whose framed bbox contains a point (lng/lat) — used to pick the
  * region under the viewport centre when scrolling IN from the national view.
- * Falls back to the region of the nearest member when no union contains the
- * point (unlikely, but keeps zoom-in responsive at the edges). Returns null only
- * when no province bboxes are loaded.
+ * Falls back to the region of the NEAREST member province (by bbox-centroid
+ * distance) when no union contains the point — this keeps zoom-in responsive at
+ * the edges and, critically, when the viewport centre lands in water (e.g. a
+ * wide Patagonia∪Malvinas frame whose geometric centre falls in the South
+ * Atlantic — MED 8: the previous null-return wedged wheel-IN there). Returns
+ * null ONLY when no province bboxes are loaded yet (basemap still fetching).
  */
 export function regionAtPoint(
   point: [number, number],
@@ -148,7 +151,26 @@ export function regionAtPoint(
     const union = regionBboxUnion(region.id, provinceBboxes);
     if (union && bboxesIntersect(union, pointBbox)) return region.id;
   }
-  return null;
+  // Nearest-member fallback (doc promise, now honoured): pick the region of the
+  // province whose bbox centroid is closest to the point. Squared Euclidean in
+  // lng/lat is fine here — we only compare distances, never report one.
+  let nearestRegion: RegionId | null = null;
+  let nearestDist = Number.POSITIVE_INFINITY;
+  for (const p of provinceBboxes) {
+    const region = regionForProvince(p.code);
+    if (region === null) continue;
+    const [[wLng, sLat], [eLng, nLat]] = p.bbox;
+    const cLng = (wLng + eLng) / 2;
+    const cLat = (sLat + nLat) / 2;
+    const dLng = cLng - lng;
+    const dLat = cLat - lat;
+    const dist = dLng * dLng + dLat * dLat;
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearestRegion = region;
+    }
+  }
+  return nearestRegion;
 }
 
 // ---------------------------------------------------------------------------

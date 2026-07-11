@@ -282,6 +282,16 @@ type Props = {
    */
   selectedLocalityCenter?: [number, number] | null;
   /**
+   * MED 7 (adversarial QA 2026-07-11): true when a `?locality` data scope is
+   * COMMITTED. The scroll-nav machine must read the committed locality scope,
+   * NOT infer it from `selectedLocalityCenter` presence — the centroid arrives
+   * asynchronously (scopeData fetch) and lags the commit, so a wheel OUT fired
+   * in that window mis-reads the level as "provincia" and skips to región,
+   * silently dropping the locality scope. This flag mirrors the committed
+   * `?locality` param directly.
+   */
+  localityCommitted?: boolean;
+  /**
    * panorama-redesign Fase 1: preset map framing. Set by PanoramaConsole when
    * the operator activates a preset that carries a `framing` field. `token`
    * is a monotonic counter so re-clicking the same preset re-frames. CAMERA
@@ -630,6 +640,7 @@ export function SituationalMap({
   onProvinceSeqLegendChange,
   onScopeCommit,
   scrollNavEnabled = false,
+  localityCommitted = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -677,6 +688,10 @@ export function SituationalMap({
   onScopeCommitRef.current = onScopeCommit;
   const selectedLocalityCenterRef = useRef(selectedLocalityCenter);
   selectedLocalityCenterRef.current = selectedLocalityCenter;
+  // MED 7: the COMMITTED ?locality scope (from the URL/console), read by the
+  // scroll-nav machine instead of the async-lagging centroid presence.
+  const localityCommittedRef = useRef(localityCommitted);
+  localityCommittedRef.current = localityCommitted;
   const regionFocusRef = useRef<RegionId | null>(null);
   const scrollNavEnabledRef = useRef(scrollNavEnabled);
   scrollNavEnabledRef.current = scrollNavEnabled;
@@ -1253,14 +1268,54 @@ export function SituationalMap({
     if (Math.abs(wheelAccumRef.current) < WHEEL_STEP_THRESHOLD) return;
     const direction: "in" | "out" = wheelAccumRef.current < 0 ? "in" : "out";
     wheelAccumRef.current = 0;
-    lastNavAtRef.current = now;
-    performNavStep(map, direction);
+    // MED 6 (adversarial QA 2026-07-11): the cooldown (lastNavAtRef) is armed
+    // INSIDE performNavStep, and ONLY when a step actually executes — a genuine
+    // no-op (already national going OUT, nothing under the centre) must not eat
+    // the gesture for 420 ms. The wheel event is threaded so an in-scope wheel-IN
+    // can anchor its free zoom at the cursor (HIGH 2).
+    performNavStep(map, direction, e);
+  }
+
+  // HIGH 3 (adversarial QA 2026-07-11): derive the region CAMERA focus from the
+  // LIVE viewport — the camera is the source of truth. Free zoom (± buttons,
+  // finger pinch, programmatic) moves the camera without touching regionFocusRef,
+  // so trusting that ref alone desyncs the hierarchy (a later wheel-OUT jumps to
+  // nación from a stale region). A national-wide viewport (≥55% of the national
+  // east-west span) reads as "national" → no region; a tighter frame reads as the
+  // region under the viewport centre. The width heuristic tracks what the operator
+  // SEES and avoids a brittle magic-zoom constant.
+  function deriveCameraRegion(
+    map: maplibregl.Map,
+    provinceBboxes: readonly ProvinceBbox[],
+  ): RegionId | null {
+    const b = map.getBounds();
+    const viewSpan = b.getEast() - b.getWest();
+    const nationalSpan = AR_BBOX[1][0] - AR_BBOX[0][0];
+    if (!(viewSpan > 0) || viewSpan >= nationalSpan * 0.55) return null;
+    const c = map.getCenter();
+    return regionAtPoint([c.lng, c.lat], provinceBboxes);
+  }
+
+  // HIGH 2 (adversarial QA 2026-07-11): a NATIVE free zoom-in toward the cursor.
+  // At a committed data scope the hierarchy has no finer *snap* level (localities
+  // are click-drilled), but the operator must still be able to reach the z≥8 label
+  // tier by wheel. This zooms without touching the hierarchy state (the province
+  // stays committed, so a later wheel-OUT still snaps to región), and it is silent
+  // — the PO's "no-op" expectation becomes useful in the good direction.
+  function freeZoomTowardCursor(map: maplibregl.Map, wheelEvent?: WheelEvent) {
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const target = Math.min(map.getZoom() + 0.75, map.getMaxZoom());
+    const around =
+      wheelEvent != null ? map.unproject([wheelEvent.offsetX, wheelEvent.offsetY]) : undefined;
+    map.easeTo({ zoom: target, around, duration: 160, animate: !prefersReducedMotion });
   }
 
   // Resolve + apply one hierarchy step. Data-scope changes go through
   // onScopeCommit (the console's autozoom effect frames them, region-aware);
   // region-only transitions (nación⇄región) are framed here directly.
-  function performNavStep(map: maplibregl.Map, direction: "in" | "out") {
+  function performNavStep(map: maplibregl.Map, direction: "in" | "out", wheelEvent?: WheelEvent) {
     const provinceBboxes = provinceBboxesRef.current;
     const c = map.getCenter();
     const center: [number, number] = [c.lng, c.lat];
@@ -1268,13 +1323,29 @@ export function SituationalMap({
     const provinceAtCenter =
       provinceBboxes.find((p) => bboxesIntersect(p.bbox, centerBbox))?.code ?? null;
     const regionAtCenter = regionAtPoint(center, provinceBboxes);
+    const committedProvince = selectedProvinceRef.current ?? null;
     const current: NavState = {
-      province: selectedProvinceRef.current ?? null,
-      locality: selectedLocalityCenterRef.current != null ? "committed" : null,
-      region: regionFocusRef.current,
+      province: committedProvince,
+      // MED 7: read the COMMITTED ?locality scope, not the async centroid presence
+      // (the centroid lags the commit and would mis-read the level mid-window).
+      locality: localityCommittedRef.current ? "committed" : null,
+      // HIGH 3: camera-as-truth for the region focus (see deriveCameraRegion).
+      region: committedProvince != null ? null : deriveCameraRegion(map, provinceBboxes),
     };
     const next = resolveScrollNav({ current, direction, provinceAtCenter, regionAtCenter });
-    if (next === null) return;
+    if (next === null) {
+      // HIGH 2: at a committed data scope, wheel-IN falls through to native free
+      // zoom (silent, useful) instead of a dead no-op. Wheel-OUT keeps the snap.
+      if (direction === "in" && current.province != null) {
+        lastNavAtRef.current = performance.now();
+        freeZoomTowardCursor(map, wheelEvent);
+      }
+      // MED 6: a genuine no-op — do NOT arm the cooldown, allow immediate retry.
+      return;
+    }
+
+    // An executed hierarchy step — arm the cooldown now (MED 6).
+    lastNavAtRef.current = performance.now();
 
     const scopeChanged =
       next.province !== current.province || (next.locality != null) !== (current.locality != null);

@@ -92,6 +92,20 @@ describe("regionAtPoint", () => {
     expect(regionAtPoint([-69, -39], bboxes)).toBe("patagonia"); // in Neuquén
     expect(regionAtPoint([-68, -34], bboxes)).toBe("cuyo"); // in Mendoza
   });
+
+  // MED 8 (adversarial QA 2026-07-11): a wide Patagonia∪Malvinas frame can put
+  // the viewport centre in the South Atlantic — no union contains it. The
+  // nearest-member fallback (doc promise, previously unimplemented) keeps
+  // wheel-IN responsive instead of wedging, returning the nearest region.
+  it("falls back to the NEAREST member region when the point is outside every union (ocean)", () => {
+    // Far south-east of both bboxes (open water); AR-Q (patagonia) centroid is
+    // closer than AR-M (cuyo).
+    expect(regionAtPoint([-60, -50], bboxes)).toBe("patagonia");
+  });
+
+  it("returns null only when no province bboxes are loaded yet", () => {
+    expect(regionAtPoint([-60, -50], [])).toBeNull();
+  });
 });
 
 describe("resolveScrollNav — OUT chain (localidad → provincia → región → nación)", () => {

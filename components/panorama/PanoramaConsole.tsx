@@ -431,6 +431,19 @@ type Props = {
    */
   allowedProvinces?: Array<{ code: string; name: string }>;
   /**
+   * True ONLY for a true universal navigator (admin / no jurisdiction fence).
+   * Gates the semantic scroll-nav wheel takeover AND the wheel-driven center
+   * scope commit. Adversarial QA 2026-07-11 (HIGH 1): the old heuristic
+   * `initialDivisionProvince == null` mis-classified a MULTI-province govt
+   * operator as universal — they lost cooperative wheel-zoom and could
+   * center-drill (camera-only) into provinces outside their mental model. Only
+   * an actor with no jurisdiction fence may own the wheel + free scope commit;
+   * a multi-province govt keeps cooperative zoom and click-drills their own
+   * provinces (still data-fenced server-side). Default false (tests / embedding
+   * callers get no takeover).
+   */
+  universalNav?: boolean;
+  /**
    * Localities of the INITIALLY-selected province (JurisdictionSwitcher
    * dropdown). Seeds the console's live scope-data state; an embedded drill
    * refreshes it from /api/panorama/scope for the newly-drilled province.
@@ -470,6 +483,7 @@ export function PanoramaConsole({
   seededLayers,
   scopeLabel,
   allowedProvinces,
+  universalNav = false,
   localities: initialLocalities = [],
   aboutSlot,
   demoNotice,
@@ -2927,6 +2941,14 @@ export function PanoramaConsole({
   //    (an effective `province` scope), never for the implicit jurisdiction scope.
   const canDrillProvince = initialDivisionProvince == null;
   const canReturnNational = effectiveScopeProvince != null;
+  // Adversarial QA 2026-07-11 (HIGH 1): the semantic scroll-nav wheel takeover
+  // and the wheel-driven center scope commit are gated on TRUE universal reach
+  // (admin / no jurisdiction fence), NOT the `initialDivisionProvince == null`
+  // heuristic. A multi-province govt operator satisfies that heuristic yet must
+  // keep cooperative wheel-zoom and may only click-drill (data-fenced) their own
+  // provinces — never own the wheel or free-commit a scope by centering. Click
+  // drill / "← Volver" stay on canDrillProvince (multi-province govt keeps them).
+  const scrollNavEligible = universalNav;
   // Locality centroid for autozoom — from the live scope-data (refreshed on an
   // embedded drill), so a locality picked after a province drill flies correctly.
   const selectedLocalityCenter: [number, number] | null =
@@ -3410,11 +3432,12 @@ export function PanoramaConsole({
           // operators (admin/universal, no forced jurisdiction) get the wheel
           // takeover + the general scope commit; a pinned gob operator keeps
           // cooperative wheel-zoom bounded to their jurisdiction.
-          onScopeCommit={canDrillProvince ? commitScopeDrill : undefined}
-          scrollNavEnabled={canDrillProvince}
+          onScopeCommit={scrollNavEligible ? commitScopeDrill : undefined}
+          scrollNavEnabled={scrollNavEligible}
           initialBounds={initialBounds}
           selectedProvinceCode={selectedProvinceCode}
           selectedLocalityCenter={selectedLocalityCenter}
+          localityCommitted={effectiveScopeLocality != null}
           frame={presetFrame}
           onZoom={onMapZoom}
           initialCamera={initialCamera}
