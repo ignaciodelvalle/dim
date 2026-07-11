@@ -74,6 +74,34 @@ describe("sampleStops", () => {
   });
 });
 
+/** WCAG contrast ratio between two `#rrggbb` colors. */
+function contrastRatio(a: string, b: string): number {
+  const la = relLuminance(a);
+  const lb = relLuminance(b);
+  const lighter = Math.max(la, lb);
+  const darker = Math.min(la, lb);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+describe("COLOR_DIVERGENT_ABOVE (CVD margin fix)", () => {
+  // Night-1 dataviz audit: teal-600 (#0d9488) measured ΔE 10.7 vs the neutral
+  // slate under deuteranopia simulation — inside the marginal 8-12 band. The
+  // fix (validated with dataviz's validate_palette.js) clears ΔE 18.3 while
+  // holding contrast against the navy map canvas. This test locks the navy
+  // contrast half of that guarantee so a future edit can't silently regress
+  // it back below WCAG's 3:1 non-text floor; re-run validate_palette.js for
+  // the CVD half whenever this constant changes.
+  const NAVY_MAP_CANVAS = "#0b1020";
+
+  it("holds at least 3:1 contrast against the navy map canvas", () => {
+    expect(contrastRatio(COLOR_DIVERGENT_ABOVE, NAVY_MAP_CANVAS)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("is not the pre-fix teal-600 that measured ΔE 10.7 (marginal CVD band)", () => {
+    expect(COLOR_DIVERGENT_ABOVE.toLowerCase()).not.toBe("#0d9488");
+  });
+});
+
 describe("RAMP_BLUE_DARK (dark situation-room map ramp)", () => {
   it("increases luminance from low to high value (bright = high signal)", () => {
     // The dark-map rule: the strongest signal must be the BRIGHTEST cell, so

@@ -145,8 +145,20 @@ export const COLOR_DIVERGENT_NEUTRAL = "#64748b" as const; // slate-500
  * Good pole (above compliance target): teal/blue.
  * Uses the teal CHART_COLOR family (not SCALE_BLUE_SEQ) to stay visually
  * distinct from sequential density choropleths that use RAMP_BLUE.
+ *
+ * CVD MARGIN FIX (night-1 dataviz audit): the original teal-600 (#0d9488)
+ * measured ΔE 10.7 against COLOR_DIVERGENT_NEUTRAL (#64748b) under deuteranopia
+ * simulation — inside the marginal 8-12 band where the two poles risk reading
+ * as the same color to a colorblind operator. Darkening straight down the
+ * teal-600 hue (e.g. teal-700 #0f766e, teal-800 #115e59) either stayed under
+ * the ΔE 12 floor or tanked contrast against the navy map canvas (#0b1020:
+ * teal-800 drops to 2.5:1, below the 3:1 floor). This value is a validated
+ * custom shade — one step darker AND a small hue nudge toward sea-green — that
+ * clears ΔE 18.3 (deutan) against the neutral slate while holding 4.18:1
+ * contrast against the navy canvas (was 5.06:1 at teal-600). Re-validate with
+ * dataviz's validate_palette.js before changing this value again.
  */
-export const COLOR_DIVERGENT_ABOVE = "#0d9488" as const; // teal-600
+export const COLOR_DIVERGENT_ABOVE = "#0c866b" as const; // teal-600, darkened + CVD-margin corrected
 
 /**
  * A divergent color scale for compliance/rate layers:

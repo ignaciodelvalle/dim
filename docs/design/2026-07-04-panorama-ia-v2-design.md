@@ -272,7 +272,7 @@ Cada una: qué se ve · copy es-AR · encoding (dataviz) + nota de paleta · hoo
 
 **Encoding.** *Diverging = dos tintas + gris/neutro en el midpoint significativo* (la meta, no el promedio del dato). Ya construido: `provinceDivergentColorExpr` + `divergentStops` anclan el neutro exactamente en `target`.
 
-**Paleta (CVD-safe, verificada en código).** Amber `#f59e0b` (bajo) → slate-50 `#f8fafc` (meta) → teal `#0d9488` (sobre). Es el eje **azul–naranja**, seguro para deuteranopía/protanopía (separa por tono Y luminancia, no por el eje rojo-verde prohibido). Fuente: PuOr de ColorBrewer adaptado. **Extender a nivel localidad** (hoy localidad de rate cae a conteo-densidad, `repository.ts:907` — lo desmiente la premisa "% cumplimiento").
+**Paleta (CVD-safe, verificada en código).** Amber `#f59e0b` (bajo) → slate-500 `#64748b` (meta) → teal `#0c866b` (sobre; corregido desde `#0d9488` — night-1 dataviz audit, ΔE 10.7 vs. neutro en deuteranopía quedaba en la banda marginal 8-12). Es el eje **azul–naranja**, seguro para deuteranopía/protanopía (separa por tono Y luminancia, no por el eje rojo-verde prohibido). Fuente: PuOr de ColorBrewer adaptado. **Extender a nivel localidad** (hoy localidad de rate cae a conteo-densidad, `repository.ts:907` — lo desmiente la premisa "% cumplimiento").
 
 **Cambio concreto.** Pasar `domainBounds: { min: 0, max: 100 }` fijo a `provinceDivergentColorExpr` para capas rate (hoy usa el rango observado). Hook: `province-choropleth-style.ts:88–127`, leyenda `SituationalMap.tsx:986–1016`.
 

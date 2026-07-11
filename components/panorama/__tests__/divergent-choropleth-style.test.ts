@@ -267,7 +267,7 @@ describe("SCALE_DIVERGENT_COMPLIANCE colorblind safety", () => {
     // Positive assertion: BELOW is amber-family (starts with #f or #d97 …).
     // COLOR_DIVERGENT_BELOW = "#f59e0b" (amber-400).
     expect(COLOR_DIVERGENT_BELOW.toLowerCase()).toMatch(/^#f[5-9][0-9a-f]/);
-    // ABOVE is teal-family (COLOR_DIVERGENT_ABOVE = "#0d9488" teal-600).
+    // ABOVE is teal-family (COLOR_DIVERGENT_ABOVE = "#0c866b", CVD-margin-corrected teal-600).
     expect(COLOR_DIVERGENT_ABOVE.toLowerCase()).toMatch(/^#0[0-9a-f][5-9][0-9a-f]/);
   });
 });
