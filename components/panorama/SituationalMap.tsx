@@ -1138,8 +1138,20 @@ export function SituationalMap({
     if (!loadedRef.current) return;
     const map = mapRef.current;
     if (!map) return;
-    const nationalBbox = nationalBboxRef.current;
-    if (!nationalBbox) return; // initial bounds not yet captured
+    // The national bbox is only the FALLBACK for a no-selection (return-to-
+    // national) frame; a province/locality drill derives its viewport from the
+    // basemap polygon / locality centroid and never consults it. It legitimately
+    // stays null on an admin national board whose only active layer is a province
+    // choropleth: those features carry `geometry: null` (they color the basemap by
+    // data-join), so `layersBbox` returns null AND no server `initialBounds` is
+    // supplied — the load handler therefore never captures a national bbox. Gating
+    // the WHOLE effect on it (`if (!nationalBbox) return`) silently disabled
+    // jurisdiction autozoom for the JurisdictionSwitcher / "← Volver" path, so a
+    // province committed via the picker updated every projection EXCEPT the camera.
+    // (The map-click drill was unaffected — `drillToProvince` fits imperatively via
+    // `provinceBboxesRef`.) Fall back to the static AR extent so a province-scope
+    // commit always reframes; the national fallback is only reached with no scope.
+    const nationalBbox = nationalBboxRef.current ?? AR_BBOX;
 
     let cancelled = false;
 

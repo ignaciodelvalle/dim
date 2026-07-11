@@ -114,6 +114,29 @@ describe("computeJurisdictionViewport — province selected", () => {
     expect(maxLat).toBeGreaterThanOrEqual(-29.3);
   });
 
+  it("resolves the province bbox INDEPENDENTLY of the national fallback bbox", () => {
+    // Regression anchor for the JurisdictionSwitcher autozoom bug: the map's
+    // autozoom effect early-returned whenever the national bbox had never been
+    // captured (an admin national board whose only layer is a geometry-less
+    // province choropleth → layersBbox() === null), so a province committed via
+    // the picker never reframed the camera. The fix lets the effect fall back to
+    // the static AR extent for the national slot. That is only safe because a
+    // PROVINCE viewport never consults the national bbox — proven here: two very
+    // different national fallbacks yield the exact same province bbox.
+    const bogusNational: [[number, number], [number, number]] = [
+      [-10, -10],
+      [10, 10],
+    ];
+    const a = computeJurisdictionViewport("AR-X", null, PROVINCE_FEATURES, NATIONAL_BBOX);
+    const b = computeJurisdictionViewport("AR-X", null, PROVINCE_FEATURES, bogusNational);
+    expect(a).toEqual(b);
+    expect(a.kind).toBe("fitBounds");
+    if (a.kind !== "fitBounds") throw new Error("narrow");
+    // And it is the province polygon's bbox, NOT either national fallback.
+    expect(a.bbox).not.toEqual(NATIONAL_BBOX);
+    expect(a.bbox).not.toEqual(bogusNational);
+  });
+
   it("falls through to national bbox when provinceCode is selected but localityCenter is also present — locality takes precedence", () => {
     // When both are provided, locality is more specific → flyTo.
     const result = computeJurisdictionViewport(
