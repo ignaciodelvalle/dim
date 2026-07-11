@@ -70,9 +70,20 @@ export default async function UpgradePage() {
           <LnCardHead title="Profesional veterinario" />
           <LnCardBody>
             {profile?.role === "vet" ? (
-              <p className="text-[13px] text-[var(--color-ln-mute)]">
-                Ya sos veterinario/a verificado/a en MiMAR.
-              </p>
+              // Approved & role already applied (approval sets profiles.role='vet'
+              // immediately). Give the verified vet a clear next step instead of a
+              // dead-end sentence: create their consultorio (task #17).
+              <div className="space-y-3">
+                <p className="text-[13px] text-[var(--color-ln-mute)]">
+                  Ya sos veterinario/a verificado/a en MiMAR.
+                </p>
+                <Link
+                  href="/cuenta/crear-consultorio"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[var(--text-md)] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                >
+                  Crear mi consultorio →
+                </Link>
+              </div>
             ) : (
               <>
                 <p className="mb-4 text-[13px] text-[var(--color-ln-ink-2)]">
@@ -91,19 +102,32 @@ export default async function UpgradePage() {
                     )}
                   </div>
                 ) : latestVetRequest?.status === "approved" ? (
-                  // Approved but profile.role not yet "vet" — role update may be in-flight
-                  // (e.g. session cache stale). Show a success state instead of the blank form.
+                  // Approved success state. Role is applied immediately on approval
+                  // (approve-request sets profiles.role='vet' in the same tx — there
+                  // is no JWT role cache), so the old "reflejará el rol en tu próxima
+                  // sesión" copy invented a delay that does not exist (task #17). The
+                  // straight path here is to create the consultorio.
                   <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2.5">
                     <p className="text-[13px] font-semibold text-[var(--color-ln-ok)]">
                       ¡Solicitud aprobada!
                     </p>
                     <p className="mt-0.5 text-sm text-[var(--color-ln-ok)]">
-                      Tu matrícula fue verificada. Tu cuenta va a reflejar el rol veterinario en tu
-                      próxima sesión.{" "}
-                      <a href="/cuenta" className="underline hover:no-underline">
-                        Volver a mi cuenta →
-                      </a>
+                      Tu matrícula fue verificada y tu rol de veterinario/a ya está activo.
                     </p>
+                    <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                      <Link
+                        href="/cuenta/crear-consultorio"
+                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[var(--text-md)] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                      >
+                        Crear mi consultorio →
+                      </Link>
+                      <Link
+                        href="/cuenta"
+                        className="text-sm text-[var(--color-ln-ok)] underline hover:no-underline"
+                      >
+                        Volver a mi cuenta
+                      </Link>
+                    </div>
                   </div>
                 ) : latestVetRequest?.status === "rejected" ? (
                   <>
