@@ -372,9 +372,12 @@ const AR_DEPARTMENTS_URL = "/geo/ar-departments.geojson";
 const CONTEXT_URL = "/geo/sudamerica-context.geojson";
 
 // map-QOL zoom-bounds clamp: the camera can never wander away from the
-// national territory. AR_BBOX (lib/ui/map-bounds) padded by a few degrees so
-// border jurisdictions aren't pinned against the viewport edge.
-const MAX_BOUNDS_PAD_DEG = 6;
+// national territory. AR_BBOX (lib/ui/map-bounds) padded by a small margin so
+// border jurisdictions aren't pinned against the viewport edge — but NOT so much
+// that the operator can drag the country into a corner and roam the open ocean.
+// panorama redesign Theme 2 (anchor the camera): tightened 6° → 1.5° (~165 km at
+// this latitude) so Argentina fills the frame and manual pan stays over land.
+const MAX_BOUNDS_PAD_DEG = 1.5;
 const AR_MAX_BOUNDS: [[number, number], [number, number]] = [
   [AR_BBOX[0][0] - MAX_BOUNDS_PAD_DEG, AR_BBOX[0][1] - MAX_BOUNDS_PAD_DEG],
   [AR_BBOX[1][0] + MAX_BOUNDS_PAD_DEG, AR_BBOX[1][1] + MAX_BOUNDS_PAD_DEG],
@@ -751,6 +754,13 @@ export function SituationalMap({
         // a meaningless world view.
         maxBounds: AR_MAX_BOUNDS,
         minZoom: MIN_ZOOM,
+        // panorama redesign Theme 2 (anchor the camera): a manual-zoom CEILING so
+        // the operator can never zoom past the deepest programmatic frame into an
+        // empty, data-less void. Set just above FRAME_MAX_ZOOM (the ceiling every
+        // programmatic fitBounds uses) so jurisdiction autozoom, preset frames and
+        // the reset button all still land normally — only the free wheel-zoom roam
+        // is bounded.
+        maxZoom: FRAME_MAX_ZOOM + 2,
         // preserveDrawingBuffer stays OFF (GL memory + compositor optimizations
         // the always-on flag disables) — only "Exportar PNG" needs the buffer,
         // and exportPng() below captures it on-demand instead: it forces a
