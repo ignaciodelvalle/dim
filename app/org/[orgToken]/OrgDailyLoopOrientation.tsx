@@ -15,6 +15,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { OpButton } from "@/components/ui/dashboard/OpButton";
+
 type LoopItem = { label: string; path: string; hint: string };
 
 // Daily-loop entry points per org type — the queues that matter for that type's
@@ -103,7 +105,7 @@ export function OrgDailyLoopOrientation({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-[13px] font-semibold text-ln-op-ink">
+          <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
             ¡Listo! Tu organización quedó configurada.
           </p>
           <p className="text-sm text-ln-op-mute">
@@ -111,13 +113,9 @@ export function OrgDailyLoopOrientation({
             el menú y en la tarjeta de Pendientes de abajo.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={dismiss}
-          className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
-        >
+        <OpButton variant="ghost" size="sm" onClick={dismiss} className="shrink-0">
           Entendido
-        </button>
+        </OpButton>
       </div>
       <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
         {items.map((item) => (
@@ -126,7 +124,7 @@ export function OrgDailyLoopOrientation({
               href={`/org/${orgToken}/${item.path}`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line-2 p-3 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-medium text-ln-op-ink">{item.label}</p>
+              <p className="text-[var(--text-md)] font-medium text-ln-op-ink">{item.label}</p>
               <p className="text-sm text-ln-op-mute">{item.hint}</p>
             </Link>
           </li>
