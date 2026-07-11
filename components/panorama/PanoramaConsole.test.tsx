@@ -20,7 +20,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -199,6 +199,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
     renderConsole();
     const pushSpy = vi.spyOn(window.history, "pushState");
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(pushSpy).toHaveBeenCalledTimes(1);
@@ -215,6 +216,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   it("never calls router.push/replace/refresh — the commit bypasses the router entirely", () => {
     renderConsole();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(routerPush).not.toHaveBeenCalled();
@@ -225,6 +227,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   it("fetches the preset's layers client-side against the NEW period", async () => {
     renderConsole();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     await waitFor(() => {
@@ -246,6 +249,7 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   it("persists the committed board to localStorage for the bare-URL restore", () => {
     renderConsole();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     const raw = window.localStorage.getItem("panorama:board:v1");
@@ -328,8 +332,8 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
     // Missing capasDetail/scrubDetail default to Simple (false) — both
     // Simple/Detalle toggles read "Simple" as pressed. (Open the Capas popover
     // so the toggle mounts — layers are secondary chrome in the redesign.)
-    openCapas();
-    expect(screen.getByRole("button", { name: "Modo simple de capas" })).toHaveAttribute(
+    openFiltro();
+    expect(screen.getByRole("button", { name: "Modo simple de Filtro" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -341,12 +345,15 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
     renderConsole();
 
     // Commit preset A, then preset B — two history entries.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     const urlAfterA = `${window.location.pathname}${window.location.search}`;
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("brotes-activos");
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("bienestar");
+    openVista();
     expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -365,10 +372,12 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
     // The view re-derived: preset A is active again, B is not — the tab/legend/KPIs
     // (all preset-driven) follow the reverted URL instead of staying on B.
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("brotes-activos");
+    openVista();
     expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
       "aria-checked",
       "true",
     );
+    openVista();
     expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
       "aria-checked",
       "false",
@@ -379,6 +388,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
     renderConsole();
 
     // Preset A at its default window (90d)…
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     // …then the operator customizes the period to 12m — a shallow replace that
     // keeps preset=A in the URL (the period picker's commit shape).
@@ -391,6 +401,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
     expect(new URLSearchParams(window.location.search).get("period")).toBe("12m");
 
     // Preset B — a new history entry back at B's default window.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("bienestar");
     fetchMock.mockClear();
@@ -404,6 +415,7 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
     });
 
     // Preset A is active again…
+    openVista();
     expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -518,16 +530,32 @@ function isBefore(a: Element, b: Element): boolean {
 }
 
 /**
- * Open the "Capas" popover so its CapasBox (Simple/Detalle toggle, LayerPanel)
- * mounts. The ARCHETYPE redesign moved the layer catalog behind a compact
- * popover button — layers are secondary to the preset strip — so any test that
- * interacts with the Simple/Detalle controls must open it first.
+ * Open the "Filtro" rail panel so its layer catalog (Simple/Detalle toggle,
+ * LayerPanel) mounts. Task #38 v3 replaced the old top-left "Capas" popover
+ * with the floating vertical rail — the layer catalog now lives behind the
+ * "Filtro" icon button — so any test that interacts with the Simple/Detalle
+ * controls or the LayerPanel must open it first. "Filtro" is unique: the
+ * bivariate encoding toggle (Brotes vista) still uses the literal "Capas"
+ * label, but that button carries no `aria-expanded`, so it never collides.
  */
-function openCapas(): void {
-  // The popover trigger is the only "Capas" button carrying aria-expanded — the
-  // bivariate encoding toggle (Brotes vista) is also labelled "Capas" but has no
-  // expanded state, so filtering by `expanded` disambiguates them.
-  fireEvent.click(screen.getByRole("button", { name: /Capas/, expanded: false }));
+function openFiltro(): void {
+  fireEvent.click(screen.getByRole("button", { name: "Filtro" }));
+}
+
+/**
+ * Ensure the "Vista" rail panel is open so the preset radiogroup (PresetPanel)
+ * mounts. Task #38 v3: the preset strip moved off the always-visible top-left
+ * cluster into the "Vista" rail panel, AND selecting a preset auto-closes the
+ * panel (`setRailOpen(null)` in the panel's `onPreset` wrapper) — so this must
+ * be called again before every subsequent radio read/click in the same test.
+ * Idempotent: only clicks the trigger when the panel isn't already open, so
+ * calling it repeatedly never accidentally toggles it closed.
+ */
+function openVista(): void {
+  const trigger = screen.getByRole("button", { name: "Vista" });
+  if (trigger.getAttribute("aria-expanded") !== "true") {
+    fireEvent.click(trigger);
+  }
 }
 
 /**
@@ -566,8 +594,8 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     // destacable…" landmark — an EMPTY strip now reads as a failure state (fix #1).
     renderRedesignConsole({ defaultSuppressedCount: 3, initialKpis: REAL_KPIS });
 
-    // The Vista dropdown pill labels the preset control (top-left cluster).
-    const presets = screen.getByText("Vista");
+    // Task #38 v3: the "Vista" rail button labels the preset control (right rail).
+    const presets = screen.getByRole("button", { name: "Vista" });
     const map = screen.getByTestId("map-region");
     // v2C: the map leads the DOM (overlays are absolute siblings AFTER it).
     expect(isBefore(map, presets)).toBe(true);
@@ -635,14 +663,16 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     ).not.toBeInTheDocument();
   });
 
-  it("hosts the filters slot inside the 'Alcance y período' disclosure, next to CapasBox", () => {
+  it("hosts the filters slot inside the scope-pill disclosure, next to the Filtro rail button", () => {
     const { container } = renderRedesignConsole();
 
-    const scopeSummary = screen.getByText("Alcance y período");
+    // Task #38 v3: the old "Alcance y período" disclosure summary is now the
+    // scope pill (same <details>/<summary> disclosure primitive, OverlayDisclosure).
+    const scopeSummary = screen.getByTestId("panorama-scope-pill");
     expect(scopeSummary.closest("details")).not.toBeNull();
-    // panorama-vista-redesign Phase 2: "Personalizar" moved into CapasBox's
-    // Detalle mode (rendered inside the Vista panel, not the right rail).
-    expect(screen.getByText("Capas")).toBeInTheDocument();
+    // panorama-vista-redesign Phase 2 / task #38 v3: the layer catalog trigger
+    // (formerly "Capas", now the rail's "Filtro" icon button) is present.
+    expect(screen.getByRole("button", { name: "Filtro" })).toBeInTheDocument();
 
     // The slot content is REACHABLE (identical behavior, one click away)…
     const filterSelect = screen.getByLabelText("Provincia");
@@ -653,28 +683,30 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(container.contains(filterSelect)).toBe(true);
   });
 
-  it("first paint: Vista strip + Capas button + the collapsed dock (timeline opt-in) are visible; the scrubber mounts on the timeline tab", () => {
-    // v2C: the preset strip stays first-paint (presets-as-onboarding), the
-    // layer catalog stays behind the compact "Capas" popover, and the
-    // TimeScrubber moved into the floating dock's "Línea de tiempo" tab
-    // (PO: timeline is opt-in — the dock ships collapsed, "MÁS MAPA").
+  it("first paint: the rail + Filtro button + the collapsed dock (timeline opt-in) are visible; the scrubber mounts on the timeline tab", () => {
+    // Task #38 v3: the preset strip moved off first-paint into the "Vista" rail
+    // panel; the always-visible first-paint control budget is now the rail
+    // (7 icon buttons) + KPI cards + dock bar, and the layer catalog stays
+    // behind the "Filtro" rail button. The TimeScrubber moved into the floating
+    // dock's "Línea de tiempo" tab (PO: timeline is opt-in, dock ships collapsed).
     const { container } = renderRedesignConsole({ defaultSuppressedCount: 3 });
 
-    // The 6 preset tabs are first-paint.
+    // At least 6 controls (rail icons, KPI cards, dock tabs/Expandir) are
+    // first-paint, none of them behind a closed disclosure.
     expect(
       Array.from(container.querySelectorAll("button")).filter(
         (b) => b.closest("details:not([open])") === null,
       ).length,
     ).toBeGreaterThanOrEqual(6);
-    // The "Capas" trigger is visible at first paint (not behind a disclosure);
-    // the Simple/Detalle toggle only mounts once the popover is opened.
-    const capasBtn = screen.getByRole("button", { name: /Capas/, expanded: false });
+    // The "Filtro" trigger is visible at first paint (not behind a disclosure);
+    // the Simple/Detalle toggle only mounts once the rail panel is opened.
+    const capasBtn = screen.getByRole("button", { name: "Filtro", expanded: false });
     expect(capasBtn).toBeVisible();
     expect(capasBtn.closest("details:not([open])")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Modo simple de capas" })).not.toBeInTheDocument();
-    openCapas();
-    expect(screen.getByRole("button", { name: "Modo simple de capas" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Modo detalle de capas" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Modo simple de Filtro" })).not.toBeInTheDocument();
+    openFiltro();
+    expect(screen.getByRole("button", { name: "Modo simple de Filtro" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Modo detalle de Filtro" })).toBeVisible();
     // The dock bar is first-paint (collapsed): its three tabs are reachable but
     // no pane content mounts yet — the scrubber arrives on the timeline tab.
     expect(screen.getByTestId("panorama-dock")).toBeVisible();
@@ -692,8 +724,10 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
+    openVista();
     expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -712,6 +746,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     renderRedesignConsole();
     openTimeline();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
@@ -725,6 +760,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     // brotes-activos: base cobertura (current-state) + signal zoonosis (temporal)
     // → the scrubber stays active (zoonosis reproduces) but must state plainly
     // that the cobertura fill does not move with the fecha de corte.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(screen.queryByText("No disponible en esta vista")).not.toBeInTheDocument();
@@ -738,15 +774,18 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     renderRedesignConsole();
     openTimeline();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
-    // Flip to Detalle so the mocked LayerPanel mounts and captures onToggle.
-    openCapas();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
+    // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
+    // tier — FiltroPanel renders the checkbox rows directly (LayerPanel is no
+    // longer mounted), so click the zoonosis row's checkbox for real.
+    openFiltro();
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Filtro" }));
 
     // zoonosis is temporal — activating it must flip temporalAvailable true.
     await act(async () => {
-      layerPanelProps?.onToggle?.("zoonosis");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Zoonosis/ }));
     });
 
     await waitFor(() => {
@@ -762,6 +801,7 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 1 });
@@ -771,7 +811,9 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
     expect(mapProps?.frame).toEqual({ framing: { kind: "national" }, token: 2 });
@@ -783,7 +825,9 @@ describe("PanoramaConsole — preset frame (camera-only)", () => {
 
     // bienestar is a locality-level drill-down preset — deliberately framing-less
     // (design-QA 2026-07-04: only national-overview presets frame the country).
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
 
     expect(mapProps?.frame).toBeNull();
@@ -810,6 +854,7 @@ describe("PanoramaConsole — first-visit default preset (design-QA 2026-07-04 h
     // Preset row and map state are CONNECTED on first paint: the button reads
     // active. bienestar is a locality drill-down preset — deliberately
     // framing-less, so the map receives no national frame on the default land.
+    openVista();
     expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
       "aria-checked",
       "true",
@@ -923,6 +968,7 @@ describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2
 
     // The preset row + map connect on first paint (no fetch waited on).
     await waitFor(() => {
+      openVista();
       expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
         "aria-checked",
         "true",
@@ -995,7 +1041,9 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     renderRedesignConsole();
 
     // Two clicks inside the 200ms debounce window: only the LAST preset fetches.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
     await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
@@ -1012,16 +1060,19 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
   it("aborts a superseded in-flight fetch; the abort NEVER deactivates the layer; last click wins", async () => {
     deferMode = true;
     renderRedesignConsole();
-    // CapasBox mounts LayerPanel only in Detalle mode (panorama-vista-redesign
-    // Phase 2) — flip to Detalle so the mocked LayerPanel captures `states`.
-    openCapas();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
+    // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
+    // tier — FiltroPanel renders the cobertura row's checkbox + live
+    // loading/count spans directly (LayerPanel is no longer mounted).
+    openFiltro();
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Filtro" }));
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => expect(coberturaCalls()).toHaveLength(1));
 
     // Burst B (cumplimiento) supersedes A's cobertura fetch.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
     await waitFor(() => expect(coberturaCalls()).toHaveLength(2));
 
@@ -1031,13 +1082,17 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
 
     // Let A's AbortError rejection settle: the catch must EARLY-RETURN — the
     // layer stays active+loading (B in flight), never flipped to inactive.
+    // Selecting a preset closes the rail panel (task #38 v3) — reopen Filtro
+    // to read the row's live state (the underlying `states` is console state,
+    // unaffected by the panel remounting).
     await act(async () => {});
-    const midFlight = layerPanelProps?.states?.cobertura as {
-      active: boolean;
-      loading: boolean;
-    };
-    expect(midFlight.active).toBe(true);
-    expect(midFlight.loading).toBe(true);
+    openFiltro();
+    const coberturaCheckbox = screen.getByRole("checkbox", {
+      name: /Cobertura antirrábica/,
+    }) as HTMLInputElement;
+    const coberturaRow = coberturaCheckbox.closest("label") as HTMLElement;
+    expect(coberturaCheckbox.checked).toBe(true);
+    expect(within(coberturaRow).getByText("cargando…")).toBeInTheDocument();
 
     // Resolve the WINNING (last) fetch — its payload lands.
     const point = {
@@ -1057,14 +1112,9 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     });
 
     await waitFor(() => {
-      const s = layerPanelProps?.states?.cobertura as {
-        active: boolean;
-        loading: boolean;
-        count: number;
-      };
-      expect(s.loading).toBe(false);
-      expect(s.active).toBe(true);
-      expect(s.count).toBe(2);
+      expect(within(coberturaRow).queryByText("cargando…")).not.toBeInTheDocument();
+      expect(coberturaCheckbox.checked).toBe(true);
+      expect(within(coberturaRow).getByText("2")).toBeInTheDocument();
     });
   });
 });
@@ -1141,6 +1191,7 @@ describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, r
   it("drills to LOCALITY when the camera zooms past Z_LOCALITY at national scope", async () => {
     renderConsole();
     // Activate a province-baseline preset with a choropleth base (cobertura).
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
@@ -1165,6 +1216,7 @@ describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, r
 
   it("keeps PROVINCE at national scope while the camera stays below Z_LOCALITY", async () => {
     renderConsole();
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(mapProps?.onZoom).toBeInstanceOf(Function);
@@ -1195,10 +1247,13 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     openTimeline();
 
     // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
-    // Flip to Detalle so LayerPanel mounts and captures onToggle.
-    openCapas();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de capas" }));
+    // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
+    // tier — FiltroPanel renders the checkbox rows directly (LayerPanel is no
+    // longer mounted).
+    openFiltro();
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Filtro" }));
 
     // Start a scrub — the loop chip is enabled as soon as zoonosis is active
     // (activation is synchronous; it doesn't wait on the layer fetch).
@@ -1213,9 +1268,11 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
       expect(cobertura?.dimmed).toBe(true);
     });
 
-    // Deactivate the only temporal layer — temporalAvailable flips false.
+    // Deactivate the only temporal layer — temporalAvailable flips false. The
+    // Filtro panel is still open/Detalle (nothing since closed it), so the
+    // zoonosis checkbox (checked, activated above) is reachable directly.
     await act(async () => {
-      layerPanelProps?.onToggle?.("zoonosis");
+      fireEvent.click(screen.getByRole("checkbox", { name: /Zoonosis/ }));
     });
 
     await waitFor(() => {
@@ -1236,6 +1293,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     renderRedesignConsole();
     openTimeline();
 
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
@@ -1269,6 +1327,7 @@ describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITI
 
     // brotes-activos at national scope → province is the derived level; zoonosis
     // (temporal) is active.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
@@ -1316,6 +1375,7 @@ describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITI
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
     openTimeline();
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
@@ -1340,6 +1400,7 @@ describe("PanoramaConsole — bivariate is honest under a scrub (CRITICAL-2)", (
 
     // brotes-activos + province level + cobertura & zoonosis active → the encoding
     // toggle is offered.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     const bivariateBtn = await screen.findByRole("button", { name: "Riesgo (bivariado)" });
     expect(bivariateBtn).toBeEnabled();
@@ -1407,6 +1468,7 @@ describe("PanoramaConsole — reading aligned with the metrics column (QA fix, f
     // bienestar's curated metrics are denuncias/mordeduras/mascotas — cobertura
     // (the larger-magnitude delta) is excluded. The full-kpis reading would
     // headline cobertura; the aligned reading must headline mordeduras instead.
+    openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
 
     await waitFor(() => {
@@ -1436,8 +1498,8 @@ describe("PanoramaConsole — saved-board Simple/Detalle strict boolean coercion
       const params = new URLSearchParams(window.location.search);
       expect(params.get("layers")).toBe("cobertura");
     });
-    openCapas();
-    expect(screen.getByRole("button", { name: "Modo simple de capas" })).toHaveAttribute(
+    openFiltro();
+    expect(screen.getByRole("button", { name: "Modo simple de Filtro" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
