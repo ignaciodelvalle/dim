@@ -3406,6 +3406,12 @@ export function PanoramaConsole({
           onFeatureClick={onFeatureClick}
           onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
           onReturnNational={canReturnNational ? onReturnNational : undefined}
+          // task #36 fix 5 — semantic scroll navigation. Only free-navigation
+          // operators (admin/universal, no forced jurisdiction) get the wheel
+          // takeover + the general scope commit; a pinned gob operator keeps
+          // cooperative wheel-zoom bounded to their jurisdiction.
+          onScopeCommit={canDrillProvince ? commitScopeDrill : undefined}
+          scrollNavEnabled={canDrillProvince}
           initialBounds={initialBounds}
           selectedProvinceCode={selectedProvinceCode}
           selectedLocalityCenter={selectedLocalityCenter}
