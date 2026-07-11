@@ -2946,7 +2946,7 @@ export function PanoramaConsole({
           />
         </div>
       </div>
-      <DetailDrawer selected={selected} onClose={closeDrawer} />
+      <DetailDrawer selected={selected} periodLabel={viewMeta.periodLabel} onClose={closeDrawer} />
     </div>
   );
 }

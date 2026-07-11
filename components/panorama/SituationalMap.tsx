@@ -1818,6 +1818,51 @@ export function SituationalMap({
     return out;
   }
 
+  // Aggregate the readout across ALL active POINT (graduated) + locality
+  // graduated-symbol choropleth layers at ONE clicked unit, matched by its place
+  // label — the multi-layer readout for a bubble/circle pin (the point-mode
+  // counterpart to provinceReadouts / divisionReadouts). The clicked layer always
+  // matches its own feature, so it is always present; sibling point/circle layers
+  // join the readout when they carry a feature at the same unit label.
+  function pointReadouts(clickedPlace: string): LayerReadout[] {
+    const out: LayerReadout[] = [];
+    for (const l of layersRef.current) {
+      const isGraduatedPoint = l.geomType === "point" && l.renderMode === "graduated";
+      const isSymbolChoro = l.geomType === "choropleth" && l.level === "locality";
+      if (!isGraduatedPoint && !isSymbolChoro) continue;
+      let matched: { value: number | null; suppressed: boolean } | null = null;
+      for (const f of l.features.features) {
+        const p = f.properties as {
+          place?: string;
+          locality?: string;
+          province?: string;
+          count?: number | null;
+          value?: number | null;
+          suppressed?: boolean;
+        };
+        const placeLabel = p.place ?? [p.locality, p.province].filter(Boolean).join(", ");
+        if (placeLabel && placeLabel === clickedPlace) {
+          matched = {
+            value: (isGraduatedPoint ? p.count : p.value) ?? null,
+            suppressed: p.suppressed === true,
+          };
+          break;
+        }
+      }
+      if (!matched) continue;
+      out.push(
+        buildLayerReadout({
+          label: l.label,
+          value: matched.value,
+          suppressed: matched.suppressed,
+          dataType: l.dataType,
+          complianceTarget: l.complianceTarget,
+        }),
+      );
+    }
+    return out;
+  }
+
   // Pin the persistent popup at a unit: selectable multi-layer readout + a
   // "Ver detalle →" affordance that opens the DetailDrawer (keeps both patterns —
   // the popup is the quick layer, the drawer the deep layer). Works on touch: a
@@ -2375,10 +2420,24 @@ export function SituationalMap({
         )
         .addTo(map);
     });
+    // A single click PINS the popup first (multi-layer readout + "Ver detalle →"
+    // that opens the DetailDrawer) — the same coherent inspection model the
+    // choropleth/division fills already use, instead of jumping straight to the
+    // drawer. The drawer is one click further, behind the affordance.
     map.on("click", pl, (e) => {
       const f = e.features?.[0];
       if (!f) return;
-      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
+      const props = (f.properties ?? {}) as { place?: string };
+      const place = props.place ?? "—";
+      const geom = f.geometry as GeoJSON.Point | null;
+      const lngLat = geom?.type === "Point" ? (geom.coordinates as [number, number]) : e.lngLat;
+      openPinnedPopup({
+        map,
+        lngLat,
+        place,
+        readouts: pointReadouts(place),
+        detail: { layerId: layer.id, properties: (f.properties ?? {}) as Record<string, unknown> },
+      });
     });
     // map-QOL: double-click a unit → open its DetailDrawer AND zoom in on it
     // (cancels MapLibre's default dblclick zoom so the camera centers the unit).
@@ -2490,12 +2549,24 @@ export function SituationalMap({
         )
         .addTo(map);
     });
-    // Clicking a choropleth cell opens the DetailDrawer. Suppressed cells still
-    // open — the drawer renders "Suprimido", never the real count (k-anon).
+    // Clicking a choropleth cell PINS the popup first (multi-layer readout +
+    // "Ver detalle →" that opens the DetailDrawer) — one coherent inspection
+    // model with the province/division fills. Suppressed cells still pin — the
+    // readout + drawer render "Suprimido", never the real count (k-anon).
     map.on("click", id, (e) => {
       const f = e.features?.[0];
       if (!f) return;
-      onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
+      const p = f.properties as { locality?: string; province?: string };
+      const place = [p.locality, p.province].filter(Boolean).join(", ") || "—";
+      const geom = f.geometry as GeoJSON.Point | null;
+      const lngLat = geom?.type === "Point" ? (geom.coordinates as [number, number]) : e.lngLat;
+      openPinnedPopup({
+        map,
+        lngLat,
+        place,
+        readouts: pointReadouts(place),
+        detail: { layerId: layer.id, properties: (f.properties ?? {}) as Record<string, unknown> },
+      });
     });
     // map-QOL: double-click a locality cell → DetailDrawer + zoom to the cell.
     map.on("dblclick", id, (e) => {

@@ -66,6 +66,9 @@ export type SelectedFeature = {
 type Props = {
   /** The selected feature, or null when the drawer is closed. */
   selected: SelectedFeature | null;
+  /** Active period label ("últimos 90 días") — shown in the aggregate unit
+   * summary so an aggregated bubble's readout carries its time window. */
+  periodLabel?: string;
   onClose: () => void;
 };
 
@@ -158,6 +161,18 @@ function unitRowLabel(properties: Record<string, unknown>, isProvince: boolean):
   return str(properties, "province") === "CABA" ? "Barrio" : "Departamento/partido";
 }
 
+/**
+ * True when the clicked feature is an AGGREGATED unit cell (province/locality
+ * rollup) rather than an individual points-mode dot. Aggregated point cells carry
+ * the `place` unit label + `level`; points-mode dots (perdidas/mordeduras) carry
+ * per-entity fields only (name/species/incidentType…) and neither of those keys.
+ * Used by the dual-mode point layers to pick the unit-summary body vs the per-pet
+ * body — the same feature the map plots as a bubble vs a real dot.
+ */
+function isAggregatedUnit(properties: Record<string, unknown>): boolean {
+  return typeof properties.place === "string" || typeof properties.level === "string";
+}
+
 /** Format an ISO date string to es-AR short date; "—" when absent/invalid. */
 function shortDate(iso: string | null): string {
   if (!iso) return "—";
@@ -206,6 +221,55 @@ function DrillLink({ href, children }: { href: string; children: React.ReactNode
   );
 }
 
+/**
+ * The unit-summary body for an AGGREGATED cell of a dual-mode point layer
+ * (perdidas/mordeduras clicked as a bubble, not a real dot). Mirrors the
+ * sintomas/choropleth aggregate shape so the drawer header is never dead weight:
+ * the unit name (labeled by its department/barrio/province KIND), the layer's
+ * value with its unit, and the active period. Suppressed cells honor k-anon.
+ */
+function AggregateUnitBody({
+  properties,
+  valueLabel,
+  periodLabel,
+  drillHref,
+  drillLabel,
+}: {
+  properties: Record<string, unknown>;
+  valueLabel: string;
+  periodLabel?: string;
+  drillHref: string;
+  drillLabel: string;
+}) {
+  const isProvince = str(properties, "level") === "province";
+  const suppressed = properties.suppressed === true;
+  const place =
+    str(properties, "place") ??
+    (isProvince
+      ? (str(properties, "province") ?? "—")
+      : [str(properties, "locality"), str(properties, "province")].filter(Boolean).join(", "));
+  const count = properties.count;
+  return (
+    <>
+      <dl>
+        <Row label={unitRowLabel(properties, isProvince)} value={place || "—"} />
+        <Row
+          label={valueLabel}
+          value={
+            suppressed ? (
+              <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
+            ) : (
+              (typeof count === "number" ? count : 0).toLocaleString("es-AR")
+            )
+          }
+        />
+        {periodLabel ? <Row label="Período" value={periodLabel} /> : null}
+      </dl>
+      <DrillLink href={drillHref}>{drillLabel}</DrillLink>
+    </>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Per-layer body (individual-feature detail; no unit history)
 // ---------------------------------------------------------------------------
@@ -215,7 +279,8 @@ function DrillLink({ href, children }: { href: string; children: React.ReactNode
 export function FeatureBody({
   layerId,
   properties,
-}: { layerId: LayerId; properties: Record<string, unknown> }) {
+  periodLabel,
+}: { layerId: LayerId; properties: Record<string, unknown>; periodLabel?: string }) {
   // This drawer is shared by /admin/panorama and /gob/panorama (both render the
   // same layer registry). "organizaciones" is one of the dual-portal surfaces
   // (cola/usuarios/organizaciones/reglas/servicios — portal-follows-viewer,
@@ -277,6 +342,20 @@ export function FeatureBody({
     }
 
     case "perdidas": {
+      // An aggregated bubble (province/locality rollup) carries no per-pet
+      // identity — render the unit summary instead of four dead "—" rows. The
+      // real per-pet header below is kept for points-mode sighting dots.
+      if (isAggregatedUnit(properties)) {
+        return (
+          <AggregateUnitBody
+            properties={properties}
+            valueLabel="Reportes de pérdida"
+            periodLabel={periodLabel}
+            drillHref="/gob/perdidas"
+            drillLabel="Ver pérdidas →"
+          />
+        );
+      }
       const status = str(properties, "status");
       const species = str(properties, "species");
       return (
@@ -293,6 +372,20 @@ export function FeatureBody({
     }
 
     case "mordeduras": {
+      // Same duality as perdidas: an aggregated bubble has no per-incident fields
+      // (incidentType/severity/occurredAt), so render the unit summary. The
+      // per-incident header below is kept for points-mode incident dots.
+      if (isAggregatedUnit(properties)) {
+        return (
+          <AggregateUnitBody
+            properties={properties}
+            valueLabel="Mordeduras registradas"
+            periodLabel={periodLabel}
+            drillHref="/gob/vigilancia"
+            drillLabel="Ver vigilancia →"
+          />
+        );
+      }
       const incident = str(properties, "incidentType");
       const severity = str(properties, "severity");
       return (
@@ -638,7 +731,7 @@ function UnitHistorySection({
 //     useSemanticElements lint error),
 //   - focus restoration to the trigger on close.
 // We only style it as a right-anchored, full-height sliding panel.
-export function DetailDrawer({ selected, onClose }: Props) {
+export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const open = selected !== null;
@@ -699,7 +792,11 @@ export function DetailDrawer({ selected, onClose }: Props) {
           </header>
 
           <div className="flex flex-col gap-3 overflow-y-auto px-4 py-3">
-            <FeatureBody layerId={selected.layerId} properties={selected.properties} />
+            <FeatureBody
+              layerId={selected.layerId}
+              properties={selected.properties}
+              periodLabel={periodLabel}
+            />
 
             {/* F4: unit-history section — only for aggregated units that carry a province */}
             {shouldFetchHistory(selected.layerId, selected.properties) && (
