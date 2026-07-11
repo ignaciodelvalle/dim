@@ -7,7 +7,15 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": [".next", "node_modules", "dist", "out", "supabase/.temp", "supabase/.branches"]
+    "ignore": [
+      ".next",
+      "node_modules",
+      "dist",
+      "out",
+      "supabase/.temp",
+      "supabase/.branches",
+      "docs/design/handoffs/**"
+    ]
   },
   "formatter": {
     "enabled": true,

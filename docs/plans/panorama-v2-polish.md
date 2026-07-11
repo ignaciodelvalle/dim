@@ -20,6 +20,22 @@ execution plan for both.
 
 ## Part A — PO layout direction (ratified 2026-07-11 via annotated screenshot)
 
+> **DESIGN SOURCE (supersedes the inline sketch below where they differ):**
+> `docs/design/handoffs/2026-07-11-panorama-v2C/` — the Claude Design hi-fi handoff the PO
+> chose ("option C — overlays"). Its README is the spec: ALL chrome floats over the map as
+> overlays (only the masthead row stays fixed), the dock expands OVER the map (MapLibre canvas
+> never resizes — no relayout), KPI-chip click re-bases the choropleth, Estadísticas rows
+> hover-highlight / click-drill the map. **PO-DECIDED 2026-07-11: LIGHT theme (operator DS,
+> `ln-op-*` tokens) on BOTH /gob and /admin — the v1 dark skin is retired.**
+> Implementation notes on top of the handoff:
+> - **Responsive gap (solve in #21):** the prototype is a letterboxed 1920×1080 stage; real
+>   overlays must not collide at 1366×768 — define stacking/collapse behavior for the KPI and
+>   scope clusters.
+> - **Prototype nit — do NOT replicate:** drilled Estadísticas must rank the scope's
+>   localities, not provinces (ranking follows scope, as Registros already specifies).
+> - Legend sits under the expanded dock (acceptable — dock header carries scope/period meta).
+> - Where the prototype (static SVG) differs from MapLibre, MapLibre prevails (per README).
+
 **The pattern: viewport-locked GIS console.** The panorama page becomes `100dvh`, no page
 scroll — the map is fixed like the AppShell sidebar and fills everything except slim bars.
 Current layout to replace: 2-col grid with fixed 342px right rail + `h-[76vh]` map
