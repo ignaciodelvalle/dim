@@ -14,6 +14,7 @@
 import { and, count, eq, gt, gte, isNull, lt, notInArray, sql } from "drizzle-orm";
 
 import {
+  type OrganizationCapability,
   appointments,
   cases,
   db,
@@ -29,10 +30,7 @@ import {
   welfareReports,
 } from "@/db";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import {
-  type OrganizationCapability,
-  capabilityAppliesToOrgType,
-} from "@/src/modules/organizations/domain/capabilities";
+import { capabilityAppliesToOrgType } from "@/src/modules/organizations/domain/capabilities";
 
 // ---------------------------------------------------------------------------
 // Constants
