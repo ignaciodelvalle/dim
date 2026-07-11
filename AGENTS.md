@@ -39,7 +39,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 | DNI hashing (no plaintext) | `lib/dni-hash.ts` |
 | RLS policies (owner tables) | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
 | RLS coverage test | `__tests__/rls/coverage.test.ts` |
-| Scan retention / 90d TTL purge | `lib/scan-retention.ts` |
+| Scan retention / 90d TTL purge | `lib/infra/scan-retention.ts` |
 | Server actions | `app/actions/` |
 | Business rules (registry + resolver + console) | `lib/domain/rule-types-registry.ts`, `lib/infra/business-rules-resolver.ts`, `/admin/reglas` |
 | Nav presets + AppShell | `components/layout/nav-presets.ts`, `components/layout/AppShell.tsx` |
@@ -187,7 +187,7 @@ DIM has **two account types** — `personal` and `institutional` — stored as `
 | Role    | Account type    | Who                                                                                                                              | Primary portal           | Notes                                                                                                                                |
 | ------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `owner` | personal        | Pet owner. Default for any self-serve signup.                                                                                    | `/mis-mascotas`          | Can have unlimited pets. May apply to upgrade to `vet`.                                                                              |
-| `vet`   | personal        | Veterinarian or animal-health professional. Has personal matrícula.                                                              | `/org/[orgToken]` (admin/coordinator of a clinic) **OR** `/cuenta/memberships` (vet_individual member) **OR** `/cuenta` (no memberships yet — see onboarding banner) | May still own pets like any owner. Upgrade via `/cuenta/upgrade`, approved by the `govt` of the declared locality (fallback: admin). Vets without a clinic org land on `/cuenta` with a CTA to create one via `/cuenta/crear-consultorio`. |
+| `vet`   | personal        | Veterinarian or animal-health professional. Has personal matrícula.                                                              | `/org/[orgToken]` (admin/coordinator of a clinic, **or** exactly one non-admin membership — single-membership shortcut, `6bba0af2`) **OR** `/cuenta/memberships` (2+ memberships — pick one) **OR** `/cuenta` (no memberships yet — see onboarding banner) | May still own pets like any owner. Upgrade via `/cuenta/upgrade`, approved by the `govt` of the declared locality (fallback: admin). Vets without a clinic org land on `/cuenta` with a CTA to create one via `/cuenta/crear-consultorio`. |
 | `govt`  | institutional   | Government / public-health / animal-welfare authority. Approves orgs, vet upgrades, and scheduling within **assigned localities**. | `/gob`              | Multi-locality via `govt_assignments`. Created by an existing admin. Service-account model — see "Single operator" below.            |
 | `admin` | institutional   | Technical-administrative user. Universal scope. Creates other institutional accounts. Approves anything outside any govt's scope. | `/admin`                 | Bootstrap admin seeded manually once via Studio; subsequent admins created by an existing admin. Cannot be self-deactivated.         |
 
@@ -926,7 +926,7 @@ Author role assignment:
 
 **Retention (TTL = 90 days, owner-approved):**  
 `credential_scanned` events with `author_role='scanner'` are purged after 90 days by
-the daily cron `/api/cron/purge-scan-events` (`lib/scan-retention.ts`).  Self-scan
+the daily cron `/api/cron/purge-scan-events` (`lib/infra/scan-retention.ts`).  Self-scan
 events (`author_role='owner'`) are NOT purged — they are part of the owner's own
 history.
 
@@ -938,7 +938,7 @@ scanner events older than the TTL.  Every purged row produces an `audit_log` ent
 (`app.allow_event_mutation`) is unaffected and still requires an accountable actor UUID.
 
 **Owner-dashboard impact:**  
-`lib/owner-nudges.ts` counts external scans within a `SCAN_ACTIVITY_WINDOW_DAYS = 90`
+`lib/infra/owner-nudges.ts` counts external scans within a `SCAN_ACTIVITY_WINDOW_DAYS = 90`
 window — intentionally aligned with the TTL.  After purge, the count remains accurate
 because the retained rows are exactly the rows the window sees.  The scan-activity
 nudge is informational only (never a surveillance signal) and derives from the owner's
@@ -972,7 +972,7 @@ space is finite). Never commit the production pepper.
 See `lib/dni-hash.ts` for `hashDni()` and `dniLast4()` helpers.
 
 **OIDC scaffold (Item 25a — stub only):**
-`lib/miarg-oidc.ts` defines the integration shape for Mi Argentina OIDC.
+`lib/infra/miarg-oidc.ts` defines the integration shape for Mi Argentina OIDC.
 `app/auth/miarg/callback/route.ts` is the callback route stub. Both are gated
 behind `isMiArgOidcEnabled()` — absent env vars → email/password flow unchanged.
 The real connection (token exchange, JWK verification) is Item 25b, gated on
@@ -1047,7 +1047,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Reservar turnos en campaigns/clinics, ver agenda propia | `/turnos/buscar` + `/mis-mascotas/[publicToken]/turnos` |
 | ✅ | Captura rápida (URL-prefill + matcher local sin LLM) | `/mis-mascotas/[publicToken]/anotar` + `lib/event-capture-registry.ts` |
 | ✅ | Dashboard `/inicio` (greeting, captura, mascotas, vencimientos, turnos, casos) | `/inicio` + `lib/owner-dashboard.ts` |
-| ✅ | Estado sanitario — nudges per-pet derivados de eventos propios (vacuna vencida, sin microchip, próximo recordatorio, scans de credencial, esterilización) | `/inicio` (card "Estado sanitario") + `lib/owner-nudges.ts` (Item 5, owner-data only — sin señales de vigilancia) |
+| ✅ | Estado sanitario — nudges per-pet derivados de eventos propios (vacuna vencida, sin microchip, próximo recordatorio, scans de credencial, esterilización) | `/inicio` (card "Estado sanitario") + `lib/infra/owner-nudges.ts` (Item 5, owner-data only — sin señales de vigilancia) |
 | ✅ | Movilidad jurisdiccional Fase 1 — semáforo + checklist de requisitos de viaje + export PDF (5 corredores, valores regulatorios citation-pending) | `/mis-mascotas/[publicToken]/viaje` + `lib/projections/travel-compliance.ts` + `lib/reference/cross-border-corridors.ts` |
 | 🟢 | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2, plan pendiente) |
 | 🟢 | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4, plan listo) |
@@ -1062,7 +1062,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Bridge a pet_events (`maltreatment_reported`, `abandonment_reported`, `symptom_observed`) cuando subject es registered pet | server-side en `src/modules/welfare/actions.ts` |
 | ✅ | Bug fix: location bridge a pet_event + mapa en detail page denuncia + rate-limit anon | plan `2026-05-18-welfare-reports-polish.md` (shipped) |
 | ✅ | Welfare-officer queue para triagear casos | `/gob/maltrato` — queue completo con filtros (urgent/mine), asignación, detail page, loading skeleton |
-| ✅ | Moderation queue para denuncias anónimas auto-flagged | `/admin/moderacion` — queue + detail page |
+| ✅ | Moderation queue para denuncias anónimas auto-flagged | `/admin/moderacion` (scope universal) y `/gob/moderacion` (cola scope-bound por jurisdicción + triage) — ambas comparten el predicado `buildModerationQueueConditions` (`lib/analytics/govt-dashboards.ts`); queue + detail page en cada portal |
 | ✅ | Export template a fiscalía MPF CABA (Ley 14.346 pipeline) | `src/modules/welfare/application/generate-mpf-export.ts` + `generateMpfExportAction` |
 
 ### Organizations (refugios, clinics, rescue networks, sanitary authorities)
@@ -1091,6 +1091,18 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Cron de cierre automático de observaciones | `/api/cron/close-rabies-observations` |
 | ⚪ | Vaccination-due warning al owner (UX feature, NO compliance requirement) | — |
 
+### Panorama / situational console
+
+The operator situational map — jurisdiction-fenced choropleth + graduated symbols over the event log. `/gob/panorama` (scope-bound) y `/admin/panorama` (universal).
+
+| Estado | Feature | Surface / mecanismo |
+|---|---|---|
+| ✅ | Light operator theme (`ln-op-*` tokens) en /gob y /admin — la piel oscura v1 quedó retirada | `fd757227` (v2C `#21`, incremento 1); `lib/analytics/viz-scales.ts` es la fuente de verdad de la paleta |
+| ✅ | Consola fija v2C — viewport-locked (`100dvh`, sin scroll de página), chrome flotante sobre el mapa (Vista/Capas + KPI chips + legend pill) + dock inferior con tabs `Registros \| Estadísticas \| Línea de tiempo` | `components/panorama/PanoramaConsole.tsx` + `PanoramaDock.tsx`; el canvas MapLibre nunca re-layoutea |
+| ✅ | Event-points mode — puntos por evento scope-gated (no jitter; ver plan de puntos) | `pointsMode` en `PanoramaConsole` + disclosure honesto por capa |
+| 🟡 | Cube precompute (road-to-10 infra, migración 0139) — detrás del flag `CUBE_READS` (default **OFF** → fallback en vivo); lee por un handle analítico dedicado con timeout largo solo para las lecturas del builder | `src/modules/panorama/application/load-layer-features-cube.ts` (flag `=== "1"`), `db/index.ts` (`analyticsReadOverride`); habilitar a escala nacional es decisión pendiente |
+| ✅ | k-anonimato display suppression (k=5) en las 5 rutas de render; limitación de differencing KA1/KA2 **aceptada y documentada** (no implementar el fix salvo que se dispare un reopen trigger) | `lib/metrics/anonymity.ts` (`k ?? 5`); `docs/architecture/privacy-known-limitations.md` |
+
 ### Professional & vet
 
 | Estado | Feature | Ruta / surface |
@@ -1104,7 +1116,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 |---|---|---|
 | ✅ | Admin surface básico (orgs + vet upgrades review) | `/admin/*` parcial |
 | 🟡 | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`), plan parcial existe |
-| ✅ | `/gob` portal scope-bound por localidad / jurisdicción | `requireAdminOrGovtOrRedirect()` en `lib/auth-guards.ts`; admin ve scope universal, govt filtra por sus `govt_assignments`; todos los helpers de `lib/govt-dashboards.ts` aceptan el par `actor + jurisdictions` |
+| ✅ | `/gob` portal scope-bound por localidad / jurisdicción | `requireAdminOrGovtOrRedirect()` en `lib/infra/auth-guards.ts`; admin ve scope universal, govt filtra por sus `govt_assignments`; todos los helpers de `lib/analytics/govt-dashboards.ts` aceptan el par `actor + jurisdictions` |
 | ✅ | Government dashboards (sanitary / analyst / welfare officer) | `/gob/mortalidad`, `/gob/vigilancia`, `/gob/analytics`, `/gob/poblacion`, `/gob/censo`, `/gob/programa` — UI completa con proyecciones sobre el event log |
 | ✅ | Admin rules console — `govt_business_rules` + registry declarativo de 8 tipos, cascade locality > province > country > default | `/admin/reglas` + `lib/domain/rule-types-registry.ts` + `lib/infra/business-rules-resolver.ts` (migración 0116) |
 | 🟢 | Rules-engine v2: jurisdiction-aware compliance (obligation types + legal baseline versionado + honest compliance surface + métricas jurisdiction-aware) | SDD change `jurisdiction-compliance` — spec/design/tasks en engram (`sdd/jurisdiction-compliance/*`); migración 0118 planeada |
@@ -1245,7 +1257,7 @@ Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/han
 - **The variant + nav decision is auth-aware, not route-group-based** — `lib/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end). The separate "Volver a mi app" return chip only renders where the active nav has no equivalent destination of its own — token-landing surfaces (no nav at all) and the operator variant stranded on a public page (ADMIN_NAV/GOB_NAV/org nav have no pets-home link). For the citizen+owner/vet case, OWNER_NAV's own "Inicio" item already IS the guaranteed ≤1-click return, so `showReturn` is never set there (wave-3 P6 — the return chip used to duplicate it on every citizen page).
 - **Three variants:**
   - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
-  - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals.
+  - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals. **Exception — the situational console** (`/gob|admin/panorama`): a viewport-locked "fixed console" (`100dvh`, no page scroll; the map is fixed like the rail and fills everything except slim bars, with floating overlay chrome + a bottom dock). It is the one operator surface that never page-scrolls (v2C, `#21`).
   - `landing` — minimal trust chrome for token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): brand + stripe + "Credencial verificada por MiMAR". Auth-independent; a logged-in owner gets a discreet "volver a mi app".
 - **"Inicio" is disambiguated**: the brand/logo → public landing `/`; the role "Inicio" nav item → the role home (`/inicio` for owner, the operator panel for gob/admin/org).
 - **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
