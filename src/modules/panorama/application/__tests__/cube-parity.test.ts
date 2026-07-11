@@ -33,6 +33,14 @@ const ADMIN: DashboardActor = { role: "admin" };
 // Choropleth layers ignore the period entirely (current-state) — any `since` works.
 const PERIOD = { since: new Date(0) };
 const DRILL_PROVINCE = "La Pampa"; // Pampa flagship province (DIM-PAMP-0001).
+// CB2 — cover the two cube-SERVED shapes La Pampa alone never exercises:
+//   - CABA: the barrio-fold branch (build-features BARRIO_ONLY_PROVINCE) — CABA has
+//     no departamentos, so its detail grain folds to barrios, a distinct code path.
+//   - Buenos Aires: a large multi-department province whose LOCALITY-grain drill
+//     folds hundreds of localities into partidos — the high-cardinality fold + the
+//     `truncated` flag that La Pampa (small) never stresses.
+const DRILL_CABA = "CABA";
+const DRILL_BA = "Buenos Aires";
 
 const CHOROPLETH_LAYERS: LayerId[] = [
   "cobertura",
@@ -70,6 +78,12 @@ const ELIGIBLE: { level: AggregationLevel; drill?: string }[] = [
   { level: "province", drill: undefined },
   { level: "province", drill: DRILL_PROVINCE },
   { level: "locality", drill: DRILL_PROVINCE },
+  // CB2 — CABA (barrio-fold branch) at both grains.
+  { level: "province", drill: DRILL_CABA },
+  { level: "locality", drill: DRILL_CABA },
+  // CB2 — Buenos Aires (large multi-department province) at both grains.
+  { level: "province", drill: DRILL_BA },
+  { level: "locality", drill: DRILL_BA },
 ];
 
 describe("cube == live parity (5 metrics; national+province + whole-province drill)", () => {
@@ -92,7 +106,12 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
 
         // Feature parity (order-independent, geometry + properties).
         expect(normFeatures(cubeResult.result)).toEqual(normFeatures(live));
-      });
+        // CB2: 180s per case. The LIVE side of a large-province LOCALITY drill is far
+        // slower than the 5s default — the cobertura rabies trailing-12m EXISTS over
+        // every Buenos Aires locality measures ~96s live (exactly the query the cube
+        // exists to replace; the cube read itself is instant). This bounds only the
+        // live comparison the parity assertion needs, never the cube path.
+      }, 180_000);
     }
   }
 
