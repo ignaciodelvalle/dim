@@ -60,12 +60,14 @@ export type OrgNavOptions = {
    */
   granted?: ReadonlySet<string>;
   /**
-   * The organization's type (organizations.orgType). A clinic admin implicitly
-   * holds every capability, so capability gating alone can't hide the
-   * shelter-only modules (Tránsitos, Voluntarios, Adopciones, Check-ins) — they
-   * are noise on a veterinary clinic. Passing orgType filters them out for a
-   * clinic, mirroring the page-level `capabilityAppliesToOrgType` used by the
-   * org home cards (UX gate M2).
+   * The organization's type (organizations.orgType). A clinic OR
+   * sanitary_authority admin implicitly holds every capability, so capability
+   * gating alone can't hide the shelter-only modules (Tránsitos, Voluntarios,
+   * Adopciones, Check-ins) — they are noise on any non-rehoming org type.
+   * Passing orgType filters them out for every type except shelter /
+   * rescue_network, mirroring the page-level `capabilityAppliesToOrgType` /
+   * SHELTER_ONLY_CAPABILITIES used by the org home cards (UX gate M2, preverify
+   * #10).
    */
   orgType?: string;
   /**
@@ -117,7 +119,18 @@ type OrgNavItem = NavItem & {
  */
 export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSection[] {
   const granted = opts.granted ?? new Set<string>();
-  const isClinic = opts.orgType === "clinic";
+  const orgType = opts.orgType;
+  // Hide the shelter-only modules (Tránsitos, Voluntarios, Operaciones,
+  // Check-ins) for org types that don't run the custody-rehoming lifecycle.
+  // Mirrors the capability model's SHELTER_ONLY_CAPABILITIES / REHOMING_ORG_TYPES
+  // (capabilities.ts): only shelter + rescue_network keep them. A clinic admin
+  // AND a sanitary_authority admin implicitly hold every capability, so
+  // capability gating alone can't drop these — the org-type gate is the right
+  // filter. Preverify #10: the old clinic-only gate left sanitary_authority
+  // still surfacing them. When orgType is omitted (link-integrity / full-nav
+  // callers), nothing is hidden.
+  const hideShelterOnly =
+    orgType !== undefined && orgType !== "shelter" && orgType !== "rescue_network";
   const role = opts.role;
 
   // All candidate items with their section assignment and optional capability gate.
@@ -289,7 +302,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
         !item.requiredAnyCapability || item.requiredAnyCapability.some((cap) => granted.has(cap)),
     )
     .filter((item) => !item.requiredRoles || (role !== undefined && item.requiredRoles.has(role)))
-    .filter((item) => !(item.shelterOnly && isClinic))
+    .filter((item) => !(item.shelterOnly && hideShelterOnly))
     .map(
       ({
         requiredCapability: _cap,

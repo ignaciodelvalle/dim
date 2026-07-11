@@ -320,6 +320,54 @@ describe("buildOrgNavFlat", () => {
     const maltrato = items.find((i) => i.label === "Maltrato");
     expect(maltrato?.matchPrefix).toBe("/org/ORG-ABC/maltrato");
   });
+
+  // Org-type gating of the shelter-only modules (task #18, preverify #10). A
+  // clinic AND a sanitary_authority admin implicitly hold every capability, so
+  // the org-type gate — not capability — is what drops Tránsitos / Voluntarios /
+  // Operaciones / Check-ins for non-rehoming types.
+  const SHELTER_ONLY_NAV = ["Tránsitos", "Voluntarios", "Operaciones", "Check-ins"];
+
+  it("hides shelter-only modules for a clinic (org-type gate)", () => {
+    const labels = buildOrgNavFlat("ORG-ABC", {
+      granted: ALL_GATED_CAPS,
+      role: "admin",
+      orgType: "clinic",
+    }).map((i) => i.label);
+    for (const label of SHELTER_ONLY_NAV) expect(labels).not.toContain(label);
+  });
+
+  it("hides shelter-only modules for a sanitary_authority (preverify #10 — was still leaking)", () => {
+    const labels = buildOrgNavFlat("ORG-ABC", {
+      granted: ALL_GATED_CAPS,
+      role: "admin",
+      orgType: "sanitary_authority",
+    }).map((i) => i.label);
+    for (const label of SHELTER_ONLY_NAV) expect(labels).not.toContain(label);
+    // But universal modules still show for a sanitary authority.
+    expect(labels).toContain("Casos");
+    expect(labels).toContain("Maltrato");
+    expect(labels).toContain("Permisos");
+  });
+
+  it("keeps shelter-only modules for shelter and rescue_network", () => {
+    for (const orgType of ["shelter", "rescue_network"]) {
+      const labels = buildOrgNavFlat("ORG-ABC", {
+        granted: ALL_GATED_CAPS,
+        role: "admin",
+        orgType,
+      }).map((i) => i.label);
+      for (const label of SHELTER_ONLY_NAV) expect(labels).toContain(label);
+    }
+  });
+
+  it("hides shelter-only modules for org type 'other'", () => {
+    const labels = buildOrgNavFlat("ORG-ABC", {
+      granted: ALL_GATED_CAPS,
+      role: "admin",
+      orgType: "other",
+    }).map((i) => i.label);
+    for (const label of SHELTER_ONLY_NAV) expect(labels).not.toContain(label);
+  });
 });
 
 describe("OWNER_NAV", () => {
