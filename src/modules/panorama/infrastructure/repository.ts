@@ -2729,19 +2729,25 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
       }
       case "mortalidad": {
         const scope = petsScope(actor, jurisdictions);
+        // Mirror the map numerator EXACTLY via metricPredicate('mortality'):
+        // pets CURRENTLY in status='deceased' (no [since, until] window). The map
+        // choropleth counts current-state deceased pets (metricPredicate at :818),
+        // NOT windowed death_recorded EVENTS. The prior guard counted windowed
+        // death_recorded events over the attacker-controlled scrubber range, so a
+        // department SUPPRESSED on the map (current deceased < 5) could clear k=5
+        // here for a wide-enough window and leak up to 20 death_recorded rows
+        // (dates + disposition_method) — a k-anon break (KA3). Now it mirrors the
+        // map with NO window, exactly like the cobertura/esterilizacion/microchip/
+        // ppp current-state guards, and countDistinct(pet) like the map.
         const conditions: SQL[] = [
-          eq(petEvents.eventType, "death_recorded"),
-          gte(petEvents.occurredAt, since),
-          lte(petEvents.occurredAt, until),
+          metricPredicate("mortality"),
           sql`${pets.jurisdictionProvince} = ${province}`,
           unitLocalityFilter(sql`${pets.jurisdictionLocality}`),
         ];
         if (scope) conditions.push(sql`(${scope})`);
-        // countDistinct(pet): mortality choropleth counts distinct deceased pets.
         const [row] = await db
-          .select({ n: countDistinct(petEvents.petId) })
-          .from(petEvents)
-          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .select({ n: countDistinct(pets.id) })
+          .from(pets)
           .where(and(...conditions));
         totalCount = row?.n ?? 0;
         break;
