@@ -1564,3 +1564,121 @@ describe("PanoramaConsole — embedded scope drill (Theme 1: no reload)", () => 
     pushSpy.mockRestore();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Live-QA regressions (2026-07-11): parts of the console still read the SERVER
+// scope/level instead of the client drill state — the map prop is already
+// client-wired, but the masthead pill was a byte-static server string and the
+// level leaked across drill→Back. These tests reproduce each and pin the fix.
+// ---------------------------------------------------------------------------
+describe("PanoramaConsole — embedded drill: masthead pill + level reset (live-QA regressions)", () => {
+  // The pages hand the console a `scopeLabel` (server default) + `allowedProvinces`.
+  // Passing both mounts the masthead header (pill) AND the embedded switcher.
+  function renderScopedConsole(extraProps: Record<string, unknown> = {}) {
+    return render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        scopeLabel="Nacional · todas las provincias"
+        allowedProvinces={[
+          { code: "AR-B", name: "Buenos Aires" },
+          { code: "AR-C", name: "Ciudad Autónoma de Buenos Aires" },
+        ]}
+        {...extraProps}
+      />,
+    );
+  }
+
+  it("MEDIUM: the masthead pill re-labels to the drilled province on a client drill (was stuck on the server scopeLabel)", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+
+    // National at first paint — the pill shows the server default.
+    expect(screen.getByTestId("panorama-scope-pill")).toHaveTextContent(
+      "Nacional · todas las provincias",
+    );
+
+    // Drill into Buenos Aires via the SHALLOW client commit (no reload). Mock
+    // pushState so window.location stays national — the pill must track the
+    // client scopeOverride, NOT the URL/server value.
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+    });
+
+    // The pill now names the drilled province (from the SAME client scope the
+    // map/KPIs read), and the national default is gone.
+    const pill = screen.getByTestId("panorama-scope-pill");
+    expect(pill).toHaveTextContent("Buenos Aires");
+    expect(pill).not.toHaveTextContent("Nacional · todas las provincias");
+    pushSpy.mockRestore();
+  });
+
+  it("MEDIUM: a JurisdictionSwitcher province pick drives BOTH the map prop and the pill (switcher path)", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    // Pick a province in the embedded switcher `<select>` (commitScopeDrill).
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+    });
+
+    // The client scope flows to the map (autozoom source) AND the pill together.
+    expect(mapProps?.selectedProvinceCode).toBe("AR-B");
+    expect(screen.getByTestId("panorama-scope-pill")).toHaveTextContent("Buenos Aires");
+    pushSpy.mockRestore();
+  });
+
+  it("HIGH: browser Back after a drill resets the aggregation axis to province (national), not the stuck 'Localidades' view", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    // Drill into AR-B → the derived level flips to locality (scope-wins)…
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+    });
+    // …and the autozoom fits the province, leaving the camera at a drilled-in
+    // zoom (past the province↔locality boundary).
+    await act(async () => {
+      (mapProps!.onZoom as (z: number) => void)(8);
+    });
+    // Sanity: the map now aggregates by the province's departments.
+    expect(mapProps?.aggregationLabel).toBe("Departamentos/partidos");
+
+    // Browser Back to national (pushState was mocked, so window.location is still
+    // national — no ?province). Before the fix the level stayed "locality" off
+    // the stale drilled-in zoom, so the national choropleth painted "Localidades"
+    // ("sin datos en todo el país"). The revert must restore the province axis.
+    await act(async () => {
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(mapProps?.selectedProvinceCode).toBeNull();
+    expect(mapProps?.aggregationLabel).toBe("Provincias");
+    pushSpy.mockRestore();
+  });
+
+  it("HIGH: the in-map ← Volver also resets the axis to province (same reset as popstate)", async () => {
+    setUrl("/gob/panorama?period=3y&province=AR-B");
+    renderScopedConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    // Opened already drilled into AR-B (locality axis); camera at a drilled-in zoom.
+    await act(async () => {
+      (mapProps!.onZoom as (z: number) => void)(8);
+    });
+    expect(mapProps?.aggregationLabel).toBe("Departamentos/partidos");
+
+    // ← Volver (onReturnNational → commitScopeDrill(null, null)).
+    await act(async () => {
+      (mapProps!.onReturnNational as () => void)();
+    });
+
+    expect(mapProps?.selectedProvinceCode).toBeNull();
+    expect(mapProps?.aggregationLabel).toBe("Provincias");
+    pushSpy.mockRestore();
+  });
+});

@@ -407,6 +407,15 @@ type Props = {
   seededPresetId?: PresetId;
   seededLayers?: SeededLayer[];
   /**
+   * Human scope label for the masthead pill, e.g. "Nacional · todas las
+   * provincias" or a jurisdiction name. This is the SERVER default (national /
+   * the operator's implicit scope); an embedded client drill re-labels the pill
+   * live from the drilled province/locality (see `liveScopeLabel`), so the pill
+   * tracks the shallow commit instead of staying stuck on the SSR value. When
+   * undefined the console renders no masthead header (tests / embedding callers).
+   */
+  scopeLabel?: string;
+  /**
    * panorama embedded-drill: provinces the viewer may filter to (admin: all;
    * govt: its own). When present, the console renders the JurisdictionSwitcher
    * CLIENT-SIDE and drives an embedded scope drill (shallow History commit +
@@ -438,6 +447,7 @@ export function PanoramaConsole({
   defaultPresetId = DEFAULT_PANORAMA_PRESET_ID,
   seededPresetId,
   seededLayers,
+  scopeLabel,
   allowedProvinces,
   localities: initialLocalities = [],
 }: Props) {
@@ -1106,6 +1116,14 @@ export function PanoramaConsole({
       // National scope (return-to-national) needs no bundle — reset in place.
       if (!province) {
         setScopeData({ localities: [], centroids: {} });
+        // Live-QA regression (2026-07-11): a drill flips the derived level to
+        // "locality" (scope-wins) and the autozoom leaves the camera at the
+        // drilled-in zoom. Returning to national must NOT leave the level stuck
+        // in "Localidades" (a national locality choropleth reads "sin datos").
+        // Reset the camera baseline to the national default so the (scope, zoom)
+        // hysteresis re-derives "province" immediately, instead of holding
+        // "locality" off the stale drilled-in zoom until the fit animation ends.
+        setMapZoom(Z_LOCALITY - 1);
         return;
       }
       // Only the PROVINCE change needs a fresh localities/centroids bundle; a
@@ -1150,6 +1168,12 @@ export function PanoramaConsole({
         // Return-to-national: abort any in-flight province bundle, reset in place.
         signalFor("scope");
         setScopeData({ localities: [], centroids: {} });
+        // Same reset as commitScopeDrill's national branch: the popped URL implies
+        // the national province axis (no ?level), so drop the camera baseline to
+        // the national default and let the (scope, zoom) hysteresis flip the level
+        // back to "province" — otherwise Back leaves the choropleth stuck in
+        // "Localidades" off the stale drilled-in zoom (live-QA regression).
+        setMapZoom(Z_LOCALITY - 1);
         return;
       }
       // Same province popped (locality-only change) — the loaded bundle still holds.
@@ -2763,6 +2787,35 @@ export function PanoramaConsole({
           : "Departamentos/partidos"
         : "Localidades";
 
+  // Live-QA regression (2026-07-11): the masthead scope pill read the SERVER
+  // `scopeLabel` prop, so a shallow client drill (which never re-renders the
+  // server shell) left it stuck on "Nacional · todas las provincias". Derive the
+  // pill label from the SAME client scope state the KPIs/map read: an explicit
+  // province/locality drill names the drilled jurisdiction; no drill falls back
+  // to the server default (national, or the operator's implicit jurisdiction).
+  const liveScopeLabel = useMemo(() => {
+    if (!effectiveScopeProvince && !effectiveScopeLocality) return scopeLabel ?? "";
+    const provinceName =
+      (effectiveScopeProvince
+        ? allowedProvinces?.find((p) => p.code === effectiveScopeProvince)?.name
+        : undefined) ??
+      effectiveScopeProvince ??
+      "";
+    if (effectiveScopeLocality) {
+      const localityName =
+        scopeData.localities.find((l) => l.slug === effectiveScopeLocality)?.name ??
+        effectiveScopeLocality;
+      return provinceName ? `${provinceName} · ${localityName}` : localityName;
+    }
+    return provinceName;
+  }, [
+    effectiveScopeProvince,
+    effectiveScopeLocality,
+    allowedProvinces,
+    scopeData.localities,
+    scopeLabel,
+  ]);
+
   // panorama-vista-redesign Phase 1 (design Decision 1): Vista panel (VISTA
   // label + active question line + PresetPanel row tabs) → 2-col body
   // (map column: map + honesty lines + scrubber | metrics column: ~342px
@@ -2937,6 +2990,41 @@ export function PanoramaConsole({
 
   return (
     <div className="space-y-4">
+      {/* ARCHETYPE A identity line — eyebrow + LIVE scope pill + "Acerca de esta
+          vista" on one row. Moved out of the (server) PanoramaShell so the pill
+          tracks the embedded client drill: the shell's byte-static scopeLabel
+          could never reflect a shallow pushState commit (live-QA regression
+          2026-07-11). Rendered only when the caller passes `scopeLabel` (the
+          pages always do; unit/embedding callers that omit it keep no masthead). */}
+      {scopeLabel !== undefined && (
+        <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Centro de Situación Nacional
+          </p>
+          <span
+            data-testid="panorama-scope-pill"
+            className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-sm)] text-ln-op-ink-2"
+          >
+            <span aria-hidden="true">📍</span>
+            {liveScopeLabel}
+          </span>
+          <details className="group text-[var(--text-md)] text-ln-op-mute">
+            <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
+              <span
+                aria-hidden="true"
+                className="inline-block transition-transform group-open:rotate-90"
+              >
+                ▸
+              </span>
+              Acerca de esta vista
+            </summary>
+            <p className="mt-1.5 max-w-prose">
+              Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
+              (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
+            </p>
+          </details>
+        </header>
+      )}
       {/* ARCHETYPE situation-room control bar: the preset strip is the PRIMARY
           control (one-line segmented tabs, presets-as-onboarding, space ∝
           frequency); layers are SECONDARY behind the compact "Capas" popover.

@@ -136,39 +136,12 @@ export function PanoramaShell({
       // lives in style= because the token ratchet bans arbitrary px classes).
       style={{ minHeight: "calc(100% + 44px)" }}
     >
-      {/* PO screenshot fix (2026-07-08, engram obs 1047): the h1 "Panorama"
-          was redundant with the breadcrumb + the active nav-rail item (both
-          stay elsewhere in the shell). The scope chip — previously floating
-          next to the removed title — is promoted onto the eyebrow line so
-          "Centro de Situación Nacional" and the live Nacional/<Provincia>
-          scope read together as the header's top line. */}
-      {/* ARCHETYPE A: a SINGLE compact identity line so the map leads the fold —
-          eyebrow + live scope + the "Acerca de esta vista" disclosure share one
-          row (the description expands full-width below only when opened). */}
-      <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Centro de Situación Nacional
-        </p>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-sm)] text-ln-op-ink-2">
-          <span aria-hidden="true">📍</span>
-          {scopeLabel}
-        </span>
-        <details className="group text-[var(--text-md)] text-ln-op-mute">
-          <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
-            <span
-              aria-hidden="true"
-              className="inline-block transition-transform group-open:rotate-90"
-            >
-              ▸
-            </span>
-            Acerca de esta vista
-          </summary>
-          <p className="mt-1.5 max-w-prose">
-            Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
-            (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
-          </p>
-        </details>
-      </header>
+      {/* ARCHETYPE A identity line (eyebrow + live scope pill + "Acerca de esta
+          vista") now lives INSIDE PanoramaConsole so the scope pill tracks the
+          embedded client drill. The shell rendered it from the byte-static
+          `scopeLabel` prop, which a shallow pushState drill never updates
+          (live-QA regression 2026-07-11) — the console re-labels it live from the
+          client scope state and receives the server default via `scopeLabel`. */}
 
       {/* panorama-redesign Fase 1 reflow: the console (presets + map) leads;
           the unified filters moved INTO the console's "Alcance y período"
@@ -177,6 +150,7 @@ export function PanoramaShell({
           window.location.assign navigation, is byte-identical). Demo
           disclosure + methodology follow the console. */}
       <PanoramaConsole
+        scopeLabel={scopeLabel}
         defaultLayerId={layer.id}
         defaultFeatures={features}
         defaultTruncated={truncated}
