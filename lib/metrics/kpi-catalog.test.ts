@@ -45,6 +45,20 @@ describe("KPI_CATALOG shape", () => {
     }
   });
 
+  // Night-1 dataviz/honesty audit: window/species/basis are the machine-readable
+  // versions of the disambiguation prose (cadence/numerator/denominator) — every
+  // entry must set them, or a future entry could silently skip disambiguation.
+  it("every entry sets window/species/basis (machine-readable disambiguation axes)", () => {
+    const VALID_WINDOWS = new Set(["now", "7d", "30d", "12m", "all_time", "period", "mixed"]);
+    const VALID_SPECIES = new Set(["dogs", "all_species", "n/a"]);
+    const VALID_BASIS = new Set(["stock", "flow", "ratio"]);
+    for (const def of KPI_CATALOG_LIST) {
+      expect(VALID_WINDOWS.has(def.window), `${def.id}.window`).toBe(true);
+      expect(VALID_SPECIES.has(def.species), `${def.id}.species`).toBe(true);
+      expect(VALID_BASIS.has(def.basis), `${def.id}.basis`).toBe(true);
+    }
+  });
+
   it("has at least 10 catalogued KPIs (program-wide coverage, not a single surface)", () => {
     expect(KPI_CATALOG_LIST.length).toBeGreaterThanOrEqual(10);
   });
@@ -144,5 +158,14 @@ describe("rabies coverage disambiguation (critique-govt-2026-07-03.md)", () => {
     const dogs = KPI_CATALOG.rabies_coverage_dogs_12m;
     const allSpecies = KPI_CATALOG.rabies_vaccination_rate_all_species;
     expect(dogs.cadence).not.toBe(allSpecies.cadence);
+  });
+
+  it("the two rabies KPIs differ on BOTH machine-readable disambiguation axes (window and species)", () => {
+    const dogs = KPI_CATALOG.rabies_coverage_dogs_12m;
+    const allSpecies = KPI_CATALOG.rabies_vaccination_rate_all_species;
+    expect(dogs.window).toBe("12m");
+    expect(allSpecies.window).toBe("all_time");
+    expect(dogs.species).toBe("dogs");
+    expect(allSpecies.species).toBe("all_species");
   });
 });

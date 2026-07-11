@@ -1757,10 +1757,11 @@ export type AnalyticsMetrics = {
  * numerator/denominator breakdown of both lives in lib/metrics/kpi-catalog.ts
  * (rabies_vaccination_rate_all_species vs rabies_coverage_dogs_12m).
  *
- * FOLLOW-UP (render-site, out of this module's lane): app/gob/analytics/page.tsx
- * currently renders this KPI as `label="Cobertura antirrábica (mascotas)"` — a
- * later pass should import RABIES_VACCINATION_RATE_LABEL_ES instead of
- * repeating a similar-looking string that drove the original ambiguity.
+ * RESOLVED (render-site): app/gob/analytics/page.tsx imports and renders
+ * this exact constant (`label={RABIES_VACCINATION_RATE_LABEL_ES}`) instead of
+ * repeating a similar-looking string — see
+ * app/gob/analytics/_components/RegionRankingTable.test.tsx for the regression
+ * guard against the old ambiguous "Cobertura antirrábica (mascotas)" copy.
  */
 export const RABIES_VACCINATION_RATE_LABEL_ES =
   "Cobertura antirrábica — todas las mascotas (histórico)";

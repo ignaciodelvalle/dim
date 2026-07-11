@@ -26,11 +26,12 @@
 // SCOPE / NON-GOALS
 //   - This catalog does NOT invent new metrics or composite/derived scores (PO decision).
 //   - It does NOT change any fetcher's numerator or denominator.
-//   - Render-site label swaps (app/gob/**, components/panorama/**) are a follow-up —
-//     see the "renderSitesToUpdate" note on each disambiguated entry. This catalog only
-//     owns the canonical definitions + the lib-level label constants they're derived from
-//     (RABIES_COVERAGE_LABEL_ES in govt-home-kpis.ts, RABIES_VACCINATION_RATE_LABEL_ES in
-//     govt-dashboards.ts).
+//   - The rabies-coverage render-site label swap (app/gob/**, app/gob/analytics/**,
+//     components/panorama/**) is DONE — every render site imports the lib-level label
+//     constant (RABIES_COVERAGE_LABEL_ES in govt-home-kpis.ts, RABIES_VACCINATION_RATE_LABEL_ES
+//     in govt-dashboards.ts) instead of repeating a similar-looking string literal.
+//     scripts/check-metric-labels.ts guards against a future render site drifting back
+//     to a duplicated/diverging string for a catalogued KPI's label.
 //
 // MAINTENANCE
 //   Adding a KPI to a /gob page? Add its entry here in the same PR. The test in
@@ -66,6 +67,33 @@ export type KpiId =
 /** Unit of the KPI's `value` field, for consistent formatting across surfaces. */
 export type KpiUnit = "percent" | "count" | "rate_per_10k" | "ratio" | "days";
 
+/**
+ * Machine-readable time window — the SAME axis that split "Cobertura
+ * antirrábica" into two truths (42% trailing-12m vs 54% all-time). `cadence`
+ * carries the full prose; `window` is the short categorical tag a render site
+ * or the check-metric-labels guard can compare without parsing prose.
+ * "mixed" is for composites whose sub-parts use different windows (e.g.
+ * active_zoonosis_signals: a 'now' snapshot unioned with a 30d flow count).
+ */
+export type KpiWindow = "now" | "7d" | "30d" | "12m" | "all_time" | "period" | "mixed";
+
+/**
+ * Which pets the numerator/denominator population is drawn from — the OTHER
+ * axis of the "Cobertura antirrábica" split (dogs-only vs any species).
+ * "n/a" is for KPIs whose scope isn't pet-species-shaped (case/report counts,
+ * human-population-denominated rates).
+ */
+export type KpiSpecies = "dogs" | "all_species" | "n/a";
+
+/**
+ * Counting basis, independent of `unit`: "stock" is a point-in-time count of
+ * entities currently in a state (open cases, active pregnancies); "flow" is a
+ * count of events that occurred within `window`; "ratio" is a
+ * numerator/denominator computation (percent, rate, or dimensionless ratio),
+ * regardless of whether `unit` renders it as "percent" or "rate_per_10k".
+ */
+export type KpiBasis = "stock" | "flow" | "ratio";
+
 export type KpiDefinition = {
   /** Stable id — see KpiId. */
   id: KpiId;
@@ -90,6 +118,12 @@ export type KpiDefinition = {
   suppression: string;
   /** Free-form caveat — under/over-counting risks, legal basis, etc. Omit if none. */
   caveat?: string;
+  /** Machine-readable time window — short tag version of `cadence`. */
+  window: KpiWindow;
+  /** Machine-readable species scope — short tag version of the numerator/denominator prose. */
+  species: KpiSpecies;
+  /** Machine-readable counting basis — stock / flow / ratio. */
+  basis: KpiBasis;
 };
 
 export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
@@ -107,6 +141,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none (province rows are never small enough to require k-anon)",
     caveat:
       "Legal basis: Ley 22.953 (vacunación antirrábica obligatoria). Only counts vaccines logged in MiMAR — real-world coverage may be higher. DISTINCT FROM rabies_vaccination_rate_all_species: different denominator population (dogs only) and time window (12m, not all-time). Rendered on /gob (Panel de jurisdicción) and Panorama — see app/gob/page.tsx and src/modules/panorama/application/get-panorama-kpis.ts (render-site label already reads 'Cobertura antirrábica (perros, 12m)', consistent with this entry).",
+    window: "12m",
+    species: "dogs",
+    basis: "ratio",
   },
 
   rabies_vaccination_rate_all_species: {
@@ -122,7 +159,10 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat:
-      "This is the KPI the four-actor critique flagged as showing 54% under the SAME label as rabies_coverage_dogs_12m's 42% (critique-govt-2026-07-03.md, 'Same metric, different numbers'). Three real differences drive the gap: (1) denominator includes non-dog species, (2) no 12-month window — a vaccine logged years ago still counts, (3) looser match ('%rabi%' substring vs the anchored regex). Neither number is wrong; they answer different questions. Render sites: app/gob/analytics/page.tsx ('Cobertura antirrábica (mascotas)') and the per-province ranking in lib/analytics/analytics-ranking.ts (fetchRegionRanking reuses this SAME all-species/all-time definition, so Analítica's national figure and its ranking table are internally consistent). FOLLOW-UP (render-site, out of lane): app/gob/analytics/page.tsx's label should read 'Cobertura antirrábica — todas las mascotas (histórico)' to match this catalog entry verbatim.",
+      "This is the KPI the four-actor critique flagged as showing 54% under the SAME label as rabies_coverage_dogs_12m's 42% (critique-govt-2026-07-03.md, 'Same metric, different numbers'). Three real differences drive the gap: (1) denominator includes non-dog species, (2) no 12-month window — a vaccine logged years ago still counts, (3) looser match ('%rabi%' substring vs the anchored regex). Neither number is wrong; they answer different questions. Render sites: app/gob/analytics/page.tsx (imports RABIES_VACCINATION_RATE_LABEL_ES = 'Cobertura antirrábica — todas las mascotas (histórico)', matching this entry verbatim — the old ambiguous 'Cobertura antirrábica (mascotas)' copy is gone and guarded against by RegionRankingTable.test.tsx) and the per-province ranking in lib/analytics/analytics-ranking.ts (fetchRegionRanking reuses this SAME all-species/all-time definition, so Analítica's national figure and its ranking table are internally consistent).",
+    window: "all_time",
+    species: "all_species",
+    basis: "ratio",
   },
 
   sterilization_coverage_population: {
@@ -138,6 +178,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Programmatic benchmark (70%), not a universal legal mandate — obligatory by provincial law only in Santa Fe, Mendoza, La Rioja, Chubut, San Juan. Shared by /gob/poblacion and Panorama (same fetcher — dashboard parity guaranteed by construction).",
+    window: "all_time",
+    species: "all_species",
+    basis: "ratio",
   },
 
   sterilizations_per_month: {
@@ -152,6 +195,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     cadence: "trailing 30 days vs prior 30 days",
     unit: "count",
     suppression: "none",
+    window: "30d",
+    species: "all_species",
+    basis: "flow",
   },
 
   bites_per_10k: {
@@ -168,6 +214,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Denominator is HUMAN census population, not pet population — used as a zoonotic-risk proxy (A6). Renders as 0 when a jurisdiction has no census row rather than throwing on division by zero.",
+    window: "12m",
+    species: "n/a",
+    basis: "ratio",
   },
 
   active_zoonosis_signals: {
@@ -184,6 +233,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "The rabies+bite union is deduplicated at the pet level — a pet in both an active observation AND an open bite case counts once, not twice (fixed from an earlier Math.max approximation that assumed full nesting). STILL SURFACED on Panorama's metrics column (src/modules/panorama/application/get-panorama-kpis.ts) even though /gob home replaced it with its three decomposed parts below (open_rabies_observations, open_bite_cases, notified_diseases) — kept here because it is a genuinely different, still-rendered composite, not dead code.",
+    window: "mixed",
+    species: "all_species",
+    basis: "stock",
   },
 
   open_rabies_observations: {
@@ -199,6 +251,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Decomposed from active_zoonosis_signals's rabies arm (PO-ratified split of the opaque composite into legible signals) — same predicate and same deltaWeek computation, just no longer merged with the open-bite-case count.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
   },
 
   open_bite_cases: {
@@ -214,6 +269,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Decomposed from active_zoonosis_signals's open-bite-case arm (PO-ratified split) — same casesScopeClause and predicate the composite used for its dedup UNION, now counted on its own instead of merged with rabies-observation pets.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
   },
 
   notified_diseases: {
@@ -230,6 +288,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Generalises active_zoonosis_signals's lepto+hidat arms (PO-ratified split) to every disease_reported event in the window — the truest 'enfermedades notificadas' axis. Returns lepto/hidat as a sub-breakdown for continuity with the composite's legend, but the catalogued count is the ALL-diseases total, not just those two.",
+    window: "30d",
+    species: "n/a",
+    basis: "flow",
   },
 
   microchip_penetration: {
@@ -245,6 +306,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression:
       "k-anon (k=5) on the per-locality breakdown; the national/province figure is unsuppressed",
     caveat: "Legal basis: Ley Provincial 14.107. Only counts microchips registered in MiMAR.",
+    window: "all_time",
+    species: "all_species",
+    basis: "ratio",
   },
 
   ppp_registry_compliance: {
@@ -260,6 +324,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Legal basis: Ley CABA 4078 / Ley Prov. 14.107. Reads 0% until the attestation form ships — that is a true value (no adoption yet), not a bug.",
+    window: "all_time",
+    species: "dogs",
+    basis: "ratio",
   },
 
   open_welfare_reports: {
@@ -273,6 +340,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     cadence: "point-in-time snapshot",
     unit: "count",
     suppression: "none",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
   },
 
   mortality_disposal_traceability: {
@@ -289,6 +359,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Target: 75% traceable; ≥25% unknown disposition is treated as a breach (DISPOSAL_UNKNOWN_BREACH_PCT).",
+    window: "12m",
+    species: "all_species",
+    basis: "ratio",
   },
 
   active_pregnancies: {
@@ -302,6 +375,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     cadence: "point-in-time snapshot",
     unit: "count",
     suppression: "none",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
   },
 
   sterilization_natalidad_ratio: {
@@ -318,6 +394,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "NATALIDAD CAVEAT: the denominator only counts TRACKED pregnancies recorded in MiMAR — street/untracked litters are invisible, so this ratio systematically OVER-estimates containment (under-counts births). Directional signal, not exact. Must ship with the UI caveat 'Solo partos en seguimiento — subestima la natalidad real'.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
   },
 
   data_quality_completeness: {
@@ -332,6 +411,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     cadence: "point-in-time snapshot",
     unit: "percent",
     suppression: "none",
+    window: "now",
+    species: "all_species",
+    basis: "ratio",
   },
 
   custody_return_rate: {
@@ -347,6 +429,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none",
     caveat:
       "Numerator and denominator are independent 'events in window' counts, not a followed cohort — a reversal in-period may reference an adoption finalized before the period started.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
   },
 
   shelter_occupancy_national: {
@@ -362,6 +447,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat: "Admin-only aggregate (national); capacity is org self-reported config, not verified.",
+    window: "now",
+    species: "all_species",
+    basis: "ratio",
   },
 
   deworming_coverage_population: {
@@ -378,6 +466,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none (province rows are never small enough to require k-anon)",
     caveat:
       "Sanitary-coverage sibling of rabies_coverage_dogs_12m and sterilization_coverage_population, surfaced on /gob/poblacion. Unlike sterilization (once-ever), deworming is periodic — the 12-month window is a 'currently protected' proxy. Only counts dewormings logged in MiMAR; real-world coverage may be higher. SEED-DENSITY CAVEAT: deworming_administered has low seed density, so this reads a low but HONEST value until owners/vets log antiparasitic doses.",
+    window: "12m",
+    species: "all_species",
+    basis: "ratio",
   },
 
   vet_access_per_1k_locality: {
@@ -394,6 +485,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       "k-anon (k=5) on the per-locality active-pet population — a locality with <5 active pets is suppressed",
     caveat:
       "Access-to-care equity signal surfaced on /gob/analytics; localities are sorted ascending by per-1k so care deserts surface first (the CABA vs periphery inequity). Denominator is PET population per locality, not human census. Scoped and grouped by the pet's HOME jurisdiction. Unit is 'per 1,000' (reusing the rate_per_10k unit slot — closest available). SEED-DENSITY CAVEAT: vet_visit_logged density is uneven, so per-1k rates are directional.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
   },
 
   movement_volume: {
@@ -410,6 +504,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none — jurisdiction-level totals, not locality-grouped",
     caveat:
       "Epidemiological mobility signal surfaced on /gob/vigilancia — a moved animal carries its exposure into a new jurisdiction. Scoped by the pet's HOME jurisdiction; a jurisdiction_changed move denormalizes the pet's home to the DESTINATION, so a scoped operator sees inbound relocations once the pet has landed. SEED-DENSITY CAVEAT: movement_recorded (esp. cvi_issued / transport_recorded cross-border) is sparse in seed data — reads honest low/zero totals.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
   },
 
   adoption_application_conversion: {
@@ -426,6 +523,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression: "none — jurisdiction-level totals, not locality-grouped",
     caveat:
       "DEMAND side of the pipeline (online postulaciones), distinct from custody_return_rate / fetchCustodyFunnel's SUPPLY side (intake→adoption_finalized). Surfaced on /gob/adopciones. Submitted and resolved are INDEPENDENT windowed counts, not a followed cohort — a resolution in-period may reference an application submitted before the period started. SEED-DENSITY CAVEAT: adoption_application_* density is low in seed data.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
   },
 };
 

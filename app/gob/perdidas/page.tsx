@@ -191,7 +191,7 @@ export default async function GobPerdidasPage({
         className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
       >
         <OpKpi
-          label="Activas"
+          label="Perdidas activas"
           value={metrics.activeCount > 0 ? String(metrics.activeCount) : "—"}
           tone={metrics.activeCount > 0 ? "warn" : "neutral"}
           drillHref="/gob/perdidas?status=lost"
