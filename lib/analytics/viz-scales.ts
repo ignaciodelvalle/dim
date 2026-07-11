@@ -42,39 +42,11 @@ export const SCALE_BLUE_SEQ: ColorScale5 = [
  * Matches what MapChoropleth v1 expected for colorScale prop.
  *
  * WHITE-PAPER ramp (low value = near-white, high value = dark navy). Correct for
- * LIGHT surfaces (MapChoropleth, dashboard charts). Do NOT use it on the dark
- * situation-room map: its high end (#084594) is ≈ the navy canvas, so the
- * strongest signals vanish into the background. The dark map uses
- * {@link RAMP_BLUE_DARK} instead (luminance INCREASES with value).
+ * LIGHT surfaces — MapChoropleth, dashboard charts, and the situational console
+ * (v2C flipped the operator map to the light canvas, `fd757227`; the dark skin
+ * and its inverted blue→cyan ramp were retired).
  */
 export const RAMP_BLUE: ColorRamp = ["#eff3ff", "#084594"] as const;
-
-/**
- * Blue→cyan sequential ramp for the DARK situation-room map (panorama).
- * ColorBrewer Blues are white-paper ramps (light = low, dark = high); on the
- * navy operator canvas (#0b1020 sky / #161d33 land) that inverts the figure/
- * ground relationship — the highest value sits closest to the background and the
- * strongest signal disappears. The dark-map rule is the opposite: **luminance
- * must INCREASE with value** (dim = low, bright = high) so a hot cell reads as
- * the brightest thing on the map.
- *
- * Built from the blue/cyan token family so it stays a single-hue sequential
- * ramp (colorblind-safe for deuteranopia / protanopia — no red–green axis). The
- * low anchor is a saturated blue that sits ABOVE the desaturated no-data slate
- * ({@link COLOR_NO_DATA}) and the land fill in luminance, so "low signal" never
- * reads darker than "no data"; the high anchor is a bright cyan that pops off
- * the navy surface.
- */
-export const SCALE_BLUE_DARK_SEQ: ColorScale5 = [
-  "#1b4d7e", // low — saturated blue, brighter than no-data slate
-  "#2273b0",
-  "#3aa0d6",
-  "#6fcbed",
-  "#bdeeff", // high — bright cyan, maximum luminance
-] as const;
-
-/** Two-stop dark-surface ramp extracted from {@link SCALE_BLUE_DARK_SEQ}. */
-export const RAMP_BLUE_DARK: ColorRamp = ["#1b4d7e", "#bdeeff"] as const;
 
 /**
  * Orange sequential — for coverage / compliance rates.
@@ -131,14 +103,18 @@ export const RAMP_GREEN: ColorRamp = ["#edf8e9", "#006d2c"] as const;
 
 /**
  * Warning pole (below compliance target): amber/orange.
- * Visible against the dark government canvas and distinct from SCALE_BLUE_SEQ.
+ * Distinct in hue from SCALE_BLUE_SEQ and from the teal above-pole.
  */
 export const COLOR_DIVERGENT_BELOW = "#f59e0b" as const; // amber-400
 
-/** Neutral midpoint (at target): a VISIBLE mid-slate, not paper-white. On the
- * dark operator basemap (navy #0b1020) a slate-50 neutral blew out as a white
- * sticker (map-polish cursor #3); a mid-slate reads as "at target" while still
- * leaving hue+luminance distance to both poles (amber below, teal above). */
+/** Neutral midpoint (at target): a VISIBLE mid-slate, not paper-white. Held at
+ * slate-500 for its hue+luminance distance to BOTH poles (amber below, teal
+ * above) — the value stays after the v2C light flip (`fd757227`), NOT the
+ * prototype's near-white `#f1f5f8`, because the CVD-validated ΔE margins to the
+ * poles are what earn its place (a paper-white neutral collapses the divergent
+ * read). Originally chosen because on the retired dark basemap (navy #0b1020) a
+ * slate-50 neutral blew out as a white sticker; the pole-distance rationale is
+ * canvas-independent and outlives that skin. */
 export const COLOR_DIVERGENT_NEUTRAL = "#64748b" as const; // slate-500
 
 /**
@@ -149,14 +125,16 @@ export const COLOR_DIVERGENT_NEUTRAL = "#64748b" as const; // slate-500
  * CVD MARGIN FIX (night-1 dataviz audit): the original teal-600 (#0d9488)
  * measured ΔE 10.7 against COLOR_DIVERGENT_NEUTRAL (#64748b) under deuteranopia
  * simulation — inside the marginal 8-12 band where the two poles risk reading
- * as the same color to a colorblind operator. Darkening straight down the
- * teal-600 hue (e.g. teal-700 #0f766e, teal-800 #115e59) either stayed under
- * the ΔE 12 floor or tanked contrast against the navy map canvas (#0b1020:
- * teal-800 drops to 2.5:1, below the 3:1 floor). This value is a validated
- * custom shade — one step darker AND a small hue nudge toward sea-green — that
- * clears ΔE 18.3 (deutan) against the neutral slate while holding 4.18:1
- * contrast against the navy canvas (was 5.06:1 at teal-600). Re-validate with
- * dataviz's validate_palette.js before changing this value again.
+ * as the same color to a colorblind operator. The primary, canvas-independent
+ * guarantee this value earns: it clears ΔE 18.3 (deutan) against the neutral
+ * slate — that margin is why the fix stands regardless of surface. Darkening
+ * straight down the teal-600 hue (e.g. teal-700 #0f766e, teal-800 #115e59)
+ * either stayed under the ΔE 12 floor or tanked surface contrast. Contrast was
+ * originally tuned against the (now retired) dark basemap navy #0b1020 — this
+ * shade held 4.18:1 there (was 5.06:1 at teal-600, and teal-800 dropped to
+ * 2.5:1, below the 3:1 floor); the v2C console is light (`fd757227`), but the
+ * navy figure is kept as a regression anchor and locked by the viz-scales test.
+ * Re-validate with dataviz's validate_palette.js before changing this value.
  */
 export const COLOR_DIVERGENT_ABOVE = "#0c866b" as const; // teal-600, darkened + CVD-margin corrected
 
