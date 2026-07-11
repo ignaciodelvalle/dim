@@ -146,3 +146,54 @@ describe("JurisdictionSwitcher — full navigation on change (router-drop fix)",
     expect(url.searchParams.get("z")).toBe("4.2");
   });
 });
+
+// panorama embedded-drill: with `onScopeCommit`, the switcher is a CONTROLLED
+// component that delegates the scope commit to the caller (client-side, no
+// reload) instead of a full document navigation.
+describe("JurisdictionSwitcher — embedded mode (onScopeCommit)", () => {
+  it("delegates a province pick to onScopeCommit and never navigates the document", () => {
+    const onScopeCommit = vi.fn();
+    render(
+      <JurisdictionSwitcher
+        allowedProvinces={ALLOWED_PROVINCES}
+        localities={LOCALITIES}
+        selectedProvince={null}
+        selectedLocality={null}
+        onScopeCommit={onScopeCommit}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+
+    expect(onScopeCommit).toHaveBeenCalledTimes(1);
+    // Province committed, locality cleared — no reload, no router.
+    expect(onScopeCommit).toHaveBeenCalledWith({ province: "AR-B", locality: null });
+    expect(mockAssign).not.toHaveBeenCalled();
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
+  });
+
+  it("reads its selection from the controlled props, not searchParams (shallow-commit safe)", () => {
+    // The URL still shows national scope (a shallow commit isn't visible to
+    // useSearchParams in production), but the controlled props say AR-B → the
+    // province select must reflect AR-B, and a locality pick must carry AR-B.
+    setUrl("/gob/panorama?period=3y");
+    const onScopeCommit = vi.fn();
+    render(
+      <JurisdictionSwitcher
+        allowedProvinces={ALLOWED_PROVINCES}
+        localities={LOCALITIES}
+        selectedProvince="AR-B"
+        selectedLocality={null}
+        onScopeCommit={onScopeCommit}
+      />,
+    );
+
+    expect((screen.getByLabelText("Provincia") as HTMLSelectElement).value).toBe("AR-B");
+
+    fireEvent.change(screen.getByLabelText("Localidad"), { target: { value: "la-plata" } });
+
+    expect(onScopeCommit).toHaveBeenCalledWith({ province: "AR-B", locality: "la-plata" });
+    expect(mockAssign).not.toHaveBeenCalled();
+  });
+});

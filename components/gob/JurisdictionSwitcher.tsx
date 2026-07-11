@@ -53,6 +53,25 @@ export type JurisdictionSwitcherProps = {
    * encuadre solo. Vacío por defecto (p. ej. /gob/vigilancia no tiene cámara).
    */
   dropParamsOnNavigate?: readonly string[];
+  /**
+   * MODO EMBEBIDO (panorama embedded-drill). Cuando se pasa, el switcher NO hace
+   * una navegación de documento completa: delega el commit del scope al caller,
+   * que lo aplica de forma cliente (shallow History pushState + refetch, sin
+   * recarga). El switcher pasa a ser CONTROLADO por `selectedProvince` /
+   * `selectedLocality` (los searchParams ya no reflejan un commit shallow en
+   * producción). Ausente → comportamiento clásico (searchParams +
+   * `window.location.assign`), intacto para /gob/vigilancia y demás páginas
+   * server-rendered.
+   */
+  onScopeCommit?: (scope: JurisdictionScope) => void;
+  /**
+   * Provincia seleccionada (controlada). Solo se usa en modo embebido
+   * (`onScopeCommit` presente); en el modo clásico el valor viene de los
+   * searchParams. Código ISO 3166-2:AR, o null/"" para scope nacional.
+   */
+  selectedProvince?: string | null;
+  /** Localidad seleccionada (controlada), análoga a `selectedProvince`. */
+  selectedLocality?: string | null;
   className?: string;
 };
 
@@ -68,6 +87,9 @@ export function JurisdictionSwitcher({
   localities = [],
   paramKeys = { province: "province", locality: "locality" },
   dropParamsOnNavigate = [],
+  onScopeCommit,
+  selectedProvince: controlledProvince,
+  selectedLocality: controlledLocality,
   className = "",
 }: JurisdictionSwitcherProps) {
   const searchParams = useSearchParams();
@@ -76,8 +98,16 @@ export function JurisdictionSwitcher({
   const provinceId = `${uid}-province`;
   const localityId = `${uid}-locality`;
 
-  const selectedProvince = searchParams.get(paramKeys.province) ?? "";
-  const selectedLocality = searchParams.get(paramKeys.locality) ?? "";
+  // Modo embebido: el valor viene del caller (controlado). En producción un
+  // commit shallow no actualiza useSearchParams(), así que un switcher embebido
+  // debe leer el scope efectivo del caller, nunca de los searchParams.
+  const embedded = onScopeCommit !== undefined;
+  const selectedProvince = embedded
+    ? (controlledProvince ?? "")
+    : (searchParams.get(paramKeys.province) ?? "");
+  const selectedLocality = embedded
+    ? (controlledLocality ?? "")
+    : (searchParams.get(paramKeys.locality) ?? "");
 
   const showNationalOption = allowedProvinces.length > 1;
 
@@ -116,18 +146,29 @@ export function JurisdictionSwitcher({
     window.location.assign(`?${params.toString()}`);
   }
 
+  function commitScope(province: string | null, locality: string | null) {
+    // Modo embebido: delegar en el caller (commit cliente, sin recarga). El
+    // caller es dueño de la URL (pushState + drop de cámara) y del refetch.
+    if (onScopeCommit) {
+      onScopeCommit({ province: province || null, locality: locality || null });
+      return;
+    }
+    // Modo clásico: navegación de documento completa (server-rendered pages).
+    updateParams({
+      [paramKeys.province]: province,
+      [paramKeys.locality]: locality,
+    });
+  }
+
   function handleProvinceChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const value = e.target.value;
     // Al cambiar provincia siempre limpiamos la localidad.
-    updateParams({
-      [paramKeys.province]: value || null,
-      [paramKeys.locality]: null,
-    });
+    commitScope(value || null, null);
   }
 
   function handleLocalityChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const value = e.target.value;
-    updateParams({ [paramKeys.locality]: value || null });
+    commitScope(selectedProvince || null, value || null);
   }
 
   const localityDisabled = !selectedProvince || localities.length === 0;
