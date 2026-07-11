@@ -2229,7 +2229,13 @@ export async function loadReunificacionByUnit(
     }
   }
 
-  const rollup: RollupRow[] = byUnit.map((u) => {
+  // KA6: k-anon-suppressed department cells arrive flagged (suppressed:true) so we
+  // can render them as the honest hatch category — split them out from the visible
+  // units, which alone carry a real ratePct into the graduated-symbol rollup.
+  const visibleUnits = byUnit.filter((u) => !u.suppressed);
+  const suppressedUnits = byUnit.filter((u) => u.suppressed);
+
+  const rollup: RollupRow[] = visibleUnits.map((u) => {
     if (level === "province") {
       const centroid = centroidByKey.get(u.province);
       return {
@@ -2259,6 +2265,21 @@ export async function loadReunificacionByUnit(
   });
 
   const { cells } = toAggregatedCells(rollup, false);
+  // KA6: append the suppressed department cells as null-valued hatch cells (the real
+  // ratePct never leaves fetchReunificationByUnit), so a suppressed reunificacion
+  // unit renders as the distinct "suprimido" category, not vanish as plain no-data.
+  for (const u of suppressedUnits) {
+    cells.push({
+      key: `${u.province}|${u.departmentCode ?? u.locality}`,
+      province: u.province,
+      locality: u.locality !== "" ? (u.locality ?? null) : null,
+      departmentCode: u.departmentCode ?? null,
+      centroidLat: u.centroidLat ?? null,
+      centroidLng: u.centroidLng ?? null,
+      count: null,
+      suppressed: true,
+    });
+  }
   // Rate loader — ratePct per unit, no count residual to reconcile (WARNING 4 N/A).
   return { cells, suppressedCount, noLocalityCount: 0, truncated: false };
 }

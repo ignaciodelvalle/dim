@@ -163,7 +163,7 @@ describe("fetchReunificationByUnit — locality level", () => {
     // LOC_B: only 2 lost episodes (< k=5) — BOTH recovered, a 100% rate. If
     // suppression keyed off ratePct (the stash bug this module fixes), a
     // small-population 100% rate would slip through unsuppressed. It must not:
-    // the unit is dropped from byUnit entirely and counted in suppressedCount.
+    // the unit is k-anon suppressed and counted in suppressedCount.
     const a = await insertPet({ province: PROV, locality: LOC_B });
     await emitStatusChange(a, "lost", new Date(Date.now() - 5 * DAY_MS));
     await emitStatusChange(a, "active", new Date(Date.now() - 1 * DAY_MS));
@@ -177,7 +177,15 @@ describe("fetchReunificationByUnit — locality level", () => {
       "locality",
     );
 
-    expect(result.byUnit.find((u) => u.locality === LOC_B)).toBeUndefined();
+    // KA6: the suppressed unit is EMITTED as a `suppressed:true` cell (the honest
+    // hatch category every other layer uses) — NOT dropped to plain no-data. But
+    // the real value never leaves the module: ratePct is a 0 placeholder, so the
+    // 100% small-population rate is NOT exposed and suppression still keyed off the
+    // lostEpisodes denominator (2 < k=5), not the rate.
+    const unit = result.byUnit.find((u) => u.locality === LOC_B);
+    expect(unit).toBeDefined();
+    expect(unit?.suppressed).toBe(true);
+    expect(unit?.ratePct).toBe(0);
     expect(result.suppressedCount).toBeGreaterThanOrEqual(1);
   });
 

@@ -86,12 +86,19 @@ export type ReunificationByUnitRow = {
    * locality centroids). Null when no member locality had a centroid. */
   centroidLat?: string | null;
   centroidLng?: string | null;
+  /** LOCALITY level only: true for k-anon-suppressed department cells (KA6). The
+   * real value never leaves this module — `ratePct` is a 0 placeholder the loader
+   * MUST NOT read for a suppressed cell; it emits a null-valued hatch cell instead.
+   * Emitting the suppressed unit (rather than dropping it) keeps the "suppressed is
+   * always a distinct, visible category" contract every other layer honors. */
+  suppressed?: boolean;
 };
 
 export type ReunificationByUnitKpi = {
-  /** Visible units only — locality-level cells suppressed by k-anon are DROPPED
-   * here, not included with a null/zeroed ratePct (matches the choropleth
-   * suppressed-cell contract: the real value never leaves this module). */
+  /** Visible units PLUS k-anon-suppressed department cells flagged `suppressed:true`
+   * (KA6) — the suppressed rows carry a 0-placeholder ratePct (never read) so the
+   * loader can render them as the honest hatch category instead of dropping them
+   * to plain no-data. The real value never leaves this module. */
   byUnit: ReunificationByUnitRow[];
   /** Count of locality units suppressed below k=5 lostEpisodes. Always 0 at
    * province level (no suppression — province cells are large). */
@@ -316,18 +323,34 @@ export async function fetchReunificationByUnit(
   }
 
   // k-anon on the DEPARTMENT-grain DENOMINATOR (lostEpisodes), never on ratePct.
-  const { visible, suppressedCount } = suppressSmallCells([...byDept.values()], {
+  const { visible, suppressed, suppressedCount } = suppressSmallCells([...byDept.values()], {
     count: (u) => u.lostEpisodes,
     key: (u) => `${u.province}|${u.label}`,
     k: 5,
   });
-  const byUnit = (visible as unknown as DeptAgg[]).map((u) => ({
+  const centroid = (u: DeptAgg) => ({
+    centroidLat: u.centroidN > 0 ? String(u.latSum / u.centroidN) : null,
+    centroidLng: u.centroidN > 0 ? String(u.lngSum / u.centroidN) : null,
+  });
+  const byUnit: ReunificationByUnitRow[] = (visible as unknown as DeptAgg[]).map((u) => ({
     province: u.province,
     locality: u.label,
     ratePct: pct(u.recovered, u.lostEpisodes),
     departmentCode: u.departmentCode,
-    centroidLat: u.centroidN > 0 ? String(u.latSum / u.centroidN) : null,
-    centroidLng: u.centroidN > 0 ? String(u.lngSum / u.centroidN) : null,
+    ...centroid(u),
   }));
+  // KA6: emit suppressed department cells as `suppressed:true` (ratePct nulled to a
+  // 0 placeholder the loader never reads) so they render as the honest hatch
+  // category every other layer uses — not silently dropped to plain no-data.
+  for (const u of suppressed) {
+    byUnit.push({
+      province: u.province,
+      locality: u.label,
+      ratePct: 0,
+      departmentCode: u.departmentCode,
+      ...centroid(u),
+      suppressed: true,
+    });
+  }
   return { byUnit, suppressedCount };
 }
