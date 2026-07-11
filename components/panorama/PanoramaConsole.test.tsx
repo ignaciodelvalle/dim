@@ -366,6 +366,25 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
   });
 });
 
+describe("PanoramaConsole — deep-link level guard (MAP-5)", () => {
+  it("falls a national level=locality deep-link back to province (no province in scope)", () => {
+    // No ?province and no implicit jurisdiction province → a locality choropleth
+    // has no drilled scope to fill and would read "sin datos en todo el país".
+    setUrl("/gob/panorama?level=locality");
+    renderConsole();
+    // level fell back to province → the on-canvas badge reads "Provincias".
+    expect(mapProps?.aggregationLabel).toBe("Provincias");
+  });
+
+  it("keeps level=locality when a province IS in scope", () => {
+    setUrl("/gob/panorama?level=locality&province=AR-B");
+    renderConsole();
+    // A drilled province retains locality — the badge names the division, not
+    // "Provincias".
+    expect(mapProps?.aggregationLabel).toBe("Departamentos/partidos");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // panorama-redesign Fase 1 — reflow composition, control budget, frame, abort
 // ---------------------------------------------------------------------------

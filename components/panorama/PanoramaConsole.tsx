@@ -560,7 +560,19 @@ export function PanoramaConsole({
   // reproduces the same axis.
   const [level, setLevel] = useState<AggregationLevel>(() => {
     const urlLevel = searchParams.get("level");
-    if (urlLevel === "locality" || urlLevel === "province") return urlLevel;
+    // MAP-5 fix: `level=locality` needs a province in scope to load divisions. A
+    // deep-linked/shared national URL with a stale `level=locality` (no ?province
+    // and no implicit jurisdiction province) would leave the choropleth on "Sin
+    // datos para esta capa en todo el país" until the operator toggles to
+    // Provincias — the KPIs load fine, only the map is stuck. Fall back to province
+    // when no province is in scope so the map paints on land; the (scope, zoom)
+    // hysteresis still flips to locality on an intentional zoom or a drill.
+    if (urlLevel === "locality") {
+      const hasProvinceInScope =
+        searchParams.get("province") !== null || initialDivisionProvince !== null;
+      return hasProvinceInScope ? "locality" : "province";
+    }
+    if (urlLevel === "province") return "province";
     return initialLevel;
   });
   const levelRef = useRef(level);
