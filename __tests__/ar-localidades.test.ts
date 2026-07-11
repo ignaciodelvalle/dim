@@ -2,7 +2,7 @@
 // by scripts/import-indec-localities.ts. If the catalog is empty (the import
 // hasn't run yet), the tests skip with a clear message instead of failing.
 
-import { count as countFn, inArray, isNull, sql } from "drizzle-orm";
+import { count as countFn, inArray, isNull } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
@@ -13,6 +13,8 @@ import {
   localityByName,
   searchLocalities,
 } from "@/lib/infra/ar-localidades";
+
+import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
 
 // INDEC IDs from the import-indec-localities fixture CSV. If a prior test run
 // timed out before afterAll cleanup, these rows may still be present and will
@@ -31,13 +33,10 @@ beforeAll(async () => {
   // queries reflect only real catalog data.
   await db.delete(arLocalities).where(inArray(arLocalities.indecId, [...INDEC_FIXTURE_IDS]));
   // Restore any soft-deleted indec_cppdyl rows the import fixture may have
-  // stamped so the live catalog count is accurate.
-  await db
-    .update(arLocalities)
-    .set({ removedAt: null })
-    .where(
-      sql`${arLocalities.source} = 'indec_cppdyl' AND ${arLocalities.removedAt} IS NOT NULL AND ${arLocalities.indecId} IS NOT NULL`,
-    );
+  // stamped so the live catalog count is accurate. The shared helper also
+  // re-drops whole-province aggregate rows a blanket restore would resurrect
+  // (they fail the lint:locality gate) — see _helpers/restore-indec-catalog.ts.
+  await restoreIndecCatalog();
 });
 
 let catalogPopulated = false;

@@ -10,6 +10,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
 import { runImport } from "@/scripts/import-indec-localities";
 
+import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
+
 const FIXTURE_PATH = join(
   __dirname,
   "..",
@@ -49,13 +51,10 @@ async function cleanupFixtureRows() {
   // Un-soft-delete real catalog rows the soft-delete subtest may have stamped.
   // The script's soft-delete pass marks any indec_cppdyl row that isn't in the
   // current CSV as removed; running with a fixture CSV obliterates the live
-  // catalog unless we restore it here.
-  await db
-    .update(arLocalities)
-    .set({ removedAt: null })
-    .where(
-      sql`${arLocalities.source} = 'indec_cppdyl' AND ${arLocalities.removedAt} IS NOT NULL AND ${arLocalities.indecId} IS NOT NULL`,
-    );
+  // catalog unless we restore it here. The shared helper also re-drops the
+  // whole-province aggregate rows a blanket restore would resurrect (they fail
+  // the lint:locality gate) — see _helpers/restore-indec-catalog.ts.
+  await restoreIndecCatalog();
   // Remove the test-only import runs (those point at the fixture URL, not the
   // real datos.gob.ar URL).
   await db
