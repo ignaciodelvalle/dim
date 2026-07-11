@@ -4,7 +4,7 @@
   "pkg": "dim",
   "globalName": "MiMAR",
   "tsconfig": "tsconfig.json",
-  "cssEntry": ".next/static/css/2e0a65559b9f632d.css",
+  "cssEntry": ".next/static/css/c8c1d0bf317d8ab0.css",
   "buildCmd": "pnpm build",
   "componentSrcMap": {
     "LnStatusFlag": "components/ui/StatusFlag.tsx",
