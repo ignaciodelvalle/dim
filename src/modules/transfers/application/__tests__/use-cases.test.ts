@@ -114,6 +114,7 @@ function makeFakeRepo(
     findActiveOwnerOwnership: vi
       .fn()
       .mockResolvedValue({ id: "own-1", ownerUserId: "user-sender" }),
+    findPetStatusById: vi.fn().mockResolvedValue({ status: "found", inCustodyDispute: false }),
     findUserIdByEmail: vi.fn().mockResolvedValue(null),
     // owner-flow writes
     insertPetTransfer: vi.fn().mockResolvedValue(undefined),
@@ -510,6 +511,10 @@ describe("acceptPetTransfer", () => {
         .mockResolvedValue(
           makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: "gift" }),
         ),
+      // The sender is still the single active owner (TR-C1 custody guard).
+      findActiveOwnerOwnership: vi
+        .fn()
+        .mockResolvedValue({ id: "own-1", ownerUserId: SENDER_UUID }),
     });
     const result = await acceptPetTransfer(baseInput, {
       repo,
@@ -547,6 +552,10 @@ describe("acceptPetTransfer", () => {
         .mockResolvedValue(
           makeTransfer({ fromOwnerId: SENDER_UUID, toOwnerId: RECIPIENT_UUID, reason: null }),
         ),
+      // The sender is still the single active owner (TR-C1 custody guard).
+      findActiveOwnerOwnership: vi
+        .fn()
+        .mockResolvedValue({ id: "own-1", ownerUserId: SENDER_UUID }),
     });
     await acceptPetTransfer(baseInput, { repo, actor: uuidActor, transaction: fakeTransaction });
     const eventArg = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls[0][0] as {
@@ -588,6 +597,11 @@ describe("acceptPetTransfer", () => {
       insertPetEvent: vi.fn().mockImplementation(() => {
         validateEventPayload("custody_transferred", { bogus: true });
       }),
+      // The sender is still the single active owner (TR-C1 custody guard) — the
+      // failure under test is the event payload, not the custody re-check.
+      findActiveOwnerOwnership: vi
+        .fn()
+        .mockResolvedValue({ id: "own-1", ownerUserId: SENDER_UUID }),
     });
     const result = await acceptPetTransfer(baseInput, {
       repo,
@@ -661,6 +675,61 @@ describe("acceptPetTransfer", () => {
     });
     expect(result).toMatchObject({ ok: false });
     expect((result as { ok: false; error: string }).error).toMatch(/ya está/i);
+  });
+
+  // -------------------------------------------------------------------------
+  // TR-C1 (CRITICAL): accept must RE-VALIDATE the PET under the lock, not just
+  // the transfer row. closeOwnerOwnerships ends the CURRENT active owner, so a
+  // stale transfer accepted after custody moved elsewhere is custody theft.
+  // -------------------------------------------------------------------------
+
+  it("rejects a stale A→B accept after a dispute moved custody A→C (C keeps the pet)", async () => {
+    // transfer.fromOwnerId is "user-sender" (A). A govt dispute already moved
+    // custody to C, so the current active owner is "user-C" ≠ A. Accepting the
+    // stale A→B transfer must be REJECTED — and NO ownership row may be touched,
+    // so C keeps custody.
+    const repo = makeFakeRepo({
+      findActiveOwnerOwnership: vi.fn().mockResolvedValue({ id: "own-C", ownerUserId: "user-C" }),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/titularidad cambió/i);
+    // Custody untouched — C's ownership survives; no new owner minted.
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+    expect(repo.insertOwnerOwnership).not.toHaveBeenCalled();
+    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+  });
+
+  it("rejects accept while the pet is in an open custody dispute", async () => {
+    const repo = makeFakeRepo({
+      findPetStatusById: vi.fn().mockResolvedValue({ status: "found", inCustodyDispute: true }),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/disputa/i);
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
+  });
+
+  it("rejects accept of a pet that is now reported lost", async () => {
+    const repo = makeFakeRepo({
+      findPetStatusById: vi.fn().mockResolvedValue({ status: "lost", inCustodyDispute: false }),
+    });
+    const result = await acceptPetTransfer(baseInput, {
+      repo,
+      actor,
+      transaction: fakeTransaction,
+    });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/perdida/i);
+    expect(repo.closeOwnerOwnerships).not.toHaveBeenCalled();
   });
 });
 

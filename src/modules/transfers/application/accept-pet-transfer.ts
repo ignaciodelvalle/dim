@@ -18,7 +18,10 @@
 //
 // PARITY QUIRK: close BEFORE insert (unique-active-owner partial index validates at commit).
 
-import { validateRecipientMatch } from "../domain/owner-transfer-rules";
+import {
+  validatePetStatusForTransfer,
+  validateRecipientMatch,
+} from "../domain/owner-transfer-rules";
 import type { TransfersRepository } from "../infrastructure/transfers-repository";
 import type { NewNotification, UseCaseResult } from "./types";
 
@@ -98,6 +101,36 @@ export async function acceptPetTransfer(
       );
       if (!locked || locked.status !== "pending") {
         throw new Error(`La transferencia ya está ${locked?.status ?? "no encontrada"}.`);
+      }
+
+      // CUSTODY GUARD (TR-C1): the transfer row being pending is NOT enough.
+      // `closeOwnerOwnerships(petId)` below ends whoever is the CURRENT active
+      // owner — not necessarily `transfer.fromOwnerId`. A stale A→B transfer
+      // accepted AFTER a govt dispute moved custody A→C would silently strip C
+      // and hand the pet to B (custody theft), and the emitted event would lie
+      // ("A→B"). Re-run the initiate-time pet guards AND assert the sender is
+      // still the single active owner, all under the transfer lock, before any
+      // destructive custody write. Default to a HARD ERROR (never auto-cancel).
+      const petSnapshot = await repo.findPetStatusById(
+        transfer.petId,
+        tx as Parameters<typeof repo.findPetStatusById>[1],
+      );
+      if (!petSnapshot) {
+        throw new Error("La mascota ya no existe. La transferencia no es válida.");
+      }
+      const petGuard = validatePetStatusForTransfer({
+        status: petSnapshot.status,
+        inCustodyDispute: petSnapshot.inCustodyDispute,
+      });
+      if (!petGuard.ok) {
+        throw new Error(petGuard.error);
+      }
+      const currentOwner = await repo.findActiveOwnerOwnership(
+        transfer.petId,
+        tx as Parameters<typeof repo.findActiveOwnerOwnership>[1],
+      );
+      if (!currentOwner || currentOwner.ownerUserId !== transfer.fromOwnerId) {
+        throw new Error("La transferencia ya no es válida: la titularidad cambió.");
       }
 
       // PARITY QUIRK: close BEFORE insert.

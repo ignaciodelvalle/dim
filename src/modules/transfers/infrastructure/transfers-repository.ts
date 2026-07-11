@@ -152,6 +152,25 @@ export const TransfersRepository = {
   },
 
   /**
+   * Returns a pet's transferability snapshot (status + inCustodyDispute) given
+   * its UUID id. Used to RE-RUN the initiate-time pet guards under the accept
+   * lock (TR-C1) — the initiate-time state is stale by the time the recipient
+   * accepts. Returns null if the pet is gone.
+   */
+  async findPetStatusById(
+    petId: string,
+    tx?: Tx,
+  ): Promise<{ status: PetRow["status"]; inCustodyDispute: boolean } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ status: pets.status, inCustodyDispute: pets.inCustodyDispute })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
    * Finds the active (endedAt IS NULL) owner ownership row for a pet.
    */
   async findActiveOwnerOwnership(
