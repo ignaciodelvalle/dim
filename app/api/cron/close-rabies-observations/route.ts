@@ -2,8 +2,9 @@
 //
 // GET /api/cron/close-rabies-observations
 //
-// Authentication: header `x-cron-secret` must match process.env.CRON_SECRET.
-// See app/api/cron/materialize-slots/route.ts for the policy details.
+// Authentication: authorizeCronRequest() — accepts either the Vercel Cron
+// `Authorization: Bearer <CRON_SECRET>` header or the legacy `x-cron-secret`
+// header (see lib/domain/cron-auth.ts for the full policy).
 //
 // Returns: { ok: true, ...stats, durationMs }
 

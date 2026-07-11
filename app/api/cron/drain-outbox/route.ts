@@ -6,8 +6,9 @@
 // backoff schedule. After MAX_ATTEMPTS failures the row is marked 'failed'.
 //
 // GET /api/cron/drain-outbox
-// Auth: `x-cron-secret` header must match process.env.CRON_SECRET.
-// Schedule: every 5 minutes (vercel.json crons).
+// Auth: authorizeCronRequest() — Bearer <CRON_SECRET> or legacy x-cron-secret.
+// Schedule: runs DAILY, invoked in order by the single dispatcher
+// (/api/cron/daily, vercel.json "0 4 * * *") — see lib/infra/cron-dispatcher.ts.
 //
 // Returns: { ok: true, processed, delivered, failed, retried }
 //
@@ -24,9 +25,9 @@ import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/infra/
 export const dynamic = "force-dynamic";
 
 const BATCH_SIZE = 50;
-// Drain loop bounds (review 23 item 7): the route now runs every 5 min AND
-// drains repeatedly within a run until the queue is empty or the budget is
-// exhausted, so a backlog doesn't linger a batch-per-run.
+// Drain loop bounds (review 23 item 7): the route runs once daily (via the
+// dispatcher) AND drains repeatedly within that run until the queue is empty
+// or the budget is exhausted, so a backlog doesn't linger a batch-per-run.
 const MAX_DURATION_MS = 45_000;
 // Canonical name: snake_case of the route directory (cron-registry SSOT rule,
 // projection-cron audit 2026-07-03 B2) — was mismatched with the registry, so
