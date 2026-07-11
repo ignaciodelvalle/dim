@@ -623,21 +623,31 @@ async function countPendingFosterProposals(orgId: string): Promise<number> {
 
 /**
  * Active foster placements on pets this org currently holds in custody.
- * EXISTS keeps it a single indexed scan (owner_organization_id, pet_id).
+ *
+ * Org-scoped-first: DRIVE from this org's active shelter_custody rows (the
+ * partial unique index `ownerships_one_active_shelter_custody_per_pet_org` keys
+ * on owner_organization_id) and JOIN foster rows by pet_id — the scan is bounded
+ * by the org's custody, never the platform-wide foster population. The previous
+ * shape put `ownerships f` (all fosters) in the outer position and leaned on the
+ * planner decorrelating the EXISTS to reach the org index; the explicit JOIN
+ * makes that org-scoping structural, not planner-dependent.
+ *
+ * No fan-out: `ownerships_one_active_shelter_custody_per_pet_org` guarantees ≤1
+ * active shelter_custody per (pet, org), so each matched foster row contributes
+ * exactly once — COUNT(*) equals the matched-foster count (same as the old
+ * EXISTS), with no dedup needed.
  */
 async function countActiveFosters(orgId: string): Promise<number> {
   const rows = await db.execute<{ n: string | number }>(sql`
     SELECT COUNT(*)::int AS n
-    FROM ownerships f
-    WHERE f.role = 'foster'
+    FROM ownerships c
+    JOIN ownerships f
+      ON f.pet_id = c.pet_id
+      AND f.role = 'foster'
       AND f.ended_at IS NULL
-      AND EXISTS (
-        SELECT 1 FROM ownerships c
-        WHERE c.pet_id = f.pet_id
-          AND c.owner_organization_id = ${orgId}
-          AND c.role = 'shelter_custody'
-          AND c.ended_at IS NULL
-      )
+    WHERE c.owner_organization_id = ${orgId}
+      AND c.role = 'shelter_custody'
+      AND c.ended_at IS NULL
   `);
   return Number(rows[0]?.n ?? 0);
 }
@@ -645,22 +655,34 @@ async function countActiveFosters(orgId: string): Promise<number> {
 /**
  * Overdue post-adoption check-in reminders for pets this org adopted out.
  * Promotes the page-local `overdue.length` (checkins/page.tsx) to a shared,
- * bounded count. previous_owner_organization_id is denormalized on the
- * adoption_finalized event precisely so this stays a single EXISTS.
+ * bounded count.
+ *
+ * Org-scoped-first: DRIVE from this org's adoption_finalized events (the
+ * previous_owner_organization_id denormalized on the payload bounds the set to
+ * this org, ~hundreds of rows) and JOIN overdue post_adoption_checkin reminders
+ * by pet_id. `reminders` is the fastest-growing table at national scale (every
+ * pet accrues reminders), so it must never be the driver — the previous shape
+ * put it in the outer position and relied on the planner decorrelating the
+ * EXISTS to avoid a platform-wide reminders scan.
+ *
+ * DISTINCT on the adopted pet_ids keeps a pet with more than one
+ * adoption_finalized event carrying this org (a re-adoption) from
+ * double-counting its reminders — one adopted row per pet, preserving the old
+ * EXISTS semantics exactly.
  */
 async function countOverdueCheckins(orgId: string): Promise<number> {
   const rows = await db.execute<{ n: string | number }>(sql`
     SELECT COUNT(*)::int AS n
     FROM reminders r
+    JOIN (
+      SELECT DISTINCT e.pet_id
+      FROM pet_events e
+      WHERE e.event_type = 'adoption_finalized'
+        AND e.payload->>'previous_owner_organization_id' = ${orgId}
+    ) adopted ON adopted.pet_id = r.pet_id
     WHERE r.reminder_type = 'post_adoption_checkin'
       AND r.completed_at IS NULL
       AND r.due_at < NOW()
-      AND EXISTS (
-        SELECT 1 FROM pet_events e
-        WHERE e.pet_id = r.pet_id
-          AND e.event_type = 'adoption_finalized'
-          AND e.payload->>'previous_owner_organization_id' = ${orgId}
-      )
   `);
   return Number(rows[0]?.n ?? 0);
 }
