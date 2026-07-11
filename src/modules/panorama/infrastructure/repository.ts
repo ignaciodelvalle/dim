@@ -23,10 +23,13 @@ import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } fro
 // Heavy read-only analytics — routed through the ANALYTICS pool (session
 // pooler in production; see db/index.ts, task #74 dual-pool split).
 import {
+  type PanoramaCubeRow,
   arLocalities,
   cases,
   analyticsDb as db,
   organizations,
+  panoramaCube,
+  panoramaCubeMeta,
   petEvents,
   pets,
   welfareReports,
@@ -1304,6 +1307,41 @@ export function loadChoroplethByLevel(
   if (metric === "ppp-compliance")
     return loadPppCompliance(actor, jurisdictions, adminProvince, adminLocality);
   return loadMortality(actor, jurisdictions, adminProvince, adminLocality);
+}
+
+// ---------------------------------------------------------------------------
+// Aggregate cube reads (migration 0139). The scope-aware SELECTs against the
+// precomputed cube live HERE (the module's single @/db seam); the application
+// reader (load-layer-features-cube.ts) does the eligibility/staleness gating and
+// rebuilds the LayerFeaturesResult via build-features. Reads go through analyticsDb
+// (service-role, BYPASSRLS) — PostgREST cannot read these deny-all tables.
+// ---------------------------------------------------------------------------
+
+/** Cube build metadata (freshness + status) the reader's staleness gate reads. */
+export async function readCubeMeta(): Promise<{
+  builtAt: Date | null;
+  status: string;
+} | null> {
+  const [row] = await db
+    .select({ builtAt: panoramaCubeMeta.builtAt, status: panoramaCubeMeta.status })
+    .from(panoramaCubeMeta)
+    .where(sql`${panoramaCubeMeta.id} = 1`);
+  return row ?? null;
+}
+
+/** Read the cube rows for one metric, optionally narrowed to a province (an admin
+ * province drill). Both grains (province + department) come back; the reader
+ * partitions by `unit_level`. */
+export async function readCubeRows(
+  metric: ChoroplethMetric,
+  province?: string,
+): Promise<PanoramaCubeRow[]> {
+  const conditions = [eq(panoramaCube.metric, metric)];
+  if (province) conditions.push(eq(panoramaCube.province, province));
+  return db
+    .select()
+    .from(panoramaCube)
+    .where(and(...conditions));
 }
 
 // ---------------------------------------------------------------------------
