@@ -4,7 +4,9 @@
 // from the precomputed panorama_cube, producing the SAME LayerFeaturesResult envelope
 // the live path returns — by reconstructing the loaders' cell shapes and reusing the
 // EXACT `buildChoroplethFeatures` / `buildProvinceChoroplethFeatures` transforms. So a
-// cube-served response is byte-identical to the live one (pinned by the parity test).
+// cube-served response is a set-equal (order-independent) FeatureCollection to the live
+// one — same features, envelope, and flags regardless of row order, NOT literal byte
+// order (pinned by the parity test's order-independent normalization).
 //
 // The cube COMPOSES IN FRONT of the live Data Cache: an eligible request reads the
 // cube; everything else keeps the current cached-live path untouched. Flag default OFF

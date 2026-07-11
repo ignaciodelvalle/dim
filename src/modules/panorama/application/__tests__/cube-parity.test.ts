@@ -71,8 +71,8 @@ afterAll(() => {
   process.env.CUBE_READS = prevFlag ?? "";
 });
 
-// Cube-eligible combos (byte-identical to live): national+province, and BOTH grains
-// for a whole-province drill. National+department is the truncated live view (capped
+// Cube-eligible combos (set-equal, order-independent, to live): national+province, and
+// BOTH grains for a whole-province drill. National+department is the truncated live view (capped
 // at PER_LAYER_CAP) — NOT cube-served — and is asserted to fall back below.
 const ELIGIBLE: { level: AggregationLevel; drill?: string }[] = [
   { level: "province", drill: undefined },

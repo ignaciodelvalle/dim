@@ -7,7 +7,10 @@
 // complementarySuppress → province sums incl. the no-locality residual) and writes
 // the RESULT in ONE transaction. This makes SQL/TS drift structurally impossible:
 // the cube stores exactly what the loader produced, so the reader replaying
-// build-features over it is byte-identical to a live read (parity is near-tautology).
+// build-features over it is a set-equal (order-independent) FeatureCollection to a
+// live read (parity is near-tautology). NOTE: the guarantee is SET equality — same
+// features, envelope, and flags irrespective of row order — NOT literal byte order;
+// do not build an order-sensitive consumer on top of it.
 //
 // PRIVACY: the loaders already null every sub-k count before returning (suppressed
 // cells carry value = null). So a raw sub-k value NEVER enters this module's memory,
@@ -114,8 +117,9 @@ async function mapLimit<T, R>(
  *    not one national call: the national locality rollup is CAPPED at PER_LAYER_CAP
  *    (2000) and the seed exceeds it, so a national build is TRUNCATED — slicing it per
  *    province would drop most localities. A province-scoped rollup is complete (well
- *    under the cap), so its department cells are correct AND byte-identical to a live
- *    province drill (the reader calls the same loader). The national department view
+ *    under the cap), so its department cells are correct AND set-equal (order-
+ *    independent) to a live province drill (the reader calls the same loader). The
+ *    national department view
  *    is therefore NOT cube-served (it is the truncated live view; see the reader).
  */
 async function buildMetricRows(
