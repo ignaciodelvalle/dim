@@ -129,10 +129,10 @@ export async function createInstitutionalAccountForAuthority(
     email_confirm: true,
     user_metadata: {
       display_name: displayName,
-      // Pass role via metadata so the handle_new_user trigger sets the right role
-      // (the trigger reads raw_user_meta_data.user_role). We also UPDATE the profile
-      // inside the tx for correctness, but the trigger pre-populates the row first.
-      user_role: role,
+      // NOTE: do NOT pass role here. The handle_new_user trigger (db/triggers.sql)
+      // hardcodes role='owner' and IGNORES all request metadata — a `user_role`
+      // key would be dead and misleading. The real role is set by the in-tx
+      // UPDATE below (step 5a), which is the authoritative role-setting path.
     },
   });
 
