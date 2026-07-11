@@ -22,6 +22,7 @@ import {
   bivariateSuppressedCodes,
   bivariateSuppressedFilter,
 } from "@/components/panorama/bivariate-fill";
+import { computeClassScale } from "@/components/panorama/class-scale";
 import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import {
   type GraduatedScale,
@@ -196,6 +197,14 @@ export type DivisionLegendDescriptor = {
   max: number;
   /** Whether a value ramp is shown (there is at least one visible division). */
   hasRamp: boolean;
+  /**
+   * panorama redesign Theme 3 — the THRESHOLD-CLASSED breaks + colors actually
+   * rendered on the map (computed from the same values + locked domain the fill
+   * expression uses, so the off-canvas legend swatches never disagree with the
+   * on-map class colors). Empty for a flat single-class fill.
+   */
+  breaks: number[];
+  colors: string[];
   /**
    * cursor #2 — at least one visible division is k-anon suppressed (hatched), so
    * the legend shows the "Suprimido (k-anon)" hatch swatch.
@@ -1394,6 +1403,8 @@ export function SituationalMap({
       min: number;
       max: number;
       hasRamp: boolean;
+      breaks: number[];
+      colors: string[];
       suppressed: boolean;
     } | null = null;
 
@@ -1481,6 +1492,11 @@ export function SituationalMap({
         const bounds = divLock.domain;
         const hasSuppressed = join.suppressed.size > 0;
         if (bounds || hasSuppressed) {
+          // Theme 3: resolve the SAME classed scale the fill expression renders
+          // (same values + locked domain) so the legend swatches match the map.
+          const divScale = computeClassScale([...join.values.values()], {
+            lockedDomain: divLock.domain ?? null,
+          });
           nextDivisionLegend = {
             label: layer.label,
             // Name the unit by which code space(s) are in view: a mixed
@@ -1494,6 +1510,8 @@ export function SituationalMap({
             min: bounds?.min ?? 0,
             max: bounds?.max ?? 0,
             hasRamp: bounds !== null,
+            breaks: divScale.breaks,
+            colors: divScale.colors,
             suppressed: hasSuppressed,
           };
         }
@@ -1568,6 +1586,7 @@ export function SituationalMap({
           prev.min === nextDivisionLegend.min &&
           prev.max === nextDivisionLegend.max &&
           prev.hasRamp === nextDivisionLegend.hasRamp &&
+          prev.breaks.join(",") === nextDivisionLegend.breaks.join(",") &&
           prev.suppressed === nextDivisionLegend.suppressed);
       return same ? prev : nextDivisionLegend;
     });

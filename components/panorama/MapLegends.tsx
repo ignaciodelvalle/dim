@@ -22,6 +22,12 @@
 
 import type { ActiveLayer, DivisionLegendDescriptor } from "@/components/panorama/SituationalMap";
 import { BIVARIATE_LEGEND_GRID } from "@/components/panorama/bivariate-fill";
+import {
+  type ClassScale,
+  type ClassSwatch,
+  classSwatches,
+  computeClassScale,
+} from "@/components/panorama/class-scale";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { histogramPeak, valueHistogram } from "@/components/panorama/legend-histogram";
 import {
@@ -32,7 +38,7 @@ import {
   type ScaleBounds,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
-import { COLOR_NO_DATA, COLOR_SUPPRESSED, RAMP_BLUE_DARK } from "@/lib/analytics/viz-scales";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 
 type Props = {
   /** The currently-active layers — the render-derived legends read from these. */
@@ -45,6 +51,44 @@ type Props = {
 
 // Shared skin for one legend sub-card in the rail (was `bg-black/55` on canvas).
 const CARD = "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-3 py-2";
+
+/** Round a class break to a readable precision for the legend label. */
+function formatBound(n: number): string {
+  const rounded = Math.abs(n) >= 10 ? Math.round(n) : Math.round(n * 10) / 10;
+  return rounded.toLocaleString("es-AR");
+}
+
+/** The value-range label for one class swatch (open-below / range / open-above). */
+function swatchLabel(s: ClassSwatch): string {
+  if (s.lo === null && s.hi === null) return "Todos";
+  if (s.lo === null) return `< ${formatBound(s.hi as number)}`;
+  if (s.hi === null) return `≥ ${formatBound(s.lo)}`;
+  return `${formatBound(s.lo)} – ${formatBound(s.hi)}`;
+}
+
+/**
+ * Discrete CLASS-swatch legend for a threshold-classed choropleth (Theme 3):
+ * one colored chip per class with its value range, replacing the old continuous
+ * gradient bar that hid where the data actually fell. The swatches are built from
+ * the SAME ClassScale the map fill renders, so legend and map never disagree.
+ */
+function ClassSwatchLegend({ scale }: { scale: ClassScale }) {
+  const swatches = classSwatches(scale);
+  return (
+    <div className="flex flex-col gap-0.5">
+      {swatches.map((s, i) => (
+        <div key={`${s.color}-${i}`} className="flex items-center gap-2">
+          <span
+            className="inline-block h-2.5 w-4 flex-none rounded-[var(--radius-xs)] border border-white/15"
+            style={{ background: s.color }}
+            aria-hidden="true"
+          />
+          <span className="tabular-nums text-white/75">{swatchLabel(s)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
   // task #63: the active bivariate layer (if any) drives the 3×3 matrix legend;
@@ -151,17 +195,13 @@ export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
               <span className="font-normal text-ln-op-mute">· por {divisionLegend.unitNoun}</span>
             </div>
             {divisionLegend.hasRamp && (
-              <div className="flex items-center gap-2">
-                <span className="tabular-nums">{divisionLegend.min.toLocaleString("es-AR")}</span>
-                <span
-                  className="h-2.5 w-24 rounded-full"
-                  style={{
-                    background: `linear-gradient(to right, ${RAMP_BLUE_DARK[0]}, ${RAMP_BLUE_DARK[1]})`,
-                  }}
-                  aria-hidden="true"
-                />
-                <span className="tabular-nums">{divisionLegend.max.toLocaleString("es-AR")}</span>
-              </div>
+              <ClassSwatchLegend
+                scale={{
+                  breaks: divisionLegend.breaks,
+                  colors: divisionLegend.colors,
+                  method: "quantile",
+                }}
+              />
             )}
             {/* cursor #2: trichotomous — colored fill = value, DIAGONAL HATCH =
                 k-anon-protected, outline-only = genuine no-data. */}
@@ -187,7 +227,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
             </div>
           </div>
         )}
-        {provinceLegends.map(({ layer, bounds, isDivergent }) => {
+        {provinceLegends.map(({ layer, isDivergent }) => {
           // #5: the actual province values, for the in-legend distribution. On
           // the FIXED [0,100] divergent axis they otherwise vanish into the mid
           // band — the histogram shows the real spread.
@@ -268,18 +308,10 @@ export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
                   </div>
                 </div>
               ) : (
-                // Sequential legend for density/count choropleths.
-                <div className="flex items-center gap-2">
-                  <span className="tabular-nums">{bounds.min.toLocaleString("es-AR")}</span>
-                  <span
-                    className="h-2.5 w-24 rounded-full"
-                    style={{
-                      background: `linear-gradient(to right, ${RAMP_BLUE_DARK[0]}, ${RAMP_BLUE_DARK[1]})`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span className="tabular-nums">{bounds.max.toLocaleString("es-AR")}</span>
-                </div>
+                // Theme 3: discrete CLASS swatches for density/count choropleths
+                // (was a continuous gradient bar). Built from the same quantile
+                // scale the map fill renders at the live edge.
+                <ClassSwatchLegend scale={computeClassScale(values)} />
               )}
               <div className="mt-1 flex items-center gap-1.5 text-white/70">
                 <span
