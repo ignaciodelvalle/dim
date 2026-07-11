@@ -11,8 +11,8 @@ import {
 
 describe("formatValueWithUnit", () => {
   it("renders a rate value as an es-AR percentage", () => {
-    expect(formatValueWithUnit(64.4, "rate")).toBe("64,4 %");
-    expect(formatValueWithUnit(80, "rate")).toBe("80 %");
+    expect(formatValueWithUnit(64.4, "rate")).toBe("64,4%");
+    expect(formatValueWithUnit(80, "rate")).toBe("80%");
   });
 
   it("renders a count value as a grouped es-AR number with no unit", () => {
@@ -24,11 +24,11 @@ describe("formatValueWithUnit", () => {
 describe("formatMetaGap", () => {
   it("formats a below-target gap with a unicode minus", () => {
     // 64,4 against meta 80 → −15,6.
-    expect(formatMetaGap(64.4, 80)).toBe("meta 80 % · −15,6");
+    expect(formatMetaGap(64.4, 80)).toBe("meta 80% · −15,6");
   });
 
   it("formats an above-target gap with a plus", () => {
-    expect(formatMetaGap(92, 80)).toBe("meta 80 % · +12");
+    expect(formatMetaGap(92, 80)).toBe("meta 80% · +12");
   });
 });
 
@@ -40,8 +40,8 @@ describe("buildLayerReadout", () => {
       dataType: "rate",
       complianceTarget: 80,
     });
-    expect(r.valueText).toBe("64,4 %");
-    expect(r.metaText).toBe("meta 80 % · −15,6");
+    expect(r.valueText).toBe("64,4%");
+    expect(r.metaText).toBe("meta 80% · −15,6");
     expect(r.state).toBeUndefined();
   });
 
@@ -74,8 +74,8 @@ describe("buildPinnedPopupHtml", () => {
     });
     // Both layers are labeled with their own value (not one shared metric).
     expect(html).toContain("Cobertura");
-    expect(html).toContain("64,4 %");
-    expect(html).toContain("meta 80 % · −15,6");
+    expect(html).toContain("64,4%");
+    expect(html).toContain("meta 80% · −15,6");
     expect(html).toContain("Zoonosis");
     expect(html).toContain("1.234");
   });

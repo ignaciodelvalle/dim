@@ -99,7 +99,7 @@ describe("legend grid", () => {
 describe("pinned-popup readout", () => {
   it("reports both raw values with class + a risk band", () => {
     const rows = bivariateReadouts(cell({ coverageValue: 48, signalValue: 12 }));
-    expect(rows[0]).toMatchObject({ label: "Cobertura", valueText: "48 % (baja)" });
+    expect(rows[0]).toMatchObject({ label: "Cobertura", valueText: "48% (baja)" });
     expect(rows[1]).toMatchObject({ label: "Señales", valueText: "12 (altas)" });
     expect(rows[2]).toMatchObject({ label: "Riesgo", valueText: "alto" });
   });

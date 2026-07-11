@@ -137,15 +137,15 @@ export const BIVARIATE_LEGEND_GRID: readonly BivariateLegendSwatch[] = (() => {
 // Pinned-popup readout
 // ---------------------------------------------------------------------------
 
-/** Format a coverage percentage in es-AR ("48 %"). */
+/** Format a coverage percentage in es-AR ("48%"). */
 function fmtPct(value: number): string {
-  return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;
+  return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
 }
 
 /**
  * Build the pinned-popup rows for a bivariate cell: BOTH raw values with their
  * class, plus the combined risk band — e.g.
- *   Cobertura → "48 % (baja)"   Señales → "12 (altas)"   Riesgo → "alto".
+ *   Cobertura → "48% (baja)"   Señales → "12 (altas)"   Riesgo → "alto".
  * A suppressed cell shows the protected state on every value row (never a class),
  * so the popup can no more infer a hidden value than the color can.
  */

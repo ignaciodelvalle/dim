@@ -18,26 +18,26 @@ export type ReadoutDataType = "rate" | "density" | "signal" | "reference" | unde
 export type LayerReadout = {
   /** Layer name — the label that disambiguates a stacked, multi-layer readout. */
   label: string;
-  /** The value WITH unit ("64,4 %" | "1.234"), or null when there is no number. */
+  /** The value WITH unit ("64,4%" | "1.234"), or null when there is no number. */
   valueText: string | null;
   /** Present only when valueText is null: why there is no number. */
   state?: "suppressed" | "nodata";
-  /** Rate layers with a compliance target: "meta 80 % · −15,6". */
+  /** Rate layers with a compliance target: "meta 80% · −15,6". */
   metaText?: string;
 };
 
 const UNICODE_MINUS = "−";
 
-/** Format a value with its unit. Rate layers read as a percentage ("64,4 %");
+/** Format a value with its unit. Rate layers read as a percentage ("64,4%");
  * every other type is a plain es-AR-grouped count ("1.234"). */
 export function formatValueWithUnit(value: number, dataType: ReadoutDataType): string {
   if (dataType === "rate") {
-    return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })} %`;
+    return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
   }
   return value.toLocaleString("es-AR");
 }
 
-/** Format the compliance meta + signed gap for a rate layer: "meta 80 % · −15,6".
+/** Format the compliance meta + signed gap for a rate layer: "meta 80% · −15,6".
  * A negative gap (below target) uses a true Unicode minus so the copy reads clean. */
 export function formatMetaGap(value: number, target: number): string {
   const gap = value - target;
@@ -45,7 +45,7 @@ export function formatMetaGap(value: number, target: number): string {
   const sign = rounded < 0 ? UNICODE_MINUS : "+";
   const magnitude = Math.abs(rounded).toLocaleString("es-AR", { maximumFractionDigits: 1 });
   const metaText = target.toLocaleString("es-AR", { maximumFractionDigits: 1 });
-  return `meta ${metaText} % · ${sign}${magnitude}`;
+  return `meta ${metaText}% · ${sign}${magnitude}`;
 }
 
 /** Build one layer's readout from its value + k-anon state. `value === null` with

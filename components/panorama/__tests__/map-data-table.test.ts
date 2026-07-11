@@ -10,12 +10,12 @@ describe("buildMapTableCsv", () => {
   it("emits a header and one line per row (CRLF separated)", () => {
     const rows: MapTableRow[] = [
       { layer: "Perdidas", unit: "Salta", value: "1.234" },
-      { layer: "Cobertura antirrábica", unit: "Jujuy", value: "64,4 %" },
+      { layer: "Cobertura antirrábica", unit: "Jujuy", value: "64,4%" },
     ];
     const csv = buildMapTableCsv(rows);
-    // "64,4 %" contains a comma → RFC-4180 quoting kicks in for that field.
+    // "64,4%" contains a comma → RFC-4180 quoting kicks in for that field.
     expect(csv).toBe(
-      'Capa,Unidad,Valor\r\nPerdidas,Salta,1.234\r\nCobertura antirrábica,Jujuy,"64,4 %"',
+      'Capa,Unidad,Valor\r\nPerdidas,Salta,1.234\r\nCobertura antirrábica,Jujuy,"64,4%"',
     );
   });
 
