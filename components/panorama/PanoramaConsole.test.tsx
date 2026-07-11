@@ -340,7 +340,10 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
 
     fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
     expect(new URLSearchParams(window.location.search).get("preset")).toBe("bienestar");
-    expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
 
     // Simulate browser Back: the URL reverts to A and popstate fires. In this Next
     // version useSearchParams does NOT observe popstate — the console must re-derive
