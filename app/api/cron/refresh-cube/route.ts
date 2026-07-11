@@ -11,10 +11,11 @@
 // one transaction. Scheduled every 15 min (vercel.json). Also runnable locally via
 // `pnpm cube:refresh`.
 //
-// NOTE: the builder gives its OWN write transaction a 120s statement_timeout, but a
-// Vercel function is still capped by maxDuration (60s, vercel.json) — the design
-// measured ~20–40s per rebuild, comfortably inside it. If a production rebuild ever
-// approaches the cap, either raise maxDuration for this route or drop the cadence.
+// NOTE: the builder gives its OWN write transaction a 120s statement_timeout.
+// The LOCAL measured rebuild is ~105s (24 province × 5 metric loader calls over
+// the max:2 analytics pool) — well past the 60s cron default, so this route pins
+// maxDuration to 300s (Pro). Staging should be faster (gru1 + session pooler),
+// but the pin makes the cap a non-issue either way.
 //
 // Returns: { ok, status, rowCount, durationMs, watermark, builtAt, perMetric }
 
@@ -27,6 +28,7 @@ import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { refreshCube } from "@/src/modules/panorama/infrastructure/cube-builder";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const CRON_NAME = "refresh_cube";
 
