@@ -100,6 +100,34 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
 ];
 
 // ---------------------------------------------------------------------------
+// DENY-ALL tables — RLS enabled with ZERO policies (the app reaches them only
+// via Drizzle / service-role BYPASSRLS; the PostgREST surface must be fully
+// closed). RLS-enabled + no policy = default-deny for every operation and role.
+//
+// R3 (Tier-2 authz critique): the coverage test asserted RLS-*enabled* but not
+// that these deny-all tables carry NO policies — a table shipped RLS-on with an
+// accidental `USING (true)` SELECT policy would still pass the enabled check
+// while being wide open. This set makes the zero-policy contract explicit.
+// Every entry is documented as deny-all in RLS_REQUIRED above.
+// ---------------------------------------------------------------------------
+const RLS_DENY_ALL: ReadonlyArray<string> = [
+  "rate_limit_buckets",
+  "_dim_migrations",
+  "govt_business_rules",
+  "jurisdictions_census",
+  "notification_dead_letter",
+  "panorama_cube",
+  "panorama_cube_meta",
+  "case_events",
+  "organization_invitations",
+  "alert_firings",
+  "eno_processing_queue",
+  "event_notification_outbox",
+  "physical_tag_interest",
+  "share_telemetry",
+];
+
+// ---------------------------------------------------------------------------
 // Deliberately NOT under RLS — non-PII reference / system data. Each entry
 // carries the justification. A reviewer must consciously move a table here.
 // ---------------------------------------------------------------------------
@@ -129,6 +157,34 @@ async function relrowsecurityMap(): Promise<Map<string, boolean>> {
     map.set(row.relname, row.rls === true);
   }
   return map;
+}
+
+/** Count of RLS policies per public table, from the live catalog. */
+async function policyCountMap(): Promise<Map<string, number>> {
+  const rows = (await db.execute(sql`
+    select tablename, count(*)::int as n
+    from pg_policies
+    where schemaname = 'public'
+    group by tablename
+  `)) as unknown as Array<{ tablename: string; n: number }>;
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.tablename, Number(row.n));
+  }
+  return map;
+}
+
+/** The USING/WITH CHECK predicates of one named policy, from the live catalog. */
+async function policyPredicate(table: string, policyName: string): Promise<string | null> {
+  const rows = (await db.execute(sql`
+    select coalesce(qual, '') as qual, coalesce(with_check, '') as with_check
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = ${table}
+      and policyname = ${policyName}
+  `)) as unknown as Array<{ qual: string; with_check: string }>;
+  if (rows.length === 0) return null;
+  return `${rows[0].qual} ${rows[0].with_check}`;
 }
 
 describe("RLS coverage (V0-4 structural guarantee)", () => {
@@ -173,5 +229,64 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
     expect(undocumented, `Excluded tables missing a reason: ${undocumented.join(", ")}`).toEqual(
       [],
     );
+  });
+
+  // R3 (Tier-2 authz critique): a deny-all table is only truly closed if it
+  // carries ZERO policies. RLS-enabled + an accidental `USING (true)` SELECT
+  // policy would pass the enabled check while being wide open to PostgREST. Assert
+  // the zero-policy contract for every table documented as deny-all.
+  it("every deny-all table carries ZERO RLS policies (default-deny, not USING(true))", async () => {
+    const map = await relrowsecurityMap();
+    const counts = await policyCountMap();
+
+    // Guard: the deny-all tables must exist and have RLS enabled (else the
+    // zero-policy assertion below would pass vacuously on a dropped/renamed table).
+    const missingOrDisabled = RLS_DENY_ALL.filter((t) => map.get(t) !== true);
+    expect(
+      missingOrDisabled,
+      `Deny-all tables absent or without RLS enabled: ${missingOrDisabled.join(", ")}`,
+    ).toEqual([]);
+
+    const withPolicies = RLS_DENY_ALL.filter((t) => (counts.get(t) ?? 0) > 0).map(
+      (t) => `${t} (${counts.get(t)} policies)`,
+    );
+    expect(
+      withPolicies,
+      `Deny-all tables MUST have zero policies but some carry policies — a policy on a deny-all table can silently widen the PostgREST surface (P0). Investigate each: ${withPolicies.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  // R1 + R2 (Tier-2 authz critique): the govt READ policies on the two PII
+  // surfaces must be jurisdiction-scoped. This is a catalog-level predicate
+  // assertion (independent of any seeded session) proving migration 0140 landed:
+  //   - pet_identifications govt read references jurisdiction_locality (R1), and
+  //   - pet_service_dog references govt_assignments in its govt branch (R2).
+  it("pet_identifications govt read policy is scoped by jurisdiction_locality (R1)", async () => {
+    const predicate = await policyPredicate(
+      "pet_identifications",
+      "pet_identifications read by govt in jurisdiction",
+    );
+    expect(predicate, "govt read policy on pet_identifications is missing").not.toBeNull();
+    expect(
+      predicate,
+      "govt read must scope by jurisdiction_locality (province-only match leaks PII province-wide — R1)",
+    ).toContain("jurisdiction_locality");
+    expect(predicate).toContain("govt_assignments");
+    // Sibling guards: role='govt' + deactivation, matching custody_disputes.
+    expect(predicate).toContain("'govt'::user_role");
+    expect(predicate).toContain("deactivated_at IS NULL");
+  });
+
+  it("pet_service_dog authority policy joins govt_assignments for the govt branch (R2)", async () => {
+    const predicate = await policyPredicate(
+      "pet_service_dog",
+      "service_dog select by owner or authority",
+    );
+    expect(predicate, "service_dog authority policy is missing").not.toBeNull();
+    expect(
+      predicate,
+      "govt branch must join govt_assignments (no join = any institutional govt reads assistance-dog status nationwide — R2)",
+    ).toContain("govt_assignments");
+    expect(predicate).toContain("jurisdiction_locality");
   });
 });
