@@ -82,20 +82,46 @@ function num(v: number | null | undefined): string | null {
   return v == null ? null : String(v);
 }
 
+/** Map with bounded concurrency (the analytics pool is small; don't fan out 24
+ * province reads at once). Preserves input order in the output. */
+async function mapLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return out;
+}
+
 /**
  * Assemble the readable cube rows for one metric by REUSING the live loaders.
- *  - department grain: `loadChoroplethByLevel(metric, "locality", admin, [])` →
- *    department-folded, k-anon'd + complementary-suppressed cells (value null when
- *    suppressed). Stored as unit_level='department'.
- *  - province grain: `loadChoroplethByLevel(metric, "province", admin, [])` →
- *    one ratePct/count cell per mappable province. Stored as unit_level='province',
- *    carrying that province's no-locality residual for the reader's noLocalityCount.
+ *
+ *  - PROVINCE grain: `loadChoroplethByLevel(metric, "province", admin, [])` — one
+ *    ratePct/count cell per mappable province (≤24 rows, never truncated). Stored as
+ *    unit_level='province', carrying that province's no-locality residual so the
+ *    reader can reproduce noLocalityCount.
+ *
+ *  - DEPARTMENT grain: built PER PROVINCE — `loadChoroplethByLevel(metric,
+ *    "locality", admin, [], province)` for each province with data. WHY per province,
+ *    not one national call: the national locality rollup is CAPPED at PER_LAYER_CAP
+ *    (2000) and the seed exceeds it, so a national build is TRUNCATED — slicing it per
+ *    province would drop most localities. A province-scoped rollup is complete (well
+ *    under the cap), so its department cells are correct AND byte-identical to a live
+ *    province drill (the reader calls the same loader). The national department view
+ *    is therefore NOT cube-served (it is the truncated live view; see the reader).
  */
 async function buildMetricRows(
   metric: ChoroplethMetric,
 ): Promise<{ rows: NewPanoramaCubeRow[]; stat: CubeBuildMetricStat }> {
-  const [dept, prov, residual] = await Promise.all([
-    loadChoroplethByLevel(metric, "locality", ADMIN, NO_JURISDICTIONS),
+  const [prov, residual] = await Promise.all([
     loadChoroplethByLevel(metric, "province", ADMIN, NO_JURISDICTIONS),
     noLocalityByProvince(metric, ADMIN, NO_JURISDICTIONS),
   ]);
@@ -103,38 +129,51 @@ async function buildMetricRows(
   const residualByProvince = new Map<string, number>();
   for (const r of residual) residualByProvince.set(r.province, r.count);
 
+  const provinceCells = prov.cells as ProvinceChoroplethCell[];
+  const provinceNames = provinceCells.map((c) => c.label);
+
+  // Department cells per province (complete, untruncated) — matches a live province
+  // drill exactly (same loader call).
+  const deptPerProvince = await mapLimit(provinceNames, 6, (p) =>
+    loadChoroplethByLevel(metric, "locality", ADMIN, NO_JURISDICTIONS, p),
+  );
+
   const rows: NewPanoramaCubeRow[] = [];
 
   // Department grain. `cell.key` (`${province}|${unitCode}`) is unique per unit →
   // the PK's unit_code. `cell.locality` is the display label (department/barrio name).
   let suppressed = 0;
-  for (const cell of dept.cells as ChoroplethCell[]) {
-    if (cell.suppressed) suppressed += 1;
-    rows.push({
-      metric,
-      unitLevel: "department",
-      province: cell.province,
-      unitCode: cell.key,
-      label: cell.locality,
-      departmentCode: cell.departmentCode ?? null,
-      departmentName: cell.departmentName ?? null,
-      centroidLat: cell.centroidLat,
-      centroidLng: cell.centroidLng,
-      value: num(cell.value),
-      den: null,
-      noLocality: null,
-      suppressed: cell.suppressed,
-      // The reused loader merges primary + complementary into one partition and
-      // nulls the raw count, so the two cannot be distinguished at store time. The
-      // differencing-defense PROPERTY is enforced upstream (complementarySuppress)
-      // and pinned by the sub-k invariant test; this flag stays false in v1.
-      complementary: false,
-    });
+  let departmentRows = 0;
+  for (const dr of deptPerProvince) {
+    for (const cell of dr.cells as ChoroplethCell[]) {
+      departmentRows += 1;
+      if (cell.suppressed) suppressed += 1;
+      rows.push({
+        metric,
+        unitLevel: "department",
+        province: cell.province,
+        unitCode: cell.key,
+        label: cell.locality,
+        departmentCode: cell.departmentCode ?? null,
+        departmentName: cell.departmentName ?? null,
+        centroidLat: cell.centroidLat,
+        centroidLng: cell.centroidLng,
+        value: num(cell.value),
+        den: null,
+        noLocality: null,
+        suppressed: cell.suppressed,
+        // The reused loader merges primary + complementary into one partition and
+        // nulls the raw count, so the two cannot be distinguished at store time. The
+        // differencing-defense PROPERTY is enforced upstream (complementarySuppress)
+        // and pinned by the sub-k invariant test; this flag stays false in v1.
+        complementary: false,
+      });
+    }
   }
 
   // Province grain. unit_code = provinceCode (unique, non-null, from the loader);
   // province + label = the province display name. value = ratePct or count.
-  for (const cell of prov.cells as ProvinceChoroplethCell[]) {
+  for (const cell of provinceCells) {
     rows.push({
       metric,
       unitLevel: "province",
@@ -155,12 +194,7 @@ async function buildMetricRows(
 
   return {
     rows,
-    stat: {
-      metric,
-      departmentRows: dept.cells.length,
-      provinceRows: prov.cells.length,
-      suppressed,
-    },
+    stat: { metric, departmentRows, provinceRows: provinceCells.length, suppressed },
   };
 }
 

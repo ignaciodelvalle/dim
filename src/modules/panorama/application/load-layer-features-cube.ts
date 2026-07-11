@@ -16,9 +16,15 @@
 //   - actor is ADMIN.
 //   - NOT a locality drill (adminLocality unset). A locality drill counts ONE
 //     locality, but a cube department cell aggregates ALL localities in the
-//     department nationally — filtering can't recover the single-locality count, so
-//     locality drills stay live. (This narrows the design's Decision 4, which listed
-//     locality drills as eligible; verified against the fold — they are not.)
+//     department — filtering can't recover the single-locality count, so locality
+//     drills stay live. (This narrows the design's Decision 4, which listed locality
+//     drills as eligible; verified against the fold — they are not.)
+//   - NOT the national DEPARTMENT (locality-axis) view: the national locality rollup
+//     is capped at PER_LAYER_CAP (2000) and the seed exceeds it, so the live national
+//     department view is TRUNCATED (and non-deterministic). The cube is built per
+//     province (complete), so it CANNOT reproduce that truncated view byte-for-byte —
+//     national+department stays live. The cube serves national+PROVINCE (the national
+//     default grain) and BOTH grains for a whole-province drill (complete, untruncated).
 //   - verifiedOnly === false (the cube stores the default numerator; the "solo
 //     firmado" narrowing is not precomputed).
 //   - cube fresh: status === 'ok' AND now − built_at ≤ STALE_MAX.
@@ -94,6 +100,9 @@ export async function loadLayerFeaturesFromCube(
   if (actor.role !== "admin") return null;
   if (adminLocality) return null; // locality drill → live (see header)
   if (verifiedOnly) return null;
+  // National DEPARTMENT view is the truncated live view — not cube-serviceable
+  // (see header). Only national+province and a whole-province drill are eligible.
+  if (level === "locality" && !adminProvince) return null;
   const metric = CUBE_LAYER_METRIC[layer];
   if (!metric) return null;
 
