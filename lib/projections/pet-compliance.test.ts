@@ -373,6 +373,25 @@ describe("deriveComplianceState — H1 provenance gate", () => {
   });
 });
 
+describe("deriveComplianceState — PJ-M3 timezone boundary on rabies expiry", () => {
+  // A date-only next_due_at ("2026-08-01") is midnight UTC = 2026-07-31 21:00 AR.
+  // `now` is 2026-08-01T01:00:00Z = 2026-07-31 22:00 AR — the AR due day (Aug 1)
+  // has NOT arrived yet. Pre-fix (`new Date(nextDue)`) reads midnight-UTC <= now
+  // → Vencida a day early; anchoring at noon UTC keeps it Vigente.
+  it("date-only next_due_at is not read Vencida before the AR due day", () => {
+    const now = new Date("2026-08-01T01:00:00Z");
+    const state = deriveComplianceState(
+      baseInput({
+        now,
+        events: [vaccination("Antirrábica", "2026-08-01", VET)],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Vigente");
+    expect(card?.tone).toBe("ok");
+  });
+});
+
 describe("deriveComplianceState — sterilization, microchip, PPP", () => {
   it("sterilization: verified event → ok, none → neutral", () => {
     const without = deriveComplianceState(baseInput());

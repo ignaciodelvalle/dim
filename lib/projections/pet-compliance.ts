@@ -19,6 +19,7 @@
 import { type ProvenanceTier, provenanceTier } from "@/lib/domain/provenance";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
+import { AR_TIME_ZONE, parseDateInput } from "@/lib/utils/format";
 
 // Minimal event shape — decoupled from ProjectionEvent so tests stay trivial.
 // Carries provenance (the ConfidenceInput fields) so an obligation is only
@@ -195,7 +196,21 @@ function latestRabiesDose(events: ComplianceEvent[]): ComplianceEvent | undefine
 }
 
 function formatDate(date: Date): string {
-  return date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  // Pin AR_TIME_ZONE (PJ-M3): without it a date-only midnight-UTC value renders
+  // as the previous day in AR, and SSR (UTC) disagrees with client hydration.
+  return date.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: AR_TIME_ZONE,
+  });
+}
+
+// A date-only "YYYY-MM-DD" next_due_at is midnight UTC = the previous AR
+// calendar day; anchor it at NOON UTC (parseDateInput) so a dose "due today" in
+// AR is not read Vencida from 21:00 the prior AR day (PJ-M3). Full ISO
+// timestamps (with a time component) carry their own instant and pass through.
+function parseNextDue(raw: string): Date | null {
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parseDateInput(raw) : new Date(raw);
 }
 
 // Map a reminder variant to the coarse compliance tone + labels.
@@ -275,7 +290,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     // dose is defined here (the early return above handled the no-dose case).
     const p = (dose?.payload ?? {}) as Record<string, unknown>;
     const nextDueRaw = typeof p.next_due_at === "string" ? p.next_due_at : null;
-    const nextDue = nextDueRaw ? new Date(nextDueRaw) : null;
+    const nextDue = nextDueRaw ? parseNextDue(nextDueRaw) : null;
     if (nextDue && Number.isFinite(nextDue.getTime())) {
       base =
         nextDue <= input.now
