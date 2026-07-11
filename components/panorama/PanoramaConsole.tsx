@@ -2012,6 +2012,12 @@ export function PanoramaConsole({
     undefined,
   );
   useEffect(() => {
+    // M2: effectiveScopeProvince/Locality are recompute TRIGGERS — the effect reads
+    // the drilled scope off window.location.search (fresher than useSearchParams),
+    // so it must re-run when the effective scope changes. `void` marks them used
+    // (the codebase idiom for trigger-only deps — cf. `void levelVersion`).
+    void effectiveScopeProvince;
+    void effectiveScopeLocality;
     // Points-mode timestamps already feed the histogram — don't double-count.
     if (signalHistogramBins !== undefined || activeTemporalKey === "") {
       setAggregateHistogramBins(undefined);
