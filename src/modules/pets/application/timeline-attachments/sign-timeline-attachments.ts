@@ -6,7 +6,7 @@
 // The outer shim (app/actions/sign-timeline-attachments.ts) re-exports these
 // functions for page.tsx and test coverage.
 
-import { and, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 
 import { attachments, db } from "@/db";
@@ -69,14 +69,26 @@ export async function signTimelineAttachments(
 
   const { pet } = access;
 
-  // 4. Query attachments for the given event ids, scoped to this pet.
+  // 4. Query attachments for the given event ids, SCOPED TO THIS PET.
+  //    The `eq(attachments.petId, pet.id)` fence is load-bearing security:
+  //    requirePetAccess authorizes the caller for `pet`, but the eventIds are
+  //    caller-supplied. Without this fence a caller with access to pet A could
+  //    pass pet B's eventIds and sign B's clinical attachments (cross-tenant
+  //    IDOR). Event attachments carry both pet_id and event_id (schema §"content
+  //    group", kept in sync by app code), so the pet_id filter is exact.
   const rows = await db
     .select({
       eventId: attachments.eventId,
       storagePath: attachments.storagePath,
     })
     .from(attachments)
-    .where(and(isNotNull(attachments.eventId), inArray(attachments.eventId, parsed.data.eventIds)));
+    .where(
+      and(
+        eq(attachments.petId, pet.id),
+        isNotNull(attachments.eventId),
+        inArray(attachments.eventId, parsed.data.eventIds),
+      ),
+    );
 
   if (rows.length === 0) {
     return {};
