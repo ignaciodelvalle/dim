@@ -107,11 +107,11 @@ function ClassSwatchLegend({
       {swatches.map((s, i) => (
         <div key={`${s.color}-${i}`} className="flex items-center gap-2">
           <span
-            className="inline-block h-2.5 w-4 flex-none rounded-[var(--radius-xs)] border border-white/15"
+            className="inline-block h-2.5 w-4 flex-none rounded-[var(--radius-xs)] border border-ln-op-line"
             style={{ background: s.color }}
             aria-hidden="true"
           />
-          <span className="tabular-nums text-white/75">
+          <span className="tabular-nums text-ln-op-ink-2">
             {swatchLabel(s, { unit, meta: meta && i === swatches.length - 1 })}
           </span>
         </div>
@@ -167,7 +167,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
       className="space-y-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card px-3 py-2.5"
     >
       <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Referencias</h3>
-      <div className="space-y-2 text-white/90">
+      <div className="space-y-2 text-ln-op-ink-2">
         {/* task #63: the bivariate legend IS the 3×3 matrix — coverage terciles
             (x, "Cobertura →") × signal terciles (y, "Señales ↑"). The risk corner
             (low coverage · high signal) is marked. A hatch swatch names the
@@ -180,7 +180,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
             </div>
             <div className="flex items-stretch gap-1.5">
               <div className="flex flex-col items-center justify-center">
-                <span className="whitespace-nowrap text-[var(--text-xs)] text-white/60 [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                <span className="whitespace-nowrap text-[var(--text-xs)] text-ln-op-mute [writing-mode:vertical-rl] [transform:rotate(180deg)]">
                   Señales ↑
                 </span>
               </div>
@@ -191,7 +191,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                     <span
                       key={`biv-${sw.cov}-${sw.sig}`}
                       className={`h-4 w-4 rounded-[var(--radius-xs)] ${
-                        sw.risk ? "ring-1 ring-white/80" : "border border-white/10"
+                        sw.risk ? "ring-1 ring-ln-op-danger" : "border border-ln-op-line-2"
                       }`}
                       style={{ background: sw.color }}
                       title={sw.risk ? "Riesgo alto: cobertura baja · señales altas" : undefined}
@@ -199,14 +199,14 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                     />
                   ))}
                 </div>
-                <div className="mt-0.5 text-center text-[var(--text-xs)] text-white/60">
+                <div className="mt-0.5 text-center text-[var(--text-xs)] text-ln-op-mute">
                   Cobertura →
                 </div>
               </div>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-white/70">
+            <div className="mt-1.5 flex items-center gap-1.5 text-ln-op-mute">
               <span
-                className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
+                className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
                 style={{
                   backgroundImage:
                     "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
@@ -251,9 +251,9 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
             {/* cursor #2: trichotomous — colored fill = value, DIAGONAL HATCH =
                 k-anon-protected, outline-only = genuine no-data. */}
             {divisionLegend.suppressed && (
-              <div className="mt-1 flex items-center gap-1.5 text-white/70">
+              <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
                 <span
-                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
+                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
                   style={{
                     backgroundImage:
                       "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
@@ -263,9 +263,9 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                 Suprimido (k-anonimato)
               </div>
             )}
-            <div className="mt-1 flex items-center gap-1.5 text-white/70">
+            <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
               <span
-                className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-white/15"
+                className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
                 aria-hidden="true"
               />
               Sin datos (solo contorno)
@@ -301,7 +301,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   compliance target ("≥ 80% (meta)"), replacing the old continuous
                   divergent gradient bar. */}
               <ClassSwatchLegend scale={scale} unit={isMeta ? "%" : undefined} meta={isMeta} />
-              <div className="mt-1 flex items-center gap-1.5 text-white/70">
+              <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
                   style={{ background: COLOR_NO_DATA }}
@@ -340,7 +340,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                     }}
                     aria-hidden="true"
                   />
-                  <span className="tabular-nums text-white/70">{b.label}</span>
+                  <span className="tabular-nums text-ln-op-ink-2">{b.label}</span>
                 </div>
               ))}
               <div className="mt-0.5 flex items-center gap-2">
@@ -349,7 +349,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   style={{ width: 10, height: 10, background: COLOR_SUPPRESSED, opacity: 0.6 }}
                   aria-hidden="true"
                 />
-                <span className="text-white/50">Datos insuficientes (privacidad)</span>
+                <span className="text-ln-op-mute">Datos insuficientes (privacidad)</span>
               </div>
             </div>
           </div>

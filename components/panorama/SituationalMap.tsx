@@ -347,6 +347,16 @@ type Props = {
    */
   conditionsSlot?: ReactNode;
   /**
+   * v2C overlay mode: the console's top-right cluster row (scope pill +
+   * period segmented). When present the map's OLD top chrome bar is NOT
+   * rendered — instead a floating card overlays the canvas top-right holding
+   * this slot on the first row and the map-owned actions (Copiar vista /
+   * Vistas guardadas / Exportar PNG) on the second, per the v2C spec. The
+   * actions stay inside SituationalMap because copy/export need map internals
+   * (canvas capture, camera URL).
+   */
+  topRightSlot?: ReactNode;
+  /**
    * ARCHETYPE A: lift the imperatively-computed legend descriptors OUT of the
    * canvas so the "Referencias" rail section can render them off-canvas. Fired
    * whenever the committed division-fill legend / graduated-symbol scale changes
@@ -562,6 +572,7 @@ export function SituationalMap({
   bottomDock,
   aggregationLabel,
   conditionsSlot,
+  topRightSlot,
   onDivisionLegendChange,
   onGraduatedScaleChange,
   onProvinceSeqLegendChange,
@@ -824,7 +835,10 @@ export function SituationalMap({
         ro.observe(containerRef.current);
         resizeObsRef.current = ro;
       }
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+      // v2C: the zoom column lives BOTTOM-RIGHT (the top-right corner belongs
+      // to the scope/period/actions cluster). Offset above the floating dock
+      // bar via the [data-pano-map] CSS rule in globals.css.
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
       // panorama-ia-v2 §1.1: report the camera zoom after every zoom gesture so
       // the console can derive the aggregation level (province → locality once
       // the camera crosses Z_LOCALITY). Fires once per gesture, not per frame.
@@ -2931,63 +2945,65 @@ export function SituationalMap({
     map.panBy([dx, dy], { animate: !reducedMotion });
   }
 
+  // The briefing TOOLBAR (copy view / saved views / export PNG / roadmap
+  // report). Rendered either in the legacy top chrome bar or inside the v2C
+  // floating top-right cluster (topRightSlot mode) — one JSX, two homes.
+  const briefingActions = viewMeta ? (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      {copied && (
+        <output className="rounded-[var(--radius-sm)] bg-ln-op-ok-bg px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ok">
+          Vista copiada
+        </output>
+      )}
+      <button
+        type="button"
+        onClick={copyView}
+        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+      >
+        Copiar vista
+      </button>
+      {/* task #66b: named bookmarks of the current view URL (localStorage). */}
+      <SavedViewsPopover />
+      <button
+        type="button"
+        onClick={exportPng}
+        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+      >
+        Exportar PNG
+      </button>
+      {/* Roadmap signal (PO obs 1048, re-ratified 2026-07-09): the one-click
+          situación report is planned and the PO wants this placeholder VISIBLE
+          in production so the affordance reads as "coming". Visibly disabled. */}
+      <button
+        type="button"
+        disabled
+        aria-disabled="true"
+        title="En desarrollo"
+        className="cursor-not-allowed rounded-[var(--radius-sm)] border border-ln-op-line/60 px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-faint"
+      >
+        Informe de situación (en desarrollo)
+      </button>
+    </div>
+  ) : null;
+
   return (
     <div
-      className={`relative flex w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line ${
-        fill ? "h-full" : ""
-      }`}
+      data-pano-map
+      className={`relative flex w-full flex-col overflow-hidden ${fill ? "h-full" : "rounded-[var(--radius-lg)] border border-ln-op-line"}`}
       style={fill ? undefined : { height }}
       onKeyDown={handleMapKeyDown}
     >
-      {/* ARCHETYPE A: the map card's TOP chrome. Left = the condition chips that
-          qualify what the map paints (the map's own header); right = the briefing
-          TOOLBAR (copy view / saved views / export PNG / roadmap report). Both are
-          chrome that is part of the card but NEVER overlaps the geography (the old
-          on-canvas clusters covered the map and pushed it below the fold). */}
-      {(viewMeta || conditionsSlot) && (
+      {/* ARCHETYPE A LEGACY top chrome bar — only without topRightSlot (v2C
+          overlay mode moves the toolbar INTO the floating top-right cluster so
+          the masthead is the console's only fixed row). */}
+      {topRightSlot === undefined && (viewMeta || conditionsSlot) && (
         <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-ln-op-line bg-ln-op-card px-2.5 py-1.5">
           {conditionsSlot ? (
             <div className="min-w-0">{conditionsSlot}</div>
           ) : (
             <span aria-hidden="true" />
           )}
-          {viewMeta && (
-            <div className="flex flex-wrap items-center justify-end gap-1.5">
-              {copied && (
-                <output className="rounded-[var(--radius-sm)] bg-ln-op-ok-bg px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ok">
-                  Vista copiada
-                </output>
-              )}
-              <button
-                type="button"
-                onClick={copyView}
-                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
-              >
-                Copiar vista
-              </button>
-              {/* task #66b: named bookmarks of the current view URL (localStorage). */}
-              <SavedViewsPopover />
-              <button
-                type="button"
-                onClick={exportPng}
-                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
-              >
-                Exportar PNG
-              </button>
-              {/* Roadmap signal (PO obs 1048, re-ratified 2026-07-09): the one-click
-              situación report is planned and the PO wants this placeholder VISIBLE
-              in production so the affordance reads as "coming". Visibly disabled. */}
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                title="En desarrollo"
-                className="cursor-not-allowed rounded-[var(--radius-sm)] border border-ln-op-line/60 px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-faint"
-              >
-                Informe de situación (en desarrollo)
-              </button>
-            </div>
-          )}
+          {briefingActions}
         </div>
       )}
       {/* Canvas region — the geography + its on-canvas overlays. `relative` so the
@@ -3032,18 +3048,29 @@ export function SituationalMap({
               : null
           }
         />
-        {/* Top-left control cluster: scope drill ("← Volver") + camera reset +
-            aggregation-level badge. */}
-        <div className="absolute left-3 top-3 flex items-center gap-2">
+        {/* v2C floating top-right cluster: the console's scope pill + period
+            control (slot) over the map-owned briefing actions. Absolute overlay
+            — never re-layouts the canvas. */}
+        {topRightSlot !== undefined && (
+          <div className="absolute right-3.5 top-3.5 z-10 flex max-w-[calc(100%-1.75rem)] flex-col items-end gap-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/95 p-2.5 shadow-md">
+            {topRightSlot}
+            {briefingActions}
+          </div>
+        )}
+        {/* Top-CENTER control cluster (v2C): scope drill ("← Volver a
+            Nacional") + camera reset + aggregation-level badge — centered so
+            the top corners stay free for the overlay clusters. Light chrome
+            (the dark skin is retired). */}
+        <div className="absolute left-1/2 top-3.5 z-10 flex -translate-x-1/2 items-center gap-2">
           {/* Click-to-drill (task #55): pop the province scope back to national.
             Rendered only when the operator can return (explicit province pick). */}
           {onReturnNational && (
             <button
               type="button"
               onClick={onReturnNational}
-              className="rounded-[var(--radius-sm)] border border-white/20 bg-black/55 px-2.5 py-1 text-xs font-medium text-white/90 hover:bg-black/70"
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
             >
-              ← Volver
+              ← Volver a Nacional
             </button>
           )}
           {/* Reset view (fix): a HOME icon is the universal "return to the default
@@ -3057,7 +3084,7 @@ export function SituationalMap({
             onClick={fitToScope}
             title={resetViewLabel}
             aria-label={resetViewLabel}
-            className="flex items-center justify-center rounded-[var(--radius-sm)] border border-white/20 bg-black/55 p-1.5 text-white/90 hover:bg-black/70"
+            className="flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
           >
             <svg
               width="16"
@@ -3079,7 +3106,7 @@ export function SituationalMap({
             so the reader knows the granularity's meaning changed on drill. */}
           {aggregationLabel && (
             <span
-              className="rounded-[var(--radius-sm)] border border-white/15 bg-black/55 px-2 py-1 text-[var(--text-sm)] font-medium text-white/90"
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 shadow-sm"
               title="Nivel de agregación del mapa"
             >
               {aggregationLabel}
@@ -3088,7 +3115,7 @@ export function SituationalMap({
         </div>
         {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <p className="rounded-[var(--radius-md)] bg-black/40 px-4 py-2 text-[var(--text-md)] text-white/80">
+            <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-4 py-2 text-[var(--text-md)] text-ln-op-ink-2 shadow-sm">
               Sin datos para esta capa {emptyStateScope}.
             </p>
           </div>

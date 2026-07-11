@@ -249,10 +249,12 @@ export function CabaInset({ layer, visible, uniformFill = null, lockedBreaks = n
   if (!visible) return null;
 
   return (
-    <div className="absolute right-3 top-14 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-white/15 bg-black/60 shadow-[var(--shadow-md)]">
-      <div className="flex items-baseline justify-between px-2 py-1 text-white/80">
+    // v2C: light chrome (dark skin retired) and pushed BELOW the floating
+    // top-right cluster (scope/period/actions), which owns the corner.
+    <div className="absolute right-3.5 top-36 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 shadow-md">
+      <div className="flex items-baseline justify-between px-2 py-1 text-ln-op-ink-2">
         <span className="text-[var(--text-xs)] font-medium">CABA</span>
-        <span className="text-[var(--text-xs)] text-white/50">
+        <span className="text-[var(--text-xs)] text-ln-op-mute">
           {uniformFill ? "valor provincial" : "por barrio"}
         </span>
       </div>

@@ -1,4 +1,3 @@
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { PanoramaConsole, type SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
@@ -162,14 +161,10 @@ export function PanoramaShell({
         // console refreshes localities/centroids from /api/panorama/scope on drill.
         allowedProvinces={allowedProvinces}
         localities={localities}
-        filtersSlot={
-          <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3">
-            {/* Panorama defaults to a multi-year window (3 años) and exposes the 3a/5a
-                chips so the temporal reproduction spans the seeded history. The detail
-                dashboards keep their own short defaults (multiYear only here). */}
-            <PeriodPicker defaultPreset="3y" multiYear />
-          </div>
-        }
+        // v2C: NO filtersSlot anymore — the console's own PeriodSegmented
+        // (single-line 7/30/90/12m + «▾ más» menu, SAME URL commit semantics
+        // as PeriodPicker) supersedes the rail's PeriodPicker slot. The prop
+        // stays on the console for tests/embedders.
         // Demo-data disclosure — synthetic dataset (exec-gate credibility).
         // Suppressed when a global demo banner already covers the page (D3):
         // pass nothing so the console renders neither the pill nor the popover

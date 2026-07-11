@@ -60,9 +60,16 @@ let layerPanelProps: {
 vi.mock("@/components/panorama/SituationalMapDynamic", () => ({
   SituationalMapDynamic: (props: Record<string, unknown>) => {
     mapProps = props;
-    // ARCHETYPE A: the TimeScrubber is DOCKED inside the map card via the
-    // `bottomDock` prop — render it so the scrubber-gating assertions still see it.
-    return <div data-testid="map-region">{props.bottomDock as ReactNode}</div>;
+    // v2C: the console's scope pill + period segmented arrive via the
+    // `topRightSlot` prop (the real map renders them in its floating top-right
+    // cluster) — render the slot so the scope/period assertions see it. The
+    // legacy `bottomDock` slot is kept for any straggler usage.
+    return (
+      <div data-testid="map-region">
+        {props.topRightSlot as ReactNode}
+        {props.bottomDock as ReactNode}
+      </div>
+    );
   },
 }));
 vi.mock("@/components/panorama/DetailDrawer", () => ({
@@ -550,29 +557,31 @@ function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
 }
 
 describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases 1 & 3)", () => {
-  it("renders Vista strip → map → SuppressionNotice (map column) → KPIs → Reading LAST (monitoring rail order)", () => {
+  it("v2C composition: masthead-less console = map + overlay clusters; suppression notice + reading live in the legend panel", () => {
     // Explicit period → the first-visit default preset does NOT rewrite the
     // board, so the server-seeded perdidas layer (suppressedCount 3) stays on
-    // and the suppression notice is visible for the DOM-order assertion.
+    // and the suppression notice renders for the presence assertions.
     setUrl("/gob/panorama?period=3y");
     // A REAL loaded strip (flat tile) so the reading is the legit "Sin variación
     // destacable…" landmark — an EMPTY strip now reads as a failure state (fix #1).
     renderRedesignConsole({ defaultSuppressedCount: 3, initialKpis: REAL_KPIS });
 
+    // The Vista dropdown pill labels the preset control (top-left cluster).
     const presets = screen.getByText("Vista");
     const map = screen.getByTestId("map-region");
-    // SuppressionNotice lives WITH the map it describes (design Decision 1) —
-    // it sits AFTER the map, inside the same map column.
-    const notice = screen.getByText(/celdas con menos de 5 casos/);
-    const strip = screen.getByTestId("kpi-strip");
-    // ARCHETYPE monitoring rail: KPIs lead, the one-line reading (narration) is
-    // LAST — so it now sits AFTER the KPI strip, not before it.
-    const reading = screen.getByText("Sin variación destacable frente al período anterior.");
-
-    expect(isBefore(presets, map)).toBe(true);
-    expect(isBefore(map, notice)).toBe(true);
-    expect(isBefore(notice, strip)).toBe(true);
-    expect(isBefore(strip, reading)).toBe(true);
+    // v2C: the map leads the DOM (overlays are absolute siblings AFTER it).
+    expect(isBefore(map, presets)).toBe(true);
+    // The k-anon suppression notice + the one-line reading moved into the
+    // legend pill's expanded panel — both stay in the accessibility tree
+    // (native <details>) so the honesty surfaces are always reachable.
+    expect(screen.getByText(/celdas con menos de 5 casos/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Sin variación destacable frente al período anterior."),
+    ).toBeInTheDocument();
+    // The legend pill's k-anon marker is ALWAYS visible on the collapsed strip.
+    expect(screen.getByText(/k<5 protegido/)).toBeInTheDocument();
+    // The floating dock closes the stack.
+    expect(screen.getByTestId("panorama-dock")).toBeInTheDocument();
   });
 
   it("degraded KPIs: KPI-driven conclusion surfaces show a failure state, never a reassuring one (trust/safety)", () => {

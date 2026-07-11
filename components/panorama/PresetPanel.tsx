@@ -36,10 +36,12 @@ type Props = {
    * single-line SEGMENTED strip — one row of compact tabs, space ∝ frequency,
    * the presets stay first-class and visible (presets-as-onboarding) without
    * the six ~90px cards that used to push the map below the fold. "stack" keeps
-   * the original vertical card list for any narrow side-column usage. Purely
-   * presentational — the radiogroup semantics and roving focus are identical.
+   * the original vertical card list for any narrow side-column usage. "list"
+   * (v2C) is a compact vertical menu — one slim row per preset — for the Vista
+   * dropdown panel of the overlay cluster. Purely presentational — the
+   * radiogroup semantics and roving focus are identical in all three.
    */
-  layout?: "stack" | "strip";
+  layout?: "stack" | "strip" | "list";
   /**
    * Optional inline label id to associate this radiogroup with a label the
    * PARENT renders (e.g. the "Vista" caption sitting beside the strip in the
@@ -56,15 +58,24 @@ export function PresetPanel({
   labelledBy,
 }: Props) {
   const strip = layout === "strip";
+  const menuList = layout === "list";
   // Segmented strip: one bordered track holding equal-width single-line tabs.
   // Below lg it scrolls horizontally (touch), keeping the map visible; from lg
-  // the tabs share the track width. "stack" keeps the original vertical cards.
+  // the tabs share the track width. "stack" keeps the original vertical cards;
+  // "list" is the compact vertical menu of the v2C Vista dropdown.
   const listClass = strip
     ? "flex gap-0.5 overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-0.5 lg:overflow-visible"
-    : "space-y-1";
+    : menuList
+      ? "space-y-0.5"
+      : "space-y-1";
   const itemClass = strip ? "min-w-[7.5rem] shrink-0 lg:min-w-0 lg:flex-1 lg:shrink" : undefined;
-  // A single touch-friendly line (~36px) in strip mode; the full card in stack.
-  const cardSize = strip ? "min-h-[2.25rem] px-3 py-1.5" : "min-h-24 px-3 py-4";
+  // A single touch-friendly line (~36px) in strip mode; the full card in stack;
+  // a slim menu row in list.
+  const cardSize = strip
+    ? "min-h-[2.25rem] px-3 py-1.5"
+    : menuList
+      ? "min-h-11 px-2.5 py-1.5"
+      : "min-h-24 px-3 py-4";
 
   // Roving tabindex (WAI-ARIA radiogroup pattern): the active preset is the
   // tab stop; when none is active (manual "modo avanzado"), the first one is.
@@ -122,13 +133,19 @@ export function PresetPanel({
   // and the active one fills. In stack mode each preset keeps its own card border.
   const buttonBase = strip
     ? "flex w-full items-center justify-center rounded-[calc(var(--radius-md)-2px)] text-center transition-colors"
-    : "flex w-full flex-col items-start justify-center rounded-[var(--radius-md)] border text-left transition-colors";
+    : menuList
+      ? "flex w-full items-center rounded-[var(--radius-md)] text-left transition-colors"
+      : "flex w-full flex-col items-start justify-center rounded-[var(--radius-md)] border text-left transition-colors";
   const activeClass = strip
     ? "bg-ln-op-azul/15 text-ln-op-azul"
-    : "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul";
+    : menuList
+      ? "bg-ln-op-azul/10 font-semibold text-ln-op-azul"
+      : "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-azul";
   const idleClass = strip
     ? "text-ln-op-ink-2 hover:bg-ln-op-stripe"
-    : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card";
+    : menuList
+      ? "text-ln-op-ink hover:bg-ln-op-stripe"
+      : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul/40 hover:bg-ln-op-card";
 
   // The blur handler only resets the roving tab stop (focus bookkeeping); the
   // radios carry all interactive semantics. Focus left the whole group → drop

@@ -3654,59 +3654,59 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   }
 }
 
-/* ---- Panorama situational-map popups (map-polish cursor #12) -------------- */
-/* MapLibre popups default to white chrome, which glares on the dark government
-   console. This dark skin gives them a navy card with WCAG-AA slate text and a
-   matching tip, so hover/click popups read as part of the operator surface. The
-   .panorama-popup class is set on the Popup at construction (SituationalMap). */
+/* ---- Panorama situational-map popups (map-polish cursor #12, v2C light) ---- */
+/* v2C retired the dark situation-room skin — the popups now match the LIGHT
+   operator card (white surface, ink text, line border), mirroring the
+   .mapchoropleth-popup values below. The .panorama-popup class is set on the
+   Popup at construction (SituationalMap). */
 .panorama-popup .maplibregl-popup-content {
-  background: rgba(11, 16, 32, 0.95);
-  color: #e2e8f0;
-  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: #ffffff;
+  color: #36454f;
+  border: 1px solid #dbe1e7;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 6px 10px;
 }
 .panorama-popup .maplibregl-popup-content strong {
-  color: #f8fafc;
+  color: #16252f;
 }
 /* Recolor the tip triangle per anchor so only the visible edge is tinted (the
    other three borders stay transparent — tinting all would square the tip). */
 .panorama-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip,
 .panorama-popup.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
 .panorama-popup.maplibregl-popup-anchor-top-right .maplibregl-popup-tip {
-  border-bottom-color: rgba(11, 16, 32, 0.95);
+  border-bottom-color: #ffffff;
 }
 .panorama-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
 .panorama-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
 .panorama-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
-  border-top-color: rgba(11, 16, 32, 0.95);
+  border-top-color: #ffffff;
 }
 .panorama-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
-  border-right-color: rgba(11, 16, 32, 0.95);
+  border-right-color: #ffffff;
 }
 .panorama-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
-  border-left-color: rgba(11, 16, 32, 0.95);
+  border-left-color: #ffffff;
 }
-/* Pinned popup (popup-as-document): a persistent, SELECTABLE card. The close
-   button must read on the dark navy skin, and its text is user-selectable so an
-   operator can copy the value/place (the old hover tooltip could not be copied). */
+/* Pinned popup (popup-as-document): a persistent, SELECTABLE card. Its text is
+   user-selectable so an operator can copy the value/place (the old hover
+   tooltip could not be copied). */
 .panorama-popup-pinned .maplibregl-popup-content {
   padding: 8px 12px;
   user-select: text;
 }
 .panorama-popup .maplibregl-popup-close-button {
-  color: #cbd5e1;
+  color: #66727c;
   font-size: 16px;
   padding: 0 6px;
 }
 .panorama-popup .maplibregl-popup-close-button:hover {
   background: transparent;
-  color: #f8fafc;
+  color: #16252f;
 }
 .pano-pin-title {
   font-weight: 600;
-  color: #f8fafc;
+  color: #16252f;
   font-size: 13px;
   margin-bottom: 4px;
 }
@@ -3722,29 +3722,29 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   flex-wrap: wrap;
 }
 .pano-pin-layer {
-  color: #cbd5e1;
+  color: #66727c;
   font-size: 12px;
 }
 .pano-pin-value {
   font-weight: 600;
-  color: #f8fafc;
+  color: #16252f;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .pano-pin-meta,
 .pano-pin-muted {
-  color: #94a3b8;
+  color: #95a0a8;
   font-size: 11px;
 }
 .pano-pin-context {
   margin-top: 6px;
-  color: #94a3b8;
+  color: #95a0a8;
   font-size: 11px;
 }
 .pano-pin-detail {
   margin-top: 8px;
   display: inline-block;
-  color: #93c5fd;
+  color: #0e5a99;
   font-size: 12px;
   font-weight: 500;
   background: transparent;
@@ -3753,13 +3753,21 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   cursor: pointer;
 }
 .pano-pin-detail:hover {
-  color: #bfdbfe;
+  color: #0a4576;
   text-decoration: underline;
 }
 .pano-pin-detail:focus-visible {
-  outline: 2px solid #93c5fd;
+  outline: 2px solid #0e5a99;
   outline-offset: 2px;
   border-radius: var(--radius-xs);
+}
+
+/* v2C fixed console: the zoom column (NavigationControl) docks bottom-right,
+   lifted above the floating data dock's collapsed bar (40px bar + 14px inset
+   + gap). Scoped to the panorama map only via the data attribute. */
+[data-pano-map] .maplibregl-ctrl-bottom-right {
+  bottom: 66px;
+  right: 6px;
 }
 
 /* ---- MapChoropleth cartography popups (keeper-map panorama form) ---------- */
