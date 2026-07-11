@@ -23,6 +23,7 @@ import {
   pgEnum,
   pgSchema,
   pgTable,
+  primaryKey,
   smallint,
   text,
   time,
@@ -3329,6 +3330,62 @@ export const rateLimitBuckets = pgTable("rate_limit_buckets", {
 });
 
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
+
+// ============================================================================
+// Panorama aggregate cube (road-to-10 infra #1) — migration 0139
+// ============================================================================
+// Precomputed choropleth aggregate. Built by the TS cube-builder
+// (src/modules/panorama/infrastructure/cube-builder.ts), which REUSES the live
+// choropleth loaders and writes here in one transaction. Read only via
+// analyticsDb (service-role); deny-all RLS to PostgREST. See migration 0139 and
+// docs/plans/2026-07-11-cube-design.md (+ the TS-builder amendment).
+
+/** The readable, k-anon'd cube surface. Suppressed department cells carry
+ * value = NULL — a sub-k count is NEVER stored here. */
+export const panoramaCube = pgTable(
+  "panorama_cube",
+  {
+    metric: text("metric").notNull(),
+    /** 'province' | 'department'. */
+    unitLevel: text("unit_level").notNull(),
+    province: text("province").notNull(),
+    /** Unique unit id within (metric, unit_level); the PK's non-null component. */
+    unitCode: text("unit_code").notNull(),
+    label: text("label"),
+    departmentCode: text("department_code"),
+    departmentName: text("department_name"),
+    centroidLat: numeric("centroid_lat"),
+    centroidLng: numeric("centroid_lng"),
+    /** department: k-anon count (NULL if suppressed); province: ratePct or count. */
+    value: numeric("value"),
+    /** province rate rows: denominator (reserved, NULL in v1). */
+    den: integer("den"),
+    /** province grain: that province's no-locality residual for the metric. */
+    noLocality: integer("no_locality"),
+    suppressed: boolean("suppressed").notNull().default(false),
+    complementary: boolean("complementary").notNull().default(false),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.metric, table.unitLevel, table.unitCode] }),
+    lookupIdx: index("panorama_cube_lookup_idx").on(table.metric, table.unitLevel, table.province),
+  }),
+);
+
+export type PanoramaCubeRow = typeof panoramaCube.$inferSelect;
+export type NewPanoramaCubeRow = typeof panoramaCube.$inferInsert;
+
+/** Cube build metadata singleton (one row, id = 1). */
+export const panoramaCubeMeta = pgTable("panorama_cube_meta", {
+  id: integer("id").primaryKey().default(1),
+  builtAt: timestamp("built_at", { withTimezone: true }),
+  watermark: timestamp("watermark", { withTimezone: true }),
+  /** 'pending' | 'ok' | 'error'. */
+  status: text("status").notNull().default("pending"),
+  rowCount: integer("row_count"),
+  durationMs: integer("duration_ms"),
+});
+
+export type PanoramaCubeMeta = typeof panoramaCubeMeta.$inferSelect;
 
 // ============================================================================
 // Cases (expedientes) — coordinación liviana sobre el event log

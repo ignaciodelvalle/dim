@@ -59,6 +59,12 @@ export const DENY_ALL_ALLOWLIST: Record<string, string> = {
   // organization_invitations — invitee email + token (migration 0071). Server actions only.
   organization_invitations:
     "Invitee email + invite token (PII); accept/list flows run via Drizzle server actions. Deny-all to PostgREST is safe.",
+  // panorama_cube — precomputed choropleth aggregate (migration 0139). Service-role reads only.
+  panorama_cube:
+    "Precomputed panorama aggregate; k-anon'd at build, read only via analyticsDb service-role. Deny-all to PostgREST is safe.",
+  // panorama_cube_meta — cube build metadata singleton (migration 0139). Service-role reads only.
+  panorama_cube_meta:
+    "Panorama cube build metadata singleton; read only via analyticsDb service-role. Deny-all to PostgREST is safe.",
   // physical_tag_interest — demand signal (migration 0044). Owner server actions only.
   physical_tag_interest:
     "Physical-tag demand signal (tenant-scoped); toggled via owner server actions. Deny-all to PostgREST is safe.",
