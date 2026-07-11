@@ -19,7 +19,7 @@ import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { loadLayerFeaturesCached } from "@/src/modules/panorama/application/load-layer-features-cached";
+import { loadLayerFeaturesCubeOrCached } from "@/src/modules/panorama/application/load-layer-features-cube";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 import {
@@ -210,7 +210,7 @@ async function AdminPanoramaBoard({
     const seedResults = await Promise.all(
       seedIds.map((lid) =>
         withDbBudget(
-          loadLayerFeaturesCached(
+          loadLayerFeaturesCubeOrCached(
             lid,
             actor,
             scoped,
@@ -291,7 +291,7 @@ async function AdminPanoramaBoard({
   // trailing `.catch` degrades on an early fetcher rejection — a degraded DB
   // never throws out of this Server Component.
   const result = await withDbBudget(
-    loadLayerFeaturesCached(
+    loadLayerFeaturesCubeOrCached(
       "perdidas",
       actor,
       scoped,

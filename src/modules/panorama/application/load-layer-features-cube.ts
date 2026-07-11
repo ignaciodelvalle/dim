@@ -30,7 +30,7 @@
 // subset of a province's departments) could differ, so govt stays live in v1.
 
 import type { PanoramaCubeRow } from "@/db/schema";
-import type { DashboardActor } from "@/lib/metrics";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
 import { readCubeMeta, readCubeRows } from "@/src/modules/panorama/infrastructure/repository";
 import type { ChoroplethMetric } from "@/src/modules/panorama/infrastructure/repository";
@@ -43,7 +43,12 @@ import {
   buildChoroplethFeatures,
   buildProvinceChoroplethFeatures,
 } from "./build-features";
-import type { LayerFeaturesResult } from "./get-layer-features";
+import type { LayerFeaturesResult, LayerPeriod } from "./get-layer-features";
+import {
+  type LayerCacheStatus,
+  loadLayerFeaturesCached,
+  loadLayerFeaturesCachedWithMeta,
+} from "./load-layer-features-cached";
 
 /** The choropleth layers the cube covers, mapped to their metric (mirrors the
  * layer→metric switch in get-layer-features.ts). A layer absent here is not cubeable. */
@@ -141,6 +146,108 @@ export async function loadLayerFeaturesFromCube(
       level: "locality",
     },
   };
+}
+
+/** Which path served a layer request: the cube, or the live (cached) path. */
+export type LayerSource = "cube" | "live";
+
+/** A layer result plus which path served it (for the `x-layer-source` header) and,
+ * for a cube hit, the cube's build timestamp; for a live hit, the Data Cache status. */
+export type LayerFeaturesSourced = {
+  result: LayerFeaturesResult;
+  source: LayerSource;
+  /** Present when source === 'cube' — the cube's freshness timestamp. */
+  builtAt?: Date;
+  /** Present when source === 'live' — the Data Cache hit/miss/bypass status. */
+  cacheStatus?: LayerCacheStatus;
+};
+
+/**
+ * Pick cube-vs-live per request, reporting which path served (the API route echoes
+ * it as `x-layer-source`). Eligible + fresh → cube; otherwise the existing cached-live
+ * path, UNTOUCHED. A cube read error degrades to live (never throws out the door).
+ */
+export async function loadLayerFeaturesCubeOrCachedWithMeta(
+  layer: LayerId,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  period: LayerPeriod,
+  level: AggregationLevel = "locality",
+  adminProvince?: string,
+  adminLocality?: string,
+  pointsMode = false,
+  verifiedOnly = false,
+): Promise<LayerFeaturesSourced> {
+  if (!pointsMode) {
+    try {
+      const cube = await loadLayerFeaturesFromCube(
+        layer,
+        actor,
+        level,
+        adminProvince,
+        adminLocality,
+        verifiedOnly,
+      );
+      if (cube) return { result: cube.result, source: "cube", builtAt: cube.builtAt };
+    } catch {
+      // Cube read failed → fall through to live (identical to CUBE_READS off).
+    }
+  }
+  const live = await loadLayerFeaturesCachedWithMeta(
+    layer,
+    actor,
+    jurisdictions,
+    period,
+    level,
+    adminProvince,
+    adminLocality,
+    pointsMode,
+    verifiedOnly,
+  );
+  return { result: live.result, source: "live", cacheStatus: live.status };
+}
+
+/**
+ * Thin cube-or-live variant for callers that don't need the source meta (the SSR
+ * pages). Same eligibility; a cube read error degrades to the live cached path.
+ */
+export async function loadLayerFeaturesCubeOrCached(
+  layer: LayerId,
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  period: LayerPeriod,
+  level: AggregationLevel = "locality",
+  adminProvince?: string,
+  adminLocality?: string,
+  pointsMode = false,
+  verifiedOnly = false,
+): Promise<LayerFeaturesResult> {
+  if (!pointsMode) {
+    try {
+      const cube = await loadLayerFeaturesFromCube(
+        layer,
+        actor,
+        level,
+        adminProvince,
+        adminLocality,
+        verifiedOnly,
+      );
+      if (cube) return cube.result;
+    } catch {
+      // fall through to live
+    }
+  }
+  return loadLayerFeaturesCached(
+    layer,
+    actor,
+    jurisdictions,
+    period,
+    level,
+    adminProvince,
+    adminLocality,
+    pointsMode,
+    verifiedOnly,
+  );
 }
 
 /** Reconstruct the loader's ChoroplethCell from a stored department row. Mirrors
