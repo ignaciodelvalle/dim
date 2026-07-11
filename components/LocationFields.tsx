@@ -64,6 +64,21 @@ export type LocationFieldsValue = {
   description?: string | null;
 };
 
+/** Structured value emitted by the optional `onChange` callback — the same data
+ * the L2 hidden inputs carry, so a parent can LIFT this component's state
+ * instead of reading the uncontrolled inputs via FormData at submit time.
+ * Reflects the L2-derived jurisdiction/point/address; L1's locality pick is
+ * owned by LocalityPickerAcross's own hidden inputs and is not mirrored here. */
+export type LocationFieldsChange = {
+  provinceCode: string | null;
+  provinceName: string | null;
+  localityName: string | null;
+  lat: number | null;
+  lng: number | null;
+  address: string | null;
+  source: "gps" | "pin_manual" | "geocodificada" | null;
+};
+
 const FORWARD_DEBOUNCE_MS = 600;
 const MIN_QUERY_LENGTH = 3;
 
@@ -77,6 +92,7 @@ export function LocationFields({
   allowAnonymous = false,
   onLocationPresenceChange,
   onPointPresenceChange,
+  onChange,
   required = false,
   l1Label = "Localidad",
   cascade = false,
@@ -121,6 +137,12 @@ export function LocationFields({
   // the denuncia wizard gates advancing on a marked point specifically, so the
   // canonical locality can be inferred from it (QA 2026-07-10, FIX #3A).
   onPointPresenceChange?: (hasPoint: boolean) => void;
+  // Optional (L2): emits the full structured value whenever the derived
+  // jurisdiction / point / address changes. Lets a parent LIFT this state and
+  // stop reading the uncontrolled hidden inputs at submit time (DenunciaWizard
+  // M-followup). Additive + opt-in — consumers that omit it are unaffected and
+  // keep relying on the hidden-input wire format.
+  onChange?: (value: LocationFieldsChange) => void;
 }) {
   const isL2 = mode === "l2";
 
@@ -246,6 +268,23 @@ export function LocationFields({
     if (!onPointPresenceChange) return;
     onPointPresenceChange(point != null);
   }, [point]);
+
+  // Emit the full structured value whenever the L2-derived state changes, so a
+  // parent can lift it (DenunciaWizard M-followup). Opt-in — no-op unless a
+  // consumer passes onChange.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onChange is a stable parent callback; including it would loop on inline closures.
+  useEffect(() => {
+    if (!onChange) return;
+    onChange({
+      provinceCode: pickedProvince?.code ?? null,
+      provinceName: pickedProvince?.name ?? null,
+      localityName: pickedLocality,
+      lat: point?.lat ?? null,
+      lng: point?.lng ?? null,
+      address: isL2 ? addressText.trim() || null : null,
+      source: point ? locationSource : null,
+    });
+  }, [pickedProvince, pickedLocality, point, addressText, locationSource, isL2]);
 
   // Reverse geocoding (coords → address + jurisdiction). Fires on map gesture.
   // `source` records the coordinate origin (default 'pin_manual' — a map click/

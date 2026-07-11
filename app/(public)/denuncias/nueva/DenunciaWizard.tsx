@@ -7,17 +7,16 @@
 // short enough that step-back covers regret. Browser refresh = restart (acceptable
 // trade for anti-spam + simplicity per spec).
 //
-// Architecture note on LocationFields (uncontrolled inputs):
-//   LocationFields renders its own hidden inputs for lat/lng and native select/text
-//   inputs for province/locality. Since those can't be lifted as controlled state
-//   without refactoring LocationFields, we:
-//     1. Wrap the entire wizard in a single <form> (no action — submit is manual).
-//     2. Keep the Step3Where component in the DOM at all times (hidden with
-//        "sr-only + aria-hidden" when not active). This preserves the uncontrolled
-//        input values across step transitions so they're readable via
-//        new FormData(formRef.current) at submit time.
-//   TODO(M-followup): refactor LocationFields to accept an onChange callback and
-//   lift its state into DenunciaWizard to remove this coupling.
+// Architecture note on LocationFields (state now lifted):
+//   LocationFields (mode="l2") accepts an optional `onChange` callback that emits
+//   its derived jurisdiction / point / address (M-followup, done). The wizard
+//   lifts that value into `wizState.location` and writes the location FormData
+//   fields from it at submit — so the submitted location no longer depends on
+//   reading LocationFields' uncontrolled hidden inputs.
+//   Step3Where is still kept mounted at all times (hidden when inactive) — but
+//   now purely as a UX optimization: it preserves the live map instance and the
+//   typed address across step transitions, avoiding a remount that would
+//   re-geocode. It is no longer required for data correctness.
 //
 // Column mapping:
 //   Step 1 → kind
@@ -42,6 +41,7 @@
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { useEffect, useRef, useState } from "react";
 
+import type { LocationFieldsChange } from "@/components/LocationFields";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { clearDraft, restoreDraft, saveDraft } from "@/lib/ui/denuncia-autosave";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
@@ -73,6 +73,19 @@ type WizardState = {
   contactPhone: string;
   evidenceFiles: EvidenceFile[];
   evidenceError: string | null;
+  // Lifted from LocationFields via its onChange (M-followup) — the wizard owns
+  // the location value instead of reading uncontrolled hidden inputs at submit.
+  location: LocationFieldsChange;
+};
+
+const EMPTY_LOCATION: LocationFieldsChange = {
+  provinceCode: null,
+  provinceName: null,
+  localityName: null,
+  lat: null,
+  lng: null,
+  address: null,
+  source: null,
 };
 
 const INITIAL_STATE: WizardState = {
@@ -88,6 +101,7 @@ const INITIAL_STATE: WizardState = {
   contactPhone: "",
   evidenceFiles: [],
   evidenceError: null,
+  location: EMPTY_LOCATION,
 };
 
 export function DenunciaWizard() {
@@ -265,6 +279,19 @@ export function DenunciaWizard() {
       // Step 3 — controlled fields override any stale form values
       formData.set("description", wizState.description.trim());
       formData.set("occurredAt", resolveOccurredAt(wizState.when));
+
+      // Step 3 — location, written from the lifted LocationFields value
+      // (M-followup) rather than trusting the uncontrolled hidden inputs. Same
+      // wire format the action already reads (see LocationFields hidden inputs).
+      const loc = wizState.location;
+      formData.set("provinceCode", loc.provinceCode ?? "");
+      formData.set("provinceName", loc.provinceName ?? "");
+      formData.set("localityName", loc.localityName ?? "");
+      formData.set("localityNameIndecId", "");
+      formData.set("locationAddress", loc.address ?? "");
+      formData.set("locationLat", loc.lat != null ? String(loc.lat) : "");
+      formData.set("locationLng", loc.lng != null ? String(loc.lng) : "");
+      formData.set("locationSource", loc.lat != null && loc.source ? loc.source : "");
 
       // Step 4 — subject
       const subjectKind = wizState.subjectKind ?? "general";
@@ -447,6 +474,7 @@ export function DenunciaWizard() {
             onWhenChange={(when) => updateState({ when })}
             onDescriptionChange={(description) => updateState({ description })}
             onPointPresenceChange={setHasLocationPoint}
+            onLocationChange={(location) => setWizState((prev) => ({ ...prev, location }))}
             error={step === 3 ? stepError : null}
           />
           {step === 3 && (

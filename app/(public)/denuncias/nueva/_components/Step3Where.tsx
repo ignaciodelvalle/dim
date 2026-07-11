@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 
-import { LocationFields } from "@/components/LocationFields";
+import { LocationFields, type LocationFieldsChange } from "@/components/LocationFields";
 import { LnTextarea } from "@/components/ui/Field";
 
 export type WhenOption = "now" | "today_yesterday" | "several_days_ago";
@@ -55,7 +55,9 @@ type Step3WhereProps = {
   // advancing on it — a denuncia must carry an exact location so the canonical
   // locality can be inferred from the point (FIX #3A).
   onPointPresenceChange: (hasPoint: boolean) => void;
-  // LocationFields is uncontrolled — values are read at submit time via FormData.
+  // Lifts LocationFields' derived value into the wizard so it owns the location
+  // data (M-followup) instead of reading uncontrolled hidden inputs at submit.
+  onLocationChange: (value: LocationFieldsChange) => void;
   // We pass the error so the parent can show step-level validation.
   error?: string | null;
 };
@@ -69,6 +71,7 @@ export function Step3Where({
   onWhenChange,
   onDescriptionChange,
   onPointPresenceChange,
+  onLocationChange,
   error,
 }: Step3WhereProps) {
   // The exact map point is REQUIRED (FIX #3A): a denuncia can only be routed to
@@ -199,6 +202,7 @@ export function Step3Where({
           allowAnonymous
           useMyLocationVariant="primary"
           onPointPresenceChange={handlePointPresence}
+          onChange={onLocationChange}
         />
         {!hasPoint && (
           <output className="mt-2 block rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-[12.5px] text-[var(--color-ln-warn)] leading-snug">
