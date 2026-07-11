@@ -412,6 +412,14 @@ const COLOR_DIVISION_LINE = "#3a4568";
 // colored provinces (map-polish cursor #1). A hierarchy-aware neutral slate that
 // reads as a boundary over both the land basemap and the data fill.
 const COLOR_ADMIN_STROKE = "#5b6b8c";
+// panorama redesign Theme 3 — circle-layer edge definition. The bubble/point
+// layers used COLOR_CANVAS (near-black) strokes on a dark canvas, so a data dot
+// had no crisp edge and read as a faint transparent smudge ("manchitas
+// transparentes"). A light slate-200 stroke at ~65% draws a clean edge around a
+// colored dot on the dark surface. Suppressed cells (light COLOR_SUPPRESSED fill)
+// keep the dark COLOR_CANVAS stroke instead — a dark edge defines a LIGHT fill,
+// preserving the honest "suppressed looks different" treatment.
+const POINT_STROKE = "rgba(226,232,240,0.65)";
 // map-polish cursor #4 — data/basemap luminance separation. When a data layer
 // fills polygons the basemap land dims so the choropleth "sits on" the territory
 // instead of tinting it uniformly; outlines keep full opacity.
@@ -2080,9 +2088,19 @@ export function SituationalMap({
           COLOR_SUPPRESSED,
           layer.color,
         ],
-        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.45, 0.82],
+        // Theme 3: raise the data-fill opacity (was 0.82) so a colored dot reads
+        // solid, not translucent; suppressed dots stay clearly lower (was 0.45)
+        // but crisp, not a faint smudge.
+        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
         "circle-radius": graduatedRadiusExpr(radiusStops),
-        "circle-stroke-color": COLOR_CANVAS,
+        // Light edge on a colored (dark) fill; dark edge on the light suppressed
+        // fill — each keeps a crisp, contrasting outline.
+        "circle-stroke-color": [
+          "case",
+          ["==", ["get", "suppressed"], true],
+          COLOR_CANVAS,
+          POINT_STROKE,
+        ],
         "circle-stroke-width": 1.5,
       },
     });
@@ -2155,14 +2173,24 @@ export function SituationalMap({
           COLOR_SUPPRESSED,
           layer.color,
         ],
-        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.45, 0.78],
+        // Theme 3: raise the data-fill opacity (was 0.78) so a centroid dot reads
+        // solid against the dark canvas; suppressed dots stay clearly lower (was
+        // 0.45) but crisp, not a faint smudge.
+        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
         "circle-radius": [
           "case",
           ["==", ["get", "suppressed"], true],
           5,
           ["interpolate", ["linear"], ["coalesce", ["get", "value"], 0], 0, 6, 50, 16, 250, 26],
         ],
-        "circle-stroke-color": COLOR_CANVAS,
+        // Light edge on a colored (dark) fill; dark edge on the light suppressed
+        // fill — each keeps a crisp, contrasting outline.
+        "circle-stroke-color": [
+          "case",
+          ["==", ["get", "suppressed"], true],
+          COLOR_CANVAS,
+          POINT_STROKE,
+        ],
         "circle-stroke-width": 1.5,
       },
     });

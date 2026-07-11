@@ -287,17 +287,20 @@ export function sampleStops(stops: ReadonlyArray<[number, string]>, value: numbe
 // "No data" color — always rendered as a separate token, never hardcoded
 // ---------------------------------------------------------------------------
 
-/** Regions/cells with no matching data get this neutral fill. A desaturated
- * mid-tone in the dark-console LAND family (not the old pale #e5e7eb, which read
- * as a light sticker floating over the navy basemap — map-polish cursor #3). It
- * sits just above COLOR_LAND so a no-data polygon reads as "territory without a
- * value", clearly separate from both the colored data ramp and the hatched
- * k-anon suppression pattern. Nudged brighter (was #2a3348) so the RGB delta
- * over COLOR_LAND (#161d33) roughly doubles — a no-data polygon reads as clearly
- * separable from bare territory while still sitting well below both the data
- * ramp low-ends and the divergent neutral (slate-500 #64748b), and distinct from
- * the division outline (#3a4568). */
-export const COLOR_NO_DATA = "#313c58" as const;
+/** Regions/cells with no matching data get this neutral fill. A DESATURATED
+ * blue-grey slate — legible, not camouflaged. The previous value (#313c58) sat
+ * only one notch above COLOR_LAND (#161d33), so a no-data province read as bare
+ * territory and "disappeared" against the basemap (panorama redesign Theme 3).
+ * Lifted well above the land fill so it clearly reads as "sin dato", and kept
+ * DESATURATED (grey, not blue) so it does not read as a low value on the saturated
+ * blue/cyan data ramp — the HUE distance, not luminance, is what separates it from
+ * the scale. It MUST stay darker (lower luminance) than the ramp's low anchor
+ * ({@link RAMP_BLUE_DARK}[0] = #1b4d7e), or a "low signal" cell would read dimmer
+ * than "empty" (the honesty invariant pinned by viz-scales.test.ts); #414855 sits
+ * comfortably below it. Also distinct from the divergent neutral (slate-500
+ * #64748b), the province admin stroke (#5b6b8c), and the division outline
+ * (#3a4568). The legend labels this swatch "Sin datos". */
+export const COLOR_NO_DATA = "#414855" as const;
 
 /** Suppressed cells (< k-anonymity threshold) get this distinct fill. */
 export const COLOR_SUPPRESSED = "#d1d5db" as const;
