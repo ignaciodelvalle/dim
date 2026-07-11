@@ -62,6 +62,7 @@ import {
   pointsEligible,
 } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
+import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -430,6 +431,20 @@ type Props = {
    * refreshes it from /api/panorama/scope for the newly-drilled province.
    */
   localities?: Array<{ slug: string; name: string }>;
+  /**
+   * v2C fixed console (RSC slot): the methodology / "acerca de estas métricas"
+   * block PanoramaShell used to render BELOW the console. The page no longer
+   * scrolls, so it now lives inside the masthead's "Acerca de esta vista"
+   * popover. The server shell keeps ownership of the JSX.
+   */
+  aboutSlot?: ReactNode;
+  /**
+   * v2C fixed console (RSC slot): the "Datos de demostración" disclosure,
+   * relocated from below the console into the masthead's "Acerca" popover
+   * (with a compact always-visible pill beside the fresh chip). null/absent →
+   * no demo notice (D3 suppression handled by the shell).
+   */
+  demoNotice?: ReactNode;
 };
 
 export function PanoramaConsole({
@@ -451,6 +466,8 @@ export function PanoramaConsole({
   scopeLabel,
   allowedProvinces,
   localities: initialLocalities = [],
+  aboutSlot,
+  demoNotice,
 }: Props) {
   // perf plan 1.2: a first-visit seed is present only when the server handed
   // down BOTH the preset id and at least one layer envelope. Everything below
@@ -3084,18 +3101,19 @@ export function PanoramaConsole({
   ) : null;
 
   return (
-    <div className="space-y-4">
-      {/* ARCHETYPE A identity line — eyebrow + LIVE scope pill + "Acerca de esta
-          vista" on one row. Moved out of the (server) PanoramaShell so the pill
-          tracks the embedded client drill: the shell's byte-static scopeLabel
-          could never reflect a shallow pushState commit (live-QA regression
-          2026-07-11). Rendered only when the caller passes `scopeLabel` (the
-          pages always do; unit/embedding callers that omit it keep no masthead). */}
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* v2C masthead — the ONLY fixed row of the console (spec: everything else
+          floats over the map). Title + LIVE scope pill + "Acerca" popover on the
+          left; fresh chip + Actualizar on the right. The scope pill tracks the
+          embedded client drill (liveScopeLabel), never the byte-static server
+          prop (live-QA regression 2026-07-11). Rendered only when the caller
+          passes `scopeLabel` (the pages always do; unit/embedding callers that
+          omit it keep no masthead). */}
       {scopeLabel !== undefined && (
-        <header className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <header className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-ln-op-line bg-ln-op-card px-4 py-1.5">
+          <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-ink-2">
             Centro de Situación Nacional
-          </p>
+          </h2>
           <span
             data-testid="panorama-scope-pill"
             className="inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-sm)] text-ln-op-ink-2"
@@ -3103,7 +3121,10 @@ export function PanoramaConsole({
             <span aria-hidden="true">📍</span>
             {liveScopeLabel}
           </span>
-          <details className="group text-[var(--text-md)] text-ln-op-mute">
+          {/* "Acerca de esta vista" as a POPOVER (the page no longer scrolls, so
+              the methodology block that used to live below the console now hangs
+              from here as an overlay panel, together with the demo disclosure). */}
+          <details className="group relative text-[var(--text-md)] text-ln-op-mute">
             <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
               <span
                 aria-hidden="true"
@@ -3113,18 +3134,59 @@ export function PanoramaConsole({
               </span>
               Acerca de esta vista
             </summary>
-            <p className="mt-1.5 max-w-prose">
-              Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
-              (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
-            </p>
+            <div className="absolute left-0 top-full z-30 mt-1.5 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] space-y-2 overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3 shadow-lg">
+              <p className="max-w-prose">
+                Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
+                (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
+              </p>
+              {demoNotice}
+              {aboutSlot}
+            </div>
           </details>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            {/* Compact always-visible demo pill (the full disclosure lives in the
+                "Acerca" popover) — the honesty signal never scrolls away because
+                nothing scrolls, but it must also never be hidden behind a click. */}
+            {demoNotice != null && (
+              <span
+                className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-2 py-0.5 text-[var(--text-xs)] font-medium text-ln-op-ink-2"
+                title="El dataset cargado es sintético (densidad ponderada por Censo 2022); no representa casos reales."
+              >
+                Datos de demostración
+              </span>
+            )}
+            {/* Fresh chip — the data watermark (batch, not "en vivo"). */}
+            {kpis.dataAsOf && (
+              <span
+                suppressHydrationWarning
+                className="rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-xs)] tabular-nums text-ln-op-mute"
+              >
+                Datos al{" "}
+                {new Date(kpis.dataAsOf).toLocaleString("es-AR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: AR_TIME_ZONE,
+                })}
+              </span>
+            )}
+            <OpButton
+              variant="ghost"
+              size="sm"
+              onClick={onRefresh}
+              disabled={refreshing || kpisPending}
+            >
+              {refreshing ? "Actualizando…" : "Actualizar"}
+            </OpButton>
+          </div>
         </header>
       )}
-      {/* ARCHETYPE situation-room control bar: the preset strip is the PRIMARY
-          control (one-line segmented tabs, presets-as-onboarding, space ∝
-          frequency); layers are SECONDARY behind the compact "Capas" popover.
-          The "Vista" caption labels the strip's radiogroup inline. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card px-3 py-2">
+      {/* Control row: the preset strip is the PRIMARY control (one-line
+          segmented tabs, presets-as-onboarding); layers are SECONDARY behind the
+          compact "Capas" popover. INTERIM (v2C): still a fixed row — it becomes
+          the top-left overlay cluster in the overlays increment. */}
+      <div className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-ln-op-line bg-ln-op-card px-4 py-1.5">
         <span
           id="panorama-vista-label"
           className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
@@ -3155,45 +3217,47 @@ export function PanoramaConsole({
           onCapasDetailChange={setCapasDetail}
         />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_342px]">
-        <div className="flex min-w-0 flex-col gap-2">
-          {/* ARCHETYPE A: the condition chips (scope/period/cutoff) and the
-              bivariate encoding toggle moved OFF the above-map stack (they pushed
-              the geography below the fold): the chips now ride in the map card's
-              top chrome (conditionsSlot) and the bivariate control lives at the
-              top of the monitoring rail. */}
-          {/* ARCHETYPE A full-bleed: the map is the dominant viewport element.
-              The sizer gives it a tall, viewport-relative height (a large share
-              of the fold) while the rail stays a fixed column; the map fills it
-              (`fill`) and a ResizeObserver keeps MapLibre's canvas in sync. The
-              scrubber docks to the card's bottom edge and the aggregation badge
-              rides on the canvas — see SituationalMap. */}
-          <div className="h-[76vh] min-h-[460px]">
-            <SituationalMapDynamic
-              layers={mapLayers}
-              label={mapLabel}
-              fill
-              bottomDock={scrubberDock}
-              aggregationLabel={aggregationLabel}
-              conditionsSlot={<FilterChips chips={filterChips} />}
-              onDivisionLegendChange={setDivisionLegend}
-              onGraduatedScaleChange={setGraduatedScale}
-              onProvinceSeqLegendChange={setProvinceSeqLegend}
-              onFeatureClick={onFeatureClick}
-              onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
-              onReturnNational={canReturnNational ? onReturnNational : undefined}
-              initialBounds={initialBounds}
-              selectedProvinceCode={selectedProvinceCode}
-              selectedLocalityCenter={selectedLocalityCenter}
-              frame={presetFrame}
-              onZoom={onMapZoom}
-              initialCamera={initialCamera}
-              onCameraChange={onCameraChange}
-              highlightedUnitKey={highlightedUnitKey}
-              onUnitHover={setHighlightedUnitKey}
-              viewMeta={viewMeta}
-            />
-          </div>
+      {/* v2C body: the map fills everything below the fixed rows and the page
+          never scrolls — the monitoring rail scrolls internally. INTERIM: the
+          rail is still a fixed column; it dissolves into map overlays + the
+          floating data dock in the next increments. Below lg the body itself
+          scrolls (the map keeps a viewport-share height) until the dedicated
+          responsive pass. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+        <div className="flex h-[60vh] flex-shrink-0 flex-col lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1 lg:flex-shrink">
+          <SituationalMapDynamic
+            layers={mapLayers}
+            label={mapLabel}
+            fill
+            bottomDock={scrubberDock}
+            aggregationLabel={aggregationLabel}
+            conditionsSlot={<FilterChips chips={filterChips} />}
+            onDivisionLegendChange={setDivisionLegend}
+            onGraduatedScaleChange={setGraduatedScale}
+            onProvinceSeqLegendChange={setProvinceSeqLegend}
+            onFeatureClick={onFeatureClick}
+            onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
+            onReturnNational={canReturnNational ? onReturnNational : undefined}
+            initialBounds={initialBounds}
+            selectedProvinceCode={selectedProvinceCode}
+            selectedLocalityCenter={selectedLocalityCenter}
+            frame={presetFrame}
+            onZoom={onMapZoom}
+            initialCamera={initialCamera}
+            onCameraChange={onCameraChange}
+            highlightedUnitKey={highlightedUnitKey}
+            onUnitHover={setHighlightedUnitKey}
+            viewMeta={viewMeta}
+          />
+        </div>
+        {/* Monitoring rail — scrolls independently; the map column never
+            scrolls. The k-anon notice leads (privacy visible without scroll),
+            then the map-reading group (caption / "Ver como tabla" / points
+            disclosure) relocated from under the map (the map now fills its
+            column edge-to-edge). INTERIM: dissolves into overlays + dock next. */}
+        <div className="flex-shrink-0 space-y-2.5 border-t border-ln-op-line p-3 lg:w-[342px] lg:overflow-y-auto lg:border-l lg:border-t-0">
+          {/* k-anon disclosure — suppression is visible without any click. */}
+          <PanoramaSuppressionNotice states={states} />
           {/* panorama-ia-v2 §2.4: plain-language caption — re-states what a map
               mark means at the active VISTA + derived level. These "honesty
               lines" live WITH the map they describe (design Decision 1).
@@ -3251,12 +3315,6 @@ export function PanoramaConsole({
               ))}
             </output>
           )}
-          {/* k-anon disclosure — suppression is visible without any click. */}
-          <PanoramaSuppressionNotice states={states} />
-        </div>
-        {/* ARCHETYPE A density: the monitoring rail scrolls independently of the
-            full-bleed map, tightened to operator density (not consumer air). */}
-        <div className="space-y-2.5">
           {/* ARCHETYPE situation-room rail order — MONITORING, not narration:
               [map encoding toggle] → scope (Alcance y período) → KPIs →
               freshness/honesty → Peores-N ranking → one-line reading LAST. The
@@ -3327,14 +3385,9 @@ export function PanoramaConsole({
           />
           {/* KPIs stay LIVE during a scrub (the dashboard metrics are not forked
               by asOf in v1). The footer states the recalculation cue + freshness
-              chip + "Actualizar" (extracted from the retired PanoramaKpiStrip).
-              It qualifies the KPIs above, so it stays adjacent to them. */}
-          <PanoramaKpiFooter
-            kpis={kpis}
-            onRefresh={onRefresh}
-            refreshing={refreshing}
-            pending={kpisPending}
-          />
+              chip. "Actualizar" moved to the v2C masthead (single refresh
+              affordance) — no onRefresh here so the footer renders no button. */}
+          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} />
           {kpisStale && (
             // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
             // the strip above is showing the last-known numbers, not live ones —

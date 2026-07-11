@@ -119,35 +119,28 @@ export function PanoramaShell({
   seededLayers,
 }: Props) {
   return (
-    // v2C LIGHT operator theme (PO decision 2026-07-11 — the v1 dark
-    // "situation-room" skin is retired on BOTH /gob and /admin). The ln-op-*
-    // tokens resolve to their light :root defaults; the map canvas is now light
-    // (#ffffff) too. The wrapper bleeds the light page background to the
-    // content-region edges (negative margins cancel the shell's px-6 vertical
-    // padding, then re-add a tighter inner pad) so the operator page canvas
-    // reaches below the topbar and beside the rail without forking the shared
-    // AppShell/topbar.
+    // v2C FIXED CONSOLE (PO decision 2026-07-11): LIGHT operator theme on BOTH
+    // /gob and /admin (the v1 dark "situation-room" skin is retired — ln-op-*
+    // tokens resolve to their light :root defaults) AND a viewport-locked
+    // layout: the page never scrolls; the map fills everything except the
+    // masthead + control rows. The negative margins cancel the AppShell
+    // scroll-area padding (24px horizontal, 22px vertical) so the console
+    // bleeds edge-to-edge;
+    // the height/width stretch pins it to exactly the content region (100%
+    // resolves against the scroll area's CONTENT box, so +44px/+48px restore
+    // the cancelled vertical/horizontal padding — px math lives in style=
+    // because the token ratchet bans arbitrary px classes).
     <div
-      className="-mx-6 -my-5.5 space-y-2.5 bg-ln-op-page px-6 py-3.5 text-ln-op-ink"
-      // The negative margins shrink the box by the cancelled shell padding
-      // (2 × 22px); stretch min-height back so the page background always reaches
-      // the content-region bottom edge even on short states (px math lives in
-      // style= because the token ratchet bans arbitrary px classes).
-      style={{ minHeight: "calc(100% + 44px)" }}
+      className="-mx-6 -my-5.5 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink"
+      style={{ height: "calc(100% + 44px)", width: "calc(100% + 48px)" }}
     >
-      {/* ARCHETYPE A identity line (eyebrow + live scope pill + "Acerca de esta
-          vista") now lives INSIDE PanoramaConsole so the scope pill tracks the
-          embedded client drill. The shell rendered it from the byte-static
-          `scopeLabel` prop, which a shallow pushState drill never updates
-          (live-QA regression 2026-07-11) — the console re-labels it live from the
-          client scope state and receives the server default via `scopeLabel`. */}
-
-      {/* panorama-redesign Fase 1 reflow: the console (presets + map) leads;
-          the unified filters moved INTO the console's "Alcance y período"
-          disclosure via the filtersSlot RSC slot (this server component keeps
-          ownership of the JSX — the pickers' behavior, including their
-          window.location.assign navigation, is byte-identical). Demo
-          disclosure + methodology follow the console. */}
+      {/* The masthead (identity line + scope pill + "Acerca" popover + fresh
+          chip + Actualizar) lives INSIDE PanoramaConsole so the scope pill
+          tracks the embedded client drill (live-QA regression 2026-07-11).
+          The demo disclosure + methodology block ride the `demoNotice` /
+          `aboutSlot` RSC slots into the masthead's "Acerca de esta vista"
+          popover — the page no longer scrolls, so nothing renders below the
+          console anymore. This server component keeps ownership of the JSX. */}
       <PanoramaConsole
         scopeLabel={scopeLabel}
         defaultLayerId={layer.id}
@@ -177,44 +170,47 @@ export function PanoramaShell({
             <PeriodPicker defaultPreset="3y" multiYear />
           </div>
         }
+        // Demo-data disclosure — synthetic dataset (exec-gate credibility).
+        // Suppressed when a global demo banner already covers the page (D3):
+        // pass nothing so the console renders neither the pill nor the popover
+        // paragraph.
+        demoNotice={suppressDemoDisclosure ? undefined : <PanoramaDemoDisclosure />}
+        // Methodology / "acerca de estas métricas" — for a government data
+        // product the operator must be able to see how each indicator is
+        // computed, its sources, and the privacy treatment (exec-gate E9).
+        // Rendered inside the masthead's "Acerca de esta vista" popover.
+        aboutSlot={
+          <details className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-sm text-ln-op-ink-2">
+            <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
+              Acerca de estas métricas
+            </summary>
+            <ul className="mt-2 space-y-1.5 text-[var(--text-sm)] leading-relaxed">
+              <li>
+                <span className="font-medium text-ln-op-ink">Cálculo.</span> Los indicadores reusan
+                los mismos cálculos que los dashboards de detalle (idéntico denominador): el
+                Panorama no los recalcula con otra fórmula, los lee de la misma fuente.
+              </li>
+              <li>
+                <span className="font-medium text-ln-op-ink">Fuentes.</span> Densidad poblacional
+                del Censo 2022 (INDEC); jurisdicciones y centroides de localidades del padrón{" "}
+                <code className="text-xs">ar_localities</code>.
+              </li>
+              <li>
+                <span className="font-medium text-ln-op-ink">Privacidad.</span> Las denuncias de
+                bienestar se ubican en el centroide de la localidad, nunca en la dirección exacta.
+                Las celdas con menos de 5 casos se suprimen por k-anonimato. Cada capa se limita a
+                2.000 puntos por vista.
+              </li>
+              <li>
+                <span className="font-medium text-ln-op-ink">Reproducción temporal.</span> La línea
+                de tiempo reconstruye los eventos registrados hasta la fecha elegida. Las capas de
+                estado actual (cobertura, mortalidad, refugios) no se reproducen en el tiempo y se
+                atenúan mientras se reproduce.
+              </li>
+            </ul>
+          </details>
+        }
       />
-
-      {/* Demo-data disclosure — synthetic dataset (exec-gate credibility).
-          Suppressed when a global demo banner already covers the page (D3). */}
-      <PanoramaDemoDisclosure hidden={suppressDemoDisclosure} />
-
-      {/* Methodology / "acerca de estas métricas" — for a government data product
-          the operator must be able to see how each indicator is computed, its
-          sources, and the privacy treatment (exec-gate E9 credibility). */}
-      <details className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/40 px-3 py-2 text-sm text-ln-op-ink-2">
-        <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
-          Acerca de estas métricas
-        </summary>
-        <ul className="mt-2 space-y-1.5 text-[var(--text-sm)] leading-relaxed">
-          <li>
-            <span className="font-medium text-ln-op-ink">Cálculo.</span> Los indicadores reusan los
-            mismos cálculos que los dashboards de detalle (idéntico denominador): el Panorama no los
-            recalcula con otra fórmula, los lee de la misma fuente.
-          </li>
-          <li>
-            <span className="font-medium text-ln-op-ink">Fuentes.</span> Densidad poblacional del
-            Censo 2022 (INDEC); jurisdicciones y centroides de localidades del padrón{" "}
-            <code className="text-xs">ar_localities</code>.
-          </li>
-          <li>
-            <span className="font-medium text-ln-op-ink">Privacidad.</span> Las denuncias de
-            bienestar se ubican en el centroide de la localidad, nunca en la dirección exacta. Las
-            celdas con menos de 5 casos se suprimen por k-anonimato. Cada capa se limita a 2.000
-            puntos por vista.
-          </li>
-          <li>
-            <span className="font-medium text-ln-op-ink">Reproducción temporal.</span> La línea de
-            tiempo reconstruye los eventos registrados hasta la fecha elegida. Las capas de estado
-            actual (cobertura, mortalidad, refugios) no se reproducen en el tiempo y se atenúan
-            mientras se reproduce.
-          </li>
-        </ul>
-      </details>
     </div>
   );
 }

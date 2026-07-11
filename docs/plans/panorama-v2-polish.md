@@ -35,6 +35,9 @@ execution plan for both.
 >   localities, not provinces (ranking follows scope, as Registros already specifies).
 > - Legend sits under the expanded dock (acceptable — dock header carries scope/period meta).
 > - Where the prototype (static SVG) differs from MapLibre, MapLibre prevails (per README).
+> - **Divergent neutral (decided 2026-07-11, #21 apply):** stays the CVD-tuned `#64748b`
+>   (`COLOR_DIVERGENT_NEUTRAL`), NOT the prototype's `#f1f5f8` — perceptual accessibility
+>   (validated ΔE margins to both poles) beats spec-exactness.
 
 **The pattern: viewport-locked GIS console.** The panorama page becomes `100dvh`, no page
 scroll — the map is fixed like the AppShell sidebar and fills everything except slim bars.
