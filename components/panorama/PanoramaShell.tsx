@@ -1,9 +1,7 @@
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { PanoramaConsole, type SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
-import { CAMERA_PARAM_KEYS } from "@/lib/ui/map-layer-nav";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { PresetId } from "@/src/modules/panorama/domain/presets";
 import type {
@@ -192,13 +190,14 @@ export function PanoramaShell({
         defaultPresetId={defaultPresetId}
         seededPresetId={seededPresetId}
         seededLayers={seededLayers}
+        // panorama embedded-drill: the console renders the JurisdictionSwitcher
+        // CLIENT-SIDE so a province/locality pick commits the scope shallowly (no
+        // reload). allowedProvinces + the initial localities are handed down; the
+        // console refreshes localities/centroids from /api/panorama/scope on drill.
+        allowedProvinces={allowedProvinces}
+        localities={localities}
         filtersSlot={
           <div className="space-y-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3">
-            <JurisdictionSwitcher
-              allowedProvinces={allowedProvinces}
-              localities={localities}
-              dropParamsOnNavigate={CAMERA_PARAM_KEYS}
-            />
             {/* Panorama defaults to a multi-year window (3 años) and exposes the 3a/5a
                 chips so the temporal reproduction spans the seeded history. The detail
                 dashboards keep their own short defaults (multiYear only here). */}

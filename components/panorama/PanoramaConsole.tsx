@@ -21,6 +21,10 @@
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  type JurisdictionScope,
+  JurisdictionSwitcher,
+} from "@/components/gob/JurisdictionSwitcher";
 import { CapasPopover } from "@/components/panorama/CapasPopover";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { type FilterChip, FilterChips } from "@/components/panorama/FilterChips";
@@ -401,6 +405,20 @@ type Props = {
    */
   seededPresetId?: PresetId;
   seededLayers?: SeededLayer[];
+  /**
+   * panorama embedded-drill: provinces the viewer may filter to (admin: all;
+   * govt: its own). When present, the console renders the JurisdictionSwitcher
+   * CLIENT-SIDE and drives an embedded scope drill (shallow History commit +
+   * client refetch, no reload). Absent → the console relies on the
+   * server-rendered `filtersSlot` switcher (tests / other callers), unchanged.
+   */
+  allowedProvinces?: Array<{ code: string; name: string }>;
+  /**
+   * Localities of the INITIALLY-selected province (JurisdictionSwitcher
+   * dropdown). Seeds the console's live scope-data state; an embedded drill
+   * refreshes it from /api/panorama/scope for the newly-drilled province.
+   */
+  localities?: Array<{ slug: string; name: string }>;
 };
 
 export function PanoramaConsole({
@@ -419,6 +437,8 @@ export function PanoramaConsole({
   defaultPresetId = DEFAULT_PANORAMA_PRESET_ID,
   seededPresetId,
   seededLayers,
+  allowedProvinces,
+  localities: initialLocalities = [],
 }: Props) {
   // perf plan 1.2: a first-visit seed is present only when the server handed
   // down BOTH the preset id and at least one layer envelope. Everything below
@@ -429,6 +449,33 @@ export function PanoramaConsole({
   // /api/panorama/[layer] fetches, "kpis" for the KPI strip — last click wins
   // per key; superseded fetches abort instead of racing the UI state.
   const { signalFor } = useKeyedAbort();
+
+  // panorama embedded-drill — CLIENT-COMMITTED scope. A province/locality drill
+  // (map click, "← Volver", or the JurisdictionSwitcher) commits via a shallow
+  // History pushState, which — like the preset/period commits — is NOT observed
+  // by useSearchParams() in production (the same router-drop-immune mechanism
+  // this whole console uses, engram #621/#622). So the committed scope lives in
+  // THIS state, not in searchParams; everything scope-derived reads the
+  // EFFECTIVE scope below. `null` = no drill yet → the SSR searchParams win.
+  const [scopeOverride, setScopeOverride] = useState<{
+    province: string | null;
+    locality: string | null;
+  } | null>(null);
+  const effectiveScopeProvince = scopeOverride
+    ? scopeOverride.province
+    : (searchParams.get("province") ?? null);
+  const effectiveScopeLocality = scopeOverride
+    ? scopeOverride.locality
+    : (searchParams.get("locality") ?? null);
+
+  // The selected province's localities + centroids. Seeded from the server props
+  // (the scope the page rendered); an embedded drill refreshes it from
+  // /api/panorama/scope so the switcher dropdown + the map's locality autozoom
+  // centroids track the drilled province without a reload.
+  const [scopeData, setScopeData] = useState<{
+    localities: Array<{ slug: string; name: string }>;
+    centroids: LocalityCentroids;
+  }>({ localities: initialLocalities, centroids: localityCentroids });
   // Feature data per layer (the default is seeded; others fetched on toggle).
   // This is the LIVE cache (asOf=null). The temporal as-of cache is separate.
   // When the server seeded the default layer at locality level (scoped view,
@@ -545,10 +592,11 @@ export function PanoramaConsole({
   const [pointsInfo, setPointsInfo] = useState<
     Record<string, { count: number; truncated: boolean; sinUbicacion: number }>
   >({});
-  // Effective scope for the UX points gate: an explicit picker province wins;
+  // Effective scope for the UX points gate: an explicit picker province wins
+  // (embedded-drill: the CLIENT-committed scope, not the stale searchParams);
   // otherwise the govt operator's implicit single-province scope.
-  const pointsScopeProvince = searchParams.get("province") ?? initialDivisionProvince;
-  const pointsScopeLocality = searchParams.get("locality");
+  const pointsScopeProvince = effectiveScopeProvince ?? initialDivisionProvince;
+  const pointsScopeLocality = effectiveScopeLocality;
   const pointsMode = pointsEligible(
     { country: "AR", province: pointsScopeProvince, locality: pointsScopeLocality },
     mapZoom,
@@ -644,7 +692,18 @@ export function PanoramaConsole({
   const qs = searchParams.toString();
   // map-QOL: KPI refetches key on the SCOPE+PERIOD subset only — the shallow
   // board params (layers/level/preset) don't change what the KPIs measure.
-  const scopePeriodQs = useMemo(() => scopePeriodQsOf(searchParams), [searchParams]);
+  // Embedded-drill: fold the CLIENT-committed scope (effectiveScope*) over the
+  // searchParams scope so a shallow drill recomputes this key — which is exactly
+  // what re-triggers the generic KPI-refetch + layer-invalidation effects below
+  // (they already read window.location.search, updated by the pushState).
+  const scopePeriodQs = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (effectiveScopeProvince) params.set("province", effectiveScopeProvince);
+    else params.delete("province");
+    if (effectiveScopeLocality) params.set("locality", effectiveScopeLocality);
+    else params.delete("locality");
+    return scopePeriodQsOf(params);
+  }, [searchParams, effectiveScopeProvince, effectiveScopeLocality]);
   // Skip the refetch for the very first render (the server already seeded the
   // KPIs for the initial searchParams); only refetch when the filters change.
   const seededQsRef = useRef<string | null>(scopePeriodQs);
@@ -969,33 +1028,84 @@ export function PanoramaConsole({
   );
   const closeDrawer = useCallback(() => setSelected(null), []);
 
-  // Click-to-drill (task #55): commit a clicked province to the scope. Reuses the
-  // existing `?province` param AND the JurisdictionSwitcher full-navigation
-  // pattern (window.location.assign) — the one mechanism immune to the Next
-  // router-drop defect (engram #621/#622), so the server re-scopes reliably and
-  // the scope-wins rule forces locality/department level on the reloaded map.
-  // Clears any locality, exactly as picking a province in the switcher does.
-  const onProvinceDrill = useCallback((provinceCode: string) => {
-    const params = new URLSearchParams(window.location.search);
-    params.set("province", provinceCode);
-    params.delete("locality");
-    // Scope CHANGES → drop the national camera (z/lat/lng), or the camera-restore
-    // path wins over the province fit on reload and leaves the drilled scope framed
-    // at the national camera (a stale camera is only valid for its capture scope).
-    stripCameraParams(params);
-    window.location.assign(`${window.location.pathname}?${params.toString()}`);
-  }, []);
-  // Pop the province scope drill back to the national view (the in-map "← Volver"
-  // control). Same full-navigation primitive; drops province + locality + the
-  // province-framed camera so the national view re-frames itself.
-  const onReturnNational = useCallback(() => {
-    const params = new URLSearchParams(window.location.search);
-    params.delete("province");
-    params.delete("locality");
-    stripCameraParams(params);
-    const qsStr = params.toString();
-    window.location.assign(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
-  }, []);
+  // panorama embedded-drill — commit a province/locality scope change WITHOUT a
+  // reload. Supersedes the interim `window.location.assign` cure (task #55): the
+  // scope commit is now a shallow History pushState (immune to the Next
+  // router-drop defect, engram #621/#622, exactly like the preset/period
+  // commits) + a client refetch. Ordering:
+  //   1. Build + push the new `?province=/?locality=` URL (dropping the stale
+  //      camera — a frame is only valid for the scope it was captured in).
+  //   2. setScopeOverride → recomputes the EFFECTIVE scope, which (a) re-frames
+  //      the map via the existing A1 autozoom effect (province bbox from the
+  //      in-map polygons — NO server bounds needed), (b) re-derives the level
+  //      (scope-wins → locality), and (c) recomputes scopePeriodQs so the
+  //      generic KPI-refetch + layer-invalidation effects refetch in place.
+  //   3. Fetch the scope bundle (localities + centroids) so the switcher
+  //      dropdown + the map's locality autozoom track the drilled province.
+  // GRACEFUL FALLBACK: if the scope-bundle fetch fails (network/500), fall back
+  // to a full document navigation so a broken drill degrades to today's behavior
+  // (the server re-renders the drilled scope), never a half-updated dead map.
+  const commitScopeDrill = useCallback(
+    (province: string | null, locality: string | null) => {
+      const params = new URLSearchParams(window.location.search);
+      if (province) params.set("province", province);
+      else params.delete("province");
+      if (locality) params.set("locality", locality);
+      else params.delete("locality");
+      stripCameraParams(params);
+      const qsStr = params.toString();
+      const targetUrl = `${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`;
+      const provinceChanged = province !== effectiveScopeProvince;
+      pushMapStateUrl(targetUrl);
+      setScopeOverride({ province, locality });
+
+      // National scope (return-to-national) needs no bundle — reset in place.
+      if (!province) {
+        setScopeData({ localities: [], centroids: {} });
+        return;
+      }
+      // Only the PROVINCE change needs a fresh localities/centroids bundle; a
+      // locality-only pick keeps the already-loaded province bundle.
+      if (!provinceChanged) return;
+      const sp = new URLSearchParams({ province });
+      fetch(`/api/panorama/scope?${sp.toString()}`, {
+        headers: { accept: "application/json" },
+        signal: signalFor("scope"),
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json() as Promise<{
+            localities: Array<{ slug: string; name: string }>;
+            localityCentroids: LocalityCentroids;
+          }>;
+        })
+        .then((body) => {
+          setScopeData({
+            localities: body.localities ?? [],
+            centroids: body.localityCentroids ?? {},
+          });
+        })
+        .catch((err) => {
+          // Superseded fetch (a newer drill supersedes this one) — not a failure.
+          if (isAbortError(err)) return;
+          window.location.assign(targetUrl);
+        });
+    },
+    [signalFor, effectiveScopeProvince],
+  );
+
+  // Click-to-drill (task #55): a clicked province → embedded scope commit.
+  const onProvinceDrill = useCallback(
+    (provinceCode: string) => commitScopeDrill(provinceCode, null),
+    [commitScopeDrill],
+  );
+  // In-map "← Volver": pop the province drill back to the national view.
+  const onReturnNational = useCallback(() => commitScopeDrill(null, null), [commitScopeDrill]);
+  // JurisdictionSwitcher (embedded): a province/locality pick → embedded commit.
+  const onSwitcherScopeCommit = useCallback(
+    (scope: JurisdictionScope) => commitScopeDrill(scope.province, scope.locality),
+    [commitScopeDrill],
+  );
 
   // Province-fetch version counter — bumped after a province-level choropleth
   // fetch resolves so the activeLayers memo recomputes (the cache is a ref).
@@ -2049,8 +2159,8 @@ export function PanoramaConsole({
   // framing every preset starts at province and locality arrives only on an
   // intentional zoom past the boundary or a jurisdiction drill. So this effect
   // NO LONGER pins the level to the active preset's level.
-  const derivedProvince = searchParams.get("province") ?? initialDivisionProvince;
-  const derivedLocality = searchParams.get("locality");
+  const derivedProvince = effectiveScopeProvince ?? initialDivisionProvince;
+  const derivedLocality = effectiveScopeLocality;
   useEffect(() => {
     const desired = derivedLevelWithHysteresis(
       levelRef.current,
@@ -2334,8 +2444,8 @@ export function PanoramaConsole({
   // (auditable provenance). Scope + period in plain es-AR; suppressed-cell
   // count summed across the active layers (audit trail).
   const viewMeta = useMemo(() => {
-    const province = searchParams.get("province");
-    const locality = searchParams.get("locality");
+    const province = effectiveScopeProvince;
+    const locality = effectiveScopeLocality;
     const scopeLabel = locality
       ? "Localidad seleccionada"
       : province
@@ -2348,7 +2458,7 @@ export function PanoramaConsole({
       0,
     );
     return { asOf, scopeLabel, periodLabel, suppressedCount };
-  }, [searchParams, since, until, states, asOf]);
+  }, [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf]);
 
   // "Ver como tabla" (accessibility): the map is the least accessible surface, so
   // mirror what it is painting into a real table. Flatten every ACTIVE AGGREGATE
@@ -2565,18 +2675,23 @@ export function PanoramaConsole({
   // autozoom is UNAFFECTED — the A1 autozoom effect early-returns at mount
   // (the map is not yet loaded) and never re-fires for a constant value, so the
   // server-computed jurisdiction bbox (initialBounds) keeps the initial frame.
-  const selectedProvinceCode = searchParams.get("province") ?? initialDivisionProvince ?? null;
-  const selectedLocalitySlug = searchParams.get("locality") ?? null;
+  // Embedded-drill: the map's scope reads the CLIENT-committed effective scope
+  // (a shallow drill isn't visible to useSearchParams in production), falling
+  // back to the operator's implicit single-province scope.
+  const selectedProvinceCode = effectiveScopeProvince ?? initialDivisionProvince ?? null;
+  const selectedLocalitySlug = effectiveScopeLocality;
   // Click-to-drill (task #55) gating:
   //  - a province drill is offered only to operators NOT pinned to a jurisdiction
   //    (admin/universal, initialDivisionProvince null) — a scoped govt operator
   //    cannot cross into another province;
   //  - "← Volver" is offered only when the province came from an EXPLICIT pick
-  //    (a `?province` in the URL), never for the implicit jurisdiction scope.
+  //    (an effective `province` scope), never for the implicit jurisdiction scope.
   const canDrillProvince = initialDivisionProvince == null;
-  const canReturnNational = searchParams.get("province") != null;
+  const canReturnNational = effectiveScopeProvince != null;
+  // Locality centroid for autozoom — from the live scope-data (refreshed on an
+  // embedded drill), so a locality picked after a province drill flies correctly.
   const selectedLocalityCenter: [number, number] | null =
-    selectedLocalitySlug !== null ? (localityCentroids[selectedLocalitySlug] ?? null) : null;
+    selectedLocalitySlug !== null ? (scopeData.centroids[selectedLocalitySlug] ?? null) : null;
 
   // ARCHETYPE A: on-canvas aggregation-level badge copy. Announces what a map
   // mark aggregates NOW — "Provincias" at the national rollup, the division noun
@@ -2917,9 +3032,13 @@ export function PanoramaConsole({
             divisionLegend={divisionLegend}
             graduatedScale={graduatedScale}
           />
-          {/* RSC slot: scope/period filters owned by the SERVER shell, placed
-              behind progressive disclosure — identical behavior, one click away. */}
-          {filtersSlot !== undefined && (
+          {/* Scope/period filters behind progressive disclosure. The
+              JurisdictionSwitcher is rendered CLIENT-SIDE here (embedded-drill):
+              a province/locality pick commits the scope shallowly (no reload)
+              via onSwitcherScopeCommit, reading its selection from the effective
+              client scope. The period picker keeps arriving via the server
+              `filtersSlot` (its behavior is unchanged). */}
+          {(filtersSlot !== undefined || allowedProvinces !== undefined) && (
             <details
               ref={filtersDetailsRef}
               open={filtersOpen}
@@ -2939,7 +3058,18 @@ export function PanoramaConsole({
                   filters slot so PeriodPicker (which reads useSearchParams) highlights
                   the loaded window on a shallow preset commit, not the stale default. */}
               <CommittedPeriodContext.Provider value={committedPeriod}>
-                <div className="mt-2 space-y-3">{filtersSlot}</div>
+                <div className="mt-2 space-y-3">
+                  {allowedProvinces !== undefined && (
+                    <JurisdictionSwitcher
+                      allowedProvinces={allowedProvinces}
+                      localities={scopeData.localities}
+                      selectedProvince={effectiveScopeProvince}
+                      selectedLocality={effectiveScopeLocality}
+                      onScopeCommit={onSwitcherScopeCommit}
+                    />
+                  )}
+                  {filtersSlot}
+                </div>
               </CommittedPeriodContext.Provider>
             </details>
           )}

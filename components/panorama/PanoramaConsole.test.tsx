@@ -1355,7 +1355,7 @@ describe("PanoramaConsole — streamed KPIs (perf plan 1.3)", () => {
   });
 });
 
-describe("PanoramaConsole — click-to-drill province (task #55)", () => {
+describe("PanoramaConsole — embedded scope drill (Theme 1: no reload)", () => {
   const mockAssign = vi.fn();
   const originalLocation = window.location;
 
@@ -1363,6 +1363,7 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     const u = new URL(url, "http://localhost");
     // jsdom's real location.assign is unspyable + throws on navigation — swap in
     // a stub exposing the fields the drill callbacks read plus a spyable assign.
+    // pathname/search are the live URL the console reads via window.location.
     Object.defineProperty(window, "location", {
       configurable: true,
       writable: true,
@@ -1379,7 +1380,7 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     mockAssign.mockClear();
   });
 
-  it("drills into a clicked province via full navigation, reusing ?province + clearing locality", () => {
+  it("drills into a clicked province via SHALLOW pushState (no reload), reusing ?province + clearing locality/camera", async () => {
     setUrl("/gob/panorama?period=3y");
     render(
       <PanoramaConsole
@@ -1393,21 +1394,84 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     expect(mapProps?.onReturnNational).toBeUndefined();
 
     // A national camera is pinned in the URL (z/lat/lng) — the drill must DROP it
-    // so the reloaded province frames itself instead of restoring the national camera.
+    // so the drilled province frames itself instead of restoring the national camera.
     stubLocation("/gob/panorama?period=3y&locality=stale&z=4.2&lat=-38&lng=-63");
+    // Real pushState would fight the stubbed location; assert the call, no side effect.
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    pushSpy.mockClear();
     mockAssign.mockClear();
-    (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
 
-    expect(mockAssign).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+    });
+
+    // The scope committed via the shallow History API — NOT a reload, NOT the
+    // router. (Other shallow URL-sync writes — level/board — also go through the
+    // History API; the contract that matters is the scope commit + no reload.)
+    expect(mockAssign).not.toHaveBeenCalled();
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
+    const drillPush = pushSpy.mock.calls
+      .map((c) => new URL(c[2] as string, "http://localhost"))
+      .find((u) => u.searchParams.get("province") === "AR-B");
+    expect(drillPush).toBeDefined();
+    expect(drillPush!.pathname).toBe("/gob/panorama");
+    expect(drillPush!.searchParams.get("period")).toBe("3y");
+    expect(drillPush!.searchParams.get("locality")).toBeNull();
+    // Camera dropped — the province fit re-frames the map in place.
+    expect(drillPush!.searchParams.get("z")).toBeNull();
+    expect(drillPush!.searchParams.get("lat")).toBeNull();
+    expect(drillPush!.searchParams.get("lng")).toBeNull();
+    // The drilled province flows to the map immediately (no reload needed) so the
+    // A1 autozoom + division rendering fire for AR-B.
+    expect(mapProps?.selectedProvinceCode).toBe("AR-B");
+    // A scope-bundle fetch was issued to refresh the switcher localities/centroids.
+    await waitFor(() => {
+      const scopeCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/scope"));
+      expect(scopeCalls.some((u) => u.includes("province=AR-B"))).toBe(true);
+    });
+    pushSpy.mockRestore();
+  });
+
+  it("falls back to a full document navigation when the scope-bundle fetch fails (graceful degrade)", async () => {
+    setUrl("/gob/panorama?period=3y");
+    // A scope fetch that fails must degrade to today's behavior (full reload),
+    // never a half-updated map.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const u = String(input);
+        if (u.includes("/api/panorama/scope")) {
+          return Promise.resolve({ ok: false, status: 503 } as Response);
+        }
+        const body = u.includes("/api/panorama/kpis") ? INITIAL_KPIS : OK_ENVELOPE;
+        return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+      }),
+    );
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+      />,
+    );
+    stubLocation("/gob/panorama?period=3y");
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    pushSpy.mockClear();
+    mockAssign.mockClear();
+
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+    });
+
+    await waitFor(() => {
+      expect(mockAssign).toHaveBeenCalledTimes(1);
+    });
     const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost");
-    expect(url.pathname).toBe("/gob/panorama");
     expect(url.searchParams.get("province")).toBe("AR-B");
-    expect(url.searchParams.get("period")).toBe("3y");
-    expect(url.searchParams.get("locality")).toBeNull();
-    // Camera dropped — the province fit runs on reload.
-    expect(url.searchParams.get("z")).toBeNull();
-    expect(url.searchParams.get("lat")).toBeNull();
-    expect(url.searchParams.get("lng")).toBeNull();
+    pushSpy.mockRestore();
   });
 
   it("does NOT offer a drill or return to a jurisdiction-scoped operator", () => {
@@ -1424,7 +1488,7 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     expect(mapProps?.onReturnNational).toBeUndefined();
   });
 
-  it("offers ← Volver only for an explicit province pick and pops back to national", () => {
+  it("offers ← Volver for an explicit province pick and pops back to national via pushState (no reload)", async () => {
     setUrl("/gob/panorama?period=3y&province=AR-B");
     render(
       <PanoramaConsole
@@ -1436,16 +1500,32 @@ describe("PanoramaConsole — click-to-drill province (task #55)", () => {
     expect(mapProps?.onReturnNational).toBeInstanceOf(Function);
 
     stubLocation("/gob/panorama?period=3y&province=AR-B&z=7.1&lat=-36&lng=-59");
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    pushSpy.mockClear();
     mockAssign.mockClear();
-    (mapProps!.onReturnNational as () => void)();
 
-    expect(mockAssign).toHaveBeenCalledTimes(1);
-    const url = new URL(mockAssign.mock.calls[0][0] as string, "http://localhost");
-    expect(url.searchParams.get("province")).toBeNull();
-    expect(url.searchParams.get("period")).toBe("3y");
-    // The province-framed camera is dropped so the national view re-frames itself.
-    expect(url.searchParams.get("z")).toBeNull();
-    expect(url.searchParams.get("lat")).toBeNull();
-    expect(url.searchParams.get("lng")).toBeNull();
+    await act(async () => {
+      (mapProps!.onReturnNational as () => void)();
+    });
+
+    // Popped back to national with NO reload — a shallow History commit only.
+    expect(pushSpy).toHaveBeenCalled();
+    expect(mockAssign).not.toHaveBeenCalled();
+    // The commit that dropped the province (and its camera) so national re-frames.
+    const returnPush = pushSpy.mock.calls
+      .map((c) => new URL(c[2] as string, "http://localhost"))
+      .find((u) => u.searchParams.get("province") === null);
+    expect(returnPush).toBeDefined();
+    expect(returnPush!.searchParams.get("period")).toBe("3y");
+    expect(returnPush!.searchParams.get("z")).toBeNull();
+    expect(returnPush!.searchParams.get("lat")).toBeNull();
+    expect(returnPush!.searchParams.get("lng")).toBeNull();
+    // Return-to-national needs no scope-bundle fetch.
+    expect(
+      fetchMock.mock.calls.map((c) => String(c[0])).some((u) => u.includes("/api/panorama/scope")),
+    ).toBe(false);
+    // The map immediately returns to the national basemap (no province).
+    expect(mapProps?.selectedProvinceCode).toBeNull();
+    pushSpy.mockRestore();
   });
 });
