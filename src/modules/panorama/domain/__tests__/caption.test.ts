@@ -61,10 +61,13 @@ describe("captionFor", () => {
     );
   });
 
-  it("reunificacion still names the locality (its RATE is not folded yet)", () => {
-    // reunificacion carries a ratePct that cannot be summed across localities, so
-    // its detail tier stays at the locality — the caption stays "localidad".
-    expect(captionFor(layer("reunificacion"), "locality", period90d)).toContain("es una localidad");
+  it("reunificacion names the detail division (its num/den fold to the department)", () => {
+    // reunificacion now folds its NUMERATOR + DENOMINATOR to the department (barrio
+    // in CABA) BEFORE the rate + k-anon — the last locality-granularity holdout
+    // joins the division tier — so its caption names the division like the others.
+    expect(captionFor(layer("reunificacion"), "locality", period90d)).toContain(
+      "es una división (departamento/partido, o barrio en CABA)",
+    );
   });
 
   it("reference (clustered-points) layers produce a non-empty caption without a Meta clause", () => {
