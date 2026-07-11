@@ -11,7 +11,7 @@
 //   - AUDIT_LOG: NONE.
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { speciesLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 
 import { orgTypeToReporterRole } from "../domain/bite";
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
@@ -233,7 +233,7 @@ export async function reportBiteFromOrg(
           notificationType: "bite_reported_by_org_owner",
           severity: "warning",
           title: `Mordedura reportada por ${organization.displayName} — ${pet.name}`,
-          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR")} en ${pet.name}. Inicia un período de observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
+          body: `${organization.displayName} reportó una mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })} en ${pet.name}. Inicia un período de observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si discrepás con el reporte, contactá al refugio/clínica o a tu autoridad sanitaria.`,
           relatedPetId: pet.id,
           relatedCaseId: caseRow.id,
           ctaLabel: "Ver mascota",

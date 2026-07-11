@@ -7,6 +7,7 @@
 // AUDIT_LOG: NONE (bite/rabies actions never wrote audit_log — preserve absence).
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -86,7 +87,7 @@ export async function ownerCloseObservation(
   if (now < observationUntil) {
     return {
       ok: false,
-      error: `Aún no se cumplieron los 10 días. Esperá hasta el ${observationUntil.toLocaleDateString("es-AR")}.`,
+      error: `Aún no se cumplieron los 10 días. Esperá hasta el ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}.`,
     };
   }
 

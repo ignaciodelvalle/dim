@@ -35,6 +35,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { checkboxOn } from "@/lib/ui/form-checkbox";
+import { parseDateInput } from "@/lib/utils/format";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import {
@@ -118,8 +119,12 @@ export async function reportBiteAction(
   // 3. Parse + validate form input.
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   if (!occurredAtRaw) return { error: "Indicá la fecha del incidente." };
-  const occurredAt = new Date(occurredAtRaw);
-  if (!Number.isFinite(occurredAt.getTime())) {
+  // Anchor the bare YYYY-MM-DD at NOON UTC (parseDateInput) so the bite is
+  // recorded on the reporter's AR calendar day — NOT midnight UTC, which is the
+  // previous AR day (UTC−3) and would shift the legal 10-day rabies-observation
+  // anchor one day early (RO-HIGH, tier-3 event-sourcing critique).
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
     return { error: "Fecha del incidente inválida." };
   }
   if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };
@@ -285,8 +290,10 @@ export async function reportBiteFromOrgAction(
   // 3. Parse bite-specific fields.
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   if (!occurredAtRaw) return { error: "Indicá la fecha del incidente." };
-  const occurredAt = new Date(occurredAtRaw);
-  if (!Number.isFinite(occurredAt.getTime())) {
+  // Anchor at NOON UTC (parseDateInput) so the bite lands on the reporter's AR
+  // calendar day, not the previous one — see the owner path above (RO-HIGH).
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
     return { error: "Fecha del incidente inválida." };
   }
   if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };

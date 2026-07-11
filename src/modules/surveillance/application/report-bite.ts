@@ -11,7 +11,7 @@
 //   - AUDIT_LOG: NONE (bite actions never wrote audit_log — preserve absence).
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { speciesLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
@@ -203,7 +203,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         notificationType: "rabies_observation_started_owner",
         severity: "warning",
         title: `Observación antirrábica iniciada — ${pet.name}`,
-        body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR")}, ${pet.name} entra en observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
+        body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}, ${pet.name} entra en observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
         relatedPetId: pet.id,
         relatedCaseId: caseRow.id,
         ctaLabel: "Ver mascota",
