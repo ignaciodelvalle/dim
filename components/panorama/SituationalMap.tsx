@@ -414,6 +414,22 @@ type Props = {
    * it; a pinned gob operator keeps cooperative wheel-zoom. Read once at mount.
    */
   scrollNavEnabled?: boolean;
+  /**
+   * task #38 v3 rail: the console owns the chrome now (a floating vertical rail
+   * replaces the legacy top toolbar / the v2C floating clusters). When true the
+   * map renders NO legacy top chrome bar and NO top-right briefing card — the
+   * rail (Vista/Filtro/Período/Línea de tiempo/Exportar/Actualizar/Acerca) and
+   * the scope pill float over the map from the console instead. Direct
+   * (non-console) callers omit it and keep the legacy bar. Default false.
+   */
+  overlayChrome?: boolean;
+  /**
+   * task #38 v3 rail: register the map's `exportPng` action so the console's
+   * "Exportar" rail panel can trigger it. exportPng is map-ref coupled (needs the
+   * live GL canvas), so it stays here; this callback hands a stable wrapper up to
+   * the console on mount and clears it (null) on unmount.
+   */
+  registerExportPng?: (fn: (() => void) | null) => void;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -641,6 +657,8 @@ export function SituationalMap({
   onScopeCommit,
   scrollNavEnabled = false,
   localityCommitted = false,
+  overlayChrome = false,
+  registerExportPng,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -3128,6 +3146,18 @@ export function SituationalMap({
     a.click();
   }
 
+  // task #38 v3 rail: hand a STABLE exportPng wrapper up to the console so its
+  // "Exportar" rail panel can fire it. exportPng closes over the latest viewMeta;
+  // the ref indirection keeps the registered wrapper stable while always calling
+  // the freshest closure. Cleared on unmount so the console never holds a dead fn.
+  const exportPngRef = useRef(exportPng);
+  exportPngRef.current = exportPng;
+  useEffect(() => {
+    if (!registerExportPng) return;
+    registerExportPng(() => exportPngRef.current());
+    return () => registerExportPng(null);
+  }, [registerExportPng]);
+
   // Reset view: snap the camera back to the operator's scope — the
   // server-computed jurisdiction bbox (govt) or the NATIONAL frame (admin).
   //
@@ -3325,7 +3355,7 @@ export function SituationalMap({
       {/* ARCHETYPE A LEGACY top chrome bar — only without topRightSlot (v2C
           overlay mode moves the toolbar INTO the floating top-right cluster so
           the masthead is the console's only fixed row). */}
-      {topRightSlot === undefined && (viewMeta || conditionsSlot) && (
+      {!overlayChrome && topRightSlot === undefined && (viewMeta || conditionsSlot) && (
         <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-ln-op-line bg-ln-op-card px-2.5 py-1.5">
           {conditionsSlot ? (
             <div className="min-w-0">{conditionsSlot}</div>

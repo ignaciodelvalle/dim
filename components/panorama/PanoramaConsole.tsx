@@ -25,8 +25,8 @@ import {
   type JurisdictionScope,
   JurisdictionSwitcher,
 } from "@/components/gob/JurisdictionSwitcher";
-import { CapasPopover } from "@/components/panorama/CapasPopover";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
+import { FiltroPanel } from "@/components/panorama/FiltroPanel";
 import { KpiChips } from "@/components/panorama/KpiChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { LegendPill } from "@/components/panorama/LegendPill";
@@ -42,11 +42,13 @@ import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaDock, type PanoramaDockTab } from "@/components/panorama/PanoramaDock";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
+import { PanoramaRail, type RailItem } from "@/components/panorama/PanoramaRail";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
-import { PeriodSegmented } from "@/components/panorama/PeriodSegmented";
+import { PeriodPanel } from "@/components/panorama/PeriodPanel";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
 import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
+import { SavedViewsPopover } from "@/components/panorama/SavedViewsPopover";
 import type {
   ActiveLayer,
   DivisionLegendDescriptor,
@@ -55,9 +57,9 @@ import type {
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
-import { CommittedPeriodContext } from "@/components/panorama/committed-period-context";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
+import { activeVistaName, countFiltroModifiers } from "@/components/panorama/panorama-labels";
 import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
 import {
   Z_LOCALITY,
@@ -1289,6 +1291,37 @@ export function PanoramaConsole({
   capasDetailRef.current = capasDetail;
   const scrubDetailRef = useRef(scrubDetail);
   scrubDetailRef.current = scrubDetail;
+
+  // task #38 v3 rail — the open rail panel id (null = closed). Controlled here so
+  // a KPI card's "Ver metodología" can open the Acerca panel and only one panel
+  // is ever open. The Filtro panel reuses `capasDetail`; the others own a local
+  // Simple/Detalle flag.
+  const [railOpen, setRailOpen] = useState<string | null>(null);
+  const [vistaDetail, setVistaDetail] = useState(false);
+  const [periodoDetail, setPeriodoDetail] = useState(false);
+  const [exportDetail, setExportDetail] = useState(false);
+  const [acercaDetail, setAcercaDetail] = useState(false);
+  // task #38 v3 — the map's exportPng, bridged up from SituationalMap (map-ref
+  // coupled) so the "Exportar" rail panel can fire it.
+  const exportPngFnRef = useRef<(() => void) | null>(null);
+  const registerExportPng = useCallback((fn: (() => void) | null) => {
+    exportPngFnRef.current = fn;
+  }, []);
+  // "Copiar vista" — a deep link to the current board (was map-owned; lifted to
+  // the Exportar rail panel — it only needs window.location + the clipboard).
+  const [copied, setCopied] = useState(false);
+  const copyView = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.clipboard) return;
+    navigator.clipboard.writeText(window.location.href).then(
+      () => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1800);
+      },
+      () => {
+        /* clipboard denied — the URL is still shareable from the address bar. */
+      },
+    );
+  }, []);
 
   // task #63: the bivariate "riesgo-brotes" map encoding. Client-only view state
   // (like opacities) — never URL-encoded. Offered ONLY for the "Brotes activos"
@@ -3276,6 +3309,181 @@ export function PanoramaConsole({
     </div>
   ) : null;
 
+  // task #38 v3 rail — the active vista name (shown once) + the Filtro badge.
+  const vistaName = activeVistaName(activePresetId);
+  const activeLayerIds = PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id);
+  const filtroBadge = countFiltroModifiers({
+    activeLayerIds,
+    presetId: activePresetId,
+    baseLayerId: captionLayer?.id ?? null,
+    activePeriod: periodParam,
+    verifiedOnly,
+  });
+  const timelineActive = dockOpen && dockTab === "timeline";
+
+  // The 7 rail items, top-to-bottom (spec item 1). Panels open the ONE uniform
+  // RailPanel; actions fire immediately.
+  const railItems: RailItem[] = [
+    {
+      id: "vista",
+      icon: "vista",
+      label: "Vista",
+      kind: "panel",
+      detail: vistaDetail,
+      onDetailChange: setVistaDetail,
+      render: (detail) => (
+        <div className="space-y-2">
+          <PresetPanel
+            presets={PANORAMA_PRESETS}
+            activePresetId={activePresetId}
+            onPreset={(id) => {
+              onPreset(id);
+              setRailOpen(null);
+            }}
+            layout="list"
+            labelledBy="panorama-vista-label"
+          />
+          <p id="panorama-vista-label" className="sr-only">
+            Vista
+          </p>
+          {detail && activePreset?.description && (
+            <p className="border-t border-ln-op-line-2 pt-2 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              {activePreset.description}
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "filtro",
+      icon: "filtro",
+      label: "Filtro",
+      kind: "panel",
+      badge: filtroBadge,
+      detail: capasDetail,
+      onDetailChange: setCapasDetail,
+      render: (detail) => (
+        <FiltroPanel
+          states={states}
+          onToggle={onToggle}
+          detail={detail}
+          presetId={activePresetId}
+          scrubbing={scrubbing}
+          opacities={opacities}
+          onOpacity={onOpacity}
+          verifiedOnly={verifiedOnly}
+          onToggleVerified={onToggleVerified}
+        />
+      ),
+    },
+    {
+      id: "periodo",
+      icon: "periodo",
+      label: "Período",
+      kind: "panel",
+      detail: periodoDetail,
+      onDetailChange: setPeriodoDetail,
+      render: (detail) => (
+        <PeriodPanel
+          activePeriod={periodParam}
+          detail={detail}
+          from={fromParam ?? null}
+          to={toParam ?? null}
+        />
+      ),
+    },
+    {
+      id: "timeline",
+      icon: "linea-tiempo",
+      label: "Línea de tiempo",
+      kind: "action",
+      active: timelineActive,
+      onClick: () => {
+        if (timelineActive) {
+          setDockOpen(false);
+        } else {
+          setDockTab("timeline");
+          setDockOpen(true);
+        }
+      },
+    },
+    {
+      id: "exportar",
+      icon: "exportar",
+      label: "Exportar",
+      kind: "panel",
+      detail: exportDetail,
+      onDetailChange: setExportDetail,
+      render: (detail) => (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={copyView}
+            className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+          >
+            <span aria-hidden="true">🔗</span> Copiar vista
+            {copied && <span className="text-[var(--text-xs)] text-ln-op-ok">· copiada</span>}
+          </button>
+          <SavedViewsPopover />
+          <button
+            type="button"
+            onClick={() => exportPngFnRef.current?.()}
+            className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+          >
+            <span aria-hidden="true">🖼️</span> Exportar PNG
+          </button>
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            title="En desarrollo"
+            className="flex w-full cursor-not-allowed items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-faint"
+          >
+            Informe de situación (en desarrollo)
+          </button>
+          {detail && (
+            <p className="border-t border-ln-op-line-2 pt-2 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              «Copiar vista» copia un enlace con la vista, el alcance y el período actuales. «Vistas
+              guardadas» recuerda tableros con nombre. «Exportar PNG» descarga el mapa con una nota
+              de método al pie.
+            </p>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "actualizar",
+      icon: "actualizar",
+      label: refreshing ? "Actualizando…" : "Actualizar",
+      kind: "action",
+      disabled: refreshing || kpisPending,
+      onClick: onRefresh,
+    },
+    {
+      id: "acerca",
+      icon: "acerca",
+      label: "Acerca",
+      kind: "panel",
+      detail: acercaDetail,
+      onDetailChange: setAcercaDetail,
+      render: (detail) => (
+        <div className="space-y-2 text-[var(--text-sm)] text-ln-op-mute">
+          <p className="max-w-prose">
+            Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
+            (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
+          </p>
+          {detail && (
+            <>
+              {demoNotice}
+              {aboutSlot}
+              <PanoramaKpiFooter kpis={kpis} pending={kpisPending} />
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* v2C masthead — the ONLY fixed row of the console (spec: everything else
@@ -3290,32 +3498,10 @@ export function PanoramaConsole({
           <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-ink-2">
             Centro de Situación Nacional
           </h2>
-          {/* "Acerca de esta vista" as a POPOVER (the page no longer scrolls, so
-              the methodology block that used to live below the console now hangs
-              from here as an overlay panel, together with the demo disclosure
-              and the KPI freshness/denominator footer). */}
-          <details className="group relative text-[var(--text-md)] text-ln-op-mute">
-            <summary className="inline-flex w-fit cursor-pointer select-none items-center gap-1 text-xs font-medium text-ln-op-azul [&::-webkit-details-marker]:hidden">
-              <span
-                aria-hidden="true"
-                className="inline-block transition-transform group-open:rotate-90"
-              >
-                ▸
-              </span>
-              Acerca de esta vista
-            </summary>
-            <div className="absolute left-0 top-full z-30 mt-1.5 max-h-[70vh] w-[min(26rem,calc(100vw-2rem))] space-y-2 overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3 shadow-lg">
-              <p className="max-w-prose">
-                Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
-                (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
-              </p>
-              {demoNotice}
-              {aboutSlot}
-              {/* KPI recalculation cue + coverage denominator (the retired
-                  rail's KpiFooter) — qualifies the KPI chips over the map. */}
-              <PanoramaKpiFooter kpis={kpis} pending={kpisPending} />
-            </div>
-          </details>
+          {/* task #38 v3: "Acerca de esta vista" (methodology + demo + KPI footer)
+              and "Actualizar" moved into the floating rail (Acerca / Actualizar
+              icons). The masthead keeps only the identity line + the honesty
+              signals (demo pill + data-freshness chip). */}
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {/* Compact always-visible demo pill (the full disclosure lives in the
                 "Acerca" popover) — the honesty signal never scrolls away because
@@ -3344,14 +3530,6 @@ export function PanoramaConsole({
                 })}
               </span>
             )}
-            <OpButton
-              variant="ghost"
-              size="sm"
-              onClick={onRefresh}
-              disabled={refreshing || kpisPending}
-            >
-              {refreshing ? "Actualizando…" : "Actualizar"}
-            </OpButton>
           </div>
         </header>
       )}
@@ -3366,62 +3544,12 @@ export function PanoramaConsole({
           label={mapLabel}
           fill
           aggregationLabel={aggregationLabel}
-          // v2C floating top-right cluster row 1: the scope pill (THE
-          // keyboard path to the jurisdiction menu — spec no-negociable #3)
-          // + the single-line period segmented. SituationalMap adds its own
-          // briefing actions (Copiar vista / Vistas guardadas / Exportar
-          // PNG) as row 2 of the same float card.
-          topRightSlot={
-            <CommittedPeriodContext.Provider value={committedPeriod}>
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {(scopeLabel !== undefined ||
-                  allowedProvinces !== undefined ||
-                  filtersSlot !== undefined) && (
-                  <OverlayDisclosure
-                    summaryTestId="panorama-scope-pill"
-                    panelClassName="right-0 w-80 max-w-[80vw]"
-                    closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
-                    summaryClassName="inline-flex items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
-                    summary={
-                      <>
-                        <span aria-hidden="true">◉</span>
-                        <span className="sr-only">Alcance y período</span>
-                        {liveScopeLabel || "Nacional"}
-                        <span aria-hidden="true" className="text-[var(--text-xs)]">
-                          ▾
-                        </span>
-                      </>
-                    }
-                  >
-                    <div className="space-y-3">
-                      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-                        Jurisdicción
-                      </p>
-                      {/* The JurisdictionSwitcher is rendered CLIENT-SIDE
-                            (embedded-drill): a province/locality pick commits
-                            the scope shallowly (no reload) via
-                            onSwitcherScopeCommit. Native selects = the full
-                            keyboard path (↑/↓/Home/End/Enter/Esc). */}
-                      {allowedProvinces !== undefined && (
-                        <JurisdictionSwitcher
-                          allowedProvinces={allowedProvinces}
-                          localities={scopeData.localities}
-                          selectedProvince={effectiveScopeProvince}
-                          selectedLocality={effectiveScopeLocality}
-                          onScopeCommit={onSwitcherScopeCommit}
-                        />
-                      )}
-                      {filtersSlot}
-                      <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
-                        También podés hacer click en una provincia del mapa.
-                      </p>
-                    </div>
-                  </OverlayDisclosure>
-                )}
-                <PeriodSegmented />
-              </div>
-            </CommittedPeriodContext.Provider>
-          }
+          // task #38 v3: the console owns all chrome now (the floating vertical
+          // rail + the top-left scope pill / KPI cluster). The map renders no
+          // legacy toolbar and no top-right briefing card; it only hands its
+          // map-coupled exportPng up for the "Exportar" rail panel.
+          overlayChrome
+          registerExportPng={registerExportPng}
           onDivisionLegendChange={setDivisionLegend}
           onGraduatedScaleChange={setGraduatedScale}
           onProvinceSeqLegendChange={setProvinceSeqLegend}
@@ -3468,77 +3596,75 @@ export function PanoramaConsole({
           stats={dockStats}
           timeline={scrubberDock}
         />
-        {/* v2C top-LEFT overlay cluster: Vista dropdown + Capas button on the
-            first row, the stacked KPI chips below (click → re-base the
-            choropleth), then the stale-KPI notice and the bivariate encoding
-            toggle when eligible. Absolute — never re-layouts the map. */}
-        {/* Responsive (1366x768 pass): the cluster narrows below 2xl (1366 sits
-            INSIDE xl, so xl: was the wrong gate) to release the map center; the
-            centered map controls drop below the clusters at the same
-            breakpoint (SituationalMap). */}
+        {/* task #38 v3 top-LEFT cluster: the floating scope pill (THE keyboard
+            path to the jurisdiction menu — NOT in the rail, per spec), the vista
+            name stated ONCE (de-dup), then the KPI cards, stale notice and the
+            bivariate encoding toggle. The rail owns the right edge. Absolute —
+            never re-layouts the map. Narrows below 2xl so 1366 releases the map
+            center. */}
         <div className="absolute left-3.5 top-3.5 z-10 flex w-64 max-w-[calc(100%-1.75rem)] flex-col gap-2 2xl:w-72">
-          <div className="flex items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/95 p-2 shadow-md">
+          {(scopeLabel !== undefined ||
+            allowedProvinces !== undefined ||
+            filtersSlot !== undefined) && (
             <OverlayDisclosure
-              closeSignal={activePresetId}
-              panelClassName="left-0 w-72"
-              summaryClassName="inline-flex min-w-0 items-center gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 hover:border-ln-op-celeste"
+              summaryTestId="panorama-scope-pill"
+              panelClassName="left-0 w-80 max-w-[80vw]"
+              closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
+              summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
               summary={
                 <>
-                  <span
-                    id="panorama-vista-label"
-                    className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
-                  >
-                    Vista
-                  </span>
-                  <span className="min-w-0 truncate text-[var(--text-sm)] font-semibold text-ln-op-ink">
-                    {activePreset?.label ?? "Personalizada"}
-                  </span>
-                  <span aria-hidden="true" className="text-[var(--text-xs)] text-ln-op-faint">
+                  <span aria-hidden="true">◉</span>
+                  <span className="sr-only">Alcance</span>
+                  {liveScopeLabel || "Nacional"}
+                  <span aria-hidden="true" className="text-[var(--text-xs)]">
                     ▾
                   </span>
                 </>
               }
             >
-              {/* The SAME PresetPanel radiogroup (roving focus, radio
-                  semantics), compact "list" layout for the dropdown panel. */}
-              <PresetPanel
-                presets={PANORAMA_PRESETS}
-                activePresetId={activePresetId}
-                onPreset={onPreset}
-                layout="list"
-                labelledBy="panorama-vista-label"
-              />
+              <div className="space-y-3">
+                <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                  Jurisdicción
+                </p>
+                {/* The JurisdictionSwitcher is rendered CLIENT-SIDE (embedded
+                    drill): a province/locality pick commits the scope shallowly
+                    (no reload). Native selects = the full keyboard path. */}
+                {allowedProvinces !== undefined && (
+                  <JurisdictionSwitcher
+                    allowedProvinces={allowedProvinces}
+                    localities={scopeData.localities}
+                    selectedProvince={effectiveScopeProvince}
+                    selectedLocality={effectiveScopeLocality}
+                    onScopeCommit={onSwitcherScopeCommit}
+                  />
+                )}
+                {filtersSlot}
+                <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                  También podés hacer click en una provincia del mapa.
+                </p>
+              </div>
             </OverlayDisclosure>
-            {/* CapasPopover composes the unchanged CapasBox (→ LayerPanel) —
-                checkCompatibility and role rules are 100% preserved. */}
-            <CapasPopover
-              states={states}
-              onToggle={onToggle}
-              scrubbing={scrubbing}
-              opacities={opacities}
-              onOpacity={onOpacity}
-              verifiedOnly={verifiedOnly}
-              onToggleVerified={onToggleVerified}
-              capasDetail={capasDetail}
-              onCapasDetailChange={setCapasDetail}
-            />
-          </div>
-          {/* Stacked KPI chips — same getPanoramaKpis() subset the retired
-              metrics column showed; click re-bases via the existing base-swap
-              (onToggle). Honesty states (pending/degraded/empty) identical. */}
+          )}
+          {vistaName && (
+            <p className="w-fit max-w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-3 py-1 text-[var(--text-xs)] text-ln-op-mute shadow-sm">
+              Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
+            </p>
+          )}
           <KpiChips
             kpis={kpis}
             metricIds={metricIds}
+            presetId={activePresetId}
             activeBaseLayerId={captionLayer?.id ?? null}
             onRebase={(id) => {
               void onToggle(id);
             }}
+            onOpenAbout={() => setRailOpen("acerca")}
             pending={kpisPending}
             degraded={kpisDegraded}
           />
           {kpisStale && (
             // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
-            // the chips show the last-known numbers, not live ones — say so.
+            // the cards show the last-known numbers, not live ones — say so.
             <output
               aria-live="polite"
               className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
@@ -3549,6 +3675,8 @@ export function PanoramaConsole({
           {/* task #63: bivariate map-encoding toggle (only on Brotes activos). */}
           {bivariateControl}
         </div>
+        {/* task #38 v3 — the vertical modifier rail (right edge of the map). */}
+        <PanoramaRail items={railItems} open={railOpen} onOpenChange={setRailOpen} />
         {/* v2C single-line legend pill (bottom-left, above the dock bar): base
             label + classed ramp + per-layer dots + the ALWAYS-VISIBLE k-anon
             pill. Expands upward into the FULL reading: the real MapLegends
