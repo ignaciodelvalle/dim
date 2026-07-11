@@ -103,4 +103,21 @@ describe("cron fleet parity (vercel.json ⇄ dispatcher ⇄ registry ⇄ routes)
       ).toBe(true);
     }
   });
+
+  // Auth is the security boundary for the whole cron fleet (all 24 routes are
+  // publicly reachable URLs otherwise) — this tripwire keeps a future job from
+  // shipping ungated. Every job must reference one of the two known auth
+  // helpers: authorizeCronRequest (lib/domain/cron-auth.ts, Bearer + legacy
+  // header) or checkCronSecret (lib/infra/case-cron.ts, the older helper still
+  // used by the case-cron routes).
+  it("every job route is auth-gated (authorizeCronRequest or checkCronSecret)", () => {
+    for (const dir of jobDirs) {
+      const src = readFileSync(join(CRON_DIR, dir, "route.ts"), "utf8");
+      const hasAuth = src.includes("authorizeCronRequest") || src.includes("checkCronSecret");
+      expect(
+        hasAuth,
+        `${dir}/route.ts has no auth gate — it must call authorizeCronRequest (lib/domain/cron-auth.ts) or checkCronSecret (lib/infra/case-cron.ts)`,
+      ).toBe(true);
+    }
+  });
 });
