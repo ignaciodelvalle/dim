@@ -30,7 +30,10 @@ Stack: Next.js 15 (App Router) + React 19 + TypeScript, Supabase (Postgres + RLS
 - **Every agent gets a one-page contract** — `docs/agents/README.md` is the hub (read-only auditors, mutating QA agents, subagents). Briefing ANY agent? Point it at its page. Delegating via the Agent tool? The call carries an explicit `model` (mechanical → sonnet).
 - **spec → plan → PR** — code descends from documents (`docs/superpowers/README.md` is the index). If a change feels in tension with what's written, raise it before coding around it.
 - **Engram is the SDD artifact store** — topic keys `sdd/{change}/*`; session summaries are mandatory.
-- **Sub-agents that spawn background children must poll within their own turn** — do not end the turn "waiting for a notification"; that stalls the pipeline until manually resumed (recurring failure mode).
+- **Poll every background child within your own turn** (STRUCTURAL — the first line of every agent brief) — after launching any background child, poll its output within your turn: loop on `Read` of its output file, or re-run it synchronously. A turn may not end with a live child unpolled; that stalls the pipeline until manually resumed (recurred 3× in one day despite prompt warnings).
+- **Cursor as fresh reviewer is a standard pre-push step** — before pushing a commit range, run a read-only adversarial pass with a fresh-context reviewer over the range.
+- **Parallel writers only in worktrees** — N read-only agents in parallel is free; a 2nd writer runs ONLY in its own git worktree with disjoint file territory + targeted tests (local Supabase is shared), landing through a serial integration merge gate (full `pnpm verify` + parity where applicable).
+- **Spec-conflict rule: validated code beats design-handoff tables** — when a tested constant disagrees with a handoff's token table, the code wins (case study: the CVD teal near-regression, `viz-scales.ts` `COLOR_DIVERGENT_ABOVE` vs the v2C README's pre-fix `#0d9488`).
 - **QA environment bootstrap**: `pwsh scripts/qa-up.ps1` — checks Supabase containers, build freshness vs HEAD, starts the production server on :3000, smoke-tests key routes, and verifies seed accounts.
 
 ## AGENTS.md deep sections (load on demand)
