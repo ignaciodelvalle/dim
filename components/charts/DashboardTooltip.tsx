@@ -2,6 +2,8 @@
 
 import type { TooltipProps } from "recharts";
 
+import { formatPercent } from "@/lib/utils/format";
+
 /**
  * DashboardTooltip — tooltip descriptivo para DashboardChart.
  *
@@ -81,7 +83,7 @@ export function DashboardTooltip({
       {/* Series */}
       {payload.map((entry, i) => {
         const val = entry.value ?? 0;
-        const pct = total && total > 0 ? ((val / total) * 100).toFixed(1) : null;
+        const pctValue = total && total > 0 ? (val / total) * 100 : null;
         const seriesName = entry.name ?? "Valor";
 
         return (
@@ -103,7 +105,9 @@ export function DashboardTooltip({
             <span className="tabular-nums font-semibold text-ln-ink ml-3.5">
               {val.toLocaleString("es-AR")}
               {unit && <span className="font-normal text-ln-ink-3 ml-1">{unit}</span>}
-              {pct !== null && <span className="font-normal text-ln-ink-3 ml-1">({pct}%)</span>}
+              {pctValue !== null && (
+                <span className="font-normal text-ln-ink-3 ml-1">({formatPercent(pctValue)})</span>
+              )}
             </span>
           </div>
         );

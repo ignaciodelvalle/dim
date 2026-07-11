@@ -21,7 +21,7 @@ import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { LnStatusFlag, LnVstamp } from "@/components/ui/StatusFlag";
 import { OpKpiSm } from "@/components/ui/dashboard/OpKpi";
 import type { EventType } from "@/db/schema";
-import { eventTypeLabel } from "@/lib/utils/format";
+import { eventTypeLabel, formatRate } from "@/lib/utils/format";
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
@@ -333,10 +333,10 @@ function ConsoleCartogram() {
           className="lp-mtile"
           data-q={mapTintStep(t.v)}
           style={{ gridColumn: t.c + 1, gridRow: t.r + 1 }}
-          title={`${t.name} · ${t.v.toFixed(1).replace(".", ",")} /100k`}
+          title={`${t.name} · ${formatRate(t.v)} /100k`}
         >
           <span className="lp-ab">{t.ab}</span>
-          <span className="lp-mv">{t.v.toFixed(1).replace(".", ",")}</span>
+          <span className="lp-mv">{formatRate(t.v)}</span>
         </div>
       ))}
     </div>
