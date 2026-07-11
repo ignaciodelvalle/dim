@@ -10,8 +10,10 @@
 
 import Link from "next/link";
 
+import { OrgSetupChecklist } from "@/components/OrgSetupChecklist";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { TodayAgendaItem } from "@/lib/analytics/org-dashboard";
+import type { SetupStep } from "@/lib/infra/org-setup-checklist";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -34,10 +36,17 @@ export function SoloVetAgendaLanding({
   orgToken,
   orgName,
   appointments,
+  checklistSteps = null,
 }: {
   orgToken: string;
   orgName: string;
   appointments: TodayAgendaItem[];
+  /**
+   * First-run setup steps to show above the agenda while onboarding is
+   * incomplete (task #17). Null once every step is done — the checklist then
+   * disappears and the solo vet sees only their agenda.
+   */
+  checklistSteps?: SetupStep[] | null;
 }) {
   const todayLabel = new Date().toLocaleDateString("es-AR", {
     weekday: "long",
@@ -53,6 +62,13 @@ export function SoloVetAgendaLanding({
         <h1 className="text-xl font-semibold text-ln-op-ink">Agenda de hoy</h1>
         <p className="text-sm capitalize text-ln-op-mute">{todayLabel}</p>
       </header>
+
+      {/* First-run checklist (task #17) — guides the solo vet through publishing
+          services, declaring coverage and starting verification before the
+          agenda has anything in it. Auto-hidden by the parent once complete. */}
+      {checklistSteps && checklistSteps.length > 0 && (
+        <OrgSetupChecklist steps={checklistSteps} orgToken={orgToken} autoFocusFirst />
+      )}
 
       <OpCard>
         <OpCardHead title={`Turnos de hoy · ${appointments.length}`} />

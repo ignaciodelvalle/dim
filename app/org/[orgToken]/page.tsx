@@ -229,28 +229,6 @@ export default async function OrgDashboardPage({
       : Promise.resolve([{ n: 0 }]),
   ]);
 
-  // Solo-clinic agenda-first landing (four-actor lean IA critique §3): a
-  // one-person clinic with scheduling lands on today's agenda — the issuer's
-  // daily loop — instead of the shelter-oriented ops dashboard below. Detected
-  // by org SHAPE (clinic + single member), not by membership role: vet_individual
-  // is a staff role usable inside multi-member clinics, while a real solo
-  // practitioner is the sole admin of their own clinic (and thus holds every
-  // capability). The org nav rail still exposes every other section.
-  if (
-    organization.orgType === "clinic" &&
-    (memberCountRow[0]?.n ?? 0) === 1 &&
-    granted.has("appointment.manage")
-  ) {
-    const todayAgenda = await fetchTodayAgenda(organization.id);
-    return (
-      <SoloVetAgendaLanding
-        orgToken={orgToken}
-        orgName={organization.displayName}
-        appointments={todayAgenda}
-      />
-    );
-  }
-
   const setupSteps = deriveSetupSteps({
     orgType: organization.orgType,
     hasCoverage: (coverageCountRow[0]?.n ?? 0) > 0,
@@ -266,6 +244,37 @@ export default async function OrgDashboardPage({
   });
 
   const showChecklist = !isSetupComplete(setupSteps);
+
+  // Solo-clinic agenda-first landing (four-actor lean IA critique §3): a
+  // one-person clinic with scheduling lands on today's agenda — the issuer's
+  // daily loop — instead of the shelter-oriented ops dashboard below. Detected
+  // by org SHAPE (clinic + single member), not by membership role: vet_individual
+  // is a staff role usable inside multi-member clinics, while a real solo
+  // practitioner is the sole admin of their own clinic (and thus holds every
+  // capability). The org nav rail still exposes every other section.
+  //
+  // First-run (task #17): the solo path used to return here BEFORE the setup
+  // checklist branch below, so a freshly-created solo clinic landed in a dead
+  // empty agenda ("No hay turnos") with no path to publish services / declare
+  // coverage / start verification — the onboarding checklist built for exactly
+  // this account was skipped for it. We now surface the same OrgSetupChecklist
+  // above the agenda while setup is incomplete (the sole member is the admin, so
+  // isAdmin is always true on this path). It auto-hides once every step is done.
+  if (
+    organization.orgType === "clinic" &&
+    (memberCountRow[0]?.n ?? 0) === 1 &&
+    granted.has("appointment.manage")
+  ) {
+    const todayAgenda = await fetchTodayAgenda(organization.id);
+    return (
+      <SoloVetAgendaLanding
+        orgToken={orgToken}
+        orgName={organization.displayName}
+        appointments={todayAgenda}
+        checklistSteps={showChecklist && isAdmin ? setupSteps : null}
+      />
+    );
+  }
 
   // Dashboard projections — all run in parallel.
   // Occupancy requires fetchOrgCensus + org capacity columns (Item 16).
