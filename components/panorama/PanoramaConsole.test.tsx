@@ -432,6 +432,56 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
   });
 });
 
+describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)", () => {
+  it("ships collapsed by default: the bar + tabs are visible, no pane content mounts", () => {
+    const { container } = renderConsole();
+
+    const dock = screen.getByTestId("panorama-dock");
+    expect(dock).toBeVisible();
+    // The three tabs are reachable from the collapsed bar.
+    expect(screen.getByRole("tab", { name: /Registros/ })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Estadísticas/ })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Línea de tiempo/ })).toBeVisible();
+    // Collapsed: no tabpanel, no scrubber, no table.
+    expect(container.querySelector("#pano-dock-panel")).toBeNull();
+    expect(container.querySelector("input[type='range']")).toBeNull();
+    expect(screen.getByRole("button", { name: "▴ Expandir" })).toBeVisible();
+  });
+
+  it("clicking a tab while collapsed expands the dock onto that pane; Colapsar closes it", () => {
+    const { container } = renderConsole();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+    expect(container.querySelector("#pano-dock-panel")).not.toBeNull();
+    expect(screen.getByRole("tab", { name: /Estadísticas/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "▾ Colapsar" }));
+    expect(container.querySelector("#pano-dock-panel")).toBeNull();
+  });
+
+  it("Registros pane hosts the accessible map table (empty-state copy when no aggregate rows)", () => {
+    renderConsole();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Registros/ }));
+    // EMPTY_FC seed → the MapDataTable's honest empty state (not a blank pane).
+    expect(
+      screen.getByText("Sin datos por unidad para las capas activas en este alcance."),
+    ).toBeVisible();
+  });
+
+  it("Estadísticas pane renders the ranking section (honest empty copy without a rankable base)", () => {
+    renderConsole();
+
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+    // perdidas (density, EMPTY features) → RankedUnitsPanel's honest empty copy.
+    expect(screen.getByText(/Peores/)).toBeVisible();
+    expect(screen.getByText("Sin datos suficientes en este alcance.")).toBeVisible();
+  });
+});
+
 describe("PanoramaConsole — deep-link level guard (MAP-5)", () => {
   it("falls a national level=locality deep-link back to province (no province in scope)", () => {
     // No ?province and no implicit jurisdiction province → a locality choropleth
@@ -471,6 +521,16 @@ function openCapas(): void {
   // bivariate encoding toggle (Brotes vista) is also labelled "Capas" but has no
   // expanded state, so filtering by `expanded` disambiguates them.
   fireEvent.click(screen.getByRole("button", { name: /Capas/, expanded: false }));
+}
+
+/**
+ * Open the v2C dock's "Línea de tiempo" tab so the TimeScrubber mounts. The
+ * v2C fixed console moved the scrubber off the always-on bottomDock strip into
+ * the floating dock (PO: timeline is opt-in — dock collapsed by default), so
+ * any test that interacts with the scrubber must open that tab first.
+ */
+function openTimeline(): void {
+  fireEvent.click(screen.getByRole("tab", { name: /Línea de tiempo/ }));
 }
 
 function renderRedesignConsole(extraProps: Record<string, unknown> = {}) {
@@ -584,11 +644,11 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(container.contains(filterSelect)).toBe(true);
   });
 
-  it("first paint: Vista strip + the Capas button + the compact TimeScrubber are all visible (no disclosures); layers open in the popover", () => {
-    // ARCHETYPE redesign: the preset strip stays first-paint (presets-as-
-    // onboarding), the layer catalog moved behind a compact "Capas" popover
-    // (layers secondary), and the scrubber is a compact always-present element
-    // under the map — none hides behind a details disclosure.
+  it("first paint: Vista strip + Capas button + the collapsed dock (timeline opt-in) are visible; the scrubber mounts on the timeline tab", () => {
+    // v2C: the preset strip stays first-paint (presets-as-onboarding), the
+    // layer catalog stays behind the compact "Capas" popover, and the
+    // TimeScrubber moved into the floating dock's "Línea de tiempo" tab
+    // (PO: timeline is opt-in — the dock ships collapsed, "MÁS MAPA").
     const { container } = renderRedesignConsole({ defaultSuppressedCount: 3 });
 
     // The 6 preset tabs are first-paint.
@@ -606,8 +666,13 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     openCapas();
     expect(screen.getByRole("button", { name: "Modo simple de capas" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Modo detalle de capas" })).toBeVisible();
-    // The scrubber's range input IS first-paint now — no "Reproducir en el
-    // tiempo" disclosure wrapper exists anymore (superseded, Phase 4).
+    // The dock bar is first-paint (collapsed): its three tabs are reachable but
+    // no pane content mounts yet — the scrubber arrives on the timeline tab.
+    expect(screen.getByTestId("panorama-dock")).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Registros/ })).toBeVisible();
+    expect(container.querySelector("input[type='range']")).toBeNull();
+    openTimeline();
+    // The scrubber's range input mounts, not behind any details disclosure.
     expect(screen.queryByText("Reproducir en el tiempo")).not.toBeInTheDocument();
     const range = container.querySelector("input[type='range']");
     expect(range).not.toBeNull();
@@ -636,6 +701,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
   it("non-temporal vista (cumplimiento: cobertura only) shows the scrubber's disabled state", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
@@ -645,6 +711,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
   it("current-state base (brotes-activos: cobertura base): active scrubber carries the honest 'estado actual' disclaimer (trust/safety)", () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     // brotes-activos: base cobertura (current-state) + signal zoonosis (temporal)
     // → the scrubber stays active (zoonosis reproduces) but must state plainly
@@ -660,6 +727,7 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
   it("activating a temporal layer self-enables the scrubber without a reload", async () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
     expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
@@ -1115,6 +1183,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
   it("clears asOf and undims non-temporal layers once the active set loses its last temporal layer (finding 1)", async () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
@@ -1156,6 +1225,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     deferMode = true;
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
@@ -1186,6 +1256,7 @@ describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITI
   it("fetches the as-of frame at level=province when scrubbing at province framing", async () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     // brotes-activos at national scope → province is the derived level; zoonosis
     // (temporal) is active.
@@ -1235,6 +1306,7 @@ describe("PanoramaConsole — province-level scrub paints the as-of frame (CRITI
 
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
@@ -1255,6 +1327,7 @@ describe("PanoramaConsole — bivariate is honest under a scrub (CRITICAL-2)", (
   it("disables the bivariate encoding while scrubbing and shows an honest note", async () => {
     setUrl("/gob/panorama?period=3y");
     renderRedesignConsole();
+    openTimeline();
 
     // brotes-activos + province level + cobertura & zoonosis active → the encoding
     // toggle is offered.

@@ -29,10 +29,15 @@ import { CapasPopover } from "@/components/panorama/CapasPopover";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { type FilterChip, FilterChips } from "@/components/panorama/FilterChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
-import { MapDataTable, type MapTableRow } from "@/components/panorama/MapDataTable";
+import {
+  MapDataTable,
+  type MapTableRow,
+  useMapTableCsvHref,
+} from "@/components/panorama/MapDataTable";
 import { MapLegends } from "@/components/panorama/MapLegends";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
+import { PanoramaDock, type PanoramaDockTab } from "@/components/panorama/PanoramaDock";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
 import {
   PanoramaMetricsColumn,
@@ -850,16 +855,27 @@ export function PanoramaConsole({
   // The active period window [since, until] drives the scrubber axis. Resolved
   // from the committed period (a shallow preset commit) when present, else the
   // SAME searchParams the server used (parity). `until` is "ahora".
+  //
+  // Memo keys are the PARAM STRINGS, not the searchParams object identity:
+  // `until` is minted from Date.now() on every recompute, so an identity-only
+  // searchParams refresh (e.g. an ?asOf= camera/scrub write that never touches
+  // period/from/to) would re-mint a drifted `until`, which the TimeScrubber
+  // reads as a WINDOW CHANGE and parks the scrub back at live — silently
+  // cancelling an active scrub (v2C dock QA, 2026-07-11). String keys make the
+  // window stable until the period actually changes.
+  const periodParam = committedPeriod ?? searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET;
+  const fromParam = searchParams.get("from") ?? undefined;
+  const toParam = searchParams.get("to") ?? undefined;
   const { since, until } = useMemo(
     () =>
       resolveAnalyticsPeriod({
         // Panorama defaults to a multi-year window so the scrubber spans the
         // seeded history; the detail dashboards keep their own short defaults.
-        period: committedPeriod ?? searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET,
-        from: searchParams.get("from") ?? undefined,
-        to: searchParams.get("to") ?? undefined,
+        period: periodParam,
+        from: fromParam,
+        to: toParam,
       }),
-    [searchParams, committedPeriod],
+    [periodParam, fromParam, toParam],
   );
 
   // "Copiar vista" fidelity: decode the shared camera + scrub position ONCE from
@@ -892,6 +908,16 @@ export function PanoramaConsole({
   // fires in that case) — otherwise the scrubber immediately re-emits its
   // stale non-live asOf and undoes this console's own reset.
   const [scrubResetToken, setScrubResetToken] = useState(0);
+
+  // v2C floating dock — collapsed by default (PO re-ratified 2026-07-11: "MÁS
+  // MAPA, la lista es opcional"). A deep link that pins a scrub position
+  // (?asOf=) opens on the timeline tab so the restored scrubber is visible —
+  // otherwise the park-at-live guard (below, near temporalAvailable) would
+  // clobber the shared position the moment the hidden scrubber unmounted.
+  const [dockOpen, setDockOpen] = useState<boolean>(() => initialAsOf !== null);
+  const [dockTab, setDockTab] = useState<PanoramaDockTab>(() =>
+    initialAsOf !== null ? "timeline" : "registros",
+  );
 
   // task #77 bitemporal — the replay basis. "valid" (occurred_at, default) replays
   // "what happened when"; "transaction" (recorded_at) replays "what the State KNEW
@@ -2718,13 +2744,13 @@ export function PanoramaConsole({
     return { asOf, scopeLabel, periodLabel, suppressedCount };
   }, [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf]);
 
-  // "Ver como tabla" (accessibility): the map is the least accessible surface, so
-  // mirror what it is painting into a real table. Flatten every ACTIVE AGGREGATE
-  // layer (choropleth fills + graduated per-unit circles — reference/points layers
-  // are individual entities, not per-unit values) into rows, reusing the pinned
-  // popup's buildLayerReadout so the value/unit/protected formatting is identical.
-  // A k-anon-suppressed cell reads "Protegido (k<5)", never a number.
-  const [showMapTable, setShowMapTable] = useState(false);
+  // Registros (dock) — the accessible table of what the map paints: the map is
+  // the least accessible surface, so mirror it into a real table. Flatten every
+  // ACTIVE AGGREGATE layer (choropleth fills + graduated per-unit circles —
+  // reference/points layers are individual entities, not per-unit values) into
+  // rows, reusing the pinned popup's buildLayerReadout so the value/unit/
+  // protected formatting is identical. A k-anon-suppressed cell reads
+  // "Protegido (k<5)", never a number.
   const mapTableRows = useMemo<MapTableRow[]>(() => {
     const rows: MapTableRow[] = [];
     for (const layer of activeLayers) {
@@ -2771,6 +2797,9 @@ export function PanoramaConsole({
     return rows;
   }, [activeLayers]);
   const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
+  // v2C dock bar "Exportar CSV": the SAME in-memory CSV artifact the Registros
+  // pane's download link builds (one builder, two affordances).
+  const dockCsvHref = useMapTableCsvHref(mapTableRows);
 
   // FilterChips (task #53 seed): the "Alcance y período" controls ship collapsed,
   // hiding the conditions that qualify the whole board. Lift the disclosure's open
@@ -3083,6 +3112,18 @@ export function PanoramaConsole({
     }
   }, [temporalAvailable, asOf]);
 
+  // v2C dock: the TimeScrubber lives in the dock's "Línea de tiempo" pane. If
+  // it unmounts while a scrub is active (dock collapsed, or another tab), the
+  // map would keep showing a HISTORICAL frame with no visible control
+  // announcing it — a silent stale view (trust/safety). Park back at live
+  // whenever the scrubber pane is hidden mid-scrub.
+  useEffect(() => {
+    if ((!dockOpen || dockTab !== "timeline") && asOf !== null) {
+      setAsOf(null);
+      setScrubResetToken((v) => v + 1);
+    }
+  }, [dockOpen, dockTab, asOf]);
+
   // ARCHETYPE A: the time scrubber is DOCKED to the map card's bottom edge (see
   // SituationalMap `bottomDock`) instead of floating as a separate block below
   // the map. Its logic/props are UNCHANGED — this is a layout move only.
@@ -3107,6 +3148,74 @@ export function PanoramaConsole({
       histogramBins={signalHistogramBins ?? aggregateHistogramBins}
     />
   );
+
+  // --- v2C floating dock panes ----------------------------------------------
+  // Registros: the accessible per-unit projection of what the map paints (the
+  // MapDataTable "Ver como tabla" surface, promoted from a rail toggle into the
+  // dock's primary records tab — its k-anon "Protegido (k<5)" cells unchanged).
+  const dockMeta = `${liveScopeLabel || viewMeta.scopeLabel} · ${viewMeta.periodLabel} · ${
+    activeLayers.length
+  } ${activeLayers.length === 1 ? "capa" : "capas"}`;
+  const dockRegistros = (
+    <MapDataTable rows={mapTableRows} caption={mapTableCaption} filename="panorama-mapa" />
+  );
+  // Estadísticas: the Worst-N=10 ranking (PO-ratified depth — ia-v2 §3.3, NOT
+  // the prototype's top-7), hover-synced with the map and click-through to the
+  // detail drawer. Ranking FOLLOWS THE SCOPE (the base layer's features are
+  // already scope-resolved: drilled = the scope's localities/departments —
+  // plan note: never the prototype's provinces-while-drilled). The k-anon
+  // suppressed count renders as an explicit last row (privacy visible).
+  const dockSuppressedCount =
+    captionLayer !== null ? (states[captionLayer.id]?.suppressedCount ?? 0) : 0;
+  const dockStats =
+    rankingKind !== null && captionLayer !== null ? (
+      <div className="space-y-2">
+        <RankedUnitsPanel
+          rows={rankedRows}
+          kind={rankingKind}
+          measureLabel={captionLayer.caption.measure}
+          highlightedKey={highlightedUnitKey}
+          onHover={setHighlightedUnitKey}
+          onSelect={onRankedSelect}
+          dataUnavailable={rankingDataUnavailable}
+        />
+        {dockSuppressedCount > 0 && (
+          <p className="flex items-center gap-2 text-xs text-ln-op-mute">
+            <span className="rounded-full border border-ln-op-line px-2 py-0.5 font-medium">
+              Protegido (k&lt;5)
+            </span>
+            {dockSuppressedCount}{" "}
+            {dockSuppressedCount === 1 ? "unidad suprimida" : "unidades suprimidas"} por k-anonimato
+          </p>
+        )}
+        <p className="text-xs leading-snug text-ln-op-faint">
+          Pasá el mouse por una fila para ubicarla en el mapa · click para ver el detalle.
+        </p>
+        {rankedRows.length > 0 && (
+          <button
+            type="button"
+            aria-expanded={showDataTable}
+            onClick={() => setShowDataTable((v) => !v)}
+            className="text-xs font-medium text-ln-op-azul hover:underline"
+          >
+            {showDataTable ? "Ocultar tabla" : "Ver tabla completa"}
+          </button>
+        )}
+        {showDataTable && (
+          <PanoramaDataTable
+            rows={rankedRows}
+            kind={rankingKind}
+            measureLabel={captionLayer.caption.measure}
+            onSelect={onRankedSelect}
+            dataUnavailable={rankingDataUnavailable}
+          />
+        )}
+      </div>
+    ) : (
+      <p className="text-xs leading-snug text-ln-op-mute">
+        Sin ranking para las capas activas en este alcance.
+      </p>
+    );
 
   // task #63: bivariate encoding toggle — offered ONLY on "Brotes activos" at
   // province framing (both inputs active). A map ENCODING switch (how the two
@@ -3297,12 +3406,16 @@ export function PanoramaConsole({
           scrolls (the map keeps a viewport-share height) until the dedicated
           responsive pass. */}
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
-        <div className="flex h-[60vh] flex-shrink-0 flex-col lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1 lg:flex-shrink">
+        {/* Map column — `relative` so the floating dock overlays the MAP (an
+            absolute sibling of the canvas: expanding it never re-layouts
+            MapLibre; spec no-negociable #4). The TimeScrubber moved off the
+            always-on bottomDock strip into the dock's "Línea de tiempo" tab
+            (PO: timeline is opt-in). */}
+        <div className="relative flex h-[60vh] flex-shrink-0 flex-col lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1 lg:flex-shrink">
           <SituationalMapDynamic
             layers={mapLayers}
             label={mapLabel}
             fill
-            bottomDock={scrubberDock}
             aggregationLabel={aggregationLabel}
             conditionsSlot={<FilterChips chips={filterChips} />}
             onDivisionLegendChange={setDivisionLegend}
@@ -3321,6 +3434,28 @@ export function PanoramaConsole({
             highlightedUnitKey={highlightedUnitKey}
             onUnitHover={setHighlightedUnitKey}
             viewMeta={viewMeta}
+          />
+          <PanoramaDock
+            open={dockOpen}
+            onOpenChange={setDockOpen}
+            tab={dockTab}
+            onTabChange={setDockTab}
+            recordCount={mapTableRows.length}
+            meta={dockMeta}
+            csvAction={
+              dockCsvHref !== null ? (
+                <a
+                  href={dockCsvHref}
+                  download="panorama-mapa.csv"
+                  className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-0.5 text-xs font-medium text-ln-op-ink-2 hover:border-ln-op-azul/40"
+                >
+                  Exportar CSV
+                </a>
+              ) : undefined
+            }
+            registros={dockRegistros}
+            stats={dockStats}
+            timeline={scrubberDock}
           />
         </div>
         {/* Monitoring rail — scrolls independently; the map column never
@@ -3354,26 +3489,9 @@ export function PanoramaConsole({
               último evento para fijarla al borde en vivo.
             </p>
           )}
-          {/* "Ver como tabla" (Ley 26.653): the accessible, downloadable view of
-              what the map is painting — the map's own aria-label is only a point
-              count. Lives WITH the map (design Decision 1). */}
-          <div className="space-y-2">
-            <button
-              type="button"
-              aria-expanded={showMapTable}
-              onClick={() => setShowMapTable((v) => !v)}
-              className="text-xs font-medium text-ln-op-azul hover:underline"
-            >
-              {showMapTable ? "Ocultar tabla" : "Ver como tabla"}
-            </button>
-            {showMapTable && (
-              <MapDataTable
-                rows={mapTableRows}
-                caption={mapTableCaption}
-                filename="panorama-mapa"
-              />
-            )}
-          </div>
+          {/* v2C: the "Ver como tabla" MapDataTable projection moved into the
+              dock's Registros tab (the same accessible surface, promoted from a
+              rail toggle — Ley 26.653 path unchanged). */}
           {/* panorama-event-points: honest points-mode disclosure — one line per
               active points-capable layer, stating the mark is now REAL locations
               (or coarse locality centroids for denuncias), plus the cap ("los N más
@@ -3472,43 +3590,9 @@ export function PanoramaConsole({
               No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
             </output>
           )}
-          {/* panorama-ia-v2 §3.3: "Peores N" ranking — the map collapsed to an
-              ordered list (hover-synced with the map), plus the accessible
-              <table> view (Ley 26.653). Shown for rate/density base layers only
-              (reference layers carry no per-unit ranking). Row click → the
-              existing drill/selection machinery (onRankedSelect → onFeatureClick). */}
-          {rankingKind !== null && captionLayer !== null && (
-            <section className="space-y-2">
-              <RankedUnitsPanel
-                rows={rankedRows}
-                kind={rankingKind}
-                measureLabel={captionLayer.caption.measure}
-                highlightedKey={highlightedUnitKey}
-                onHover={setHighlightedUnitKey}
-                onSelect={onRankedSelect}
-                dataUnavailable={rankingDataUnavailable}
-              />
-              {rankedRows.length > 0 && (
-                <button
-                  type="button"
-                  aria-expanded={showDataTable}
-                  onClick={() => setShowDataTable((v) => !v)}
-                  className="text-xs font-medium text-ln-op-azul hover:underline"
-                >
-                  {showDataTable ? "Ocultar tabla" : "Ver tabla completa"}
-                </button>
-              )}
-              {showDataTable && (
-                <PanoramaDataTable
-                  rows={rankedRows}
-                  kind={rankingKind}
-                  measureLabel={captionLayer.caption.measure}
-                  onSelect={onRankedSelect}
-                  dataUnavailable={rankingDataUnavailable}
-                />
-              )}
-            </section>
-          )}
+          {/* v2C: the "Peores N" ranking (RankedUnitsPanel + PanoramaDataTable)
+              moved into the dock's Estadísticas tab — hover-sync + click-through
+              unchanged, plus an explicit k-anon suppressed-count row. */}
           {/* panorama-ia-v2 §0/§1.2 + PO #5: "Personalizar" (the LayerPanel
               legend/toggle) now lives inside CapasBox's Detalle mode, behind the
               Capas popover in the control bar above — panorama-vista-redesign. */}
