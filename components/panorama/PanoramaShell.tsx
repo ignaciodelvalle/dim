@@ -119,21 +119,20 @@ export function PanoramaShell({
   seededLayers,
 }: Props) {
   return (
-    // ARCHETYPE A route-scoped DARK theme (Centro de Situación). data-theme
-    // "situation-room" re-maps the ln-op-* token set to a dark palette for this
-    // route only (see globals.css) — the dark map canvas becomes the surface
-    // rather than a lit card floating over it. The wrapper bleeds the dark page
-    // background to the content-region edges (negative margins cancel the shell's
-    // px-6 vertical padding, then re-add a tighter inner pad) so "dark
-    // end-to-end" reaches below the topbar and beside the rail without forking
-    // the shared AppShell/topbar.
+    // v2C LIGHT operator theme (PO decision 2026-07-11 — the v1 dark
+    // "situation-room" skin is retired on BOTH /gob and /admin). The ln-op-*
+    // tokens resolve to their light :root defaults; the map canvas is now light
+    // (#ffffff) too. The wrapper bleeds the light page background to the
+    // content-region edges (negative margins cancel the shell's px-6 vertical
+    // padding, then re-add a tighter inner pad) so the operator page canvas
+    // reaches below the topbar and beside the rail without forking the shared
+    // AppShell/topbar.
     <div
-      data-theme="situation-room"
       className="-mx-6 -my-5.5 space-y-2.5 bg-ln-op-page px-6 py-3.5 text-ln-op-ink"
       // The negative margins shrink the box by the cancelled shell padding
-      // (2 × 22px); stretch min-height back so the dark page background always
-      // reaches the content-region bottom edge even on short states (px math
-      // lives in style= because the token ratchet bans arbitrary px classes).
+      // (2 × 22px); stretch min-height back so the page background always reaches
+      // the content-region bottom edge even on short states (px math lives in
+      // style= because the token ratchet bans arbitrary px classes).
       style={{ minHeight: "calc(100% + 44px)" }}
     >
       {/* ARCHETYPE A identity line (eyebrow + live scope pill + "Acerca de esta

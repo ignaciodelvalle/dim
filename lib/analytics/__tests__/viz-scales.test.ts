@@ -8,6 +8,7 @@ import {
   RAMP_BLUE,
   RAMP_BLUE_DARK,
   SCALE_BLUE_DARK_SEQ,
+  SCALE_BLUE_SEQ,
   divergentStops,
   lerpHex,
   sampleStops,
@@ -117,16 +118,27 @@ describe("RAMP_BLUE_DARK (dark situation-room map ramp)", () => {
     expect(RAMP_BLUE_DARK[1]).toBe(SCALE_BLUE_DARK_SEQ[SCALE_BLUE_DARK_SEQ.length - 1]);
   });
 
-  it("keeps the low anchor brighter than the no-data slate (low signal ≠ empty)", () => {
-    // A "low signal" cell must not read as darker than a genuine no-data cell,
-    // or the operator would misread it as less-than-nothing.
-    expect(relLuminance(RAMP_BLUE_DARK[0])).toBeGreaterThan(relLuminance(COLOR_NO_DATA));
-  });
-
   it("inverts the white-paper RAMP_BLUE's luminance order", () => {
     // Sanity: the light-surface ramp still goes bright→dark (unchanged), while
     // the dark-surface ramp goes dark→bright.
     expect(relLuminance(RAMP_BLUE[0])).toBeGreaterThan(relLuminance(RAMP_BLUE[1]));
     expect(relLuminance(RAMP_BLUE_DARK[0])).toBeLessThan(relLuminance(RAMP_BLUE_DARK[1]));
+  });
+});
+
+describe("COLOR_NO_DATA (light-canvas no-data neutral)", () => {
+  // v2C flipped the operator map to the LIGHT canvas (dark skin retired). The
+  // active choropleth ramp is now SCALE_BLUE_SEQ (bright→dark). No-data must not
+  // be confusable with a real value.
+  it("is distinct from the palest data class (empty ≠ low signal)", () => {
+    expect(COLOR_NO_DATA.toLowerCase()).not.toBe(SCALE_BLUE_SEQ[0].toLowerCase());
+  });
+
+  it("stays lighter than the mid class so empty never reads as high signal", () => {
+    // On a light choropleth the confusion inverts vs the old navy canvas: a DARK
+    // no-data fill would read as a HIGH value. Keep no-data lighter than the
+    // ramp's mid class; the neutral (achromatic) hue separates it from the pale
+    // low class.
+    expect(relLuminance(COLOR_NO_DATA)).toBeGreaterThan(relLuminance(SCALE_BLUE_SEQ[2]));
   });
 });

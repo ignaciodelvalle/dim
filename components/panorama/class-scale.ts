@@ -7,7 +7,7 @@
 // into a narrow low-contrast slice and the map "reads flat" — a failure the legend
 // code itself documented (legend-histogram.ts). Classing fixes it: values are
 // bucketed into a handful of discrete CLASSES, each painted a distinct color from
-// the dark-map ramp, so differences read at a glance.
+// the light-map sequential ramp, so differences read at a glance.
 //
 // Two classing policies (PO decision, threshold-by-meta):
 //   - META  : a policy-meaningful target exists → fixed cutoffs anchored on it
@@ -30,7 +30,7 @@
 // MapLegends) build the MapLibre `["step", …]` expression / legend swatches from
 // the SAME breaks + colors, so on-map fill and off-canvas legend never disagree.
 
-import { SCALE_BLUE_DARK_SEQ } from "@/lib/analytics/viz-scales";
+import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 
 /** How many classes a classed scale renders (→ CLASS_COUNT-1 interior breaks). */
 export const CLASS_COUNT = 5;
@@ -44,14 +44,15 @@ export type ClassScale = {
 };
 
 /**
- * Pick `n` colors evenly sampled from the 5-stop dark sequential ramp
- * (SCALE_BLUE_DARK_SEQ — luminance INCREASES with value, so a hot class is the
- * brightest thing on the navy canvas). n=5 → the whole ramp; n=4 → [0,1,3,4]
- * (drops one mid stop but keeps both poles); n=1 → the mid stop (a single flat
- * class). No new palette is introduced — this only re-samples the existing ramp.
+ * Pick `n` colors evenly sampled from the 5-stop light sequential ramp
+ * (SCALE_BLUE_SEQ — ColorBrewer Blues, luminance DECREASES with value so a hot
+ * class is the darkest blue on the light canvas). n=5 → the whole ramp; n=4 →
+ * [0,1,3,4] (drops one mid stop but keeps both poles); n=1 → the mid stop (a
+ * single flat class). No new palette is introduced — this only re-samples the
+ * existing ramp.
  */
 export function classColors(n: number): string[] {
-  const scale = SCALE_BLUE_DARK_SEQ;
+  const scale = SCALE_BLUE_SEQ;
   if (n <= 1) return [scale[Math.floor(scale.length / 2)]];
   const out: string[] = [];
   for (let i = 0; i < n; i++) {

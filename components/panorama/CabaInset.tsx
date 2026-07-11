@@ -45,8 +45,9 @@ const CABA_BBOX: [[number, number], [number, number]] = [
 // Dark-console chrome palette — mirrors the main SituationalMap basemap consts
 // (chrome, not data-scale tokens; the data colors come from viz-scales via the
 // shared division-fill expression).
-const COLOR_CANVAS = "#0b1020";
-const COLOR_LAND = "#161d33";
+// LIGHT canvas (v2C — dark skin retired 2026-07-11). Mirror SituationalMap.
+const COLOR_CANVAS = "#ffffff";
+const COLOR_LAND = "#eef1f4";
 const COLOR_DIVISION_LINE = "#3a4568";
 const DATA_FILL_OPACITY = 0.92;
 

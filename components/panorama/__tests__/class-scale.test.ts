@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { SCALE_BLUE_DARK_SEQ } from "@/lib/analytics/viz-scales";
+import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 import {
   CLASS_COUNT,
   classColors,
@@ -17,18 +17,18 @@ import {
 
 describe("classColors", () => {
   it("returns the full ramp for n === CLASS_COUNT (5)", () => {
-    expect(classColors(5)).toEqual([...SCALE_BLUE_DARK_SEQ]);
+    expect(classColors(5)).toEqual([...SCALE_BLUE_SEQ]);
   });
 
   it("keeps both poles for 4 classes (drops a mid stop)", () => {
     const c = classColors(4);
     expect(c).toHaveLength(4);
-    expect(c[0]).toBe(SCALE_BLUE_DARK_SEQ[0]);
-    expect(c[3]).toBe(SCALE_BLUE_DARK_SEQ[4]);
+    expect(c[0]).toBe(SCALE_BLUE_SEQ[0]);
+    expect(c[3]).toBe(SCALE_BLUE_SEQ[4]);
   });
 
   it("returns a single mid-ramp color for n === 1 (flat class)", () => {
-    expect(classColors(1)).toEqual([SCALE_BLUE_DARK_SEQ[2]]);
+    expect(classColors(1)).toEqual([SCALE_BLUE_SEQ[2]]);
   });
 });
 

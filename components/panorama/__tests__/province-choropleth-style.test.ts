@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { COLOR_NO_DATA, SCALE_BLUE_DARK_SEQ } from "@/lib/analytics/viz-scales";
+import { COLOR_NO_DATA, SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { classSwatches } from "../class-scale";
@@ -69,8 +69,8 @@ describe("provinceColorExpr", () => {
     expect(step[0]).toBe("step");
     // The base color (below the first break) is the ramp's low anchor; the
     // top class is the ramp's high anchor.
-    expect(step[2]).toBe(SCALE_BLUE_DARK_SEQ[0]);
-    expect(step).toContain(SCALE_BLUE_DARK_SEQ[SCALE_BLUE_DARK_SEQ.length - 1]);
+    expect(step[2]).toBe(SCALE_BLUE_SEQ[0]);
+    expect(step).toContain(SCALE_BLUE_SEQ[SCALE_BLUE_SEQ.length - 1]);
   });
 
   it("paints everything neutral when there is no data", () => {
@@ -84,7 +84,7 @@ describe("provinceColorExpr", () => {
     // A single value has no ascending break → the classed path is a flat color
     // string (MapLibre `step` needs ≥ 1 threshold), not a step array.
     expect(typeof expr[3]).toBe("string");
-    expect(SCALE_BLUE_DARK_SEQ).toContain(expr[3]);
+    expect(SCALE_BLUE_SEQ).toContain(expr[3]);
   });
 });
 
@@ -162,8 +162,8 @@ describe("provinceMetaColorExpr — META'd rate layers (PO: classed threshold sc
     expect(breaks).toEqual([40, 60, 80]);
     // 3 breaks → 4 classes; low anchor + high anchor of the dark ramp.
     expect(colors).toHaveLength(4);
-    expect(colors[0]).toBe(SCALE_BLUE_DARK_SEQ[0]);
-    expect(colors[colors.length - 1]).toBe(SCALE_BLUE_DARK_SEQ[SCALE_BLUE_DARK_SEQ.length - 1]);
+    expect(colors[0]).toBe(SCALE_BLUE_SEQ[0]);
+    expect(colors[colors.length - 1]).toBe(SCALE_BLUE_SEQ[SCALE_BLUE_SEQ.length - 1]);
   });
 
   it("uses the META breaks for a non-round target — T=70 → [35, 52.5, 70]", () => {

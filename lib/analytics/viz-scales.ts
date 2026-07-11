@@ -288,19 +288,17 @@ export function sampleStops(stops: ReadonlyArray<[number, string]>, value: numbe
 // ---------------------------------------------------------------------------
 
 /** Regions/cells with no matching data get this neutral fill. A DESATURATED
- * blue-grey slate — legible, not camouflaged. The previous value (#313c58) sat
- * only one notch above COLOR_LAND (#161d33), so a no-data province read as bare
- * territory and "disappeared" against the basemap (panorama redesign Theme 3).
- * Lifted well above the land fill so it clearly reads as "sin dato", and kept
- * DESATURATED (grey, not blue) so it does not read as a low value on the saturated
- * blue/cyan data ramp — the HUE distance, not luminance, is what separates it from
- * the scale. It MUST stay darker (lower luminance) than the ramp's low anchor
- * ({@link RAMP_BLUE_DARK}[0] = #1b4d7e), or a "low signal" cell would read dimmer
- * than "empty" (the honesty invariant pinned by viz-scales.test.ts); #414855 sits
- * comfortably below it. Also distinct from the divergent neutral (slate-500
- * #64748b), the province admin stroke (#5b6b8c), and the division outline
- * (#3a4568). The legend labels this swatch "Sin datos". */
-export const COLOR_NO_DATA = "#414855" as const;
+ * light grey for the LIGHT operator canvas (v2C — dark skin retired 2026-07-11).
+ * Kept ACHROMATIC (grey, not blue) so it does not read as a value on the blue
+ * data ramp — the HUE distance separates it from the scale. On a light
+ * choropleth the confusion risk inverts vs the old navy canvas: a DARK no-data
+ * fill would read as a HIGH value, so no-data stays LIGHTER than the ramp's mid
+ * class (the honesty invariant pinned by viz-scales.test.ts) while remaining
+ * distinct from the palest data class ({@link SCALE_BLUE_SEQ}[0] = #eff3ff, a
+ * blue-white) by being a neutral grey. Also distinct from the suppressed fill
+ * ({@link COLOR_SUPPRESSED} = #d1d5db, darker + carries the k-anon hatch). The
+ * legend labels this swatch "Sin datos". */
+export const COLOR_NO_DATA = "#e7eaed" as const;
 
 /** Suppressed cells (< k-anonymity threshold) get this distinct fill. */
 export const COLOR_SUPPRESSED = "#d1d5db" as const;

@@ -420,32 +420,33 @@ function framingMaxZoom(map: maplibregl.Map, bbox: [[number, number], [number, n
     : FRAME_MAX_ZOOM;
 }
 
-// Dark government-console palette (canvas / land / borders).
-const COLOR_CANVAS = "#0b1020";
-const COLOR_LAND = "#161d33";
-const COLOR_BORDER = "#2b3658";
-// Regional-context (neighbour countries) palette: a desaturated, darker
-// variant of COLOR_LAND/COLOR_BORDER that sits just above COLOR_CANVAS, so the
-// surrounding landmass is legible but clearly recedes behind Argentina.
-const COLOR_CONTEXT_LAND = "#0f1528";
-const COLOR_CONTEXT_BORDER = "#1c2540";
-// Division outlines: a touch brighter than the province border so barrio /
-// departamento lines read over COLOR_LAND, but still subtle (they must never
-// compete with the data fill on top). Matches the basemap's line treatment.
-const COLOR_DIVISION_LINE = "#3a4568";
-// Admin-boundary stroke for province outlines. Replaces the old COLOR_CANVAS
-// choropleth line, which painted near-black seams that read as CRACKS between
-// colored provinces (map-polish cursor #1). A hierarchy-aware neutral slate that
-// reads as a boundary over both the land basemap and the data fill.
-const COLOR_ADMIN_STROKE = "#5b6b8c";
-// panorama redesign Theme 3 — circle-layer edge definition. The bubble/point
-// layers used COLOR_CANVAS (near-black) strokes on a dark canvas, so a data dot
-// had no crisp edge and read as a faint transparent smudge ("manchitas
-// transparentes"). A light slate-200 stroke at ~65% draws a clean edge around a
-// colored dot on the dark surface. Suppressed cells (light COLOR_SUPPRESSED fill)
-// keep the dark COLOR_CANVAS stroke instead — a dark edge defines a LIGHT fill,
+// LIGHT operator-console palette (canvas / land / borders) — v2C retired the
+// dark "situation-room" skin (PO decision 2026-07-11). Values track the
+// operator DS ln-op-* tokens: canvas = --card (#ffffff), idle land = --page,
+// borders = --line / --line-2, admin stroke = --faint.
+const COLOR_CANVAS = "#ffffff";
+const COLOR_LAND = "#eef1f4";
+const COLOR_BORDER = "#dbe1e7";
+// Regional-context (neighbour countries) palette: a faint neutral that sits
+// just above COLOR_CANVAS, so the surrounding landmass is legible but clearly
+// recedes behind Argentina.
+const COLOR_CONTEXT_LAND = "#f4f6f8";
+const COLOR_CONTEXT_BORDER = "#e8ecf0";
+// Division outlines: a light neutral so barrio / departamento lines read over
+// COLOR_LAND, but still subtle (they must never compete with the data fill on
+// top). Matches the prototype's dashed-border neutral.
+const COLOR_DIVISION_LINE = "#c7cfd6";
+// Admin-boundary stroke for province outlines. A hierarchy-aware neutral slate
+// (--faint) that reads as a boundary over both the land basemap and the data
+// fill without painting near-black seams that read as CRACKS (map-polish #1).
+const COLOR_ADMIN_STROKE = "#95a0a8";
+// Circle-layer edge definition on the LIGHT canvas. Colored dots get a white
+// halo so overlapping marks separate cleanly (the standard light-map "donut"
+// separator). Suppressed cells (light COLOR_SUPPRESSED fill) instead keep a mid
+// slate edge (POINT_STROKE_SUPPRESSED) — a darker edge defines the light fill,
 // preserving the honest "suppressed looks different" treatment.
-const POINT_STROKE = "rgba(226,232,240,0.65)";
+const POINT_STROKE = "rgba(255,255,255,0.9)";
+const POINT_STROKE_SUPPRESSED = "#9aa4ad";
 // map-polish cursor #4 — data/basemap luminance separation. When a data layer
 // fills polygons the basemap land dims so the choropleth "sits on" the territory
 // instead of tinting it uniformly; outlines keep full opacity.
@@ -2211,12 +2212,12 @@ export function SituationalMap({
         // but crisp, not a faint smudge.
         "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
         "circle-radius": graduatedRadiusExpr(radiusStops),
-        // Light edge on a colored (dark) fill; dark edge on the light suppressed
-        // fill — each keeps a crisp, contrasting outline.
+        // White halo on a colored fill; mid-slate edge on the light suppressed
+        // fill — each keeps a crisp, contrasting outline on the light canvas.
         "circle-stroke-color": [
           "case",
           ["==", ["get", "suppressed"], true],
-          COLOR_CANVAS,
+          POINT_STROKE_SUPPRESSED,
           POINT_STROKE,
         ],
         "circle-stroke-width": 1.5,
@@ -2301,12 +2302,12 @@ export function SituationalMap({
           5,
           ["interpolate", ["linear"], ["coalesce", ["get", "value"], 0], 0, 6, 50, 16, 250, 26],
         ],
-        // Light edge on a colored (dark) fill; dark edge on the light suppressed
-        // fill — each keeps a crisp, contrasting outline.
+        // White halo on a colored fill; mid-slate edge on the light suppressed
+        // fill — each keeps a crisp, contrasting outline on the light canvas.
         "circle-stroke-color": [
           "case",
           ["==", ["get", "suppressed"], true],
-          COLOR_CANVAS,
+          POINT_STROKE_SUPPRESSED,
           POINT_STROKE,
         ],
         "circle-stroke-width": 1.5,
