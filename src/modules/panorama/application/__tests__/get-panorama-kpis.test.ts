@@ -261,6 +261,19 @@ describe("getPanoramaKpis", () => {
     expect(govt.recalculatedFor).toContain("Córdoba");
   });
 
+  it("names the LOCALITY, not just the province, for a single-locality-scoped govt operator (QA 2026-07-11 §3)", async () => {
+    // A Palermo-scoped (CABA) govt operator previously saw "Recalculado para
+    // CABA" — the copy named the province and silently dropped the narrower
+    // locality scope, reading as if the whole province had been recalculated.
+    const govt = await getPanoramaKpis(
+      { role: "govt" },
+      [{ province: "CABA", locality: "Palermo" }],
+      period,
+    );
+    expect(govt.recalculatedFor).toContain("Palermo");
+    expect(govt.recalculatedFor).toContain("CABA");
+  });
+
   it("does NOT claim national reach for a govt operator with an empty scope (QA #81)", async () => {
     // A govt actor whose scope narrowed to [] (e.g. a province selected OUTSIDE
     // their assignment) must not read "alcance nacional" — that's admin-only.

@@ -607,6 +607,19 @@ function describeRecalc(
     // national recompute (QA histórico 2026-07-08 #81: the footer lied).
     return "Sin datos en tu alcance para el período seleccionado.";
   }
+  // QA fix (2026-07-11 adversarial cowork, §3): a single-jurisdiction govt
+  // operator scoped to ONE LOCALITY (e.g. Palermo in CABA) saw "Recalculado
+  // para CABA" — the copy named the PROVINCE and silently dropped the
+  // narrower locality scope, reading as if the whole province had been
+  // recalculated. Name the actual scope unit: the locality (with its
+  // province for disambiguation) when the single jurisdiction pins one,
+  // otherwise the province (a whole-province assignment, no locality pinned).
+  if (jurisdictions.length === 1) {
+    const [only] = jurisdictions;
+    return only.locality
+      ? `Recalculado para ${only.locality}, ${only.province} y el período seleccionado.`
+      : `Recalculado para ${only.province} y el período seleccionado.`;
+  }
   const provinces = [...new Set(jurisdictions.map((j) => j.province))];
   const where = provinces.length === 1 ? provinces[0] : `${provinces.length} provincias`;
   return `Recalculado para ${where} y el período seleccionado.`;

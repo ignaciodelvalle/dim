@@ -1674,6 +1674,26 @@ describe("PanoramaConsole — embedded drill: masthead pill + level reset (live-
     pushSpy.mockRestore();
   });
 
+  it("QA fix (2026-07-11 §3): an OUT-OF-SCOPE province drill (not in allowedProvinces) shows the province NAME, not the raw ISO code", async () => {
+    // A govt-local operator (allowedProvinces here is only AR-B/AR-C) can be
+    // forced to an out-of-scope province via ?province= (e.g. a leak probe);
+    // the fence still returns zero data, but the pill previously fell back to
+    // the raw code ("AR-V") because it only looked the name up in
+    // allowedProvinces — which never contains an out-of-scope code.
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-V");
+    });
+
+    const pill = screen.getByTestId("panorama-scope-pill");
+    expect(pill).toHaveTextContent("Tierra del Fuego");
+    expect(pill).not.toHaveTextContent("AR-V");
+    pushSpy.mockRestore();
+  });
+
   it("MEDIUM: a JurisdictionSwitcher province pick drives BOTH the map prop and the pill (switcher path)", async () => {
     setUrl("/gob/panorama?period=3y");
     renderScopedConsole();

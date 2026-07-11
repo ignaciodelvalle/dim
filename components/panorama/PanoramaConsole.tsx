@@ -64,6 +64,7 @@ import {
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 import {
   type MapCamera,
   encodeAsOfToParams,
@@ -2881,10 +2882,18 @@ export function PanoramaConsole({
   // to the server default (national, or the operator's implicit jurisdiction).
   const liveScopeLabel = useMemo(() => {
     if (!effectiveScopeProvince && !effectiveScopeLocality) return scopeLabel ?? "";
+    // QA fix (2026-07-11 adversarial cowork, §3): `allowedProvinces` only lists
+    // provinces the OPERATOR is scoped to — an out-of-scope drill (forced via
+    // ?province=, e.g. a govt-local operator probing AR-V/AR-Y) never appears
+    // in it, so the lookup fell through to the raw ISO code ("AR-V") instead
+    // of a name. provinceByCode is the full 24-province reference table (not
+    // scope-gated), so it always resolves a real name for any valid code —
+    // the fence itself (which data loads) is unaffected, this is display-only.
     const provinceName =
       (effectiveScopeProvince
         ? allowedProvinces?.find((p) => p.code === effectiveScopeProvince)?.name
         : undefined) ??
+      (effectiveScopeProvince ? provinceByCode(effectiveScopeProvince)?.name : undefined) ??
       effectiveScopeProvince ??
       "";
     if (effectiveScopeLocality) {
