@@ -86,6 +86,18 @@ function asDate(value: Date | string | null | undefined): Date | null {
 }
 
 /**
+ * Add a whole number of CALENDAR months to a date (like census.classifyDormant).
+ * `intervalMonths * 30 * DAY_MS` treats every month as 30 days, so a 12-month
+ * vaccine expired at 360 days — ~5 days before its real calendar-year due date
+ * (PJ-M2). setMonth honors real month lengths and year rollover.
+ */
+function addMonths(date: Date, months: number): Date {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+/**
  * Build the per-vaccine snapshot for a pet. For every core vaccine of the
  * pet's species (and every non-core vaccine that has at least one event),
  * we find the latest vaccination_administered event and classify it.
@@ -130,9 +142,7 @@ export function computeVaccinationSummary(
     const payloadNextDue = asDate((payload.next_due_at ?? null) as Date | string | null);
     const derivedNextDue =
       payloadNextDue ??
-      (def.intervalMonths !== null
-        ? new Date(occurredAt.getTime() + def.intervalMonths * 30 * DAY_MS)
-        : null);
+      (def.intervalMonths !== null ? addMonths(occurredAt, def.intervalMonths) : null);
     const existing = latestByVaccine.get(def.name);
     if (!existing || existing.occurredAt < occurredAt) {
       latestByVaccine.set(def.name, { occurredAt, nextDueAt: derivedNextDue });

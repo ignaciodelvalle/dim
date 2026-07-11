@@ -87,6 +87,23 @@ describe("computeVaccinationSummary", () => {
     expect(summary.expired).toBeGreaterThan(0);
   });
 
+  it("derives next-due a full CALENDAR year later for a 12-month vaccine, not 360 days (PJ-M2)", () => {
+    // A 12-month dose with no explicit next_due_at must expire ~1 calendar year
+    // later. The old `intervalMonths * 30 * DAY_MS` math treated a year as 360
+    // days, expiring the dose ~5 days early.
+    const occurredAt = "2025-03-15T12:00:00.000Z";
+    const events = [vaxEvent({ vaccineName: "Antirrábica", occurredAt })];
+    const summary = computeVaccinationSummary(events, "dog", now);
+    const row = summary.perVaccine.find((v) => v.vaccineName === "Antirrábica");
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const days360 = new Date(new Date(occurredAt).getTime() + 360 * DAY_MS);
+    // A real calendar year (365 days here) is strictly LATER than 360 days.
+    expect(row?.nextDueAt?.getTime()).toBeGreaterThan(days360.getTime());
+    // And it lands on the same calendar day one year on.
+    expect(row?.nextDueAt?.toISOString()).toBe("2026-03-15T12:00:00.000Z");
+  });
+
   it("honors an explicit next_due_at over the catalog interval", () => {
     const events = [
       vaxEvent({
