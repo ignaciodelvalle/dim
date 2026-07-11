@@ -13,6 +13,9 @@
   "functions": {
     "app/api/cron/*/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/refresh-cube/route.ts": {
+      "maxDuration": 300
     }
   },
   "regions": ["gru1"]

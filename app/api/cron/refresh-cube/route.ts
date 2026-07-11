@@ -43,7 +43,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .values({ cronName: CRON_NAME, status: "running" })
     .returning();
 
-  const result = await refreshCube();
+  // One retry on a read-side statement timeout (SQLSTATE 57014): the deployed
+  // loaders run under the analytics pool's 15s request backstop (raising it
+  // globally would undo the death-spiral protection), so a single cold heavy
+  // rollup can occasionally trip it. A failed build is already fail-safe
+  // (last-good cube preserved, reader falls to live) — the retry just avoids
+  // wasting the whole 15-min cycle on one cold query.
+  let result = await refreshCube();
+  if (result.status !== "ok" && /57014|statement timeout/i.test(result.error ?? "")) {
+    result = await refreshCube();
+  }
   const cronStatus = result.status === "ok" ? "ok" : "failed";
 
   await db

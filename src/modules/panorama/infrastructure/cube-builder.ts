@@ -255,6 +255,10 @@ export async function refreshCube(): Promise<CubeBuildResult> {
     connection: {
       // 120s — a background build, not a request. Session mode honors this GUC.
       options: "-c statement_timeout=120000 -c idle_in_transaction_session_timeout=120000",
+      // Distinct name exempts the build from the stuck-backend reaper
+      // (migration 0136 targets application_name='Supavisor' only). The write
+      // txn is seconds-long anyway; this is belt-and-braces.
+      application_name: "cube-builder",
     },
     onnotice: () => {},
   });
