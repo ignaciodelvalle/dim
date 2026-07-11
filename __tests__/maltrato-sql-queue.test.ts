@@ -18,6 +18,7 @@ import {
   type ModerationQueueFilters,
   buildMaltratoListConditions,
   buildModerationQueueConditions,
+  fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
 
 // ============================================================================
@@ -78,6 +79,17 @@ describe("buildMaltratoListConditions — unit", () => {
     // urgent queue embeds the severity values and terminal statuses.
     expect(literals).toContain("critical");
     expect(literals).toContain("high");
+    expect(literals).toContain("closed");
+    expect(literals).toContain("invalid");
+    expect(literals).toContain("duplicate");
+  });
+
+  it("includes assigned_to_user_id NULL check + terminal statuses for unassigned queue", () => {
+    const result = buildMaltratoListConditions({ ...BASE, queue: "unassigned" });
+    const literals = extractLiterals(result);
+    // The unassigned queue mirrors the "Sin asignar" KPI predicate:
+    // assigned_to_user_id IS NULL AND status NOT IN (terminal states).
+    expect(literals).toContain("assigned_to_user_id");
     expect(literals).toContain("closed");
     expect(literals).toContain("invalid");
     expect(literals).toContain("duplicate");
@@ -284,6 +296,95 @@ describe("buildMaltratoListConditions — queue: mine (integration)", () => {
     const ids = await queryIds({ ...GOVT_CORDOBA, queue: "mine", currentUserId: adminUserId });
     expect(ids).toContain(mineId);
     expect(ids).not.toContain(notMineId);
+  });
+});
+
+describe("buildMaltratoListConditions — queue: unassigned (integration)", () => {
+  it("returns only unassigned, non-terminal reports (matches the Sin asignar KPI)", async () => {
+    // Isolated jurisdiction so the metric count reflects only these fixtures.
+    const prov = "Chaco";
+    const loc = `unassigned-test-${Date.now()}`;
+
+    const unassignedOpenId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: null,
+    });
+    const unassignedTriagedId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "triaged",
+      assignedToUserId: null,
+    });
+    const assignedOpenId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: adminUserId,
+    });
+    const unassignedClosedId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "closed",
+      closedAt: new Date(),
+      assignedToUserId: null,
+    });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: prov, locality: loc }],
+      queue: "unassigned",
+      currentUserId: adminUserId,
+    });
+
+    // Matches: unassigned + non-terminal.
+    expect(ids).toContain(unassignedOpenId);
+    expect(ids).toContain(unassignedTriagedId);
+    // Excludes: assigned rows and terminal (closed) rows.
+    expect(ids).not.toContain(assignedOpenId);
+    expect(ids).not.toContain(unassignedClosedId);
+  });
+
+  it("the unassigned queue count equals the Sin asignar KPI metric for the same scope", async () => {
+    // The KPI tile links to ?queue=unassigned; this asserts the destination
+    // list and the counted metric are the SAME set — the wayfinding contract.
+    const prov = "Chaco";
+    const loc = `unassigned-kpi-${Date.now()}`;
+
+    await insertReport({ province: prov, locality: loc, status: "open", assignedToUserId: null });
+    await insertReport({
+      province: prov,
+      locality: loc,
+      status: "triaged",
+      assignedToUserId: null,
+    });
+    await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: adminUserId,
+    });
+    await insertReport({
+      province: prov,
+      locality: loc,
+      status: "closed",
+      closedAt: new Date(),
+      assignedToUserId: null,
+    });
+
+    const scope = [{ province: prov, locality: loc }];
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: scope,
+      queue: "unassigned",
+      currentUserId: adminUserId,
+    });
+    const metrics = await fetchWelfareMetrics({ role: "govt" }, scope, adminUserId);
+
+    // Two unassigned non-terminal rows; the KPI and its drill-down agree.
+    expect(ids).toHaveLength(2);
+    expect(metrics.unassignedCount).toBe(ids.length);
   });
 });
 

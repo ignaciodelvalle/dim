@@ -1259,7 +1259,7 @@ export function buildModerationQueueConditions(filters: ModerationQueueFilters):
 // a full DB round-trip.
 // ============================================================================
 
-export type MaltratoQueue = "urgent" | "mine" | "all" | "overdue";
+export type MaltratoQueue = "urgent" | "mine" | "all" | "overdue" | "unassigned";
 
 export type MaltratoListFilters = {
   actor: DashboardActor;
@@ -1364,6 +1364,14 @@ export function buildMaltratoListConditions(filters: MaltratoListFilters) {
     case "mine":
       // Assigned to the current user (any non-terminal status).
       conditions.push(eq(welfareReports.assignedToUserId, currentUserId));
+      break;
+    case "unassigned":
+      // No operator assigned yet AND not in a terminal status — the exact
+      // predicate behind the "Sin asignar" KPI (fetchWelfareMetrics.unassignedCount).
+      // Keeps the KPI tile's drill-down honest: the list it opens is the same
+      // set the tile counts.
+      conditions.push(isNull(welfareReports.assignedToUserId));
+      conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
       break;
     case "overdue":
       // Status still open AND created more than 7 days ago without triage.

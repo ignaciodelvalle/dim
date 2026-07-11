@@ -31,7 +31,7 @@ import { and, count, desc } from "drizzle-orm";
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 
 const PAGE_SIZE = 50;
-const VALID_QUEUES: MaltratoQueue[] = ["urgent", "mine", "all", "overdue"];
+const VALID_QUEUES: MaltratoQueue[] = ["urgent", "unassigned", "mine", "all", "overdue"];
 
 function parseQueue(raw: string | undefined): MaltratoQueue {
   if (!raw) return "all";
@@ -208,6 +208,7 @@ export default async function GobMaltratoPage({
 
   const TABS = [
     { value: "urgent" as const, label: "Urgentes" },
+    { value: "unassigned" as const, label: "Sin asignar" },
     { value: "mine" as const, label: "Mías" },
     { value: "all" as const, label: "Todas" },
     { value: "overdue" as const, label: "Atrasadas" },
@@ -249,7 +250,7 @@ export default async function GobMaltratoPage({
             label="Sin asignar"
             value={String(metrics.unassignedCount)}
             tone={metrics.unassignedCount > 0 ? "warn" : "neutral"}
-            href="/gob/maltrato?queue=urgent"
+            href="/gob/maltrato?queue=unassigned"
             info={{
               definition:
                 "Denuncias de maltrato sin ningún operador asignado (assignedToId IS NULL). Requieren triage inmediato.",
