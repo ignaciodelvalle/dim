@@ -24,8 +24,34 @@ export default async function CrearConsultorioPage() {
     .where(eq(profiles.id, user.id))
     .limit(1);
 
-  if (!profile || profile.role !== "vet" || !profile.matriculaVerified) {
+  if (!profile) {
     redirect("/cuenta");
+  }
+
+  // Role gate with an explanation (task #17): this page used to hard-redirect a
+  // non-vet to /cuenta silently, leaving no clue why the consultorio flow
+  // vanished. Instead, tell the user what they need and point them at the path
+  // to get it, so the guard reads as guidance rather than a dead-end bounce.
+  if (profile.role !== "vet") {
+    return (
+      <RoleGateNotice
+        title="Necesitás el rol de veterinario/a"
+        body="Para crear un consultorio primero tenés que registrar tu matrícula profesional y que la autoridad de tu localidad la verifique."
+        ctaHref="/cuenta/upgrade"
+        ctaLabel="Registrar mi matrícula →"
+      />
+    );
+  }
+
+  if (!profile.matriculaVerified) {
+    return (
+      <RoleGateNotice
+        title="Tu matrícula está en revisión"
+        body="Ya figurás como veterinario/a, pero tu matrícula todavía no fue verificada. Cuando la autoridad la apruebe vas a poder crear tu consultorio."
+        ctaHref="/cuenta/solicitudes"
+        ctaLabel="Ver estado de mi solicitud →"
+      />
+    );
   }
 
   const [adminMembership] = await db
@@ -71,6 +97,47 @@ export default async function CrearConsultorioPage() {
         <LnCardHead title="Datos del consultorio" />
         <LnCardBody>
           <CrearConsultorioForm defaultName={defaultName} />
+        </LnCardBody>
+      </LnCard>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RoleGateNotice — explains WHY the consultorio flow isn't available and points
+// to the path that unblocks it, replacing the old silent redirect (task #17).
+// ---------------------------------------------------------------------------
+
+function RoleGateNotice({
+  title,
+  body,
+  ctaHref,
+  ctaLabel,
+}: {
+  title: string;
+  body: string;
+  ctaHref: string;
+  ctaLabel: string;
+}) {
+  return (
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
+      <Link
+        href="/cuenta"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+      >
+        ← Mi cuenta
+      </Link>
+
+      <LnCard>
+        <LnCardHead title={title} />
+        <LnCardBody>
+          <p className="mb-4 text-[var(--text-md)] text-[var(--color-ln-ink-2)]">{body}</p>
+          <Link
+            href={ctaHref}
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[var(--text-md)] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+          >
+            {ctaLabel}
+          </Link>
         </LnCardBody>
       </LnCard>
     </div>
