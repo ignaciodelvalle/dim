@@ -219,12 +219,25 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
         )}
         {/* Division-fill legend: sequential ramp for the active locality choropleth
             over the barrio/departamento polygons. Names the unit and states that an
-            unfilled division is genuine no-data (or k-anon protected). */}
+            unfilled division is genuine no-data (or k-anon protected).
+
+            MAP-3 honesty fix (QA 2026-07-11): the drilled division fill encodes raw
+            COUNTS (the v1 count-density locality rollup — repository.ts locality
+            choropleth loaders return per-unit counts), even when the SAME layer's
+            province-level fill encodes a RATE against a meta (e.g. cobertura:
+            province = "<40%…≥80% (meta)", drilled = counts 48/89/131/172) and the
+            KPI headline stays a rate. That v1 difference is deliberate; the legend
+            must therefore SAY the unit — "conteos por departamento" — so the
+            drilled map is never misread as % coverage. If a rate-encoded division
+            fill ever ships, thread an encoding field through
+            DivisionLegendDescriptor instead of editing this string. */}
         {divisionLegend !== null && (
           <div className={CARD}>
             <div className="mb-1 font-medium text-ln-op-ink-2">
               {divisionLegend.label}{" "}
-              <span className="font-normal text-ln-op-mute">· por {divisionLegend.unitNoun}</span>
+              <span className="font-normal text-ln-op-mute">
+                · conteos por {divisionLegend.unitNoun}
+              </span>
             </div>
             {divisionLegend.hasRamp && (
               <ClassSwatchLegend

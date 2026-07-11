@@ -101,4 +101,36 @@ describe("MapLegends — META'd rate layer renders the discrete threshold-class 
     // The lifted class colors are the painted swatch backgrounds.
     expect(html).toContain("#0d0");
   });
+
+  it("MAP-3 honesty: the DRILLED division legend names its encoding as counts, while the province legend stays rate-labeled", () => {
+    // Live-QA MAP-3 (2026-07-11): at province level the cobertura fill encodes a
+    // RATE ("<40%…≥80% (meta)"); drilled, the division fill encodes raw COUNTS
+    // (48/89/131/172, Río Negro) while the KPI headline stays a rate — an
+    // operator could misread the drilled map as % coverage. The deliberate v1
+    // count encoding stays; the legend must SAY the unit. Render both legends
+    // side by side and pin that the division title states "conteos por <unit>"
+    // and the province legend keeps its % / (meta) rate labels.
+    const divisionLegend = {
+      label: "Cobertura antirrábica (perros, 12m)",
+      unitNoun: "departamento",
+      min: 48,
+      max: 172,
+      hasRamp: true,
+      breaks: [48, 89, 131, 172],
+      colors: ["#0a0", "#0b0", "#0c0", "#0d0", "#0e0"],
+      suppressed: false,
+    };
+    const html = renderToStaticMarkup(
+      <MapLegends
+        layers={[metaLayer()]}
+        divisionLegend={divisionLegend}
+        graduatedScale={null}
+        provinceSeqLegend={{}}
+      />,
+    );
+    // Drilled division legend: the count encoding is named explicitly.
+    expect(html).toContain("conteos por departamento");
+    // Province legend (same render): rate semantics intact, not relabeled.
+    expect(html).toContain("80% (meta)");
+  });
 });
