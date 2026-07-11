@@ -6,6 +6,7 @@
 // all coordinate/null/property handling lives here on top of the domain
 // geojson helpers.
 
+import { DEPARTMENT_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
 import { featureCollection, pointFeature } from "@/src/modules/panorama/domain/geojson";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
@@ -375,12 +376,20 @@ const BARRIO_ONLY_PROVINCE = "CABA";
  *    never dropped from the province total (preserves the U5 sum-reconciliation
  *    invariant: a province total still equals the sum of its detail cells).
  *
- * Counts are SUMMED (each pet is in exactly one locality → exactly one unit). The
- * centroid is the unweighted average of the constituent locality centroids (the
- * department centroid; for CABA that is just the single barrio centroid). The
- * returned row's `locality` becomes the unit display label and `departmentCode`
- * the division-fill join key (null for CABA — the map derives the barrio slug
- * from the label).
+ * Counts are SUMMED (each pet is in exactly one locality → exactly one unit).
+ *
+ * The centroid is the department's PRECOMPUTED representative point
+ * (DEPARTMENT_REPRESENTATIVE_POINTS — a point-on-surface anchor derived from
+ * the department polygon itself, see domain/geo-representative-points.ts),
+ * looked up by `departmentCode`. This replaces the old unweighted average of
+ * the constituent locality centroids, which had no guarantee of landing
+ * inside a concave/multi-part department polygon. A locality bucket that
+ * resolved NO departmentCode (the `loc:` fallback bucket — no department to
+ * look up a representative point for) keeps the locality-centroid average as
+ * a fallback; CABA folds to the barrio itself, whose own (real) centroid is
+ * unaffected by this change. The returned row's `locality` becomes the unit
+ * display label and `departmentCode` the division-fill join key (null for
+ * CABA — the map derives the barrio slug from the label).
  */
 export function aggregateCellsToDepartment(
   localityRows: readonly DepartmentRollupRow[],
@@ -448,12 +457,29 @@ export function aggregateCellsToDepartment(
 
   const out: DepartmentRollupRow[] = [];
   for (const [key, acc] of byUnit) {
+    // Prefer the department's precomputed representative point (guaranteed to
+    // land on the department's own landmass); fall back to the averaged
+    // locality centroid only when there's no departmentCode to look one up by
+    // (the `loc:` bucket, or the point-on-surface asset is missing the code).
+    const repPoint = acc.departmentCode
+      ? DEPARTMENT_REPRESENTATIVE_POINTS[acc.departmentCode]
+      : undefined;
+    const centroidLat = repPoint
+      ? String(repPoint.lat)
+      : acc.centroidN > 0
+        ? String(acc.latSum / acc.centroidN)
+        : null;
+    const centroidLng = repPoint
+      ? String(repPoint.lng)
+      : acc.centroidN > 0
+        ? String(acc.lngSum / acc.centroidN)
+        : null;
     out.push({
       key,
       province: acc.province,
       locality: acc.label,
-      centroidLat: acc.centroidN > 0 ? String(acc.latSum / acc.centroidN) : null,
-      centroidLng: acc.centroidN > 0 ? String(acc.lngSum / acc.centroidN) : null,
+      centroidLat,
+      centroidLng,
       departmentCode: acc.departmentCode,
       departmentName: acc.departmentName,
       count: acc.count,

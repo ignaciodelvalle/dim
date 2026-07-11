@@ -11,6 +11,7 @@ import {
   type DepartmentRollupRow,
   aggregateCellsToDepartment,
 } from "@/src/modules/panorama/application/build-features";
+import { DEPARTMENT_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
 
 function row(p: Partial<DepartmentRollupRow>): DepartmentRollupRow {
   return {
@@ -69,18 +70,21 @@ describe("aggregateCellsToDepartment", () => {
     expect(orphan?.departmentCode).toBeNull();
   });
 
-  it("averages the constituent locality centroids into the department centroid", () => {
+  it("falls back to averaging constituent locality centroids when the department has no precomputed representative point", () => {
+    // "99998" is not a real INDEC code (not in DEPARTMENT_REPRESENTATIVE_POINTS),
+    // so the fold must fall back to the old unweighted-average behavior.
+    expect(DEPARTMENT_REPRESENTATIVE_POINTS["99998"]).toBeUndefined();
     const out = aggregateCellsToDepartment([
       row({
         locality: "A",
-        departmentCode: "06035",
+        departmentCode: "99998",
         centroidLat: "-37.0",
         centroidLng: "-63.0",
         count: 3,
       }),
       row({
         locality: "B",
-        departmentCode: "06035",
+        departmentCode: "99998",
         centroidLat: "-38.0",
         centroidLng: "-65.0",
         count: 3,
@@ -91,11 +95,11 @@ describe("aggregateCellsToDepartment", () => {
     expect(Number(out[0].centroidLng)).toBeCloseTo(-64.0, 6);
   });
 
-  it("emits a null centroid when no constituent locality had one", () => {
+  it("emits a null centroid when no constituent locality had one AND the department has no precomputed point", () => {
     const out = aggregateCellsToDepartment([
       row({
         locality: "A",
-        departmentCode: "06035",
+        departmentCode: "99998",
         centroidLat: null,
         centroidLng: null,
         count: 6,
@@ -103,6 +107,46 @@ describe("aggregateCellsToDepartment", () => {
     ]);
     expect(out[0].centroidLat).toBeNull();
     expect(out[0].centroidLng).toBeNull();
+  });
+
+  it("point-on-surface fix: uses the department's PRECOMPUTED representative point over the naive locality-centroid average (Tierra del Fuego / Ushuaia, INDEC 94015)", () => {
+    // Simulate locality rows whose average would drift far from Isla Grande
+    // (e.g. toward the Malvinas/Georgias claim, the exact "centroid in the
+    // water" failure mode this fix closes) — the fold must IGNORE that average
+    // for a real department code and use the precomputed point instead.
+    const naiveDriftedRows = [
+      row({
+        locality: "Ushuaia",
+        departmentCode: "94015",
+        departmentName: "Ushuaia",
+        centroidLat: "-54.8",
+        centroidLng: "-68.3",
+        count: 3,
+      }),
+      row({
+        locality: "Puerto remoto (simulado)",
+        departmentCode: "94015",
+        departmentName: "Ushuaia",
+        centroidLat: "-51.8",
+        centroidLng: "-59.0",
+        count: 3,
+      }),
+    ];
+    const out = aggregateCellsToDepartment(naiveDriftedRows);
+    expect(out).toHaveLength(1);
+
+    const naiveAvgLat = -(54.8 + 51.8) / 2;
+    const naiveAvgLng = -(68.3 + 59.0) / 2;
+    const rep = DEPARTMENT_REPRESENTATIVE_POINTS["94015"];
+    expect(rep).toBeDefined();
+
+    // Matches the precomputed value exactly...
+    expect(Number(out[0].centroidLat)).toBeCloseTo(rep.lat, 5);
+    expect(Number(out[0].centroidLng)).toBeCloseTo(rep.lng, 5);
+    // ...and differs materially from the naive average of the input rows (the
+    // bug this fix closes — the naive mean is >1 degree away from the real point).
+    expect(Math.abs(Number(out[0].centroidLat) - naiveAvgLat)).toBeGreaterThan(1);
+    expect(Math.abs(Number(out[0].centroidLng) - naiveAvgLng)).toBeGreaterThan(1);
   });
 
   it("does not merge the same department code ACROSS different provinces", () => {

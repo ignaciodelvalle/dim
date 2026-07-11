@@ -57,6 +57,7 @@ import {
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { findDisease } from "@/lib/reference/diseases";
+import { PROVINCE_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
 
 import {
   type AggregatedPointCell,
@@ -653,6 +654,39 @@ const PROVINCE_ISO: Record<string, string> = {
   "Tierra del Fuego": "AR-V",
   Tucumán: "AR-T",
 };
+
+/**
+ * Representative point for a province-level aggregated marker, resolved from
+ * its canonical display NAME (as stored on pets/welfareReports/petEvents
+ * payloads) via PROVINCE_ISO → the precomputed point-on-surface lookup
+ * (domain/geo-representative-points.ts).
+ *
+ * Replaces a runtime `AVG(ar_localities.latitude/longitude)` over the
+ * province's member localities, which has no guarantee of landing inside the
+ * province polygon for a concave/multi-part geography — confirmed failure:
+ * Tierra del Fuego (AR-V) is a MultiPolygon (Isla Grande + the
+ * Malvinas/Georgias claim + minor islands); averaging locality coordinates
+ * across those parts drifted the marker into the South Atlantic. The
+ * precomputed point is the pole of inaccessibility of the province's LARGEST
+ * polygon part, so it is guaranteed to sit on that unit's own landmass.
+ *
+ * Placement-only: does not affect which provinces get a marker (still driven
+ * by the real count query), does not touch k-anon, and is not jitter (one
+ * deterministic point per province, not noise). Returns nulls (no marker
+ * position — matches the prior "no centroid resolved" fallback) if the name
+ * doesn't map to a known ISO code, which should not happen for a
+ * NOT NULL jurisdiction_province column.
+ */
+function provinceRepresentativeCentroid(provinceName: string | null | undefined): {
+  centroidLat: string | null;
+  centroidLng: string | null;
+} {
+  const iso = provinceName ? PROVINCE_ISO[provinceName] : undefined;
+  const point = iso ? PROVINCE_REPRESENTATIVE_POINTS[iso] : undefined;
+  return point
+    ? { centroidLat: String(point.lat), centroidLng: String(point.lng) }
+    : { centroidLat: null, centroidLng: null };
+}
 
 /** Shared rollup → suppressed ChoroplethCell[] transform. The numerator counts
  * are passed through suppressSmallCells(k=5): cells with count < 5 are emitted
@@ -1483,21 +1517,10 @@ export async function loadPerdidasByUnit(
     const rows = await db
       .select({
         province: pets.jurisdictionProvince,
-        // AVG (not MIN): MIN over every locality in the province is the SW corner
-        // of the bbox, not a centroid. AVG is the unweighted locality centroid.
-        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .innerJoin(pets, eq(petEvents.petId, pets.id))
-      .leftJoin(
-        arLocalities,
-        and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-          sql`${arLocalities.removedAt} IS NULL`,
-        ),
-      )
       .where(and(...conditions))
       .groupBy(pets.jurisdictionProvince)
       .limit(PER_LAYER_CAP);
@@ -1507,8 +1530,7 @@ export async function loadPerdidasByUnit(
         key: r.province as string,
         province: r.province as string,
         locality: "",
-        centroidLat: r.centroidLat,
-        centroidLng: r.centroidLng,
+        ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
@@ -1706,20 +1728,10 @@ export async function loadMordedurassByUnit(
     const rows = await db
       .select({
         province: pets.jurisdictionProvince,
-        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
-        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .innerJoin(pets, eq(petEvents.petId, pets.id))
-      .leftJoin(
-        arLocalities,
-        and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-          sql`${arLocalities.removedAt} IS NULL`,
-        ),
-      )
       .where(and(...conditions))
       .groupBy(pets.jurisdictionProvince)
       .limit(PER_LAYER_CAP);
@@ -1729,8 +1741,7 @@ export async function loadMordedurassByUnit(
         key: r.province as string,
         province: r.province as string,
         locality: "",
-        centroidLat: r.centroidLat,
-        centroidLng: r.centroidLng,
+        ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
@@ -1835,21 +1846,9 @@ export async function loadDenunciasByUnit(
     const rows = await db
       .select({
         province: welfareReports.jurisdictionProvince,
-        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
-        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
-        // countDistinct: the arLocalities LEFT JOIN fans out (one report ×
-        // matching localities), so a plain count() multiplies by the join.
         n: countDistinct(welfareReports.id),
       })
       .from(welfareReports)
-      .leftJoin(
-        arLocalities,
-        and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${welfareReports.jurisdictionProvince}`)}`,
-          sql`${arLocalities.removedAt} IS NULL`,
-        ),
-      )
       .where(and(...conditions))
       .groupBy(welfareReports.jurisdictionProvince)
       .limit(PER_LAYER_CAP);
@@ -1859,8 +1858,7 @@ export async function loadDenunciasByUnit(
         key: r.province as string,
         province: r.province as string,
         locality: "",
-        centroidLat: r.centroidLat,
-        centroidLng: r.centroidLng,
+        ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
@@ -1962,19 +1960,9 @@ export async function loadZoonosisByUnit(
     const rows = await db
       .select({
         province: sql<string>`(${petEvents.payload}->>'pet_jurisdiction_province')`,
-        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
-        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
-      .leftJoin(
-        arLocalities,
-        and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`)}`,
-          sql`${arLocalities.removedAt} IS NULL`,
-        ),
-      )
       .where(and(...conditions))
       .groupBy(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`)
       .limit(PER_LAYER_CAP);
@@ -1984,8 +1972,7 @@ export async function loadZoonosisByUnit(
         key: r.province,
         province: r.province,
         locality: "",
-        centroidLat: r.centroidLat,
-        centroidLng: r.centroidLng,
+        ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
@@ -2082,20 +2069,10 @@ export async function loadSintomasByUnit(
     const rows = await db
       .select({
         province: pets.jurisdictionProvince,
-        // AVG (not MIN): unweighted locality centroid, not the province SW corner.
-        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
         n: countDistinct(petEvents.id),
       })
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
-      .leftJoin(
-        arLocalities,
-        and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-          sql`${arLocalities.removedAt} IS NULL`,
-        ),
-      )
       .where(and(...conditions))
       .groupBy(pets.jurisdictionProvince)
       .limit(PER_LAYER_CAP);
@@ -2105,8 +2082,7 @@ export async function loadSintomasByUnit(
         key: r.province as string,
         province: r.province as string,
         locality: "",
-        centroidLat: r.centroidLat,
-        centroidLng: r.centroidLng,
+        ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
     const { cells, suppressedCount } = toAggregatedCells(rollup, false);
@@ -2205,31 +2181,6 @@ export async function loadReunificacionByUnit(
     return { cells: [], suppressedCount, noLocalityCount: 0, truncated: false };
   }
 
-  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
-  const centroidByKey = new Map<string, { lat: string | null; lng: string | null }>();
-
-  if (level === "province") {
-    const rows = await db
-      .select({
-        province: pets.jurisdictionProvince,
-        centroidLat: sql<string | null>`AVG(${arLocalities.latitude})`,
-        centroidLng: sql<string | null>`AVG(${arLocalities.longitude})`,
-      })
-      .from(pets)
-      .leftJoin(
-        arLocalities,
-        and(
-          sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-          sql`${arLocalities.removedAt} IS NULL`,
-        ),
-      )
-      .where(and(isNotNull(pets.jurisdictionProvince), ...(scope ? [sql`(${scope})`] : [])))
-      .groupBy(pets.jurisdictionProvince);
-    for (const r of rows) {
-      if (r.province) centroidByKey.set(r.province, { lat: r.centroidLat, lng: r.centroidLng });
-    }
-  }
-
   // KA6: k-anon-suppressed department cells arrive flagged (suppressed:true) so we
   // can render them as the honest hatch category — split them out from the visible
   // units, which alone carry a real ratePct into the graduated-symbol rollup.
@@ -2238,13 +2189,14 @@ export async function loadReunificacionByUnit(
 
   const rollup: RollupRow[] = visibleUnits.map((u) => {
     if (level === "province") {
-      const centroid = centroidByKey.get(u.province);
+      // Province marker: precomputed point-on-surface lookup (no DB round trip
+      // needed — the point depends only on the province's own geometry, not on
+      // which localities happen to have data). See provinceRepresentativeCentroid.
       return {
         key: u.province,
         province: u.province,
         locality: u.locality ?? "",
-        centroidLat: centroid?.lat ?? null,
-        centroidLng: centroid?.lng ?? null,
+        ...provinceRepresentativeCentroid(u.province),
         // The value plotted IS the ratePct — the graduated symbol encodes the
         // reunification rate, not an event count (spec: dataType "signal").
         count: u.ratePct,
