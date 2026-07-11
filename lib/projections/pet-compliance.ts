@@ -360,8 +360,12 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
 }
 
 function deriveSterilization(input: ComplianceInput): ObligationCard {
-  const event = input.events.find((e) => e.eventType === "sterilization_performed");
-  if (!event) {
+  // Select the BEST-provenance sterilization event, not the earliest (H1 fix):
+  // `find` returns the first (oldest, ascending caller) match, so an early
+  // owner-declared event masked a later vet-VERIFIED one and the pet read
+  // non-compliant despite a signed record. Any satisfying event clears it.
+  const events = input.events.filter((e) => e.eventType === "sterilization_performed");
+  if (events.length === 0) {
     return {
       key: "sterilization",
       label: "Esterilización",
@@ -371,7 +375,7 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
       legalFootnote: STERILIZATION_FOOTNOTE.none,
     };
   }
-  if (clearsObligation(event)) {
+  if (events.some(clearsObligation)) {
     return {
       key: "sterilization",
       label: "Esterilización",
@@ -391,8 +395,11 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
 
 function deriveMicrochip(input: ComplianceInput): ObligationCard {
   const code = input.microchipCode;
-  const implant = input.events.find((e) => e.eventType === "microchip_implanted");
-  if (implant && clearsObligation(implant)) {
+  // Best-provenance selection, not earliest (H1 fix): a later vet/institution
+  // implant event must clear the obligation even if an earlier owner-declared
+  // one exists. `some` picks any satisfying event instead of `find`'s oldest.
+  const implants = input.events.filter((e) => e.eventType === "microchip_implanted");
+  if (implants.some(clearsObligation)) {
     return {
       key: "microchip",
       label: "Microchip",
@@ -404,7 +411,7 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard {
   }
   // Code known (from identifications) or a self-reported implant event, but not
   // backed by a professional/institutional record → declared, not verified.
-  if (code || implant) {
+  if (code || implants.length > 0) {
     return declaradaCard("microchip", "Microchip", FOOTNOTE.microchip, HINT.microchip, code);
   }
   return {

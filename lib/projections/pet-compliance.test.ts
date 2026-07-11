@@ -317,6 +317,60 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     expect(card?.tone).toBe("neutral");
     expect(card?.detail).toBe("982000123456789");
   });
+
+  // PJ-H1: best-provenance selection, not earliest. Events arrive ascending, so
+  // an early owner-declared event used to mask a later vet-VERIFIED one (`find`
+  // returned the oldest), leaving the pet non-compliant despite a signed record.
+  it("earlier owner-declared THEN later vet-verified sterilization → 'Registrada' (ok), counted", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [
+          {
+            eventType: "sterilization_performed",
+            occurredAt: "2026-01-01T00:00:00Z",
+            payload: {},
+            ...SELF,
+          },
+          {
+            eventType: "sterilization_performed",
+            occurredAt: "2026-06-01T00:00:00Z",
+            payload: {},
+            ...VET,
+          },
+        ],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "sterilization");
+    expect(card?.state).toBe("Registrada");
+    expect(card?.tone).toBe("ok");
+    expect(card?.legalFootnote).toBe("Evento verificado en la libreta");
+    expect(state.summary.ok).toBeGreaterThanOrEqual(1);
+  });
+
+  it("earlier owner-declared THEN later vet-verified microchip implant → 'Sí' (ok), counted", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        microchipCode: "982000123456789",
+        events: [
+          {
+            eventType: "microchip_implanted",
+            occurredAt: "2026-01-01T00:00:00Z",
+            payload: {},
+            ...SELF,
+          },
+          {
+            eventType: "microchip_implanted",
+            occurredAt: "2026-06-01T00:00:00Z",
+            payload: {},
+            ...VET,
+          },
+        ],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "microchip");
+    expect(card?.state).toBe("Sí");
+    expect(card?.tone).toBe("ok");
+  });
 });
 
 describe("deriveComplianceState — sterilization, microchip, PPP", () => {
