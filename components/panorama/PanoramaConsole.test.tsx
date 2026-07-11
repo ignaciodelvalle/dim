@@ -329,6 +329,43 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
   });
 });
 
+describe("PanoramaConsole — browser Back re-derives the board from the popped URL (MAP-2)", () => {
+  it("reverts the active preset when popstate reverts ?preset (tab/legend/KPIs follow the URL)", () => {
+    renderConsole();
+
+    // Commit preset A, then preset B — two history entries.
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    const urlAfterA = `${window.location.pathname}${window.location.search}`;
+    expect(new URLSearchParams(window.location.search).get("preset")).toBe("brotes-activos");
+
+    fireEvent.click(screen.getByRole("radio", { name: /Bienestar/ }));
+    expect(new URLSearchParams(window.location.search).get("preset")).toBe("bienestar");
+    expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute("aria-checked", "true");
+
+    // Simulate browser Back: the URL reverts to A and popstate fires. In this Next
+    // version useSearchParams does NOT observe popstate — the console must re-derive
+    // the board from the popped URL itself.
+    act(() => {
+      window.history.replaceState(null, "", urlAfterA);
+      cachedSearchKey = null;
+      cachedSearchParams = null;
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    // The view re-derived: preset A is active again, B is not — the tab/legend/KPIs
+    // (all preset-driven) follow the reverted URL instead of staying on B.
+    expect(new URLSearchParams(window.location.search).get("preset")).toBe("brotes-activos");
+    expect(screen.getByRole("radio", { name: /Brotes activos/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(screen.getByRole("radio", { name: /Bienestar/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // panorama-redesign Fase 1 — reflow composition, control budget, frame, abort
 // ---------------------------------------------------------------------------

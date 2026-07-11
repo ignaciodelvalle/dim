@@ -483,6 +483,11 @@ export function PanoramaConsole({
   // change — it decides whether a reverted URL needs a fresh scope bundle.
   const effectiveScopeProvinceRef = useRef(effectiveScopeProvince);
   effectiveScopeProvinceRef.current = effectiveScopeProvince;
+  // MAP-2: the popstate handler (declared below, before applyPreset) re-derives the
+  // board (preset/layers) from the popped URL through this ref, so it can reach the
+  // re-derivation defined AFTER applyPreset without a forward reference. Assigned
+  // during render once applyPreset exists (mirrors the onZoomRef idiom).
+  const resyncBoardFromUrlRef = useRef<((params: URLSearchParams) => void) | null>(null);
 
   // The selected province's localities + centroids. Seeded from the server props
   // (the scope the page rendered); an embedded drill refreshes it from
@@ -1164,6 +1169,9 @@ export function PanoramaConsole({
       const locality = params.get("locality");
       const prevProvince = effectiveScopeProvinceRef.current;
       setScopeOverride({ province, locality });
+      // MAP-2: also re-derive the board (preset/layers) from the popped URL — the
+      // scope resync alone left the tab/legend/bubbles/KPIs on the previous preset.
+      resyncBoardFromUrlRef.current?.(params);
       if (!province) {
         // Return-to-national: abort any in-flight province bundle, reset in place.
         signalFor("scope");
@@ -1871,6 +1879,10 @@ export function PanoramaConsole({
     if (hasSeed) return seededPresetId;
     return null;
   });
+  // Ref mirror so the popstate board re-derivation can compare against the CURRENT
+  // preset without re-running on every preset change (MAP-2).
+  const activePresetIdRef = useRef(activePresetId);
+  activePresetIdRef.current = activePresetId;
 
   // task #63: the bivariate "riesgo-brotes" encoding is OFFERED only for the
   // "Brotes activos" preset at province framing with both inputs active — the
@@ -1994,7 +2006,13 @@ export function PanoramaConsole({
       return;
     }
     const ids = activeTemporalKey.split(",") as LayerId[];
-    const baseQs = searchParams.toString();
+    // M2 fix: read the LIVE URL, not the (stale) useSearchParams. A scope drill
+    // commits ?province/?locality via a shallow History pushState that
+    // useSearchParams does not observe (engram #621/#622) — so `searchParams`
+    // still reads the national scope and the aggregate histogram showed NATIONAL
+    // activity under a drilled province. window.location.search carries the
+    // drilled scope; effectiveScopeProvince/Locality are the effect triggers.
+    const baseQs = window.location.search;
     const currentLevel = level;
     let cancelled = false;
     Promise.all(
@@ -2041,7 +2059,8 @@ export function PanoramaConsole({
   }, [
     signalHistogramBins,
     activeTemporalKey,
-    searchParams,
+    effectiveScopeProvince,
+    effectiveScopeLocality,
     level,
     timeBasis,
     signalFor,
@@ -2183,7 +2202,11 @@ export function PanoramaConsole({
 
       // Commit the board URL shallowly (back-button undoable — an explicit
       // user action) and fetch the preset layers against the NEW params.
-      const nextParams = new URLSearchParams(searchParams.toString());
+      // Read the LIVE URL (not stale useSearchParams): a scope drill commits
+      // ?province/?locality via a shallow pushState useSearchParams can't see, so
+      // window.location.search is the freshest scope — and it makes applyPreset
+      // safe to reuse from the popstate re-derivation below (MAP-2).
+      const nextParams = new URLSearchParams(window.location.search);
       nextParams.set("period", preset.periodPreset);
       nextParams.set("layers", canonicalLayersKey(presetIds));
       if (lvl === "locality") nextParams.set("level", "locality");
@@ -2221,11 +2244,56 @@ export function PanoramaConsole({
         void fetchLayersInto(toFetch, lvl, nextParams);
       }, PRESET_FETCH_DEBOUNCE_MS);
     },
-    [searchParams, fetchLayersInto, missingFromCache],
+    [fetchLayersInto, missingFromCache],
   );
 
   /** F3: explicit preset click — a back-button-undoable board commit. */
   const onPreset = useCallback((id: PresetId) => applyPreset(id, "push"), [applyPreset]);
+
+  // MAP-2: re-derive the board (preset + layers) from a popped URL. useSearchParams
+  // does not observe popstate (engram #621/#622), so browser Back reverted
+  // ?preset/?layers in the URL while the active tab, legend, bubbles and KPIs stayed
+  // on the previous preset. Drive the SAME state a preset commit does. Assigned to a
+  // ref during render (the popstate listener is declared above, before applyPreset).
+  resyncBoardFromUrlRef.current = (params: URLSearchParams) => {
+    const rawPreset = params.get("preset");
+    const poppedPreset =
+      rawPreset !== null && getPreset(rawPreset as PresetId) ? (rawPreset as PresetId) : null;
+    // No change vs the current board — nothing to re-derive.
+    if (poppedPreset === activePresetIdRef.current) return;
+    if (poppedPreset !== null) {
+      // Reproduce the preset exactly as a click would (state + layers + period +
+      // framing). "replace" — the URL is already the popped one, so add no history.
+      applyPreset(poppedPreset, "replace");
+      return;
+    }
+    // Popped to a manual (no-preset) board: clear the active preset and flip the
+    // active layer set to the popped `layers`, fetching whatever is not cached.
+    const ids = parseLayersParam(params.get("layers")) ?? [];
+    const idSet = new Set<LayerId>(ids);
+    setActivePresetId(null);
+    setStates((s) => {
+      const next = { ...s };
+      for (const l of PANORAMA_LAYERS) {
+        const shouldActive = idSet.has(l.id);
+        const isActive = s[l.id]?.active ?? false;
+        if (shouldActive && !isActive) {
+          next[l.id] = {
+            active: true,
+            loading: true,
+            count: 0,
+            suppressedCount: 0,
+            truncated: false,
+          };
+        } else if (!shouldActive && isActive) {
+          next[l.id] = { ...s[l.id], active: false, compatibilityHint: undefined };
+        }
+      }
+      return next;
+    });
+    const missing = missingFromCache(ids, levelRef.current);
+    if (missing.length > 0) void fetchLayersInto(missing, levelRef.current, params);
+  };
 
   // panorama magnetic-zoom Phase 2: DERIVE the aggregation level from (scope,
   // zoom) with HYSTERESIS. The scope-wins rule is unchanged — a jurisdiction
