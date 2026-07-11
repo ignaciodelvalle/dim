@@ -12,7 +12,11 @@
 
 import type { ExpressionSpecification } from "maplibre-gl";
 
-import { computeClassScale, stepColorExpr } from "@/components/panorama/class-scale";
+import {
+  type ClassScale,
+  computeClassScale,
+  stepColorExpr,
+} from "@/components/panorama/class-scale";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
@@ -51,6 +55,29 @@ export type ScaleBounds = { min: number; max: number };
  *     or deterministic EQUAL-INTERVAL when a scrub domain is locked.
  * Returns a flat COLOR_NO_DATA expression when the layer has no values.
  */
+/**
+ * The THRESHOLD-CLASSED scale (breaks + colors) a SEQUENTIAL province choropleth
+ * renders — the single source of truth shared by the map fill (provinceColorExpr,
+ * below) and the off-canvas legend (lifted through SituationalMap so the swatch
+ * ranges always describe the painted colors, including under a scrub scale-lock).
+ * `domainOverride` is the frozen [min,max] a scrub locks; when present the scale
+ * uses deterministic equal-interval breaks instead of the frame's own quantiles.
+ * Returns null when the layer has no numeric values (the fill paints all neutral).
+ */
+export function provinceSeqClassScale(
+  features: FeatureCollection,
+  domainOverride?: { min: number; max: number } | null,
+): ClassScale | null {
+  const values: number[] = [];
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
+    values.push(p.value);
+  }
+  if (values.length === 0) return null;
+  return computeClassScale(values, { lockedDomain: domainOverride ?? null });
+}
+
 export function provinceColorExpr(
   features: FeatureCollection,
   // Optional domain override (fix: time-scrub color-scale lock). When supplied,
@@ -65,8 +92,11 @@ export function provinceColorExpr(
     if (typeof p.provinceCode !== "string" || typeof p.value !== "number") continue;
     pairs.push([p.provinceCode, p.value]);
   }
+  const scale = provinceSeqClassScale(features, domainOverride);
   // No data at all — paint everything neutral.
-  if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
+  if (pairs.length === 0 || scale === null) {
+    return COLOR_NO_DATA as unknown as ExpressionSpecification;
+  }
 
   // value-by-code lookup (default -1 → "no data"). MapLibre `match` labels are
   // string|number; province codes are strings.
@@ -76,11 +106,6 @@ export function provinceColorExpr(
     ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
     -1,
   ] as unknown as ExpressionSpecification;
-
-  const scale = computeClassScale(
-    pairs.map(([, v]) => v),
-    { lockedDomain: domainOverride ?? null },
-  );
 
   return [
     "case",

@@ -20,7 +20,11 @@
 // = no-data) is preserved verbatim — only the container skin changes (from an
 // on-canvas translucent panel to a dark rail sub-card).
 
-import type { ActiveLayer, DivisionLegendDescriptor } from "@/components/panorama/SituationalMap";
+import type {
+  ActiveLayer,
+  DivisionLegendDescriptor,
+  ProvinceSeqLegend,
+} from "@/components/panorama/SituationalMap";
 import { BIVARIATE_LEGEND_GRID } from "@/components/panorama/bivariate-fill";
 import {
   type ClassScale,
@@ -47,6 +51,12 @@ type Props = {
   divisionLegend: DivisionLegendDescriptor | null;
   /** Lifted graduated-symbol scale (null until it resolves with real data). */
   graduatedScale: GraduatedScale | null;
+  /**
+   * Lifted sequential province choropleth classed scale(s), keyed by layer id and
+   * computed WITH the scrub-locked domain — so the swatch ranges describe the
+   * PAINTED colors even mid-scrub. Absent key → fall back to a live-edge recompute.
+   */
+  provinceSeqLegend: ProvinceSeqLegend;
 };
 
 // Shared skin for one legend sub-card in the rail (was `bg-black/55` on canvas).
@@ -90,7 +100,7 @@ function ClassSwatchLegend({ scale }: { scale: ClassScale }) {
   );
 }
 
-export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
+export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeqLegend }: Props) {
   // task #63: the active bivariate layer (if any) drives the 3×3 matrix legend;
   // it is excluded from the ordinary province ramp legends.
   const bivariateLayer =
@@ -309,9 +319,21 @@ export function MapLegends({ layers, divisionLegend, graduatedScale }: Props) {
                 </div>
               ) : (
                 // Theme 3: discrete CLASS swatches for density/count choropleths
-                // (was a continuous gradient bar). Built from the same quantile
-                // scale the map fill renders at the live edge.
-                <ClassSwatchLegend scale={computeClassScale(values)} />
+                // (was a continuous gradient bar). Prefer the scale LIFTED from
+                // the map (computed WITH the scrub-locked domain, so the swatch
+                // ranges describe the PAINTED colors even mid-scrub); only fall
+                // back to a live-edge recompute when the lift is not yet present.
+                <ClassSwatchLegend
+                  scale={
+                    provinceSeqLegend[layer.id]
+                      ? {
+                          breaks: provinceSeqLegend[layer.id].breaks,
+                          colors: provinceSeqLegend[layer.id].colors,
+                          method: "interval",
+                        }
+                      : computeClassScale(values)
+                  }
+                />
               )}
               <div className="mt-1 flex items-center gap-1.5 text-white/70">
                 <span

@@ -46,6 +46,7 @@ import type {
   ActiveLayer,
   DivisionLegendDescriptor,
   PointRenderMode,
+  ProvinceSeqLegend,
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
@@ -1147,6 +1148,10 @@ export function PanoramaConsole({
   // SituationalMap's syncLayers (from the rendered data) and lifted here.
   const [divisionLegend, setDivisionLegend] = useState<DivisionLegendDescriptor | null>(null);
   const [graduatedScale, setGraduatedScale] = useState<GraduatedScale | null>(null);
+  // Sequential province choropleth classed scale(s), lifted so MapLegends paints
+  // the SAME breaks/colors the fill renders (parity with divisionLegend) — never
+  // a live-edge recompute that diverges from the locked fill mid-scrub.
+  const [provinceSeqLegend, setProvinceSeqLegend] = useState<ProvinceSeqLegend>({});
 
   // Build the active-layers array for the map from current state + cached data.
   // Under a scrub (asOf !== null): temporal layers paint their AS-OF features;
@@ -2938,6 +2943,7 @@ export function PanoramaConsole({
               conditionsSlot={<FilterChips chips={filterChips} />}
               onDivisionLegendChange={setDivisionLegend}
               onGraduatedScaleChange={setGraduatedScale}
+              onProvinceSeqLegendChange={setProvinceSeqLegend}
               onFeatureClick={onFeatureClick}
               onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
               onReturnNational={canReturnNational ? onReturnNational : undefined}
@@ -3031,6 +3037,7 @@ export function PanoramaConsole({
             layers={mapLayers}
             divisionLegend={divisionLegend}
             graduatedScale={graduatedScale}
+            provinceSeqLegend={provinceSeqLegend}
           />
           {/* Scope/period filters behind progressive disclosure. The
               JurisdictionSwitcher is rendered CLIENT-SIDE here (embedded-drill):

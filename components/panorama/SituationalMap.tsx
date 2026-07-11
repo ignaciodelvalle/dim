@@ -76,6 +76,7 @@ import {
   FIXED_RATE_DOMAIN,
   provinceColorExpr,
   provinceDivergentColorExpr,
+  provinceSeqClassScale,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import {
@@ -211,6 +212,17 @@ export type DivisionLegendDescriptor = {
    */
   suppressed: boolean;
 };
+
+/**
+ * The THRESHOLD-CLASSED breaks + colors a SEQUENTIAL province choropleth renders,
+ * keyed by layer id. Lifted from syncLayers (computed WITH the scrub-locked
+ * `seqDomain` where a scrub is active) exactly like DivisionLegendDescriptor, so
+ * the off-canvas province legend swatch ranges describe the PAINTED colors — even
+ * mid-scrub, where a per-frame recompute would diverge from the locked map fill.
+ * Divergent (rate/meta) province layers are excluded: they render on the fixed
+ * [0,100] axis and carry no classed scale.
+ */
+export type ProvinceSeqLegend = Record<string, { breaks: number[]; colors: string[] }>;
 
 type Props = {
   /** The set of currently-active layers (perdidas default-on). */
@@ -350,6 +362,14 @@ type Props = {
    */
   onDivisionLegendChange?: (legend: DivisionLegendDescriptor | null) => void;
   onGraduatedScaleChange?: (scale: GraduatedScale | null) => void;
+  /**
+   * Lift the sequential province choropleth's classed breaks/colors (keyed by
+   * layer id, computed WITH the scrub-locked domain) so the off-canvas province
+   * legend paints the SAME scale as the map fill — instead of recomputing a
+   * live-edge scale that diverges mid-scrub. Empty object when no sequential
+   * province layer is active.
+   */
+  onProvinceSeqLegendChange?: (legends: ProvinceSeqLegend) => void;
 };
 
 // Continental Argentina centroid + a zoom that frames the mainland.
@@ -549,6 +569,7 @@ export function SituationalMap({
   conditionsSlot,
   onDivisionLegendChange,
   onGraduatedScaleChange,
+  onProvinceSeqLegendChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -702,6 +723,11 @@ export function SituationalMap({
   // legend bubble always matches its on-map bubble. Guarded setState (like
   // divisionLegend) avoids a render loop.
   const [graduatedScale, setGraduatedScale] = useState<GraduatedScale | null>(null);
+  // Sequential province choropleth classed scale (breaks + colors), keyed by
+  // layer id, computed WITH the scrub-locked domain in syncLayers and lifted to
+  // the console so the off-canvas province legend paints the SAME scale as the
+  // fill (never a live-edge recompute that diverges mid-scrub). Guarded setState.
+  const [provinceSeqLegend, setProvinceSeqLegend] = useState<ProvinceSeqLegend>({});
   // ARCHETYPE A: notify the console when the imperatively-committed legend
   // descriptors change, so the off-canvas "Referencias" rail section can render
   // them. Ref mirrors keep the notify effects from re-subscribing on every
@@ -710,12 +736,17 @@ export function SituationalMap({
   onDivisionLegendChangeRef.current = onDivisionLegendChange;
   const onGraduatedScaleChangeRef = useRef(onGraduatedScaleChange);
   onGraduatedScaleChangeRef.current = onGraduatedScaleChange;
+  const onProvinceSeqLegendChangeRef = useRef(onProvinceSeqLegendChange);
+  onProvinceSeqLegendChangeRef.current = onProvinceSeqLegendChange;
   useEffect(() => {
     onDivisionLegendChangeRef.current?.(divisionLegend);
   }, [divisionLegend]);
   useEffect(() => {
     onGraduatedScaleChangeRef.current?.(graduatedScale);
   }, [graduatedScale]);
+  useEffect(() => {
+    onProvinceSeqLegendChangeRef.current?.(provinceSeqLegend);
+  }, [provinceSeqLegend]);
   // cursor Part2 — the live camera zoom, tracked in state (not just the ref) so
   // the CABA/AMBA inset panel can show at national scope and hide on drill.
   const [insetZoom, setInsetZoom] = useState(AR_ZOOM);
@@ -1417,6 +1448,11 @@ export function SituationalMap({
       colors: string[];
       suppressed: boolean;
     } | null = null;
+    // The sequential province choropleth classed scale(s), keyed by layer id and
+    // computed WITH the scrub-locked domain — lifted so the off-canvas province
+    // legend paints the SAME breaks/colors the fill does (parity with the
+    // division legend), instead of a live-edge recompute that diverges mid-scrub.
+    const nextProvinceSeqLegend: ProvinceSeqLegend = {};
 
     // Add or update active layers.
     for (const layer of active) {
@@ -1441,6 +1477,12 @@ export function SituationalMap({
           if (lock.locked) lockedProvinceDomainRef.current.set(layer.id, lock.locked);
           else lockedProvinceDomainRef.current.delete(layer.id);
           seqDomain = lock.domain;
+          // Lift the SAME classed scale the fill renders (same values + locked
+          // domain) so the off-canvas legend swatches match the painted colors.
+          const seqScale = provinceSeqClassScale(layer.features, seqDomain);
+          if (seqScale) {
+            nextProvinceSeqLegend[layer.id] = { breaks: seqScale.breaks, colors: seqScale.colors };
+          }
         }
         if (mountedRef.current.has(layer.id)) {
           updateProvinceChoroplethLayer(map, layer, seqDomain);
@@ -1604,6 +1646,25 @@ export function SituationalMap({
     // #6/#7: commit the graduated-symbol scale for the legend, guarded (same
     // reason as divisionLegend) — a stable maxValue must not re-trigger a render.
     setGraduatedScale((prev) => (prev?.maxValue === gradScale.maxValue ? prev : gradScale));
+
+    // Commit the sequential province legend scale(s), guarded — an unchanged set
+    // of breaks/colors must not re-trigger a render (syncLayers runs in effects).
+    setProvinceSeqLegend((prev) => {
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(nextProvinceSeqLegend);
+      const same =
+        prevKeys.length === nextKeys.length &&
+        nextKeys.every((id) => {
+          const a = prev[id];
+          const b = nextProvinceSeqLegend[id];
+          return (
+            a !== undefined &&
+            a.breaks.join(",") === b.breaks.join(",") &&
+            a.colors.join(",") === b.colors.join(",")
+          );
+        });
+      return same ? prev : nextProvinceSeqLegend;
+    });
 
     // cursors #4 + #5: reconcile basemap luminance + border hierarchy after every
     // layer change (a province choropleth toggling on/off flips the basemap dim).

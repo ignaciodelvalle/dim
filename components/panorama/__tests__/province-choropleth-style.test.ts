@@ -8,7 +8,22 @@ import { describe, expect, it } from "vitest";
 import { COLOR_NO_DATA, SCALE_BLUE_DARK_SEQ } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
-import { provinceColorExpr, provinceValueBounds } from "../province-choropleth-style";
+import {
+  provinceColorExpr,
+  provinceSeqClassScale,
+  provinceValueBounds,
+} from "../province-choropleth-style";
+
+/** Decode a MapLibre `["step", input, c0, t1, c1, t2, …]` into breaks + colors. */
+function decodeStep(step: unknown[]): { breaks: number[]; colors: string[] } {
+  const colors: string[] = [step[2] as string];
+  const breaks: number[] = [];
+  for (let i = 3; i < step.length; i += 2) {
+    breaks.push(step[i] as number);
+    colors.push(step[i + 1] as string);
+  }
+  return { breaks, colors };
+}
 
 // Build a province FeatureCollection (null geometry; the polygon is the basemap).
 function provinceFC(cells: Array<{ provinceCode: string; value: number }>): FeatureCollection {
@@ -67,6 +82,48 @@ describe("provinceColorExpr", () => {
     // string (MapLibre `step` needs ≥ 1 threshold), not a step array.
     expect(typeof expr[3]).toBe("string");
     expect(SCALE_BLUE_DARK_SEQ).toContain(expr[3]);
+  });
+});
+
+describe("provinceSeqClassScale — the lifted province legend scale (map/legend parity)", () => {
+  const fc = provinceFC([
+    { provinceCode: "AR-B", value: 10 },
+    { provinceCode: "AR-X", value: 20 },
+    { provinceCode: "AR-S", value: 30 },
+    { provinceCode: "AR-C", value: 40 },
+    { provinceCode: "AR-M", value: 50 },
+  ]);
+
+  it("returns null when there are no numeric values (fill paints all neutral)", () => {
+    expect(provinceSeqClassScale(provinceFC([]))).toBeNull();
+  });
+
+  it("returns EXACTLY the breaks/colors the map fill's step expression renders (no divergence)", () => {
+    const scale = provinceSeqClassScale(fc);
+    expect(scale).not.toBeNull();
+    const expr = provinceColorExpr(fc) as unknown as unknown[];
+    const painted = decodeStep(expr[3] as unknown[]);
+    // The off-canvas legend is built from `scale`; the map paints `painted`.
+    // They MUST be identical — same values, same (absent) domain.
+    expect(scale?.breaks).toEqual(painted.breaks);
+    expect(scale?.colors).toEqual(painted.colors);
+  });
+
+  it("under a scrub-locked domain the legend scale tracks the LOCKED fill, not the live edge", () => {
+    const locked = { min: 0, max: 100 };
+    const legendScale = provinceSeqClassScale(fc, locked);
+    const paintedLocked = decodeStep(
+      (provinceColorExpr(fc, locked) as unknown as unknown[])[3] as unknown[],
+    );
+    // Parity holds WITH the lock: the legend swatch ranges equal the painted
+    // class breaks for the SAME locked frame.
+    expect(legendScale?.breaks).toEqual(paintedLocked.breaks);
+    // Equal-interval over [0,100] → [20,40,60,80]; deterministic, frame-stable.
+    expect(legendScale?.breaks).toEqual([20, 40, 60, 80]);
+    // And the locked scale genuinely DIFFERS from the live-edge (quantile) scale
+    // — so a legend that recomputed live-edge would mis-describe the scrubbed map.
+    const liveScale = provinceSeqClassScale(fc);
+    expect(liveScale?.breaks).not.toEqual(legendScale?.breaks);
   });
 });
 
