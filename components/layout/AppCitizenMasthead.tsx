@@ -323,6 +323,13 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // "Where am I" affordance (task #17): name the current org portal in the
+  // trigger when the user is inside one they belong to; otherwise "Portales".
+  const currentOrg = switcher.find(
+    (t) => t.key === "org" && (pathname === t.href || pathname.startsWith(`${t.href}/`)),
+  );
+  const triggerLabel = currentOrg ? currentOrg.label : "Portales";
+
   // Close on navigation.
   // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger; setOpen is React-stable
   useEffect(() => {
@@ -338,7 +345,7 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
       >
-        Portales
+        <span className="max-w-[160px] truncate">{triggerLabel}</span>
         <svg
           width={12}
           height={12}

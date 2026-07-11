@@ -77,6 +77,14 @@ export function ContextSwitcher({ session }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // "Where am I" affordance (task #17): when the current path is an org portal
+  // the user belongs to, name that org in the trigger instead of a generic
+  // "Portales". Off an org surface it stays "Portales".
+  const currentOrg = targets.find(
+    (t) => t.key === "org" && (pathname === t.href || pathname.startsWith(`${t.href}/`)),
+  );
+  const triggerLabel = currentOrg ? currentOrg.label : "Portales";
+
   // Close on navigation.
   // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger; setOpen is React-stable
   useEffect(() => {
@@ -109,7 +117,7 @@ export function ContextSwitcher({ session }: Props) {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-ln-op-line px-2.5 py-[5px] text-sm text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
       >
-        Portales
+        <span className="max-w-[160px] truncate">{triggerLabel}</span>
         <ChevronIcon />
       </button>
 
