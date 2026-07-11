@@ -134,7 +134,36 @@ type OverlayableEvent = {
   eventType: string;
   occurredAt: Date | string;
   payload: unknown;
+  // EL-F3: recorded_at is the tiebreaker when two amendments share occurred_at.
+  // Optional so minimal callers/tests still type-check; absent → treated as
+  // oldest so a row that DOES carry recordedAt wins the tie.
+  recordedAt?: Date | string;
 };
+
+/**
+ * EL-F3 tiebreaker parity with the SQL twin (amendment-sql.ts:
+ * `ORDER BY occurred_at DESC, recorded_at DESC`). Returns true when `cand` is
+ * the later amendment: newer occurred_at wins; on a tie the newer recorded_at
+ * wins; on a further tie the greater id wins (deterministic). The old helpers
+ * compared occurred_at only with strict `>`, so on a tie they kept the OLDEST
+ * recorded_at — the opposite of the SQL "latest".
+ */
+function amendmentIsLater(
+  cand: { occurredAt: Date | string; recordedAt?: Date | string; id: string },
+  existing: { occurredAt: Date | string; recordedAt?: Date | string; id: string },
+): boolean {
+  const co = new Date(cand.occurredAt).getTime();
+  const eo = new Date(existing.occurredAt).getTime();
+  if (co !== eo) return co > eo;
+  const cr =
+    cand.recordedAt != null ? new Date(cand.recordedAt).getTime() : Number.NEGATIVE_INFINITY;
+  const er =
+    existing.recordedAt != null
+      ? new Date(existing.recordedAt).getTime()
+      : Number.NEGATIVE_INFINITY;
+  if (cr !== er) return cr > er;
+  return cand.id > existing.id;
+}
 
 /**
  * Project a fetched event stream so amended events carry their CORRECTED
@@ -162,17 +191,24 @@ type OverlayableEvent = {
 export function overlayAmendments<T extends OverlayableEvent>(
   events: T[],
 ): Array<T & { amendedAt: Date | string | null }> {
-  // Latest amendment per target — a single pass over the stream.
-  const latestByTarget = new Map<string, { occurredAt: Date | string; changes: ChangeEntry[] }>();
+  // Latest amendment per target — a single pass over the stream. "Latest" uses
+  // the (occurred_at, recorded_at, id) tiebreak that matches the SQL twin (EL-F3).
+  const latestByTarget = new Map<
+    string,
+    { occurredAt: Date | string; recordedAt?: Date | string; id: string; changes: ChangeEntry[] }
+  >();
   for (const e of events) {
     if (e.eventType !== "event_amended") continue;
     const p = (e.payload ?? {}) as Record<string, unknown>;
     const targetId = typeof p.target_event_id === "string" ? p.target_event_id : null;
     if (!targetId) continue;
     const existing = latestByTarget.get(targetId);
-    if (!existing || new Date(e.occurredAt) > new Date(existing.occurredAt)) {
+    const candidate = { occurredAt: e.occurredAt, recordedAt: e.recordedAt, id: e.id };
+    if (!existing || amendmentIsLater(candidate, existing)) {
       latestByTarget.set(targetId, {
         occurredAt: e.occurredAt,
+        recordedAt: e.recordedAt,
+        id: e.id,
         changes: Array.isArray(p.changes) ? (p.changes as ChangeEntry[]) : [],
       });
     }

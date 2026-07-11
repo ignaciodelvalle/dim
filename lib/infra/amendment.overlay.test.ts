@@ -65,6 +65,41 @@ describe("overlayAmendments", () => {
     expect(target?.amendedAt).toBe("2026-03-01");
   });
 
+  // EL-F3: two amendments with the SAME occurred_at must resolve to the newest
+  // recorded_at (the SQL-twin "latest"). The old occurred_at-only strict `>`
+  // kept whichever landed first in the stream — here the OLDER recorded_at.
+  it("same occurredAt: newest recorded_at wins (tiebreaker parity)", () => {
+    const rows = [
+      weight("w1", "12.50", "2026-01-01"),
+      // Older recorded_at, appears FIRST in the stream.
+      {
+        id: "a1",
+        eventType: "event_amended",
+        occurredAt: "2026-02-01",
+        recordedAt: "2026-02-01T10:00:00Z",
+        payload: {
+          target_event_id: "w1",
+          changes: [{ field: "kg", old: "12.50", new: "13.00" }],
+          reason: null,
+        },
+      },
+      // Newer recorded_at, appears SECOND.
+      {
+        id: "a2",
+        eventType: "event_amended",
+        occurredAt: "2026-02-01",
+        recordedAt: "2026-02-01T12:00:00Z",
+        payload: {
+          target_event_id: "w1",
+          changes: [{ field: "kg", old: "12.50", new: "15.00" }],
+          reason: null,
+        },
+      },
+    ];
+    const out = overlayAmendments(rows);
+    expect(out.find((r) => r.id === "w1")?.payload).toEqual({ kg: "15.00" });
+  });
+
   it("event_amended rows pass through untouched (visible timeline entries)", () => {
     const rows = [
       weight("w1", "12.50", "2026-01-01"),
