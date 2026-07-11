@@ -58,6 +58,7 @@ export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnP
             status === "sick" && "rounded-[var(--radius-xs)] bg-[var(--color-ln-warn)]",
             status === "lost" && "rounded-[1px] bg-[var(--color-ln-err)]",
             status === "pregnant" && "bg-[var(--color-ln-rosa)]",
+            status === "deceased" && "bg-[var(--color-ln-memorial-chip-text)]",
           ]
             .filter(Boolean)
             .join(" ")}

@@ -161,4 +161,5 @@ export const LIST_STATUS_SITUATION_ICON: Record<string, string> = {
   sick: PET_SITUATIONS["en-tratamiento"].icon,
   lost: PET_SITUATIONS.perdida.icon,
   pregnant: PET_SITUATIONS.prenada.icon,
+  deceased: PET_SITUATIONS.fallecida.icon,
 };

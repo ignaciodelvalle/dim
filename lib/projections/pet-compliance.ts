@@ -532,7 +532,13 @@ export function microchipHeroTag(compliance: ComplianceState): string | null {
  *
  * AL DÍA ("ok") is a COMPLIANCE claim, not an aliveness claim — it is only
  * granted when every tracked obligation is verified-satisfied; otherwise the
- * credential is simply REGISTRADA. Lost and pregnancy override compliance.
+ * credential is simply REGISTRADA. Lost, deceased and pregnancy override
+ * compliance.
+ *
+ * Precedence matches PetCard.helpers (lost first, then deceased): a deceased
+ * pet is a closed life record and must render the memorial state, NOT "AL DÍA"
+ * (PJ-M1 — the mapper handled lost/pregnant but not deceased, so a deceased
+ * fully-compliant pet read "al día" on every list row).
  *
  * This is THE single mapper for every surface that shows the chip (detail
  * header, /inicio registry, /mis-mascotas list) — QA round 2 (2026-07-03)
@@ -542,8 +548,9 @@ export function microchipHeroTag(compliance: ComplianceState): string | null {
 export function lnPetStatusFromCompliance(
   pet: { status: string; pregnancyStatus: string | null },
   compliance: ComplianceState,
-): "ok" | "registered" | "lost" | "pregnant" {
+): "ok" | "registered" | "lost" | "pregnant" | "deceased" {
   if (pet.status === "lost") return "lost";
+  if (pet.status === "deceased") return "deceased";
   if (pet.pregnancyStatus === "in_progress") return "pregnant";
   return compliance.summary.ok === compliance.summary.total ? "ok" : "registered";
 }

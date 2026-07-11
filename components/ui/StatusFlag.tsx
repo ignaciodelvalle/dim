@@ -45,6 +45,15 @@ const flagConfig: Record<LnPetStatus, { label: string; bg: string; text: string;
       text: "text-[var(--color-ln-rosa)]",
       border: "border-[var(--color-ln-rosa-bd)]",
     },
+    // A deceased pet is a closed life record — never "AL DÍA". The chip reads
+    // "EN MEMORIA" wherever the single mapper resolves the pet as deceased
+    // (PJ-M1), using the same memorial tokens as LnMemorialChip.
+    deceased: {
+      label: "EN MEMORIA",
+      bg: "bg-[var(--color-ln-memorial-chip-bg)]",
+      text: "text-[var(--color-ln-memorial-chip-text)]",
+      border: "border-[var(--color-ln-memorial-chip-bd)]",
+    },
   };
 
 export type LnStatusFlagProps = {

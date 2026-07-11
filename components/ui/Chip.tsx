@@ -19,7 +19,7 @@ import type { ReactNode } from "react";
 // "registered" is the neutral resting state for an active pet that hasn't
 // earned the compliance claim (QA 2026-07-03: header said AL DÍA while the
 // compliance panel said 0 de 3 al día).
-export type LnPetStatus = "ok" | "registered" | "sick" | "lost" | "pregnant";
+export type LnPetStatus = "ok" | "registered" | "sick" | "lost" | "pregnant" | "deceased";
 
 const statusDotColors: Record<LnPetStatus, string> = {
   ok: "bg-[var(--color-ln-ok)]",
@@ -27,6 +27,7 @@ const statusDotColors: Record<LnPetStatus, string> = {
   sick: "bg-[var(--color-ln-warn)] rounded-[var(--radius-xs)]",
   lost: "bg-[var(--color-ln-err)] rounded-[1px]",
   pregnant: "bg-[var(--color-ln-rosa)]",
+  deceased: "bg-[var(--color-ln-memorial-chip-text)]",
 };
 
 export type LnStatusDotProps = {

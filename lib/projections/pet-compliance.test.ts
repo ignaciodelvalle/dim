@@ -607,4 +607,21 @@ describe("lnPetStatusFromCompliance — the single chip mapper (QA round 2 #4)",
       ),
     ).toBe("pregnant");
   });
+
+  // PJ-M1: a deceased pet is a closed life record — it must map to the memorial
+  // state, NOT "ok" (AL DÍA), even when every obligation is satisfied.
+  it("a deceased fully-compliant pet maps to 'deceased', never 'ok'", () => {
+    expect(
+      lnPetStatusFromCompliance({ status: "deceased", pregnancyStatus: null }, fullyCompliant),
+    ).toBe("deceased");
+  });
+
+  it("deceased takes precedence over pregnancy (matching PetCard.helpers: lost > deceased)", () => {
+    expect(
+      lnPetStatusFromCompliance(
+        { status: "deceased", pregnancyStatus: "in_progress" },
+        fullyCompliant,
+      ),
+    ).toBe("deceased");
+  });
 });
