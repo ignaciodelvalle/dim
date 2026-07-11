@@ -40,6 +40,7 @@ import {
   fetchPppComplianceByProvince,
 } from "@/lib/analytics/compliance-metrics";
 import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type DashboardActor,
@@ -2539,12 +2540,18 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   // A govt actor must have at least one assignment that covers the requested
   // unit. If the jurisdiction check fails we return empty (silently) — the
   // API route's scope guard is the authoritative gate; this is a second fence.
+  //
+  // Use the SAME subsumption semantics as the route (jurisdictionScopeContains):
+  // a WHOLE-PROVINCE assignment (e.g. whole-CABA / "Ciudad Autónoma de Buenos
+  // Aires") subsumes every barrio the map aggregates for that operator. The
+  // previous raw exact-locality equality (`j.locality === locality`) under-
+  // matched — a whole-province operator clicking a barrio (Palermo) got an EMPTY
+  // history for a unit they legitimately govern and see on the map. The route
+  // already fixed this; this second fence was still on the old exact match.
   if (actor.role === "govt") {
-    const inScope = jurisdictions.some((j) => {
-      if (j.province !== province) return false;
-      if (locality) return j.locality === locality;
-      return true; // province-wide request: any assignment in the province
-    });
+    const inScope = locality
+      ? jurisdictionScopeContains(jurisdictions, province, locality)
+      : jurisdictions.some((j) => j.province === province);
     if (!inScope) {
       return { events: [], trend: [], byType: {} };
     }
