@@ -34,6 +34,10 @@ export type LnSuccessScreenProps = {
   description?: string;
   /** Optional cautionary line (smaller, muted) shown under the code block. */
   codeWarning?: string;
+  /** When true, renders an "oficial e inmutable" footer stamp. Set only on
+   * append-only official records (the intake credential, the mordedura libreta
+   * entry) — never on decorative or pending-integration receipts. */
+  official?: boolean;
   /** 1–3 actions in priority order. First action takes the primary slot. */
   next: SuccessAction[];
 };
@@ -44,6 +48,7 @@ export function LnSuccessScreen({
   codeLabel,
   description,
   codeWarning,
+  official,
   next,
 }: LnSuccessScreenProps) {
   const [copied, setCopied] = useState(false);
@@ -135,6 +140,29 @@ export function LnSuccessScreen({
             );
           })}
         </div>
+
+        {/* Official + immutable stamp — reuses the code block's bordered stripe
+            treatment. Only shown for append-only official records. */}
+        {official ? (
+          <div className="flex items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-3">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-3.5 h-3.5 text-[var(--color-ln-mute)] shrink-0"
+              aria-hidden="true"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            <span className="font-[var(--font-ln-mono)] text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
+              Comprobante oficial e inmutable
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

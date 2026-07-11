@@ -66,6 +66,14 @@ describe("<LnSuccessScreen>", () => {
     expect(html).toContain("Guardalo bien.");
   });
 
+  it("renders the official-and-immutable stamp only when official is set", () => {
+    const without = render(<LnSuccessScreen title="OK" next={minimalActions} />);
+    expect(without).not.toContain("Comprobante oficial e inmutable");
+
+    const withStamp = render(<LnSuccessScreen title="OK" official next={minimalActions} />);
+    expect(withStamp).toContain("Comprobante oficial e inmutable");
+  });
+
   it("renders an <a> for href actions", () => {
     const html = render(<LnSuccessScreen title="OK" next={[{ label: "Inicio", href: "/" }]} />);
     expect(html).toMatch(/<a[^>]*href="\/"/);

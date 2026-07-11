@@ -142,6 +142,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         title={`Mascota ingresada: ${state.createdPetName}`}
         code={state.createdPetToken}
         codeLabel="Credencial de la mascota"
+        official
         description="Quedó registrada bajo custodia del refugio. Podés continuar el flujo desde acá."
         next={[
           {

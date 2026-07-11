@@ -35,6 +35,7 @@ export default async function BiteSuccessPage({
           title="Mordedura registrada"
           code={caseCode}
           codeLabel="Caso registrado"
+          official
           description="Queda registrado en la libreta oficial. Comienza el período de observación antirrábica obligatoria de 10 días (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987)."
           next={[
             {
