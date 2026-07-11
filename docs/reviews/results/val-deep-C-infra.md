@@ -7,7 +7,7 @@
 
 **Criterio:** refugio operable (intake/tránsitos/adopciones + bulk Aprobar con confirmación); RLS cross-tenant falla-cerrado (**cualquier fuga = BLOCKER**); k-anon en Panorama; mobile 390px con mapa.
 
-**Evidencia:** `scripts/cursor-val-deep-c.ts`, `scripts/_deep-c-probes.ts`, screenshots en `docs/reviews/results/val-deep-C-screenshots/`, JSON en `docs/reviews/results/val-deep-C-findings.json`.
+**Evidencia:** `scripts/cursor-val-deep-c.ts` (probes inline; el `_deep-c-probes.ts` separado nunca se commiteó), screenshots en `docs/reviews/results/val-deep-C-screenshots/`, JSON en `docs/reviews/results/val-deep-C-findings.json`.
 
 ---
 

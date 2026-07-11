@@ -1,5 +1,14 @@
 # Handoff: Panorama v2C — consola fija con overlays sobre el mapa
 
+> **Errata (post-shipped, 2026-07-11):** este handoff nombra `PanoramaKpiStrip` y
+> `OperatorShell` como módulos reales a portar; al implementarse (`#21`) el `PanoramaKpiStrip`
+> quedó **retirado** (los KPIs viven ahora en `KpiChips`, chips flotantes que re-basan el
+> choropleth) y `OperatorShell` es **privado dentro de `AppShell.tsx`** (no un módulo exportado).
+> Además, la tabla de tokens de más abajo lista el teal divergente pre-fix `#0d9488` y "top-7":
+> la fuente de verdad es `lib/analytics/viz-scales.ts` (`COLOR_DIVERGENT_ABOVE = #0c866b`, por
+> margen CVD) y Worst-N = 10 — donde difieran, gana el código validado. Ver
+> `docs/plans/panorama-v2-polish.md`.
+
 ## Overview
 Iteración de **posiciones** sobre el rediseño del Panorama (Centro de Situación Nacional, `/gob`).
 De las 4 disposiciones exploradas se eligió la **opción C — overlays**: una **consola fija de pantalla

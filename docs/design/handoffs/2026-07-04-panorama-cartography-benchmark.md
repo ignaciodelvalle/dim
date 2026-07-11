@@ -1,5 +1,12 @@
 # Panorama cartographic benchmark & critique
 
+> **HISTORICAL — pre-light-theme / pre-v2C audit (2026-07-04).** Written against the
+> dark situation-room skin, before v2C flipped the console to the light operator theme
+> (`fd757227`) and retired the 342px rail for the fixed console + floating dock (`#21`).
+> References to a dark canvas and to `PanoramaKpiStrip` describe the superseded design.
+> Kept for its cartographic reasoning; for the shipped layout see
+> `docs/plans/panorama-v2-polish.md` and `docs/design/handoffs/2026-07-11-panorama-v2C/`.
+
 **Ground truth:** `integration/all-20260703` · `095bbc4a`
 
 ---
