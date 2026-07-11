@@ -77,9 +77,8 @@ import {
   provinceMetaClassScale,
   provinceMetaColorExpr,
   provinceSeqClassScale,
-  provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
-import { COLOR_SUPPRESSED, RAMP_BLUE_DARK, sampleStops } from "@/lib/analytics/viz-scales";
+import { COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -2867,16 +2866,16 @@ export function SituationalMap({
           cabaValue,
         );
       } else {
-        // Sequential dark-map ramp over the observed province range (matches provinceColorExpr).
-        const b = provinceValueBounds(insetProvinceLayer.features);
-        if (b) {
-          insetUniformFill = sampleStops(
-            [
-              [b.min, RAMP_BLUE_DARK[0]],
-              [b.max, RAMP_BLUE_DARK[1]],
-            ],
-            cabaValue,
-          );
+        // M1 fix: the main SEQUENTIAL province fill is THRESHOLD-CLASSED
+        // (class-scale.ts), NOT a continuous ramp — so the inset must classify
+        // CABA's value with the SAME classed scale, or its color won't match CABA's
+        // tiny main-map polygon (the mismatch bug). Reuse the frozen live-edge
+        // quantile breaks the fill locked (lockedProvinceBreaksRef), falling back to
+        // the live quantile scale when no scrub lock is present.
+        const lockedBreaks = lockedProvinceBreaksRef.current.get(insetProvinceLayer.id) ?? null;
+        const seqScale = provinceSeqClassScale(insetProvinceLayer.features, lockedBreaks);
+        if (seqScale) {
+          insetUniformFill = colorForValue(seqScale, cabaValue);
         }
       }
     }
