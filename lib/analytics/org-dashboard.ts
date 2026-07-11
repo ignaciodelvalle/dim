@@ -714,13 +714,25 @@ const QUEUE_COUNTERS: Record<OrgQueueKey, (orgId: string) => Promise<number>> = 
  * parallel. Callers pass the keys from `applicableOrgQueues`, so only queues
  * that apply to this org-type/member ever run a query (ONE shared fetch — the
  * panel surface and the nav badges consume the same result).
+ *
+ * NEVER-CRASH FAN-OUT (adversarial review 2026-07-10, HIGH 4): uses
+ * `Promise.allSettled` — NOT `Promise.all` — so one failing counter (e.g. a
+ * `countOverdueCheckins` SQL error) can never abandon its siblings or reject
+ * the whole batch. Unlike the panorama KPI strip (which degrades the WHOLE
+ * strip on any single fetcher failure — a deliberate all-or-nothing parity
+ * contract), each org queue is an independent row with its own click-through:
+ * a failed queue degrades to `null` (rendered without a count / badge) while
+ * every other queue still shows its live number. Requested-but-failed keys
+ * are `null`; keys never requested by the caller default to `0` (unchanged
+ * behavior — callers only ever read keys from their own `applicableOrgQueues`
+ * list).
  */
 export async function fetchOrgQueueCounts(
   orgId: string,
   keys: readonly OrgQueueKey[],
-): Promise<Record<OrgQueueKey, number>> {
+): Promise<Record<OrgQueueKey, number | null>> {
   const unique = Array.from(new Set(keys));
-  const results = await Promise.all(unique.map((key) => QUEUE_COUNTERS[key](orgId)));
+  const settled = await Promise.allSettled(unique.map((key) => QUEUE_COUNTERS[key](orgId)));
   const counts = {
     derivedWelfare: 0,
     openCases: 0,
@@ -730,9 +742,15 @@ export async function fetchOrgQueueCounts(
     overdueCheckins: 0,
     activeFosters: 0,
     pendingPermits: 0,
-  } as Record<OrgQueueKey, number>;
+  } as Record<OrgQueueKey, number | null>;
   unique.forEach((key, i) => {
-    counts[key] = results[i];
+    const result = settled[i];
+    if (result.status === "fulfilled") {
+      counts[key] = result.value;
+    } else {
+      console.error(`[org-dashboard] queue count "${key}" failed`, result.reason);
+      counts[key] = null;
+    }
   });
   return counts;
 }

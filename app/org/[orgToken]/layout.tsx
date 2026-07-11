@@ -20,9 +20,13 @@ import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import type { OrganizationCapability } from "@/db";
-import { applicableOrgQueues, fetchOrgQueueCounts } from "@/lib/analytics/org-dashboard";
+import { applicableOrgQueues } from "@/lib/analytics/org-dashboard";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { getProfileCached } from "@/lib/infra/request-cache";
+import {
+  getOrgQueueCountsCached,
+  getProfileCached,
+  orgQueueCacheKey,
+} from "@/lib/infra/request-cache";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export default async function OrgLayout({
@@ -67,21 +71,30 @@ export default async function OrgLayout({
   // covers every badge. Only badgeable queues (those that map to a nav item)
   // participate; informational queues (tránsitos activos) carry no badge.
   //
+  // The full `applicableOrgQueues` list (not just the navPath subset) is
+  // fetched here — same key set the page below asks for — so `getOrgQueueCountsCached`
+  // (request-memoized by (orgId, sorted key list)) hits ONE shared batch for
+  // the whole render pass instead of layout + page each issuing it (adversarial
+  // review 2026-07-10, MED 11). Badges are filtered from the shared result.
+  //
   // Resilient like the admin outbox/alertas badges: a badge-count failure must
   // never take down the org shell (badges are UX, not a security gate), and
   // Next does not wrap a segment's own layout.tsx in its sibling error.tsx —
   // an unguarded throw here would bypass app/org/[orgToken]/error.tsx and fall
-  // through to the fullscreen root boundary. Default to no badges on failure.
-  const badgeQueues = applicableOrgQueues(organization.orgType, granted, membership.role).filter(
-    (q) => q.navPath !== undefined,
-  );
+  // through to the fullscreen root boundary. `fetchOrgQueueCounts` itself never
+  // rejects on an individual counter failure (it degrades that key to `null`),
+  // so ONE bad query silently drops ONE badge instead of blanking every badge
+  // (MED 10) — the outer `.catch` below is only a last-resort backstop for a
+  // truly unexpected throw.
+  const orgQueues = applicableOrgQueues(organization.orgType, granted, membership.role);
+  const badgeQueues = orgQueues.filter((q) => q.navPath !== undefined);
   const queueCounts =
-    badgeQueues.length > 0
-      ? await fetchOrgQueueCounts(
+    orgQueues.length > 0
+      ? await getOrgQueueCountsCached(
           organization.id,
-          badgeQueues.map((q) => q.key),
+          orgQueueCacheKey(orgQueues.map((q) => q.key)),
         ).catch((err) => {
-          console.error("[OrgLayout] fetchOrgQueueCounts failed", err);
+          console.error("[OrgLayout] getOrgQueueCountsCached failed", err);
           return null;
         })
       : null;
@@ -90,7 +103,7 @@ export default async function OrgLayout({
   if (queueCounts) {
     for (const q of badgeQueues) {
       const n = queueCounts[q.key];
-      if (q.navPath && n > 0) {
+      if (q.navPath && n !== null && n > 0) {
         badgeByHref.set(`/org/${orgToken}/${q.navPath}`, n);
       }
     }

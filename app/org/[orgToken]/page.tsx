@@ -43,13 +43,16 @@ import {
   fetchActiveAdoptions,
   fetchAvailableForAdoption,
   fetchIntakesLastWeek,
-  fetchOrgQueueCounts,
   fetchRequiresAction,
   fetchTodayAgenda,
 } from "@/lib/analytics/org-dashboard";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { deriveSetupSteps, isSetupComplete } from "@/lib/infra/org-setup-checklist";
-import { getProfileCached } from "@/lib/infra/request-cache";
+import {
+  getOrgQueueCountsCached,
+  getProfileCached,
+  orgQueueCacheKey,
+} from "@/lib/infra/request-cache";
 import {
   CAPABILITY_CATALOG,
   capabilityAppliesToOrgType,
@@ -111,7 +114,9 @@ const STATE_DOT: Record<CapabilityState["kind"], string> = {
 // Pending-queue pill tone. Time-sensitive / legally-sensitive queues (derived
 // welfare reports, overdue post-adoption check-ins) read as danger when
 // non-empty; everything else uses the neutral "open" work tone. Zero is always
-// the calm neutral "all clear".
+// the calm neutral "all clear". `n === null` (adversarial review 2026-07-10,
+// HIGH 4: that one queue's count query failed) is handled by the caller,
+// which omits the pill entirely instead of asking for a tone.
 function pendingQueueTone(key: OrgQueueKey, n: number): "open" | "danger" | "neutral" {
   if (n === 0) return "neutral";
   if (key === "derivedWelfare" || key === "overdueCheckins") return "danger";
@@ -291,16 +296,20 @@ export default async function OrgDashboardPage({
   // Org-type-gated pending-queue surface (task #18). The applicable queues are
   // derived from the capability model + role (same gate as the nav), so a queue
   // structurally impossible for this org-type (e.g. foster proposals on a
-  // clinic) is never surfaced. ONE batched fetch covers every visible row.
+  // clinic) is never surfaced. ONE batched fetch covers every visible row —
+  // and it's the SAME request-memoized fetch the layout above already ran for
+  // the nav badges (getOrgQueueCountsCached, keyed by (orgId, sorted queue
+  // keys)), so this call is a cache hit, not a second round of queries
+  // (adversarial review 2026-07-10, MED 11).
   const orgQueues = applicableOrgQueues(orgType, granted, membership.role);
 
   // Dashboard projections — all run in parallel.
   // Occupancy requires fetchOrgCensus + org capacity columns (Item 16).
+  // getOrgQueueCountsCached itself never rejects on an individual counter
+  // failure — a bad query degrades just that key to `null` (HIGH 4) — so it
+  // can safely sit inside this Promise.all without risking the whole panel.
   const [queueCounts, census, actionItems] = await Promise.all([
-    fetchOrgQueueCounts(
-      organization.id,
-      orgQueues.map((q) => q.key),
-    ),
+    getOrgQueueCountsCached(organization.id, orgQueueCacheKey(orgQueues.map((q) => q.key))),
     isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
     isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
   ]);
@@ -571,7 +580,12 @@ export default async function OrgDashboardPage({
           (task #18). Every queue this org-type actually has, each a live count
           that is itself a next-step shortcut to the filtered queue. No
           structurally always-zero rows: applicability comes from the capability
-          model + role, the same gate the nav uses. */}
+          model + role, the same gate the nav uses.
+
+          A queue's count query can fail independently of its siblings — n is
+          `null` in that case (adversarial review 2026-07-10, HIGH 4). The row
+          still renders (the link keeps working) but WITHOUT a badge, instead
+          of the whole panel 500ing or lying with a fabricated 0. */}
       {orgQueues.length > 0 && (
         <OpCard>
           <OpCardHead title="Pendientes" />
@@ -579,7 +593,6 @@ export default async function OrgDashboardPage({
             <ul className="divide-y divide-ln-op-line-2">
               {orgQueues.map((q) => {
                 const n = queueCounts[q.key];
-                const tone = pendingQueueTone(q.key, n);
                 return (
                   <li key={q.key} className="flex items-center justify-between px-4 py-3">
                     <Link
@@ -588,7 +601,7 @@ export default async function OrgDashboardPage({
                     >
                       {q.label}
                     </Link>
-                    <OpPill tone={tone}>{n}</OpPill>
+                    {n !== null && <OpPill tone={pendingQueueTone(q.key, n)}>{n}</OpPill>}
                   </li>
                 );
               })}

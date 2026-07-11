@@ -40,6 +40,7 @@ import {
   profiles,
 } from "@/db";
 import type { Organization, OrganizationMembership } from "@/db";
+import { type OrgQueueKey, fetchOrgQueueCounts } from "@/lib/analytics/org-dashboard";
 
 // ---------------------------------------------------------------------------
 // Profile — canonical per-request read
@@ -187,3 +188,36 @@ export const getUnreadCountCached = cache(async (userId: string): Promise<number
     );
   return unreadCount;
 });
+
+// ---------------------------------------------------------------------------
+// Org queue counts — org layout (nav badges) + org dashboard page ("Pendientes")
+// share this (adversarial review 2026-07-10, MED 11)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cached org-queue-counts read, memoized per request by (orgId, key set).
+ * The org layout (nav badges) and the org dashboard page (the "Pendientes"
+ * card) both fetch `fetchOrgQueueCounts` for the SAME org within one render
+ * pass — every org home paint used to issue the batched query twice.
+ *
+ * `React.cache()` keys on argument identity/value, not deep-equality of
+ * object args, so the key list is threaded through as a stable, sorted,
+ * comma-joined string (see `orgQueueCacheKey`) rather than an array — two
+ * `OrgQueueKey[]` instances with identical contents but different identities
+ * (layout builds its own array, the page builds its own) must still hit the
+ * SAME cache entry. Both callers pass the full `applicableOrgQueues` result
+ * for the org (not a further-filtered subset) so their cache keys always
+ * agree; the layout filters the returned record down to badge-eligible
+ * queues locally, after the shared fetch.
+ */
+export const getOrgQueueCountsCached = cache(
+  async (orgId: string, sortedKeysJoined: string): Promise<Record<OrgQueueKey, number | null>> => {
+    const keys = sortedKeysJoined.length > 0 ? (sortedKeysJoined.split(",") as OrgQueueKey[]) : [];
+    return fetchOrgQueueCounts(orgId, keys);
+  },
+);
+
+/** Stable, order-independent cache-key string for a list of org queue keys. */
+export function orgQueueCacheKey(keys: readonly OrgQueueKey[]): string {
+  return Array.from(new Set(keys)).sort().join(",");
+}
