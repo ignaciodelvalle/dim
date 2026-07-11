@@ -31,6 +31,7 @@ import {
   panoramaCube,
   panoramaCubeMeta,
   petEvents,
+  petIdentifications,
   pets,
   welfareReports,
 } from "@/db";
@@ -2745,6 +2746,54 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         totalCount = row?.n ?? 0;
         break;
       }
+      case "sintomas": {
+        // Density point layer — mirror loadSintomasByUnit: symptom_observed events
+        // on pets in the unit over the window, countDistinct(event) like the map.
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, "symptom_observed"),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          sql`${pets.jurisdictionProvince} = ${province}`,
+          unitLocalityFilter(sql`${pets.jurisdictionLocality}`),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: countDistinct(petEvents.id) })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
+      case "esterilizacion":
+      case "microchip":
+      case "ppp": {
+        // Current-state choropleths — mirror the map numerator EXACTLY via
+        // metricPredicate (EXISTS over the underlying event/identification), and
+        // countDistinct(pet) like cobertura, so a map-suppressed cell can't be
+        // re-identified through the history. The metric predicate is the source of
+        // truth (no [since,until] window — these count the CURRENT attribute).
+        const metric: ChoroplethMetric =
+          layer === "esterilizacion"
+            ? "sterilization-coverage"
+            : layer === "microchip"
+              ? "microchip-penetration"
+              : "ppp-compliance";
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          metricPredicate(metric),
+          sql`${pets.jurisdictionProvince} = ${province}`,
+          unitLocalityFilter(sql`${pets.jurisdictionLocality}`),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const [row] = await db
+          .select({ n: countDistinct(pets.id) })
+          .from(pets)
+          .where(and(...conditions));
+        totalCount = row?.n ?? 0;
+        break;
+      }
       default:
         totalCount = K_ANON; // Unknown layers are exempt from suppression.
     }
@@ -2997,6 +3046,65 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         }));
       }
 
+      case "sintomas":
+      case "esterilizacion":
+      case "ppp": {
+        // pet_events-backed layers — the underlying event IS each layer's rollup
+        // source (symptom_observed for sintomas; the metricPredicate EXISTS event
+        // for the current-state esterilizacion/ppp choropleths). Pets-attributed,
+        // over the window, same petsScope as the map.
+        const cfg = {
+          sintomas: { type: "symptom_observed", label: "Síntoma reportado" },
+          esterilizacion: { type: "sterilization_performed", label: "Esterilización" },
+          ppp: { type: "dangerous_breed_attested", label: "Atestación PPP" },
+        }[layer as "sintomas" | "esterilizacion" | "ppp"];
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, cfg.type),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({ occurredAt: petEvents.occurredAt })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .orderBy(sql`${petEvents.occurredAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({ date: r.occurredAt, type: cfg.type, label: cfg.label }));
+      }
+
+      case "microchip": {
+        // Microchip penetration is backed by pet_identifications (active
+        // microchip_iso), not pet_events — mirror metricPredicate('microchip-
+        // penetration')'s kind, joined to pets for the unit + scope.
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petIdentifications.kind, "microchip_iso"),
+          sql`${petIdentifications.deletedAt} IS NULL`,
+          // recorded_at is a DATE column (string-typed) — window it with day-grain
+          // ISO strings, not the Date-typed [since, until] the pet_events layers use.
+          gte(petIdentifications.recordedAt, since.toISOString().slice(0, 10)),
+          lte(petIdentifications.recordedAt, until.toISOString().slice(0, 10)),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        const rows = await db
+          .select({ recordedAt: petIdentifications.recordedAt })
+          .from(petIdentifications)
+          .innerJoin(pets, eq(petIdentifications.petId, pets.id))
+          .where(and(...conditions))
+          .orderBy(sql`${petIdentifications.recordedAt} DESC`)
+          .limit(EVENT_LIMIT);
+        return rows.map((r) => ({
+          date: r.recordedAt ? new Date(r.recordedAt) : null,
+          type: "microchip_iso",
+          label: "Microchip registrado",
+        }));
+      }
+
       default:
         return [];
     }
@@ -3184,6 +3292,58 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           .where(and(...conditions))
           .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
           .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      case "sintomas":
+      case "esterilizacion":
+      case "ppp": {
+        // Same pet_events source as the queryEvents branch above — daily counts of
+        // each layer's underlying event over the window.
+        const eventType =
+          layer === "sintomas"
+            ? "symptom_observed"
+            : layer === "esterilizacion"
+              ? "sterilization_performed"
+              : "dangerous_breed_attested";
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petEvents.eventType, eventType),
+          gte(petEvents.occurredAt, since),
+          lte(petEvents.occurredAt, until),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petEvents.occurredAt}`), n: count() })
+          .from(petEvents)
+          .innerJoin(pets, eq(petEvents.petId, pets.id))
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petEvents.occurredAt}`))
+          .orderBy(dayBucket(sql`${petEvents.occurredAt}`));
+        break;
+      }
+
+      case "microchip": {
+        // Backed by pet_identifications (recorded_at), joined to pets for the unit.
+        const scope = petsScope(actor, jurisdictions);
+        const conditions: SQL[] = [
+          eq(petIdentifications.kind, "microchip_iso"),
+          sql`${petIdentifications.deletedAt} IS NULL`,
+          // See the queryEvents microchip branch: recorded_at is a DATE column,
+          // windowed with day-grain ISO strings.
+          gte(petIdentifications.recordedAt, since.toISOString().slice(0, 10)),
+          lte(petIdentifications.recordedAt, until.toISOString().slice(0, 10)),
+          ...petsJurisdictionFilter(),
+        ];
+        if (scope) conditions.push(sql`(${scope})`);
+        rows = await db
+          .select({ day: dayBucket(sql`${petIdentifications.recordedAt}`), n: count() })
+          .from(petIdentifications)
+          .innerJoin(pets, eq(petIdentifications.petId, pets.id))
+          .where(and(...conditions))
+          .groupBy(dayBucket(sql`${petIdentifications.recordedAt}`))
+          .orderBy(dayBucket(sql`${petIdentifications.recordedAt}`));
         break;
       }
 
