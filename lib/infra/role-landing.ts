@@ -18,10 +18,13 @@ import { db, organizationMemberships, organizations, profiles } from "@/db";
 //  1. admin  → /admin
 //  2. govt   → /gob
 //  3. vet with active admin/coordinator org membership → /org/[firstOrgToken]
-//  4. vet with any other active membership → /cuenta/memberships
-//  5. vet with no memberships → /cuenta
-//  6. owner with active org-admin membership → /org  (index redirects to their org)
-//  7. everyone else → /inicio  (owner dashboard; pet list still reachable at /mis-mascotas)
+//  4. vet with exactly one other active membership → /org/[thatOrgToken]
+//     (single-membership shortcut — mirror of the owner rule: land the vet
+//      directly in their one clinic's work surface, not a meta-list)
+//  5. vet with 2+ other active memberships → /cuenta/memberships (let them pick)
+//  6. vet with no memberships → /cuenta
+//  7. owner with active org-admin membership → /org  (index redirects to their org)
+//  8. everyone else → /inicio  (owner dashboard; pet list still reachable at /mis-mascotas)
 
 export type RoleOptions = {
   hasOrgAdminMembership?: boolean;
@@ -98,7 +101,9 @@ export function pathForRole(role: string, options: RoleOptions | boolean): strin
 }
 
 // Resolve the correct landing path for a vet by querying their org memberships.
-// Priority: admin/coordinator in an org → /org/[token]; any membership → /cuenta/memberships; else → /cuenta.
+// Priority: admin/coordinator in an org → /org/[token]; exactly one other
+// membership → /org/[thatToken] (single-membership shortcut, mirrors the owner
+// rule); 2+ memberships → /cuenta/memberships; no memberships → /cuenta.
 export async function resolveVetLanding(userId: string): Promise<string> {
   const [adminRow] = await db
     .select({ publicToken: organizations.publicToken })
@@ -115,13 +120,23 @@ export async function resolveVetLanding(userId: string): Promise<string> {
 
   if (adminRow) return `/org/${adminRow.publicToken}`;
 
-  const [anyRow] = await db
-    .select({ id: organizationMemberships.id })
+  // No admin/coordinator membership → the rows below are all non-admin. Fetch at
+  // most 2: knowing "0", "exactly 1", or "2+" is sufficient to decide.
+  const memberRows = await db
+    .select({ publicToken: organizations.publicToken })
     .from(organizationMemberships)
+    .innerJoin(organizations, eq(organizations.id, organizationMemberships.organizationId))
     .where(and(eq(organizationMemberships.userId, userId), isNull(organizationMemberships.leftAt)))
-    .limit(1);
+    .limit(2);
 
-  return anyRow ? "/cuenta/memberships" : "/cuenta";
+  if (memberRows.length === 0) return "/cuenta";
+  // Single-membership shortcut — land the vet in their one clinic's work
+  // surface directly, exactly as resolveUserLanding does for a single-org owner.
+  if (memberRows.length === 1 && memberRows[0].publicToken) {
+    return `/org/${memberRows[0].publicToken}`;
+  }
+  // 2+ memberships → let the vet pick from the list.
+  return "/cuenta/memberships";
 }
 
 // Resolve the correct default landing path for any user by querying their role

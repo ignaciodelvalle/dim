@@ -1,9 +1,13 @@
 // Integration tests for resolveVetLanding (lib/role-landing.ts).
 //
-// Post Phase B, a vet's landing path is resolved by org membership:
-//   - admin/coordinator membership → /org/[firstOrgToken]
-//   - any other membership only   → /cuenta/memberships
-//   - no memberships              → /cuenta
+// A vet's landing path is resolved by org membership:
+//   - admin/coordinator membership   → /org/[firstOrgToken]
+//   - exactly one other membership   → /org/[thatOrgToken]  (single-membership
+//                                       shortcut, task #17 — mirrors the owner
+//                                       rule so a sole vet lands in their clinic
+//                                       instead of the /cuenta/memberships list)
+//   - 2+ other memberships           → /cuenta/memberships  (let them pick)
+//   - no memberships                 → /cuenta
 //
 // These tests also verify the mis-mascotas redirect is no longer /pro.
 
@@ -25,12 +29,15 @@ const supabase = createClient(SUPABASE_URL, SECRET, {
 const VET_NO_ORG_EMAIL = "vet-landing-no-org@dim-test.local";
 const VET_ADMIN_EMAIL = "vet-landing-admin@dim-test.local";
 const VET_MEMBER_EMAIL = "vet-landing-member@dim-test.local";
+const VET_MULTI_EMAIL = "vet-landing-multi@dim-test.local";
 const PASS = "VetLanding_2026!";
 
 let vetNoOrgId: string;
 let vetAdminId: string;
 let vetMemberId: string;
+let vetMultiId: string;
 let clinicOrgToken: string;
+let secondClinicOrgToken: string;
 
 async function purgeByEmail(email: string) {
   const { data } = await supabase.auth.admin.listUsers();
@@ -56,6 +63,7 @@ beforeAll(async () => {
   await purgeByEmail(VET_NO_ORG_EMAIL);
   await purgeByEmail(VET_ADMIN_EMAIL);
   await purgeByEmail(VET_MEMBER_EMAIL);
+  await purgeByEmail(VET_MULTI_EMAIL);
 
   const createUser = async (email: string) => {
     const { data, error } = await supabase.auth.admin.createUser({
@@ -70,19 +78,14 @@ beforeAll(async () => {
   vetNoOrgId = await createUser(VET_NO_ORG_EMAIL);
   vetAdminId = await createUser(VET_ADMIN_EMAIL);
   vetMemberId = await createUser(VET_MEMBER_EMAIL);
+  vetMultiId = await createUser(VET_MULTI_EMAIL);
 
-  await db
-    .update(profiles)
-    .set({ role: "vet", matriculaVerified: true })
-    .where(eq(profiles.id, vetNoOrgId));
-  await db
-    .update(profiles)
-    .set({ role: "vet", matriculaVerified: true })
-    .where(eq(profiles.id, vetAdminId));
-  await db
-    .update(profiles)
-    .set({ role: "vet", matriculaVerified: true })
-    .where(eq(profiles.id, vetMemberId));
+  for (const id of [vetNoOrgId, vetAdminId, vetMemberId, vetMultiId]) {
+    await db
+      .update(profiles)
+      .set({ role: "vet", matriculaVerified: true })
+      .where(eq(profiles.id, id));
+  }
 
   clinicOrgToken = generatePublicToken();
   const [org] = await db
@@ -93,6 +96,19 @@ beforeAll(async () => {
       displayName: "Vet Landing Test Clinic",
       orgType: "clinic",
       email: "vet-landing@dim-test.local",
+      verified: true,
+    })
+    .returning({ id: organizations.id });
+
+  secondClinicOrgToken = generatePublicToken();
+  const [org2] = await db
+    .insert(organizations)
+    .values({
+      publicToken: secondClinicOrgToken,
+      legalName: "Vet Landing Test Clinic 2",
+      displayName: "Vet Landing Test Clinic 2",
+      orgType: "clinic",
+      email: "vet-landing-2@dim-test.local",
       verified: true,
     })
     .returning({ id: organizations.id });
@@ -110,20 +126,38 @@ beforeAll(async () => {
     role: "vet_individual",
     canWritePetEvents: true,
   });
+
+  // Multi-membership vet: vet_individual in BOTH clinics (no admin/coordinator
+  // role anywhere) → the resolver must NOT shortcut, and lands on the picker.
+  await db.insert(organizationMemberships).values({
+    organizationId: org.id,
+    userId: vetMultiId,
+    role: "vet_individual",
+    canWritePetEvents: true,
+  });
+  await db.insert(organizationMemberships).values({
+    organizationId: org2.id,
+    userId: vetMultiId,
+    role: "vet_individual",
+    canWritePetEvents: true,
+  });
 });
 
 afterAll(async () => {
   await purgeByEmail(VET_NO_ORG_EMAIL);
   await purgeByEmail(VET_ADMIN_EMAIL);
   await purgeByEmail(VET_MEMBER_EMAIL);
+  await purgeByEmail(VET_MULTI_EMAIL);
 
-  const [org] = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(eq(organizations.publicToken, clinicOrgToken))
-    .limit(1);
-  if (org) {
-    await db.delete(organizations).where(eq(organizations.id, org.id));
+  for (const token of [clinicOrgToken, secondClinicOrgToken]) {
+    const [org] = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.publicToken, token))
+      .limit(1);
+    if (org) {
+      await db.delete(organizations).where(eq(organizations.id, org.id));
+    }
   }
 });
 
@@ -138,8 +172,16 @@ describe("resolveVetLanding", () => {
     expect(path).toBe(`/org/${clinicOrgToken}`);
   });
 
-  it("vet with vet_individual membership only → /cuenta/memberships", async () => {
+  // task #17: single-membership shortcut. A sole vet_individual of one clinic
+  // now lands directly in that clinic's work surface (previously bounced to the
+  // /cuenta/memberships meta-list — the pin this test deliberately replaces).
+  it("vet with a single vet_individual membership → /org/[token] (shortcut)", async () => {
     const path = await resolveVetLanding(vetMemberId);
+    expect(path).toBe(`/org/${clinicOrgToken}`);
+  });
+
+  it("vet with 2+ vet_individual memberships → /cuenta/memberships (picker)", async () => {
+    const path = await resolveVetLanding(vetMultiId);
     expect(path).toBe("/cuenta/memberships");
   });
 
