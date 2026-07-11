@@ -23,10 +23,17 @@ import { NextResponse } from "next/server";
 import { listLocalitiesByProvince, listLocalityCentroids } from "@/lib/infra/ar-localidades";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 import { resolveInstitutionalPanoramaActor } from "../_guard";
 
 export const dynamic = "force-dynamic";
+
+// Same budget as the sibling panorama routes ([layer], unit-history). On expiry
+// the budget resolves the `null` sentinel and we answer 503 — the console's
+// designed degradation (fall back to a full document navigation) — instead of
+// silently returning an EMPTY locality list for a province that has localities.
+const SCOPE_BUDGET_MS = 8000;
 
 export async function GET(request: Request) {
   // Non-redirect auth: ACTIVE INSTITUTIONAL admin or govt only (same full
@@ -52,10 +59,24 @@ export async function GET(request: Request) {
   try {
     // REUSE the exact server-page helpers (app/{admin,gob}/panorama/page.tsx) so
     // the bundle is byte-identical to a full-reload render of the same scope.
-    const [localities, localityCentroids] = await Promise.all([
-      listLocalitiesByProvince(provinceObj.code as ProvinceCode),
-      listLocalityCentroids(provinceObj.code as ProvinceCode),
-    ]);
+    // Budget-bounded (death-spiral guard, task #74): on expiry the sentinel
+    // `null` resolves and we fall through to the 503 path below.
+    const bundle = await withDbBudget(
+      Promise.all([
+        listLocalitiesByProvince(provinceObj.code as ProvinceCode),
+        listLocalityCentroids(provinceObj.code as ProvinceCode),
+      ]),
+      SCOPE_BUDGET_MS,
+      "GET /api/panorama/scope",
+      null,
+    );
+    if (bundle === null) {
+      return NextResponse.json(
+        { error: "panorama_scope_unavailable" },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
+    const [localities, localityCentroids] = bundle;
     return NextResponse.json(
       { localities, localityCentroids },
       { headers: { "cache-control": "no-store" } },
