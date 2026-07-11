@@ -16,6 +16,7 @@
 // Data fetching, server actions, routes, and EventCatcher behavior unchanged.
 // Auth + role gates enforced by (app)/layout.tsx.
 
+import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
@@ -23,6 +24,7 @@ import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/
 import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { approvalRequests, db } from "@/db";
 import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import {
   fetchActiveReminders,
@@ -98,6 +100,23 @@ export default async function InicioPage() {
   );
 
   const { pets } = petsResult;
+
+  // In-flight vet-upgrade indicator (task #17): a user who submitted a matrícula
+  // upgrade request otherwise sees zero sign of it on /inicio — the status lived
+  // only in two buried /cuenta subpages. One bounded, indexed lookup (limit 1)
+  // for their latest request; the band renders only while it is pending.
+  const [latestVetRequest] = await db
+    .select({ status: approvalRequests.status })
+    .from(approvalRequests)
+    .where(
+      and(
+        eq(approvalRequests.applicantUserId, user.id),
+        eq(approvalRequests.type, "role_upgrade_vet"),
+      ),
+    )
+    .orderBy(desc(approvalRequests.createdAt))
+    .limit(1);
+  const vetUpgradePending = latestVetRequest?.status === "pending";
 
   // Compliance projection for the health-status pets — the SAME source the pet
   // profile and /mis-mascotas read (deriveComplianceState). The strip renders
@@ -224,6 +243,47 @@ export default async function InicioPage() {
       </div>
 
       <IntentApplyBanner />
+
+      {/* In-flight vet-upgrade band (task #17): keeps the open cycle visible on
+          the home surface instead of only inside /cuenta subpages. Links to the
+          request detail where the applicant can track or withdraw it. */}
+      {vetUpgradePending && (
+        <Link
+          href="/cuenta/upgrade"
+          className="mb-6 flex items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3 no-underline transition-colors hover:bg-[var(--color-ln-warn-050)]/70"
+        >
+          <span
+            aria-hidden="true"
+            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-warn-100)] text-[var(--color-ln-warn)]"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 3" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[var(--text-md)] font-semibold text-[var(--color-ln-ink)]">
+              Tu solicitud de veterinario/a está en revisión
+            </span>
+            <span className="block text-sm text-[var(--color-ln-mute)]">
+              La autoridad de tu localidad la está evaluando. Tocá para ver el estado.
+            </span>
+          </span>
+          <span aria-hidden="true" className="flex-shrink-0 text-base text-[var(--color-ln-mute)]">
+            ›
+          </span>
+        </Link>
+      )}
 
       {/* RemindersSection stays above EventCatcher (keeps visibility gate) */}
       <RemindersSection reminders={reminders} />
