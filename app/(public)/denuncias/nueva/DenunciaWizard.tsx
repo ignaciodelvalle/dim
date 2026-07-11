@@ -93,6 +93,10 @@ const INITIAL_STATE: WizardState = {
 export function DenunciaWizard() {
   const [step, setStep] = useState(1);
   const [wizState, setWizState] = useState<WizardState>(INITIAL_STATE);
+  // FIX #3A: the exact map point is required. Step3Where reports point presence
+  // here so step 3 cannot advance (and the form cannot submit) without one — the
+  // canonical locality is inferred server-side from that point.
+  const [hasLocationPoint, setHasLocationPoint] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -204,6 +208,10 @@ export function DenunciaWizard() {
           setStepError("Indicá cuándo pasó para continuar.");
           return;
         }
+        if (!hasLocationPoint) {
+          setStepError("Marcá el lugar exacto en el mapa para continuar.");
+          return;
+        }
         goNext();
         break;
       case 4:
@@ -220,6 +228,12 @@ export function DenunciaWizard() {
 
     if (!wizState.kind || !wizState.severity || !wizState.when || !wizState.description.trim()) {
       setSubmitError("Faltan datos obligatorios. Volvé a los pasos anteriores.");
+      return;
+    }
+
+    // FIX #3A: the exact map point is required — never submit without one.
+    if (!hasLocationPoint) {
+      setSubmitError("Marcá el lugar exacto en el mapa (paso “Dónde”) antes de enviar.");
       return;
     }
 
@@ -432,6 +446,7 @@ export function DenunciaWizard() {
             description={wizState.description}
             onWhenChange={(when) => updateState({ when })}
             onDescriptionChange={(description) => updateState({ description })}
+            onPointPresenceChange={setHasLocationPoint}
             error={step === 3 ? stepError : null}
           />
           {step === 3 && (

@@ -921,15 +921,31 @@ export async function createWelfareReportAction(
   // locality through (localityCanonical=false) instead of throwing; the authority
   // still routes by province + coords + address. Exact CABA barrios resolve via
   // the CABA-aware pickLocality in lib/geocoding.ts.
+  //
+  // requireCoords:true — FIX #3A (QA 2026-07-10): the wizard now requires an exact
+  // map point, and the canonical locality is inferred from it. Enforce coords
+  // server-side too (defense-in-depth) so a denuncia can never be created without
+  // a precise location. The DenunciaWizard blocks submit client-side; this catches
+  // any direct/legacy caller. Reverse-geocode of the point fills province/locality
+  // (soft); if that lookup is thin the row may still land locality-less — those
+  // residual rows are surfaced to whole-province operators by lib/metrics/scope.ts.
   let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
   try {
-    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "soft" });
+    normalizedLoc = await normalizeLocationForWrite(loc, {
+      locality: "soft",
+      requireCoords: true,
+    });
   } catch (err) {
     if (err instanceof JurisdictionValidationError) {
       return { error: err.message };
     }
     if (err instanceof CoordError) {
-      return { error: err.message };
+      return {
+        error:
+          err.code === "COORD_REQUIRED"
+            ? "Marcá el lugar exacto en el mapa antes de enviar la denuncia."
+            : err.message,
+      };
     }
     throw err;
   }

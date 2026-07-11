@@ -76,6 +76,7 @@ export function LocationFields({
   useMyLocationVariant = "secondary",
   allowAnonymous = false,
   onLocationPresenceChange,
+  onPointPresenceChange,
   required = false,
   l1Label = "Localidad",
   cascade = false,
@@ -115,6 +116,11 @@ export function LocationFields({
   // any of jurisdiction / address / map point is set). Lets a parent warn on
   // empty location without coupling to the uncontrolled hidden inputs (UI-7 B6).
   onLocationPresenceChange?: (hasLocation: boolean) => void;
+  // Optional (L2): notified whenever an EXACT map point is set/cleared. Narrower
+  // than onLocationPresenceChange (which also fires for a typed address alone) —
+  // the denuncia wizard gates advancing on a marked point specifically, so the
+  // canonical locality can be inferred from it (QA 2026-07-10, FIX #3A).
+  onPointPresenceChange?: (hasPoint: boolean) => void;
 }) {
   const isL2 = mode === "l2";
 
@@ -233,6 +239,13 @@ export function LocationFields({
       point != null;
     onLocationPresenceChange(hasLocation);
   }, [pickedProvince, pickedLocality, addressText, point]);
+
+  // Notify the parent whenever the EXACT map point presence changes (FIX #3A).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onPointPresenceChange is a stable callback from the parent; including it would loop on inline closures.
+  useEffect(() => {
+    if (!onPointPresenceChange) return;
+    onPointPresenceChange(point != null);
+  }, [point]);
 
   // Reverse geocoding (coords → address + jurisdiction). Fires on map gesture.
   // `source` records the coordinate origin (default 'pin_manual' — a map click/

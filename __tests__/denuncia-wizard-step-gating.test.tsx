@@ -16,8 +16,21 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// Stubbed LocationFields exposes a "mark point" button that fires
+// onPointPresenceChange(true) — the wizard requires an exact map point before
+// step 3 can advance (FIX #3A), so the test drives that signal explicitly.
 vi.mock("@/components/LocationFields", () => ({
-  LocationFields: () => <div data-testid="location-fields" />,
+  LocationFields: ({
+    onPointPresenceChange,
+  }: {
+    onPointPresenceChange?: (hasPoint: boolean) => void;
+  }) => (
+    <div data-testid="location-fields">
+      <button type="button" data-testid="mark-point" onClick={() => onPointPresenceChange?.(true)}>
+        mark point
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock("@/src/modules/welfare/actions", () => ({
@@ -57,11 +70,12 @@ describe("DenunciaWizard — step gating (single step visible)", () => {
     fireEvent.click(document.querySelector('input[name="severityCard"][value="moderado"]')!);
     clickContinue();
 
-    // Step 3 — description (>= 20 chars) + when, continue.
+    // Step 3 — description (>= 20 chars) + when + an exact map point, continue.
     fireEvent.change(document.querySelector('textarea[name="description"]')!, {
       target: { value: "Perro sin agua bajo el sol intenso" },
     });
     fireEvent.click(document.querySelector('input[name="occurredAtOption"][value="now"]')!);
+    fireEvent.click(screen.getByTestId("mark-point"));
     clickContinue();
 
     // Step 4 — optional, continue.
@@ -81,5 +95,34 @@ describe("DenunciaWizard — step gating (single step visible)", () => {
     // Earlier steps are fully unmounted — not just hidden.
     expect(screen.queryByText("¿Qué pasó?")).toBeNull();
     expect(screen.queryByText("¿Qué tan grave es?")).toBeNull();
+  });
+
+  it("blocks advancing past step 3 until an exact map point is marked (FIX #3A)", () => {
+    render(<DenunciaWizard />);
+
+    // Step 1 → 2 → 3.
+    fireEvent.click(document.querySelector('input[name="kindCard"][value="other"]')!);
+    clickContinue();
+    fireEvent.click(document.querySelector('input[name="severityCard"][value="moderado"]')!);
+    clickContinue();
+
+    // Step 3 — description + when, but NO map point yet.
+    fireEvent.change(document.querySelector('textarea[name="description"]')!, {
+      target: { value: "Perro sin agua bajo el sol intenso" },
+    });
+    fireEvent.click(document.querySelector('input[name="occurredAtOption"][value="now"]')!);
+    clickContinue();
+
+    // Still on step 3 — the point-required error is shown, step 4 not reached.
+    expect(
+      screen.getByText("Marcá el lugar exacto en el mapa para continuar."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("¿Dónde y cuándo?").closest('[aria-hidden="true"]')).toBeNull();
+    expect(screen.queryByText("¿Sobre quién?")).toBeNull();
+
+    // Mark the point → now it advances to step 4.
+    fireEvent.click(screen.getByTestId("mark-point"));
+    clickContinue();
+    expect(screen.getByText("¿Dónde y cuándo?").closest('[aria-hidden="true"]')).not.toBeNull();
   });
 });

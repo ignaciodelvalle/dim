@@ -51,6 +51,10 @@ type Step3WhereProps = {
   description: string;
   onWhenChange: (when: WhenOption) => void;
   onDescriptionChange: (description: string) => void;
+  // Notifies the wizard whether an exact map point is marked. The wizard gates
+  // advancing on it — a denuncia must carry an exact location so the canonical
+  // locality can be inferred from the point (FIX #3A).
+  onPointPresenceChange: (hasPoint: boolean) => void;
   // LocationFields is uncontrolled — values are read at submit time via FormData.
   // We pass the error so the parent can show step-level validation.
   error?: string | null;
@@ -64,11 +68,19 @@ export function Step3Where({
   description,
   onWhenChange,
   onDescriptionChange,
+  onPointPresenceChange,
   error,
 }: Step3WhereProps) {
-  // Location is optional, but an empty location can't be routed to the local
-  // authority — warn the reporter without blocking submission (UI-7 B6).
-  const [hasLocation, setHasLocation] = useState(false);
+  // The exact map point is REQUIRED (FIX #3A): a denuncia can only be routed to
+  // the right authority when it carries a precise location, and the canonical
+  // locality is inferred from that point. Track it locally to show the inline
+  // requirement, and forward it so the wizard can block advancing.
+  const [hasPoint, setHasPoint] = useState(false);
+
+  function handlePointPresence(present: boolean) {
+    setHasPoint(present);
+    onPointPresenceChange(present);
+  }
 
   return (
     <section className="space-y-6">
@@ -177,13 +189,21 @@ export function Step3Where({
           className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
-          Lugar (opcional pero muy útil)
+          Marcá el lugar exacto en el mapa{" "}
+          <span className="text-[var(--color-ln-seal)] ml-0.5" aria-hidden="true">
+            *
+          </span>
         </p>
-        <LocationFields mode="l2" allowAnonymous onLocationPresenceChange={setHasLocation} />
-        {!hasLocation && (
+        <LocationFields
+          mode="l2"
+          allowAnonymous
+          useMyLocationVariant="primary"
+          onPointPresenceChange={handlePointPresence}
+        />
+        {!hasPoint && (
           <output className="mt-2 block rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-[12.5px] text-[var(--color-ln-warn)] leading-snug">
-            Sin ubicación, la denuncia no puede dirigirse a la autoridad de tu zona. Podés enviarla
-            igual, pero agregar el lugar ayuda a que llegue a quien corresponde.
+            Marcá el lugar exacto tocando el mapa, arrastrando el pin o con “Usar mi ubicación”. La
+            denuncia necesita un punto preciso para llegar a la autoridad de esa zona.
           </output>
         )}
       </div>
