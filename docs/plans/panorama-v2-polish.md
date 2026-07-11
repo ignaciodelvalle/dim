@@ -93,9 +93,12 @@ Current layout to replace: 2-col grid with fixed 342px right rail + `h-[76vh]` m
   `SituationalMap.tsx:~2876`), not on CABA-in-viewport → panning south at regional zoom still
   shows the inset. Gate on CABA-in-viewport / national scope. Plus the national "see everything"
   view keeps CABA enlarged (AMBA magnifier) — only there, never when drilled elsewhere.
-- **Heatmap / viz differentiation — OPEN FORK (PO decides before building)**: (a) real density
-  heatmap layer, (b) discoverable viz-mode switcher over the existing encodings (sequential /
-  divergent META / bivariate 3×3 / graduated), or (c) both.
+- **Heatmap / viz differentiation — ~~OPEN FORK~~ RESOLVED 2026-07-11: PO chose (c) BOTH,
+  staged (task #24).** Phase 1: discoverable viz-mode switcher over the existing encodings
+  (sequential / divergent META / bivariate 3×3 / graduated), building on v2C's KPI-chip
+  re-base — after #21 lands. Phase 2: real density heatmap as an additional switcher mode,
+  BLOCKED on its own privacy analysis first (a density kernel over k-anonymized cells is NOT
+  suppression; blur ≠ k-anon).
 
 ---
 
@@ -125,7 +128,9 @@ airtight, k-anon display hermetic, H2 refuted live on both paths. Fixes by prior
    the write client) with a long timeout **only for builder reads**. Do this BEFORE enabling
    `CUBE_READS` at national scale. Related: **CB1** — cube reader hardcodes `truncated:false`
    (BA drill would break live-vs-cube parity + false completeness claim).
-4. **KA1/KA2 — differencing residual (PRIVACY, PO decision pending).** `complementarySuppress`
+4. **KA1/KA2 — differencing residual — ~~PO decision pending~~ RESOLVED 2026-07-11:
+   ACCEPTED AND DOCUMENTED** (`docs/architecture/privacy-known-limitations.md` — includes the
+   reopen triggers; do NOT implement the fix unless one fires). Original finding: `complementarySuppress`
    promotes exactly 1 sibling and doesn't widen to a feasible-interval ≥k (`anonymity.ts:~107-138`),
    while province density publishes RAW (`repository.ts:~940-962`) → `{A:1,B:5}` recoverable via
    the provincial density marginal. Also KA4 (narrow scrubber window on `mortalidad` can expose
