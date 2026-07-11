@@ -743,6 +743,38 @@ describe("resolveDisputeUseCase", () => {
     expect((second as { error: string }).error).toContain("no está abierta");
   });
 
+  // TR-M1: two concurrent resolves must serialize on the dispute row (FOR
+  // UPDATE). Exactly one wins; the loser gets a friendly "no está abierta"
+  // error — never a raw PG 23505 and never a second (duplicate) resolution.
+  it("serializes concurrent resolves: one wins cleanly, the other gets a friendly error", async () => {
+    const { disputeToken } = await seedOpenDispute(
+      generatePublicToken(),
+      "UC CD Resolve Concurrent",
+    );
+
+    const [a, b] = await Promise.all([
+      resolveDisputeUseCase(adminSession(), {
+        disputeToken,
+        resolution: "case_dismissed",
+        resolutionSummary: LONG_SUMMARY,
+      }),
+      resolveDisputeUseCase(adminSession(), {
+        disputeToken,
+        resolution: "case_dismissed",
+        resolutionSummary: LONG_SUMMARY,
+      }),
+    ]);
+
+    const winners = [a, b].filter((r) => "resolvedAt" in r);
+    const losers = [a, b].filter((r) => "error" in r);
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(1);
+    const loserError = (losers[0] as { error: string }).error;
+    expect(loserError).toContain("no está abierta");
+    // Not a raw Postgres unique-violation / duplicate-key leak.
+    expect(loserError).not.toMatch(/23505|duplicate key|violates/i);
+  });
+
   it("ownership_transferred rolls back atomically when schema rejects null 'from'", async () => {
     const { petId, disputeToken } = await seedOpenDispute(
       generatePublicToken(),

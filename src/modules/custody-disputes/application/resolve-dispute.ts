@@ -75,11 +75,20 @@ export async function resolveDisputeUseCase(
 
   try {
     const resolvedAt = await db.transaction(async (tx): Promise<Date> => {
+      // Lock the dispute row FOR UPDATE (TR-M1). Two concurrent resolves used to
+      // both pass the status check (stale reads) and race the writes — for
+      // ownership_transferred the unique-active-owner index backstopped but
+      // surfaced a raw 23505, and for the other outcomes there was NO backstop
+      // (double resolution, duplicate events + notifications). The row lock
+      // serializes them: the loser blocks until the winner commits, re-reads the
+      // now-resolved status here, and aborts with a clean es-AR error. Mirrors
+      // the FOR UPDATE pattern used by the sibling custody writers.
       const [dispute] = await tx
         .select()
         .from(custodyDisputes)
         .where(eq(custodyDisputes.publicToken, input.disputeToken))
-        .limit(1);
+        .limit(1)
+        .for("update");
       if (!dispute) throw new Error("Disputa no encontrada.");
       if (dispute.status !== "open") throw new Error("La disputa no está abierta.");
 
