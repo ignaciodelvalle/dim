@@ -4,8 +4,10 @@
 // esterilización, microchip, ppp) render with the 4-class THRESHOLD scale, NOT the
 // continuous amber/teal divergent scale. This test pins the legend side of that
 // change: a META'd province layer now shows DISCRETE class swatches whose ranges
-// equal the painted step breaks (<40% / 40–60% / 60–80% / ≥80% (meta)), and the old
-// divergent copy ("bajo meta" / "sobre meta") is gone.
+// equal the painted step breaks (<40% / 40–<60% / 60–<80% / ≥80% (meta)), and the
+// old divergent copy ("bajo meta" / "sobre meta") is gone. The "lo – <hi" interior
+// format (QA fix) disambiguates the half-open boundary: a value AT a break belongs
+// to the class that STARTS there, never the one that labels up to it.
 //
 // Pattern: renderToStaticMarkup (no jsdom needed — the legend is pure props → DOM).
 
@@ -64,8 +66,11 @@ describe("MapLegends — META'd rate layer renders the discrete threshold-class 
     // The 4 threshold classes: <40% / 40–60% / 60–80% / ≥80% (meta). `<` and `≥`
     // are HTML-escaped by renderToStaticMarkup, so assert on the numeric parts.
     expect(html).toContain("40%");
-    expect(html).toContain("40 – 60%");
-    expect(html).toContain("60 – 80%");
+    // Half-open disambiguation (QA fix): "lo – <hi" makes the exclusive upper
+    // bound explicit, so a value AT the break (e.g. 60) unambiguously reads as
+    // belonging to the class that starts there, not the one that ends there.
+    expect(html).toContain("40 – &lt;60%");
+    expect(html).toContain("60 – &lt;80%");
     // The top class is tagged as the compliance target.
     expect(html).toContain("80% (meta)");
   });
@@ -90,8 +95,8 @@ describe("MapLegends — META'd rate layer renders the discrete threshold-class 
       },
     };
     const html = renderLegend(metaLayer(), lifted);
-    expect(html).toContain("40 – 60%");
-    expect(html).toContain("60 – 80%");
+    expect(html).toContain("40 – &lt;60%");
+    expect(html).toContain("60 – &lt;80%");
     expect(html).toContain("80% (meta)");
     // The lifted class colors are the painted swatch backgrounds.
     expect(html).toContain("#0d0");

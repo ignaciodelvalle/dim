@@ -65,13 +65,20 @@ function formatBound(n: number): string {
 
 /** The value-range label for one class swatch (open-below / range / open-above).
  *  `unit` is appended to the numbers (e.g. "%" for rate layers); `meta` tags the
- *  open-above class as the compliance-target class ("≥ 80% (meta)"). */
+ *  open-above class as the compliance-target class ("≥ 80% (meta)").
+ *
+ *  Half-open disambiguation (QA fix): classing is [lo, hi) — a value exactly
+ *  AT a break belongs to the UPPER class (pinned by class-scale.test.ts). A
+ *  plain "lo – hi" label for two adjacent classes (e.g. "40 – 60" / "60 – 80")
+ *  never said which side 60 falls on. The interior range now reads
+ *  "lo – <hi" so the exclusive upper bound is explicit; the open-below/
+ *  open-above labels already used "<"/"≥" and were never ambiguous. */
 function swatchLabel(s: ClassSwatch, opts?: { unit?: string; meta?: boolean }): string {
   const u = opts?.unit ?? "";
   if (s.lo === null && s.hi === null) return "Todos";
   if (s.lo === null) return `< ${formatBound(s.hi as number)}${u}`;
   if (s.hi === null) return `≥ ${formatBound(s.lo)}${u}${opts?.meta ? " (meta)" : ""}`;
-  return `${formatBound(s.lo)} – ${formatBound(s.hi)}${u}`;
+  return `${formatBound(s.lo)} – <${formatBound(s.hi)}${u}`;
 }
 
 /**
