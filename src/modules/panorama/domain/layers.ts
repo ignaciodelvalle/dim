@@ -24,11 +24,11 @@ const UNIT: Record<AggregationLevel, string> = {
  * administrative DIVISION (PO "Option A"): the departamento/partido everywhere, the
  * barrio in CABA. Used by BOTH the division-fill choropleths (departamento polygon)
  * AND the folded aggregated-point layers (perdidas/mordeduras/denuncias/zoonosis/
- * sintomas — one graduated symbol per department centroid). The old shared
+ * sintomas/reunificacion — one graduated symbol per department centroid). The old shared
  * `UNIT.locality = "localidad"` mislabeled that tier ("es una localidad") while the
  * unit under it was a department. A feminine noun ("división") keeps the caption
  * template's "es una {unit}" grammar correct; the parenthetical names the concrete
- * unit at each scope. (reunificacion is NOT folded yet — it keeps UNIT.)
+ * unit at each scope.
  */
 const UNIT_DIVISION: Record<AggregationLevel, string> = {
   province: "provincia",
@@ -181,7 +181,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "muted",
-    caption: { unit: UNIT, measure: "tasa de reunificación", window: "period" },
+    caption: { unit: UNIT_DIVISION, measure: "tasa de reunificación", window: "period" },
   },
   {
     id: "refugios",

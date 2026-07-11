@@ -2226,27 +2226,33 @@ export async function loadReunificacionByUnit(
     for (const r of rows) {
       if (r.province) centroidByKey.set(r.province, { lat: r.centroidLat, lng: r.centroidLng });
     }
-  } else {
-    // rollupPetsPerLocality already resolves the locality centroid via the
-    // shared MIN(arLocalities.*) leftJoin — an empty whereExtra means every
-    // pet in scope counts toward centroid resolution (no metric predicate).
-    const rollup = await rollupPetsPerLocality([], scope);
-    for (const r of rollup) {
-      centroidByKey.set(r.key, { lat: r.centroidLat, lng: r.centroidLng });
-    }
   }
 
   const rollup: RollupRow[] = byUnit.map((u) => {
-    const key = level === "province" ? u.province : `${u.province}|${u.locality}`;
-    const centroid = centroidByKey.get(key);
+    if (level === "province") {
+      const centroid = centroidByKey.get(u.province);
+      return {
+        key: u.province,
+        province: u.province,
+        locality: u.locality ?? "",
+        centroidLat: centroid?.lat ?? null,
+        centroidLng: centroid?.lng ?? null,
+        // The value plotted IS the ratePct — the graduated symbol encodes the
+        // reunification rate, not an event count (spec: dataType "signal").
+        count: u.ratePct,
+      };
+    }
+    // Locality level: the fetcher folded the unit to its departamento/partido
+    // (barrio in CABA) and resolved that unit's centroid + INDEC department code,
+    // so consume them directly (no per-locality centroid re-resolution). The
+    // departmentCode threads to the map's unit-history drill (match by CODE).
     return {
-      key,
+      key: `${u.province}|${u.departmentCode ?? u.locality}`,
       province: u.province,
       locality: u.locality ?? "",
-      centroidLat: centroid?.lat ?? null,
-      centroidLng: centroid?.lng ?? null,
-      // The value plotted IS the ratePct — the graduated symbol encodes the
-      // reunification rate, not an event count (spec: dataType "signal").
+      centroidLat: u.centroidLat ?? null,
+      centroidLng: u.centroidLng ?? null,
+      departmentCode: u.departmentCode ?? null,
       count: u.ratePct,
     };
   });

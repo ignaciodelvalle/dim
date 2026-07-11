@@ -452,6 +452,8 @@ export function FeatureBody({
     case "reunificacion": {
       // Aggregated signal cell — the graduated-symbol count IS the D4
       // reunification ratePct (0–100), not an event count (see loadReunificacionByUnit).
+      // The detail tier now folds to the departamento/partido (barrio in CABA), so
+      // the unit noun follows unitRowLabel like the other folded layers.
       const isProvince = str(properties, "level") === "province";
       const suppressed = properties.suppressed === true;
       const place =
@@ -462,7 +464,7 @@ export function FeatureBody({
       return (
         <>
           <dl>
-            <Row label={isProvince ? "Provincia" : "Localidad"} value={place || "—"} />
+            <Row label={unitRowLabel(properties, isProvince)} value={place || "—"} />
             <Row
               label="Tasa de reunificación"
               value={

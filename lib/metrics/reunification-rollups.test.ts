@@ -30,6 +30,13 @@ const adminSdk = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: fa
 const PROV = "La Pampa";
 const LOC_A = "RR-LOC-A-uniq";
 const LOC_B = "RR-LOC-B-uniq";
+// Two REAL La Pampa localities that INDEC folds into the SAME department
+// (Caleu Caleu, 42014) — used to prove the Option-A department fold: each is
+// below k=5 alone, but folded together they clear it (item #4).
+const LOC_DEPT_1 = "Anzoátegui";
+const LOC_DEPT_2 = "La Adela";
+const DEPT_NAME = "Caleu Caleu";
+const DEPT_CODE = "42014";
 const TOKEN_PREFIX = "RR-TEST-";
 const OWNER_EMAIL = "reunification-rollups-owner@dim-test.local";
 
@@ -172,6 +179,43 @@ describe("fetchReunificationByUnit — locality level", () => {
 
     expect(result.byUnit.find((u) => u.locality === LOC_B)).toBeUndefined();
     expect(result.suppressedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("FOLDS member localities up to their department (Option A) before rate + k-anon", async () => {
+    // 3 lost in Anzoátegui + 2 lost in La Adela: each locality is below k=5 alone
+    // (pre-fold both would suppress), but they fold into ONE department (Caleu
+    // Caleu) whose 5-episode denominator clears k=5. The unit is labeled by the
+    // DEPARTMENT, carries its INDEC code, and resolves a folded centroid.
+    for (let i = 0; i < 3; i++) {
+      const p = await insertPet({ province: PROV, locality: LOC_DEPT_1 });
+      await emitStatusChange(p, "lost", new Date(Date.now() - (10 + i) * DAY_MS));
+      if (i === 0) await emitStatusChange(p, "active", new Date(Date.now() - 2 * DAY_MS));
+    }
+    for (let i = 0; i < 2; i++) {
+      const p = await insertPet({ province: PROV, locality: LOC_DEPT_2 });
+      await emitStatusChange(p, "lost", new Date(Date.now() - (9 + i) * DAY_MS));
+      if (i === 0) await emitStatusChange(p, "active", new Date(Date.now() - 1 * DAY_MS));
+    }
+
+    const result = await fetchReunificationByUnit(
+      govtCtx([
+        { province: PROV, locality: LOC_DEPT_1 },
+        { province: PROV, locality: LOC_DEPT_2 },
+      ]),
+      "locality",
+    );
+
+    // Both member localities collapse into a SINGLE department-grain unit — no
+    // bare-locality holdouts survive the fold.
+    expect(result.byUnit).toHaveLength(1);
+    const unit = result.byUnit[0];
+    expect(unit.locality).toBe(DEPT_NAME);
+    expect(unit.departmentCode).toBe(DEPT_CODE);
+    // The folded department clears k=5 (5 lost episodes) — nothing suppressed.
+    expect(result.suppressedCount).toBe(0);
+    // Folded centroid resolved from the member localities' ar_localities rows.
+    expect(unit.centroidLat).not.toBeNull();
+    expect(unit.centroidLng).not.toBeNull();
   });
 });
 

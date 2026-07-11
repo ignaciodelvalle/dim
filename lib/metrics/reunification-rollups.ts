@@ -24,16 +24,39 @@ import "server-only";
 // PROVINCE level cells are large enough that no suppression applies (mirrors
 // every other U5 province rollup in src/modules/panorama/infrastructure/repository.ts).
 
-import { and, eq, gte, inArray, isNotNull, lte, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 // Heavy read-only analytics — routed through the ANALYTICS pool (matches the
 // Panorama repository + lib/metrics/population-control.ts precedent).
-import { analyticsDb as db, petEvents, pets } from "@/db";
+import { arLocalities, analyticsDb as db, petEvents, pets } from "@/db";
+import { type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 import { suppressSmallCells } from "./anonymity";
 import type { ProjectionContext } from "./context";
 import { petsScopeClause } from "./scope";
+
+/**
+ * Locality-name fold for the ar_localities department join. Mirrors the
+ * repository's `normNameSql` (NFD-strip accents, lowercase, drop dots, collapse
+ * whitespace) so a pets.jurisdiction_locality free-text buckets to the SAME
+ * ar_localities row the choropleth loaders match in SQL. Kept in JS here because
+ * this module resolves the department map client-side (no per-episode SQL join —
+ * that would fan-out and inflate the lost-episode count).
+ */
+function normLoc(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/\./g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The province whose detail unit is the BARRIO (no ar_localities department) —
+ * mirrors build-features.ts aggregateCellsToDepartment. */
+const BARRIO_ONLY_PROVINCE = "CABA";
 
 /** True when a govt actor has zero assigned jurisdictions → return zero shapes, no DB hit. */
 function govtWithoutScope(ctx: ProjectionContext): boolean {
@@ -49,10 +72,20 @@ function pct(numerator: number, denominator: number): number {
 
 export type ReunificationByUnitRow = {
   province: string;
-  /** null at the PROVINCE aggregation level; the locality name at LOCALITY level. */
+  /** null at PROVINCE level; at LOCALITY level the DETAIL-UNIT label — the
+   * departamento/partido name (barrio in CABA) after the Option-A fold, NOT a
+   * bare locality. */
   locality: string | null;
   /** % of lost episodes in this unit that returned to active. */
   ratePct: number;
+  /** LOCALITY level only: INDEC department code of the folded unit (null for CABA
+   * barrios and localities that resolved no department). Threaded to the map's
+   * departmentCode so a unit-history drill matches member localities by CODE. */
+  departmentCode?: string | null;
+  /** LOCALITY level only: the folded department centroid (average of member
+   * locality centroids). Null when no member locality had a centroid. */
+  centroidLat?: string | null;
+  centroidLng?: string | null;
 };
 
 export type ReunificationByUnitKpi = {
@@ -170,16 +203,131 @@ export async function fetchReunificationByUnit(
     };
   }
 
-  // Locality level — k-anon on the DENOMINATOR (lostEpisodes), never on ratePct.
-  const { visible, suppressedCount } = suppressSmallCells(units, {
+  // Locality level — FOLD the per-locality num/den up to the departamento/partido
+  // (barrio in CABA) BEFORE the rate + k-anon (PO "Option A", the same fold every
+  // other detail-tier layer applies via aggregateCellsToDepartment). The k-anon
+  // then keys off the DEPARTMENT-grain DENOMINATOR, which clears k=5 far more
+  // often (multiple localities per department) — so reunificacion, the last
+  // locality-granularity holdout, joins the department tier. Folding a coarser
+  // unit is strictly MORE anonymising, never less.
+
+  // Resolve each locality's department + centroid from ar_localities (one grouped
+  // read over the involved provinces; matched in JS by the same name-fold the SQL
+  // choropleth loaders use). A per-episode SQL join would fan-out and inflate the
+  // lost-episode count, so the mapping is resolved separately and folded in JS.
+  const provinceCodes = [
+    ...new Set(
+      units
+        .map((u) => provinceByName(u.province)?.code)
+        .filter((c): c is ProvinceCode => Boolean(c)),
+    ),
+  ];
+  type LocInfo = {
+    code: string | null;
+    name: string | null;
+    lat: string | null;
+    lng: string | null;
+  };
+  const locInfo = new Map<string, LocInfo>();
+  if (provinceCodes.length > 0) {
+    const rows = await db
+      .select({
+        provinceCode: arLocalities.provinceCode,
+        localityName: arLocalities.localityName,
+        departmentCode: arLocalities.departmentCode,
+        departmentName: arLocalities.departmentName,
+        latitude: arLocalities.latitude,
+        longitude: arLocalities.longitude,
+      })
+      .from(arLocalities)
+      .where(
+        and(inArray(arLocalities.provinceCode, provinceCodes), isNull(arLocalities.removedAt)),
+      );
+    // Independent MIN per column (mirrors the loaders' MIN() aggregates: a known
+    // dev-only mislabel caveat when a (province, locality) is ambiguous — the same
+    // tradeoff aggregateCellsToDepartment carries).
+    for (const r of rows) {
+      const key = `${r.provinceCode}|${normLoc(r.localityName)}`;
+      const cur = locInfo.get(key) ?? { code: null, name: null, lat: null, lng: null };
+      if (r.departmentCode != null && (cur.code == null || r.departmentCode < cur.code)) {
+        cur.code = r.departmentCode;
+      }
+      if (r.departmentName != null && (cur.name == null || r.departmentName < cur.name)) {
+        cur.name = r.departmentName;
+      }
+      if (r.latitude != null && (cur.lat == null || Number(r.latitude) < Number(cur.lat))) {
+        cur.lat = r.latitude;
+      }
+      if (r.longitude != null && (cur.lng == null || Number(r.longitude) < Number(cur.lng))) {
+        cur.lng = r.longitude;
+      }
+      locInfo.set(key, cur);
+    }
+  }
+
+  type DeptAgg = {
+    province: string;
+    label: string;
+    departmentCode: string | null;
+    lostEpisodes: number;
+    recovered: number;
+    latSum: number;
+    lngSum: number;
+    centroidN: number;
+  };
+  const byDept = new Map<string, DeptAgg>();
+  for (const u of units) {
+    const provCode = provinceByName(u.province)?.code ?? "";
+    const info = locInfo.get(`${provCode}|${normLoc(u.locality ?? "")}`);
+    const isBarrio = u.province === BARRIO_ONLY_PROVINCE;
+    const deptCode = isBarrio ? null : (info?.code ?? null);
+    // CABA folds to the barrio (its own locality); elsewhere to the department
+    // code, or the locality's own bucket when no department resolved (never drop
+    // it — preserves the province-total reconciliation invariant).
+    const unitCode = isBarrio
+      ? `barrio:${u.locality}`
+      : deptCode
+        ? `dept:${deptCode}`
+        : `loc:${u.locality}`;
+    const key = `${u.province}|${unitCode}`;
+    let agg = byDept.get(key);
+    if (!agg) {
+      agg = {
+        province: u.province,
+        label: isBarrio ? (u.locality ?? "") : (info?.name ?? u.locality ?? ""),
+        departmentCode: deptCode,
+        lostEpisodes: 0,
+        recovered: 0,
+        latSum: 0,
+        lngSum: 0,
+        centroidN: 0,
+      };
+      byDept.set(key, agg);
+    }
+    agg.lostEpisodes += u.lostEpisodes;
+    agg.recovered += u.recovered;
+    const lat = info?.lat != null ? Number(info.lat) : Number.NaN;
+    const lng = info?.lng != null ? Number(info.lng) : Number.NaN;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      agg.latSum += lat;
+      agg.lngSum += lng;
+      agg.centroidN += 1;
+    }
+  }
+
+  // k-anon on the DEPARTMENT-grain DENOMINATOR (lostEpisodes), never on ratePct.
+  const { visible, suppressedCount } = suppressSmallCells([...byDept.values()], {
     count: (u) => u.lostEpisodes,
-    key: (u) => `${u.province}|${u.locality}`,
+    key: (u) => `${u.province}|${u.label}`,
     k: 5,
   });
-  const byUnit = (visible as unknown as UnitAgg[]).map((u) => ({
+  const byUnit = (visible as unknown as DeptAgg[]).map((u) => ({
     province: u.province,
-    locality: u.locality,
+    locality: u.label,
     ratePct: pct(u.recovered, u.lostEpisodes),
+    departmentCode: u.departmentCode,
+    centroidLat: u.centroidN > 0 ? String(u.latSum / u.centroidN) : null,
+    centroidLng: u.centroidN > 0 ? String(u.lngSum / u.centroidN) : null,
   }));
   return { byUnit, suppressedCount };
 }
