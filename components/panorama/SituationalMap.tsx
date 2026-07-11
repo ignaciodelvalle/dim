@@ -52,6 +52,8 @@ import {
   FRAMING_SNAP_MAX_ZOOM,
   type ProvinceBbox,
   Z_DIVISIONS,
+  cabaInView,
+  cabaInsetVisible,
   computeJurisdictionViewport,
   computePresetFrameViewport,
   computeProvinceBboxes,
@@ -767,9 +769,13 @@ export function SituationalMap({
   useEffect(() => {
     onProvinceSeqLegendChangeRef.current?.(provinceSeqLegend);
   }, [provinceSeqLegend]);
-  // cursor Part2 — the live camera zoom, tracked in state (not just the ref) so
-  // the CABA/AMBA inset panel can show at national scope and hide on drill.
-  const [insetZoom, setInsetZoom] = useState(AR_ZOOM);
+  // task #36 fix 1 — whether CABA is inside the current viewport. Flip-gated:
+  // the state (and its re-render) updates ONLY when the boolean crosses, so a
+  // pure pan that keeps CABA in/out of view costs nothing. The updater is a
+  // hoisted function declared below (like syncLayers) so the one-time
+  // construction effect can call it without a reactive-dep lint flag.
+  const [cabaViewportInView, setCabaViewportInView] = useState(true);
+  const cabaInViewRef = useRef(true);
 
   // --- One-time map construction (basemap only). ---------------------------
   useEffect(() => {
@@ -867,9 +873,6 @@ export function SituationalMap({
             }
           });
         }
-        // cursor Part2: drive the CABA inset visibility (shown at national scope,
-        // hidden once the operator drills past the division threshold).
-        setInsetZoom(z);
       });
       // PO directive 2026-07-07: divisions are ALSO zoom-driven. After the camera
       // settles (moveend covers both zoom and pan), re-resolve which province(s)
@@ -887,6 +890,10 @@ export function SituationalMap({
         // of them (fitBounds/flyTo settle with moveend); setMapZoom no-ops when the
         // value is unchanged, so a pure pan costs nothing.
         onZoomRef.current?.(map.getZoom());
+        // task #36 fix 1 — re-evaluate whether CABA is in view after every camera
+        // settle (pan or zoom). Flip-gated, so a pan that keeps CABA on the same
+        // side of the viewport edge triggers no re-render.
+        updateCabaInView(map);
         // "Copiar vista": mirror the settled camera (zoom + center) into the URL
         // so a shared link reproduces the exact frame. moveend coalesces a rapid
         // gesture, so this fires once per settle (not per frame).
@@ -1098,12 +1105,10 @@ export function SituationalMap({
             });
           }
         }
-        // cursor #9: sync insetZoom to the map's ACTUAL zoom after the initial
-        // fitBounds. insetZoom otherwise only updates on zoomend, so a govt
-        // jurisdiction that fits past Z_DIVISIONS would still show the CABA inset
-        // (initial visibility computed from the stale AR_ZOOM default) until the
-        // first user zoom gesture.
-        setInsetZoom(map.getZoom());
+        // task #36 fix 1 — seed the CABA-in-view flag from the actual initial
+        // frame (a govt jurisdiction that fits away from CABA hides the inset
+        // immediately, instead of showing it until the first user gesture).
+        updateCabaInView(map);
       });
     });
 
@@ -1122,6 +1127,22 @@ export function SituationalMap({
     };
     // Build the map ONCE; layer reconciliation happens in the effect below.
   }, []);
+
+  // task #36 fix 1 — recompute whether CABA is inside the current viewport and,
+  // when the boolean flips, push it into state so the inset predicate re-renders.
+  // Hoisted (declared here, after the construction effect) so that effect can call
+  // it without biome flagging a reactive dependency (matches the syncLayers idiom).
+  function updateCabaInView(map: maplibregl.Map) {
+    const b = map.getBounds();
+    const next = cabaInView([
+      [b.getWest(), b.getSouth()],
+      [b.getEast(), b.getNorth()],
+    ]);
+    if (next !== cabaInViewRef.current) {
+      cabaInViewRef.current = next;
+      setCabaViewportInView(next);
+    }
+  }
 
   // --- Reconcile layers whenever the prop changes. -------------------------
   // `layers` IS the trigger; syncLayers reads the latest via layersRef, so the
@@ -2925,7 +2946,16 @@ export function SituationalMap({
   // The layer the inset renders: the locality layer if present, else the
   // province layer ONLY when a CABA value resolved (avoids an empty panel).
   const insetLayer = insetLocalityLayer ?? (insetUniformFill !== null ? insetProvinceLayer : null);
-  const insetVisible = insetLayer !== null && insetZoom < Z_DIVISIONS;
+  // task #36 fix 1 (+ PBA addendum) — key on SCOPE + CABA-in-viewport, not zoom.
+  // National scope shows the AMBA magnifier whenever CABA is in the viewport;
+  // CABA and PBA drills keep it; any other province hides it.
+  const insetVisible = cabaInsetVisible({
+    hasInsetLayer: insetLayer !== null,
+    scopeProvince: selectedProvinceCode ?? null,
+    scopeIsCaba: selectedProvinceCode != null && isCABA(selectedProvinceCode),
+    scopeIsPba: selectedProvinceCode === "AR-B",
+    cabaInView: cabaViewportInView,
+  });
 
   // Keyboard: Escape dismisses the pinned popup (Esri "documents are closeable").
   // The popup's ✕ + "Ver detalle" are real, tab-reachable buttons; this adds the

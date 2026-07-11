@@ -313,6 +313,56 @@ export const Z_DIVISIONS = 6.5;
 /** A [[minLng,minLat],[maxLng,maxLat]] bounding box. */
 export type Bbox = [[number, number], [number, number]];
 
+// ---------------------------------------------------------------------------
+// CABA / AMBA inset visibility (task #36 fix 1 + PBA addendum)
+// ---------------------------------------------------------------------------
+//
+// The old gate keyed on ZOOM alone (`insetZoom < Z_DIVISIONS`), which was wrong
+// in both directions: it kept the inset up when the operator panned AWAY from
+// CABA at regional zoom, and it hid the inset in the national overview where the
+// AMBA magnifier is most useful. The correct predicate keys on SCOPE + whether
+// CABA is actually in the viewport.
+
+/** The CABA bbox used for the in-viewport intersection test (mirrors
+ * CabaInset's own CABA_BBOX camera frame). */
+export const CABA_INSET_BBOX: Bbox = [
+  [-58.531, -34.705],
+  [-58.335, -34.526],
+];
+
+/** True when CABA falls inside the current camera viewport bbox. */
+export function cabaInView(cameraBbox: Bbox | null): boolean {
+  return cameraBbox != null && bboxesIntersect(cameraBbox, CABA_INSET_BBOX);
+}
+
+/**
+ * Whether the CABA/AMBA inset should render right now (task #36 fix 1).
+ *
+ *  - No inset layer available → never.
+ *  - A province is in scope (drilled): the inset stays ONLY for CABA itself and
+ *    for Provincia de Buenos Aires (addendum — PBA surrounds CABA, so its framed
+ *    view keeps the magnifier). Any OTHER province hides it, even though BA's own
+ *    bbox would enclose CABA — the scope decision beats the geometry test.
+ *  - National scope: show the AMBA magnifier only when CABA is actually within
+ *    the viewport (true at the zoomed-out national overview; false once the
+ *    operator has panned/zoomed CABA off-screen).
+ *
+ * Pure — the caller supplies `cabaInView` (computed from the live camera bbox)
+ * so this stays testable without a map.
+ */
+export function cabaInsetVisible(params: {
+  hasInsetLayer: boolean;
+  scopeProvince: string | null;
+  scopeIsCaba: boolean;
+  scopeIsPba: boolean;
+  cabaInView: boolean;
+}): boolean {
+  const { hasInsetLayer, scopeProvince, scopeIsCaba, scopeIsPba, cabaInView } = params;
+  if (!hasInsetLayer) return false;
+  if (scopeProvince != null) return scopeIsCaba || scopeIsPba;
+  return cabaInView;
+}
+
 /** True when two bounding boxes overlap (inclusive edges). Cheap AABB test. */
 export function bboxesIntersect(a: Bbox, b: Bbox): boolean {
   const [[aMinLng, aMinLat], [aMaxLng, aMaxLat]] = a;
