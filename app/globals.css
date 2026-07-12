@@ -226,7 +226,7 @@
   --color-ln-op-ink: #16252f;
   --color-ln-op-ink-2: #36454f;
   --color-ln-op-mute: #616c76; /* darkened from #66727c — 4.73:1 on #eef1f4 (was 4.35:1, WCAG AA fail on the k-anon chip / muted meta) */
-  --color-ln-op-faint: #6a7580; /* darkened from #95a0a8 — 4.70:1 on #fff (was 2.67:1, WCAG AA fail on layer/hint helper copy) */
+  --color-ln-op-faint: #646f79; /* darkened from #6a7580 — 4.53:1 on the #eef1f4 page canvas (prev 4.14:1 failed AA there; 5.13:1 on #fff). Still lighter than mute (#616c76) so the mute→faint hierarchy holds. */
 
   /* Rail text (on navy background) */
   --color-ln-op-rail-text: #dce6f1;

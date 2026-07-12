@@ -119,6 +119,24 @@ Audited as part of the `st-*` semantic token layer (design PR-1, branch `fix/ope
 
 ---
 
+## Actualización — 2026-07-12
+
+### Panorama a11y round — tokens de texto muted del operador (`ln-op-mute` / `ln-op-faint` / `ln-op-rail-mute`)
+
+La auditoría a11y de la consola Panorama (axe-core + medición manual, `docs/reviews/2026-07-12-panorama-a11y-audit.md`) oscureció tres tokens de texto secundario del skin operador. Las metas 9-10px del rail, la copia de ayuda por capa y el chip k-anon fallaban AA sobre sus superficies. Medido con la fórmula WCAG 2.1 (ver "Cómo se midió"), sobre las DOS superficies operador reales: la tarjeta blanca (`#ffffff`, chrome flotante sobre el mapa) y el lienzo de página (`--color-ln-op-page` `#eef1f4`, fondo del AppShell operador y color de tierra del basemap).
+
+| Token | Valor anterior | Valor vigente | Superficie | Ratio | Veredicto |
+| --- | --- | --- | --- | --- | --- |
+| `--color-ln-op-mute` | `#66727c` | `#616c76` | `#eef1f4` (page) | **4.73 : 1** | ✅ AA (antes 4.35:1 ❌) |
+| `--color-ln-op-mute` | `#66727c` | `#616c76` | `#ffffff` (card) | **5.36 : 1** | ✅ AA |
+| `--color-ln-op-faint` | `#95a0a8` → `#6a7580` | `#646f79` | `#eef1f4` (page) | **4.53 : 1** | ✅ AA (el paso intermedio `#6a7580` daba 4.14:1 ❌ sobre `#eef1f4` — solo pasaba sobre blanco; re-oscurecido en la ronda 2 de review) |
+| `--color-ln-op-faint` | `#95a0a8` → `#6a7580` | `#646f79` | `#ffffff` (card) | **5.13 : 1** | ✅ AA |
+| `--color-ln-op-rail-mute` | `#7c93ac` | `#93a8bf` | `#0a3556` (navy rail) | **5.19 : 1** | ✅ AA (antes 4.00:1 ❌) |
+
+**Notas:**
+- `--color-ln-op-faint` (`#646f79`) queda apenas más claro que `--color-ln-op-mute` (`#616c76`), preservando la jerarquía mute → faint; ambos pasan AA sobre las dos superficies. La ronda a11y inicial lo había dejado en `#6a7580`, que solo pasaba sobre blanco (su comentario reclamaba únicamente `#fff`); la ronda 2 lo re-oscureció para cubrir también `#eef1f4`.
+- `--color-ln-op-rail-mute` (`#93a8bf`) está **reservado a la banda navy del rail** (`#0a3556`): sobre blanco/`#eef1f4` da ~2.4:1 y NO debe usarse ahí (es un aclarado deliberado para levantar contraste sobre navy, el inverso de los otros dos).
+
 ## Cuándo re-auditar
 
 - Cuando se agregue un nuevo `--color-*` token a `app/globals.css`.
