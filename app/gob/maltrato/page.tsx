@@ -29,6 +29,7 @@ import {
 import { and, count, desc } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
+import { InspectorMounter } from "./_inspector/InspectorMounter";
 
 const PAGE_SIZE = 50;
 const VALID_QUEUES: MaltratoQueue[] = ["urgent", "unassigned", "mine", "all", "overdue"];
@@ -215,8 +216,9 @@ export default async function GobMaltratoPage({
   ];
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="flex flex-col gap-6 lg:h-full lg:min-h-0">
+      {/* Top section — pinned above the master/detail split (full width) */}
+      <div className="space-y-6 lg:flex-shrink-0">
         {/* Page header */}
         <header className="space-y-1">
           <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
@@ -290,61 +292,77 @@ export default async function GobMaltratoPage({
             }}
           />
         </div>
-
-        {/* Queue tabs + list card */}
-        <Suspense>
-          <UrlTabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
-            {TABS.map((tab) => (
-              <UrlTabsContent key={tab.value} value={tab.value}>
-                <OpCard className="mt-4">
-                  <OpCardHead title={`Denuncias (${totalCount})`} />
-                  <OpCardBody>
-                    {rows.length === 0 ? (
-                      <p className="text-sm text-ln-op-mute py-4 text-center">
-                        No hay denuncias que coincidan con los filtros seleccionados.
-                      </p>
-                    ) : (
-                      <ul className="space-y-2">
-                        {rows.map((r) => (
-                          <WelfareDenunciaRow key={r.id} report={r} />
-                        ))}
-                      </ul>
-                    )}
-                    {(newerLink || olderLink) && (
-                      <nav
-                        aria-label="Paginación de denuncias"
-                        className="mt-4 flex items-center justify-between gap-2 text-sm"
-                      >
-                        <span className="text-ln-op-mute">{totalCount} denuncias en total</span>
-                        <div className="flex gap-2">
-                          {newerLink && (
-                            <a
-                              href={newerLink}
-                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
-                            >
-                              ← Volver al inicio
-                            </a>
-                          )}
-                          {olderLink && (
-                            <a
-                              href={olderLink}
-                              className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
-                            >
-                              Ver más antiguas →
-                            </a>
-                          )}
-                        </div>
-                      </nav>
-                    )}
-                  </OpCardBody>
-                </OpCard>
-              </UrlTabsContent>
-            ))}
-          </UrlTabs>
-        </Suspense>
-
-        <DashboardFreshnessFooter ctx={freshnessCtx} />
       </div>
-    </main>
+
+      {/* Master / detail split — list (~40%) + inspector (~60%). On lg each
+          column owns its scroll; below lg they stack and the inspector flips to
+          an overlay drawer (InspectorMounter container classes). */}
+      <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row">
+        {/* Master — queue tabs + list (own scroll on lg) */}
+        <div className="flex min-w-0 flex-col lg:w-2/5 lg:min-h-0 lg:overflow-y-auto">
+          <Suspense>
+            <UrlTabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
+              {TABS.map((tab) => (
+                <UrlTabsContent key={tab.value} value={tab.value}>
+                  <OpCard className="mt-4">
+                    <OpCardHead title={`Denuncias (${totalCount})`} />
+                    <OpCardBody>
+                      {rows.length === 0 ? (
+                        <p className="text-sm text-ln-op-mute py-4 text-center">
+                          No hay denuncias que coincidan con los filtros seleccionados.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {rows.map((r) => (
+                            <WelfareDenunciaRow key={r.id} report={r} />
+                          ))}
+                        </ul>
+                      )}
+                      {(newerLink || olderLink) && (
+                        <nav
+                          aria-label="Paginación de denuncias"
+                          className="mt-4 flex items-center justify-between gap-2 text-sm"
+                        >
+                          <span className="text-ln-op-mute">{totalCount} denuncias en total</span>
+                          <div className="flex gap-2">
+                            {newerLink && (
+                              <a
+                                href={newerLink}
+                                className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
+                              >
+                                ← Volver al inicio
+                              </a>
+                            )}
+                            {olderLink && (
+                              <a
+                                href={olderLink}
+                                className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
+                              >
+                                Ver más antiguas →
+                              </a>
+                            )}
+                          </div>
+                        </nav>
+                      )}
+                    </OpCardBody>
+                  </OpCard>
+                </UrlTabsContent>
+              ))}
+            </UrlTabs>
+          </Suspense>
+
+          <div className="mt-4">
+            <DashboardFreshnessFooter ctx={freshnessCtx} />
+          </div>
+        </div>
+
+        {/* Detail — the inspector reacts to ?caso= / &mascota= (shallow history) */}
+        <div className="lg:w-3/5 lg:min-h-0 lg:overflow-y-auto">
+          <Suspense>
+            <InspectorMounter />
+          </Suspense>
+        </div>
+      </div>
+    </div>
   );
 }
