@@ -52,6 +52,17 @@ export type PanoramaPreset = {
    */
   signal?: LayerId;
   /**
+   * The layer the Estadísticas ranking ("Peores N") ranks by — the preset's
+   * PRIMARY question metric (Cowork QA ronda 3 §4, P2.5). Defaults to `base`
+   * (the choropleth) when absent, which is correct for the compliance/density
+   * presets whose question IS the base measure. Set it only when the base is a
+   * backdrop and the question is about the SIGNAL overlay: `brotes-activos` maps
+   * cobertura (base backdrop) but asks "¿dónde hay brotes?", so its ranking must
+   * order by the zoonosis SIGNAL, not by coverage. Must be one of the preset's
+   * activated layers ([base, signal, ...references]) so its features are loaded.
+   */
+  rankBy?: LayerId;
+  /**
    * Optional reference layers (dataType "reference").
    * Unlimited — reference layers are always compatible.
    */
@@ -102,6 +113,10 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     base: "cobertura",
     // signal: zoonosis (outbreak_signals proportional symbols over the choropleth).
     signal: "zoonosis",
+    // P2.5: the question is "¿dónde hay brotes?" — rank by the zoonosis SIGNAL
+    // (the outbreak measure), not the cobertura backdrop, so "Peores N" answers
+    // "peores por brotes" instead of silently ranking coverage.
+    rankBy: "zoonosis",
     level: "province",
     periodPreset: "90d",
     // Fase 1 framing demonstrator: an outbreak overview is a national question —

@@ -25,9 +25,36 @@ describe("RankedUnitsPanel — visible column labels (Round-2 review #2)", () =>
   it("shows a visible caption naming the active layer's measure and the gap column", () => {
     render(<RankedUnitsPanel rows={RATE_ROWS} kind="rate" measureLabel="cobertura antirrábica" />);
 
-    // The measure label reflects the ACTIVE layer, not a hardcoded word.
-    expect(screen.getByText(/cobertura antirrábica/i)).toBeInTheDocument();
+    // The measure label reflects the ACTIVE layer, not a hardcoded word. It now
+    // appears BOTH in the header ("Peores N · {métrica}", P2.5) and the column
+    // caption, so assert at least one visible occurrence.
+    expect(screen.getAllByText(/cobertura antirrábica/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/pts vs objetivo/i)).toBeInTheDocument();
+  });
+
+  it("names the ranking metric in the header so 'peores en qué' is answerable (P2.5)", () => {
+    render(<RankedUnitsPanel rows={RATE_ROWS} kind="rate" measureLabel="señales de zoonosis" />);
+
+    // Header reads "Peores N · {métrica}", not a bare "Peores N jurisdicciones".
+    expect(
+      screen.getByRole("heading", { name: /peores 2 · señales de zoonosis/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("reframes the header for a small scope ('Tus N …') instead of 'Peores' (P2.5)", () => {
+    render(
+      <RankedUnitsPanel
+        rows={RATE_ROWS}
+        kind="rate"
+        measureLabel="cobertura antirrábica"
+        scopeFallback
+        unitNoun="comunas"
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: /tus 2 comunas · cobertura antirrábica/i }),
+    ).toBeInTheDocument();
   });
 
   it("reflects a DIFFERENT active layer's measure instead of a hardcoded word", () => {
@@ -35,7 +62,7 @@ describe("RankedUnitsPanel — visible column labels (Round-2 review #2)", () =>
       <RankedUnitsPanel rows={RATE_ROWS} kind="rate" measureLabel="cobertura de esterilización" />,
     );
 
-    expect(screen.getByText(/cobertura de esterilización/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/cobertura de esterilización/i).length).toBeGreaterThan(0);
   });
 
   it("the gap's aria-label carries the actual figure, not just the relationship name", () => {

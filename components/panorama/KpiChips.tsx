@@ -92,6 +92,17 @@ type Props = {
   onRebase: (layerId: LayerId) => void;
   pending?: boolean;
   degraded?: boolean;
+  /**
+   * Cowork QA ronda 3 §5 (C2, P2.4): true while a temporal frame is active
+   * (the scrubber is off the live edge, `asOf` set). STOCK KPIs (`currentState`)
+   * are "estado actual" by the HYBRID design — their big number does NOT move
+   * with the scrubber, while the map + label + temporal/signal KPIs do. When a
+   * temporal frame is active this EMPHASIZES the "estado actual" tag on those
+   * stock cards so the not-tracking reads as intentional, never as a stuck bug.
+   * Temporal KPIs carry no `currentState` flag, so they are never tagged here —
+   * honoring the hybrid (only stock KPIs get the "no varía" signal).
+   */
+  temporalFrameActive?: boolean;
 };
 
 /** The BASE-role map layer a KPI id can paint, or null (signal/no layer). */
@@ -126,6 +137,7 @@ export function KpiChips({
   onRebase,
   pending = false,
   degraded = false,
+  temporalFrameActive = false,
 }: Props) {
   // Roving tabindex (WAI-ARIA radiogroup pattern, mirrors PresetPanel.tsx).
   // Hooks must run unconditionally, ahead of the degraded/pending/empty early
@@ -264,7 +276,13 @@ export function KpiChips({
               className={`${cardClass} cursor-not-allowed opacity-70`}
               title={`${title} · ${PROVINCE_ONLY_TOOLTIP}`}
             >
-              <CardBody kpi={kpi} presetId={presetId} active={false} isSelectable={false} />
+              <CardBody
+                kpi={kpi}
+                presetId={presetId}
+                active={false}
+                isSelectable={false}
+                temporalFrameActive={temporalFrameActive}
+              />
             </div>
           );
         }
@@ -279,14 +297,26 @@ export function KpiChips({
             role="radio"
             aria-checked={active}
             tabIndex={pos === rovingPos ? 0 : -1}
-            title={`${title} · Click para pintar el mapa por esta métrica.`}
+            // Cowork QA ronda 3 §1 (C4, P3.7): the tooltip used to promise "pintar
+            // el mapa por esta métrica" flat — but the aggregate can exist while the
+            // per-unit detail is k-suppressed, so a click sometimes lands on "Sin
+            // datos por unidad" and the promise reads as a lie. State the caveat so
+            // the affordance is honest. (The deeper radio-vs-checkbox model fix is
+            // WS-4 / ViewState P2 — this only corrects the copy.)
+            title={`${title} · Click para pintar el mapa por esta métrica (el detalle por unidad puede estar protegido por k<5).`}
             onClick={() => {
               if (!active) onRebase(baseId);
             }}
             onKeyDown={(e) => handleKeyDown(e, pos)}
             className={`${cardClass} transition-colors hover:border-ln-op-celeste`}
           >
-            <CardBody kpi={kpi} presetId={presetId} active={active} isSelectable />
+            <CardBody
+              kpi={kpi}
+              presetId={presetId}
+              active={active}
+              isSelectable
+              temporalFrameActive={temporalFrameActive}
+            />
           </button>
         ) : (
           // H8 (cowork QA): a KPI with no BASE map layer (zoonosis, denuncias…) is
@@ -302,7 +332,13 @@ export function KpiChips({
             className={`${cardClass} cursor-default`}
             title={`${title} · Indicador de referencia: no pinta el mapa.`}
           >
-            <CardBody kpi={kpi} presetId={presetId} active={active} isSelectable={false} />
+            <CardBody
+              kpi={kpi}
+              presetId={presetId}
+              active={active}
+              isSelectable={false}
+              temporalFrameActive={temporalFrameActive}
+            />
           </div>
         );
       })}
@@ -328,11 +364,13 @@ function CardBody({
   presetId,
   active,
   isSelectable,
+  temporalFrameActive = false,
 }: {
   kpi: PanoramaKpi;
   presetId: PresetId | null;
   active: boolean;
   isSelectable: boolean;
+  temporalFrameActive?: boolean;
 }) {
   const label = shortKpiLabel(presetId, kpi.id, kpi.label);
   const spark = kpi.sparkline;
@@ -367,15 +405,22 @@ function CardBody({
           <Sparkline points={spark} width={64} height={18} ariaLabel={`Tendencia de ${label}`} />
         )}
       </div>
-      {/* Coherence hybrid (cowork QA H1): a STOCK KPI does not move with the
-          scrubber — say so, so the operator reads the scrubber's non-effect as
-          intentional (the map + temporal KPIs move; this snapshot does not). */}
+      {/* Coherence hybrid (cowork QA H1 / P2.4): a STOCK KPI does not move with
+          the scrubber — say so, so the operator reads the scrubber's non-effect
+          as intentional (the map + temporal KPIs move; this snapshot does not).
+          While a temporal frame is active the tag is EMPHASIZED (a warn-toned
+          pill + an explicit "no varía con la fecha") so the frozen big number is
+          never mistaken for a stuck bug — the not-tracking is honest by design. */}
       {kpi.currentState && (
         <span
-          className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          className={`text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] ${
+            temporalFrameActive
+              ? "w-fit rounded-[var(--radius-sm)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-ln-op-warn"
+              : "text-ln-op-faint"
+          }`}
           title="Valor de estado actual: no cambia con la línea de tiempo (la reproducción mueve el mapa y los indicadores temporales)."
         >
-          estado actual
+          {temporalFrameActive ? "estado actual · no varía con la fecha" : "estado actual"}
         </span>
       )}
       {/* Coherence hybrid (cowork QA H6): the clearly-labeled secondary figure

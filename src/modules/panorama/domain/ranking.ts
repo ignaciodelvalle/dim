@@ -117,3 +117,50 @@ export function rankWorstUnits(features: FeatureCollection, opts: RankOptions): 
   rows.sort((a, b) => (opts.kind === "rate" ? (b.gap ?? 0) - (a.gap ?? 0) : b.value - a.value));
   return rows.slice(0, limit);
 }
+
+/**
+ * Rank EVERY administrative unit in scope by the metric — the small-scope
+ * fallback (Cowork QA ronda 3 §4, P2.5). A jurisdiction operator with fewer
+ * than a full Worst-N of units (e.g. CABA · 5 comunas) never has "10 worst
+ * jurisdictions" to show; `rankWorstUnits` (rate) drops every at/above-meta
+ * unit, so it can come back empty and the panel wrongly reads "sin datos
+ * suficientes" while Registros lists the same units with values. This orders
+ * ALL non-suppressed units so the operator sees "tus N unidades, ordenadas por
+ * {métrica}":
+ *
+ *  - `rate`: every unit with a numeric value, WORST coverage first (value
+ *    ascending). `gap` = target − value only when strictly below meta (so the
+ *    panel's "−N pts" chip still shows for below-meta units and is omitted for
+ *    at/above-meta ones — no misleading "−(negative)").
+ *  - `density`: identical to `rankWorstUnits` (all units by count descending).
+ *
+ * Suppressed / non-numeric cells are excluded (privacy invariant), exactly as
+ * `rankWorstUnits`. Returns at most `limit` rows (default 10).
+ */
+export function rankUnitsInScope(features: FeatureCollection, opts: RankOptions): RankedUnit[] {
+  const limit = opts.limit ?? DEFAULT_LIMIT;
+  const rows: RankedUnit[] = [];
+
+  for (const f of features.features) {
+    const p = f.properties as UnitProps;
+    if (p.suppressed === true) continue;
+
+    const id = identify(p);
+    if (id === null) continue;
+
+    if (opts.kind === "rate") {
+      if (typeof p.value !== "number") continue;
+      const target = opts.target ?? 0;
+      const gap = target - p.value;
+      // Keep the unit regardless of meta; only carry a gap when below meta.
+      rows.push({ key: id.key, label: id.label, value: p.value, gap: gap > 0 ? gap : null });
+    } else {
+      if (typeof p.count !== "number") continue;
+      rows.push({ key: id.key, label: id.label, value: p.count, gap: null });
+    }
+  }
+
+  // rate → worst coverage first (lowest value); density → highest count first.
+  rows.sort((a, b) => (opts.kind === "rate" ? a.value - b.value : b.value - a.value));
+  return rows.slice(0, limit);
+}

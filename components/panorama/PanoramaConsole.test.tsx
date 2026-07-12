@@ -329,14 +329,13 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
       const params = new URLSearchParams(window.location.search);
       expect(params.get("layers")).toBe("zoonosis,cobertura");
     });
-    // Missing capasDetail/scrubDetail default to Simple (false) — both
-    // Simple/Detalle toggles read "Simple" as pressed. (Open the Capas popover
-    // so the toggle mounts — layers are secondary chrome in the redesign.)
+    // P3.6: the Simple/Detalle toggle was removed from Capas — the panel always
+    // renders full detail now, so opening it mounts NO Simple/Detalle button.
+    // (A legacy board with/without capasDetail restores without crashing.)
     openFiltro();
-    expect(screen.getByRole("button", { name: "Modo simple de Capas del mapa" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.queryByRole("button", { name: "Modo simple de Capas del mapa" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -563,7 +562,10 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
     // The PeriodPanel highlight follows the restored window (committedPeriod).
     openPeriodo();
     expect(screen.getByRole("button", { name: "30 días" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 });
 
@@ -635,25 +637,27 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     const stats = screen.getByRole("tab", { name: /Estadísticas/ });
     const timeline = screen.getByRole("tab", { name: /Línea de tiempo/ });
 
-    // Only the active tab (Registros, the default) is Tab-stoppable.
-    expect(registros).toHaveAttribute("tabindex", "0");
-    expect(stats).toHaveAttribute("tabindex", "-1");
+    // Only the active tab is Tab-stoppable. C10 (P3.6): the dock now defaults to
+    // "Estadísticas" (not "Registros 0", which read as a false "vacío"), so it is
+    // the selected + Tab-stoppable tab.
+    expect(stats).toHaveAttribute("tabindex", "0");
+    expect(registros).toHaveAttribute("tabindex", "-1");
     expect(timeline).toHaveAttribute("tabindex", "-1");
 
     // ArrowRight moves FOCUS to the next tab, without switching the pane.
-    registros.focus();
-    fireEvent.keyDown(registros, { key: "ArrowRight" });
-    expect(stats).toHaveFocus();
-    expect(stats).toHaveAttribute("tabindex", "0");
-    expect(registros).toHaveAttribute("tabindex", "-1");
+    stats.focus();
+    fireEvent.keyDown(stats, { key: "ArrowRight" });
+    expect(timeline).toHaveFocus();
+    expect(timeline).toHaveAttribute("tabindex", "0");
+    expect(stats).toHaveAttribute("tabindex", "-1");
     // Selection did NOT follow focus (manual activation): still collapsed,
-    // Registros still the selected tab.
-    expect(registros).toHaveAttribute("aria-selected", "true");
+    // Estadísticas still the selected tab.
+    expect(stats).toHaveAttribute("aria-selected", "true");
     // Still collapsed: the panel is present but hidden (no pane switch on focus).
     expect(document.getElementById("pano-dock-panel")).toHaveAttribute("hidden");
 
     // End → last, Home → first.
-    fireEvent.keyDown(stats, { key: "End" });
+    fireEvent.keyDown(timeline, { key: "End" });
     expect(timeline).toHaveFocus();
     fireEvent.keyDown(timeline, { key: "Home" });
     expect(registros).toHaveFocus();
@@ -907,17 +911,27 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
         (b) => b.closest("details:not([open])") === null,
       ).length,
     ).toBeGreaterThanOrEqual(6);
-    // The "Filtro" trigger is visible at first paint (not behind a disclosure);
-    // the Simple/Detalle toggle only mounts once the rail panel is opened.
+    // The "Filtro" trigger is visible at first paint (not behind a disclosure).
     const capasBtn = screen.getByRole("button", { name: "Capas del mapa", expanded: false });
     expect(capasBtn).toBeVisible();
     expect(capasBtn.closest("details:not([open])")).toBeNull();
+    // P3.6: the Simple/Detalle toggle was removed from Capas (consistency with
+    // the other rail panels) — the panel now always renders full detail, so no
+    // Simple/Detalle button ever mounts, even after opening the panel.
     expect(
       screen.queryByRole("button", { name: "Modo simple de Capas del mapa" }),
     ).not.toBeInTheDocument();
     openFiltro();
-    expect(screen.getByRole("button", { name: "Modo simple de Capas del mapa" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Modo simple de Capas del mapa" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Modo detalle de Capas del mapa" }),
+    ).not.toBeInTheDocument();
+    // P3.6: with detail always on, the open Capas panel shows per-layer opacity
+    // sliders (range inputs) for active layers — close it so the scrubber range
+    // check below is not confounded by them.
+    fireEvent.keyDown(document, { key: "Escape" });
     // The dock bar is first-paint (collapsed): its three tabs are reachable but
     // no pane content mounts yet — the scrubber arrives on the timeline tab.
     expect(screen.getByTestId("panorama-dock")).toBeVisible();
@@ -994,11 +1008,11 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     expect(
       screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
     ).toBeInTheDocument();
-    // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
-    // tier — FiltroPanel renders the checkbox rows directly (LayerPanel is no
-    // longer mounted), so click the zoonosis row's checkbox for real.
+    // Task #38 v3: the layer catalog is the Filtro rail panel — FiltroPanel
+    // renders the checkbox rows directly (LayerPanel is no longer mounted). P3.6:
+    // the Simple/Detalle toggle was removed; the panel always shows full detail,
+    // so just open it and click the zoonosis row's checkbox for real.
     openFiltro();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" }));
 
     // zoonosis is temporal — activating it must flip temporalAvailable true.
     await act(async () => {
@@ -1279,11 +1293,11 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
   it("aborts a superseded in-flight fetch; the abort NEVER deactivates the layer; last click wins", async () => {
     deferMode = true;
     renderRedesignConsole();
-    // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
-    // tier — FiltroPanel renders the cobertura row's checkbox + live
-    // loading/count spans directly (LayerPanel is no longer mounted).
+    // Task #38 v3: the layer catalog is the Filtro rail panel — FiltroPanel
+    // renders the cobertura row's checkbox + live loading/count spans directly
+    // (LayerPanel is no longer mounted). P3.6: no Simple/Detalle toggle; full
+    // detail always shows, so just open the panel.
     openFiltro();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" }));
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
     openVista();
@@ -1468,11 +1482,10 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     // brotes-activos: base cobertura (non-temporal) + signal zoonosis (temporal).
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
-    // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
-    // tier — FiltroPanel renders the checkbox rows directly (LayerPanel is no
-    // longer mounted).
+    // Task #38 v3: the layer catalog is the Filtro rail panel — FiltroPanel
+    // renders the checkbox rows directly (LayerPanel is no longer mounted). P3.6:
+    // no Simple/Detalle toggle; full detail always shows.
     openFiltro();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" }));
 
     // Start a scrub — the loop chip is enabled as soon as zoonosis is active
     // (activation is synchronous; it doesn't wait on the layer fetch).
@@ -1719,11 +1732,13 @@ describe("PanoramaConsole — saved-board Simple/Detalle strict boolean coercion
       const params = new URLSearchParams(window.location.search);
       expect(params.get("layers")).toBe("cobertura");
     });
+    // P3.6: the Capas Simple/Detalle toggle was removed — a corrupt saved
+    // capasDetail/scrubDetail must still restore without crashing (it is coerced
+    // and kept for persistence continuity), and no Simple/Detalle button mounts.
     openFiltro();
-    expect(screen.getByRole("button", { name: "Modo simple de Capas del mapa" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.queryByRole("button", { name: "Modo simple de Capas del mapa" }),
+    ).not.toBeInTheDocument();
   });
 });
 

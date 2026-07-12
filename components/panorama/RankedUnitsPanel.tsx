@@ -24,6 +24,16 @@ type Props = {
   kind: RankingKind;
   /** es-AR label of the ranked measure (e.g. "cobertura antirrábica"). */
   measureLabel: string;
+  /**
+   * Small-scope fallback (Cowork QA ronda 3 §4, P2.5): true when the scope holds
+   * fewer than a full Worst-N of units, so `rows` is EVERY in-scope unit ordered
+   * by the metric (not a "worst 10"). Reframes the header from "Peores N" to
+   * "Tus N {unitNoun}" so a jurisdiction operator with e.g. 5 comunas sees their
+   * units ordered instead of the misleading "sin datos suficientes".
+   */
+  scopeFallback?: boolean;
+  /** es-AR plural unit noun for the fallback header (comunas/localidades/…). */
+  unitNoun?: string;
   /** The unit key currently highlighted on the map (hover sync), or null. */
   highlightedKey?: string | null;
   /** Fired on row hover/focus (key) and blur/leave (null). */
@@ -49,18 +59,27 @@ export function RankedUnitsPanel({
   rows,
   kind,
   measureLabel,
+  scopeFallback = false,
+  unitNoun = "jurisdicciones",
   highlightedKey = null,
   onHover,
   onSelect,
   dataUnavailable = false,
 }: Props) {
+  // P2.5: name the ranking metric in the header so "peores en qué" is answerable
+  // at a glance (Cowork H8). Small scope → "Tus N {unitNoun} · {métrica}"; else
+  // "Peores N · {métrica}". The metric follows the active preset upstream, so a
+  // Brotes view reads "Peores 10 · señales de zoonosis", not a silent coverage rank.
+  const heading = scopeFallback
+    ? `Tus ${rows.length} ${unitNoun} · ${measureLabel}`
+    : `Peores ${rows.length > 0 ? rows.length : 10} · ${measureLabel}`;
   return (
     <section aria-labelledby="pano-worst-title" className="space-y-2">
       <h3
         id="pano-worst-title"
         className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
       >
-        Peores {rows.length > 0 ? rows.length : 10} jurisdicciones
+        {heading}
       </h3>
       {rows.length > 0 && (
         // Round-2 review #2: the value/gap numbers used to be bare — the gap
@@ -92,7 +111,14 @@ export function RankedUnitsPanel({
           </p>
         )
       ) : (
-        <ol className="space-y-1" aria-label={`Peores jurisdicciones por ${measureLabel}`}>
+        <ol
+          className="space-y-1"
+          aria-label={
+            scopeFallback
+              ? `Tus ${unitNoun} ordenadas por ${measureLabel}`
+              : `Peores ${unitNoun} por ${measureLabel}`
+          }
+        >
           {rows.map((row, i) => {
             const highlighted = row.key === highlightedKey;
             return (

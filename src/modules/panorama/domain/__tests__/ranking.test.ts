@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rankWorstUnits } from "../ranking";
+import { rankUnitsInScope, rankWorstUnits } from "../ranking";
 import type { FeatureCollection } from "../types";
 
 // Helper: a value-carrying feature (province choropleth shape).
@@ -140,5 +140,48 @@ describe("rankWorstUnits — density layers (count desc)", () => {
 
     expect(rows.map((r) => r.label)).toEqual(["La Plata", "Rosario"]);
     expect(rows[0]).toMatchObject({ value: 40, gap: null });
+  });
+});
+
+// P2.5 small-scope fallback: rank EVERY in-scope unit by the metric, including
+// at/above-meta rate units that rankWorstUnits drops — so a jurisdiction with
+// fewer than a full Worst-N still sees its units ordered, not "sin datos".
+describe("rankUnitsInScope — small-scope fallback (P2.5)", () => {
+  it("keeps at/above-meta rate units, worst coverage first, gap only below meta", () => {
+    const features = fc([
+      rateFeature("AR-C1", "Palermo", 92), // above meta — kept, gap null
+      rateFeature("AR-C2", "Recoleta", 40), // below meta — gap 40
+      rateFeature("AR-C3", "Retiro", 60), // below meta — gap 20
+    ]);
+
+    const rows = rankUnitsInScope(features, { kind: "rate", target: 80, limit: 10 });
+
+    // Worst (lowest) coverage first; ALL units present (rankWorstUnits would drop Palermo).
+    expect(rows.map((r) => r.label)).toEqual(["Recoleta", "Retiro", "Palermo"]);
+    expect(rows[0]).toMatchObject({ value: 40, gap: 40 });
+    // At/above meta carries no gap chip (no misleading "−(negative)").
+    expect(rows[2]).toMatchObject({ label: "Palermo", value: 92, gap: null });
+  });
+
+  it("still drops suppressed / non-numeric cells (privacy invariant)", () => {
+    const features = fc([
+      rateFeature("AR-C1", "Palermo", 92),
+      rateFeature("AR-C2", "Suprimida", null, true),
+      rateFeature("AR-C3", "SinDato", null),
+    ]);
+
+    const rows = rankUnitsInScope(features, { kind: "rate", target: 80 });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].key).toBe("AR-C1");
+  });
+
+  it("density fallback ranks all units by count descending (same as worst)", () => {
+    const features = fc([densityFeature("Palermo", 5), densityFeature("Recoleta", 9)]);
+
+    const rows = rankUnitsInScope(features, { kind: "density", limit: 10 });
+
+    expect(rows.map((r) => r.label)).toEqual(["Recoleta", "Palermo"]);
+    expect(rows[0]).toMatchObject({ value: 9, gap: null });
   });
 });

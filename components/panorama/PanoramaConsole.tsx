@@ -114,6 +114,7 @@ import {
 import {
   type RankedUnit,
   type RankingKind,
+  rankUnitsInScope,
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
@@ -1100,7 +1101,12 @@ export function PanoramaConsole({
   // the initializer) so the FIRST client render matches SSR (dock closed), avoiding
   // the hydration mismatch.
   const [dockOpen, setDockOpen] = useState<boolean>(false);
-  const [dockTab, setDockTab] = useState<PanoramaDockTab>("registros");
+  // Cowork QA ronda 3 §6 (C10): the dock used to open on "Registros" whose badge
+  // reads "0" (event count) even when per-unit data exists — a false "vacío"
+  // first impression. Default to "Estadísticas" (the ranked per-unit view, which
+  // also carries the small-scope fallback so a jurisdiction operator sees their
+  // N units ordered by the metric), so the first focused tab is a meaningful view.
+  const [dockTab, setDockTab] = useState<PanoramaDockTab>("stats");
 
   // task #77 bitemporal — the replay basis. "valid" (occurred_at, default) replays
   // "what happened when"; "transaction" (recorded_at) replays "what the State KNEW
@@ -3045,40 +3051,101 @@ export function PanoramaConsole({
     [since, until],
   );
 
-  // panorama-ia-v2 §3.3 — Worst-N ranking of the PRIMARY (base) layer: the same
-  // projection the map draws, re-expressed as a ranked list + accessible table.
-  // Rate layers rank by gap vs meta; density/signal by count. Suppressed cells
-  // never enter the ranking (privacy invariant §5.1 — rankWorstUnits drops them).
-  const rankingKind = useMemo<RankingKind | null>(() => {
-    if (!captionLayer || captionLayer.dataType === "reference") return null;
-    return captionLayer.dataType === "rate" ? "rate" : "density";
-  }, [captionLayer]);
+  // panorama-ia-v2 §3.3 — the Estadísticas "Peores N" ranking.
+  //
+  // P2.5: the ranking's LAYER is the active preset's PRIMARY QUESTION metric,
+  // not always the map's base. A preset declares `rankBy` when its base is a
+  // backdrop and the question is about the signal overlay (brotes-activos: base
+  // cobertura, but the question "¿dónde hay brotes?" ranks by the zoonosis
+  // SIGNAL). Absent (or the declared layer not active) → rank by the base
+  // (captionLayer), which is correct for the compliance/density presets.
+  const rankingLayer = useMemo(() => {
+    if (activePresetId !== null) {
+      const rankBy = getPreset(activePresetId)?.rankBy;
+      if (rankBy) {
+        const rl = getLayer(rankBy);
+        if (rl && states[rl.id]?.active) return rl;
+      }
+    }
+    return captionLayer;
+  }, [activePresetId, captionLayer, states]);
 
   // H2 (cowork QA, round-2 corrected): rate coverage (cobertura/esterilización/
   // microchip) is computed ONLY at province grain (repository "V1 LIMITATION").
   // BELOW province (department/locality framing) it paints nothing, so show the
   // honest "la cobertura se calcula solo a nivel provincia" empty state. Gate on
   // being BELOW province grain (`level !== "province"`), NOT on a province being
-  // selected — round-1 fired even AT province grain (selecting a province in the
-  // scope pill wrongly told the operator to "volvé a nivel provincia" when they
-  // ALREADY were there, and stamped it over a fence-empty govt scope). A real
-  // fence-empty is at province level, so this predicate now yields it the map's
-  // generic/"—" path instead of the wrong rate-only copy.
-  const rateProvinceOnlyEmpty = rankingKind === "rate" && level !== "province";
+  // selected — round-1 fired even AT province grain. This is a MAP concern about
+  // the BASE choropleth (captionLayer), so it reads the base's dataType directly
+  // (the ranking layer may now differ from the base under a rankBy preset).
+  const rateProvinceOnlyEmpty = captionLayer?.dataType === "rate" && level !== "province";
 
   const rankedActiveLayer = useMemo(
-    () => (captionLayer ? activeLayers.find((l) => l.id === captionLayer.id) : undefined),
-    [captionLayer, activeLayers],
+    () => (rankingLayer ? activeLayers.find((l) => l.id === rankingLayer.id) : undefined),
+    [rankingLayer, activeLayers],
   );
 
-  const rankedRows = useMemo<RankedUnit[]>(() => {
-    if (!captionLayer || rankingKind === null || !rankedActiveLayer) return [];
+  // Coherence with Registros (P1.1 / C2): a rate layer at LOCALITY grain returns
+  // per-unit COUNTS, not percentages (repository "V1 LIMITATION") — MapDataTable
+  // already coerces those to a count to avoid the "Palermo 204%" bug. The ranking
+  // MUST do the same, or Estadísticas would show a bogus "%" while Registros shows
+  // a count — a fresh contradiction. Coerce to density and mark the measure label.
+  const rankLocalityRateCount =
+    rankedActiveLayer?.dataType === "rate" && rankedActiveLayer?.level === "locality";
+  const rankingKind = useMemo<RankingKind | null>(() => {
+    if (!rankingLayer || rankingLayer.dataType === "reference") return null;
+    return rankingLayer.dataType === "rate" ? "rate" : "density";
+  }, [rankingLayer]);
+  const effectiveRankingKind: RankingKind | null =
+    rankingKind === null ? null : rankLocalityRateCount ? "density" : rankingKind;
+  const rankingMeasureLabel = rankingLayer
+    ? rankLocalityRateCount
+      ? `${rankingLayer.caption.measure} (conteo)`
+      : rankingLayer.caption.measure
+    : "";
+
+  // Worst-N and full small-scope ordering, from the SAME features. Worst-N is the
+  // default (national/large scope); the small-scope fallback (P2.5) shows every
+  // in-scope unit ordered by the metric when the whole scope holds fewer than a
+  // full Worst-N (e.g. CABA · 5 comunas), so a jurisdiction operator sees "tus N
+  // unidades, ordenadas por {métrica}" instead of the misleading "sin datos
+  // suficientes" that contradicts Registros listing the same units with values.
+  const RANKING_LIMIT = 10;
+  const rankingWorst = useMemo<RankedUnit[]>(() => {
+    if (!rankingLayer || effectiveRankingKind === null || !rankedActiveLayer) return [];
     return rankWorstUnits(rankedActiveLayer.features, {
-      kind: rankingKind,
-      target: captionLayer.complianceTarget,
-      limit: 10,
+      kind: effectiveRankingKind,
+      target: rankingLayer.complianceTarget,
+      limit: RANKING_LIMIT,
     });
-  }, [captionLayer, rankingKind, rankedActiveLayer]);
+  }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
+
+  const rankingAllInScope = useMemo<RankedUnit[]>(() => {
+    if (!rankingLayer || effectiveRankingKind === null || !rankedActiveLayer) return [];
+    return rankUnitsInScope(rankedActiveLayer.features, {
+      kind: effectiveRankingKind,
+      target: rankingLayer.complianceTarget,
+      limit: RANKING_LIMIT,
+    });
+  }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
+
+  // "Small scope" = every rankable (non-suppressed) unit fits under the Worst-N
+  // cap. A national/large scope (≥ 10 units) keeps Worst-N framing (incl. the
+  // honest "sin jurisdicciones bajo meta" all-clear for a fully-compliant view).
+  const rankingSmallScope =
+    rankingAllInScope.length > 0 && rankingAllInScope.length < RANKING_LIMIT;
+  const rankedRows = rankingSmallScope ? rankingAllInScope : rankingWorst;
+
+  // Unit noun for the small-scope header ("Tus N comunas/localidades/…"), from
+  // the active aggregation grain — mirrors the on-canvas aggregationLabel.
+  const rankingUnitNoun =
+    level === "province"
+      ? "jurisdicciones"
+      : effectiveScopeProvince === "AR-C"
+        ? "comunas"
+        : effectiveScopeProvince
+          ? "departamentos"
+          : "localidades";
 
   // Hover sync map↔row: the highlighted unit key mirrors between the panel and
   // the map (feature-state highlight). Row click opens the DetailDrawer.
@@ -3087,7 +3154,7 @@ export function PanoramaConsole({
 
   const onRankedSelect = useCallback(
     (key: string) => {
-      if (!captionLayer || !rankedActiveLayer) return;
+      if (!rankingLayer || !rankedActiveLayer) return;
       const feature = rankedActiveLayer.features.features.find((f) => {
         const p = f.properties as Record<string, unknown>;
         // Mirror rankWorstUnits' identify() key precedence — the choropleth
@@ -3103,10 +3170,10 @@ export function PanoramaConsole({
         );
       });
       if (feature) {
-        onFeatureClick(captionLayer.id, feature.properties as Record<string, unknown>);
+        onFeatureClick(rankingLayer.id, feature.properties as Record<string, unknown>);
       }
     },
-    [captionLayer, rankedActiveLayer, onFeatureClick],
+    [rankingLayer, rankedActiveLayer, onFeatureClick],
   );
 
   // panorama-ia-v2 §3.6: metadata for the map's "Exportar PNG" footer
@@ -3489,7 +3556,7 @@ export function PanoramaConsole({
   // only show for a POPULATED layer where no unit is below meta. Density layers
   // keep their already-honest "Sin datos suficientes en este alcance." copy.
   const rankingDataUnavailable =
-    rankingKind === "rate" && (rankedActiveLayer?.features.features.length ?? 0) === 0;
+    effectiveRankingKind === "rate" && (rankedActiveLayer?.features.features.length ?? 0) === 0;
 
   // panorama-vista-redesign Phase 4 (design Decision 4): temporal gating is
   // sourced EXCLUSIVELY from isTemporalLayer() over the ACTIVE layer set —
@@ -3569,8 +3636,12 @@ export function PanoramaConsole({
       onBasisChange={onBasisChange}
       temporalAvailable={temporalAvailable}
       currentStateBaseLabel={currentStateBaseLabel}
-      scrubDetail={scrubDetail}
-      onScrubDetailChange={setScrubDetail}
+      // Cowork QA ronda 3 §2 (C9, P3.6): the Simple/Detalle toggle is removed
+      // from "Reproducción temporal" for consistency with the rail panels —
+      // omitting onScrubDetailChange hides the toggle, and scrubDetail={true}
+      // renders the full detail (date ticks + bitemporal "Base" selector) by
+      // default. The date-tick / basis content is additive, so nothing is lost.
+      scrubDetail={true}
       resetToken={scrubResetToken}
       initialAsOf={initialAsOf}
       // SUGGESTION 9: while a scope/period refetch is in flight the last-known
@@ -3663,18 +3734,20 @@ export function PanoramaConsole({
   // plan note: never the prototype's provinces-while-drilled). The k-anon
   // suppressed count renders as an explicit last row (privacy visible).
   const dockSuppressedCount =
-    captionLayer !== null ? (states[captionLayer.id]?.suppressedCount ?? 0) : 0;
+    rankingLayer !== null ? (states[rankingLayer.id]?.suppressedCount ?? 0) : 0;
   const dockStats =
-    rankingKind !== null && captionLayer !== null ? (
+    effectiveRankingKind !== null && rankingLayer !== null ? (
       <div className="space-y-2">
         <RankedUnitsPanel
           rows={rankedRows}
-          kind={rankingKind}
-          measureLabel={captionLayer.caption.measure}
+          kind={effectiveRankingKind}
+          measureLabel={rankingMeasureLabel}
           highlightedKey={highlightedUnitKey}
           onHover={setHighlightedUnitKey}
           onSelect={onRankedSelect}
           dataUnavailable={rankingDataUnavailable}
+          scopeFallback={rankingSmallScope}
+          unitNoun={rankingUnitNoun}
         />
         {dockSuppressedCount > 0 && (
           <p className="flex items-center gap-2 text-xs text-ln-op-mute">
@@ -3701,8 +3774,8 @@ export function PanoramaConsole({
         {showDataTable && (
           <PanoramaDataTable
             rows={rankedRows}
-            kind={rankingKind}
-            measureLabel={captionLayer.caption.measure}
+            kind={effectiveRankingKind}
+            measureLabel={rankingMeasureLabel}
             onSelect={onRankedSelect}
             dataUnavailable={rankingDataUnavailable}
           />
@@ -3903,13 +3976,18 @@ export function PanoramaConsole({
       label: "Capas del mapa",
       kind: "panel",
       badge: filtroBadge,
-      detail: capasDetail,
-      onDetailChange: setCapasDetail,
-      render: (detail) => (
+      // Cowork QA ronda 3 §2 (C9, P3.6): the Simple/Detalle toggle was removed
+      // from Vista/Período/Exportar/Acerca but still lingered here and on the
+      // scrubber — an inconsistent control (same label, different behavior per
+      // panel). The PO's preference is fewer toggles / show detail, so Capas now
+      // always renders full detail (per-layer measure, counts, opacity, verified)
+      // with no toggle — matching the other rail panels.
+      detail: true,
+      render: () => (
         <FiltroPanel
           states={states}
           onToggle={onToggle}
-          detail={detail}
+          detail={true}
           presetId={activePresetId}
           scrubbing={scrubbing}
           opacities={opacities}
@@ -4241,6 +4319,10 @@ export function PanoramaConsole({
             }}
             pending={kpisPending}
             degraded={kpisDegraded}
+            // P2.4 (C2): while the scrubber is off the live edge, emphasize the
+            // "estado actual" tag on stock KPIs so their frozen big number reads
+            // as intentional, not stuck. Temporal KPIs (no currentState) untouched.
+            temporalFrameActive={scrubbing}
           />
           {kpisStale && (
             // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
