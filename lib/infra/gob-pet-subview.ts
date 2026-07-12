@@ -51,6 +51,11 @@ export type GobPetSubView = {
 
 export type GobPetSubViewResult = { ok: true; pet: GobPetSubView } | { ok: false };
 
+// Sentinel pet id for the timing-oracle-hardening linking lookups when the token
+// resolves to no pet: a valid UUID that matches no row, keeping the query shape
+// identical for the not-found and out-of-scope paths.
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+
 /**
  * Load the read-only pet sub-view for an authority, enforcing the linking-case
  * jurisdiction gate. Returns { ok: false } when the pet does not exist OR has no
@@ -79,12 +84,18 @@ export async function loadGobPetSubView(
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
-  if (!pet) return { ok: false };
 
   // Linking authorization — gather every welfare report / case that names this
   // pet as subject/primary, then require at least one INSIDE the caller's scope.
   const inScope = (province: string | null, locality: string | null): boolean =>
     isGovt ? jurisdictionScopeContains(jurisdictions, province, locality) : true;
+
+  // Timing-oracle hardening (task #59, LOW-1): run the linking-record lookups
+  // with the SAME query shape whether or not the pet exists, so response latency
+  // does not distinguish "token does not exist" (previously 1 query) from "exists
+  // but out of jurisdiction" (3 queries). Both still resolve to { ok:false }. A
+  // missing pet uses a sentinel id that matches no row.
+  const linkPetId = pet?.id ?? NIL_UUID;
 
   const [reportRows, caseRows] = await Promise.all([
     db
@@ -93,20 +104,20 @@ export async function loadGobPetSubView(
         locality: welfareReports.jurisdictionLocality,
       })
       .from(welfareReports)
-      .where(eq(welfareReports.subjectPetId, pet.id)),
+      .where(eq(welfareReports.subjectPetId, linkPetId)),
     db
       .select({
         province: cases.jurisdictionProvince,
         locality: cases.jurisdictionLocality,
       })
       .from(cases)
-      .where(eq(cases.primaryPetId, pet.id)),
+      .where(eq(cases.primaryPetId, linkPetId)),
   ]);
 
   const hasLink =
     reportRows.some((r) => inScope(r.province, r.locality)) ||
     caseRows.some((c) => inScope(c.province, c.locality));
-  if (!hasLink) return { ok: false };
+  if (!pet || !hasLink) return { ok: false };
 
   // Active microchip (canonical pet_identifications row).
   const [chip] = await db
@@ -152,7 +163,13 @@ export async function loadGobPetSubView(
     ownerOfRecord = ownerOrg?.displayName ?? null;
   }
 
-  const openCases = await findOpenCasesForPetWithCodes(pet.id);
+  // Fence the open-cases list to the caller's jurisdiction (task #59). A govt
+  // operator who legitimately reaches this pet through an in-scope welfare nexus
+  // must NOT see cases in provinces they do not govern — the case existence +
+  // publicCode + kind + open-date would leak cross-fence otherwise. Same scope
+  // (and whole-province subsumption) as the linking-case gate above. Admin keeps
+  // universal visibility (undefined → unfiltered).
+  const openCases = await findOpenCasesForPetWithCodes(pet.id, isGovt ? jurisdictions : undefined);
 
   return {
     ok: true,
