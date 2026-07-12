@@ -442,7 +442,13 @@ export function DenunciaWizard() {
       )}
 
       {/* Step 3 stays mounted after first visit (step >= 3) so LocationFields'
-          uncontrolled inputs remain in the DOM for reading at submit time.
+          uncontrolled inputs stay in the DOM. At submit, handleSubmit builds
+          FormData from this form (capturing those inputs) but then OVERWRITES
+          the location fields from the lifted wizState.location (see handleSubmit
+          above) — the lifted state always wins on the wire for DenunciaWizard.
+          The hidden inputs are the legacy/fallback path other LocationFields
+          consumers still rely on; keeping this form mounted just keeps that
+          fallback available, it is not what submit actually reads for location.
           It's visually hidden when not the active step via aria-hidden + hidden class.
           B-3: inert is added when step > 3 so keyboard focus cannot reach offscreen inputs. */}
       <div
