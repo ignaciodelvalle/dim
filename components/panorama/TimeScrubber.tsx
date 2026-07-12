@@ -154,6 +154,15 @@ type Props = {
    * degrades to a neutral "Al último evento" and the axis keeps `until`.
    */
   watermark?: Date | null;
+  /**
+   * Cowork QA ronda 3 §5: TRUE when the PARENT still holds a non-null `asOf` (a
+   * temporal frame is active). The "Ahora" reset is normally disabled at the live
+   * edge (nothing to clear), but if the parent's `asOf` lingers while the slider
+   * shows live — a stuck delta the operator could clear only by reloading — this
+   * keeps "Ahora" an ALWAYS-available escape hatch back to the live delta/frame.
+   * Absent → the button's enabled state derives from internal slider state only.
+   */
+  temporalActive?: boolean;
 };
 
 export function TimeScrubber({
@@ -170,6 +179,7 @@ export function TimeScrubber({
   initialAsOf = null,
   watermark = null,
   histogramBins,
+  temporalActive = false,
 }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
   // by timestamp so a new Date object with the same instant does not rebuild.
@@ -360,6 +370,14 @@ export function TimeScrubber({
     setPlaying(false);
     setLooping(null);
     setIndex(win.steps);
+    // Cowork QA ronda 3 §5: force the parent back to live UNCONDITIONALLY. When
+    // the slider index is ALREADY at the live edge, moving it to `win.steps` is a
+    // no-op, so the `asOf`-change effect never re-fires `onChange(null)` — and a
+    // stale `asOf` (stuck delta) in the parent could only be cleared by a reload.
+    // Emitting null here makes "Ahora" a guaranteed escape hatch. Clearing the
+    // initial-seek guard ensures this null is never swallowed.
+    awaitingInitialSeekRef.current = false;
+    onChangeRef.current(null);
   }, [win.steps]);
 
   const onSlider = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -608,7 +626,11 @@ export function TimeScrubber({
             <button
               type="button"
               onClick={reset}
-              disabled={atLive && !playing && looping === null}
+              // Enabled whenever there is temporal state to clear: the slider is
+              // off the live edge / playing / looping, OR the parent still holds a
+              // non-null asOf (temporalActive) — the latter re-enables the escape
+              // hatch even at the live edge so a stuck delta is never uncleanable.
+              disabled={atLive && !playing && looping === null && !temporalActive}
               aria-label="Volver al último evento"
               className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[var(--text-sm)] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
             >

@@ -177,6 +177,34 @@ export function hasProvinceChoroplethLayer(layers: ActiveLayerLike[]): boolean {
   return layers.some((l) => l.geomType === "choropleth" && l.level === "province");
 }
 
+/**
+ * Pick the honest es-AR copy for the map's empty-state overlay.
+ *
+ * Cowork QA ronda 3 §5 (privacy invariant §5 / C3): when a scope-level aggregate
+ * EXISTS (the KPI card shows e.g. "64,4%") but every per-unit cell is k-anon
+ * suppressed, the generic "Sin datos para esta capa" read as a bug — a
+ * contradiction with the card. Distinguish the three cases so a PROTECTED
+ * aggregate never reads as "sin datos":
+ *   1. `rateProvinceOnlyEmpty` — a rate layer drilled below province (coverage is
+ *      a province-only figure in v1). Its own honest copy (unchanged).
+ *   2. `detailKAnonSuppressed` — the aggregate exists but the per-unit detail is
+ *      protected by k-anonymity. Say so; affirm the aggregate IS available.
+ *   3. genuinely no data — the generic scope-aware "Sin datos" (unchanged).
+ */
+export function emptyOverlayMessage(opts: {
+  rateProvinceOnlyEmpty: boolean;
+  detailKAnonSuppressed: boolean;
+  emptyStateScope: string;
+}): string {
+  if (opts.rateProvinceOnlyEmpty) {
+    return "La cobertura se calcula solo a nivel provincia. Volvé al nivel provincia para verla.";
+  }
+  if (opts.detailKAnonSuppressed) {
+    return "Detalle por localidad protegido por privacidad (k<5). El agregado del alcance sí está disponible.";
+  }
+  return `Sin datos para esta capa ${opts.emptyStateScope}.`;
+}
+
 // ---------------------------------------------------------------------------
 // A1 — Autozoom viewport helper (PR-7)
 // ---------------------------------------------------------------------------

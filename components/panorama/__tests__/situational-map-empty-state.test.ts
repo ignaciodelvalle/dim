@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   type ActiveLayerLike,
   countRenderableFeatures,
+  emptyOverlayMessage,
   hasProvinceChoroplethLayer,
 } from "@/components/panorama/situational-map-utils";
 
@@ -120,5 +121,39 @@ describe("hasProvinceChoroplethLayer", () => {
       featureGeometries: [{ type: "Point", coordinates: [-63.6, -40.0] }],
     });
     expect(hasProvinceChoroplethLayer([localityChoro])).toBe(false);
+  });
+});
+
+describe("emptyOverlayMessage (cowork QA ronda 3 §5 — honest empty copy)", () => {
+  it("distinguishes k-anon-protected detail from genuinely no data (privacy §5 / C3)", () => {
+    // The aggregate EXISTS (the card shows 64,4%) but every per-unit cell is
+    // k-suppressed — this must NOT read as "sin datos" (a contradiction).
+    const msg = emptyOverlayMessage({
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: true,
+      emptyStateScope: "en este alcance",
+    });
+    expect(msg).toContain("protegido por privacidad");
+    expect(msg).toContain("agregado del alcance sí está disponible");
+    expect(msg).not.toContain("Sin datos");
+  });
+
+  it("keeps the generic 'Sin datos' copy when there is genuinely no data", () => {
+    expect(
+      emptyOverlayMessage({
+        rateProvinceOnlyEmpty: false,
+        detailKAnonSuppressed: false,
+        emptyStateScope: "en este alcance",
+      }),
+    ).toBe("Sin datos para esta capa en este alcance.");
+  });
+
+  it("rate-below-province takes precedence over the k-anon copy", () => {
+    const msg = emptyOverlayMessage({
+      rateProvinceOnlyEmpty: true,
+      detailKAnonSuppressed: true,
+      emptyStateScope: "en este alcance",
+    });
+    expect(msg).toContain("solo a nivel provincia");
   });
 });

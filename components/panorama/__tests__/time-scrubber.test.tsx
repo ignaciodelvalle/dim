@@ -338,6 +338,56 @@ describe("TimeScrubber — QA fix: resetToken forces a live reset independent of
   });
 });
 
+describe("TimeScrubber — QA fix: 'Ahora' is an escape hatch for a stuck asOf (cowork ronda 3 §5)", () => {
+  it("enables 'Ahora' at the live edge when the parent still holds a temporal frame, and clicking clears it", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+    // At the live edge with no external temporal state → nothing to clear.
+    expect(screen.getByRole("button", { name: "Volver al último evento" })).toBeDisabled();
+
+    // The parent's asOf LINGERS (a stuck delta) while the slider shows live — the
+    // exact desync the reviewer could only escape by reloading the page.
+    rerender(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={onChange}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        temporalActive={true}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Volver al último evento" })).toBeEnabled();
+
+    onChange.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Volver al último evento" }));
+    // Clicking guarantees a live emit even though the index was already at live —
+    // the parent clears asOf → the live delta is restored (no reload needed).
+    expect(onChange).toHaveBeenCalledWith(null);
+  });
+
+  it("keeps 'Ahora' disabled at live when there is no temporal state to clear (default)", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Volver al último evento" })).toBeDisabled();
+  });
+});
+
 describe("TimeScrubber — QA fix: loop chips disabled for month-stepped (long) windows", () => {
   it("disables the loop chips and shows a hint when the active period steps by month (> 90 days)", () => {
     const longSince = new Date("2023-07-01T00:00:00Z");

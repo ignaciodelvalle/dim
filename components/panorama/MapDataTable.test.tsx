@@ -51,3 +51,26 @@ describe("MapDataTable — Capa column gated on active-layer count (Round-2 revi
     expect(csv).toContain("Cobertura antirrábica,Salta,");
   });
 });
+
+describe("MapDataTable — Valor column names the metric (cowork QA ronda 3 §3)", () => {
+  it("names the Valor column '(conteo)' for a single locality-rate metric", () => {
+    render(
+      <MapDataTable
+        rows={ONE_LAYER}
+        caption="cap"
+        filename="f"
+        metrics={[{ label: "Cobertura antirrábica", dataType: "rate", level: "locality" }]}
+      />,
+    );
+    expect(
+      screen.getByRole("columnheader", { name: "Cobertura antirrábica (conteo)" }),
+    ).toBeInTheDocument();
+    // The bare, mislabeled "Valor" header is gone.
+    expect(screen.queryByRole("columnheader", { name: "Valor" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a generic 'Valor' header when metrics are not provided", () => {
+    render(<MapDataTable rows={ONE_LAYER} caption="cap" filename="f" />);
+    expect(screen.getByRole("columnheader", { name: "Valor" })).toBeInTheDocument();
+  });
+});

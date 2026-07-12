@@ -30,6 +30,34 @@ export type MapTableRow = {
   value: string;
 };
 
+/** Descriptor of one active aggregate metric — used to NAME the "Valor" column
+ * after the metric it actually shows (and its true unit). */
+export type ValueMetric = {
+  /** Layer label — matches MapTableRow.layer so a row's metric can be looked up. */
+  label: string;
+  dataType?: "rate" | "density" | "signal" | "reference";
+  level?: "province" | "locality";
+};
+
+/**
+ * Name the "Valor" column after the SINGLE contributing metric + its true unit,
+ * or a generic "Valor" when several metrics interleave (the Capa column
+ * disambiguates them and each cell already carries its own unit).
+ *
+ * DATA-TRUTH (cowork QA ronda 3 §3): a `rate` metric is a percentage ONLY at
+ * province grain. At locality grain the repository returns a per-unit COUNT
+ * (rate-by-locality is deferred — repository.ts "V1 LIMITATION"), so the header
+ * says "(conteo)", never a false "%". Density/signal metrics are counts too.
+ */
+export function mapTableValueHeader(metrics: ValueMetric[]): string {
+  if (metrics.length !== 1) return "Valor";
+  const [m] = metrics;
+  if (m.dataType === "rate") {
+    return m.level === "province" ? `${m.label} (%)` : `${m.label} (conteo)`;
+  }
+  return `${m.label} (conteo)`;
+}
+
 const CSV_HEADER = ["Capa", "Unidad", "Valor"] as const;
 
 /** Escape one CSV field: wrap in quotes and double any embedded quote when the
@@ -53,6 +81,12 @@ type Props = {
   caption: string;
   /** CSV download filename (without extension). */
   filename: string;
+  /**
+   * Active aggregate metrics (label + dataType + level) — lets the table NAME the
+   * "Valor" column after the metric it shows and its true unit. Absent → the
+   * column keeps the generic "Valor" header (backward compatible).
+   */
+  metrics?: ValueMetric[];
 };
 
 /**
@@ -77,7 +111,7 @@ export function useMapTableCsvHref(rows: MapTableRow[]): string | null {
   return href;
 }
 
-export function MapDataTable({ rows, caption, filename }: Props) {
+export function MapDataTable({ rows, caption, filename, metrics }: Props) {
   const href = useMapTableCsvHref(rows);
   // Round-2 review #3a: the Capa column repeats the SAME value on every row
   // when a single layer is active — zero information, pure noise. Derive the
@@ -85,8 +119,18 @@ export function MapDataTable({ rows, caption, filename }: Props) {
   // distinct layers actually produced rows, Capa disambiguates them and stays;
   // with exactly one, drop the column (the CSV export keeps Capa regardless —
   // a self-contained file has no adjacent context to lean on).
-  const layerCount = useMemo(() => new Set(rows.map((r) => r.layer)).size, [rows]);
-  const showLayerColumn = layerCount > 1;
+  const rowLabels = useMemo(() => new Set(rows.map((r) => r.layer)), [rows]);
+  const showLayerColumn = rowLabels.size > 1;
+  // Cowork QA ronda 3 §3: the "Valor" column never named its metric — with a
+  // single metric in view, name it (and its true unit) so "204" is not read as a
+  // bare, unlabeled number. With several metrics the Capa column already
+  // disambiguates, so the column stays a generic "Valor".
+  const valueHeader = useMemo(() => {
+    if (rowLabels.size !== 1 || !metrics) return "Valor";
+    const [only] = rowLabels;
+    const metric = metrics.find((m) => m.label === only);
+    return metric ? mapTableValueHeader([metric]) : "Valor";
+  }, [rowLabels, metrics]);
 
   if (rows.length === 0) {
     return (
@@ -124,7 +168,7 @@ export function MapDataTable({ rows, caption, filename }: Props) {
                 Unidad
               </th>
               <th scope="col" className="px-2 py-1 text-right font-bold text-ln-op-ink-2">
-                Valor
+                {valueHeader}
               </th>
             </tr>
           </thead>

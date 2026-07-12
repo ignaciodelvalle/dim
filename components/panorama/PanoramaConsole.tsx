@@ -3048,12 +3048,19 @@ export function PanoramaConsole({
         const suppressed = p.suppressed === true;
         const rawValue =
           typeof p.value === "number" ? p.value : typeof p.count === "number" ? p.count : null;
+        // DATA-TRUTH (cowork QA ronda 3 §3, "204%" bug): a rate layer is a
+        // percentage ONLY at province grain. At locality grain the repository
+        // returns a per-unit COUNT (rate-by-locality deferred — repository.ts
+        // "V1 LIMITATION"), so formatting it as "%" produced the impossible
+        // "Palermo 204%". Format the locality count as a plain count (no %, no
+        // meta gap) — the column header names it "(conteo)" so it reads truthfully.
+        const localityRateCount = layer.dataType === "rate" && layer.level === "locality";
         const readout = buildLayerReadout({
           label: layer.label,
           value: rawValue,
           suppressed,
-          dataType: layer.dataType,
-          complianceTarget: layer.complianceTarget,
+          dataType: localityRateCount ? "density" : layer.dataType,
+          complianceTarget: localityRateCount ? undefined : layer.complianceTarget,
         });
         const value =
           readout.state === "suppressed"
@@ -3079,6 +3086,7 @@ export function PanoramaConsole({
   const dockRecordSummary = useMemo(() => {
     let total = 0;
     let suppressed = 0;
+    let unitsWithEvents = 0;
     let hasCountLayer = false;
     for (const layer of activeLayers) {
       const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
@@ -3092,9 +3100,14 @@ export function PanoramaConsole({
         }
         const v = typeof p.value === "number" ? p.value : typeof p.count === "number" ? p.count : 0;
         total += v;
+        // Cowork QA ronda 3 §"Consistencia": the header said "en 5 unidades" using
+        // mapTableRows.length (which counts rate count-density rows too), so "0
+        // eventos en 5 unidades" contradicted itself. Count ONLY the units that
+        // actually carry a visible event, so 0 events honestly reads "en 0 unidades".
+        if (v > 0) unitsWithEvents += 1;
       }
     }
-    return { hasCountLayer, total, suppressed };
+    return { hasCountLayer, total, suppressed, unitsWithEvents };
   }, [activeLayers]);
   // The dock badge: the event total for count layers (== the primary KPI), else the
   // unit-row count for rate-only presets (coverage has no summable population).
@@ -3452,6 +3465,9 @@ export function PanoramaConsole({
       // generic "Al último evento") until the new cutoff lands.
       watermark={scrubberWatermark}
       histogramBins={signalHistogramBins ?? aggregateHistogramBins}
+      // Cowork QA ronda 3 §5: keep "Ahora" an always-available escape hatch while
+      // a temporal frame is active, so a stuck delta is never uncleanable.
+      temporalActive={scrubbing}
     />
   );
 
@@ -3470,16 +3486,32 @@ export function PanoramaConsole({
   const referenceLayerLabels = activeLayers
     .filter((l) => l.dataType === "reference")
     .map((l) => l.label);
+  // Cowork QA ronda 3 §3: name the "Valor" column after the metric it shows. The
+  // aggregate layers (choropleth + graduated points) are the ones that tabulate.
+  const mapTableMetrics = activeLayers
+    .filter((l) => l.geomType === "choropleth" || l.renderMode === "graduated")
+    .map((l) => ({ label: l.label, dataType: l.dataType, level: l.level }));
+  // Cowork QA ronda 3 §3: a rate layer drilled below province shows a per-unit
+  // COUNT (not the %) — surface that caveat once so "conteo" is not mistaken for a
+  // percentage (the % is a province-only figure in v1).
+  const localityRateInView = activeLayers.some(
+    (l) =>
+      (l.geomType === "choropleth" || l.renderMode === "graduated") &&
+      l.dataType === "rate" &&
+      l.level === "locality",
+  );
   const dockRegistros = (
     <div className="space-y-2">
-      {/* Round-2 review #4: the total that EQUALS the primary KPI — Σ(cell counts)
-          across the active count layers, with the k-anon gap disclosed so the
-          operator reads the same population the strip claims. */}
+      {/* Cowork QA ronda 3 §3: the EVENT total (Σ cell counts across the active
+          count/event layers) — a DIFFERENT concept from the per-unit "Valor por
+          unidad" table below. It counts events, not table rows, so "0 eventos" no
+          longer sits over a populated value table reading as a contradiction. The
+          unit count is units-WITH-events (never the rate count-density rows). */}
       {dockRecordSummary.hasCountLayer && (
         <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] tabular-nums text-ln-op-ink-2">
-          Total: {dockRecordSummary.total.toLocaleString("es-AR")}{" "}
-          {dockRecordSummary.total === 1 ? "registro" : "registros"} en {mapTableRows.length}{" "}
-          {mapTableRows.length === 1 ? "unidad" : "unidades"}
+          Eventos en el período: {dockRecordSummary.total.toLocaleString("es-AR")} en{" "}
+          {dockRecordSummary.unitsWithEvents.toLocaleString("es-AR")}{" "}
+          {dockRecordSummary.unitsWithEvents === 1 ? "unidad" : "unidades"}
           {dockRecordSummary.suppressed > 0 &&
             ` (+${dockRecordSummary.suppressed.toLocaleString("es-AR")} ${
               dockRecordSummary.suppressed === 1 ? "protegida" : "protegidas"
@@ -3493,7 +3525,21 @@ export function PanoramaConsole({
             : `${referenceLayerLabels.join(" y ")} se muestran solo en el mapa (capas de referencia); no se tabulan en Registros.`}
         </p>
       )}
-      <MapDataTable rows={mapTableRows} caption={mapTableCaption} filename="panorama-mapa" />
+      {localityRateInView && (
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+          La cobertura por unidad se muestra como conteo; el porcentaje se calcula solo a nivel
+          provincia.
+        </p>
+      )}
+      {mapTableRows.length > 0 && (
+        <p className="text-[var(--text-xs)] font-medium text-ln-op-ink-2">Valor por unidad</p>
+      )}
+      <MapDataTable
+        rows={mapTableRows}
+        caption={mapTableCaption}
+        filename="panorama-mapa"
+        metrics={mapTableMetrics}
+      />
     </div>
   );
   // Estadísticas: the Worst-N=10 ranking (PO-ratified depth — ia-v2 §3.3, NOT
@@ -3960,6 +4006,7 @@ export function PanoramaConsole({
             initialBounds={initialBounds}
             frameProvinceOnLoad={frameProvinceOnLoad}
             rateProvinceOnlyEmpty={rateProvinceOnlyEmpty}
+            detailKAnonSuppressed={dockSuppressedCount > 0}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}
             localityCommitted={effectiveScopeLocality != null}
