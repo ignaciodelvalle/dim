@@ -3319,6 +3319,26 @@ export function PanoramaConsole({
     }
   }, [dockOpen, dockTab, asOf]);
 
+  // Round-2 review #3 follow-up: the scrubber's DISPLAY axis clamps to the live
+  // last-event watermark (kpis.dataAsOf). But an AS-OF KPI refetch returns an
+  // EARLIER dataAsOf (the scrubbed frame's last event), which would shrink the axis
+  // mid-scrub and snap the thumb back to live — silently cancelling the scrub. Hold
+  // the LIVE watermark (captured only while parked at live) and feed THAT to the
+  // scrubber during a scrub, so the axis stays anchored and the scrub sticks.
+  const liveWatermarkRef = useRef<string | null>(null);
+  if (asOf === null && !kpisPending && !kpisStale) {
+    liveWatermarkRef.current = kpis.dataAsOf ?? null;
+  }
+  const scrubberWatermark = scrubbing
+    ? liveWatermarkRef.current
+      ? new Date(liveWatermarkRef.current)
+      : null
+    : kpisPending || kpisStale
+      ? null
+      : kpis.dataAsOf
+        ? new Date(kpis.dataAsOf)
+        : null;
+
   // ARCHETYPE A: the time scrubber is DOCKED to the map card's bottom edge (see
   // SituationalMap `bottomDock`) instead of floating as a separate block below
   // the map. Its logic/props are UNCHANGED — this is a layout move only.
@@ -3339,7 +3359,7 @@ export function PanoramaConsole({
       // kpis.dataAsOf belongs to the PREVIOUS scope — showing its time would
       // print a stale watermark. Drop to null (scrubber falls back to the
       // generic "Al último evento") until the new cutoff lands.
-      watermark={kpisPending || kpisStale ? null : kpis.dataAsOf ? new Date(kpis.dataAsOf) : null}
+      watermark={scrubberWatermark}
       histogramBins={signalHistogramBins ?? aggregateHistogramBins}
     />
   );
