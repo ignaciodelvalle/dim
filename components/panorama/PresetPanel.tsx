@@ -162,7 +162,11 @@ export function PresetPanel({
       {presets.map((preset, index) => {
         const isActive = activePresetId === preset.id;
         return (
-          <li key={preset.id} className={itemClass}>
+          // role="presentation": the parent <ul> carries role="radiogroup", so
+          // the <li>'s implicit "listitem" role has no list ancestor and axe
+          // flags it as orphaned (WCAG 1.3.1). The radio semantics live on the
+          // inner button; the <li> is pure layout here.
+          <li key={preset.id} role="presentation" className={itemClass}>
             <button
               ref={(el) => {
                 btnRefs.current[index] = el;

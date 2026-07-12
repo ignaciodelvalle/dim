@@ -70,6 +70,20 @@ describe("PresetPanel — roving focus, commit on Enter/Space (WARNING 8)", () =
     expect(onPreset).toHaveBeenCalledTimes(2);
   });
 
+  it("A11Y A4 (WCAG 1.3.1): the <li> wrappers are role=presentation so radiogroup doesn't orphan listitems", () => {
+    const onPreset = vi.fn();
+    const { container } = render(
+      <PresetPanel presets={PRESETS} activePresetId="brotes-activos" onPreset={onPreset} />,
+    );
+    // The <ul> carries role=radiogroup; each <li> must drop its implicit
+    // listitem role (no list ancestor → axe "listitem" orphan) via presentation.
+    const items = container.querySelectorAll("li");
+    expect(items.length).toBeGreaterThan(0);
+    for (const li of items) expect(li).toHaveAttribute("role", "presentation");
+    // No listitem role survives.
+    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+  });
+
   it("a click commits immediately", () => {
     const onPreset = vi.fn();
     render(<PresetPanel presets={PRESETS} activePresetId="brotes-activos" onPreset={onPreset} />);
