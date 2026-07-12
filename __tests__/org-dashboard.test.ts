@@ -17,7 +17,16 @@ import { randomUUID } from "node:crypto";
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { db, organizations, ownerships, petEvents, pets, profiles, reminders } from "@/db";
+import {
+  db,
+  organizations,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  reminders,
+  welfareReports,
+} from "@/db";
 import {
   LONG_STAY_DAYS,
   type OrgQueueKey,
@@ -41,6 +50,7 @@ const fixtureOrgIds: string[] = [];
 const fixturePetIds: string[] = [];
 const fixtureEventIds: string[] = [];
 const fixtureProfileIds: string[] = [];
+const fixtureWelfareIds: string[] = [];
 
 // Use a random 6-char suffix so re-runs and parallel workers never collide.
 const RUN_ID = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -205,7 +215,41 @@ async function makeOverdueCheckinReminder(petId: string, userId: string): Promis
   });
 }
 
+/**
+ * A welfare report derived to `orgId`. Defaults mirror the shape the demo seed
+ * writes (scripts/seed-demo-spine.ts deriveWelfareToAuthority → the real
+ * deriveWelfareToOrgAction): status 'open', derivedAt/derivedByUserId set,
+ * orgInterventionStatus null. This is the row countDerivedWelfare must count.
+ */
+async function makeDerivedWelfare(
+  orgId: string,
+  opts: { status?: string; orgInterventionStatus?: "tomado" | "devuelto" | null } = {},
+): Promise<void> {
+  const [row] = await db
+    .insert(welfareReports)
+    .values({
+      referenceCode: next("DEN"),
+      kind: "dog_fighting",
+      severity: "critical",
+      description: "Fixture derived welfare report",
+      subjectKind: "unowned_animal",
+      status: (opts.status ?? "open") as never,
+      derivedToOrganizationId: orgId,
+      derivedAt: new Date(),
+      derivedByUserId: await makeProfile(),
+      orgInterventionStatus: opts.orgInterventionStatus ?? null,
+    })
+    .returning({ id: welfareReports.id });
+  fixtureWelfareIds.push(row.id);
+}
+
 afterEach(async () => {
+  // Welfare rows first — their FKs to org/profile are ON DELETE SET NULL, so
+  // deleting the org/profile below would orphan (not remove) them.
+  if (fixtureWelfareIds.length > 0) {
+    await db.delete(welfareReports).where(inArray(welfareReports.id, fixtureWelfareIds));
+    fixtureWelfareIds.length = 0;
+  }
   // pet_events is append-only at the DB level — deleting requires the
   // withMutationOverride GUC escape hatch (same pattern as govt-dashboards.test.ts).
   // Deleting pets also cascades through ownerships; pet_events rows created by
@@ -646,5 +690,45 @@ describe("overdueCheckins — org-scoped post-adoption check-in count", () => {
 
     expect((await fetchOrgQueueCounts(orgA, ["overdueCheckins"])).overdueCheckins).toBe(1);
     expect((await fetchOrgQueueCounts(orgB, ["overdueCheckins"])).overdueCheckins).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// derivedWelfare — derived maltrato count (task #46 seed-presence wiring).
+// The demo seed derives one welfare report to Alejo's sanitary_authority
+// (scripts/seed-demo-spine.ts). These assert the counter that turns that seeded
+// row into the authority's "Denuncias de maltrato derivadas (N)" surface: an
+// open derived report counts, and terminal / returned reports are excluded —
+// exactly the filter countDerivedWelfare applies. Fixture shape mirrors the
+// seed, so a seed row of this shape is guaranteed to surface as N≥1.
+// ---------------------------------------------------------------------------
+
+describe("derivedWelfare — derived maltrato count", () => {
+  it("counts an open report derived to this org (the seeded shape)", async () => {
+    const orgId = await makeOrg({ orgType: "sanitary_authority" });
+    await makeDerivedWelfare(orgId);
+
+    const counts = await fetchOrgQueueCounts(orgId, ["derivedWelfare"]);
+    expect(counts.derivedWelfare).toBe(1);
+  });
+
+  it("excludes terminal (closed/invalid) and returned ('devuelto') reports", async () => {
+    const orgId = await makeOrg({ orgType: "sanitary_authority" });
+    await makeDerivedWelfare(orgId, { status: "closed" });
+    await makeDerivedWelfare(orgId, { status: "invalid" });
+    await makeDerivedWelfare(orgId, { orgInterventionStatus: "devuelto" });
+
+    const counts = await fetchOrgQueueCounts(orgId, ["derivedWelfare"]);
+    expect(counts.derivedWelfare).toBe(0);
+  });
+
+  it("stays org-isolated — another org's derived report never leaks in", async () => {
+    const orgA = await makeOrg({ orgType: "sanitary_authority" });
+    const orgB = await makeOrg({ orgType: "sanitary_authority" });
+    await makeDerivedWelfare(orgA);
+    await makeDerivedWelfare(orgB, { orgInterventionStatus: "tomado" });
+
+    expect((await fetchOrgQueueCounts(orgA, ["derivedWelfare"])).derivedWelfare).toBe(1);
+    expect((await fetchOrgQueueCounts(orgB, ["derivedWelfare"])).derivedWelfare).toBe(1);
   });
 });

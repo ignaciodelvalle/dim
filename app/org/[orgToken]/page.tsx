@@ -179,6 +179,7 @@ export default async function OrgDashboardPage({
   const orgType = organization.orgType;
   const isShelter = orgType === "shelter";
   const isClinic = orgType === "clinic";
+  const isSanitaryAuthority = orgType === "sanitary_authority";
   // Org-type specialization (#43 item 2): a granted capability is only surfaced
   // when it is also relevant to the org_type. This is what stops a clinic ADMIN
   // — who implicitly holds every capability — from seeing refugio modules
@@ -302,6 +303,12 @@ export default async function OrgDashboardPage({
   // keys)), so this call is a cache hit, not a second round of queries
   // (adversarial review 2026-07-10, MED 11).
   const orgQueues = applicableOrgQueues(orgType, granted, membership.role);
+
+  // Whether the derived-welfare (maltrato) queue applies to this member/org —
+  // reuses the SAME role+type gate as the Pendientes row, so the authority's
+  // "Maltrato derivado" module card and its Pendientes count can never disagree
+  // about visibility (#45 fix 4).
+  const hasWelfareQueue = orgQueues.some((q) => q.key === "derivedWelfare");
 
   // Dashboard projections — all run in parallel.
   // Occupancy requires fetchOrgCensus + org capacity columns (Item 16).
@@ -610,8 +617,19 @@ export default async function OrgDashboardPage({
         </OpCard>
       )}
 
-      {/* Capability action cards */}
-      {(canReadHeld || canIntake || canReviewAdoptions || canAssignFoster) && (
+      {/* Capability action cards — NAVIGATIONAL entry points only (#45 fix 2,
+          MERGE). The three actionable quick-cards that used to live here
+          (Propuestas emitidas, Tránsitos activos, Check-ins post-adopción) were
+          the SAME queues the "Pendientes" card above already lists with live
+          counts (pendingFosterProposals / activeFosters / overdueCheckins) — a
+          second, counter-less copy of a counted surface. They were removed so
+          "Pendientes" is the ONE actionable surface (what's pending, with
+          counts, in one place). What remains here are pure entry points that
+          are NOT pending queues: the custody list, the intake action, the
+          volunteer search pool, and the no-apt list. Hidden entirely for the
+          sanitary_authority (a regulator does not run custody intake — its lead
+          is Casos/Maltrato, below; #45 fix 4). */}
+      {!isSanitaryAuthority && (canReadHeld || canIntake || canAssignFoster) && (
         <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {canReadHeld && (
             <Link
@@ -635,47 +653,16 @@ export default async function OrgDashboardPage({
               </p>
             </Link>
           )}
-          {canReviewAdoptions && (
+          {canAssignFoster && (
             <Link
-              href={`/org/${orgToken}/checkins`}
+              href={`/org/${orgToken}/voluntarios`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">Check-ins post-adopción</p>
+              <p className="text-[13px] font-semibold text-ln-op-ink">Pool de voluntarios</p>
               <p className="text-sm text-ln-op-mute mt-1">
-                Seguimiento de los adoptantes en las ventanas pactadas.
+                Buscar voluntarios y proponer tránsitos.
               </p>
             </Link>
-          )}
-          {canAssignFoster && (
-            <>
-              <Link
-                href={`/org/${orgToken}/voluntarios`}
-                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
-              >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Pool de voluntarios</p>
-                <p className="text-sm text-ln-op-mute mt-1">
-                  Buscar voluntarios y proponer tránsitos.
-                </p>
-              </Link>
-              <Link
-                href={`/org/${orgToken}/voluntarios/propuestas`}
-                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
-              >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Propuestas emitidas</p>
-                <p className="text-sm text-ln-op-mute mt-1">
-                  Estado de las propuestas de tránsito que enviaste.
-                </p>
-              </Link>
-              <Link
-                href={`/org/${orgToken}/transitos`}
-                className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
-              >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Tránsitos activos</p>
-                <p className="text-sm text-ln-op-mute mt-1">
-                  Mascotas con tránsito en curso (pool, miembro o vecino).
-                </p>
-              </Link>
-            </>
           )}
           {canIntake && isRehoming && (
             <Link
@@ -760,18 +747,37 @@ export default async function OrgDashboardPage({
           </section>
         )}
 
-      {organization.orgType === "sanitary_authority" && (
+      {/* Sanitary authority module grid (#45 fix 4). A regulator's lead is its
+          fiscalización work — Casos + Maltrato derivado — NOT custody intake
+          (the generic custody/intake cards above are hidden for this type). The
+          accent card leads with Casos; the derived-welfare inbox sits right
+          beside it so "Maltrato derivado" is a first-class entry point, not a
+          menu hunt. Both are also counted rows in "Pendientes" above; these are
+          the navigational entry points (Mordeduras opens a NEW report — not a
+          queue). */}
+      {isSanitaryAuthority && (
         <section
           aria-label="Módulos de la autoridad sanitaria"
           className="grid grid-cols-1 sm:grid-cols-2 gap-3"
         >
           <Link
             href={`/org/${orgToken}/casos`}
-            className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
           >
             <p className="text-[13px] font-semibold text-ln-op-ink">Casos</p>
             <p className="text-sm text-ln-op-mute mt-1">Expedientes abiertos por la autoridad.</p>
           </Link>
+          {hasWelfareQueue && (
+            <Link
+              href={`/org/${orgToken}/maltrato/recibidos`}
+              className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              <p className="text-[13px] font-semibold text-ln-op-ink">Maltrato derivado</p>
+              <p className="text-sm text-ln-op-mute mt-1">
+                Denuncias de maltrato derivadas a la autoridad para fiscalización.
+              </p>
+            </Link>
+          )}
           {granted.has("bite.report") && (
             <Link
               href={`/org/${orgToken}/mordedura/nuevo`}
@@ -814,42 +820,68 @@ export default async function OrgDashboardPage({
               el permiso correspondiente acá abajo y un admin lo aprueba.
             </p>
           )}
-          <ul className="divide-y divide-ln-op-line">
-            {CAPABILITY_CATALOG.filter((entry) =>
-              // Org-type specialization (#43 item 2): hide pure-shelter permissions
-              // (foster/adoption/custody) from clinics and health authorities.
-              capabilityAppliesToOrgType(entry.capability, orgType),
-            ).map((entry) => {
-              const state = stateFor(entry.capability);
-              const showRequestForm =
-                !isAdmin &&
-                (state.kind === "none" || state.kind === "denied" || state.kind === "revoked");
-              return (
-                <li key={entry.capability} className="flex items-start gap-3 px-4 py-3">
-                  <span
-                    aria-hidden
-                    className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATE_DOT[state.kind]}`}
-                  />
-                  <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
-                      {entry.label}
-                      <OpCodeBadge tone="neutral">{entry.capability}</OpCodeBadge>
-                    </p>
-                    <p className="text-sm text-ln-op-mute">{entry.description}</p>
-                    {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
-                      <p className="text-sm italic text-ln-op-faint">Motivo: {state.reason}</p>
-                    )}
-                    {showRequestForm && (
-                      <div className="pt-1">
-                        <RequestCapabilityForm capability={entry.capability} label={entry.label} />
-                      </div>
-                    )}
-                  </div>
-                  <OpPill tone={STATE_PILL_TONE[state.kind]}>{STATE_PILL_LABEL[state.kind]}</OpPill>
-                </li>
-              );
-            })}
-          </ul>
+          {/* #45 fix 3: for an admin every row is "Concedido" — pure noise for
+              daily work — so the catalog is collapsed behind a disclosure (still
+              one click away). Non-admins keep it open: for them it is actionable
+              (request access via the inline forms). Rendered with a single
+              <details> so the long capability map is never duplicated: for
+              non-admins it is force-open with the summary hidden. */}
+          {isAdmin && (
+            <p className="px-4 pt-3 text-sm text-ln-op-mute">
+              Como admin tenés todos los permisos concedidos. Desplegá la lista solo si necesitás
+              revisar el detalle.
+            </p>
+          )}
+          <details open={!isAdmin} className="group">
+            <summary
+              className={`list-none px-4 py-2 text-sm font-medium text-ln-op-azul ${
+                isAdmin ? "cursor-pointer hover:underline" : "hidden"
+              }`}
+            >
+              Ver todos los permisos
+            </summary>
+            <ul className="divide-y divide-ln-op-line">
+              {CAPABILITY_CATALOG.filter((entry) =>
+                // Org-type specialization (#43 item 2): hide pure-shelter permissions
+                // (foster/adoption/custody) from clinics and health authorities.
+                capabilityAppliesToOrgType(entry.capability, orgType),
+              ).map((entry) => {
+                const state = stateFor(entry.capability);
+                const showRequestForm =
+                  !isAdmin &&
+                  (state.kind === "none" || state.kind === "denied" || state.kind === "revoked");
+                return (
+                  <li key={entry.capability} className="flex items-start gap-3 px-4 py-3">
+                    <span
+                      aria-hidden
+                      className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATE_DOT[state.kind]}`}
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <p className="text-[13px] font-medium text-ln-op-ink">
+                        {entry.label}
+                        <OpCodeBadge tone="neutral">{entry.capability}</OpCodeBadge>
+                      </p>
+                      <p className="text-sm text-ln-op-mute">{entry.description}</p>
+                      {(state.kind === "denied" || state.kind === "revoked") && state.reason && (
+                        <p className="text-sm italic text-ln-op-faint">Motivo: {state.reason}</p>
+                      )}
+                      {showRequestForm && (
+                        <div className="pt-1">
+                          <RequestCapabilityForm
+                            capability={entry.capability}
+                            label={entry.label}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <OpPill tone={STATE_PILL_TONE[state.kind]}>
+                      {STATE_PILL_LABEL[state.kind]}
+                    </OpPill>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
         </OpCardBody>
       </OpCard>
     </div>
