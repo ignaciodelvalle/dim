@@ -16,9 +16,7 @@ import { join, resolve } from "node:path";
 
 import { type Page, chromium } from "@playwright/test";
 
-const AXE_PATH = resolve(
-  "node_modules/.pnpm/axe-core@4.11.4/node_modules/axe-core/axe.min.js",
-);
+const AXE_PATH = resolve("node_modules/.pnpm/axe-core@4.11.4/node_modules/axe-core/axe.min.js");
 const TARGET_RULES = new Set([
   "aria-valid-attr-value", // A1
   "nested-interactive", // A3
@@ -56,9 +54,7 @@ async function runAxe(page: Page, state: string): Promise<AxeViolation[]> {
   const targeted = results.violations.filter((v) => TARGET_RULES.has(v.id));
   const total = results.violations.length;
   const targetedCount = targeted.reduce((n, v) => n + v.nodes.length, 0);
-  console.log(
-    `  [${state}] total axe violations: ${total} | TARGET-rule nodes: ${targetedCount}`,
-  );
+  console.log(`  [${state}] total axe violations: ${total} | TARGET-rule nodes: ${targetedCount}`);
   for (const v of targeted) {
     console.log(
       `    ✗ ${v.id} (${v.impact}) × ${v.nodes.length} — ${v.nodes[0]?.target.join(" ")}`,
@@ -109,9 +105,7 @@ async function main() {
         t.getAttribute("aria-controls"),
       ),
     );
-    const panelExists = await page.evaluate(
-      () => !!document.getElementById("pano-dock-panel"),
-    );
+    const panelExists = await page.evaluate(() => !!document.getElementById("pano-dock-panel"));
     kb.dockAriaControls = {
       collapsed: collapsedControls,
       expanded: expandedControls,

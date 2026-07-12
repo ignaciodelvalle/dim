@@ -501,10 +501,7 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     expect(collapsedPanel).not.toBeNull();
     expect(collapsedPanel).toHaveAttribute("hidden");
     for (const name of [/Registros/, /Estadísticas/, /Línea de tiempo/]) {
-      expect(screen.getByRole("tab", { name })).toHaveAttribute(
-        "aria-controls",
-        "pano-dock-panel",
-      );
+      expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-controls", "pano-dock-panel");
     }
 
     // Expand → the same panel becomes visible (not re-created).
