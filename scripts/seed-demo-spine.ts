@@ -167,7 +167,12 @@ async function seedArgo(): Promise<void> {
   const weight1 = daysAgo(28);
   const weight2 = daysAgo(10);
 
-  const ARGO_CHIP = "858985112999000111";
+  // ISO 11784/11785 chip: exactly 15 numeric digits (3 country + 4 manufacturer
+  // + 8 national). The pet_identifications.chip_requires_iso_fields CHECK enforces
+  // length(code) = 15 for kind='microchip_iso'; an 18-digit code aborts the insert
+  // (and the whole spine). Matches the 858-prefixed 15-digit convention used by the
+  // other seed scripts (seed-test-users, seed-storylines-*).
+  const ARGO_CHIP = "858985112999000";
 
   const [pet] = await db
     .insert(schemas.pets)
@@ -213,14 +218,20 @@ async function seedArgo(): Promise<void> {
       },
     },
     {
+      // Canonical microchip_implanted shape (lib/events/event-schemas.ts →
+      // microchipImplanted): the re-derivation harness (replayPetMicrochip) reads
+      // chip_number / country_code / implanted_by / location_on_body /
+      // implant_date_known. Using the legacy keys (chip_id / location) made the
+      // projection derive a null chip, drifting from the canonical
+      // pet_identifications row and failing pet-cache-rederivation.
       eventType: "microchip_implanted",
       occurredAt: microchipDate,
       payload: {
-        chip_id: "858985112999000111",
+        chip_number: ARGO_CHIP,
         country_code: "858",
-        standard: "ISO 11784/11785",
         implanted_by: "Refugio Patitas del Norte",
-        location: "interscapular_left",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
       },
     },
     {
@@ -242,14 +253,17 @@ async function seedArgo(): Promise<void> {
       },
     },
     {
+      // Canonical weight_recorded shape: payload.kg (string). replayPetWeight
+      // (lib/projections/pet-weight.ts) reads `kg`, not `weight_kg` — the legacy
+      // key derived no weight, drifting estimatedWeightKg from the cached 22.5.
       eventType: "weight_recorded",
       occurredAt: weight1,
-      payload: { weight_kg: 21.0 },
+      payload: { kg: "21.0" },
     },
     {
       eventType: "weight_recorded",
       occurredAt: weight2,
-      payload: { weight_kg: 22.5 },
+      payload: { kg: "22.5" },
     },
   ] as const;
 
@@ -276,6 +290,10 @@ async function seedArgo(): Promise<void> {
     isoManufacturerCode: ARGO_CHIP.slice(3, 7),
     isoNationalId: ARGO_CHIP.slice(7, 15),
     isoCompliant: true,
+    // Mirror the microchip_implanted event's location_on_body so the re-derivation
+    // harness (microchipLocation, implantSite compare) sees both sides normalize to
+    // the same canonical enum via chipImplantSiteFromLocation.
+    implantationSite: "interescapular",
   });
 
   log(
@@ -532,6 +550,76 @@ async function seedWelfareReports(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 7a-bis. Asset 3c — in-scope welfare report WITH a linked subject pet (#58)
+//
+// The govt inspector's master-detail flow (/gob/maltrato) offers a "Ver mascota"
+// drill ONLY when a report carries subject_kind='registered_pet' + a resolvable
+// subject_pet_id. Every report seeded above is subject_kind='unowned_animal'
+// (subject_pet_id null), so that drill never renders for visual QA. This seeds
+// ONE report tied to Argo (DIM-ARGO-DEMO), who lives in Palermo — one of Lucas's
+// 5 CABA barrios (Palermo, Puerto Madero, Recoleta, Retiro, San Nicolás) — so it
+// falls inside his jurisdiction scope and the pet-drill is exercisable.
+//
+// Shape mirrors the real welfare writer (src/modules/welfare): subject_kind is a
+// first-class enum value; subject_pet_id is the FK to pets. No check constraint
+// couples the two (unlike cases.cases_subject_pet_consistency), but the app
+// writer only sets subject_pet_id when subject_kind='registered_pet', so we do
+// the same.
+const SUBJECT_REPORT_DESCRIPTION =
+  "Vecino reporta que el perro (hoy en custodia del refugio Patitas del Norte) estuvo semanas sin agua ni refugio antes del rescate. Pide seguimiento del caso.";
+
+async function seedInScopeSubjectReport(): Promise<void> {
+  log("STEP", "Asset 3c — denuncia in-scope con mascota vinculada (#58, Palermo / Lucas)");
+
+  const [argo] = await db
+    .select({ id: schemas.pets.id })
+    .from(schemas.pets)
+    .where(eq(schemas.pets.publicToken, ARGO_PUBLIC_TOKEN))
+    .limit(1);
+
+  if (!argo) {
+    log("WARN", `No se encontró Argo (${ARGO_PUBLIC_TOKEN}); ¿corrió seedArgo? Salteando #58.`);
+    return;
+  }
+
+  const [existing] = await db
+    .select({ id: schemas.welfareReports.id })
+    .from(schemas.welfareReports)
+    .where(eq(schemas.welfareReports.description, SUBJECT_REPORT_DESCRIPTION))
+    .limit(1);
+
+  if (existing) {
+    log("SKIP", "Denuncia in-scope con mascota vinculada ya existe.");
+    return;
+  }
+
+  await db.insert(schemas.welfareReports).values({
+    referenceCode: generateReferenceCode(),
+    reporterUserId: null,
+    reporterOrganizationId: null,
+    reporterContactEmail: null,
+    reporterContactPhone: null,
+    kind: "neglect",
+    severity: "medium",
+    description: SUBJECT_REPORT_DESCRIPTION,
+    subjectKind: "registered_pet",
+    subjectPetId: argo.id,
+    subjectDescription: "Argo — mestizo marrón con manchas blancas, oreja izquierda con muesca.",
+    locationAddress: null,
+    jurisdictionProvince: "CABA",
+    jurisdictionLocality: "Palermo",
+    occurredAt: daysAgo(5),
+    status: "open",
+    createdAt: daysAgo(5),
+  } as any);
+
+  log(
+    "OK",
+    "Denuncia neglect/medium en Palermo, vinculada a Argo (registered_pet) → pet-drill QA.",
+  );
+}
+
+// ---------------------------------------------------------------------------
 // 7b. Derive one welfare report to Alejo's sanitary authority (#46)
 //
 // Unblocks D3: without a derived report, "Denuncias de maltrato derivadas" is
@@ -619,6 +707,7 @@ async function main(): Promise<void> {
     await seedArgo();
     await seedCarlaVetUpgrade();
     await seedWelfareReports();
+    await seedInScopeSubjectReport();
     await deriveWelfareToAuthority();
     log("DONE", "Spine seeded. Cycles 1, 3, 4 y 5 listos.");
     log("INFO", "Próximo paso: ver docs/demo-runbook.md para el guión de ensayo.");
