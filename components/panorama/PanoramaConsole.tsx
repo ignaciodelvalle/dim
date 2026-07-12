@@ -879,6 +879,12 @@ export function PanoramaConsole({
       asOfKpiSeededRef.current = false;
       return;
     }
+    // Round-2 review #3: the map moves on THIS tick but the strip won't update
+    // until the debounce + fetch land — showing the previous frame's numbers over
+    // an as-of map is a transient invariant violation. Flip to the pending state
+    // the MOMENT asOf changes so the strip reads "actualizando", never a stale
+    // temporal number, until the fresh figure arrives.
+    setKpisPending(true);
     // DEBOUNCE the as-of refetch: a scrub-DRAG emits a burst of asOf values, and a
     // KPI fetch per tick both hammers the endpoint and contends with the per-tick
     // temporal-LAYER refetch (which owns the map). Coalesce to the settled cutoff
@@ -908,6 +914,8 @@ export function PanoramaConsole({
           if (isAbortError(err) || cancelled) return;
           console.error("[PanoramaConsole] as-of KPI refresh failed", err);
           setKpisStale(true);
+          // Never leave the strip stuck on the pending state after a real failure.
+          setKpisPending(false);
         });
     }, 250);
     return () => {
@@ -2858,13 +2866,17 @@ export function PanoramaConsole({
     return captionLayer.dataType === "rate" ? "rate" : "density";
   }, [captionLayer]);
 
-  // H2 (cowork QA): rate coverage (cobertura/esterilización/microchip) is computed
-  // ONLY at province grain (repository "V1 LIMITATION"); drilling into a province
-  // therefore paints nothing and showed the generic "Sin datos" — reading as if the
-  // province had no coverage when the metric simply isn't computed below province.
-  // When the base is a RATE layer AND we are drilled into a province, the map shows
-  // an honest "la cobertura se calcula solo a nivel provincia" empty state instead.
-  const rateProvinceOnlyEmpty = rankingKind === "rate" && effectiveScopeProvince != null;
+  // H2 (cowork QA, round-2 corrected): rate coverage (cobertura/esterilización/
+  // microchip) is computed ONLY at province grain (repository "V1 LIMITATION").
+  // BELOW province (department/locality framing) it paints nothing, so show the
+  // honest "la cobertura se calcula solo a nivel provincia" empty state. Gate on
+  // being BELOW province grain (`level !== "province"`), NOT on a province being
+  // selected — round-1 fired even AT province grain (selecting a province in the
+  // scope pill wrongly told the operator to "volvé a nivel provincia" when they
+  // ALREADY were there, and stamped it over a fence-empty govt scope). A real
+  // fence-empty is at province level, so this predicate now yields it the map's
+  // generic/"—" path instead of the wrong rate-only copy.
+  const rateProvinceOnlyEmpty = rankingKind === "rate" && level !== "province";
 
   const rankedActiveLayer = useMemo(
     () => (captionLayer ? activeLayers.find((l) => l.id === captionLayer.id) : undefined),
@@ -2981,6 +2993,40 @@ export function PanoramaConsole({
     rows.sort((a, b) => a.layer.localeCompare(b.layer, "es") || a.unit.localeCompare(b.unit, "es"));
     return rows;
   }, [activeLayers]);
+
+  // Round-2 review #4: the dock badge used to show mapTableRows.length (the number
+  // of UNITS with a row — e.g. 24 provinces), which read as a mismatch against a
+  // KPI that counts EVENTS (denuncias 3.026, zoonosis señales). Compute Σ(cell
+  // counts) across the aggregate COUNT layers (density/signal — NOT rate, whose
+  // cells are percentages that don't sum) so the dock total equals the primary KPI
+  // population. k-anon-suppressed cells hide their VALUE (only their existence), so
+  // Σ(visible) ≤ KPI at detail grain — surfaced as "(+N protegidas)" so the gap is
+  // honest, not silent. At province grain nothing is suppressed → Σ == KPI exactly.
+  const dockRecordSummary = useMemo(() => {
+    let total = 0;
+    let suppressed = 0;
+    let hasCountLayer = false;
+    for (const layer of activeLayers) {
+      const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
+      if (!isAggregate || layer.dataType === "rate" || layer.dataType === "reference") continue;
+      hasCountLayer = true;
+      for (const f of layer.features.features) {
+        const p = f.properties as Record<string, unknown>;
+        if (p.suppressed === true) {
+          suppressed += 1;
+          continue;
+        }
+        const v = typeof p.value === "number" ? p.value : typeof p.count === "number" ? p.count : 0;
+        total += v;
+      }
+    }
+    return { hasCountLayer, total, suppressed };
+  }, [activeLayers]);
+  // The dock badge: the event total for count layers (== the primary KPI), else the
+  // unit-row count for rate-only presets (coverage has no summable population).
+  const dockBadgeCount = dockRecordSummary.hasCountLayer
+    ? dockRecordSummary.total
+    : mapTableRows.length;
   const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
   // v2C dock bar "Exportar CSV": the SAME in-memory CSV artifact the Registros
   // pane's download link builds (one builder, two affordances).
@@ -3055,7 +3101,11 @@ export function PanoramaConsole({
       for (const id of activeIds) next[id] = { ...next[id], loading: true };
       return next;
     });
-    const kpiFetch = fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
+    // Round-2 review #3: include the ACTIVE as-of cutoff (kpiFetchQsRef carries it)
+    // so "Actualizar" during a scrub refetches the AS-OF strip, not a live one over
+    // a historical map. Falls back to the plain scope key when parked at live.
+    const kpiRefreshQs = kpiFetchQsRef.current;
+    const kpiFetch = fetch(`/api/panorama/kpis${kpiRefreshQs ? `?${kpiRefreshQs}` : ""}`, {
       headers: { accept: "application/json" },
       signal: signalFor("kpis"),
     })
@@ -3311,6 +3361,20 @@ export function PanoramaConsole({
     .map((l) => l.label);
   const dockRegistros = (
     <div className="space-y-2">
+      {/* Round-2 review #4: the total that EQUALS the primary KPI — Σ(cell counts)
+          across the active count layers, with the k-anon gap disclosed so the
+          operator reads the same population the strip claims. */}
+      {dockRecordSummary.hasCountLayer && (
+        <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] tabular-nums text-ln-op-ink-2">
+          Total: {dockRecordSummary.total.toLocaleString("es-AR")}{" "}
+          {dockRecordSummary.total === 1 ? "registro" : "registros"} en {mapTableRows.length}{" "}
+          {mapTableRows.length === 1 ? "unidad" : "unidades"}
+          {dockRecordSummary.suppressed > 0 &&
+            ` (+${dockRecordSummary.suppressed.toLocaleString("es-AR")} ${
+              dockRecordSummary.suppressed === 1 ? "protegida" : "protegidas"
+            } por k-anonimato)`}
+        </p>
+      )}
       {referenceLayerLabels.length > 0 && (
         <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
           {referenceLayerLabels.length === 1
@@ -3768,7 +3832,7 @@ export function PanoramaConsole({
           onOpenChange={setDockOpen}
           tab={dockTab}
           onTabChange={setDockTab}
-          recordCount={mapTableRows.length}
+          recordCount={dockBadgeCount}
           meta={dockMeta}
           csvAction={
             dockCsvHref !== null ? (
