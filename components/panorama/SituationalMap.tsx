@@ -1055,6 +1055,16 @@ export function SituationalMap({
       // to the scope/period/actions cluster). Offset above the floating dock
       // bar via the [data-pano-map] CSS rule in globals.css.
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      // a11y (review round 2): MapLibre stamps its own <canvas> with tabIndex=0,
+      // so the map was TWO redundant Tab stops — the role="application" wrapper
+      // (which owns the arrow-key pan via handleCanvasKeyDown) AND the inner
+      // canvas. Drop the canvas out of the tab order so the widget is a SINGLE
+      // Tab stop; the labeled zoom buttons stay tab-reachable on their own.
+      try {
+        map.getCanvas().setAttribute("tabindex", "-1");
+      } catch {
+        // Canvas not ready in some headless/test contexts — non-fatal.
+      }
       // panorama-ia-v2 §1.1: report the camera zoom after every zoom gesture so
       // the console can derive the aggregation level (province → locality once
       // the camera crosses Z_LOCALITY). Fires once per gesture, not per frame.

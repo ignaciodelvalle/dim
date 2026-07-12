@@ -461,8 +461,11 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     expect(screen.getByRole("tab", { name: /Registros/ })).toBeVisible();
     expect(screen.getByRole("tab", { name: /Estadísticas/ })).toBeVisible();
     expect(screen.getByRole("tab", { name: /Línea de tiempo/ })).toBeVisible();
-    // Collapsed: no tabpanel, no scrubber, no table.
-    expect(container.querySelector("#pano-dock-panel")).toBeNull();
+    // Collapsed: the tabpanel exists (APG completeness) but is `hidden` and
+    // mounts no pane content — no scrubber, no table.
+    const panel = container.querySelector("#pano-dock-panel");
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveAttribute("hidden");
     expect(container.querySelector("input[type='range']")).toBeNull();
     expect(screen.getByRole("button", { name: "▴ Expandir" })).toBeVisible();
   });
@@ -471,33 +474,46 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     const { container } = renderConsole();
 
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
-    expect(container.querySelector("#pano-dock-panel")).not.toBeNull();
+    const panel = container.querySelector("#pano-dock-panel");
+    expect(panel).not.toBeNull();
+    // Expanded: the panel is no longer hidden.
+    expect(panel).not.toHaveAttribute("hidden");
     expect(screen.getByRole("tab", { name: /Estadísticas/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "▾ Colapsar" }));
-    expect(container.querySelector("#pano-dock-panel")).toBeNull();
+    // Collapsed again: the panel stays in the DOM (APG completeness) but hidden.
+    expect(container.querySelector("#pano-dock-panel")).toHaveAttribute("hidden");
   });
 
-  // a11y round (task #43) — dock tab semantics.
-  it("A11Y A1 (WCAG 4.1.2): dock tabs carry aria-controls ONLY while expanded (no dangling IDREF collapsed)", () => {
+  // a11y round (task #43 + review round 2) — dock tab semantics.
+  it("A11Y A1 (WCAG 4.1.2 / APG): dock tabs carry a VALID aria-controls in both states (panel always in DOM)", () => {
     renderConsole();
 
-    // Collapsed default: the #pano-dock-panel tabpanel does not exist, so
-    // aria-controls pointing at it would be a dangling IDREF — it must be absent.
+    // Collapsed default: the #pano-dock-panel tabpanel is ALWAYS rendered (hidden
+    // when collapsed), so aria-controls is a valid IDREF in both states —
+    // completing the tablist/tab/tabpanel APG contract (review round 2 refined
+    // the earlier "drop aria-controls when collapsed" fix, which cleared the
+    // dangling-IDREF axe hit but left the APG pattern incomplete).
+    const collapsedPanel = document.getElementById("pano-dock-panel");
+    expect(collapsedPanel).not.toBeNull();
+    expect(collapsedPanel).toHaveAttribute("hidden");
     for (const name of [/Registros/, /Estadísticas/, /Línea de tiempo/]) {
-      expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-controls");
+      expect(screen.getByRole("tab", { name })).toHaveAttribute(
+        "aria-controls",
+        "pano-dock-panel",
+      );
     }
 
-    // Expand → the panel mounts, so the relationship becomes valid.
+    // Expand → the same panel becomes visible (not re-created).
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
     expect(screen.getByRole("tab", { name: /Estadísticas/ })).toHaveAttribute(
       "aria-controls",
       "pano-dock-panel",
     );
-    expect(document.getElementById("pano-dock-panel")).not.toBeNull();
+    expect(document.getElementById("pano-dock-panel")).not.toHaveAttribute("hidden");
   });
 
   it("A11Y M3 (ARIA APG): dock tablist uses roving tabindex + Arrow/Home/End, manual activation", () => {
@@ -520,13 +536,34 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     // Selection did NOT follow focus (manual activation): still collapsed,
     // Registros still the selected tab.
     expect(registros).toHaveAttribute("aria-selected", "true");
-    expect(document.getElementById("pano-dock-panel")).toBeNull();
+    // Still collapsed: the panel is present but hidden (no pane switch on focus).
+    expect(document.getElementById("pano-dock-panel")).toHaveAttribute("hidden");
 
     // End → last, Home → first.
     fireEvent.keyDown(stats, { key: "End" });
     expect(timeline).toHaveFocus();
     fireEvent.keyDown(timeline, { key: "Home" });
     expect(registros).toHaveFocus();
+  });
+
+  it("A11Y (review round 2): a mouse click on a tab syncs the roving tabindex to the clicked tab", () => {
+    renderConsole();
+    const registros = screen.getByRole("tab", { name: /Registros/ });
+    const stats = screen.getByRole("tab", { name: /Estadísticas/ });
+    const timeline = screen.getByRole("tab", { name: /Línea de tiempo/ });
+
+    // Arrow the roving focus onto the LAST tab (focusIndex now points at timeline).
+    registros.focus();
+    fireEvent.keyDown(registros, { key: "End" });
+    expect(timeline).toHaveAttribute("tabindex", "0");
+
+    // Then MOUSE-click a DIFFERENT tab. The roving position must follow the click
+    // (prev bug: focusIndex stayed on timeline, so tabIndex={0} was stranded on
+    // the wrong tab under mixed mouse+keyboard use).
+    fireEvent.click(stats);
+    expect(stats).toHaveAttribute("tabindex", "0");
+    expect(timeline).toHaveAttribute("tabindex", "-1");
+    expect(registros).toHaveAttribute("tabindex", "-1");
   });
 
   it("Registros pane hosts the accessible map table (empty-state copy when no aggregate rows)", () => {
@@ -1958,6 +1995,34 @@ describe("PanoramaConsole — embedded drill: masthead pill + level reset (live-
 
     // After the commit the region publishes the new scope for a screen reader.
     expect(screen.getByTestId("panorama-scope-live")).toHaveTextContent("Alcance: Buenos Aires");
+    pushSpy.mockRestore();
+  });
+
+  it("A11Y M1 (WCAG 2.4.3): committing a scope from the OPEN pill returns focus to the trigger", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+
+    // Open the jurisdiction disclosure and put focus on the trigger — the exact
+    // keyboard path (Enter on the pill opens it, then the operator drives the
+    // embedded <select>). The commit auto-closes the panel; M1 asserts focus is
+    // RESTORED to the pill rather than dropped to <body> (a11y review round 2 —
+    // the live-region text was covered, the focus landing was not).
+    const pill = screen.getByTestId("panorama-scope-pill");
+    const details = pill.closest("details") as HTMLDetailsElement;
+    await act(async () => {
+      details.open = true;
+      details.dispatchEvent(new Event("toggle"));
+    });
+    pill.focus();
+    expect(pill).toHaveFocus();
+
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Provincia"), { target: { value: "AR-B" } });
+    });
+
+    expect(pill).toHaveFocus();
+    expect(details.hasAttribute("open")).toBe(false);
     pushSpy.mockRestore();
   });
 

@@ -143,16 +143,22 @@ export function PanoramaDock({
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                // aria-controls must only reference an element that EXISTS: the
-                // tabpanel below renders solely while expanded, so pointing at it
-                // when collapsed is a dangling IDREF (axe aria-valid-attr-value,
-                // WCAG 4.1.2). Set the relationship only when the panel is live.
-                aria-controls={open ? "pano-dock-panel" : undefined}
+                // The tabpanel is ALWAYS in the DOM now (hidden when collapsed),
+                // so aria-controls is a valid IDREF in both states — completing
+                // the WAI-ARIA tablist/tab/tabpanel contract the APG expects
+                // (prev: panel rendered only while expanded, so the relationship
+                // had to be dropped when collapsed — a11y review round 2).
+                aria-controls="pano-dock-panel"
                 // Roving tabindex: only the active/arrowed tab is Tab-stoppable.
                 tabIndex={index === rovingIndex ? 0 : -1}
                 onKeyDown={(e) => handleTabKeyDown(e, index)}
                 onClick={() => {
                   onTabChange(key);
+                  // Sync the roving position to the clicked tab so a later
+                  // Tab-in / arrow-nav starts from where the mouse last acted
+                  // (prev: click left focusIndex stale, so mixed mouse+keyboard
+                  // could leave tabIndex={0} on the wrong tab — a11y review).
+                  setFocusIndex(index);
                   // Spec: clicking any tab while collapsed also expands.
                   if (!open) onOpenChange(true);
                 }}
@@ -187,16 +193,19 @@ export function PanoramaDock({
           </OpButton>
         </div>
       </div>
-      {open && (
-        <div
-          id="pano-dock-panel"
-          role="tabpanel"
-          aria-labelledby={`pano-dock-tab-${tab}`}
-          className="min-h-0 flex-1 overflow-y-auto px-5 py-3"
-        >
-          {panes[tab]}
-        </div>
-      )}
+      {/* The tabpanel is ALWAYS rendered (hidden while collapsed) so the
+          tablist/tab/tabpanel APG contract is complete in both states and
+          aria-controls always resolves. `hidden` removes it from the a11y tree
+          and the layout when collapsed, so the slim bar keeps its height. */}
+      <div
+        id="pano-dock-panel"
+        role="tabpanel"
+        aria-labelledby={`pano-dock-tab-${tab}`}
+        hidden={!open}
+        className="min-h-0 flex-1 overflow-y-auto px-5 py-3"
+      >
+        {open ? panes[tab] : null}
+      </div>
     </section>
   );
 }
