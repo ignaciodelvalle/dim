@@ -35,3 +35,31 @@
 
 **Where the fix is specified if reopened:** `docs/plans/panorama-v2-polish.md` Part B item 4 +
 `docs/reviews/2026-07-11-cowork-panorama-adversarial-qa.md` §5 (KA1/KA2/KA4 with file anchors).
+
+## KA5 — per-offering campaign enrollment differencing vs geo-reach k-anon
+
+**Accepted by PO decision, 2026-07-12 (as operational data, not PII).**
+
+- **What:** the campaign **geo-reach** surface is now k-suppressed (F1 fix — `lib/analytics/campaign-metrics.ts`
+  `suppressGeoReach`, folds sub-k localities into an "Otras localidades (privacidad)" rollup). But the sibling
+  **per-offering** list + CSV still disclose `jurisdictionLocality` + `enrollment` + `completionRate` at full
+  precision (`app/gob/campanas/page.tsx` offerings table + `app/gob/campanas/export/route.ts`).
+- **Attack:** for a locality whose only campaign is small, `attended ≈ enrollment × completitud` reconstructs
+  the attendance count that geo-reach suppresses — differencing across the two campaign surfaces.
+- **Why accepted:** per-offering enrollment/completion is treated as **operational data the org owns about its
+  own campaigns in its own jurisdiction**, not human PII — it counts bookings/attendance, identifies no
+  individual, and a funcionario sees their own jurisdiction's campaign operations by design. Suppressing it
+  would hide legitimate operational data an operator needs to run their (often small) campaigns. Judged
+  operational-not-PII; the geo-reach suppression (which aggregates ACROSS campaigns) stays as the k-anon
+  boundary.
+- **Reopen if any of these happen:**
+  1. The per-offering list/CSV becomes **public** or reachable by lower-trust roles (today: admin/govt,
+     jurisdiction-scoped).
+  2. Offering rows gain **attendee-identifying attributes** (names, DNIs, per-person joins) — then it stops
+     being aggregate operational data.
+  3. A **federal audit / Mi Argentina federation review** flags the cross-surface differencing.
+  4. Campaigns shrink to routinely single-digit enrollments where the offering row itself becomes
+     effectively individual-level.
+
+**Where the fix is specified if reopened:** apply the same `suppressSmallCells` + rollup used by
+`suppressGeoReach` to the per-offering list and its CSV (task #68; the geo-reach fix is the template).
