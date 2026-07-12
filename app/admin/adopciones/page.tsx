@@ -31,6 +31,7 @@ import {
   funnelBarWidths,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 
 export const dynamic = "force-dynamic";
@@ -155,13 +156,7 @@ export default async function AdminAdopcionesPage({
                   higherIsBetter: false,
                 })
           }
-          info={{
-            definition:
-              "Reversos de adopción (adoption_reversed) sobre adopciones finalizadas (adoption_finalized) en el período. Menor es mejor.",
-            formula: "COUNT(adoption_reversed) / COUNT(adoption_finalized) — null si den=0",
-            caveat:
-              "⚠ Puede superar 100%: numerador y denominador son conteos independientes. Un reverso de este período puede corresponder a una adopción de un período anterior. El valor real se muestra sin truncar.",
-          }}
+          info={getKpiInfo("custody_return_rate")}
         />
       </section>
 

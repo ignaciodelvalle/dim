@@ -39,6 +39,7 @@ import {
   fetchSterilizationTrend,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { formatPercent, formatRate } from "@/lib/utils/format";
 
@@ -210,14 +211,7 @@ export default async function GobPoblacionPage({
               : "Sin datos en la cobertura"
           }
           sparkline={hasTrend ? sterilTrend.points.map((p) => p.y) : undefined}
-          info={{
-            definition:
-              "Fracción de mascotas activas/extraviadas en scope con al menos un evento sterilization_performed registrado.",
-            formula:
-              "COUNT(DISTINCT pets WHERE EXISTS sterilization_performed) / COUNT(active/lost pets) * 100",
-            caveat:
-              "Meta programática 70% (benchmark interno — no es mandato legal como la cobertura antirrábica).",
-          }}
+          info={getKpiInfo("sterilization_coverage_population")}
         />
 
         {/* KPI 1b: Deworming coverage — sanitary sibling of esterilización, 12m window */}
@@ -231,14 +225,7 @@ export default async function GobPoblacionPage({
               ? `últimos 12 meses · ${deworming.dewormed.toLocaleString("es-AR")} de ${deworming.total.toLocaleString("es-AR")}`
               : "Sin datos en la cobertura"
           }
-          info={{
-            definition:
-              "Fracción de mascotas activas/extraviadas en scope con al menos un evento deworming_administered en los últimos 12 meses.",
-            formula:
-              "COUNT(DISTINCT pets WHERE EXISTS deworming_administered en 12m) / COUNT(active/lost pets) * 100",
-            caveat:
-              "A diferencia de la esterilización (una vez), la desparasitación es periódica: la ventana de 12 meses es un proxy de 'protección vigente'. Solo cuenta dosis registradas en MiMAR — la cobertura real puede ser mayor.",
-          }}
+          info={getKpiInfo("deworming_coverage_population")}
         />
 
         {/* KPI 2: Active pregnancies */}
@@ -247,11 +234,7 @@ export default async function GobPoblacionPage({
           value={activePregnancies.toLocaleString("es-AR")}
           sub="preñez registrada y aún no cerrada"
           tone={activePregnancies > 0 ? "warn" : "neutral"}
-          info={{
-            definition:
-              "Mascotas en scope con pregnancyStatus='in_progress' (preñez iniciada y aún no cerrada). Requiere que la preñez haya sido registrada por un veterinario.",
-            formula: "COUNT(pets) WHERE pregnancy_status = 'in_progress' AND scope",
-          }}
+          info={getKpiInfo("active_pregnancies")}
         />
 
         {/* KPI 3: Registered births — with natalidad caveat */}

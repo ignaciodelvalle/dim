@@ -39,6 +39,7 @@ import {
   fetchKpiTrend,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 
@@ -168,12 +169,7 @@ export default async function GobMortalidadPage({
           tone={toneForTarget(m.traceableRate, TARGETS.DISPOSAL_TRACEABILITY_PCT)}
           bar={m.traceableRate}
           sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación (B3 · Ley 5470)`}
-          info={{
-            definition:
-              "Porcentaje de fallecimientos con método de disposición conocido E instalación registrada. Mide el cumplimiento de trazabilidad exigido por la Ley CABA 5470.",
-            formula: "deaths con (disposition_method ≠ null/unknown) AND (facility ≠ '') / total",
-            caveat: `Umbral de alerta: < ${TARGETS.DISPOSAL_TRACEABILITY_PCT}%. Valor < 50% se considera incumplimiento grave (B3).`,
-          }}
+          info={getKpiInfo("mortality_disposal_traceability")}
         />
         <OpKpi
           label="Disposición desconocida"

@@ -33,6 +33,7 @@ import {
   funnelBarWidths,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 
 export const dynamic = "force-dynamic";
@@ -210,12 +211,7 @@ export default async function GobAdopcionesPage({
                   higherIsBetter: false,
                 })
           }
-          info={{
-            definition:
-              "Fracción de adopciones finalizadas que fueron revertidas en el período. Menor es mejor.",
-            formula: "COUNT(adoption_reversed) / COUNT(adoption_finalized) — null si den=0",
-            caveat: "Numerador y denominador son conteos independientes de eventos en el período.",
-          }}
+          info={getKpiInfo("custody_return_rate")}
         />
       </section>
 

@@ -46,6 +46,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
@@ -240,10 +241,7 @@ export default async function AdminProgramaPage({
           tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
           href="/admin/poblacion"
-          info={{
-            definition: "% de mascotas activas con ≥1 evento sterilization_performed.",
-            formula: "sterilized / active * 100",
-          }}
+          info={getKpiInfo("sterilization_coverage_population")}
         />
         <OpKpi
           label="Microchip"
@@ -251,10 +249,7 @@ export default async function AdminProgramaPage({
           tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
           href="/admin/censo"
-          info={{
-            definition: "% de mascotas activas con microchip ISO activo.",
-            formula: "chipped / active * 100",
-          }}
+          info={getKpiInfo("microchip_penetration")}
         />
         <OpKpi
           label="SLA ENO (resueltos)"
@@ -266,10 +261,7 @@ export default async function AdminProgramaPage({
               : "sin incumplimientos activos"
           }
           href="/admin/outbox"
-          info={{
-            definition: "% de notificaciones ENO entregadas dentro del SLA (A7).",
-            formula: "onTime / delivered * 100",
-          }}
+          info={getKpiInfo("eno_sla_compliance")}
         />
         <OpKpi
           label="Cola más vieja"

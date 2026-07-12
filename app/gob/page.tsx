@@ -49,6 +49,7 @@ import {
   fetchKpiTrend,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { formatCount, formatDate, formatPercent, formatRate } from "@/lib/utils/format";
@@ -275,14 +276,7 @@ export default async function GobiernoDashboardPage({
           }
           sparkline={rabiesVaxTrend.points.map((p) => p.y)}
           href="/gob/analytics"
-          info={{
-            definition:
-              "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón es el primer denominador; el segundo es la población canina estimada. Meta de salud pública: 80%.",
-            formula:
-              "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,152 perros/hab.).",
-            caveat:
-              "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,152 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; sin fila de censo se muestra «sin estimación censal».",
-          }}
+          info={getKpiInfo("rabies_coverage_dogs_12m")}
         />
         <OpKpi
           label="Esterilizaciones / mes"
@@ -295,12 +289,7 @@ export default async function GobiernoDashboardPage({
           sparkline={sterilizationTrend.points.map((p) => p.y)}
           sub={`${sterilizations.orgs} organizaciones`}
           href="/gob/analytics"
-          info={{
-            definition:
-              "Cantidad de eventos sterilization_performed registrados en los últimos 30 días en la jurisdicción. Incluye la variación porcentual respecto a los 30 días anteriores.",
-            formula:
-              "COUNT(sterilization_performed en últimos 30d) vs COUNT(sterilization_performed en 30d previos)",
-          }}
+          info={getKpiInfo("sterilizations_per_month")}
         />
         <OpKpi
           label="Mordeduras / 10k hab."
@@ -317,14 +306,7 @@ export default async function GobiernoDashboardPage({
           sparkline={bitesTrend.points.map((p) => p.y)}
           sub={`${bitesPer10k.reports} reportes`}
           href="/gob/vigilancia"
-          info={{
-            definition:
-              "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy).",
-            formula:
-              "COUNT(incident_reported donde incident_type='bite_inflicted', últimos 12m) / (población_censo / 10.000)",
-            caveat:
-              "El denominador es población humana del censo (jurisdictions_census). Si la provincia no tiene fila de censo, la tasa se muestra como 0.",
-          }}
+          info={getKpiInfo("bites_per_10k")}
         />
         {/* Zoonosis activas — descompuesto (PO) en 3 señales legibles en vez de
             un único número opaco: observación rábica abierta, mordeduras abiertas
@@ -348,11 +330,7 @@ export default async function GobiernoDashboardPage({
           sparkline={zoonosisTrend.points.map((p) => p.y)}
           sub="observaciones en curso"
           href="/gob/vigilancia"
-          info={{
-            definition:
-              "Mascotas con una observación antirrábica actualmente en curso (rabies_observation_status='in_progress') en la jurisdicción. Deriva de la observación tras mordedura (Ley 22.953).",
-            formula: "COUNT(pets donde rabies_observation_status='in_progress') en alcance",
-          }}
+          info={getKpiInfo("open_rabies_observations")}
         />
         <OpKpi
           label="Mordeduras abiertas"
@@ -360,11 +338,7 @@ export default async function GobiernoDashboardPage({
           tone={openBiteCases.count > 0 ? "warn" : "neutral"}
           sub={openBiteCases.count === 1 ? "caso abierto" : "casos abiertos"}
           href="/gob/vigilancia"
-          info={{
-            definition:
-              "Casos de mordedura (case_kind='bite_incident') que siguen abiertos (status='open') en la jurisdicción.",
-            formula: "COUNT(cases donde case_kind='bite_incident' AND status='open') en alcance",
-          }}
+          info={getKpiInfo("open_bite_cases")}
         />
         <OpKpi
           label="Enfermedades notificadas"
@@ -372,11 +346,7 @@ export default async function GobiernoDashboardPage({
           tone={notifiedDiseases.count > 0 ? "danger" : "neutral"}
           sub={`${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · últimos 30 días`}
           href="/gob/vigilancia"
-          info={{
-            definition:
-              "Nuevos eventos de enfermedad notificada (disease_reported) registrados en los últimos 30 días en la jurisdicción. El subtítulo desglosa leptospirosis e hidatidosis.",
-            formula: "COUNT(disease_reported, últimos 30 días) en alcance",
-          }}
+          info={getKpiInfo("notified_diseases")}
         />
       </section>
 
@@ -433,13 +403,7 @@ export default async function GobiernoDashboardPage({
           bar={microchipPenetration.ratePct}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
           href="/gob/analytics"
-          info={{
-            definition:
-              "Porcentaje de mascotas activas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Provincial 14.107.",
-            formula:
-              "COUNT(pets activos con pet_identifications.kind='microchip_iso' y status='active') / COUNT(pets activos)",
-            caveat: `Meta recomendada: ${TARGETS.MICROCHIP_PENETRATION_PCT}%. Solo cuenta microchips registrados en MiMAR; la tasa real puede ser mayor.`,
-          }}
+          info={getKpiInfo("microchip_penetration")}
         />
         <OpKpi
           label="Registro PPP"
@@ -456,14 +420,7 @@ export default async function GobiernoDashboardPage({
               : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas · Ley 4078`
           }
           href="/gob/analytics"
-          info={{
-            definition:
-              "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado (C7). Exigido por Ley CABA 4078 / Ley Prov. 14.107.",
-            formula:
-              "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
-            caveat:
-              "Mientras no exista el formulario de atestación, el numerador es 0 y la tasa refleja 0% de adopción del registro — esto es un valor verdadero e informativo, no un error.",
-          }}
+          info={getKpiInfo("ppp_registry_compliance")}
         />
       </section>
 

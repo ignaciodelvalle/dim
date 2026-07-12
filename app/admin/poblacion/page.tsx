@@ -37,6 +37,7 @@ import {
   projectSeries,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { formatPercent, formatRate } from "@/lib/utils/format";
 
@@ -144,14 +145,7 @@ export default async function AdminPoblacionPage({
               ? `meta programática 70% · ${coverage.sterilized.toLocaleString("es-AR")} de ${coverage.total.toLocaleString("es-AR")}`
               : "Sin datos"
           }
-          info={{
-            definition:
-              "Fracción de mascotas activas/extraviadas a nivel nacional con al menos un evento sterilization_performed registrado.",
-            formula:
-              "COUNT(DISTINCT pets WHERE EXISTS sterilization_performed) / COUNT(active/lost pets) * 100",
-            caveat:
-              "Meta programática 70% (referencia interna — no es mandato legal como la cobertura antirrábica).",
-          }}
+          info={getKpiInfo("sterilization_coverage_population")}
         />
 
         {/* KPI 2: Active pregnancies */}
@@ -160,11 +154,7 @@ export default async function AdminPoblacionPage({
           value={activePregnancies.toLocaleString("es-AR")}
           sub="mascotas con pregnancy_status='in_progress' (nacional)"
           tone={activePregnancies > 0 ? "warn" : "neutral"}
-          info={{
-            definition:
-              "Mascotas a nivel nacional con pregnancyStatus='in_progress' (preñez iniciada y aún no cerrada).",
-            formula: "COUNT(pets) WHERE pregnancy_status = 'in_progress'",
-          }}
+          info={getKpiInfo("active_pregnancies")}
         />
 
         {/* KPI 3: Registered births — with natalidad caveat */}

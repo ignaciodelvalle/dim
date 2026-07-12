@@ -34,6 +34,7 @@ import {
   fetchMovementCorridors,
   windows,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
@@ -368,14 +369,7 @@ export default async function GobVigilanciaPage({
                 ? `Mediana ${enoSla.medianLatencyHours} h`
                 : "Sin entregas en el período"
           }
-          info={{
-            definition:
-              "Porcentaje de notificaciones ENO (Enfermedades de Notificación Obligatoria) entregadas dentro de su SLA (A7). Mide la cola interna de la bandeja de salida, no la entrega externa a la autoridad.",
-            formula:
-              "outbox rows (target_kind='eno_authority') con delivered_at ≤ sla_due_at / total delivered en período",
-            caveat:
-              "Filas en estado 'pending' con sla_due_at < ahora se cuentan como incumplimiento vivo (breachedOpen).",
-          }}
+          info={getKpiInfo("eno_sla_compliance")}
         />
         <OpKpi
           label="Densidad ATM/AMR"

@@ -25,6 +25,7 @@ import {
   fetchVetAccessByLocality,
   toneForTarget,
 } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
@@ -205,14 +206,7 @@ export default async function GobAnalyticsPage({
           bar={metrics.rabiesVaccinationRate}
           sub="histórico · toda especie con ≥1 dosis registrada"
           href="/gob/vigilancia"
-          info={{
-            definition:
-              "Vista histórica: porcentaje de mascotas activas de CUALQUIER especie con al menos una vacunación antirrábica registrada alguna vez. NO es la métrica de cumplimiento — esa es la cobertura antirrábica del Panel/Panorama (perros con dosis en los últimos 12 meses, Ley 22.953). Por eso este número es más alto.",
-            formula:
-              "COUNT(pets activos, toda especie, con ≥1 vaccination_administered ~ 'rabi' alguna vez) / COUNT(pets activos) × 100",
-            caveat:
-              "Sin ventana temporal ni scope de perros: cuenta cualquier dosis histórica. Para el cumplimiento legal usá la tile del Panel.",
-          }}
+          info={getKpiInfo("rabies_vaccination_rate_all_species")}
         />
         <OpKpi
           label="Disputas de custodia"

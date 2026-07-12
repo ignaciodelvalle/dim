@@ -18,6 +18,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, enoSlaTone, toneForTarget } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { redirect } from "next/navigation";
@@ -109,11 +110,7 @@ export default async function GobSistemaPage({
                 : "sin notificaciones en el período"
           }
           href="/gob/outbox"
-          info={{
-            definition:
-              "% de notificaciones ENO (target_kind='eno_authority') entregadas dentro del SLA en tu jurisdicción.",
-            formula: "onTime / delivered * 100 — período seleccionado",
-          }}
+          info={getKpiInfo("eno_sla_compliance")}
         />
         <OpKpi
           label="Cola pendiente"

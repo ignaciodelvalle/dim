@@ -14,6 +14,7 @@
 
 import { OpKpi } from "@/components/ui/dashboard";
 import { enoSlaTone } from "@/lib/metrics";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 
 export type AdminKpiStripData = {
   /** Total personal accounts (count). */
@@ -120,11 +121,7 @@ export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
                 : "sin notificaciones en el período"
           }
           href="/admin/outbox"
-          info={{
-            definition:
-              "% de notificaciones ENO (target_kind='eno_authority') entregadas dentro del SLA (A7). breachedOpen: pendientes con sla_due_at vencido en este momento.",
-            formula: "onTime / delivered * 100 — período seleccionado",
-          }}
+          info={getKpiInfo("eno_sla_compliance")}
         />
       )}
     </div>
