@@ -10,6 +10,7 @@ import {
   regionAtPoint,
   regionBboxUnion,
   regionForProvince,
+  regionFrameBbox,
   resolveScrollNav,
 } from "@/components/panorama/panorama-regions";
 import type { ProvinceBbox } from "@/components/panorama/situational-map-utils";
@@ -68,6 +69,83 @@ describe("regionBboxUnion", () => {
 
   it("returns null when no member bbox is available", () => {
     expect(regionBboxUnion("norte", bboxes)).toBeNull();
+  });
+});
+
+// MED 9 (adversarial QA 2026-07-11): the Malvinas claim (AR-V east edge) must
+// stay in the hit-test union but be capped out of the CAMERA frame so Patagonia
+// doesn't stretch east over empty ocean. Uses the REAL continental east edges
+// (Río Negro Atlantic coast ≈ -62.79) vs AR-V's Malvinas east (≈ -57.79).
+describe("regionFrameBbox — MED 9 Malvinas frame clamp", () => {
+  const bboxes: ProvinceBbox[] = [
+    {
+      code: "AR-Q",
+      bbox: [
+        [-71.96, -41.1],
+        [-68.0, -36.05],
+      ],
+    }, // Neuquén
+    {
+      code: "AR-R",
+      bbox: [
+        [-71.91, -42.0],
+        [-62.79, -37.57],
+      ],
+    }, // Río Negro (Atlantic)
+    {
+      code: "AR-U",
+      bbox: [
+        [-72.19, -46.0],
+        [-63.59, -42.0],
+      ],
+    }, // Chubut
+    {
+      code: "AR-Z",
+      bbox: [
+        [-73.56, -52.4],
+        [-65.72, -46.0],
+      ],
+    }, // Santa Cruz
+    {
+      code: "AR-V",
+      bbox: [
+        [-68.61, -55.06],
+        [-57.79, -51.27],
+      ],
+    }, // TdF incl. Malvinas
+    {
+      code: "AR-M",
+      bbox: [
+        [-70, -37],
+        [-67, -32],
+      ],
+    }, // Mendoza (other region)
+  ];
+
+  it("caps the frame east edge to the continental coast, dropping the Malvinas ocean gap", () => {
+    const frame = regionFrameBbox("patagonia", bboxes);
+    expect(frame).not.toBeNull();
+    // East edge clamped to Río Negro's Atlantic coast, NOT AR-V's Malvinas east.
+    expect(frame?.[1][0]).toBeCloseTo(-62.79, 2);
+    // South tip (AR-V / TdF island) is preserved — TdF still frames.
+    expect(frame?.[0][1]).toBeCloseTo(-55.06, 2);
+    // West + north come from the full union (Santa Cruz / Neuquén).
+    expect(frame?.[0][0]).toBeCloseTo(-73.56, 2);
+    expect(frame?.[1][1]).toBeCloseTo(-36.05, 2);
+  });
+
+  it("leaves the true union (incl. Malvinas) intact for hit-testing", () => {
+    // regionBboxUnion still reaches AR-V's Malvinas east edge — clicking over the
+    // islands must still resolve to Patagonia.
+    expect(regionBboxUnion("patagonia", bboxes)?.[1][0]).toBeCloseTo(-57.79, 2);
+  });
+
+  it("is identical to the union for a region with no claim-ring member", () => {
+    expect(regionFrameBbox("cuyo", bboxes)).toEqual(regionBboxUnion("cuyo", bboxes));
+  });
+
+  it("returns null when no member bbox is loaded", () => {
+    expect(regionFrameBbox("norte", bboxes)).toBeNull();
   });
 });
 

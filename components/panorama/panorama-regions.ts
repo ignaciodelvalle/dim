@@ -128,6 +128,48 @@ export function regionBboxUnion(
   ];
 }
 
+// MED 9 (adversarial QA 2026-07-11): provinces whose polygon bbox carries a
+// FAR-EAST insular claim ring. Tierra del Fuego (AR-V) includes the Malvinas /
+// South Atlantic islands (Ley 26.651), which sit ~5° of open ocean east of the
+// continental Patagonian coast. That extent is CORRECT for hit-testing and MUST
+// stay rendered on the map — but folding it into the region CAMERA frame stretches
+// the shot east over empty water, pushing the mainland off-centre and making
+// Patagonia read almost national. So the frame (and ONLY the frame) caps its east
+// edge to the continental members; the claim geometry is never clipped from the map.
+const CLAIM_RING_PROVINCES: ReadonlySet<string> = new Set(["AR-V"]);
+
+/**
+ * The CAMERA frame bbox for a region — the member union, but with its eastern
+ * longitude capped at the continental (non-claim-ring) members so a far-east
+ * insular claim (Malvinas via AR-V) does not unbalance the shot. Identical to
+ * `regionBboxUnion` for every region with no claim-ring member. Ley 26.651: the
+ * claim stays VISIBLE on the map — only the camera framing is tuned. Returns null
+ * when no member bbox is loaded yet (same contract as `regionBboxUnion`).
+ */
+export function regionFrameBbox(
+  region: RegionId,
+  provinceBboxes: readonly ProvinceBbox[],
+): Bbox | null {
+  const full = regionBboxUnion(region, provinceBboxes);
+  if (full === null) return full;
+  const members = new Set(regionById(region)?.provinces ?? []);
+  // The easternmost edge among CONTINENTAL members (claim-ring provinces excluded).
+  let continentalEast = Number.NEGATIVE_INFINITY;
+  for (const p of provinceBboxes) {
+    if (!members.has(p.code) || CLAIM_RING_PROVINCES.has(p.code)) continue;
+    const east = p.bbox[1][0];
+    if (east > continentalEast) continentalEast = east;
+  }
+  // No continental member loaded (never for the current taxonomy — Patagonia has
+  // four) → keep the full union rather than collapse the frame to nothing.
+  if (!Number.isFinite(continentalEast)) return full;
+  const [[wLng, sLat], [eLng, nLat]] = full;
+  return [
+    [wLng, sLat],
+    [Math.min(eLng, continentalEast), nLat],
+  ];
+}
+
 /**
  * The region whose framed bbox contains a point (lng/lat) — used to pick the
  * region under the viewport centre when scrolling IN from the national view.
@@ -259,7 +301,9 @@ export function frameForNavState(
     return provinceBboxes.find((p) => p.code === state.province)?.bbox ?? nationalBbox;
   }
   if (state.region != null) {
-    return regionBboxUnion(state.region, provinceBboxes) ?? nationalBbox;
+    // MED 9: the CAMERA frame caps far-east insular claims (Malvinas via AR-V) so
+    // Patagonia frames tight over the continent — the claim stays on the map.
+    return regionFrameBbox(state.region, provinceBboxes) ?? nationalBbox;
   }
   return nationalBbox;
 }
