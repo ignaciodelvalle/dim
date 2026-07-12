@@ -50,6 +50,14 @@ export async function GET(request: Request) {
   const provinceIso = url.searchParams.get("province");
   const localitySlug = url.searchParams.get("locality");
 
+  // Coherence hybrid (H1): the temporal-scrub cutoff. When present, the temporal
+  // KPIs (mordeduras/zoonosis/denuncias-in-period) compute as-of this instant so
+  // the big numbers track the map + Registros the scrubber already moves. An
+  // unparseable value is ignored (treated as live) — never trusted blindly.
+  const asOfParam = url.searchParams.get("asOf");
+  const asOfDate = asOfParam ? new Date(asOfParam) : null;
+  const asOf = asOfDate && !Number.isNaN(asOfDate.getTime()) ? asOfDate : null;
+
   // Resolve the selected province/locality once — shared by govt scope-narrowing
   // and admin drill-down below (mirrors /api/panorama/[layer]).
   const provinceObj = provinceIso ? provinceByCode(provinceIso) : null;
@@ -97,6 +105,7 @@ export async function GET(request: Request) {
       period,
       adminProvince,
       adminLocality,
+      asOf,
       label: "GET /api/panorama/kpis",
     });
     return NextResponse.json(result, {

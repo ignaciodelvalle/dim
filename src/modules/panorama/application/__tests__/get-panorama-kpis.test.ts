@@ -94,7 +94,7 @@ function seedDefaults() {
     hidat: 0,
     deltaWeek: 0,
   });
-  vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4 });
+  vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4, inPeriod: 4 });
   vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
     rate: 65.7,
     sterilized: 657,
@@ -290,7 +290,7 @@ describe("getPanoramaKpis", () => {
       hidat: 0,
       deltaWeek: 0,
     });
-    vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 0 });
+    vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 0, inPeriod: 0 });
     vi.mocked(fetchPerdidasMetrics).mockResolvedValue({
       activeCount: 0,
       recoveredMonth: 0,
@@ -381,6 +381,58 @@ describe("getPanoramaKpis", () => {
     expect(Math.round(priorLen / 86_400_000)).toBe(Math.round(currentLen / 86_400_000));
     // Scope is identical (no widening in the comparison run).
     expect(priorCtx.scope).toEqual(vi.mocked(fetchRabiesCoverage).mock.calls[0][0].scope);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Coherence hybrid (cowork QA H1/H6): the temporal KPIs track the as-of scrub;
+  // the stock KPIs stay current-state; denuncias splits in-period vs backlog.
+  // ---------------------------------------------------------------------------
+
+  it("recomputes TEMPORAL KPIs as-of the scrub cutoff, but STOCK KPIs stay live (H1)", async () => {
+    const asOf = new Date("2026-05-01T00:00:00.000Z"); // inside [since, until]
+    await getPanoramaKpis({ role: "admin" }, [], period, undefined, undefined, asOf);
+
+    // Temporal fetchers see a ctx whose window ENDS at the as-of cutoff — so their
+    // numbers move with the scrubber exactly like the map layers do.
+    expect(vi.mocked(fetchBitesPer10k).mock.calls[0][0].period.until).toEqual(asOf);
+    expect(vi.mocked(fetchActiveZoonosis).mock.calls[0][0].period.until).toEqual(asOf);
+    expect(vi.mocked(fetchOpenWelfareReportsCount).mock.calls[0][0].period.until).toEqual(asOf);
+
+    // Current-state fetchers keep the LIVE window (until = period.until) — a
+    // coverage snapshot cannot vary with a corte; it is labeled "estado actual".
+    expect(vi.mocked(fetchRabiesCoverage).mock.calls[0][0].period.until).toEqual(period.until);
+    expect(vi.mocked(fetchSterilizationCoverage).mock.calls[0][0].period.until).toEqual(
+      period.until,
+    );
+  });
+
+  it("collapses to the live ctx when asOf is null — no behavior change on the live view", async () => {
+    await getPanoramaKpis({ role: "admin" }, [], period, undefined, undefined, null);
+    // The temporal fetchers see the plain live window (until = period.until).
+    expect(vi.mocked(fetchBitesPer10k).mock.calls[0][0].period.until).toEqual(period.until);
+    expect(vi.mocked(fetchActiveZoonosis).mock.calls[0][0].period.until).toEqual(period.until);
+  });
+
+  it("marks the stock KPIs as currentState and leaves the temporal ones unmarked", async () => {
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
+    for (const id of ["cobertura", "esterilizacion", "microchip", "perdidas", "reunificacion"]) {
+      expect(byId[id].currentState).toBe(true);
+    }
+    for (const id of ["mordeduras", "zoonosis", "denuncias"]) {
+      expect(byId[id].currentState).toBeFalsy();
+    }
+  });
+
+  it("splits denuncias into an in-period PRIMARY and a labeled backlog SECONDARY (H6)", async () => {
+    vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 2202, inPeriod: 195 });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const denuncias = kpis.find((k) => k.id === "denuncias")!;
+    // PRIMARY = the in-period count (matches the map + Registros), NOT the backlog.
+    expect(denuncias.value).toBe("195");
+    // SECONDARY carries the all-time backlog, clearly labeled.
+    expect(denuncias.secondary).toContain("backlog");
+    expect(denuncias.secondary).toContain("2.202");
   });
 
   // ---------------------------------------------------------------------------

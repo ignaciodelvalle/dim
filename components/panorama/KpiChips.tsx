@@ -186,6 +186,24 @@ function CardBody({
           <Sparkline points={spark} width={64} height={18} ariaLabel={`Tendencia de ${label}`} />
         )}
       </div>
+      {/* Coherence hybrid (cowork QA H1): a STOCK KPI does not move with the
+          scrubber — say so, so the operator reads the scrubber's non-effect as
+          intentional (the map + temporal KPIs move; this snapshot does not). */}
+      {kpi.currentState && (
+        <span
+          className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          title="Valor de estado actual: no cambia con la línea de tiempo (la reproducción mueve el mapa y los indicadores temporales)."
+        >
+          estado actual
+        </span>
+      )}
+      {/* Coherence hybrid (cowork QA H6): the clearly-labeled secondary figure
+          (e.g. denuncias backlog) — visible without masquerading as the primary. */}
+      {kpi.secondary && (
+        <span className="truncate text-[var(--text-xs)] tabular-nums text-ln-op-faint">
+          {kpi.secondary}
+        </span>
+      )}
     </>
   );
 }

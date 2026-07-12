@@ -782,11 +782,39 @@ export function PanoramaConsole({
     else params.delete("locality");
     return scopePeriodQsOf(params);
   }, [searchParams, effectiveScopeProvince, effectiveScopeLocality]);
+  // "Copiar vista" fidelity: a restored scrub position decoded ONCE from the mount
+  // URL. Declared here (ahead of the KPI refetch, which folds asOf into its key) so
+  // a deep-linked ?asOf frame reconciles the strip on mount. Client-only.
+  const [initialAsOf] = useState<Date | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : parseAsOfFromParams(new URLSearchParams(window.location.search)),
+  );
+  // Current as-of upper bound. null = live (parked at "ahora"). Lazy-init from a
+  // restored scrub day so the console fetches the as-of features immediately on
+  // load (the scrubber independently seeks its slider to the same day).
+  const [asOf, setAsOf] = useState<Date | null>(() => initialAsOf);
+
+  // Coherence hybrid (cowork QA H1): fold the temporal-scrub cutoff into the KPI
+  // fetch key + URL so the TEMPORAL KPIs (mordeduras/zoonosis/denuncias-in-period)
+  // recompute as-of the scrub and track the map + Registros the scrubber already
+  // moves — the "big number contradicts the map" mismatch. Read via a stable ISO
+  // string so a new Date identity per render doesn't thrash the memo. Null (parked
+  // at live) → the plain scope key, byte-identical to before.
+  const asOfKpiIso = asOf ? asOf.toISOString() : null;
+  const kpiFetchQs = useMemo(() => {
+    const params = new URLSearchParams(scopePeriodQs);
+    if (asOfKpiIso) params.set("asOf", asOfKpiIso);
+    return params.toString();
+  }, [scopePeriodQs, asOfKpiIso]);
   // Skip the refetch for the very first render (the server already seeded the
-  // KPIs for the initial searchParams); only refetch when the filters change.
+  // KPIs for the initial searchParams AT LIVE); only refetch when the scope/period
+  // OR the as-of cutoff changes. Seeded against the LIVE scope key, so a deep link
+  // that mounts WITH an ?asOf (kpiFetchQs carries it, the live seed does not) still
+  // refetches on mount to reconcile the strip with the restored scrub frame.
   const seededQsRef = useRef<string | null>(scopePeriodQs);
   useEffect(() => {
-    if (seededQsRef.current === scopePeriodQs) {
+    if (seededQsRef.current === kpiFetchQs) {
       seededQsRef.current = null;
       return;
     }
@@ -796,7 +824,7 @@ export function PanoramaConsole({
     // numbers when it settles.
     clientKpiTookOverRef.current = true;
     let cancelled = false;
-    fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
+    fetch(`/api/panorama/kpis${kpiFetchQs ? `?${kpiFetchQs}` : ""}`, {
       headers: { accept: "application/json" },
       signal: signalFor("kpis"),
     })
@@ -827,7 +855,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [scopePeriodQs, signalFor]);
+  }, [kpiFetchQs, signalFor]);
 
   // perf plan 1.3 — resolve the streamed KPI promise into state. The page creates
   // the loader promise and passes it un-awaited over RSC so SSR never blocks on
@@ -910,16 +938,6 @@ export function PanoramaConsole({
       ? null
       : parseCameraFromParams(new URLSearchParams(window.location.search)),
   );
-  const [initialAsOf] = useState<Date | null>(() =>
-    typeof window === "undefined"
-      ? null
-      : parseAsOfFromParams(new URLSearchParams(window.location.search)),
-  );
-
-  // Current as-of upper bound. null = live (parked at "ahora"). Lazy-init from a
-  // restored scrub day so the console fetches the as-of features immediately on
-  // load (the scrubber independently seeks its slider to the same day).
-  const [asOf, setAsOf] = useState<Date | null>(() => initialAsOf);
   const scrubbing = asOf !== null;
   // panorama-vista-redesign QA fix: bumped whenever THIS console forces asOf
   // back to null OUTSIDE a since/until (period) change — a scope-only change

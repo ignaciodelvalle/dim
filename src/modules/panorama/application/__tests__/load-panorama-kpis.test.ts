@@ -95,7 +95,7 @@ function seedDefaults() {
     hidat: 0,
     deltaWeek: 0,
   });
-  vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4 });
+  vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4, inPeriod: 4 });
   vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
     rate: 65.7,
     sterilized: 657,

@@ -1058,8 +1058,19 @@ export async function fetchNotifiedDiseases(ctx: ProjectionContext): Promise<Not
 // local copy omitted 'invalid', over-counting invalid reports as active.
 
 export type OpenWelfareReportsKpi = {
-  /** Count of welfare reports with a non-terminal status in scope. */
+  /** Count of welfare reports with a non-terminal status in scope (all-time backlog). */
   count: number;
+  /**
+   * Coherence primary (cowork QA H6/H1): reports CREATED within ctx.period
+   * [since, until], moderation-visible, ANY status — the SAME population the
+   * Panorama map bubbles and the Registros list show for the active period
+   * (repository.loadDenunciasByUnit uses the identical createdAt-in-window +
+   * moderation filter). Because it keys on ctx.period.until, an as-of scrub that
+   * clamps `until` shrinks this count in lock-step with the map — unlike the
+   * all-time `count` backlog, which is period-independent (shown as a labeled
+   * secondary). This is the number that must EQUAL the map + list.
+   */
+  inPeriod: number;
 };
 
 /**
@@ -1082,18 +1093,35 @@ export async function fetchOpenWelfareReportsCount(
   ctx: ProjectionContext,
 ): Promise<OpenWelfareReportsKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { count: 0 };
+    return { count: 0, inPeriod: 0 };
   }
 
   const scope = welfareReportsScopeClause(ctx);
 
-  const conditions = [not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]))];
-  if (scope) conditions.push(sql`(${scope})`);
+  // Backlog (secondary): all-time non-terminal work queue, period-independent.
+  const backlogConditions = [not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]))];
+  if (scope) backlogConditions.push(sql`(${scope})`);
 
-  const rows = await db
-    .select({ n: count() })
-    .from(welfareReports)
-    .where(and(...conditions));
+  // In-period (primary): reports created within [since, until], moderation-visible,
+  // ANY status — MIRRORS repository.loadDenunciasByUnit (the map + Registros
+  // population) so the KPI, the bubbles and the list agree for the active period.
+  const periodConditions = [
+    gte(welfareReports.createdAt, ctx.period.since),
+    lte(welfareReports.createdAt, ctx.period.until),
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  ];
+  if (scope) periodConditions.push(sql`(${scope})`);
 
-  return { count: rows[0]?.n ?? 0 };
+  const [backlogRows, periodRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...backlogConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...periodConditions)),
+  ]);
+
+  return { count: backlogRows[0]?.n ?? 0, inPeriod: periodRows[0]?.n ?? 0 };
 }

@@ -106,6 +106,24 @@ export type PanoramaKpi = {
   value: string;
   /** Optional secondary line (e.g. "meta 80% · 12 partidos"). */
   sub?: string;
+  /**
+   * Coherence hybrid (cowork QA H1/H6): TRUE for a STOCK / current-state KPI
+   * (cobertura, esterilización, microchip, pérdidas, reunificación) whose value
+   * is a point-in-time snapshot that does NOT vary with the temporal scrubber's
+   * as-of cutoff. The KPI cards render an honest "estado actual" tag on these so
+   * the operator knows the scrubber (which moves the map + the temporal KPIs)
+   * legitimately does not move them — instead of reading as a broken control.
+   * Absent/false → a period/as-of-sensitive KPI that DOES track the scrub.
+   */
+  currentState?: boolean;
+  /**
+   * Coherence hybrid (cowork QA H6): a clearly-labeled SECONDARY figure shown
+   * beneath the primary on the KPI card — e.g. denuncias shows the in-period
+   * count as the PRIMARY (matching the map + Registros) and the all-time backlog
+   * here as "backlog 2.202 activas". Keeps the useful all-time number without
+   * letting it masquerade as the in-view count. Absent → no secondary line.
+   */
+  secondary?: string;
   /** Optional progress-bar fill 0..100 (rabies coverage). */
   bar?: number;
   tone: KpiTone;
@@ -253,7 +271,11 @@ function priorWindowOf(period: AnalyticsPeriod): { since: Date; until: Date } {
  * (H9): coverage rising 36%→64% is "+28 pts", not "+78%". A zero prior is fine
  * here (the point difference is still meaningful), so only non-finite is guarded.
  */
-function deltaOf(current: number, prior: number, unit: "pct" | "pts" = "pct"): KpiDelta | undefined {
+function deltaOf(
+  current: number,
+  prior: number,
+  unit: "pct" | "pts" = "pct",
+): KpiDelta | undefined {
   if (!Number.isFinite(current) || !Number.isFinite(prior)) return undefined;
   if (unit === "pts") {
     const pts = Math.round(current - prior);
@@ -323,6 +345,7 @@ export async function getPanoramaKpis(
   period: AnalyticsPeriod,
   adminProvince?: string,
   adminLocality?: string,
+  asOf?: Date | null,
 ): Promise<PanoramaKpis> {
   // One ProjectionContext for the ctx-based fetchers. Thread adminProvince so
   // petsScopeClause / petEventsScopeClause narrow from global to the selected province.
@@ -330,6 +353,22 @@ export async function getPanoramaKpis(
     adminProvince,
     adminLocality,
   });
+
+  // Coherence hybrid (cowork QA H1/H6): when the operator scrubs the timeline the
+  // map + Registros refetch as-of that cutoff, but the KPIs used NOT to — the big
+  // number contradicted the map ("102 zoonosis" over a map showing 19). Thread the
+  // as-of cutoff into the TEMPORAL KPIs only (mordeduras, zoonosis, denuncias
+  // in-period): they compute against a period whose `until` is clamped to `asOf`,
+  // so they move WITH the map. STOCK/current-state KPIs (cobertura, esterilización,
+  // microchip, pérdidas, reunificación) keep the LIVE ctx — they are point-in-time
+  // snapshots that cannot vary with a corte, and are labeled "estado actual" so the
+  // scrubber's honest non-effect on them reads as intentional, not broken. When
+  // `asOf` is null (parked at live) every temporal ctx collapses back to `ctx`, so
+  // the behavior is byte-identical to before (no regression on the live view).
+  const temporalPeriod: AnalyticsPeriod = asOf ? { ...period, until: asOf } : period;
+  const temporalCtx = asOf
+    ? buildProjectionContext(actor, jurisdictions, temporalPeriod, { adminProvince, adminLocality })
+    : ctx;
 
   // task #78 Part 3 — the ministry-credibility "both numbers" for the cobertura
   // tile: the SAME ctx narrowed to vet-signed doses only (firmado por matrícula).
@@ -355,6 +394,19 @@ export async function getPanoramaKpis(
     { adminProvince, adminLocality },
   );
 
+  // Prior window for the TEMPORAL KPIs' deltas — anchored to the as-of cutoff so a
+  // scrubbed value's delta compares like-for-like against the window immediately
+  // before the as-of frame (not the live prior). Collapses to `priorCtx` at live.
+  const temporalPriorWindow = asOf ? priorWindowOf(temporalPeriod) : priorWindow;
+  const temporalPriorCtx = asOf
+    ? buildProjectionContext(
+        actor,
+        jurisdictions,
+        { ...period, since: temporalPriorWindow.since, until: temporalPriorWindow.until },
+        { adminProvince, adminLocality },
+      )
+    : priorCtx;
+
   // NEVER-CRASH FAN-OUT (task #74): use Promise.allSettled — NOT Promise.all.
   // Promise.all rejects on the FIRST fetcher failure and ABANDONS its siblings;
   // when a sibling later rejects (routine once the transaction pooler degrades
@@ -378,19 +430,24 @@ export async function getPanoramaKpis(
     // 3. Pérdidas activas — lib/govt-dashboards.fetchPerdidasMetrics (population metric).
     //    Non-ctx fetcher: thread adminProvince via opts.
     fetchPerdidasMetrics(actor, jurisdictions, { adminProvince, adminLocality }),
-    // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k (ctx).
-    fetchBitesPer10k(ctx),
-    // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis (ctx).
-    fetchActiveZoonosis(ctx),
-    // 6. Denuncias activas — lib/govt-home-kpis.fetchOpenWelfareReportsCount (ctx).
-    fetchOpenWelfareReportsCount(ctx),
+    // 4. Mordeduras / 10k hab. — lib/govt-home-kpis.fetchBitesPer10k.
+    //    TEMPORAL: as-of-aware ctx so the rate tracks the scrubber (H1).
+    fetchBitesPer10k(temporalCtx),
+    // 5. Zoonosis activas — lib/govt-home-kpis.fetchActiveZoonosis.
+    //    TEMPORAL: as-of-aware ctx so the signal snapshot tracks the scrubber (H1).
+    fetchActiveZoonosis(temporalCtx),
+    // 6. Denuncias — lib/govt-home-kpis.fetchOpenWelfareReportsCount.
+    //    TEMPORAL: as-of-aware ctx so the in-period primary tracks the scrubber
+    //    (the all-time backlog it also returns is period-independent) (H6).
+    fetchOpenWelfareReportsCount(temporalCtx),
     // 7. Cobertura de esterilización — lib/metrics/population-control.fetchSterilizationCoverage.
-    // Same fetcher as /gob/poblacion → dashboard parity guaranteed.
+    // Same fetcher as /gob/poblacion → dashboard parity guaranteed. STOCK (estado actual).
     fetchSterilizationCoverage(ctx),
-    // Prior-window runs (deltas) — same fetchers, prior ctx.
+    // Prior-window runs (deltas). Cobertura's prior stays LIVE (it is current-state);
+    // the temporal KPIs' priors anchor to the as-of frame (temporalPriorCtx).
     fetchRabiesCoverage(priorCtx),
-    fetchBitesPer10k(priorCtx),
-    fetchActiveZoonosis(priorCtx),
+    fetchBitesPer10k(temporalPriorCtx),
+    fetchActiveZoonosis(temporalPriorCtx),
     // Freshness: newest scoped ingest event (map-QOL freshness chip).
     lastIngestAt(ctx),
     // task #78 Part 3: signed-only (firmado por matrícula) rabies coverage for the
@@ -404,9 +461,9 @@ export async function getPanoramaKpis(
     // v+1 rail — KPI sparklines. Same trend fetchers /gob home wires into its
     // tiles, run against the SAME ctx as the headline value (not a fixed 12m
     // window) so the sparkline always spans the operator's active period.
-    fetchRabiesVaccinationTrend(ctx), // cobertura
-    fetchBitesTrend(ctx), // mordeduras
-    fetchKpiTrend("rabies_observation_started", ctx), // zoonosis (mirrors /gob home's zoonosisTrend)
+    fetchRabiesVaccinationTrend(ctx), // cobertura (current-state → live ctx)
+    fetchBitesTrend(temporalCtx), // mordeduras (temporal → as-of-aware)
+    fetchKpiTrend("rabies_observation_started", temporalCtx), // zoonosis (temporal → as-of-aware)
   ]);
 
   // Any fetcher rejected → the strip cannot be built with parity. Log every
@@ -461,6 +518,8 @@ export async function getPanoramaKpis(
       value: formatPercent(coverage.current),
       sub: coberturaSub(coverage, coverageSigned),
       bar: coverage.current,
+      // STOCK: a point-in-time coverage snapshot — does not vary with the scrub.
+      currentState: true,
       tone: coverage.current >= coverage.target ? "ok" : "warn",
       href: "/gob/analytics",
       source: "govt-home-kpis.fetchRabiesCoverage",
@@ -483,6 +542,7 @@ export async function getPanoramaKpis(
       value: formatPercent(sterilization.rate),
       sub: `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
       bar: sterilization.rate,
+      currentState: true,
       tone: sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT ? "ok" : "warn",
       href: "/gob/poblacion",
       source: "metrics.fetchSterilizationCoverage",
@@ -504,6 +564,7 @@ export async function getPanoramaKpis(
       value: formatPercent(microchip.ratePct),
       sub: `meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`,
       bar: microchip.ratePct,
+      currentState: true,
       tone: toneForTarget(microchip.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT),
       href: "/gob/censo",
       source: "compliance-metrics.fetchMicrochipPenetration",
@@ -520,6 +581,8 @@ export async function getPanoramaKpis(
         perdidas.avgDaysActive > 0
           ? `${perdidas.recoveredMonth} recuperadas (30d) · ${perdidas.avgDaysActive} d prom.`
           : `${perdidas.recoveredMonth} recuperadas (30d)`,
+      // STOCK: COUNT(status='lost') now — a state count, not a period metric.
+      currentState: true,
       tone: perdidas.activeCount > 0 ? "warn" : "neutral",
       href: "/gob/perdidas",
       source: "govt-dashboards.fetchPerdidasMetrics",
@@ -540,6 +603,7 @@ export async function getPanoramaKpis(
       value: formatPercent(reunification.ratePct),
       sub: `meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`,
       bar: reunification.ratePct,
+      currentState: true,
       tone: toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT),
       href: "/gob/perdidas",
       source: "compliance-metrics.fetchReunificationRate",
@@ -586,19 +650,29 @@ export async function getPanoramaKpis(
       },
     },
     {
+      // Coherence hybrid (cowork QA H6): the PRIMARY is the in-period count — the
+      // SAME population the map bubbles + the Registros list show for the active
+      // period (so "195 en el período" == the map), and it tracks the scrubber.
+      // The all-time backlog ("2.202 activas") rides as a clearly-labeled SECONDARY
+      // so the useful work-queue total stays visible without masquerading as the
+      // in-view count (the 965-vs-2.202 mismatch the QA flagged).
       id: "denuncias",
-      label: "Denuncias activas",
-      value: formatCount(welfare.count),
-      sub: welfare.count === 1 ? "denuncia de bienestar" : "denuncias de bienestar",
-      tone: welfare.count > 0 ? "warn" : "neutral",
+      label: "Denuncias en el período",
+      value: formatCount(welfare.inPeriod),
+      sub: welfare.inPeriod === 1 ? "denuncia en el período" : "denuncias en el período",
+      secondary: `backlog: ${formatCount(welfare.count)} ${
+        welfare.count === 1 ? "activa en total" : "activas en total"
+      }`,
+      tone: welfare.inPeriod > 0 ? "warn" : "neutral",
       href: "/gob/maltrato",
       source: "govt-home-kpis.fetchOpenWelfareReportsCount",
       info: {
         definition:
-          "Denuncias de bienestar animal con estado no terminal (ni 'closed' ni 'duplicate') en la jurisdicción. Es la cola de trabajo de la bandeja de maltrato.",
-        formula: "COUNT(welfare_reports donde status NOT IN ('closed', 'duplicate')) en alcance",
+          "PRIMARIO: denuncias de bienestar creadas en el período y alcance seleccionados (cualquier estado, visibles según moderación) — la misma población que muestran el mapa y la lista de Registros. SECUNDARIO (backlog): denuncias con estado no terminal (ni 'closed', 'invalid' ni 'duplicate') acumuladas de todo el tiempo — la cola de trabajo de la bandeja de maltrato.",
+        formula:
+          "primario = COUNT(welfare_reports donde created_at ∈ [desde, hasta], visibles) en alcance · backlog = COUNT(welfare_reports donde status NOT IN ('closed','invalid','duplicate')) en alcance",
         caveat:
-          "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible.",
+          "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible. El backlog no depende del período (es un stock); el primario sí se mueve con la línea de tiempo.",
       },
     },
   ];

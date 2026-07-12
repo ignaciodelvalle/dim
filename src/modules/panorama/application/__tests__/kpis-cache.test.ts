@@ -94,6 +94,28 @@ describe("kpiCacheKey — scope isolation", () => {
     expect(a).not.toBe(b);
   });
 
+  it("the temporal-scrub cutoff (asOf) is part of the key — a scrubbed frame never aliases live", () => {
+    const live = kpiCacheKey({ role: "admin", jurisdictions: [], since, until });
+    const scrubbed = kpiCacheKey({
+      role: "admin",
+      jurisdictions: [],
+      since,
+      until,
+      asOf: new Date("2026-05-01T00:00:00.000Z"),
+    });
+    const scrubbedElsewhere = kpiCacheKey({
+      role: "admin",
+      jurisdictions: [],
+      since,
+      until,
+      asOf: new Date("2026-04-01T00:00:00.000Z"),
+    });
+    expect(scrubbed).not.toBe(live);
+    expect(scrubbed).not.toBe(scrubbedElsewhere);
+    // A null asOf is the live default — identical to omitting it.
+    expect(kpiCacheKey({ role: "admin", jurisdictions: [], since, until, asOf: null })).toBe(live);
+  });
+
   it("a moving preset `until` within the same TTL bucket keeps the key stable", () => {
     const t = AT;
     const a = kpiCacheKey({

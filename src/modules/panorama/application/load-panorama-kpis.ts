@@ -87,10 +87,14 @@ function computeCachedKpiFanOut(
   period: AnalyticsPeriod,
   adminProvince: string | undefined,
   adminLocality: string | undefined,
+  asOf: Date | null | undefined,
 ): Promise<PanoramaKpis> {
   // Direct (uncached) fan-out — the source of truth, shared by the cached fn's
-  // body and the no-Data-Cache fallback so both paths compute identically.
-  const fanOut = () => getPanoramaKpis(actor, jurisdictions, period, adminProvince, adminLocality);
+  // body and the no-Data-Cache fallback so both paths compute identically. `asOf`
+  // rides through the closure (and folds into `cacheKey` via `keyParts`) so a
+  // scrubbed frame never aliases the live entry (coherence hybrid H1).
+  const fanOut = () =>
+    getPanoramaKpis(actor, jurisdictions, period, adminProvince, adminLocality, asOf);
 
   const cached = unstable_cache(
     async () => {
@@ -126,6 +130,8 @@ export type LoadCachedPanoramaKpisParams = {
   /** Admin drill-down province/locality (undefined for govt). */
   adminProvince?: string;
   adminLocality?: string;
+  /** Temporal-scrub cutoff (coherence hybrid H1). Null/undefined = live. */
+  asOf?: Date | null;
   /** Time budget in ms. Defaults to KPIS_BUDGET_MS. */
   budgetMs?: number;
   /** Short log label, e.g. "GET /api/panorama/kpis" or "gob/panorama kpis". */
@@ -156,6 +162,7 @@ export function loadCachedPanoramaKpis(
     until: params.period.until,
     adminProvince: params.adminProvince,
     adminLocality: params.adminLocality,
+    asOf: params.asOf,
   });
   return getCachedPanoramaKpis(
     cacheKey,
@@ -171,6 +178,7 @@ export function loadCachedPanoramaKpis(
           params.period,
           params.adminProvince,
           params.adminLocality,
+          params.asOf,
         ),
         params.budgetMs ?? KPIS_BUDGET_MS,
         params.label,
