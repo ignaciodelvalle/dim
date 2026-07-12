@@ -737,3 +737,371 @@ representation's `columns` config enforces structurally; item 4 is an independen
 - **#33 representation system (items 1, 3b; item 2's durable form):** one root — Listas
   representations underbuilt + inconsistent; item 1 carveable as a pre-#33 increment.
 - **Design-decision (item 4):** PO picks the card affordance — recommend Option C + B's elevation.
+
+---
+
+# Round 3 — update model, chip coupling, CABA drill, loading, disabled-chip, legend visibility
+
+> Same discipline as rounds 1&2: per item → root cause with exact `file:line` → structure
+> verdict (against `PanoramaViewState`, `docs/plans/panorama-viewstate-design.md`, and the
+> round-1/round-2 roots) → concrete recommendation. **ITEM 2 is the centerpiece** — the PO's
+> deep "how does the info actually update on every control change, and is it uniform?" — and it
+> is answered first, with a full per-control commit-path map. It doubles as the expanded design
+> for **Root B** (round 1's "commit-mechanism still split").
+>
+> **State line (sharpened this round):** the SCOPE commit path is now FULLY unified onto the
+> shallow `commitScopeDrill` seam — both the map-click drill AND the `JurisdictionSwitcher`
+> route through it (`PanoramaConsole.tsx:1374,1381`), superseding the `window.location.assign`
+> the design §4.3 attributed to the switcher. **PERIOD is now the LONE holdout on full reload**
+> (`PeriodPanel.tsx:51`). Everything else commits shallow. That single asymmetry is the whole of
+> item 2's "not uniform" answer.
+
+## Verdict table (one line each)
+
+| # | Finding | Root | Verdict |
+|---|---|---|---|
+| 2 | Is the update mechanism uniform across controls? | Period commits full-reload (`PeriodPanel.tsx:51`); ALL other controls commit shallow+client-refetch (`pushMapStateUrl`/`replaceMapStateUrl`) | **NO — 2 mechanisms; NEEDS the unify follow-up (= Root B, expanded here)** |
+| 1 | KPI chip sometimes swaps the vista/preset | `onToggle` unconditionally `setActivePresetId(null)` (`PanoramaConsole.tsx:1924`); chip → `onRebase` → `onToggle` (`:4033`) | **DESIGN-DECISION** — coupling is real; recommend explicit "stay in preset if metric belongs to it" rule |
+| 3 | CABA inset not clickable to drill | `CabaInset` is `interactive:false`, no click handler (`CabaInset.tsx:116`); display-only by design (`:32-35`) | **COSMETIC-ish / wire to existing drill** — reuse `commitScopeDrill("AR-C", null)`; fits decided nav-decouple |
+| 4 | Loading-state audit | states are gated to genuine waits; map skeleton gated on `!mapIsPainting` (`PanoramaConsole.tsx:2245`) | **HEALTHY** — no missing async affordance, no spurious spinner found; one nuance (item 5's post-tap empty) |
+| 5 | Coverage errors on tap at locality; should disable+tooltip | no level gate on rate chips in `KpiChips.tsx`; empty overlay fires AFTER rebase (`SituationalMap.tsx:3629`) | **NEEDS SMALL BUILD** — disable rate chips when `level !== "province"` + tooltip; province-only = the 4 `dataType:"rate"` layers |
+| 6 | Legend readable without expanding | `LegendPill` collapsed strip already shows label+ramp+dots+k-anon, but NO numeric min/max, NO k-count, ramp only for choropleth (`LegendPill.tsx:73-88`) | **COSMETIC now / natural P3 output** — add min/max endpoints + k-marker; graduated/points need their own collapsed form |
+
+---
+
+## ITEM 2 (CENTERPIECE) — how every control commits, and is it uniform? — **NO (2 mechanisms)**
+
+**The per-control update map.** For each control, HOW its change propagates data — (a) FULL
+page reload → SSR refetch, (b) SHALLOW URL write → client `/api/panorama/*` refetch, (c) pure
+client re-derive (no fetch), (d) other — with the exact commit `file:line`:
+
+| Control | Mechanism | Commit site (`file:line`) | Data path |
+|---|---|---|---|
+| **Período preset** (7d/30d/90d/12m/…) | **(a) FULL RELOAD** | `PeriodPanel.tsx:51` `window.location.assign` (via `pick`→`updateParams`) | server SSR refetch of the whole board |
+| **Período CUSTOM** (Personalizado + DateRangePicker) | **(a) FULL RELOAD ×2** | `PeriodPanel.tsx:51` — `pick("custom")` reloads, THEN `handleCustomRangeChange` reloads again (`:54-62`) | two SSR refetches — the most jarring symptom |
+| **Scope province drill** (map click / switcher) | **(b) SHALLOW + client refetch** | `PanoramaConsole.tsx:1348` `pushMapStateUrl` + `:1367` `fetchScopeBundle` | client `/api/panorama/scope`; layers refetch at new scope |
+| **Scope locality drill** | **(b) SHALLOW + client refetch** | same `commitScopeDrill` (`:1333-1367`) | same |
+| **Layer toggle** (FiltroPanel on/off) | **(b) SHALLOW + client refetch** (or **(c)** if cached) | `onToggle` fetch + URL-sync effect `:2774` `replaceMapStateUrl` | `fetchChoroplethAt`; cached layer = pure client re-derive |
+| **Preset / vista change** (PresetPanel) | **(b) SHALLOW + client refetch** | `applyPreset` `:2518` `pushMapStateUrl` + `:2539` `fetchLayersInto` | client layer fetch; seeded caches = zero-fetch |
+| **KPI chip select** (rebase) | **(b) SHALLOW + client refetch** (or **(c)** if cached) | `:4034` `onToggle(id)` → same as layer toggle | same as layer toggle |
+| **Verified-only toggle** | **(b) SHALLOW + client refetch** | `onToggleVerified` `:1877` `fetchChoroplethAt("cobertura")` + URL-sync `:2770` | refetches only cobertura |
+| **asOf scrubber** | **(b) SHALLOW + client refetch** | `onScrub` `:3113` `setAsOf` → as-of effect refetch; URL-sync `:3147` `replaceMapStateUrl` | client as-of layer refetch |
+| **Basis** (valid/transaction) | **(b) client refetch, NO URL** | `onBasisChange` `:3155` clears as-of cache → as-of effect refetch; intentionally not serialized | client refetch; ephemeral per design §4.2 |
+| **Camera / zoom** | **(b/c) SHALLOW; refetch only on level flip** | `onCameraChange` `:3126` `replaceMapStateUrl`; level effect `:2712-2713` `onLevelChange` may refetch | pure client pan/zoom; a hysteresis-band crossing refetches level-sensitive layers |
+| **Dock tab / representation** (registros/stats/timeline) | **(c) pure client re-derive** | `setDockTab` state only — no URL, no fetch | re-derives from already-loaded features |
+
+**Answer to the PO, plainly: NO — updates are NOT uniform. There are exactly TWO mechanisms.**
+Period (both preset and custom) is the **only** control that commits via a **full document
+reload** (`PeriodPanel.tsx:51` `window.location.assign`) — every other control commits **shallow
++ client refetch** (or pure client). The custom-period path is the worst case: it fires **two**
+full reloads in a row (one to enter "Personalizado", a second when you pick the dates), which is
+the jarring double-flash the PO feels. This is the same defect as round 1's finding 3b and the
+design §4.3 hazard #1 — restated here as the centerpiece because the PO asked it as a
+first-principles question, and because the scope path has since been unified, leaving period as
+the sole outlier.
+
+**Why the reload exists (the risk the shallow path was dodging).** `PeriodPanel`'s own header
+comment (`PeriodPanel.tsx:5-8`) says the full navigation is "the one mechanism immune to the
+Next 15.5.x router-drop defect": Next App Router's `useSearchParams()` does **not** observe
+shallow History commits (engram #621/#622), so a shallow period write would leave server-derived
+readers stale. The reload sidesteps that by forcing a real SSR pass. The second risk is the **C2
+SSR level-seed contract** (design §4.3 hazard #2): `?level` seeds the SSR cache key and must equal
+`initialLevel` or the map blanks — a naive shallow period commit must preserve that seed.
+
+**The UNIFIED model (what "unify commit mechanism" means concretely).** Route period through the
+**exact seam scope and presets already use** — the in-repo proof exists twice over:
+1. Build the URL from the canonical value (`viewStateToParams` once P1's boundary is leaned on;
+   until then, the `nextParams` pattern `applyPreset` uses at `:2504-2517`).
+2. Commit **shallow** with `pushMapStateUrl(nextUrl)` (`:2518`) — back-button-undoable.
+3. Trigger the existing client refetch effects, which already key off the derived period window
+   (the KPI effect + `fetchLayersInto`). `applyPreset` ALREADY does exactly this for the
+   preset's `period=<preset.periodPreset>` (`:2505`) — so a preset change ALREADY commits period
+   shallowly and works. **Custom period is the only period write that does NOT go through
+   `applyPreset`'s shallow path** — it is a raw `PeriodPanel` `window.location.assign`. The fix is
+   to give `PeriodPanel` the same commit callback the console hands `PresetPanel`, instead of
+   letting it write the URL itself.
+4. Mirror the popstate re-derivation `commitScopeDrill`/`resyncBoardFromUrl` use
+   (`:1395` `onPopState`, `:2567` `resyncBoardFromUrlRef`) so Back/Forward across period stays
+   coherent without a router observe — this is the standing answer to the `useSearchParams`
+   blind spot (#621/#622): the console already reads `window.location.search` directly and
+   re-derives on `popstate`, so period joins that pattern for free.
+5. Keep the C2 seed safe: the shallow commit writes `period`/`from`/`to` and leaves `?level`
+   exactly as `applyPreset` does (`:2507-2508`) — no change to the SSR seed contract.
+6. Degradation: keep a `window.location.assign` FALLBACK on refetch failure — the same pattern
+   `fetchScopeBundle` uses at `:1328`.
+
+**Is unifying safe/scoped?** YES, and it is now LOWER-risk than when the design first deferred it,
+because the two hard parts are already solved in-repo: (a) shallow period commits already work via
+`applyPreset` (a preset change proves it), and (b) the popstate re-derivation already keeps
+shallow-committed board fields coherent (`resyncBoardFromUrlRef`). The remaining work is narrow:
+make `PeriodPanel` commit through a console-supplied callback (mirroring how `PresetPanel` gets
+`onPreset`) rather than owning `window.location.assign`. Scope: `PeriodPanel.tsx` + one new
+`onPeriodCommit` prop wired in `PanoramaConsole.tsx`. It is a **discrete follow-up PR** — do NOT
+fold it into the rail-cleanup batch. This IS Root B, and the direction was already decided; only
+sequencing is the PO's call.
+
+**Verdict: NO, not uniform — one control (period) reloads, the rest are shallow. NEEDS the
+"unify commit mechanism" follow-up (Root B), now cheaper than the design assumed.**
+
+---
+
+## ITEM 1 — KPI chips sometimes change the vista/preset — **DESIGN-DECISION** (coupling is real)
+
+**Root cause (exact).** A KPI chip selection routes straight into the layer-toggle path, which
+**unconditionally exits preset mode**:
+- `KpiChips.tsx:229-231` — a base-selecting card's `onClick` calls `onRebase(baseId)`.
+- `PanoramaConsole.tsx:4033-4035` — `onRebase={(id) => void onToggle(id)}`. The chip IS a layer
+  toggle.
+- `PanoramaConsole.tsx:1921-1924` — `onToggle` opens with **`setActivePresetId(null)`** ("A
+  manual toggle exits preset mode"). So selecting ANY metric whose base differs from the active
+  base drops the view out of its named preset into `preset = null` ("modo avanzado").
+
+**Why "sometimes."** Two conditions gate the visible swap:
+1. Re-selecting the **currently-active** metric is a no-op — `KpiChips.tsx:229-230` `if (!active)
+   onRebase` — so tapping the metric already painting does NOT change the preset.
+2. Selecting a **different** metric always nulls the preset. Because the curated chip set itself
+   is `metricIds` derived from the preset (`:4030` `metricIds={metricIds}`, `KpiChips.tsx:125`),
+   `preset → null` collapses the chip set to the manual set — so the cluster the operator was
+   looking at **rearranges under them**, and the `vistaName` pill (`PanoramaConsole.tsx:4023-4027`)
+   **disappears**. That combined jump (lost vista label + reshuffled chips + possible framing
+   reset) is what reads as "it switched the whole view."
+
+So the chip does exactly one thing structurally — a **base-layer swap** — but that swap is
+hard-wired to also **discard the preset identity**, even when the metric the operator picked is
+*part of the very preset they are in*.
+
+**Structure verdict.** In the ViewState model, selecting a metric is a **`layers` change** (a base
+swap within `layers[0]`), NOT inherently a **`preset` change**. Today the two are conflated at
+`onToggle:1924`. The PO already ruled that **shared chips are FINE** — so the answer is not to
+decouple the chip from the map, but to make the **preset-retention rule explicit and intentional**
+instead of "any toggle nukes the preset." This is a `DESIGN-DECISION` because the correct rule is a
+product call, but the recommendation is firm.
+
+**Recommendation (a coherent rule).** Make chip selection a **base-layer swap that STAYS in the
+current preset when the chosen metric belongs to it, and only exits to manual when it does not**:
+1. If the selected base layer is in the active preset's curated set (`presetLayerIds(preset)`
+   contains it, or it is one of the preset's `metricIds`), **keep `activePresetId`** — swap the
+   base within the preset. The vista label stays; the chip cluster stays stable.
+2. If the metric is NOT available in the current preset, then (and only then) fall to
+   `preset = null`, and give a **visible cue** that the view left its preset (e.g. flip the vista
+   pill to "Vista personalizada" rather than silently blanking it).
+3. Mechanically: `onToggle` should take an optional `{ keepPreset?: boolean }` or the console
+   should compute retention before calling it — do NOT keep the blanket `setActivePresetId(null)`
+   at the top of `onToggle:1924`; make preset-exit a *decision*, not a side effect. Manual
+   FiltroPanel toggles of non-preset layers still exit (correct); in-preset chip swaps do not.
+
+This is `KpiChips.tsx` + `onToggle` local, no ViewState dependency, shippable once the PO ratifies
+the retention rule. It is the layer-axis twin of round 1's "controls should route through one
+coherent commit path" — the chip's *intent* (change the metric) should not smuggle a second
+mutation (drop the preset).
+
+---
+
+## ITEM 3 — CABA inset not clickable to drill — **wire to the existing drill path**
+
+**Root cause (exact).** The inset is **display-only by construction**:
+- `CabaInset.tsx:116` — the mini-map is created with `interactive: false`.
+- `CabaInset.tsx:32-35` — the header comment states the minimal design: "static CABA camera, no
+  camera sync… no hover popups." There is **no `onClick`/`onScopeCommit` prop and no click
+  handler** anywhere in the component; the outer wrapper (`:254-262`) is a plain `<div>`.
+- `SituationalMap.tsx:3540-3543` — the parent renders `<CabaInset layer visible uniformFill />`
+  and passes **no drill callback**. So clicking CABA in the inset does nothing, while clicking the
+  CABA polygon on the main map drills via `onProvinceDrill` → `commitScopeDrill`.
+
+**Structure verdict.** This fits the PO's DECIDED navigation model
+(memory `panorama/navigation-model`: decouple — **click = level drill**). The inset click should
+set `scope = CABA`, identically to clicking the province on the main map — it is a `scope` mutation
+by an explicit click, exactly the round-1 nav-decouple recommendation. CABA's province code is
+**`AR-C`** (`panorama-regions.ts:64`, `PanoramaConsole.tsx:3260`, `isCABA`).
+
+**Recommendation.** Reuse the SAME shallow drill seam a province click already uses — do NOT invent
+a second path:
+1. Add an `onDrill?: () => void` prop to `CabaInset`; wrap the panel (or a dedicated "Ver CABA"
+   affordance) in a `<button>` that calls it. Keep the mini-map `interactive:false` (the drill is a
+   whole-panel click, not a map gesture) so no MapLibre handler churn is added.
+2. In `SituationalMap`, pass `onDrill={() => onProvinceDrill?.("AR-C")}` — which routes to
+   `commitScopeDrill("AR-C", null)` (`PanoramaConsole.tsx:1374`), the shallow `pushMapStateUrl` +
+   `fetchScopeBundle` path that already works and is lateral (no need to zoom out first).
+3. a11y: give the button an accessible label ("Explorar CABA por barrio"); it is a real navigation
+   control, so it must be keyboard-focusable and announce its action.
+
+This is COSMETIC-adjacent (a small wiring change reusing an existing, tested seam), and it confirms
+the PO's framing: the inset click = the province click. It also sequences naturally with item 2's
+unify work, since both lean on the one shallow-commit seam.
+
+---
+
+## ITEM 4 — Loading-state audit — **HEALTHY** (no missing affordance, no spurious spinner)
+
+**Inventory (grep of `loading|pending|isFetching|Skeleton|Spinner|aria-busy` across
+`components/panorama`).**
+
+| Surface | Has loading? | Genuine async wait? | Verdict |
+|---|---|---|---|
+| KPI chips (rebase / KPI fetch) | YES — "Cargando indicadores…" `KpiChips.tsx:114-122` (`aria-busy`) | YES — `/api/panorama/kpis` fetch | ✅ correct |
+| Map over active-layer fetch | YES — "Cargando el mapa…" shimmer `PanoramaConsole.tsx:3936-3943` | YES — layer feature fetch | ✅ correct, and gated |
+| — its gate | `showMapSkeleton = !mapIsPainting && mapDataLoading` `:2244-2245` | prevents a spinner while the map is ALREADY painting | ✅ **anti-spurious guard present** |
+| Per-layer (FiltroPanel/LayerPanel) | YES — per-layer `loading` flag | YES — that layer's fetch | ✅ correct |
+| KPI footer | YES — `pending` `:3827` | YES — KPI fetch | ✅ correct |
+| SSR board skeleton | YES — `PanoramaBoardSkeleton.tsx` | YES — first paint / period full-reload | ✅ correct |
+| DetailDrawer | YES — 6 loading sites | YES — drawer data fetch | ✅ correct |
+| Verified toggle | YES — `cobertura.loading=true` `:1873` | YES — cobertura refetch | ✅ correct |
+| Dock tab / representation switch | NO | NO — pure client re-derive (item 2 row 12) | ✅ correctly NO spinner |
+| Simple/Detalle toggle | NO | NO — instant presentational flip | ✅ correctly NO spinner |
+| KPI/layer re-toggle to a CACHED layer | NO | NO — `provinceDataRef` hit returns instantly `:2010-2022` | ✅ correctly NO spinner |
+
+**Findings.** (i) Every genuine async wait HAS a loading affordance — no bare fetch found without
+one. (ii) No **spurious** spinner found: the map skeleton is explicitly gated on `!mapIsPainting`
+(`:2245`) so a cached/instant re-derive never flashes it, and the two pure-client controls (dock
+tab, Simple/Detalle) correctly show nothing. The loading model the PO likes is, in fact, well
+disciplined. (iii) **One nuance, owned by item 5:** at locality level, tapping a coverage chip
+does a real refetch (so a loader is honest) but then lands on the "solo a nivel provincia" EMPTY
+overlay — the loader is not wrong, but the *outcome* is a dead end; item 5 fixes it upstream by
+disabling the chip so no wait is started at all.
+
+**Verdict: HEALTHY.** No build required for loading itself; fold any micro-copy tweak into the
+item-5 change.
+
+---
+
+## ITEM 5 — coverage province-only: disable chip + tooltip, not error-on-tap — **NEEDS SMALL BUILD**
+
+**Root cause (exact).** The "province-only" limit is enforced **after** the tap, as a map empty
+state, with **no gate on the chip**:
+- `PanoramaConsole.tsx:2953` — `rateProvinceOnlyEmpty = rankingKind === "rate" && level !==
+  "province"`. `rankingKind` is `"rate"` when `captionLayer.dataType === "rate"` (`:2938-2941`).
+- `SituationalMap.tsx:3629-3631` — when nothing renders, the overlay shows **"La cobertura se
+  calcula solo a nivel provincia. Volvé al nivel provincia para verla."** This is the message the
+  PO sees AFTER tapping.
+- `KpiChips.tsx` — a base-selecting card is clickable purely on `baseLayerFor(kpi.id) !== null`
+  (`:80-83, 137-140`); there is **NO level check**. So at locality level the coverage chip is fully
+  tappable, rebases the map to the rate layer, the layer paints nothing, and the empty overlay
+  fires. That is "an error after tapping" instead of a disabled control.
+
+**Which metrics are province-only vs available at all levels (the precise disable rule).** From
+`layers.ts`:
+- **Province-only (`dataType: "rate"`, computed only at province grain — repository "V1
+  LIMITATION"):** `esterilizacion` (`:249`), `microchip` (`:277`), `ppp` (`:299`), `cobertura`
+  (`:325`). All four carry a `complianceTarget`. These are the chips to disable below province.
+- **Available at all levels:** every `density` layer — `perdidas` (`:64`), `mordeduras` (`:89`),
+  `denuncias` (`:119`), `sintomas` (`:167`), `mortalidad` (`:352`); every `signal` — `zoonosis`
+  (`:146`), `reunificacion` (`:189`); every `reference` — `refugios` (`:211`), `decomisos`
+  (`:229`). These stay enabled everywhere.
+
+So the disable predicate is precise: **`getLayer(baseId)?.dataType === "rate"` AND
+`level !== "province"`**.
+
+**Structure verdict.** This is the a11y "disabled but explained" pattern, and it maps to the
+ViewState `capabilities.allowedControls` idea from the design §2 — a rate chip's tappability is a
+capability gated by the resolved `level`. Pre-capabilitiesFor, it is a small local gate; it lands
+cleanly as a `capabilities` output later.
+
+**Recommendation.**
+1. **Disable + tooltip (a11y-correct).** Pass the current `level` (or a `disabledBaseIds` set the
+   console computes) into `KpiChips`. For a rate chip when `level !== "province"`: render it
+   **`aria-disabled="true"`**, non-clickable (drop `onClick`/`role="radio"` membership, exactly as
+   read-only reference cards already do at `KpiChips.tsx:245-252`), muted, with a **`title`
+   tooltip** "La cobertura se calcula solo a nivel provincia." Use `aria-disabled` (not the
+   `disabled` attribute) so the tooltip remains discoverable to assistive tech — the component
+   already has this exact idiom for reference cards, so it is a small generalization.
+2. **Fallback (make the number legible, not just gray).** The province-level coverage value for the
+   drilled jurisdiction already exists and is already computed for the CABA inset
+   (`SituationalMap.tsx:3350-3364`, `insetUniformFill` from the province rate feature). The same
+   value can back a labeled fallback on the chip when drilled into a locality: show the **province
+   coverage value with an explicit "(provincia)" qualifier** instead of a dead metric, or gray the
+   chip with the province figure as sub-text — clearly labeled so it never masquerades as a
+   locality number. This turns the dead end into an honest degrade, matching the round-2 rule
+   "siempre indiquemos a qué pertenece el número."
+3. Keep `rateProvinceOnlyEmpty` (`:2953`) as the LAST-RESORT overlay for the case where a rate
+   layer is somehow active below province (e.g. a deep-linked URL) — but the primary UX is that the
+   operator can no longer *initiate* the dead end from a chip.
+
+`KpiChips.tsx` + one console-computed prop. Small build; pair the micro-copy with item 4.
+
+---
+
+## ITEM 6 — legend readable without expanding — **COSMETIC now / natural P3 output**
+
+**Root cause / current state (exact).** The collapsed `LegendPill` strip is already
+moderately informative, but stops short of "understand the map at a glance":
+- `LegendPill.tsx:71` — base-metric **label** (truncating).
+- `LegendPill.tsx:73-88` — the **5-cell classed ramp** (low→high) — but **only when `rampColors`
+  is non-null**, i.e. only for choropleth encodings. There are **NO numeric endpoints** (no min/max
+  value under the ramp) and **no class-count / k-marker** on the collapsed strip.
+- `LegendPill.tsx:39-58, 72` — a **3×3 bivariate hint** for bivariate mode (good — an encoding-
+  specific collapsed form already exists here).
+- `LegendPill.tsx:89-98` — per-layer **dots** (point layers).
+- `LegendPill.tsx:99-110` — the **k-anon pill**, always visible.
+So the collapsed strip conveys *what kind* of scale and *which* layers, but not the **quantitative
+anchors** (what value the darkest class means) — which is what "understand at a glance" needs. And
+**graduated / points** encodings get only a dot, no legible collapsed scale at all.
+
+**Structure verdict.** The design's §3 first-class `Encoding` carries its **own `LegendModel`**
+built from the SAME `scale` object as the paint (`design §3`, "legend built from the SAME scale =
+structural"). A richer always-visible collapsed legend is a **natural P3 output**: once each
+encoding owns a `LegendModel`, the pill can render a compact form of it (endpoints + class count)
+directly from the resolved encoding, per encoding kind. Today it can be done cosmetically; P3 makes
+it correct-by-construction and removes the choropleth-only assumption at `LegendPill.tsx:73`.
+
+**Recommendation.**
+1. **Now (cosmetic, `LegendPill.tsx`):** add inline **min/max value labels** flanking the ramp
+   (e.g. "0%" … "70% meta" for a META rate; the domain endpoints for sequential) and a small
+   **class-count / "k<5" marker** so the reader knows the ramp is classed and how many steps. Keep
+   the k-anon pill. The full class breaks + methodology stay in the expanded panel.
+2. **Per encoding kind (each needs a legible collapsed form):**
+   - `choropleth-seq` → ramp + domain min/max.
+   - `choropleth-meta` → ramp + the **target** annotated (the 70%/80% meta is the anchor that makes
+     the color meaningful — show it inline).
+   - `bivariate` → the 3×3 hint already exists; add the two axis labels (coverage × signal) micro-
+     captioned.
+   - `graduated`/`points` → a **size legend** (small●—large● with the value endpoints) — today these
+     get no collapsed scale, only a dot; this is the biggest gap.
+3. **P3 alignment:** feed the collapsed form from `capabilities.encoding.legend` (design §3) so the
+   pill projects the resolved encoding's own legend model rather than re-deciding from `rampColors`.
+   Then "richer always-visible legend" is just "render a compact `LegendModel`," and it cannot drift
+   from the paint.
+
+Shippable cosmetically now (a `LegendPill.tsx`-local change); its durable, encoding-complete form is
+a P3 deliverable — name it as a P3 acceptance criterion (the collapsed legend covers ALL encoding
+kinds, not just choropleth).
+
+---
+
+## Cross-cutting synthesis — the 6 items
+
+**Classification.**
+- **(i) Cosmetic / now:** item **6** (collapsed legend endpoints + k-marker — one file); the
+  micro-copy half of item **4** (nothing to build — the loading model is healthy). One small polish
+  PR, no ViewState dependency.
+- **(ii) The unified-update-model work (Root B, expanded):** item **2** IS Root B — period is the
+  lone full-reload holdout; unify it onto the shallow `pushMapStateUrl` + client-refetch seam that
+  scope and presets already use. Now cheaper than the design assumed, because `applyPreset` already
+  proves shallow period commits and `resyncBoardFromUrl` already handles the popstate coherence.
+  Discrete follow-up PR; sequencing is the PO's only open call.
+- **(iii) #33 / P3 / P4 structural:** item **6**'s durable form (encoding-owned `LegendModel`) is a
+  P3 output; item **5**'s durable form (rate-chip tappability as a `capabilities.allowedControls`
+  gate) lands with `capabilitiesFor` (P2). Both are shippable as small local gates NOW and become
+  correct-by-construction when the phase lands — name each as that phase's acceptance criterion.
+- **(iv) PO design-decisions:** item **1** (the preset-retention rule for shared chips — recommend
+  "stay in preset when the metric belongs to it, exit with a visible cue otherwise") and, lightly,
+  item **3**'s affordance shape (whole-panel button vs a "Ver CABA" control).
+
+**Items 1, 2, 3 share ONE root.** They are all the layer/scope/period analog of the same defect:
+**controls do not yet all route through one coherent commit/update path.** Item 2 is the period
+axis still on a *different commit mechanism* (reload vs shallow). Item 3 is the CABA-inset scope
+control *not wired to the commit path at all* (display-only). Item 1 is the chip *coupling two
+mutations* (base swap + preset discard) instead of committing one clean `layers` change. All three
+resolve toward the same discipline the ViewState design names — **one canonical value, mutated by
+explicit controls through one shallow-commit seam** — which round 1 already recommended for scope
+(nav-decouple) and which is now proven in-repo by `commitScopeDrill` + `applyPreset`. Unifying
+period (item 2), wiring the inset to `commitScopeDrill` (item 3), and making the chip's preset-exit
+intentional (item 1) are three applications of that ONE commit-unify root.
+
+**Round-3 scoreboard:** 6 findings → 4 buckets.
+- **Cosmetic now (6; copy-only for 4):** one polish PR.
+- **Root B / unified update model (2):** the centerpiece — period onto the shallow seam; direction
+  decided, cheaper than assumed, PO sequences it.
+- **Phase-structural (5 → P2 capabilities gate; 6 → P3 legend model):** ship the small local gate
+  now, name it as the phase's acceptance criterion.
+- **PO design-decision (1; light-touch 3):** the shared-chip preset-retention rule (recommended
+  above) and the inset drill affordance shape.
