@@ -167,7 +167,12 @@ async function seedArgo(): Promise<void> {
   const weight1 = daysAgo(28);
   const weight2 = daysAgo(10);
 
-  const ARGO_CHIP = "858985112999000111";
+  // ISO 11784/11785 chip: exactly 15 numeric digits (3 country + 4 manufacturer
+  // + 8 national). The pet_identifications.chip_requires_iso_fields CHECK enforces
+  // length(code) = 15 for kind='microchip_iso'; an 18-digit code aborts the insert
+  // (and the whole spine). Matches the 858-prefixed 15-digit convention used by the
+  // other seed scripts (seed-test-users, seed-storylines-*).
+  const ARGO_CHIP = "858985112999000";
 
   const [pet] = await db
     .insert(schemas.pets)
