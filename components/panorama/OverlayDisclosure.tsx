@@ -54,7 +54,14 @@ export function OverlayDisclosure({
       firstSignalRef.current = false;
       return;
     }
+    // Restore focus to the trigger ONLY when the commit happened from the OPEN
+    // panel (the keyboard path: e.g. arrowing a <select>). If the panel was
+    // already closed (a commit from elsewhere, e.g. clicking a province on the
+    // map), don't steal focus. Mirrors the Escape handler's focus-return so a
+    // keyboard user isn't dropped to <body> after a scope commit (WCAG 2.4.3).
+    const wasOpen = rootRef.current?.open ?? false;
     setOpen(false);
+    if (wasOpen) summaryRef.current?.focus();
   }, [closeSignal]);
 
   // Esc closes (returning focus to the trigger); a click/press outside closes.

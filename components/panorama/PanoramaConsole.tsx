@@ -3247,6 +3247,23 @@ export function PanoramaConsole({
     scopeLabel,
   ]);
 
+  // Scope-change announcement (WCAG 4.1.3 Status Messages): the scope pill is
+  // the sole keyboard path to change jurisdiction, and a commit was previously
+  // SILENT to a screen reader (the visible pill text updated, the map re-framed,
+  // but nothing lived in an aria-live region). Mirror the kpisStale/
+  // scaleAnchoredToAsOf polite notices: on every scope change (skipping the
+  // mount pass), publish the new scope into a visually-hidden live region so AT
+  // hears "Alcance: Córdoba" / "Alcance: Argentina" after a commit.
+  const [scopeAnnouncement, setScopeAnnouncement] = useState("");
+  const scopeAnnounceMountRef = useRef(true);
+  useEffect(() => {
+    if (scopeAnnounceMountRef.current) {
+      scopeAnnounceMountRef.current = false;
+      return;
+    }
+    setScopeAnnouncement(`Alcance: ${liveScopeLabel || "Argentina"}`);
+  }, [liveScopeLabel]);
+
   // panorama-vista-redesign Phase 1 (design Decision 1): Vista panel (VISTA
   // label + active question line + PresetPanel row tabs) → 2-col body
   // (map column: map + honesty lines + scrubber | metrics column: ~342px
@@ -3898,6 +3915,11 @@ export function PanoramaConsole({
             never re-layouts the map. Narrows below 2xl so 1366 releases the map
             center. */}
         <div className="absolute left-3.5 top-3.5 z-10 flex w-64 max-w-[calc(100%-1.75rem)] flex-col gap-2 2xl:w-72">
+          {/* WCAG 4.1.3: polite live region announcing the committed scope — the
+              scope pill's one keyboard commit path was otherwise silent to AT. */}
+          <p aria-live="polite" className="sr-only" data-testid="panorama-scope-live">
+            {scopeAnnouncement}
+          </p>
           {(scopeLabel !== undefined ||
             allowedProvinces !== undefined ||
             filtersSlot !== undefined) && (
