@@ -41,6 +41,11 @@ vi.mock("@/lib/metrics/trends", () => ({
   fetchBitesTrend: vi.fn(),
   fetchKpiTrend: vi.fn(),
 }));
+// Coherence hybrid (round 2): the zoonosis PRIMARY signal total is a repository
+// call — mock it so the loader's real getPanoramaKpis never touches the DB here.
+vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
+  loadZoonosisSignalScopeTotal: vi.fn().mockResolvedValue(7),
+}));
 
 import {
   fetchMicrochipPenetration,

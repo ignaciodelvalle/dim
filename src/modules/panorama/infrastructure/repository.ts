@@ -2037,6 +2037,43 @@ export async function loadZoonosisByUnit(
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
+/**
+ * Coherence hybrid (cowork round 2, H1): the SCOPE-WIDE total of `outbreak_signal`
+ * events in [since, asOf] — the SAME population `loadZoonosisByUnit` aggregates into
+ * map cells, but summed across the whole scope (no grouping, no k-anon). This is the
+ * number the "Zoonosis / señales" PRIMARY KPI must show so that
+ *   KPI primary == Σ(map cells before suppression) == Σ(Registros value column)
+ * at the same (scope, period, asOf, basis). Distinct-by-event-id, byte-identical
+ * base predicate to the layer loader above (outbreak_signal + occurred/recorded in
+ * window + payload province present + the SAME petEventsScope), so the KPI can never
+ * desync from the map the way the composite "activas" fetcher did (it mixed live
+ * rabies-observation + open-bite stock arms that the scrubber can't move).
+ */
+export async function loadZoonosisSignalScopeTotal(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+  basis: TimeBasis = "valid",
+): Promise<number> {
+  const scope = petEventsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
+  const conditions: SQL[] = [
+    eq(petEvents.eventType, "outbreak_signal"),
+    gte(tcol, since),
+    isNotNull(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`),
+  ];
+  if (asOf) conditions.push(lte(tcol, asOf));
+  if (scope) conditions.push(sql`(${scope})`);
+  const [row] = await db
+    .select({ n: countDistinct(petEvents.id) })
+    .from(petEvents)
+    .where(and(...conditions));
+  return row?.n ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // pet_events:symptom (sintomas) — per-unit aggregation (DENSITY).
 // Groups symptom_observed by the pet's home jurisdiction (pets table) —

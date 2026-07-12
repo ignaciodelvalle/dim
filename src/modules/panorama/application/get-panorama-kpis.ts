@@ -59,6 +59,7 @@ import {
   fetchRabiesCoverage,
 } from "@/lib/analytics/govt-home-kpis";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+import { loadZoonosisSignalScopeTotal } from "@/src/modules/panorama/infrastructure/repository";
 
 /** Tone passthrough to the OpKpi tile (kept loose to avoid a UI import here). */
 export type KpiTone = "neutral" | "danger" | "warn" | "ok" | "blue";
@@ -444,10 +445,11 @@ export async function getPanoramaKpis(
     // Same fetcher as /gob/poblacion → dashboard parity guaranteed. STOCK (estado actual).
     fetchSterilizationCoverage(ctx),
     // Prior-window runs (deltas). Cobertura's prior stays LIVE (it is current-state);
-    // the temporal KPIs' priors anchor to the as-of frame (temporalPriorCtx).
+    // the temporal KPIs' priors anchor to the as-of frame (temporalPriorCtx). Zoonosis's
+    // prior is a signal-total (added at the end) — its delta now tracks the signal
+    // primary, not the old composite.
     fetchRabiesCoverage(priorCtx),
     fetchBitesPer10k(temporalPriorCtx),
-    fetchActiveZoonosis(temporalPriorCtx),
     // Freshness: newest scoped ingest event (map-QOL freshness chip).
     lastIngestAt(ctx),
     // task #78 Part 3: signed-only (firmado por matrícula) rabies coverage for the
@@ -464,6 +466,27 @@ export async function getPanoramaKpis(
     fetchRabiesVaccinationTrend(ctx), // cobertura (current-state → live ctx)
     fetchBitesTrend(temporalCtx), // mordeduras (temporal → as-of-aware)
     fetchKpiTrend("rabies_observation_started", temporalCtx), // zoonosis (temporal → as-of-aware)
+    // Coherence hybrid (round 2, H1) — the zoonosis PRIMARY: scope-wide
+    // outbreak_signal total in the SAME [since, asOf] window the map layer draws
+    // (loadZoonosisByUnit), so the big number == Σ(map cells). At live asOf is
+    // undefined (unbounded up to now — exactly the layer's behavior); a scrub
+    // clamps it. [17] current window, [18] prior window (for the delta).
+    loadZoonosisSignalScopeTotal(
+      actor,
+      jurisdictions,
+      period.since,
+      asOf ?? undefined,
+      adminProvince,
+      adminLocality,
+    ),
+    loadZoonosisSignalScopeTotal(
+      actor,
+      jurisdictions,
+      temporalPriorWindow.since,
+      temporalPriorWindow.until,
+      adminProvince,
+      adminLocality,
+    ),
   ]);
 
   // Any fetcher rejected → the strip cannot be built with parity. Log every
@@ -488,16 +511,19 @@ export async function getPanoramaKpis(
   const sterilization = value(settled[6]);
   const priorCoverage = value(settled[7]);
   const priorBites = value(settled[8]);
-  const priorZoonosis = value(settled[9]);
-  const ingestAt = value(settled[10]);
+  const ingestAt = value(settled[9]);
   // task #78 Part 3: signed-only coverage (firmado por matrícula) for the sub-line.
-  const coverageSigned = value(settled[11]);
+  const coverageSigned = value(settled[10]);
   // v+1 rail: meta-progress meters + sparklines.
-  const reunification = value(settled[12]);
-  const microchip = value(settled[13]);
-  const rabiesVaxTrend = value(settled[14]);
-  const bitesTrend = value(settled[15]);
-  const zoonosisTrend = value(settled[16]);
+  const reunification = value(settled[11]);
+  const microchip = value(settled[12]);
+  const rabiesVaxTrend = value(settled[13]);
+  const bitesTrend = value(settled[14]);
+  const zoonosisTrend = value(settled[15]);
+  // Coherence hybrid (round 2, H1): the scope-wide outbreak_signal totals — the
+  // PRIMARY zoonosis number (== Σ map cells) and its prior-window comparison.
+  const zoonosisSignals = value(settled[16]);
+  const priorZoonosisSignals = value(settled[17]);
 
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica
@@ -603,7 +629,9 @@ export async function getPanoramaKpis(
       value: formatPercent(reunification.ratePct),
       sub: `meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`,
       bar: reunification.ratePct,
-      currentState: true,
+      // NOT currentState (cowork round 2): the rate is computed over the active
+      // period's lost episodes — it IS period/as-of sensitive, so it must NOT wear
+      // the "estado actual" tag (that would be the inverse of the zoonosis error).
       tone: toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT),
       href: "/gob/perdidas",
       source: "compliance-metrics.fetchReunificationRate",
@@ -633,20 +661,27 @@ export async function getPanoramaKpis(
       },
     },
     {
+      // Coherence hybrid (cowork round 2, H1): the PRIMARY is the scope-wide
+      // outbreak_signal count in the SAME [since, asOf] window the map layer draws
+      // (loadZoonosisByUnit) — so the big number == Σ(map cells) and tracks the
+      // scrubber. The composite "activas hoy" (live rabies-observation + open bite +
+      // 30d lepto/hidat) — which mixes stock arms the scrubber can NOT move, the very
+      // source of the KPI≠map contradiction — rides as a clearly-labeled SECONDARY.
       id: "zoonosis",
-      label: "Zoonosis activas",
-      value: formatCount(zoonosis.count),
+      label: "Señales de zoonosis (período)",
+      value: formatCount(zoonosisSignals),
       sub: `${zoonosis.rabies} rabia · ${zoonosis.lepto} lepto · ${zoonosis.hidat} hidat.`,
-      tone: zoonosis.count > 0 ? "danger" : "neutral",
+      secondary: `activas hoy: ${formatCount(zoonosis.count)} (rabia + mordeduras + 30d)`,
+      tone: zoonosisSignals > 0 ? "danger" : "neutral",
       href: "/gob/vigilancia",
-      source: "govt-home-kpis.fetchActiveZoonosis",
-      delta: deltaOf(zoonosis.count, priorZoonosis.count),
+      source: "repository.loadZoonosisSignalScopeTotal",
+      delta: deltaOf(zoonosisSignals, priorZoonosisSignals),
       sparkline: zoonosisTrend.points.map((p) => p.y),
       info: {
         definition:
-          "Total de señales zoonóticas activas: mascotas con observación rábica en curso (status='in_progress') + casos bite_incident abiertos (deduplicados) + reportes de leptospirosis e hidatidosis en los últimos 30 días.",
+          "PRIMARIO: señales de zoonosis (eventos outbreak_signal) registradas en el período y alcance seleccionados — la MISMA población que dibuja el mapa y lista Registros; se mueve con la línea de tiempo. SECUNDARIO (activas hoy): total de señales zoonóticas activas de estado actual: mascotas con observación rábica en curso + casos bite_incident abiertos (deduplicados) + leptospirosis/hidatidosis de los últimos 30 días — un stock que no depende del período.",
         formula:
-          "COUNT DISTINCT(pets en obs. rábica O en caso bite abierto) + COUNT(disease_reported='lepto', 30d) + COUNT(disease_reported='hidatidosis', 30d)",
+          "primario = COUNT DISTINCT(outbreak_signal en [desde, hasta]) en alcance · activas hoy = COUNT DISTINCT(pets en obs. rábica O caso bite abierto) + COUNT(disease_reported='lepto', 30d) + COUNT(disease_reported='hidatidosis', 30d)",
       },
     },
     {

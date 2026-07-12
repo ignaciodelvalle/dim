@@ -37,6 +37,10 @@ vi.mock("@/lib/metrics/trends", () => ({
   fetchBitesTrend: vi.fn(),
   fetchKpiTrend: vi.fn(),
 }));
+// Coherence hybrid (round 2, H1): the zoonosis PRIMARY signal total (== map).
+vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
+  loadZoonosisSignalScopeTotal: vi.fn(),
+}));
 
 import {
   fetchMicrochipPenetration,
@@ -53,6 +57,7 @@ import type { AnalyticsPeriod } from "@/lib/metrics";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
+import { loadZoonosisSignalScopeTotal } from "@/src/modules/panorama/infrastructure/repository";
 
 import {
   PanoramaKpisUnavailableError,
@@ -94,6 +99,8 @@ function seedDefaults() {
     hidat: 0,
     deltaWeek: 0,
   });
+  // Zoonosis PRIMARY signal total (== map): current then prior window.
+  vi.mocked(loadZoonosisSignalScopeTotal).mockResolvedValue(7);
   vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 4, inPeriod: 4 });
   vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
     rate: 65.7,
@@ -172,7 +179,7 @@ describe("getPanoramaKpis", () => {
       "govt-dashboards.fetchPerdidasMetrics",
       "compliance-metrics.fetchReunificationRate",
       "govt-home-kpis.fetchBitesPer10k",
-      "govt-home-kpis.fetchActiveZoonosis",
+      "repository.loadZoonosisSignalScopeTotal",
       "govt-home-kpis.fetchOpenWelfareReportsCount",
     ]);
     // The coverage denominator is NOT a headline tile anymore.
@@ -199,7 +206,10 @@ describe("getPanoramaKpis", () => {
     // Decimal comma (es-AR) — 3.5 → "3,5".
     expect(byId.mordeduras.value).toBe("3,5");
     expect(byId.perdidas.value).toBe("42");
-    expect(byId.zoonosis.value).toBe("9");
+    // Zoonosis PRIMARY = the outbreak_signal total (7), NOT the composite (9);
+    // the composite rides in the labeled secondary.
+    expect(byId.zoonosis.value).toBe("7");
+    expect(byId.zoonosis.secondary).toContain("activas hoy: 9");
     expect(byId.denuncias.value).toBe("4");
 
     // esterilizacion KPI — decimal precision survives to the display (65,7%).
@@ -290,6 +300,7 @@ describe("getPanoramaKpis", () => {
       hidat: 0,
       deltaWeek: 0,
     });
+    vi.mocked(loadZoonosisSignalScopeTotal).mockResolvedValue(0);
     vi.mocked(fetchOpenWelfareReportsCount).mockResolvedValue({ count: 0, inPeriod: 0 });
     vi.mocked(fetchPerdidasMetrics).mockResolvedValue({
       activeCount: 0,
@@ -358,9 +369,8 @@ describe("getPanoramaKpis", () => {
   });
 
   it("omits the delta when the prior value is 0 (no meaningful % base)", async () => {
-    vi.mocked(fetchActiveZoonosis)
-      .mockResolvedValueOnce({ count: 9, rabies: 2, lepto: 1, hidat: 0, deltaWeek: 0 })
-      .mockResolvedValueOnce({ count: 0, rabies: 0, lepto: 0, hidat: 0, deltaWeek: 0 });
+    // Zoonosis delta now compares the signal totals (current then prior window).
+    vi.mocked(loadZoonosisSignalScopeTotal).mockResolvedValueOnce(9).mockResolvedValueOnce(0);
 
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     expect(kpis.find((k) => k.id === "zoonosis")?.delta).toBeUndefined();
@@ -397,6 +407,9 @@ describe("getPanoramaKpis", () => {
     expect(vi.mocked(fetchBitesPer10k).mock.calls[0][0].period.until).toEqual(asOf);
     expect(vi.mocked(fetchActiveZoonosis).mock.calls[0][0].period.until).toEqual(asOf);
     expect(vi.mocked(fetchOpenWelfareReportsCount).mock.calls[0][0].period.until).toEqual(asOf);
+    // Zoonosis PRIMARY (== map): the signal total is fetched with the as-of cutoff
+    // as its upper bound (arg 3), the SAME window loadZoonosisByUnit draws the layer.
+    expect(vi.mocked(loadZoonosisSignalScopeTotal).mock.calls[0][3]).toEqual(asOf);
 
     // Current-state fetchers keep the LIVE window (until = period.until) — a
     // coverage snapshot cannot vary with a corte; it is labeled "estado actual".
@@ -416,10 +429,13 @@ describe("getPanoramaKpis", () => {
   it("marks the stock KPIs as currentState and leaves the temporal ones unmarked", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
-    for (const id of ["cobertura", "esterilizacion", "microchip", "perdidas", "reunificacion"]) {
+    // Stock/point-in-time metrics.
+    for (const id of ["cobertura", "esterilizacion", "microchip", "perdidas"]) {
       expect(byId[id].currentState).toBe(true);
     }
-    for (const id of ["mordeduras", "zoonosis", "denuncias"]) {
+    // Period/as-of-sensitive metrics — reunificacion is computed over the period's
+    // lost episodes, so it must NOT wear the tag (cowork round 2 fix).
+    for (const id of ["mordeduras", "zoonosis", "denuncias", "reunificacion"]) {
       expect(byId[id].currentState).toBeFalsy();
     }
   });
