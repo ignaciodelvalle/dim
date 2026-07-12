@@ -43,7 +43,23 @@ import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel, LayerId } from "@/src/modules/panorama/domain/types";
 
 import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./data-cache";
+import { withDbBudgetOrThrow } from "./db-budget";
 import { type LayerFeaturesResult, type LayerPeriod, getLayerFeatures } from "./get-layer-features";
+
+/**
+ * Time budget for the COMPUTE INSIDE the Data Cache boundary (task #39, incident
+ * `panorama/layer-cache-revalidation-crash`). The budget stays OUTSIDE the cache
+ * at the request call sites so a degraded envelope is never stored — but that left
+ * Next's stale-while-revalidate BACKGROUND re-invocation running the raw loader
+ * UNBUDGETED (a >300s Postgres 57014 escaped as an unhandledRejection and killed a
+ * process). Wrapping the cached body with `withDbBudgetOrThrow` bounds that
+ * background work and THROWS on timeout — so `unstable_cache` keeps the stale entry
+ * instead of caching a degraded one (invariant #2 preserved). Generous enough that
+ * a healthy fan-out (measured 3.6–10s) still completes and warms the cache, but far
+ * below the transaction-pooler pathology (>180s) so node never bounds the work at
+ * 300s again.
+ */
+export const LAYER_CACHE_COMPUTE_BUDGET_MS = 30_000;
 
 /**
  * Key-bucket width: 300s, ALIGNED WITH `LAYER_CACHE_REVALIDATE_S`. Preset
@@ -198,7 +214,14 @@ export function loadLayerFeaturesCachedWithMeta(
   const cached = unstable_cache(
     () => {
       computed = true;
-      return directLoad(false);
+      // Bound the compute INSIDE the cache so Next's background stale-revalidation
+      // can never run this loader unbudgeted (the crash). On timeout it THROWS, so
+      // unstable_cache keeps the stale entry rather than caching a degraded one.
+      return withDbBudgetOrThrow(
+        directLoad(false),
+        LAYER_CACHE_COMPUTE_BUDGET_MS,
+        `layer-cache revalidate '${layer}'`,
+      );
     },
     [key],
     { revalidate: LAYER_CACHE_REVALIDATE_S },

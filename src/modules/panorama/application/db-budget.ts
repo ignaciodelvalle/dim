@@ -74,3 +74,76 @@ export async function withDbBudget<T>(
     if (timer) clearTimeout(timer);
   }
 }
+
+/** Thrown by `withDbBudgetOrThrow` when the time budget elapses. Typed so a caller
+ * can distinguish a bounded give-up from a genuine loader failure. */
+export class DbBudgetExceededError extends Error {
+  constructor(label: string, ms: number) {
+    super(`[db-budget] ${label} exceeded ${ms}ms budget`);
+    this.name = "DbBudgetExceededError";
+  }
+}
+
+/**
+ * Like `withDbBudget`, but on budget expiry it THROWS `DbBudgetExceededError`
+ * instead of resolving a degraded fallback — for callers that must NOT persist a
+ * degraded value on timeout.
+ *
+ * The motivating case (task #39, incident `panorama/layer-cache-revalidation-crash`):
+ * the layer Data Cache wraps the raw loader in `unstable_cache` and keeps the
+ * budget OUTSIDE the cache so a degraded envelope is never stored. But Next's
+ * stale-while-revalidate BACKGROUND re-invocation then re-runs the raw loader with
+ * NO budget and NO rejection consumer — a >300s Postgres 57014 escaped as an
+ * unhandled rejection and killed the process. Wrapping the cached body with THIS
+ * helper bounds that background work AND, by THROWING (not returning a value),
+ * makes `unstable_cache` keep the stale entry rather than cache a degraded one.
+ *
+ * CRASH-SAFETY (identical discipline to `withDbBudget`): a `.catch` is always
+ * attached to the underlying promise, so a DB rejection that arrives AFTER the
+ * budget already lost the race is swallowed-and-logged and can NEVER become an
+ * unhandledRejection. The only rejection that propagates is the typed timeout
+ * error, which the request path degrades on (call-site budget) and the background
+ * path is backstopped against by the process-level crash guard.
+ *
+ * Semantics by outcome:
+ *   - resolves before the budget → the real value.
+ *   - rejects  before the budget → propagates the real error.
+ *   - budget elapses first       → throws `DbBudgetExceededError`; any later
+ *                                   settle of the underlying promise is swallowed.
+ */
+export async function withDbBudgetOrThrow<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      console.warn(
+        `[db-budget] ${label} exceeded ${ms}ms budget — throwing (revalidation keeps the stale entry)`,
+      );
+      reject(new DbBudgetExceededError(label, ms));
+    }, ms);
+  });
+
+  // Always attach a catch. Before the timeout, rethrow so the real rejection wins
+  // the race. After the timeout, the race already rejected with the typed error,
+  // so a late DB rejection is swallowed-and-logged (resolving this now-ignored
+  // promise) — the guard that prevents the abandoned-query unhandledRejection.
+  const guarded: Promise<T> = promise.catch((err) => {
+    if (timedOut) {
+      console.error(`[db-budget] ${label} rejected after budget elapsed (swallowed):`, err);
+      return undefined as unknown as T;
+    }
+    throw err;
+  });
+
+  try {
+    return await Promise.race([guarded, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}

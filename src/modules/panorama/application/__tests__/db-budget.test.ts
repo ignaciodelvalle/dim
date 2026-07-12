@@ -4,7 +4,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { withDbBudget } from "../db-budget";
+import { DbBudgetExceededError, withDbBudget, withDbBudgetOrThrow } from "../db-budget";
 
 const later = <T>(value: T, ms: number): Promise<T> =>
   new Promise((resolve) => setTimeout(() => resolve(value), ms));
@@ -55,6 +55,59 @@ describe("withDbBudget", () => {
       expect(result).toBe("fallback");
 
       // Wait past the underlying rejection and flush microtasks.
+      await new Promise((r) => setTimeout(r, 120));
+
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(errSpy).toHaveBeenCalledWith(
+        expect.stringContaining("rejected after budget elapsed (swallowed)"),
+        expect.anything(),
+      );
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+});
+
+// task #39 — the throwing variant used INSIDE the layer Data Cache so a background
+// stale-revalidation never runs unbudgeted AND never caches a degraded envelope.
+describe("withDbBudgetOrThrow", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("resolves the real value when the promise settles before the budget", async () => {
+    const result = await withDbBudgetOrThrow(later("real", 5), 1000, "fast");
+    expect(result).toBe("real");
+  });
+
+  it("THROWS a typed DbBudgetExceededError when the budget elapses (never a value)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // A thrown revalidation is what makes unstable_cache keep the stale entry
+    // instead of caching a degraded one — so this MUST reject, never resolve.
+    await expect(withDbBudgetOrThrow(later("real", 200), 20, "slow")).rejects.toBeInstanceOf(
+      DbBudgetExceededError,
+    );
+  });
+
+  it("propagates the real rejection when the promise rejects BEFORE the budget", async () => {
+    const err = new Error("db down");
+    await expect(withDbBudgetOrThrow(rejectLater(err, 5), 1000, "early-reject")).rejects.toBe(err);
+  });
+
+  it("swallows a LATE rejection (after the budget) — never an unhandledRejection", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      // Budget (10ms) throws first. The underlying promise rejects at 60ms; the
+      // guard must swallow it so the process never sees an unhandledRejection —
+      // this is the exact crash class the fix targets.
+      await expect(
+        withDbBudgetOrThrow(rejectLater(new Error("late boom"), 60), 10, "late-reject"),
+      ).rejects.toBeInstanceOf(DbBudgetExceededError);
+
       await new Promise((r) => setTimeout(r, 120));
 
       expect(unhandled).not.toHaveBeenCalled();
