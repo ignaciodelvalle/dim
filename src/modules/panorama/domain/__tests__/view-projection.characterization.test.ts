@@ -44,6 +44,11 @@ import type {
   PanoramaPeriod,
   PanoramaScope,
 } from "@/src/modules/panorama/domain/types";
+import {
+  makeViewState,
+  scopeFromFilter,
+  toScopeFilter,
+} from "@/src/modules/panorama/domain/view-state";
 
 // ---------------------------------------------------------------------------
 // Faithful reconstructions of the two decisions that live INSIDE the React
@@ -259,5 +264,30 @@ describe("panorama view-projection characterization (P0 fence)", () => {
     // brotes-activos (cobertura + zoonosis) — zoonosis IS temporal → scrubber on.
     const brotes = PANORAMA_PRESETS.find((p) => p.id === "brotes-activos")!;
     expect(project(brotes, "national", 3, false).scrubberEnabled).toBe(true);
+  });
+
+  // --- P1b Fork A: orphan-locality scope normalization (PO-approved fix) ------
+  //
+  // A crafted URL `?locality=X` with NO province anywhere (URL or jurisdiction)
+  // used to force LOCALITY-level aggregation on a nationally-framed map, because
+  // `derivedLevelWithHysteresis` gives locality whenever `scope.locality != null`
+  // — an incoherent latent state no real UI path produces. P1b routes the
+  // console's scope filter through `scopeFromFilter` → `toScopeFilter`, which
+  // drop the orphan (ViewScope makes a locality-without-province unrepresentable).
+  // This pins the CORRECTED national result the console now derives.
+  it("Fork A: an orphan locality (no province) normalizes to national → province level", () => {
+    const orphan: PanoramaScope = { country: "AR", province: null, locality: "Palermo" };
+    // The normalization is structural: scopeFromFilter drops the orphan locality,
+    // exactly as the console now routes its scope filter (scopeFromFilter →
+    // canonical ViewScope → toScopeFilter).
+    const normalizedScope = scopeFromFilter(orphan);
+    expect(normalizedScope).toEqual({ kind: "national" });
+    const normalized = toScopeFilter(makeViewState({ scope: normalizedScope }));
+    expect(normalized).toEqual({ country: "AR", province: null, locality: null });
+    // Below the locality band the normalized (national) scope derives PROVINCE —
+    // the level is now CAMERA-driven, no longer scope-forced. This is the crisp
+    // contrast with the old path: the orphan locality forced locality at ANY zoom.
+    expect(derivedLevelWithHysteresis("province", normalized, 3)).toBe("province"); // fixed
+    expect(derivedLevelWithHysteresis("province", orphan, 3)).toBe("locality"); // old, incoherent
   });
 });
