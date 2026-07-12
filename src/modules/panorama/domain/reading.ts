@@ -18,7 +18,7 @@
 /** Structural subset of PanoramaKpi the reading needs (id + optional delta). */
 export type ReadingKpi = {
   id: string;
-  delta?: { pct: number; direction: "up" | "down" | "flat" };
+  delta?: { pct: number; direction: "up" | "down" | "flat"; unit?: "pct" | "pts" };
   /**
    * Pre-formatted display value from the KPI strip (e.g. "42%") — the SAME
    * jurisdiction-level dashboard aggregate PanoramaKpiStrip already renders.
@@ -74,6 +74,8 @@ const PCT_VALUE_RE = /^\d{1,3}(?:[.,]\d+)?\s?%$/;
 type QualifiedKpi = {
   name: string;
   pct: number;
+  /** Unit of `pct` — drives the "% " vs " pts" suffix in the sentence (H9). */
+  unit: "pct" | "pts";
   /** True when direction × valence is an improvement. */
   improves: boolean;
   /** True when the delta is non-flat (eligible for the headline). */
@@ -90,6 +92,7 @@ function qualify(kpi: ReadingKpi): QualifiedKpi | null {
   const known = KNOWN_KPIS[kpi.id];
   if (!known || !kpi.delta) return null;
   const { pct, direction } = kpi.delta;
+  const unit = kpi.delta.unit ?? "pct";
   const moves = direction !== "flat";
   const improves = moves && (direction === "up") === known.goodUp;
   const value = kpi.value?.trim();
@@ -97,7 +100,7 @@ function qualify(kpi: ReadingKpi): QualifiedKpi | null {
     known.anchor !== undefined && value !== undefined && PCT_VALUE_RE.test(value)
       ? `; ${known.anchor} ${value}`
       : undefined;
-  return { name: known.name, pct, improves, moves, anchorClause };
+  return { name: known.name, pct, unit, improves, moves, anchorClause };
 }
 
 /**
@@ -128,10 +131,13 @@ export function buildPanoramaReading(kpis: readonly ReadingKpi[]): string {
 
   const verb = headline.improves ? "mejora" : "empeora";
   const magnitude = Math.abs(headline.pct).toLocaleString("es-AR");
+  // H9: a percentage-valued KPI (cobertura) reports its delta in POINTS, not a
+  // relative %. Render the honest unit so the sentence never says "mejora 28%".
+  const magnitudeText = headline.unit === "pts" ? `${magnitude} pts` : `${magnitude}%`;
 
   const total = qualified.length;
   const improving = qualified.filter((q) => q.improves).length;
   const suffixVerb = improving === 1 ? "mejora" : "mejoran";
 
-  return `${headline.name} ${verb} ${magnitude}% vs período anterior; ${improving} de ${total} indicadores ${suffixVerb}${headline.anchorClause ?? ""}.`;
+  return `${headline.name} ${verb} ${magnitudeText} vs período anterior; ${improving} de ${total} indicadores ${suffixVerb}${headline.anchorClause ?? ""}.`;
 }

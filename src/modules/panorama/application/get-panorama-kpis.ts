@@ -77,11 +77,22 @@ export type KpiInfo = {
  * misleading 0%.
  */
 export type KpiDelta = {
-  /** Rounded percent change vs the immediately-prior window of equal length. */
+  /**
+   * The signed magnitude vs the immediately-prior window of equal length. Its
+   * meaning depends on `unit`: for `"pct"` it is the RELATIVE percent change
+   * ((cur−prior)/prior); for `"pts"` it is the ABSOLUTE difference in percentage
+   * POINTS (cur−prior). A percentage-valued KPI (cobertura) MUST use `"pts"` — a
+   * relative % of a percentage reads as an implausible "+76%" (cowork QA H9).
+   */
   pct: number;
+  /**
+   * Unit of `pct`. `"pct"` = relative percent change (counts/rates per-10k);
+   * `"pts"` = percentage points (metrics whose display value is itself a %).
+   */
+  unit: "pct" | "pts";
   /** Direction, so the UI can pair the arrow glyph with the signed text. */
   direction: "up" | "down" | "flat";
-  /** es-AR display/aria text, e.g. "+12% vs período anterior". */
+  /** es-AR display/aria text, e.g. "+12% vs período anterior" or "+27 pts vs período anterior". */
   label: string;
 };
 
@@ -230,16 +241,38 @@ function priorWindowOf(period: AnalyticsPeriod): { since: Date; until: Date } {
 }
 
 /**
- * Rounded percent change vs the prior value. Returns undefined when the prior
- * value is 0 or non-finite — no meaningful % base, better no delta than a lie.
+ * Period-over-period delta vs the prior value.
+ *
+ * `unit: "pct"` (default) — RELATIVE percent change ((cur−prior)/prior). Correct
+ * for counts and per-10k rates. Returns undefined when the prior is 0 or
+ * non-finite (no meaningful % base — better no delta than a lie).
+ *
+ * `unit: "pts"` — ABSOLUTE difference in percentage POINTS (cur−prior), for KPIs
+ * whose display value is itself a percentage (cobertura). A relative % of a
+ * percentage produced the implausible "+76% de cobertura" the cowork QA flagged
+ * (H9): coverage rising 36%→64% is "+28 pts", not "+78%". A zero prior is fine
+ * here (the point difference is still meaningful), so only non-finite is guarded.
  */
-function deltaOf(current: number, prior: number): KpiDelta | undefined {
-  if (!Number.isFinite(current) || !Number.isFinite(prior) || prior === 0) return undefined;
+function deltaOf(current: number, prior: number, unit: "pct" | "pts" = "pct"): KpiDelta | undefined {
+  if (!Number.isFinite(current) || !Number.isFinite(prior)) return undefined;
+  if (unit === "pts") {
+    const pts = Math.round(current - prior);
+    const direction = pts > 0 ? "up" : pts < 0 ? "down" : "flat";
+    const sign = pts > 0 ? "+" : "";
+    return {
+      pct: pts,
+      unit,
+      direction,
+      label: `${sign}${pts.toLocaleString("es-AR")} pts vs período anterior`,
+    };
+  }
+  if (prior === 0) return undefined;
   const pct = Math.round(((current - prior) / prior) * 100);
   const direction = pct > 0 ? "up" : pct < 0 ? "down" : "flat";
   const sign = pct > 0 ? "+" : "";
   return {
     pct,
+    unit,
     direction,
     label: `${sign}${pct.toLocaleString("es-AR")}% vs período anterior`,
   };
@@ -431,7 +464,9 @@ export async function getPanoramaKpis(
       tone: coverage.current >= coverage.target ? "ok" : "warn",
       href: "/gob/analytics",
       source: "govt-home-kpis.fetchRabiesCoverage",
-      delta: deltaOf(coverage.current, priorCoverage.current),
+      // H9: cobertura is a PERCENTAGE — its period delta is percentage POINTS, not
+      // a relative % of a % (which read as the implausible "+76%" the QA flagged).
+      delta: deltaOf(coverage.current, priorCoverage.current, "pts"),
       sparkline: rabiesVaxTrend.points.map((p) => p.y),
       info: {
         definition:

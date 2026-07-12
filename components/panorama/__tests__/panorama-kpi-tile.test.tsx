@@ -33,7 +33,7 @@ const COBERTURA_KPI: PanoramaKpi = {
   source: "govt-home-kpis.fetchRabiesCoverage",
   info: { definition: "def" },
   sparkline: [60, 65, 68, 70, 72],
-  delta: { pct: 12, direction: "up", label: "+12% vs período anterior" },
+  delta: { pct: 12, unit: "pct", direction: "up", label: "+12% vs período anterior" },
 };
 
 describe("PanoramaKpiTile — v+1 rail (meta-progress meters + sparklines)", () => {

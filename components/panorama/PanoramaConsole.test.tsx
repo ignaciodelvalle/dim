@@ -1432,7 +1432,7 @@ describe("PanoramaConsole — reading aligned with the metrics column (QA fix, f
           info: { definition: "d" },
           href: "/x",
           source: "s",
-          delta: { pct: 50, direction: "down" as const, label: "-50%" },
+          delta: { pct: 50, unit: "pct" as const, direction: "down" as const, label: "-50%" },
         },
         {
           id: "mordeduras" as const,
@@ -1442,7 +1442,7 @@ describe("PanoramaConsole — reading aligned with the metrics column (QA fix, f
           info: { definition: "d" },
           href: "/x",
           source: "s",
-          delta: { pct: 5, direction: "up" as const, label: "+5%" },
+          delta: { pct: 5, unit: "pct" as const, direction: "up" as const, label: "+5%" },
         },
       ],
       recalculatedFor: "Recalculado para Nacional",

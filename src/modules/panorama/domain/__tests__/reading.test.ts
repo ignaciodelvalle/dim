@@ -20,9 +20,14 @@ import { type ReadingKpi, buildPanoramaReading } from "@/src/modules/panorama/do
 
 const FALLBACK = "Sin variación destacable frente al período anterior.";
 
-function kpi(id: string, pct?: number, direction?: "up" | "down" | "flat"): ReadingKpi {
+function kpi(
+  id: string,
+  pct?: number,
+  direction?: "up" | "down" | "flat",
+  unit?: "pct" | "pts",
+): ReadingKpi {
   if (pct === undefined || direction === undefined) return { id };
-  return { id, delta: { pct, direction } };
+  return { id, delta: { pct, direction, unit } };
 }
 
 describe("buildPanoramaReading — headline (worst delta)", () => {
@@ -49,6 +54,15 @@ describe("buildPanoramaReading — headline (worst delta)", () => {
     // |10| === |10| → the FIRST in array order (zoonosis) wins the headline.
     const out = buildPanoramaReading([kpi("zoonosis", -10, "down"), kpi("mordeduras", 10, "up")]);
     expect(out.startsWith("Zoonosis activas mejora 10%")).toBe(true);
+  });
+
+  it("renders a percentage-POINTS delta with a 'pts' suffix, never '%' (H9)", () => {
+    // cobertura is a percentage KPI → its delta is percentage points. The
+    // sentence must read "28 pts", not "28%" (the misleading relative-% form).
+    const out = buildPanoramaReading([kpi("cobertura", 28, "up", "pts")]);
+    expect(out).toBe(
+      "Cobertura antirrábica mejora 28 pts vs período anterior; 1 de 1 indicadores mejora.",
+    );
   });
 });
 

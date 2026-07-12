@@ -336,14 +336,17 @@ describe("getPanoramaKpis", () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
 
-    // cobertura: 72 vs 60 → +20%, up, es-AR signed label.
+    // cobertura: 72 vs 60 → +12 POINTS (H9: a percentage KPI reports its delta in
+    // pts, not a relative % of a % — the "+76%" the cowork QA flagged).
     expect(byId.cobertura.delta).toEqual({
-      pct: 20,
+      pct: 12,
+      unit: "pts",
       direction: "up",
-      label: "+20% vs período anterior",
+      label: "+12 pts vs período anterior",
     });
-    // mordeduras: 3.5 vs 7 → -50%, down.
+    // mordeduras: 3.5 vs 7 → -50% (per-10k rate keeps relative %, not points).
     expect(byId.mordeduras.delta?.pct).toBe(-50);
+    expect(byId.mordeduras.delta?.unit).toBe("pct");
     expect(byId.mordeduras.delta?.direction).toBe("down");
     // zoonosis: same mock both runs → 0%, flat (still meaningful: window metric).
     expect(byId.zoonosis.delta?.direction).toBe("flat");

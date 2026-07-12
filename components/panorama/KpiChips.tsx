@@ -173,7 +173,8 @@ function CardBody({
           >
             <span aria-hidden="true">{DELTA_GLYPH[kpi.delta.direction]}</span>{" "}
             {kpi.delta.pct > 0 ? "+" : ""}
-            {kpi.delta.pct.toLocaleString("es-AR")}%
+            {kpi.delta.pct.toLocaleString("es-AR")}
+            {kpi.delta.unit === "pts" ? " pts" : "%"}
           </span>
         )}
       </div>
