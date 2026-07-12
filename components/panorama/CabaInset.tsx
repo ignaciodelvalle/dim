@@ -82,12 +82,27 @@ type Props = {
    * (the parent already classifies the single province value).
    */
   lockedBreaks?: readonly number[] | null;
+  /**
+   * Round-3 QA fix 3 / task #66c: drill into CABA on click — reuses the SAME
+   * shallow `commitScopeDrill("AR-C", null)` seam a main-map province click
+   * uses (wired by the console as `onProvinceDrill("AR-C")`), so tapping CABA
+   * in the mini-map behaves identically to tapping CABA on the main map. When
+   * absent (no drill target, mirroring the main map's `canDrillProvince`
+   * gate), the panel stays the original display-only div.
+   */
+  onDrill?: () => void;
 };
 
 /** One raw barrio feature, as much as the code read needs. */
 type BarrioRawFeature = { properties?: { code?: string } | null };
 
-export function CabaInset({ layer, visible, uniformFill = null, lockedBreaks = null }: Props) {
+export function CabaInset({
+  layer,
+  visible,
+  uniformFill = null,
+  lockedBreaks = null,
+  onDrill,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const barrioCodesRef = useRef<Set<string>>(new Set());
@@ -248,10 +263,12 @@ export function CabaInset({ layer, visible, uniformFill = null, lockedBreaks = n
 
   if (!visible) return null;
 
-  return (
-    // task #38 v3: pushed LEFT of the floating vertical rail (right-3.5, ~56px
-    // wide) so the AMBA magnifier clears it — the rail now owns the right edge.
-    <div className="absolute right-[4.9rem] top-3.5 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card shadow-lg">
+  // task #38 v3: pushed LEFT of the floating vertical rail (right-3.5, ~56px
+  // wide) so the AMBA magnifier clears it — the rail now owns the right edge.
+  const panelClassName =
+    "absolute right-[4.9rem] top-3.5 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card shadow-lg";
+  const content = (
+    <>
       <div className="flex items-baseline justify-between px-2 py-1 text-ln-op-ink-2">
         <span className="text-[var(--text-xs)] font-medium">CABA</span>
         <span className="text-[var(--text-xs)] text-ln-op-mute">
@@ -259,6 +276,25 @@ export function CabaInset({ layer, visible, uniformFill = null, lockedBreaks = n
         </span>
       </div>
       <div ref={containerRef} className="h-[150px] w-full" style={{ background: COLOR_CANVAS }} />
-    </div>
+    </>
   );
+
+  // Round-3 QA fix 3: when a drill target exists, the whole panel becomes a
+  // real <button> (native Enter/Space handling, no bespoke keydown wiring) so
+  // clicking/activating CABA in the inset drills exactly like clicking the
+  // province on the main map. No drill target ⇒ stays the original inert div.
+  if (onDrill) {
+    return (
+      <button
+        type="button"
+        onClick={onDrill}
+        aria-label="Ver CABA en detalle"
+        className={`${panelClassName} text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={panelClassName}>{content}</div>;
 }

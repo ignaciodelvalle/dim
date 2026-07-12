@@ -183,3 +183,85 @@ describe("KpiChips — radiogroup semantics (Round-2 review #4)", () => {
     expect(onRebase).toHaveBeenCalledWith("esterilizacion");
   });
 });
+
+describe("KpiChips — province-only rate chips disabled below province (Round-3 QA fix 5)", () => {
+  it("at province level, both rate chips (cobertura, esterilización) stay selectable radios", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeBaseLayerId="cobertura"
+        level="province"
+        onRebase={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: /Cobertura antirrábica/ })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Cobertura de esterilización/ })).toBeInTheDocument();
+  });
+
+  it("below province level, rate chips lose radio semantics and become aria-disabled with a tooltip", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeBaseLayerId="cobertura"
+        level="locality"
+        onRebase={vi.fn()}
+      />,
+    );
+
+    // Neither province-only rate metric is a radio anymore — they read like
+    // the pre-existing read-only reference cards (H8 idiom), not like a dead
+    // tap target.
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+
+    const coberturaCard = screen.getByText("Cobertura antirrábica").closest('[aria-disabled="true"]');
+    expect(coberturaCard).not.toBeNull();
+    expect(coberturaCard).toHaveAttribute("title", expect.stringContaining("nivel provincial"));
+
+    const esterilizacionCard = screen
+      .getByText("Cobertura de esterilización")
+      .closest('[aria-disabled="true"]');
+    expect(esterilizacionCard).not.toBeNull();
+    expect(esterilizacionCard).toHaveAttribute("title", expect.stringContaining("nivel provincial"));
+  });
+
+  it("does not disable non-rate KPIs below province level", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeBaseLayerId="cobertura"
+        level="locality"
+        onRebase={vi.fn()}
+      />,
+    );
+
+    // zoonosis / reunificación are signal-role (no base layer) — already
+    // read-only for an unrelated reason, but must NOT carry the province-only
+    // tooltip copy.
+    const zoonosisCard = screen.getByText("Señales de zoonosis").closest('[aria-disabled="true"]');
+    expect(zoonosisCard).not.toHaveAttribute("title", expect.stringContaining("nivel provincial"));
+  });
+
+  it("clicking a disabled province-only chip does not call onRebase", () => {
+    const onRebase = vi.fn();
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeBaseLayerId="cobertura"
+        level="locality"
+        onRebase={onRebase}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Cobertura de esterilización"));
+    expect(onRebase).not.toHaveBeenCalled();
+  });
+});

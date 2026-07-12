@@ -51,7 +51,15 @@ import type {
 import { roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { PresetId } from "@/src/modules/panorama/domain/presets";
-import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+import type { AggregationLevel, LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+
+/**
+ * Round-3 QA fix 5: the coverage tooltip shown when a `dataType:"rate"` chip
+ * is tapped below province grain — the fence-empty overlay's copy
+ * (`SituationalMap.tsx` "La cobertura se calcula solo a nivel provincia…"),
+ * reworded for the disabled-chip context rather than a post-tap dead end.
+ */
+const PROVINCE_ONLY_TOOLTIP = "La cobertura se calcula solo a nivel provincial.";
 
 const DELTA_GLYPH: Record<KpiDelta["direction"], string> = {
   up: "▲",
@@ -70,6 +78,16 @@ type Props = {
   presetId: PresetId | null;
   /** The layer currently painting the choropleth (caption/base layer). */
   activeBaseLayerId: LayerId | null;
+  /**
+   * Current aggregation level (Round-3 QA fix 5). The 4 `dataType:"rate"`
+   * layers (esterilización, microchip, ppp, cobertura) are computed only at
+   * province grain (repository "V1 LIMITATION") — below province, tapping
+   * them used to rebase the map onto an empty overlay. Threaded from
+   * PanoramaConsole so this component can disable them instead. Optional,
+   * defaulting to "province" (nothing disabled) so existing callers/tests
+   * that don't drill below province are unaffected.
+   */
+  level?: AggregationLevel;
   /** Re-base the map on this layer (routes to the console's onToggle). */
   onRebase: (layerId: LayerId) => void;
   pending?: boolean;
@@ -80,6 +98,16 @@ type Props = {
 function baseLayerFor(kpiId: PanoramaKpiId): LayerId | null {
   const layer = PANORAMA_LAYERS.find((l) => l.id === kpiId);
   return layer !== undefined && roleOf(layer) === "base" ? layer.id : null;
+}
+
+/**
+ * Round-3 QA fix 5 — the precise disable predicate: a `dataType:"rate"` base
+ * layer (the 4 province-only coverage metrics) tapped below province grain.
+ * Density/signal/reference layers have no such gate — they render at every
+ * level — so this is false for every other base layer.
+ */
+function isProvinceOnlyRate(baseId: LayerId): boolean {
+  return PANORAMA_LAYERS.find((l) => l.id === baseId)?.dataType === "rate";
 }
 
 /** The first sentence of the KPI definition — the hover method note. */
@@ -94,6 +122,7 @@ export function KpiChips({
   metricIds,
   presetId,
   activeBaseLayerId,
+  level = "province",
   onRebase,
   pending = false,
   degraded = false,
@@ -134,9 +163,13 @@ export function KpiChips({
   // The selectable (base-layer) subset, in display order — the actual radio
   // set. Read-only KPIs (no base layer) are excluded: no role="radio", no
   // roving tab stop, no arrow-key membership — they are not part of the group.
+  // Round-3 QA fix 5: a province-only rate chip tapped below province grain is
+  // ALSO excluded here — disabled, not part of the radiogroup, same as a
+  // read-only reference card (see the render loop below).
   const selectableKpis = shown
     .map((kpi) => ({ kpi, baseId: baseLayerFor(kpi.id) }))
-    .filter((x): x is { kpi: PanoramaKpi; baseId: LayerId } => x.baseId !== null);
+    .filter((x): x is { kpi: PanoramaKpi; baseId: LayerId } => x.baseId !== null)
+    .filter((x) => !(isProvinceOnlyRate(x.baseId) && level !== "province"));
   const activePos = selectableKpis.findIndex((x) => x.baseId === activeBaseLayerId);
   const selectedPos = activePos >= 0 ? activePos : 0;
   const rovingPos = focusIndex ?? selectedPos;
@@ -199,7 +232,16 @@ export function KpiChips({
       </span>
       {shown.map((kpi) => {
         const baseId = baseLayerFor(kpi.id);
-        const isSelectable = baseId !== null;
+        const hasBaseLayer = baseId !== null;
+        // Round-3 QA fix 5: a rate-type base layer (esterilización, microchip,
+        // ppp, cobertura) tapped below province grain used to rebase the map
+        // onto an empty overlay (SituationalMap.tsx fence-empty copy). Disable
+        // the chip instead — same treatment as a read-only reference card
+        // (no role="radio", no roving tab stop, muted, tooltip) — so the
+        // operator sees WHY it can't be tapped instead of a dead end.
+        const provinceOnlyDisabled =
+          hasBaseLayer && isProvinceOnlyRate(baseId) && level !== "province";
+        const isSelectable = hasBaseLayer && !provinceOnlyDisabled;
         const active = isSelectable && baseId === activeBaseLayerId;
         const pos = isSelectable ? ++selPos : -1;
         // #49 item 1: floating chrome must read over ANY basemap. Opaque fill +
@@ -214,6 +256,18 @@ export function KpiChips({
             : "border-ln-op-line bg-ln-op-card"
         }`;
         const title = `${kpi.label} — ${methodNote(kpi)}`;
+        if (provinceOnlyDisabled) {
+          return (
+            <div
+              key={kpi.id}
+              aria-disabled="true"
+              className={`${cardClass} cursor-not-allowed opacity-70`}
+              title={`${title} · ${PROVINCE_ONLY_TOOLTIP}`}
+            >
+              <CardBody kpi={kpi} presetId={presetId} active={false} isSelectable={false} />
+            </div>
+          );
+        }
         return isSelectable ? (
           <button
             key={kpi.id}

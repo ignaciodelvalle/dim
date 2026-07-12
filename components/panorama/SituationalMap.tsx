@@ -3550,6 +3550,11 @@ export function SituationalMap({
               ? (lockedDivisionBreaksRef.current.get(insetLocalityLayer.id) ?? null)
               : null
           }
+          // Round-3 QA fix 3: reuse the SAME drill seam a main-map province
+          // click uses (onProvinceDrill → commitScopeDrill("AR-C", null)) —
+          // undefined when the console has no drill target (mirrors the main
+          // map's canDrillProvince gate), so the inset stays inert then.
+          onDrill={onProvinceDrill ? () => onProvinceDrill("AR-C") : undefined}
         />
         {/* v2C floating top-right cluster: the console's scope pill + period
             control (slot) over the map-owned briefing actions. Absolute overlay

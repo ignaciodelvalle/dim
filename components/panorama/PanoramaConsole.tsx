@@ -58,7 +58,7 @@ import type {
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
-import type { GraduatedScale } from "@/components/panorama/graduated-scale";
+import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { activeVistaName, countFiltroModifiers } from "@/components/panorama/panorama-labels";
 import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
@@ -3579,6 +3579,49 @@ export function PanoramaConsole({
     [activeLayers],
   );
 
+  // Round-3 QA fix 6: low/high endpoint labels flanking the collapsed ramp, so
+  // "what does dark mean" is answerable WITHOUT opening the pill
+  // (LegendPill.tsx collapsed strip). Sequential: the classed domain's low/high
+  // breaks. Meta (rate + compliance target): the target IS the anchor that
+  // makes the color meaningful, so the high end names it explicitly
+  // ("70% meta") instead of a bare quantile threshold.
+  const legendRampEndpoints = useMemo<{ min: string; max: string } | null>(() => {
+    if (bivariateActive) return null;
+    if (captionLayer && provinceSeqLegend[captionLayer.id]) {
+      const { breaks } = provinceSeqLegend[captionLayer.id];
+      if (breaks.length === 0) return null;
+      const isMeta =
+        captionLayer.dataType === "rate" && typeof captionLayer.complianceTarget === "number";
+      const unit = captionLayer.dataType === "rate" ? "%" : "";
+      const lo = Math.round(breaks[0]);
+      const hi = isMeta
+        ? Math.round(captionLayer.complianceTarget as number)
+        : Math.round(breaks[breaks.length - 1]);
+      return { min: `${lo}${unit}`, max: isMeta ? `${hi}${unit} meta` : `${hi}${unit}` };
+    }
+    if (divisionLegend?.hasRamp) {
+      return {
+        min: Math.round(divisionLegend.min).toLocaleString("es-AR"),
+        max: Math.round(divisionLegend.max).toLocaleString("es-AR"),
+      };
+    }
+    return null;
+  }, [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive]);
+
+  // Round-3 QA fix 6: graduated/points encodings rendered NO collapsed scale at
+  // all (just a color dot) — the biggest gap the QA doc named. A tiny
+  // small●–large● hint using the SAME bins the map's bubbles use
+  // (graduated-scale.ts), so the pill states the value range a bubble size
+  // spans without opening the full "Eventos por unidad" legend block.
+  const legendGraduatedHint = useMemo<{ small: GraduatedBin; large: GraduatedBin } | null>(() => {
+    if (bivariateActive || !graduatedScale || graduatedScale.bins.length === 0) return null;
+    if (!activeLayers.some((l) => l.renderMode === "graduated")) return null;
+    return {
+      small: graduatedScale.bins[0],
+      large: graduatedScale.bins[graduatedScale.bins.length - 1],
+    };
+  }, [activeLayers, graduatedScale, bivariateActive]);
+
   // task #63: bivariate encoding toggle — offered ONLY on "Brotes activos" at
   // province framing (both inputs active). A map ENCODING switch (how the two
   // layers are drawn), not a data toggle. ARCHETYPE A: relocated from above the
@@ -4030,6 +4073,7 @@ export function PanoramaConsole({
             metricIds={metricIds}
             presetId={activePresetId}
             activeBaseLayerId={captionLayer?.id ?? null}
+            level={level}
             onRebase={(id) => {
               void onToggle(id);
             }}
@@ -4061,7 +4105,9 @@ export function PanoramaConsole({
               bivariateActive ? "Riesgo combinado" : (captionLayer?.label ?? "Eventos por unidad")
             }
             rampColors={legendRampColors}
+            rampEndpoints={legendRampEndpoints}
             bivariate={bivariateActive}
+            graduatedHint={legendGraduatedHint}
             layerDots={legendLayerDots}
           >
             <div className="space-y-2.5">
