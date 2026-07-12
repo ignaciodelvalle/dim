@@ -2,33 +2,13 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import {
-  type DashboardJurisdiction,
-  PROVINCE_ISO_MAP,
-  fetchSurveillanceSignals,
-} from "@/lib/analytics/govt-dashboards";
+import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { ScrollToSignal } from "../_components/ScrollToSignal";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
-
-// All provinces in the GeoJSON placeholder (same list as the parent page).
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Córdoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucumán" },
-  { code: "AR-E", name: "Entre Ríos" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 export default async function GobVigilanciaBrotesPage({
   searchParams,
@@ -50,39 +30,11 @@ export default async function GobVigilanciaBrotesPage({
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // Resolve selected province ISO code → ProvinceCode + canonical name.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  // Resolve locality slug → canonical name for data-fetcher narrowing.
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  // Narrow jurisdictions when a province/locality filter is active.
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      // Province + locality: intersect with the user's actual assignments so a
-      // govt user cannot widen scope by crafting arbitrary ?province=&locality= params.
-      // govtAssignments.jurisdictionLocality is NOT NULL (schema-enforced), so exact
-      // match is correct — no null-locality province-level rows exist.
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
+  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, { since });
 
@@ -102,13 +54,6 @@ export default async function GobVigilanciaBrotesPage({
         ),
       )
     : allSignals;
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   // Deep-link target (?signalId=): highlight + scroll the matching row into
   // view. Only activates when the requested signal is actually present in the

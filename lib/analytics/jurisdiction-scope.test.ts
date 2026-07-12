@@ -10,8 +10,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { Locality, LocalityOption } from "@/lib/infra/ar-localidades";
+import type { DashboardJurisdiction } from "@/lib/metrics";
 
 // --- Stub the two catalog reads (the only I/O in the primitive). -----------
 vi.mock("@/lib/infra/ar-localidades", () => ({
@@ -19,9 +19,9 @@ vi.mock("@/lib/infra/ar-localidades", () => ({
   localityByName: vi.fn(),
 }));
 
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
-import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 
 // ---------------------------------------------------------------------------
 // Fixtures

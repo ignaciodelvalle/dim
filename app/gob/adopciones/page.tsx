@@ -18,12 +18,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import {
-  type DashboardJurisdiction,
-  GOB_ALL_PROVINCES,
-  PROVINCE_ISO_MAP,
-} from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -39,7 +34,6 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 export const dynamic = "force-dynamic";
 
@@ -84,41 +78,14 @@ export default async function GobAdopcionesPage({
   if (sp.locality) exportParams.set("locality", sp.locality);
   const exportHref = `/gob/adopciones/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
 
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
+  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   const [
     funnel,

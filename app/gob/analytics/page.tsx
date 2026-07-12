@@ -9,16 +9,13 @@ import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-l
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics/analytics-ranking";
 import {
-  type DashboardJurisdiction,
-  GOB_ALL_PROVINCES,
-  PROVINCE_ISO_MAP,
   RABIES_VACCINATION_RATE_LABEL_ES,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -28,7 +25,6 @@ import {
   fetchVetAccessByLocality,
   toneForTarget,
 } from "@/lib/metrics";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
@@ -77,35 +73,11 @@ export default async function GobAnalyticsPage({
 
   const sp = await searchParams;
 
-  // Resolve selected province ISO code → Province object + localities list.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  // Narrow the jurisdictions array to the selected province/locality when a filter
-  // is active. Admin short-circuits inside the fetchers so we leave jurisdictions
-  // unchanged for admins.
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
+  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   const period = resolveAnalyticsPeriod(sp);
   const { since } = period;
@@ -170,14 +142,6 @@ export default async function GobAnalyticsPage({
   // Shape the outbreak-signals trend for TimeSeriesChart.
   const signalsTrendPoints = signalsTrend.points.map((p) => ({ x: p.x, y: p.y }));
   const signalsBucketWord = signalsTrend.granularity === "month" ? "mes" : "semana";
-
-  // Build allowedProvinces for <JurisdictionSwitcher>.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   // Compute bar chart max for death causes.
   const maxDeathCount = deathCauses.reduce((m, r) => Math.max(m, r.count), 0);

@@ -38,15 +38,15 @@
  *     drilling would be a widening vector.
  */
 
-import { resolveScopedJurisdictions } from "@/lib/infra/gov-scope";
+import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import {
   type Locality,
   type LocalityOption,
   listLocalitiesByProvince,
   localityByName,
 } from "@/lib/infra/ar-localidades";
+import { resolveScopedJurisdictions } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import { type Province, type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 /** The raw ?province / ?locality searchParams, source-shape-agnostic. */

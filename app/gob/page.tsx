@@ -23,11 +23,7 @@ import {
   fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
 } from "@/lib/analytics/compliance-metrics";
-import {
-  GOB_ALL_PROVINCES,
-  PROVINCE_ISO_MAP,
-  fetchPerdidasMetrics,
-} from "@/lib/analytics/govt-dashboards";
+import { fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
   fetchBitesPer10k,
   fetchNotifiedDiseases,
@@ -37,9 +33,9 @@ import {
   fetchRabiesCoverage,
   fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
 import { countVisiblePendingRequests } from "@/lib/infra/approval-scope";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   listOpenCasesForAdminPreview,
@@ -54,7 +50,6 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { formatCount, formatDate, formatPercent, formatRate } from "@/lib/utils/format";
 
@@ -74,40 +69,12 @@ export default async function GobiernoDashboardPage({
   // which every sub-page (reading province=ISO) silently dropped.
   const selectedProvinceIso = typeof sp.province === "string" ? sp.province : null;
   const selectedLocalitySlug = typeof sp.locality === "string" ? sp.locality : null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
 
-  // Load localities for the selected province (for the switcher dropdown).
-  const localities = selectedProvinceObj
-    ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-    : [];
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  // Narrow jurisdictions for KPI queries when a province/locality filter is active.
-  // Intersect with the user's real assignments so a govt user can't widen scope.
-  let filteredJurisdictions = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
-
-  // Provinces the switcher offers. Admin: all 24 (ISO codes). Govt: the
-  // provinces the user has assignments in, as ISO codes.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
+  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: selectedProvinceIso, locality: selectedLocalitySlug },
+  });
 
   // --- Scope label --------------------------------------------------------
 

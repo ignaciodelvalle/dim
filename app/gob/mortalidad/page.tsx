@@ -29,13 +29,8 @@ import {
   OpKpiSm,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import {
-  type DashboardJurisdiction,
-  GOB_ALL_PROVINCES,
-  PROVINCE_ISO_MAP,
-} from "@/lib/analytics/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -45,7 +40,6 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
@@ -89,33 +83,11 @@ export default async function GobMortalidadPage({
 
   const sp = await searchParams;
 
-  // Resolve selected province ISO code → Province object + localities list.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  // Narrow jurisdictions to the selected filter; admin short-circuits in scope.
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
+  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
@@ -126,13 +98,6 @@ export default async function GobMortalidadPage({
     fetchDeathCausesTrend(ctx),
     fetchKpiTrend("death_recorded", ctx),
   ]);
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
   const localityCells = m.byLocality.value;

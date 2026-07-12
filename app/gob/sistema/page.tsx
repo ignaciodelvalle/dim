@@ -14,18 +14,12 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
-import {
-  type DashboardJurisdiction,
-  GOB_ALL_PROVINCES,
-  PROVINCE_ISO_MAP,
-} from "@/lib/analytics/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, enoSlaTone, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -61,31 +55,11 @@ export default async function GobSistemaPage({
   // 'admin' | 'govt', and 'govt' redirected above) — unchanged full view.
   const actor = { role: profile.role } as const;
 
-  // Resolve selected province ISO code → Province object + localities list.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  // Narrow to selected province/locality within the govt's assignments.
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    filteredJurisdictions = selectedLocalityRow
-      ? jurisdictions.filter(
-          (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-        )
-      : jurisdictions.filter((j) => j.province === provinceName);
-  }
+  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
@@ -94,13 +68,6 @@ export default async function GobSistemaPage({
     fetchEnoSla(ctx),
     fetchQueueHealthScoped(filteredJurisdictions),
   ]);
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   return (
     <div className="space-y-6">

@@ -18,9 +18,6 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
-  type DashboardJurisdiction,
-  GOB_ALL_PROVINCES,
-  PROVINCE_ISO_MAP,
   computeDiseaseSummary,
   fetchCasesPerLocality,
   fetchCasesPerSubregion,
@@ -28,8 +25,8 @@ import {
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
 } from "@/lib/analytics/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metrics";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   buildProjectionContext,
@@ -37,7 +34,6 @@ import {
   fetchMovementCorridors,
   windows,
 } from "@/lib/metrics";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
@@ -60,45 +56,16 @@ export default async function GobVigilanciaPage({
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const { since } = period;
 
-  // Resolve selected province ISO code (e.g. "AR-B") → ProvinceCode + canonical name.
+  const { filteredJurisdictions, localities, allowedProvinces, selectedProvince } =
+    await resolveJurisdictionScope({
+      role: profile.role,
+      jurisdictions,
+      params: { province: sp.province, locality: sp.locality },
+    });
+
+  // Raw selected province ISO gates the sub-region (department/barrio) choropleth
+  // drill below — passed as an explicit predicate to fetchCasesPerSubregion.
   const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  // Resolve locality slug → Locality row so we can get the canonical localityName
-  // that the data fetchers compare against jurisdictionLocality columns.
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  // Narrow the jurisdictions array passed to data fetchers when a province and/or
-  // locality filter is active. Fetchers accept DashboardJurisdiction[] where
-  // province = canonical display name, locality = locality name (not slug).
-  // Admin's empty [] means "universal scope" — we leave it unchanged for admin
-  // because the scope clauses short-circuit on actor.role === "admin".
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      // Province + locality: intersect with the user's actual assignments so a
-      // govt user cannot widen scope by crafting arbitrary ?province=&locality= params.
-      // govtAssignments.jurisdictionLocality is NOT NULL (schema-enforced), so exact
-      // match is correct — no null-locality province-level rows exist.
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      // Province only: keep the govt's assignments that belong to that province.
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
 
   // The disease summary always covers the last 30 days regardless of the
   // period picker. When the period picker is also 30d, signals30d doubles
@@ -187,15 +154,6 @@ export default async function GobVigilanciaPage({
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
-  // Build allowedProvinces for <JurisdictionSwitcher>.
-  // Admin: full list. Govt: derive unique province codes from assigned jurisdictions.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
-
   // Shape map data into ChoroplethRegionDatum format (aggregate by province code).
   const codeToCount = new Map<string, number>();
   for (const row of mapData) {
@@ -248,7 +206,7 @@ export default async function GobVigilanciaPage({
       mapCardTitle = "Casos abiertos por barrio — CABA";
     } else {
       mapGeojsonUrl = "/geo/ar-departments.geojson";
-      mapCardTitle = `Casos abiertos por departamento — ${selectedProvinceObj?.name ?? ""}`;
+      mapCardTitle = `Casos abiertos por departamento — ${selectedProvince?.name ?? ""}`;
     }
   }
 
