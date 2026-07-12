@@ -505,7 +505,15 @@ export default async function GobiernoDashboardPage({
       </OpCard>
 
       {/* Main 2-col grid */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+      {/* items-start (#52a): without it, CSS Grid's default align-items:stretch
+          forces the aside column to match the taller left column's height,
+          leaving visible dead space below its last card (Pérdidas) since a
+          plain block div doesn't grow to fill that height itself. Sizing each
+          column to its own content removes the gap. No admin-home aside
+          pattern exists to mirror — app/admin/page.tsx is single-column with
+          no rail/quick-links component — so this is the minimal fix rather
+          than inventing new aside content. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px] lg:items-start">
         {/* Left column */}
         <div className="space-y-4">
           {/* Cola de aprobaciones */}

@@ -196,7 +196,7 @@ export default async function GobPoblacionPage({
       {/* KPI row */}
       <section
         aria-label="Indicadores de control poblacional"
-        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+        className="grid grid-cols-2 md:grid-cols-5 gap-3"
       >
         {/* KPI 1: Sterilization coverage — with target bar + tone */}
         <OpKpi
