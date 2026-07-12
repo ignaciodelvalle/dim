@@ -938,6 +938,25 @@ export function PanoramaConsole({
       ? null
       : parseCameraFromParams(new URLSearchParams(window.location.search)),
   );
+  // H14 (cowork QA): a deep link with an explicit ?province but NO ?z/lat/lng
+  // (camera) used to stay framed on the NATIONAL view — the drill-by-select/click
+  // frames, but the URL entry did not. Signal SituationalMap to frame the province
+  // polygon ONCE on load, but ONLY when: (a) the URL pins a province, (b) no exact
+  // camera is being restored (that wins), and (c) the operator is not
+  // jurisdiction-pinned (a scoped govt keeps their own server bbox). Mount-once,
+  // client-only — like initialCamera, it drives an imperative post-load map action
+  // so an SSR/client difference is inert.
+  const [frameProvinceOnLoad] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const p = new URLSearchParams(window.location.search);
+    const province = p.get("province");
+    return (
+      province != null &&
+      province !== "" &&
+      parseCameraFromParams(p) == null &&
+      initialDivisionProvince == null
+    );
+  });
   const scrubbing = asOf !== null;
   // panorama-vista-redesign QA fix: bumped whenever THIS console forces asOf
   // back to null OUTSIDE a since/until (period) change — a scope-only change
@@ -3593,6 +3612,7 @@ export function PanoramaConsole({
             onScopeCommit={scrollNavEligible ? commitScopeDrill : undefined}
             scrollNavEnabled={scrollNavEligible}
             initialBounds={initialBounds}
+            frameProvinceOnLoad={frameProvinceOnLoad}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}
             localityCommitted={effectiveScopeLocality != null}

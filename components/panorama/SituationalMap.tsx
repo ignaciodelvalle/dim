@@ -270,6 +270,14 @@ type Props = {
    */
   initialBounds?: [[number, number], [number, number]];
   /**
+   * H14 (cowork QA): frame the `selectedProvinceCode` polygon ONCE on load even
+   * when a server `initialBounds` was supplied. Set by the console only for a
+   * deep link that pins an explicit ?province with NO restored camera and an
+   * un-pinned operator — so a shared province URL flies the camera exactly like a
+   * click/select drill does, instead of stranding the view at national.
+   */
+  frameProvinceOnLoad?: boolean;
+  /**
    * A1 PR-7: ISO 3166-2:AR province code currently selected in the
    * JurisdictionSwitcher (e.g. "AR-X"). null = national (no province filter).
    * When this changes, the map autozoom to the province's polygon bbox.
@@ -637,6 +645,7 @@ export function SituationalMap({
   onProvinceDrill,
   onReturnNational,
   initialBounds,
+  frameProvinceOnLoad = false,
   selectedProvinceCode = null,
   selectedLocalityCenter = null,
   frame = null,
@@ -782,6 +791,9 @@ export function SituationalMap({
   // divisions loaded (the provinces basemap is the only geometry).
   const selectedProvinceRef = useRef(selectedProvinceCode);
   selectedProvinceRef.current = selectedProvinceCode;
+  // H14: whether to frame the selected province polygon on load (see the prop doc).
+  const frameProvinceOnLoadRef = useRef(frameProvinceOnLoad);
+  frameProvinceOnLoadRef.current = frameProvinceOnLoad;
   // The divisions currently mounted. `signature` is the sorted effective-province
   // set key — a stable identity so a moveend that does not change the visible
   // province set skips the rebuild/refetch entirely. `deptCodes`/`barrioCodes`
@@ -1282,7 +1294,11 @@ export function SituationalMap({
           // map must land fitted to the province, not the national data extent.
           let frameBbox = bbox;
           if (
-            !initialBoundsRef.current &&
+            // H14: an explicit deep-linked province frames its polygon on load even
+            // when a server initialBounds was supplied (admin ?province derives a
+            // centroid bbox); otherwise keep the original guard (govt jurisdiction
+            // bbox wins). Either way, only when the basemap polygons are loaded.
+            (frameProvinceOnLoadRef.current || !initialBoundsRef.current) &&
             selectedProvinceRef.current &&
             basemapFeaturesRef.current.length > 0
           ) {
