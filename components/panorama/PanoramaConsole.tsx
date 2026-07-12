@@ -528,9 +528,20 @@ export function PanoramaConsole({
   const urlProvince = searchParams.get("province");
   const validUrlProvince = urlProvince && provinceByCode(urlProvince) ? urlProvince : null;
   const effectiveScopeProvince = scopeOverride ? scopeOverride.province : validUrlProvince;
-  const effectiveScopeLocality = scopeOverride
+  const rawScopeLocality = scopeOverride
     ? scopeOverride.locality
     : (searchParams.get("locality") ?? null);
+  // Fork A normalization (task #50 P1b): a locality is meaningless without a
+  // province SOMEWHERE — the URL/override scope OR the operator's jurisdiction
+  // (initialDivisionProvince). A crafted ?locality=X with no province anywhere
+  // used to force locality-level aggregation on a nationally-framed map (and a
+  // "Palermo" scope label over a national view) — an incoherent latent state no
+  // real UI path produces. Drop the orphan at this single scope source so EVERY
+  // surface (label, level, fetches) stays coherently national; matches the
+  // canonical ViewScope's illegal-state design. Legitimate localities (a drill,
+  // or a jurisdiction operator whose province is implicit) are always preserved.
+  const effectiveScopeLocality =
+    effectiveScopeProvince != null || initialDivisionProvince != null ? rawScopeLocality : null;
   // Ref mirror of the effective province so the popstate handler (below) can
   // read the CURRENT scope without re-subscribing the listener on every scope
   // change — it decides whether a reverted URL needs a fresh scope bundle.
@@ -2668,14 +2679,10 @@ export function PanoramaConsole({
   // intentional zoom past the boundary or a jurisdiction drill. So this effect
   // NO LONGER pins the level to the active preset's level.
   const derivedProvince = effectiveScopeProvince ?? initialDivisionProvince;
-  // Fork A normalization (task #50 P1b): a locality is meaningless without a
-  // province. A crafted ?locality=X with no province anywhere (URL or the
-  // operator's jurisdiction) used to force locality-level aggregation on a
-  // nationally-framed map (derivedLevelWithHysteresis: scope.locality wins) — an
-  // incoherent latent state no real UI path produces. Drop the orphan so the view
-  // stays coherently national, matching the canonical ViewScope's illegal-state
-  // design (PO-approved documented micro-fix, same class as the lossy-level fix).
-  const derivedLocality = derivedProvince ? effectiveScopeLocality : null;
+  // effectiveScopeLocality is already orphan-normalized at its source (Fork A,
+  // above) — a locality only survives when a province exists somewhere, so this
+  // inherits a coherent value.
+  const derivedLocality = effectiveScopeLocality;
 
   // task #50 P1b — the single canonical PanoramaViewState (read-model). The
   // console's scattered selection inputs are assembled here into ONE value; the
