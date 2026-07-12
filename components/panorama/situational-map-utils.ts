@@ -359,7 +359,14 @@ export function cabaInsetVisible(params: {
 }): boolean {
   const { hasInsetLayer, scopeProvince, scopeIsCaba, scopeIsPba, cabaInView } = params;
   if (!hasInsetLayer) return false;
-  if (scopeProvince != null) return scopeIsCaba || scopeIsPba;
+  if (scopeProvince != null) {
+    // Drilled into CABA itself: the MAIN map now renders CABA at barrio scale,
+    // so the inset would be a redundant "double CABA" (PO #49 item 6) — hide it.
+    // PBA surrounds CABA, so keep the magnifier there; any other province drops
+    // it (scope decision beats the geometry test).
+    if (scopeIsCaba) return false;
+    return scopeIsPba;
+  }
   return cabaInView;
 }
 

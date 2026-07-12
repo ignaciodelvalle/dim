@@ -56,7 +56,8 @@ describe("cabaInsetVisible", () => {
     expect(cabaInsetVisible({ ...base, scopeProvince: null, cabaInView: false })).toBe(false);
   });
 
-  it("keeps the inset when drilled into CABA itself", () => {
+  it("hides the inset when drilled into CABA itself (no double CABA — #49 item 6)", () => {
+    // The main map now shows CABA at barrio scale, so the magnifier is redundant.
     expect(
       cabaInsetVisible({
         ...base,
@@ -64,7 +65,7 @@ describe("cabaInsetVisible", () => {
         scopeIsCaba: true,
         cabaInView: true,
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("keeps the inset when drilled into Provincia de Buenos Aires (addendum)", () => {
