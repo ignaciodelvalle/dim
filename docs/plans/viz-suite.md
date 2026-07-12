@@ -107,3 +107,52 @@ naming, Sankey node taxonomy, watermark UX) → PO.
 After #21 + #24 phase 1. Waves independently shippable, order 0→1→2→3→4. Work-unit commits,
 single-PR w/ `size:exception` per project default; per-wave split remains possible. On execution
 start: create per-wave tasks chained to #24.
+
+---
+
+## Organizing principle — where each visualization LIVES (PO-ratified 2026-07-12)
+
+The panorama's information architecture has THREE axes, not two. Every new viz slots into exactly
+one; do not scatter them.
+
+1. **QUÉ datos (data selection) → right rail (modifiers/verbs):** scope, período, capas, filtros.
+   Changes *what* data is in play. Stays small.
+2. **CÓMO en el mapa (spatial encoding) → a single "Modo" switcher ON the map (#24), NOT dock
+   tabs:** choropleth (sequential/META), bivariate 3×3, graduated, glow, and the map-native
+   viz-suite methods — **delta choropleth, reporting-lag map, as-of**, density heatmap. These
+   *repaint the map*; they are the map, shown differently. One switcher that expands, never N
+   separate rail icons.
+3. **CÓMO fuera del mapa (non-spatial representations) → bottom dock tabs, GROUPED BY INTENT:**
+   not one flat tab per viz. Families: **Listas** (Registros / Estadísticas), **Tendencias**
+   (línea de tiempo / calendar heatmap / cohort curves), **Flujos** (Sankey / corrections lens).
+   3-4 intent tabs with a sub-selector, not ten flat tabs.
+
+**Anti-sprawl guardrails:**
+- The rail stays modifiers-only; map encodings are ONE switcher (axis 2), not icons.
+- Dock groups by intent (Listas / Tendencias / Flujos), not per-viz tabs.
+- **Declarative availability (ties to task #50):** the compatibility model prends/apaga each mode
+  and each dock tab based on the active layer/scope/data — if the layer has no temporal dimension,
+  "Tendencias" is off; if there aren't two windows, "delta" mode doesn't appear. The operator sees
+  the 3-4 options that apply, not 10 that mostly don't. This kills sprawl structurally.
+
+**Not everything belongs in panorama.** Genuinely non-spatial viz (corrections/data-quality
+dashboard, adoption cohort/survival curves) live on their OWN analytics screen and **embed a
+scoped `<PanoramaEmbed>`** (#51) if they need geographic context. Operator-orientation viz (the
+"novedades desde tu última visita" feed) lives on the operator HOME, not panorama. Panorama is the
+situational MAP; it is not the container for all analytics.
+
+## The deeper unifier — canonical ViewState (foundational, see task/note)
+
+The recurring source of panorama rework (the coherence invariant breaking, deep-links not
+round-tripping, embed/saved-views/compare each re-deriving state) has ONE root: the view
+configuration is scattered across URL params + refs + effects, and each surface (map, KPIs, dock,
+legend) derives its slice independently. The event-sourcing discipline the DATA layer already uses
+— `(events, filters) → view`, all pure projections — should apply to the VIEW layer too: a single
+canonical `PanoramaViewState = { scope, period, asOf, basis, layers, encoding, representation }`
+that is THE source of truth; every surface + the URL + saved-views + embed is a pure projection of
+it. Then: the coherence invariant becomes STRUCTURAL (not defended per-fix — all surfaces read one
+value, can't diverge); compatibility (#50) is a pure `ViewState → allowed` function; and
+embed (#51), presentation mode (#32), reproducible deep-links, "compare two views", and undo/redo
+all fall out as trivial projections of one (or two) ViewState values — architecture gifts, not
+new features. This is a deliberate debt-paydown that unblocks the above; do it alongside/before
+the #50 compatibility model (they're the same refactor: ViewState + a `ViewState→allowed` gate).
