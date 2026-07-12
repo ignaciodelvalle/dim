@@ -3155,7 +3155,7 @@ export function PanoramaConsole({
       // in the URL and lose the operator's selection (staging QA 2026-07-08 #2).
       fetchLayersInto(activeIds, levelRef.current, params, { preserveOnError: true }),
     ]).finally(() => setRefreshing(false));
-  }, [refreshing, scopePeriodQs, fetchLayersInto, signalFor]);
+  }, [refreshing, fetchLayersInto, signalFor]);
 
   // A1 PR-7: autozoom — derive the current jurisdiction selection from
   // searchParams (set by JurisdictionSwitcher via a full document navigation).
