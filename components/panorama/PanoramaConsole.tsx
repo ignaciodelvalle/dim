@@ -41,6 +41,7 @@ import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaDock, type PanoramaDockTab } from "@/components/panorama/PanoramaDock";
+import { PanoramaInformeSituacion } from "@/components/panorama/PanoramaInformeSituacion";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { PanoramaRail, type RailItem } from "@/components/panorama/PanoramaRail";
@@ -60,6 +61,7 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
+import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import { activeVistaName, countFiltroModifiers } from "@/components/panorama/panorama-labels";
 import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
 import {
@@ -72,6 +74,7 @@ import {
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { deferPrint } from "@/lib/infra/defer-print";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import {
@@ -91,6 +94,7 @@ import {
   bivariateViable,
   buildBivariateCells,
 } from "@/src/modules/panorama/domain/bivariate";
+import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import {
   AGGREGATED_POINT_IDS,
@@ -119,6 +123,7 @@ import {
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
+import { explainViewState } from "@/src/modules/panorama/domain/view-state-caption";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -3164,6 +3169,11 @@ export function PanoramaConsole({
   const [highlightedUnitKey, setHighlightedUnitKey] = useState<string | null>(null);
   const [showDataTable, setShowDataTable] = useState(false);
 
+  // task #55 — "Informe de situación": the generation stamp is captured ONLY when
+  // the operator triggers the print (starts null so SSR + first client render
+  // match — no timestamp hydration mismatch on the always-mounted print node).
+  const [informeGeneratedAt, setInformeGeneratedAt] = useState<Date | null>(null);
+
   const onRankedSelect = useCallback(
     (key: string) => {
       if (!rankingLayer || !rankedActiveLayer) return;
@@ -3944,6 +3954,86 @@ export function PanoramaConsole({
   });
   const timelineActive = dockOpen && dockTab === "timeline";
 
+  // task #55 — "Informe de situación": the print-ready operator briefing. A PURE
+  // projection of the CURRENT view (same `(view, data) → render` discipline as
+  // the map + strip + ranking) — no new fetch, every number already computed and
+  // privacy-suppressed by the console above. The plain-language pieces reuse the
+  // existing helpers: explainViewState (the ViewState P5 "explain" gift) for the
+  // one-line summary, captionFor for the map caption, and the KPI ⓘ definitions
+  // for the method footnotes. Honesty invariants (demo banner + k-anon disclosure
+  // + method notes) live inside buildInformeModel and are never dropped.
+  const informeCaption = bivariateActive
+    ? "Riesgo combinado por provincia: cobertura antirrábica (terciles) × señales de zoonosis (terciles). El rincón de riesgo — cobertura baja · señales altas — resalta en rosa."
+    : captionLayer
+      ? captionFor(captionLayer, level, captionPeriod)
+      : null;
+  const informeModel = useMemo(
+    () =>
+      buildInformeModel({
+        scopeLabel: liveScopeLabel || viewMeta.scopeLabel,
+        periodLabel: viewMeta.periodLabel,
+        asOf,
+        generatedAt: informeGeneratedAt,
+        isDemo: demoNotice != null,
+        viewSummary: explainViewState(viewState, {
+          provinceLabel: (code) =>
+            allowedProvinces?.find((p) => p.code === code)?.name ??
+            provinceByCode(code)?.name ??
+            code,
+          localityLabel: (_province, locality) =>
+            scopeData.localities.find((l) => l.slug === locality)?.name ?? locality,
+        }),
+        kpis: readingKpis,
+        kpisDegraded,
+        ranking:
+          effectiveRankingKind !== null && rankingLayer !== null
+            ? {
+                rows: rankedRows,
+                kind: effectiveRankingKind,
+                measureLabel: rankingMeasureLabel,
+                smallScope: rankingSmallScope,
+                unitNoun: rankingUnitNoun,
+                suppressedCount: dockSuppressedCount,
+                unavailable: rankingDataUnavailable,
+              }
+            : null,
+        caption: informeCaption,
+        activeLayerLabels: activeLayers.map((l) => l.label),
+        suppressedTotal: viewMeta.suppressedCount,
+      }),
+    [
+      liveScopeLabel,
+      viewMeta,
+      asOf,
+      informeGeneratedAt,
+      demoNotice,
+      viewState,
+      allowedProvinces,
+      scopeData.localities,
+      readingKpis,
+      kpisDegraded,
+      effectiveRankingKind,
+      rankingLayer,
+      rankedRows,
+      rankingMeasureLabel,
+      rankingSmallScope,
+      rankingUnitNoun,
+      dockSuppressedCount,
+      rankingDataUnavailable,
+      informeCaption,
+      activeLayers,
+    ],
+  );
+
+  // Stamp the generation time at click, then defer window.print() so the click
+  // handler returns before the (synchronous) print dialog — the INP mitigation
+  // the deferPrint helper exists for. The always-mounted informe node (rendered
+  // below, display:none on screen) is revealed by its own `@media print` sheet.
+  const handlePrintInforme = useCallback(() => {
+    setInformeGeneratedAt(new Date());
+    deferPrint();
+  }, []);
+
   // The 7 rail items, top-to-bottom (spec item 1). Panels open the ONE uniform
   // RailPanel; actions fire immediately.
   const railItems: RailItem[] = [
@@ -4083,15 +4173,19 @@ export function PanoramaConsole({
               Descarga el mapa con una nota de método al pie.
             </p>
           </div>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="En desarrollo"
-            className="flex w-full cursor-not-allowed items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-faint"
-          >
-            Informe de situación (en desarrollo)
-          </button>
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={handlePrintInforme}
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+            >
+              <span aria-hidden="true">📄</span> Informe de situación
+            </button>
+            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              Genera un informe imprimible de la vista actual (indicadores, ranking y método) para
+              imprimir o guardar como PDF.
+            </p>
+          </div>
         </div>
       ),
     },
@@ -4126,6 +4220,14 @@ export function PanoramaConsole({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* task #55 — the print-only "Informe de situación". Mounted ONLY once the
+          operator generates it (handlePrintInforme sets the stamp, then defers
+          window.print() via setTimeout(0) — React commits this node before the
+          timer fires). Keeping it unmounted until then avoids duplicating the
+          KPI/ranking labels in the DOM (a11y-tree + test-query pollution). It is
+          display:none on screen; its own `@media print` sheet hides the live
+          console and reveals only this briefing when printing. */}
+      {informeGeneratedAt !== null && <PanoramaInformeSituacion model={informeModel} />}
       {/* v2C masthead — the ONLY fixed row of the console (spec: everything else
           floats over the map). Title + "Acerca" popover on the left; fresh chip
           + Actualizar on the right. The SCOPE pill moved into the floating
