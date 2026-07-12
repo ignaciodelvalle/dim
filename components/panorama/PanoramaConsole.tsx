@@ -795,26 +795,23 @@ export function PanoramaConsole({
   // load (the scrubber independently seeks its slider to the same day).
   const [asOf, setAsOf] = useState<Date | null>(() => initialAsOf);
 
-  // Coherence hybrid (cowork QA H1): fold the temporal-scrub cutoff into the KPI
-  // fetch key + URL so the TEMPORAL KPIs (mordeduras/zoonosis/denuncias-in-period)
-  // recompute as-of the scrub and track the map + Registros the scrubber already
-  // moves — the "big number contradicts the map" mismatch. Read via a stable ISO
-  // string so a new Date identity per render doesn't thrash the memo. Null (parked
-  // at live) → the plain scope key, byte-identical to before.
+  // Coherence hybrid (cowork QA H1): the temporal-scrub cutoff as a stable ISO
+  // string (a new Date identity per render must not thrash the as-of KPI effect
+  // below). Null = parked at live.
   const asOfKpiIso = asOf ? asOf.toISOString() : null;
+  // Build the KPI query string for the CURRENT scope/period + an optional as-of
+  // cutoff. Shared by the as-of KPI effect below (the scope/period effect uses the
+  // plain scopePeriodQs — no as-of, unchanged from before the hybrid).
   const kpiFetchQs = useMemo(() => {
     const params = new URLSearchParams(scopePeriodQs);
     if (asOfKpiIso) params.set("asOf", asOfKpiIso);
     return params.toString();
   }, [scopePeriodQs, asOfKpiIso]);
   // Skip the refetch for the very first render (the server already seeded the
-  // KPIs for the initial searchParams AT LIVE); only refetch when the scope/period
-  // OR the as-of cutoff changes. Seeded against the LIVE scope key, so a deep link
-  // that mounts WITH an ?asOf (kpiFetchQs carries it, the live seed does not) still
-  // refetches on mount to reconcile the strip with the restored scrub frame.
+  // KPIs for the initial searchParams); only refetch when the filters change.
   const seededQsRef = useRef<string | null>(scopePeriodQs);
   useEffect(() => {
-    if (seededQsRef.current === kpiFetchQs) {
+    if (seededQsRef.current === scopePeriodQs) {
       seededQsRef.current = null;
       return;
     }
@@ -824,7 +821,7 @@ export function PanoramaConsole({
     // numbers when it settles.
     clientKpiTookOverRef.current = true;
     let cancelled = false;
-    fetch(`/api/panorama/kpis${kpiFetchQs ? `?${kpiFetchQs}` : ""}`, {
+    fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
       headers: { accept: "application/json" },
       signal: signalFor("kpis"),
     })
@@ -855,7 +852,67 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [kpiFetchQs, signalFor]);
+  }, [scopePeriodQs, signalFor]);
+
+  // Coherence hybrid (cowork QA H1) — a DEDICATED as-of KPI refetch, kept SEPARATE
+  // from the scope/period effect above so the scrubber's rapid asOf changes never
+  // re-run the scope-takeover bookkeeping (seededQsRef/clientKpiTookOverRef). When
+  // the operator scrubs, the temporal KPIs (mordeduras/zoonosis/denuncias-in-period)
+  // must recompute as-of the cutoff so the big numbers track the map + Registros the
+  // scrubber already moves. Fires on every asOf transition — including back to live
+  // (asOf→null, which the scope/period effect does NOT observe since scopePeriodQs is
+  // unchanged) — so returning to "ahora" restores the live strip. `signalFor("kpis")`
+  // shares the KPI abort key, so a rapid scrub supersedes in-flight requests.
+  const asOfKpiSeededRef = useRef<boolean>(initialAsOf === null);
+  const kpiFetchQsRef = useRef(kpiFetchQs);
+  kpiFetchQsRef.current = kpiFetchQs;
+  useEffect(() => {
+    // Mount pass: skip when seeded at LIVE (server strip already matches). A deep
+    // link that mounts WITH an ?asOf starts unseeded so the strip reconciles to the
+    // restored scrub frame on mount.
+    if (asOfKpiSeededRef.current) {
+      asOfKpiSeededRef.current = false;
+      return;
+    }
+    // DEBOUNCE the as-of refetch: a scrub-DRAG emits a burst of asOf values, and a
+    // KPI fetch per tick both hammers the endpoint and contends with the per-tick
+    // temporal-LAYER refetch (which owns the map). Coalesce to the settled cutoff
+    // (~250ms) so the strip catches up once the operator lands on a date — the map
+    // still moves live via its own effect. (This also keeps the KPI fetch from
+    // racing a layer toggle mid-scrub — cowork QA H1 regression.)
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const qs = kpiFetchQsRef.current;
+      clientKpiTookOverRef.current = true;
+      fetch(`/api/panorama/kpis${qs ? `?${qs}` : ""}`, {
+        headers: { accept: "application/json" },
+        signal: signalFor("kpis"),
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
+        .then((body) => {
+          if (cancelled) return;
+          if (body) {
+            setKpis(body);
+            setKpisStale(false);
+          } else {
+            setKpisStale(true);
+          }
+          setKpisPending(false);
+        })
+        .catch((err) => {
+          if (isAbortError(err) || cancelled) return;
+          console.error("[PanoramaConsole] as-of KPI refresh failed", err);
+          setKpisStale(true);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // asOfKpiIso is the sole trigger (scope/period changes are handled by the effect
+    // above); kpiFetchQs/signalFor are read live via refs/stable identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asOfKpiIso]);
 
   // perf plan 1.3 — resolve the streamed KPI promise into state. The page creates
   // the loader promise and passes it un-awaited over RSC so SSR never blocks on
@@ -1809,7 +1866,12 @@ export function PanoramaConsole({
     async (id: LayerId) => {
       // A manual toggle exits preset mode.
       setActivePresetId(null);
-      const wasActive = states[id]?.active ?? false;
+      // Read the LIVE active flag from the ref, not the closure `states`: a rapid
+      // burst of unrelated re-renders (e.g. the coherence-hybrid KPI refetch firing
+      // on an asOf scrub) can leave this async callback bound to a stale `states`
+      // snapshot, so a closure read could misclassify an active layer as inactive
+      // and re-activate it instead of turning it off (cowork QA H1 regression).
+      const wasActive = statesRef.current[id]?.active ?? false;
       if (wasActive) {
         // Turn off — keep cached data so a re-toggle is instant.
         // Recompute hints: removing this layer may unblock others.
@@ -2784,6 +2846,14 @@ export function PanoramaConsole({
     return captionLayer.dataType === "rate" ? "rate" : "density";
   }, [captionLayer]);
 
+  // H2 (cowork QA): rate coverage (cobertura/esterilización/microchip) is computed
+  // ONLY at province grain (repository "V1 LIMITATION"); drilling into a province
+  // therefore paints nothing and showed the generic "Sin datos" — reading as if the
+  // province had no coverage when the metric simply isn't computed below province.
+  // When the base is a RATE layer AND we are drilled into a province, the map shows
+  // an honest "la cobertura se calcula solo a nivel provincia" empty state instead.
+  const rateProvinceOnlyEmpty = rankingKind === "rate" && effectiveScopeProvince != null;
+
   const rankedActiveLayer = useMemo(
     () => (captionLayer ? activeLayers.find((l) => l.id === captionLayer.id) : undefined),
     [captionLayer, activeLayers],
@@ -3219,8 +3289,25 @@ export function PanoramaConsole({
   const dockMeta = `${liveScopeLabel || viewMeta.scopeLabel} · ${viewMeta.periodLabel} · ${
     activeLayers.length
   } ${activeLayers.length === 1 ? "capa" : "capas"}`;
+  // H5 (cowork QA): REFERENCE layers (decomisos, refugios) are drawn on the map
+  // but are NOT tabulated in Registros (they carry no per-unit aggregate row). An
+  // operator auditing "qué venimos haciendo" saw the bubbles on the map but zero
+  // rows in the list with no explanation. Name the map-only reference layers in a
+  // one-line disclosure above the table so the absence is honest, not a bug.
+  const referenceLayerLabels = activeLayers
+    .filter((l) => l.dataType === "reference")
+    .map((l) => l.label);
   const dockRegistros = (
-    <MapDataTable rows={mapTableRows} caption={mapTableCaption} filename="panorama-mapa" />
+    <div className="space-y-2">
+      {referenceLayerLabels.length > 0 && (
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+          {referenceLayerLabels.length === 1
+            ? `${referenceLayerLabels[0]} se muestra solo en el mapa (capa de referencia); no se tabula en Registros.`
+            : `${referenceLayerLabels.join(" y ")} se muestran solo en el mapa (capas de referencia); no se tabulan en Registros.`}
+        </p>
+      )}
+      <MapDataTable rows={mapTableRows} caption={mapTableCaption} filename="panorama-mapa" />
+    </div>
   );
   // Estadísticas: the Worst-N=10 ranking (PO-ratified depth — ia-v2 §3.3, NOT
   // the prototype's top-7), hover-synced with the map and click-through to the
@@ -3416,9 +3503,14 @@ export function PanoramaConsole({
       ),
     },
     {
+      // H11 (cowork QA): this funnel opened a LAYER selector (capas on/off, opacity,
+      // verified-only) — NOT attribute filters. The "Filtro" name + funnel icon
+      // promised severity/status filtering that does not exist (deferred to #44), so
+      // rename to the honest "Capas" with a layers icon. `filtro` id/state names are
+      // internal (English) and unchanged.
       id: "filtro",
-      icon: "filtro",
-      label: "Filtro",
+      icon: "capas",
+      label: "Capas del mapa",
       kind: "panel",
       badge: filtroBadge,
       detail: capasDetail,
@@ -3575,13 +3667,18 @@ export function PanoramaConsole({
                 Datos de demostración
               </span>
             )}
-            {/* Fresh chip — the data watermark (batch, not "en vivo"). */}
+            {/* H7 (cowork QA): this chip is the LAST EVENT in the active alcance,
+                not a data-freshness watermark — it legitimately changes when the
+                scope changes (a smaller alcance has an older last event). Labeled
+                "Último evento en el alcance" so it never reads as "Salta tiene datos
+                más viejos". */}
             {kpis.dataAsOf && (
               <span
                 suppressHydrationWarning
+                title="Fecha y hora del evento más reciente dentro del alcance seleccionado (no es la frescura general de los datos)."
                 className="rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-xs)] tabular-nums text-ln-op-mute"
               >
-                Datos al{" "}
+                Último evento en el alcance:{" "}
                 {new Date(kpis.dataAsOf).toLocaleString("es-AR", {
                   day: "2-digit",
                   month: "2-digit",
@@ -3626,6 +3723,7 @@ export function PanoramaConsole({
             scrollNavEnabled={scrollNavEligible}
             initialBounds={initialBounds}
             frameProvinceOnLoad={frameProvinceOnLoad}
+            rateProvinceOnlyEmpty={rateProvinceOnlyEmpty}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}
             localityCommitted={effectiveScopeLocality != null}

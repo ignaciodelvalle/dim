@@ -487,8 +487,13 @@ export function TimeScrubber({
       </div>
 
       {!temporalAvailable ? (
+        // H13 (cowork QA): reconcile with the KPI sparkline. The sparkline is a
+        // 12-month TREND of the metric; this control REPRODUCES temporal event
+        // layers as-of a date — a different tool. Say what it needs (an active
+        // temporal layer) so "no disponible" doesn't contradict a visible trend.
         <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute">
-          No disponible en esta vista
+          La reproducción temporal necesita una capa de eventos activa (señales, denuncias). Activá
+          una para ver la situación formarse. La tendencia del indicador se ve en su miniatura.
         </p>
       ) : (
         <>
@@ -499,7 +504,12 @@ export function TimeScrubber({
               as if the whole map were as-of-t. */}
           {currentStateBaseLabel && (
             <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
-              Estado actual — {currentStateBaseLabel} no varía con la fecha de corte.
+              {/* H3 (cowork QA): in Brotes activos the base metric ({label}) is a
+                  current-state stock, so the operator read the whole timeline as
+                  "dead". Clarify that the scrubber DOES reproduce the temporal
+                  overlays (señales); only the base metric stays fixed. */}
+              La línea de tiempo reproduce las capas temporales del mapa (señales). El indicador
+              base ({currentStateBaseLabel}) es un estado actual y no cambia con la fecha de corte.
             </p>
           )}
           <div className="flex items-center gap-2.5">

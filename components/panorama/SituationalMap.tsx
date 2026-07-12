@@ -278,6 +278,13 @@ type Props = {
    */
   frameProvinceOnLoad?: boolean;
   /**
+   * H14 (cowork QA H2): the active base is a RATE coverage layer drilled below
+   * province, where coverage is not computed (repository V1 limitation). Swaps the
+   * generic "Sin datos" empty overlay for an honest "la cobertura se calcula solo a
+   * nivel provincia" so the operator does not read it as "no coverage here".
+   */
+  rateProvinceOnlyEmpty?: boolean;
+  /**
    * A1 PR-7: ISO 3166-2:AR province code currently selected in the
    * JurisdictionSwitcher (e.g. "AR-X"). null = national (no province filter).
    * When this changes, the map autozoom to the province's polygon bbox.
@@ -646,6 +653,7 @@ export function SituationalMap({
   onReturnNational,
   initialBounds,
   frameProvinceOnLoad = false,
+  rateProvinceOnlyEmpty = false,
   selectedProvinceCode = null,
   selectedLocalityCenter = null,
   frame = null,
@@ -3606,8 +3614,10 @@ export function SituationalMap({
         </div>
         {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-4 py-2 text-[var(--text-md)] text-ln-op-ink-2 shadow-sm">
-              Sin datos para esta capa {emptyStateScope}.
+            <p className="max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-4 py-2 text-center text-[var(--text-md)] text-ln-op-ink-2 shadow-sm">
+              {rateProvinceOnlyEmpty
+                ? "La cobertura se calcula solo a nivel provincia. Volvé al nivel provincia para verla."
+                : `Sin datos para esta capa ${emptyStateScope}.`}
             </p>
           </div>
         )}

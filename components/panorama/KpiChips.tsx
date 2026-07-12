@@ -126,7 +126,18 @@ export function KpiChips({
             <CardBody kpi={kpi} presetId={presetId} active={active} />
           </button>
         ) : (
-          <div key={kpi.id} className={cardClass} title={title}>
+          // H8 (cowork QA): a KPI with no BASE map layer (zoonosis, denuncias…) is
+          // NOT clickable — but it used to look identical to the clickable base
+          // cards. Mark it honestly: a default cursor, no hover affordance, and a
+          // tooltip stating it does not repaint the map (so the operator does not
+          // click expecting the choropleth to change). aria-disabled announces the
+          // read-only nature to assistive tech.
+          <div
+            key={kpi.id}
+            aria-disabled="true"
+            className={`${cardClass} cursor-default`}
+            title={`${title} · Indicador de referencia: no pinta el mapa.`}
+          >
             <CardBody kpi={kpi} presetId={presetId} active={active} />
           </div>
         );

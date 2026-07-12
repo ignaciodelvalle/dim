@@ -70,7 +70,9 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
       />,
     );
 
-    expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+    expect(
+      screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
@@ -85,7 +87,9 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
         temporalAvailable={false}
       />,
     );
-    expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+    expect(
+      screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).toBeInTheDocument();
 
     rerender(
       <TimeScrubber
@@ -98,7 +102,9 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
       />,
     );
 
-    expect(screen.queryByText("No disponible en esta vista")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("slider")).toBeInTheDocument();
   });
 
@@ -119,7 +125,7 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
 
     expect(screen.getByRole("slider")).toBeInTheDocument();
     expect(
-      screen.getByText("Estado actual — cobertura antirrábica no varía con la fecha de corte."),
+      screen.getByText(/El indicador base \(cobertura antirrábica\) es un estado actual/),
     ).toBeInTheDocument();
   });
 
@@ -135,7 +141,7 @@ describe("TimeScrubber — temporal gating (design Decision 4)", () => {
       />,
     );
 
-    expect(screen.queryByText(/no varía con la fecha de corte/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no cambia con la fecha de corte/)).not.toBeInTheDocument();
   });
 
   it("defaults to available (temporalAvailable omitted) — backward compatible", () => {
@@ -263,7 +269,9 @@ describe("TimeScrubber — QA fix: playback stops when temporal gating hides the
         temporalAvailable={false}
       />,
     );
-    expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+    expect(
+      screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).toBeInTheDocument();
 
     // Advance well past several play-loop ticks — the interval must not still
     // be running behind the empty state.

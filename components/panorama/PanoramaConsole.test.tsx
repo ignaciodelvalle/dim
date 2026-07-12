@@ -333,7 +333,7 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
     // Simple/Detalle toggles read "Simple" as pressed. (Open the Capas popover
     // so the toggle mounts — layers are secondary chrome in the redesign.)
     openFiltro();
-    expect(screen.getByRole("button", { name: "Modo simple de Filtro" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Modo simple de Capas del mapa" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -539,7 +539,7 @@ function isBefore(a: Element, b: Element): boolean {
  * label, but that button carries no `aria-expanded`, so it never collides.
  */
 function openFiltro(): void {
-  fireEvent.click(screen.getByRole("button", { name: "Filtro" }));
+  fireEvent.click(screen.getByRole("button", { name: "Capas del mapa" }));
 }
 
 /**
@@ -672,7 +672,7 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(scopeSummary.closest("details")).not.toBeNull();
     // panorama-vista-redesign Phase 2 / task #38 v3: the layer catalog trigger
     // (formerly "Capas", now the rail's "Filtro" icon button) is present.
-    expect(screen.getByRole("button", { name: "Filtro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Capas del mapa" })).toBeInTheDocument();
 
     // The slot content is REACHABLE (identical behavior, one click away)…
     const filterSelect = screen.getByLabelText("Provincia");
@@ -700,13 +700,15 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     ).toBeGreaterThanOrEqual(6);
     // The "Filtro" trigger is visible at first paint (not behind a disclosure);
     // the Simple/Detalle toggle only mounts once the rail panel is opened.
-    const capasBtn = screen.getByRole("button", { name: "Filtro", expanded: false });
+    const capasBtn = screen.getByRole("button", { name: "Capas del mapa", expanded: false });
     expect(capasBtn).toBeVisible();
     expect(capasBtn.closest("details:not([open])")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Modo simple de Filtro" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Modo simple de Capas del mapa" }),
+    ).not.toBeInTheDocument();
     openFiltro();
-    expect(screen.getByRole("button", { name: "Modo simple de Filtro" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Modo detalle de Filtro" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Modo simple de Capas del mapa" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" })).toBeVisible();
     // The dock bar is first-paint (collapsed): its three tabs are reachable but
     // no pane content mounts yet — the scrubber arrives on the timeline tab.
     expect(screen.getByTestId("panorama-dock")).toBeVisible();
@@ -749,7 +751,9 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
 
-    expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+    expect(
+      screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).toBeInTheDocument();
   });
 
   it("current-state base (brotes-activos: cobertura base): active scrubber carries the honest 'estado actual' disclaimer (trust/safety)", () => {
@@ -763,9 +767,11 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
 
-    expect(screen.queryByText("No disponible en esta vista")).not.toBeInTheDocument();
     expect(
-      screen.getByText("Estado actual — cobertura antirrábica no varía con la fecha de corte."),
+      screen.queryByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/El indicador base \(cobertura antirrábica\) es un estado actual/),
     ).toBeInTheDocument();
   });
 
@@ -776,12 +782,14 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
 
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /cumplimiento/i }));
-    expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+    expect(
+      screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+    ).toBeInTheDocument();
     // Task #38 v3: the layer catalog is now the Filtro rail panel's Detalle
     // tier — FiltroPanel renders the checkbox rows directly (LayerPanel is no
     // longer mounted), so click the zoonosis row's checkbox for real.
     openFiltro();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Filtro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" }));
 
     // zoonosis is temporal — activating it must flip temporalAvailable true.
     await act(async () => {
@@ -789,7 +797,9 @@ describe("PanoramaConsole — TimeScrubber temporal gating (panorama-vista-redes
     });
 
     await waitFor(() => {
-      expect(screen.queryByText("No disponible en esta vista")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/La reproducción temporal necesita una capa de eventos activa/),
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -1064,7 +1074,7 @@ describe("PanoramaConsole — debounce + keyed abort (panorama-redesign Fase 1)"
     // tier — FiltroPanel renders the cobertura row's checkbox + live
     // loading/count spans directly (LayerPanel is no longer mounted).
     openFiltro();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Filtro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" }));
 
     // Burst A (brotes-activos): cobertura + zoonosis go in flight after ~200ms.
     openVista();
@@ -1253,7 +1263,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     // tier — FiltroPanel renders the checkbox rows directly (LayerPanel is no
     // longer mounted).
     openFiltro();
-    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Filtro" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modo detalle de Capas del mapa" }));
 
     // Start a scrub — the loop chip is enabled as soon as zoonosis is active
     // (activation is synchronous; it doesn't wait on the layer fetch).
@@ -1276,7 +1286,9 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     });
 
     await waitFor(() => {
-      expect(screen.getByText("No disponible en esta vista")).toBeInTheDocument();
+      expect(
+        screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+      ).toBeInTheDocument();
     });
     // The map must stop dimming cobertura — asOf was cleared, not left stuck.
     await waitFor(() => {
@@ -1499,7 +1511,7 @@ describe("PanoramaConsole — saved-board Simple/Detalle strict boolean coercion
       expect(params.get("layers")).toBe("cobertura");
     });
     openFiltro();
-    expect(screen.getByRole("button", { name: "Modo simple de Filtro" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Modo simple de Capas del mapa" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
