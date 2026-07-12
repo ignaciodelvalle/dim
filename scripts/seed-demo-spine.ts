@@ -133,6 +133,12 @@ async function findProfileByEmail(email: string): Promise<{ id: string } | null>
 
 const ARGO_PUBLIC_TOKEN = "DIM-ARGO-DEMO";
 const PATITAS_EMAIL = "contacto@patitasdelnorte.test";
+// Alejo's sanitary_authority org (Retiro) — the fiscalización target for the
+// derived welfare report (#46). Its email is set by scripts/seed-demo.ts.
+const AUTHORITY_EMAIL = "centro@mascotasba.test";
+// Government official who forwards the report. lucas@dim.test is the demo govt
+// user; his id becomes derived_by_user_id, matching the real derivation action.
+const GOVT_DERIVER_EMAIL = "lucas@dim.test";
 
 async function seedArgo(): Promise<void> {
   log("STEP", "Asset 1 — Argo (stray dog at Patitas del Norte)");
@@ -526,6 +532,82 @@ async function seedWelfareReports(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// 7b. Derive one welfare report to Alejo's sanitary authority (#46)
+//
+// Unblocks D3: without a derived report, "Denuncias de maltrato derivadas" is
+// always 0 for Alejo's orgs and the maltrato/Recibidos flow can't be exercised
+// end-to-end. We forward the institutional dog-fighting report (kind
+// 'dog_fighting', authored "para autoridad sanitaria") to Mascotas BA Centro —
+// the natural fiscalización target.
+//
+// Shape mirrors the REAL derivation action (deriveWelfareToOrgAction,
+// src/modules/welfare/actions.ts): sets derived_to_organization_id / derived_at
+// / derived_by_user_id and resets any org-intervention state to null. The report
+// keeps status 'open', so it counts as live derived work (countDerivedWelfare).
+//
+// Known tension (reported, not a data problem): the live gov derivation action
+// currently restricts targets to shelter / rescue_network, so this exact target
+// (a sanitary_authority) is not reproducible through today's gov UI. The
+// receiving surfaces — the Recibidos inbox, the panel counter, and the
+// Pendientes row — are all org-type-agnostic (they key purely on
+// derived_to_organization_id), so the row renders correctly everywhere it must.
+async function deriveWelfareToAuthority(): Promise<void> {
+  log("STEP", "Asset 3b — derivar 1 denuncia de maltrato a la autoridad (Mascotas BA Centro)");
+
+  const authorityId = await findOrgByEmail(AUTHORITY_EMAIL);
+  if (!authorityId) {
+    log("WARN", `No se encontró autoridad ${AUTHORITY_EMAIL}, salteando derivación.`);
+    return;
+  }
+
+  const deriver = await findProfileByEmail(GOVT_DERIVER_EMAIL);
+  if (!deriver) {
+    log("WARN", `No se encontró usuario gov ${GOVT_DERIVER_EMAIL}, salteando derivación.`);
+    return;
+  }
+
+  // Pick the institutional dog-fighting report seeded above (stable by kind —
+  // it is the only dog_fighting report in this seed set). Non-terminal only.
+  const [report] = await db
+    .select({
+      id: schemas.welfareReports.id,
+      referenceCode: schemas.welfareReports.referenceCode,
+      derivedToOrganizationId: schemas.welfareReports.derivedToOrganizationId,
+    })
+    .from(schemas.welfareReports)
+    .where(
+      and(
+        eq(schemas.welfareReports.kind, "dog_fighting"),
+        eq(schemas.welfareReports.reporterContactEmail, PATITAS_EMAIL),
+      ),
+    )
+    .limit(1);
+
+  if (!report) {
+    log("WARN", "No se encontró la denuncia dog_fighting para derivar, salteando.");
+    return;
+  }
+
+  if (report.derivedToOrganizationId === authorityId) {
+    log("SKIP", `Denuncia ${report.referenceCode} ya está derivada a la autoridad.`);
+    return;
+  }
+
+  await db
+    .update(schemas.welfareReports)
+    .set({
+      derivedToOrganizationId: authorityId,
+      derivedAt: daysAgo(1),
+      derivedByUserId: deriver.id,
+      orgInterventionStatus: null,
+      orgInterventionAt: null,
+    })
+    .where(eq(schemas.welfareReports.id, report.id));
+
+  log("OK", `Denuncia ${report.referenceCode} (dog_fighting) derivada a Mascotas BA Centro.`);
+}
+
+// ---------------------------------------------------------------------------
 // 8. Main
 // ---------------------------------------------------------------------------
 
@@ -537,6 +619,7 @@ async function main(): Promise<void> {
     await seedArgo();
     await seedCarlaVetUpgrade();
     await seedWelfareReports();
+    await deriveWelfareToAuthority();
     log("DONE", "Spine seeded. Cycles 1, 3, 4 y 5 listos.");
     log("INFO", "Próximo paso: ver docs/demo-runbook.md para el guión de ensayo.");
   } catch (e) {
