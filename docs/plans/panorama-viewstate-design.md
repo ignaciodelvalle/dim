@@ -129,6 +129,23 @@ The single most important table in this design. If a value can be computed from 
 | camera zoom/center (live) | maplibre internal | RUNTIME input for LOD; not in the canonical value |
 | camera FRAME (for reproduction) | URL `?z/lat/lng` (continuous shallow sync) + preset `framing` | **STORED optional** (`camera`) — already URL-backed today, must be preserved |
 
+### 1.2 Reserved axis — attribute filters (#44), not built yet
+
+The one operator-facing data axis on the horizon that this shape does NOT yet name: **attribute
+filters** (species / sex / status), the `#44` "attribute filters" feature gap. It does not exist as a
+panorama control today, so — per this design's own discipline (no speculative fields) — it is NOT added
+now. But when #44 builds it, it MUST land as a first-class ViewState axis:
+
+```ts
+filters: AttributeFilter[];   // e.g. [{ field: "species", in: ["dog"] }, { field: "sex", in: ["f"] }]
+```
+
+routed through the SAME `viewStateToParams`/`viewStateFromParams` boundary (so it deep-links and saves
+for free) and gated by `capabilitiesFor` (which attribute filters apply to the active layers). The
+failure mode to avoid is #44 shipping attribute filters as another scattered `useState` beside the
+canonical value — that would reintroduce exactly the divergence this refactor removes. Reserved here so
+the axis lands IN the structure, not next to it.
+
 ---
 
 ## 2. `capabilitiesFor` — the declarative gate
