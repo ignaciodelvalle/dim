@@ -985,6 +985,14 @@ export function SituationalMap({
         },
       });
       mapRef.current = map;
+      // Hardening test seam (task #39 chaos harness, hardening review H1): expose
+      // the LIVE MapLibre instance so the harness can assert the camera via
+      // getCenter()/getZoom() every round, not only when the URL happens to carry
+      // z/lat/lng params. Read-only surface (no setter path exposed); harmless in
+      // production since nothing but the harness ever reads it.
+      if (typeof window !== "undefined") {
+        (window as unknown as { __PANORAMA_MAP__?: maplibregl.Map }).__PANORAMA_MAP__ = map;
+      }
       // task #36 fix 5 — take over the wheel for hierarchy navigation: disable
       // maplibre's own scroll-zoom so the camera only ever lands on canonical
       // framed views, and route wheel/pinch through performNavStep (with
@@ -1332,6 +1340,9 @@ export function SituationalMap({
       resizeObsRef.current = null;
       mapRef.current?.remove();
       mapRef.current = null;
+      if (typeof window !== "undefined") {
+        (window as unknown as { __PANORAMA_MAP__?: maplibregl.Map }).__PANORAMA_MAP__ = undefined;
+      }
     };
     // Built once at mount; REBUILT when `mapEpoch` bumps (WebGL-context restore /
     // basemap retry) — the cleanup above fully tears the old map down first.

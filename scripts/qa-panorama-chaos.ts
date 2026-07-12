@@ -134,7 +134,9 @@ class Report {
 // A curated allowlist filters benign, environment-only noise so a real error
 // is never drowned out.
 // ---------------------------------------------------------------------------
-const BENIGN_CONSOLE = [
+// GLOBAL: active for the entire run — these are noise that can show up on any
+// page load, in any scenario, and are never evidence of a real failure.
+const BENIGN_CONSOLE_GLOBAL = [
   /Download the React DevTools/i,
   /\[Fast Refresh\]/i,
   /Warning: ReactDOM.render/i,
@@ -143,32 +145,58 @@ const BENIGN_CONSOLE = [
   /needs glyphs|glyphs.*not.*set/i,
   // AbortError from superseded fetches is the DESIGNED cancellation path.
   /AbortError|The user aborted a request|signal is aborted/i,
-  // The forced-throw recovery scenario DELIBERATELY throws inside the map island;
-  // React + our boundary log it. These are the EXPECTED artifacts of that test
-  // (the scenario asserts the boundary card + recovery separately), not failures.
+];
+
+// SCENARIO-SCOPED (hardening review M4): each entry only applies while its
+// owning scenario runs — a broad allowlist active for the WHOLE run can mask a
+// real fetch/console error that happens to match the same text outside that
+// scenario's window. ConsoleWatch.beginScenario/endScenario toggle these on.
+//
+// forced-throw DELIBERATELY throws inside the map island; React + our boundary
+// log it. Expected artifacts of that scenario only (asserted separately via the
+// boundary card + recovery), not a global pass for any crash-shaped text.
+const BENIGN_CONSOLE_FORCED_THROW = [
   /forced render throw \(chaos harness seam\)/i,
   /\[panorama\] map island crashed/i,
-  // A blocked basemap fetch (geojson-kill scenario) logs a network/console error
-  // by design — the scenario asserts the honest error overlay + retry instead.
+];
+// geojson-kill deliberately blocks the basemap fetch; the scenario asserts the
+// honest error overlay + retry itself. Scoped to that window only — outside it,
+// a real "Failed to fetch" / geojson HTTP error must NOT be swallowed (M4).
+const BENIGN_CONSOLE_GEOJSON_KILL = [
   /Failed to fetch|net::ERR|geojson .*HTTP|ar-provinces\.geojson/i,
 ];
 
 class ConsoleWatch {
   private errors: string[] = [];
   private cursor = 0;
+  private scenarioAllow: RegExp[] = [];
 
   attach(page: Page): void {
     page.on("console", (msg) => {
       if (msg.type() !== "error") return;
       const text = msg.text();
-      if (BENIGN_CONSOLE.some((re) => re.test(text))) return;
+      if (this.isBenign(text)) return;
       this.errors.push(text);
     });
     page.on("pageerror", (err) => {
       const text = `pageerror: ${err.message}`;
-      if (BENIGN_CONSOLE.some((re) => re.test(text))) return;
+      if (this.isBenign(text)) return;
       this.errors.push(text);
     });
+  }
+  private isBenign(text: string): boolean {
+    return (
+      BENIGN_CONSOLE_GLOBAL.some((re) => re.test(text)) ||
+      this.scenarioAllow.some((re) => re.test(text))
+    );
+  }
+  /** Widen the allowlist for the duration of a single scenario. Must be paired
+   * with `endScenario()` so the widened patterns don't leak into later rounds. */
+  beginScenario(patterns: RegExp[]): void {
+    this.scenarioAllow = patterns;
+  }
+  endScenario(): void {
+    this.scenarioAllow = [];
   }
   /** Errors accumulated since the last checkpoint. */
   drain(): string[] {
@@ -249,7 +277,11 @@ async function canvasAlive(page: Page): Promise<{ ok: boolean; detail: string }>
   });
 }
 
-/** Camera from the URL (the console mirrors z/lat/lng on every settle). */
+/** Camera from the URL (the console mirrors z/lat/lng on every settle). This is
+ * a SECONDARY check only — it returns null whenever the URL happens to carry
+ * no camera params (e.g. right after stormBackForward, or a clean reload before
+ * the first settle), which is why the primary assertion reads the LIVE map via
+ * cameraFromLiveMap() below instead (hardening review H1). */
 function cameraFromUrl(url: string): { z: number; lat: number; lng: number } | null {
   try {
     const p = new URL(url).searchParams;
@@ -258,6 +290,52 @@ function cameraFromUrl(url: string): { z: number; lat: number; lng: number } | n
   } catch {
     return null;
   }
+}
+
+/** Camera from the LIVE MapLibre instance via the `__PANORAMA_MAP__` window
+ * seam (SituationalMap.tsx) — runs EVERY round regardless of URL state, so a
+ * clamp break can never hide behind an absent z/lat/lng query string. Returns
+ * null only if the seam itself is missing (map unmounted / not yet built),
+ * which the caller must treat as a hard failure, not a skip. */
+async function cameraFromLiveMap(
+  page: Page,
+): Promise<{ z: number; lat: number; lng: number } | null> {
+  return page.evaluate(() => {
+    const map = (
+      window as unknown as {
+        __PANORAMA_MAP__?: { getCenter(): { lat: number; lng: number }; getZoom(): number };
+      }
+    ).__PANORAMA_MAP__;
+    if (!map) return null;
+    try {
+      const c = map.getCenter();
+      return { z: map.getZoom(), lat: c.lat, lng: c.lng };
+    } catch {
+      return null;
+    }
+  });
+}
+
+/** Pure predicate: is this camera reading within AR_MAX_BOUNDS and finite?
+ * Extracted so it is unit-testable without a browser (see
+ * scripts/__tests__/qa-panorama-chaos.camera.test.ts). */
+export function cameraViolationKind(cam: {
+  z: number;
+  lat: number;
+  lng: number;
+}): "nan" | "out-of-bounds" | null {
+  if (!Number.isFinite(cam.lat) || !Number.isFinite(cam.lng) || !Number.isFinite(cam.z)) {
+    return "nan";
+  }
+  if (
+    cam.lng < MAX_BOUNDS.minLng ||
+    cam.lng > MAX_BOUNDS.maxLng ||
+    cam.lat < MAX_BOUNDS.minLat ||
+    cam.lat > MAX_BOUNDS.maxLat
+  ) {
+    return "out-of-bounds";
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,19 +361,33 @@ async function assertInvariants(
     if (!alive.ok) report.violation(round, "canvas-dead", alive.detail);
   }
 
-  // (c) camera within AR_MAX_BOUNDS + not NaN
-  const cam = cameraFromUrl(page.url());
-  if (cam) {
-    if (!Number.isFinite(cam.lat) || !Number.isFinite(cam.lng) || !Number.isFinite(cam.z)) {
-      report.violation(round, "camera-nan", JSON.stringify(cam));
-    } else if (
-      cam.lng < MAX_BOUNDS.minLng ||
-      cam.lng > MAX_BOUNDS.maxLng ||
-      cam.lat < MAX_BOUNDS.minLat ||
-      cam.lat > MAX_BOUNDS.maxLat
-    ) {
-      report.violation(round, "camera-out-of-bounds", JSON.stringify(cam));
-    }
+  // (c) camera within AR_MAX_BOUNDS + not NaN — asserted via the LIVE map every
+  // round (H1 fix). A missing seam is a hard failure, not a silent skip: it
+  // means either the map is dead (which invariant (b) should already have
+  // caught) or the seam itself regressed — either way this round proves nothing
+  // about the clamp, so it fails closed instead of passing vacuously.
+  const liveCam = await cameraFromLiveMap(page);
+  if (liveCam) {
+    const kind = cameraViolationKind(liveCam);
+    if (kind === "nan") report.violation(round, "camera-nan", JSON.stringify(liveCam));
+    else if (kind === "out-of-bounds")
+      report.violation(round, "camera-out-of-bounds", JSON.stringify(liveCam));
+  } else {
+    report.violation(
+      round,
+      "camera-seam-missing",
+      "window.__PANORAMA_MAP__ absent — cannot assert the camera-bounds invariant this round",
+    );
+  }
+  // URL is a SECONDARY check: it should agree with the live map whenever it
+  // carries params at all, catching a broken URL-mirror without being the only
+  // proof (that was H1's vacuous-pass hole).
+  const urlCam = cameraFromUrl(page.url());
+  if (urlCam) {
+    const kind = cameraViolationKind(urlCam);
+    if (kind === "nan") report.violation(round, "url-camera-nan", JSON.stringify(urlCam));
+    else if (kind === "out-of-bounds")
+      report.violation(round, "url-camera-out-of-bounds", JSON.stringify(urlCam));
   }
 
   // (d) URL parseable
@@ -488,7 +580,15 @@ async function recoveryWebglLoss(page: Page, report: Report): Promise<void> {
     return true;
   });
   if (!lost) {
-    report.recovery("webgl-loss", false, "WEBGL_lose_context unavailable in this browser");
+    // H2 fix: the extension being unavailable means this scenario NEVER
+    // exercised the recovery path at all — that must fail the round closed,
+    // not soft-pass it as "not applicable". A browser/flag change that quietly
+    // disabled WEBGL_lose_context would otherwise green-pass forever.
+    report.recovery(
+      "webgl-loss",
+      false,
+      "extension-unavailable: WEBGL_lose_context unavailable in this browser — recovery path NOT exercised",
+    );
     return;
   }
   // The recovering overlay should appear during the loss window.
@@ -499,76 +599,97 @@ async function recoveryWebglLoss(page: Page, report: Report): Promise<void> {
     .catch(() => false);
   // After restore + rebuild, the canvas must be alive again.
   const alive = await waitCanvasAlive(page, 10_000);
-  report.recovery(
-    "webgl-loss",
-    alive.ok,
-    `overlay-seen=${sawOverlay}; post-restore ${alive.detail}`,
-  );
+  // H2 fix: `ok` now REQUIRES the recovering overlay to have been observed, not
+  // just a live canvas afterward. A restore that skips the recovering UI (or a
+  // canvas that never truly lost context) must fail, not pass on `alive.ok` alone.
+  const ok = sawOverlay && alive.ok;
+  report.recovery("webgl-loss", ok, `overlay-seen=${sawOverlay}; post-restore ${alive.detail}`);
 }
 
-async function recoveryGeojsonKill(page: Page, base: string, report: Report): Promise<void> {
-  // Block the base geography, then reload so the map re-fetches it and fails.
-  // The static geojson is disk-cacheable, so a plain reload would serve it from
-  // cache and never hit the aborted route — disable the HTTP cache via CDP so the
-  // abort actually bites (this is what makes the failure real, not simulated).
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send("Network.setCacheDisabled", { cacheDisabled: true }).catch(() => {});
-  await page.route("**/geo/ar-provinces.geojson", (route) => route.abort());
-  await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
-  const sawError = await page
-    .getByText(/No pudimos cargar el mapa/i)
-    .waitFor({ state: "visible", timeout: 10_000 })
-    .then(() => true)
-    .catch(() => false);
-  // Unblock and retry → recovery.
-  await page.unroute("**/geo/ar-provinces.geojson");
-  await cdp.send("Network.setCacheDisabled", { cacheDisabled: false }).catch(() => {});
-  let recovered = false;
-  if (sawError) {
-    recovered = await retryUntilAlive(page, /Reintentar/i, 12_000);
-  }
-  report.recovery(
-    "geojson-kill",
-    sawError && recovered,
-    `honest-error=${sawError}; recovered-on-retry=${recovered}`,
-  );
-}
-
-async function recoveryForcedThrow(page: Page, report: Report): Promise<void> {
-  await page.evaluate(() => {
-    (window as unknown as { __PANORAMA_FORCE_THROW__?: boolean }).__PANORAMA_FORCE_THROW__ = true;
-  });
-  // Trigger a re-render of the console → the map island throws → boundary catches.
-  await clickRail(page, "Filtro").catch(() => {});
-  await page.keyboard.press("Escape").catch(() => {});
-  await stormWheelBurst(page, () => 0.5).catch(() => {});
-  const sawCard = await page
-    .getByText(/No pudimos mostrar el mapa/i)
-    .isVisible({ timeout: 4000 })
-    .catch(() => false);
-  // Route MUST still be alive (not a dead route / Application error).
-  const deadRoute = await page
-    .getByText(/application error/i)
-    .isVisible()
-    .catch(() => false);
-  // Clear the flag and recover via the boundary's retry.
-  await page.evaluate(() => {
-    (window as unknown as { __PANORAMA_FORCE_THROW__?: boolean }).__PANORAMA_FORCE_THROW__ = false;
-  });
-  let recovered = false;
-  if (sawCard) {
-    recovered = await retryUntilAlive(page, /Recargar el panorama/i, 14_000);
-    if (!recovered) {
-      await page
-        .screenshot({ path: join(process.cwd(), "panorama-hard-qa-DEBUG-forced-throw.png") })
-        .catch(() => {});
+async function recoveryGeojsonKill(
+  page: Page,
+  base: string,
+  report: Report,
+  cw: ConsoleWatch,
+): Promise<void> {
+  // M4 fix: the "Failed to fetch" / geojson-HTTP allowlist is only meaningful
+  // for THIS scenario's deliberate block — widen it for the window and put it
+  // back afterward so a real fetch error elsewhere in the run is never masked.
+  cw.beginScenario(BENIGN_CONSOLE_GEOJSON_KILL);
+  try {
+    // Block the base geography, then reload so the map re-fetches it and fails.
+    // The static geojson is disk-cacheable, so a plain reload would serve it from
+    // cache and never hit the aborted route — disable the HTTP cache via CDP so the
+    // abort actually bites (this is what makes the failure real, not simulated).
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Network.setCacheDisabled", { cacheDisabled: true }).catch(() => {});
+    await page.route("**/geo/ar-provinces.geojson", (route) => route.abort());
+    await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+    const sawError = await page
+      .getByText(/No pudimos cargar el mapa/i)
+      .waitFor({ state: "visible", timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    // Unblock and retry → recovery.
+    await page.unroute("**/geo/ar-provinces.geojson");
+    await cdp.send("Network.setCacheDisabled", { cacheDisabled: false }).catch(() => {});
+    let recovered = false;
+    if (sawError) {
+      recovered = await retryUntilAlive(page, /Reintentar/i, 12_000);
     }
+    report.recovery(
+      "geojson-kill",
+      sawError && recovered,
+      `honest-error=${sawError}; recovered-on-retry=${recovered}`,
+    );
+  } finally {
+    cw.endScenario();
   }
-  report.recovery(
-    "forced-throw",
-    sawCard && !deadRoute && recovered,
-    `boundary-card=${sawCard}; dead-route=${deadRoute}; recovered=${recovered}`,
-  );
+}
+
+async function recoveryForcedThrow(page: Page, report: Report, cw: ConsoleWatch): Promise<void> {
+  // M4 fix (symmetry with geojson-kill): the deliberate-throw console noise is
+  // only expected while this scenario is forcing it.
+  cw.beginScenario(BENIGN_CONSOLE_FORCED_THROW);
+  try {
+    await page.evaluate(() => {
+      (window as unknown as { __PANORAMA_FORCE_THROW__?: boolean }).__PANORAMA_FORCE_THROW__ = true;
+    });
+    // Trigger a re-render of the console → the map island throws → boundary catches.
+    await clickRail(page, "Filtro").catch(() => {});
+    await page.keyboard.press("Escape").catch(() => {});
+    await stormWheelBurst(page, () => 0.5).catch(() => {});
+    const sawCard = await page
+      .getByText(/No pudimos mostrar el mapa/i)
+      .isVisible({ timeout: 4000 })
+      .catch(() => false);
+    // Route MUST still be alive (not a dead route / Application error).
+    const deadRoute = await page
+      .getByText(/application error/i)
+      .isVisible()
+      .catch(() => false);
+    // Clear the flag and recover via the boundary's retry.
+    await page.evaluate(() => {
+      (window as unknown as { __PANORAMA_FORCE_THROW__?: boolean }).__PANORAMA_FORCE_THROW__ =
+        false;
+    });
+    let recovered = false;
+    if (sawCard) {
+      recovered = await retryUntilAlive(page, /Recargar el panorama/i, 14_000);
+      if (!recovered) {
+        await page
+          .screenshot({ path: join(process.cwd(), "panorama-hard-qa-DEBUG-forced-throw.png") })
+          .catch(() => {});
+      }
+    }
+    report.recovery(
+      "forced-throw",
+      sawCard && !deadRoute && recovered,
+      `boundary-card=${sawCard}; dead-route=${deadRoute}; recovered=${recovered}`,
+    );
+  } finally {
+    cw.endScenario();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -671,8 +792,8 @@ async function main(): Promise<void> {
     await waitForMap(page);
     cw.drain(); // ignore any reload noise as the recovery baseline
     await recoveryWebglLoss(page, report);
-    await recoveryForcedThrow(page, report);
-    await recoveryGeojsonKill(page, args.base, report);
+    await recoveryForcedThrow(page, report, cw);
+    await recoveryGeojsonKill(page, args.base, report, cw);
 
     // Post-recovery: the map must be alive and the console error-free.
     for (const e of cw.drain()) report.violation("post-recovery", "console-error", e);
@@ -722,7 +843,17 @@ async function main(): Promise<void> {
   process.exit(summary.passed ? 0 : 1);
 }
 
-main().catch((err) => {
-  console.error("chaos harness crashed:", err);
-  process.exit(2);
-});
+// Only run the harness when this file is executed directly (`tsx
+// qa-panorama-chaos.ts` / `pnpm ... qa-panorama-chaos.ts`), never on import —
+// pure helpers above (e.g. cameraViolationKind) are unit-tested by importing
+// this module, and an unguarded top-level `main()` would launch a real browser
+// as a side effect of that import.
+const isDirectRun =
+  typeof process.argv[1] === "string" &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  main().catch((err) => {
+    console.error("chaos harness crashed:", err);
+    process.exit(2);
+  });
+}
