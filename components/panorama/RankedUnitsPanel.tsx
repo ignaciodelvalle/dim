@@ -90,7 +90,7 @@ export function RankedUnitsPanel({
         // layer's measure (not a hardcoded word) — measureLabel already
         // carries that (e.g. "cobertura antirrábica").
         <p
-          className="truncate px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ln-op-faint"
+          className="truncate px-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.08em] text-ln-op-faint"
           title={kind === "rate" ? `${measureLabel} · pts vs objetivo` : measureLabel}
         >
           {kind === "rate" ? `${measureLabel} · pts vs objetivo` : measureLabel}

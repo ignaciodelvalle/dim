@@ -99,7 +99,7 @@ export function LegendPill({
             // matrix crosses, not just that it is a matrix.
             <span className="inline-flex shrink-0 items-center gap-1">
               <BivariateHint />
-              <span className="text-[10px] leading-none text-ln-op-faint">cobertura × señal</span>
+              <span className="text-[var(--text-xs)] leading-none text-ln-op-faint">cobertura × señal</span>
             </span>
           )}
           {rampColors !== null && rampColors.length > 0 && (
@@ -107,7 +107,7 @@ export function LegendPill({
             // collapsed pill answers "what does dark mean" without expanding.
             <span className="inline-flex shrink-0 items-center gap-1">
               {rampEndpoints && (
-                <span className="text-[10px] tabular-nums leading-none text-ln-op-faint">
+                <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
                   {rampEndpoints.min}
                 </span>
               )}
@@ -126,7 +126,7 @@ export function LegendPill({
                 ))}
               </span>
               {rampEndpoints && (
-                <span className="text-[10px] tabular-nums leading-none text-ln-op-faint">
+                <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
                   {rampEndpoints.max}
                 </span>
               )}
@@ -145,10 +145,10 @@ export function LegendPill({
                 className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
                 style={{ width: 4, height: 4 }}
               />
-              <span className="text-[10px] tabular-nums leading-none text-ln-op-faint">
+              <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
                 {graduatedHint.small.label}
               </span>
-              <span aria-hidden="true" className="text-[10px] leading-none text-ln-op-faint">
+              <span aria-hidden="true" className="text-[var(--text-xs)] leading-none text-ln-op-faint">
                 –
               </span>
               <span
@@ -156,7 +156,7 @@ export function LegendPill({
                 className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
                 style={{ width: 10, height: 10 }}
               />
-              <span className="text-[10px] tabular-nums leading-none text-ln-op-faint">
+              <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
                 {graduatedHint.large.label}
               </span>
             </span>
