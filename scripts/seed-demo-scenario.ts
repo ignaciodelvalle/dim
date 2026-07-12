@@ -118,6 +118,10 @@ if (!ALLOW_REMOTE && (!isLocalDb || !isLocalSupabase)) {
 
 const { createClient: createSdkClient } = await import("@supabase/supabase-js");
 const { and, eq, inArray, isNull, like, sql } = await import("drizzle-orm");
+// Pure reference modules (no DB) — used to self-heal stale whole-province
+// aggregate assignments left by older seed runs (issue #758).
+const { isWholeProvinceAggregate } = await import("../lib/reference/locality-integrity");
+const { provinceByName } = await import("../lib/reference/ar-provincias");
 const {
   db,
   alertSubscriptions,
@@ -144,11 +148,16 @@ const {
 const SHARED_PASSWORD = "Test1234!";
 
 // Focal jurisdiction for the complete demo cut (baked decision §0).
-// FOCAL_LOCALITY must resolve against ar_localities (issue #758) — "CABA" is
-// never a locality_name in the catalog, only the INDEC "componente" record
-// for the whole city, whose canonical name is the string below.
+// FOCAL_LOCALITY must resolve against ar_localities (issue #758). NEITHER "CABA"
+// (a province) NOR "Ciudad Autónoma de Buenos Aires" (the INDEC whole-city
+// aggregate, indec_id 02000010) is a real locality: the aggregate is dropped by
+// the INDEC importer + check-locality-integrity because it double-counts the 48
+// barrios that tile the same city. A govt_assignments row holding it resolves to
+// ZERO pets in jurisdictionPairClause (silent empty scope). Use a REAL barrio —
+// Palermo, which is also where the spine's demo assets (Argo, welfare reports)
+// live and which lucas covers.
 const FOCAL_PROVINCE = "CABA";
-const FOCAL_LOCALITY = "Ciudad Autónoma de Buenos Aires";
+const FOCAL_LOCALITY = "Palermo";
 
 // Anchor date for freshness: recent so footers say "calculado al…" today.
 // Use current day at noon UTC so re-runs stay fresh.
@@ -289,6 +298,42 @@ async function ensureFocalGovt(adminId: string): Promise<string> {
     log("OK", "govt profile patched: role=govt accountType=institutional");
   } else {
     log("SKIP", "govt profile already role=govt");
+  }
+
+  // Self-heal: revoke any ACTIVE assignment this user holds in FOCAL_PROVINCE
+  // whose locality is a whole-province aggregate (e.g. the legacy
+  // "Ciudad Autónoma de Buenos Aires" focal locality earlier revisions of this
+  // script inserted). Such a row silently resolves to ZERO pets in
+  // jurisdictionPairClause and trips __tests__/govt-assignments-locality-integrity
+  // (issue #758). Re-running this seed now retires the zombie instead of leaving
+  // it behind. Uses the same isWholeProvinceAggregate predicate as the runtime
+  // dropdown belt + the INDEC importer, so all paths stay in lockstep.
+  const focalProvinceCode = provinceByName(FOCAL_PROVINCE)?.code ?? null;
+  if (focalProvinceCode) {
+    const activeInProvince = await db
+      .select({ id: govtAssignments.id, locality: govtAssignments.jurisdictionLocality })
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.userId, id),
+          eq(govtAssignments.jurisdictionProvince, FOCAL_PROVINCE),
+          isNull(govtAssignments.revokedAt),
+        ),
+      );
+    for (const row of activeInProvince) {
+      const aggregate = isWholeProvinceAggregate({
+        provinceCode: focalProvinceCode,
+        localityName: row.locality,
+        departmentCode: null,
+      });
+      if (aggregate) {
+        await db
+          .update(govtAssignments)
+          .set({ revokedAt: new Date() })
+          .where(eq(govtAssignments.id, row.id));
+        log("OK", `revoked stale whole-province assignment: ${FOCAL_PROVINCE} / ${row.locality}`);
+      }
+    }
   }
 
   // Ensure govt_assignments to CABA.
