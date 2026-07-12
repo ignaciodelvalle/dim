@@ -1198,6 +1198,14 @@ export const petEvents = pgTable(
     payloadAmendedTargetIdx: index("pet_events_amended_target_idx")
       .on(sql`(payload->>'target_event_id')`)
       .where(sql`event_type = 'event_amended'`),
+    // Org-scoped overdue-checkins driver (migration 0141, staging-readiness
+    // triage #42): countOverdueCheckins (lib/analytics/org-dashboard.ts)
+    // filters adoption_finalized events by payload->>'previous_owner_organization_id'
+    // to bound the DRIVE side of the checkins join. Partial: only
+    // adoption_finalized rows participate, same shape as payloadAmendedTargetIdx.
+    payloadPreviousOwnerOrgIdx: index("pet_events_payload_previous_owner_org_idx")
+      .on(sql`(payload->>'previous_owner_organization_id')`)
+      .where(sql`event_type = 'adoption_finalized'`),
     // Cases system FK index (shipped in migration 0033, mirrored here for
     // schema↔migration agreement). Partial: most events carry no case_id.
     caseIdIdx: index("pet_events_case_id_idx")
