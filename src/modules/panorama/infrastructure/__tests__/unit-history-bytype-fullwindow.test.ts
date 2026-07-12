@@ -11,7 +11,7 @@
 // Integration test — local Supabase + Postgres. Govt scope to a SYNTHETIC
 // locality so only this test's pet is in scope.
 
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petEvents, pets } from "@/db";
@@ -45,11 +45,25 @@ async function insertEvent(eventType: EventType, payload: Record<string, unknown
 }
 
 async function cleanup(): Promise<void> {
-  if (!petId) return;
+  // Delete by public_token, not the in-memory petId: a prior run that aborted
+  // (e.g. a worker OOM) before afterAll leaves DIM-PANO-BYTYPE orphaned, and a
+  // petId-guarded cleanup can't recover it — the orphan then poisons every later
+  // run (beforeAll's insert hits the unique-token constraint) and drifts the
+  // global pet-cache-rederivation sweep. Resolving the row by token makes cleanup
+  // idempotent and self-healing across process boundaries.
+  const orphans = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(eq(pets.publicToken, "DIM-PANO-BYTYPE"));
+  const ids = orphans.map((r) => r.id);
+  if (ids.length === 0) {
+    petId = "";
+    return;
+  }
   await withMutationOverride(async (tx) => {
-    await tx.delete(petEvents).where(inArray(petEvents.petId, [petId]));
+    await tx.delete(petEvents).where(inArray(petEvents.petId, ids));
   });
-  await db.delete(pets).where(inArray(pets.id, [petId]));
+  await db.delete(pets).where(inArray(pets.id, ids));
   petId = "";
 }
 
