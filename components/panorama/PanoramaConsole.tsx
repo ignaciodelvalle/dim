@@ -123,6 +123,15 @@ import type {
   LayerId,
   PanoramaPeriod,
 } from "@/src/modules/panorama/domain/types";
+import {
+  type AnalyticsPeriodPreset,
+  type PanoramaViewState,
+  type ViewPeriod,
+  makeViewState,
+  scopeFromFilter,
+  toPeriodSearchParams,
+  toScopeFilter,
+} from "@/src/modules/panorama/domain/view-state";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -991,16 +1000,24 @@ export function PanoramaConsole({
   const periodParam = committedPeriod ?? searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET;
   const fromParam = searchParams.get("from") ?? undefined;
   const toParam = searchParams.get("to") ?? undefined;
-  const { since, until } = useMemo(
+  // task #50 P1b — the analytic window as a canonical ViewPeriod value. The raw
+  // period string passes THROUGH unchanged (a preset id, "custom", or even an
+  // unknown value): toPeriodSearchParams + resolveAnalyticsPeriod reproduce the
+  // exact same {since,until} the scattered read produced, so this is a pure
+  // plumbing change. This same value seeds the canonical viewState below.
+  const viewPeriod = useMemo<ViewPeriod>(
     () =>
-      resolveAnalyticsPeriod({
-        // Panorama defaults to a multi-year window so the scrubber spans the
-        // seeded history; the detail dashboards keep their own short defaults.
-        period: periodParam,
-        from: fromParam,
-        to: toParam,
-      }),
+      periodParam === "custom" && fromParam && toParam
+        ? { kind: "custom", from: fromParam, to: toParam }
+        : { kind: "preset", preset: periodParam as AnalyticsPeriodPreset },
     [periodParam, fromParam, toParam],
+  );
+  const { since, until } = useMemo(
+    // Panorama defaults to a multi-year window so the scrubber spans the seeded
+    // history; the detail dashboards keep their own short defaults. The period
+    // search-params now derive from the ViewPeriod via the domain converter.
+    () => resolveAnalyticsPeriod(toPeriodSearchParams(makeViewState({ period: viewPeriod }))),
+    [viewPeriod],
   );
 
   // "Copiar vista" fidelity: decode the shared camera + scrub position ONCE from
@@ -2651,15 +2668,45 @@ export function PanoramaConsole({
   // intentional zoom past the boundary or a jurisdiction drill. So this effect
   // NO LONGER pins the level to the active preset's level.
   const derivedProvince = effectiveScopeProvince ?? initialDivisionProvince;
-  const derivedLocality = effectiveScopeLocality;
+  // Fork A normalization (task #50 P1b): a locality is meaningless without a
+  // province. A crafted ?locality=X with no province anywhere (URL or the
+  // operator's jurisdiction) used to force locality-level aggregation on a
+  // nationally-framed map (derivedLevelWithHysteresis: scope.locality wins) — an
+  // incoherent latent state no real UI path produces. Drop the orphan so the view
+  // stays coherently national, matching the canonical ViewScope's illegal-state
+  // design (PO-approved documented micro-fix, same class as the lossy-level fix).
+  const derivedLocality = derivedProvince ? effectiveScopeLocality : null;
+
+  // task #50 P1b — the single canonical PanoramaViewState (read-model). The
+  // console's scattered selection inputs are assembled here into ONE value; the
+  // map/fetch scope filter derives from it via the pure domain converter
+  // (toScopeFilter), and the analytic window via toPeriodSearchParams (above),
+  // so no surface re-derives scope or period from a different state slice. The
+  // camera + ephemeral lenses (basis/encoding/representation) are not consumed by
+  // these converters and stay at their defaults here.
+  const viewState = useMemo<PanoramaViewState>(
+    () =>
+      makeViewState({
+        scope: scopeFromFilter({
+          country: "AR",
+          province: derivedProvince,
+          locality: derivedLocality,
+        }),
+        period: viewPeriod,
+        asOf: asOf ? asOf.toISOString() : null,
+        layers: PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
+        verifiedOnly,
+        preset: activePresetId,
+      }),
+    [derivedProvince, derivedLocality, viewPeriod, asOf, states, verifiedOnly, activePresetId],
+  );
+
   useEffect(() => {
-    const desired = derivedLevelWithHysteresis(
-      levelRef.current,
-      { country: "AR", province: derivedProvince, locality: derivedLocality },
-      mapZoom,
-    );
+    // The level derivation reads the scope filter off the ONE canonical view via
+    // the converter — the primary map consumer no longer builds its own literal.
+    const desired = derivedLevelWithHysteresis(levelRef.current, toScopeFilter(viewState), mapZoom);
     if (desired !== levelRef.current) onLevelChange(desired);
-  }, [mapZoom, derivedProvince, derivedLocality, onLevelChange]);
+  }, [mapZoom, viewState, onLevelChange]);
 
   // panorama magnetic-zoom Phase 2 — BOUNDARY PREFETCH. While national scope is
   // still at PROVINCE but the camera is APPROACHING the locality boundary (inside
