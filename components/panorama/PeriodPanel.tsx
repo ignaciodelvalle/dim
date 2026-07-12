@@ -2,10 +2,15 @@
 
 // PeriodPanel — the "Período" rail panel body (task #38 item 2). A FLAT vertical
 // radio list of period presets (no nested popover, so it never clips inside the
-// rail panel's internal scroll). Commit semantics are PeriodPicker's verbatim
-// (the ?period URL contract, task #21 hard rule): selecting a preset sets
-// ?period=<id> and clears ?from/?to via a full document navigation (the one
-// mechanism immune to the Next 15.5.x router-drop defect).
+// rail panel's internal scroll).
+//
+// Commit semantics (panorama QA root-cause #3b, "Root B"): selecting a preset OR
+// a custom {from,to} range commits SHALLOW — exactly like scope/layers/asOf — via
+// the console's `onPeriodChange`, which pushes ?period/?from/?to through the
+// History API and refetches the board client-side. This SUPERSEDES the former
+// full `window.location.assign` reload (the jarring page flash the PO flagged;
+// custom ranges used to reload TWICE). Selecting "Personalizado…" now only
+// REVEALS the date picker — the single commit fires ONCE both endpoints are set.
 //
 // Two tiers: Simple = the 4 common windows; Detalle = + año en curso / 3 años /
 // 5 años / personalizado (with the DateRangePicker).
@@ -36,29 +41,38 @@ type Props = {
   detail: boolean;
   from: string | null;
   to: string | null;
+  /**
+   * Commit a período change SHALLOW (no reload). `period` is a preset id or
+   * "custom"; for a "custom" commit the {from,to} window is non-null. Mirrors how
+   * the console commits scope/layers/asOf — a History push + a client refetch.
+   */
+  onPeriodChange: (period: string, from: string | null, to: string | null) => void;
 };
 
-export function PeriodPanel({ activePeriod, detail, from, to }: Props) {
+export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: Props) {
   const [customRange, setCustomRange] = useState<DateRange>({ from, to });
-  const customActive = activePeriod === "custom";
-
-  function updateParams(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(window.location.search);
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === "") params.delete(key);
-      else params.set(key, value);
-    }
-    window.location.assign(`?${params.toString()}`);
-  }
+  // "Personalizado…" is expanded when the committed period IS custom, or the
+  // operator just revealed the picker (before the range is complete — no commit
+  // has fired yet, so activePeriod is still the prior window).
+  const [customOpen, setCustomOpen] = useState<boolean>(activePeriod === "custom");
+  const customActive = activePeriod === "custom" || customOpen;
 
   function pick(preset: PeriodPreset) {
+    setCustomOpen(false);
     setCustomRange({ from: null, to: null });
-    updateParams({ period: preset, from: null, to: null });
+    onPeriodChange(preset, null, null);
+  }
+
+  function revealCustom() {
+    // Reveal the date picker WITHOUT committing — the single commit fires from
+    // handleCustomRangeChange once BOTH endpoints are set. This kills the old
+    // double-reload (pick "custom" → reload, then pick dates → reload again).
+    setCustomOpen(true);
   }
 
   function handleCustomRangeChange(range: DateRange) {
     setCustomRange(range);
-    if (range.from && range.to) updateParams({ period: "custom", from: range.from, to: range.to });
+    if (range.from && range.to) onPeriodChange("custom", range.from, range.to);
   }
 
   const options = detail ? [...COMMON, ...MORE] : COMMON;
@@ -92,7 +106,7 @@ export function PeriodPanel({ activePeriod, detail, from, to }: Props) {
           <button
             type="button"
             aria-pressed={customActive}
-            onClick={() => pick("custom")}
+            onClick={revealCustom}
             className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] ${
               customActive
                 ? "bg-ln-op-azul/10 font-semibold text-ln-op-azul"

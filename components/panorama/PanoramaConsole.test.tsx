@@ -451,6 +451,122 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
   });
 });
 
+describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3b)", () => {
+  it("a preset período commits via history.pushState (never location.assign / the router) and refetches KPIs + layers at the new window", async () => {
+    // Explicit period suppresses the first-visit default preset — then activate a
+    // preset so there ARE active period-sensitive layers (cobertura) to refetch.
+    setUrl("/gob/panorama?period=3y");
+    renderConsole();
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    // Drain the preset's own 90d layer burst so the assertions below see only the
+    // período change's fetches.
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/cobertura") && u.includes("period=90d"));
+      expect(calls.length).toBeGreaterThan(0);
+    });
+
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+    fetchMock.mockClear();
+
+    openPeriodo();
+    fireEvent.click(screen.getByRole("button", { name: "30 días" }));
+
+    // Shallow: the URL flipped to 30d in place — a pushState, NO reload. (The old
+    // path called window.location.assign; the History push + the router assertions
+    // below prove the commit no longer navigates the document.)
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(routerPush).not.toHaveBeenCalled();
+    expect(routerReplace).not.toHaveBeenCalled();
+    expect(routerRefresh).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("period")).toBe("30d");
+    expect(params.get("from")).toBeNull();
+    expect(params.get("to")).toBeNull();
+    expect(window.location.pathname).toBe("/gob/panorama");
+
+    // KPIs refetch client-side at the NEW window (useSearchParams can't see the
+    // shallow write, so commitPeriod fetches them explicitly).
+    await waitFor(() => {
+      const kpiCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/kpis"));
+      expect(kpiCalls.some((u) => u.includes("period=30d"))).toBe(true);
+    });
+    // The active period-sensitive layer refetches at 30d too.
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      expect(
+        layerCalls.some((u) => u.includes("/api/panorama/cobertura") && u.includes("period=30d")),
+      ).toBe(true);
+    });
+  });
+
+  it("a custom range commits ONCE (revealing 'Personalizado…' does not commit; the single commit fires when both dates are set)", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderConsole();
+
+    openPeriodo();
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+
+    // Revealing the picker must NOT commit (this is the fix for the double-reload).
+    fireEvent.click(screen.getByRole("button", { name: /Personalizado/ }));
+    expect(new URLSearchParams(window.location.search).get("period")).toBe("3y");
+    expect(pushSpy).not.toHaveBeenCalled();
+
+    // Setting only "Desde" still doesn't commit (range incomplete).
+    fireEvent.change(screen.getByLabelText("Desde"), { target: { value: "2026-01-01" } });
+    expect(new URLSearchParams(window.location.search).get("period")).toBe("3y");
+    expect(pushSpy).not.toHaveBeenCalled();
+
+    // Completing the range with "Hasta" commits — exactly ONCE.
+    fireEvent.change(screen.getByLabelText("Hasta"), { target: { value: "2026-03-01" } });
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("period")).toBe("custom");
+    expect(params.get("from")).toBe("2026-01-01");
+    expect(params.get("to")).toBe("2026-03-01");
+  });
+
+  it("browser Back restores the prior período (popstate resync keeps the highlight coherent)", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderConsole();
+
+    openPeriodo();
+    fireEvent.click(screen.getByRole("button", { name: "30 días" }));
+    const urlAfter30 = `${window.location.pathname}${window.location.search}`;
+    expect(new URLSearchParams(window.location.search).get("period")).toBe("30d");
+
+    openPeriodo();
+    fireEvent.click(screen.getByRole("button", { name: "90 días" }));
+    expect(new URLSearchParams(window.location.search).get("period")).toBe("90d");
+
+    // Back → the popped URL says 30d. useSearchParams does not observe popstate,
+    // so the console re-derives the board (and the committed window) itself.
+    act(() => {
+      window.history.replaceState(null, "", urlAfter30);
+      cachedSearchKey = null;
+      cachedSearchParams = null;
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    expect(new URLSearchParams(window.location.search).get("period")).toBe("30d");
+    // The PeriodPanel highlight follows the restored window (committedPeriod).
+    openPeriodo();
+    expect(screen.getByRole("button", { name: "30 días" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
 describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)", () => {
   it("ships collapsed by default: the bar + tabs are visible, no pane content mounts", () => {
     const { container } = renderConsole();
@@ -635,6 +751,17 @@ function openFiltro(): void {
  */
 function openVista(): void {
   const trigger = screen.getByRole("button", { name: "Vista" });
+  if (trigger.getAttribute("aria-expanded") !== "true") {
+    fireEvent.click(trigger);
+  }
+}
+
+/**
+ * Open the "Período" rail panel so PeriodPanel (the preset list + Personalizado)
+ * mounts. Idempotent, like openVista — only clicks the trigger when closed.
+ */
+function openPeriodo(): void {
+  const trigger = screen.getByRole("button", { name: "Período" });
   if (trigger.getAttribute("aria-expanded") !== "true") {
     fireEvent.click(trigger);
   }

@@ -995,6 +995,13 @@ export function PanoramaConsole({
     if (hasSeed && seededPresetId != null) return getPreset(seededPresetId)?.periodPreset ?? null;
     return null;
   });
+  // Root B (panorama QA #3b): the committed CUSTOM window. A custom período now
+  // commits SHALLOW (see commitPeriod) — a write useSearchParams() can't observe —
+  // so the from/to that feed the analytic window + the DateRangePicker must be
+  // carried in state too, exactly as committedPeriod carries the preset id. Both
+  // are null on the preset path (from/to fall back to searchParams, as before).
+  const [committedFrom, setCommittedFrom] = useState<string | null>(null);
+  const [committedTo, setCommittedTo] = useState<string | null>(null);
 
   // --- F4 temporal reproduction -------------------------------------------
   // The active period window [since, until] drives the scrubber axis. Resolved
@@ -1009,8 +1016,10 @@ export function PanoramaConsole({
   // cancelling an active scrub (v2C dock QA, 2026-07-11). String keys make the
   // window stable until the period actually changes.
   const periodParam = committedPeriod ?? searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET;
-  const fromParam = searchParams.get("from") ?? undefined;
-  const toParam = searchParams.get("to") ?? undefined;
+  // Root B: the committed custom window shadows searchParams (the shallow write
+  // useSearchParams can't see), mirroring how periodParam prefers committedPeriod.
+  const fromParam = committedFrom ?? searchParams.get("from") ?? undefined;
+  const toParam = committedTo ?? searchParams.get("to") ?? undefined;
   // task #50 P1b — the analytic window as a canonical ViewPeriod value. The raw
   // period string passes THROUGH unchanged (a preset id, "custom", or even an
   // unknown value): toPeriodSearchParams + resolveAnalyticsPeriod reproduce the
@@ -1797,6 +1806,100 @@ export function PanoramaConsole({
     [signalFor, applyVerifiedParam],
   );
 
+  // panorama QA root-cause #3b (Root B) — commit a PERÍODO change the SAME way
+  // scope/layers/asOf already commit: a shallow History push + a client refetch,
+  // superseding PeriodPanel's full `window.location.assign` reload (the last
+  // control on the reload path — the "unify commit mechanism" follow-up the
+  // ViewState design already named, viewstate-design §4.3 hazard #1). `nextPeriod`
+  // is a preset id or "custom"; for "custom" the {from,to} window travels too.
+  // useSearchParams() cannot observe the shallow write (Next 15.5.x router-drop,
+  // engram #621/#622), so — exactly like applyPreset / resyncBoardFromUrl — this
+  // records the committed window in state (committedPeriod/from/to drive the
+  // scrubber axis + the PeriodPanel highlight) and imperatively refetches the KPIs
+  // + active period-sensitive layers, instead of relying on the scopePeriodQs-keyed
+  // effects (which the shallow write never triggers). Back/Forward stays coherent
+  // via the popstate resync (resyncBoardFromUrl), which restores from/to too.
+  const commitPeriod = useCallback(
+    (nextPeriod: string, from: string | null, to: string | null) => {
+      const isCustom = nextPeriod === "custom" && from !== null && to !== null;
+      // Build the shallow URL off the FRESHEST live URL (a scope drill may have
+      // pushed ?province/?locality useSearchParams can't see). Camera params stay —
+      // a period change keeps the same scope + frame (no re-frame, no reload).
+      const params = new URLSearchParams(window.location.search);
+      params.set("period", nextPeriod);
+      if (isCustom) {
+        params.set("from", from);
+        params.set("to", to);
+      } else {
+        params.delete("from");
+        params.delete("to");
+      }
+      const qsStr = params.toString();
+      // Back-button undoable — an explicit operator action (push, not replace).
+      pushMapStateUrl(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
+
+      // Record the committed window (the chrome truth useSearchParams can't see).
+      setCommittedPeriod(nextPeriod);
+      setCommittedFrom(isCustom ? from : null);
+      setCommittedTo(isCustom ? to : null);
+
+      // A new window invalidates the period-sensitive caches and parks the scrub at
+      // live — the SAME invalidation set the scope/period effect + the popstate
+      // resync use (as-of frames, province rollups, choropleth + aggregated-point
+      // locality entries).
+      asOfDataRef.current.clear();
+      provinceDataRef.current.clear();
+      for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
+      for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
+      setAsOf(null);
+      setScrubResetToken((v) => v + 1);
+
+      // KPIs key on scopePeriodQs (useSearchParams), which the shallow write does
+      // NOT update — refetch them explicitly at the new window (the shared "kpis"
+      // abort key dedupes against any concurrent refetch, last wins).
+      clientKpiTookOverRef.current = true;
+      const kpiQs = scopePeriodQsOf(params);
+      fetch(`/api/panorama/kpis${kpiQs ? `?${kpiQs}` : ""}`, {
+        headers: { accept: "application/json" },
+        signal: signalFor("kpis"),
+      })
+        .then((r) => (r.ok ? (r.json() as Promise<PanoramaKpis>) : null))
+        .then((body) => {
+          if (body) {
+            setKpis(body);
+            setKpisStale(false);
+          } else {
+            setKpisStale(true);
+          }
+        })
+        .catch((err) => {
+          if (isAbortError(err)) return;
+          console.error("[PanoramaConsole] period KPI refetch failed", err);
+          setKpisStale(true);
+        });
+
+      // Refetch the ACTIVE period-sensitive layers at the new window. preserveOnError
+      // keeps an already-active layer on its last-known data if the refetch fails
+      // (never drops the operator's selection — the "Actualizar" degradation).
+      const activePeriodSensitive = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(
+        (l) => statesRef.current[l.id]?.active,
+      );
+      if (activePeriodSensitive.length === 0) return;
+      setStates((s) => {
+        const next = { ...s };
+        for (const l of activePeriodSensitive) next[l.id] = { ...s[l.id], loading: true };
+        return next;
+      });
+      void fetchLayersInto(
+        activePeriodSensitive.map((l) => l.id),
+        levelRef.current,
+        params,
+        { preserveOnError: true },
+      );
+    },
+    [signalFor, fetchLayersInto],
+  );
+
   // Switch the aggregation axis. Refetch the ACTIVE choropleth layers AND the
   // active density+signal point layers (F1 Panorama v2) at the new level if not
   // already cached, then repaint. Reference layers are not affected.
@@ -2569,13 +2672,21 @@ export function PanoramaConsole({
     const poppedPreset =
       rawPreset !== null && getPreset(rawPreset as PresetId) ? (rawPreset as PresetId) : null;
     const poppedPeriod = params.get("period");
+    const poppedFrom = params.get("from");
+    const poppedTo = params.get("to");
 
     // Resolve the loaded vs popped period through the SAME fallback chain the
     // since/until memo uses, so "changed" means the WINDOW actually changes.
     const fallbackPeriod = searchParams.get("period") ?? PANORAMA_DEFAULT_PRESET;
     const loadedPeriod = committedPeriod ?? fallbackPeriod;
     const nextPeriod = poppedPeriod ?? fallbackPeriod;
-    const periodChanged = nextPeriod !== loadedPeriod;
+    // Root B: two CUSTOM windows share period="custom" but differ by {from,to} —
+    // fold them into the changed test so Back across custom ranges refetches, and
+    // so a custom⇄preset pop (from/to appearing or clearing) is caught.
+    const loadedFrom = committedFrom ?? searchParams.get("from");
+    const loadedTo = committedTo ?? searchParams.get("to");
+    const periodChanged =
+      nextPeriod !== loadedPeriod || poppedFrom !== loadedFrom || poppedTo !== loadedTo;
 
     // Popped layer set: explicit ?layers wins; a preset URL without ?layers
     // falls back to the preset's canonical set; a bare manual URL is all-off.
@@ -2593,8 +2704,11 @@ export function PanoramaConsole({
     if (poppedPreset === activePresetIdRef.current && !periodChanged && !layersChanged) return;
 
     setActivePresetId(poppedPreset);
-    // The popped URL's period is the truth (null → the bare-URL default).
+    // The popped URL's period is the truth (null → the bare-URL default). Restore
+    // the custom {from,to} shadow too (null unless the popped window IS custom).
     setCommittedPeriod(poppedPeriod);
+    setCommittedFrom(poppedPeriod === "custom" ? poppedFrom : null);
+    setCommittedTo(poppedPeriod === "custom" ? poppedTo : null);
 
     if (periodChanged) {
       // The loaded caches belong to the previous window — stale for the popped
@@ -3819,6 +3933,7 @@ export function PanoramaConsole({
           detail={true}
           from={fromParam ?? null}
           to={toParam ?? null}
+          onPeriodChange={commitPeriod}
         />
       ),
     },
