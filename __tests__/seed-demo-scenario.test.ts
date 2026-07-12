@@ -29,7 +29,7 @@ import {
 
 // Must match FOCAL_LOCALITY in scripts/seed-demo-scenario.ts (issue #758).
 const FOCAL_PROVINCE = "CABA";
-const FOCAL_LOCALITY = "Ciudad Autónoma de Buenos Aires";
+const FOCAL_LOCALITY = "Palermo";
 
 // Lazily resolve admin+govt profile ids once per test run.
 async function resolveProfileIds(): Promise<{ adminId: string; govtId: string }> {
