@@ -188,7 +188,12 @@ const ICON_MAP: Record<string, LucideIcon> = {
   girar: RefreshCw,
 
   // ── Panorama v3 rail icons ───────────────────────────────────────────────
-  vista: Layers,
+  // vista (preset/view picker) and capas (layer on/off) used to share the
+  // same Layers glyph, making the top two rail buttons look identical
+  // (panorama QA root-cause #1). LayoutDashboard reads as "which view/
+  // preset", distinct from Layers' "stack of layers" reading — already
+  // imported above, so no new dependency.
+  vista: LayoutDashboard,
   capas: Layers,
   filtro: Filter,
   filter: Filter,

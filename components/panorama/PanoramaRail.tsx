@@ -15,8 +15,10 @@
 // two candidate shells the PO named (the anotar Vaul sheet, the DetailDrawer
 // <dialog>) are both MODAL — they dim/trap/block the map, which violates the
 // "map stays dominant + never re-layouts" invariant — so neither is used here.
-// Each panel carries a Simple/Detalle toggle. "action" items (Línea de tiempo,
-// Actualizar) fire immediately with no panel.
+// The Simple/Detalle toggle is opt-in per panel (panorama QA root-cause #2/
+// 3a/5/6): only Capas carries it (layers legitimately have a simple-vs-
+// detailed view); Vista/Período/Exportar/Acerca always render full detail.
+// "action" items (Línea de tiempo, Actualizar) fire immediately with no panel.
 //
 // Controlled: the console owns `open` so only ONE panel is ever open (the
 // "Acerca" icon here is the sole methodology entry point — #49 item 10).
@@ -37,7 +39,14 @@ export type RailPanelItem = {
   badge?: number;
   /** Simple (false) / Detalle (true). */
   detail: boolean;
-  onDetailChange: (detail: boolean) => void;
+  /**
+   * Present → the panel header renders the Simple/Detalle toggle. Absent →
+   * no toggle (panorama QA root-cause #2/3a/5/6: the toggle earns its place
+   * only on Capas, where simple-vs-detailed is a real information-density
+   * choice; Vista/Período/Exportar/Acerca always render full detail, so
+   * callers omit this and pass `detail: true`).
+   */
+  onDetailChange?: (detail: boolean) => void;
   /** Panel body for the current tier. */
   render: (detail: boolean) => ReactNode;
 };
@@ -174,11 +183,13 @@ function RailPanel({
           {item.label}
         </h2>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <SimpleDetalleToggle
-            detail={item.detail}
-            onChange={item.onDetailChange}
-            labelSuffix={`de ${item.label}`}
-          />
+          {item.onDetailChange && (
+            <SimpleDetalleToggle
+              detail={item.detail}
+              onChange={item.onDetailChange}
+              labelSuffix={`de ${item.label}`}
+            />
+          )}
           <button
             type="button"
             onClick={onClose}

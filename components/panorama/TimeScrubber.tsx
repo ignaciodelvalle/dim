@@ -512,7 +512,11 @@ export function TimeScrubber({
               base ({currentStateBaseLabel}) es un estado actual y no cambia con la fecha de corte.
             </p>
           )}
-          <div className="flex items-center gap-2.5">
+          {/* panorama QA root-cause #4: the histogram band below is absolutely
+              positioned (bottom-full) with no flow space of its own, so it used
+              to overlap the header/disclaimer above. `pt-6` reserves exactly its
+              height (h-5 + mb-1 = 24px) in the flow, only when it will render. */}
+          <div className={`flex items-center gap-2.5 ${showHistogram ? "pt-6" : ""}`}>
             <button
               type="button"
               onClick={togglePlay}

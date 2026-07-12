@@ -1451,14 +1451,12 @@ export function PanoramaConsole({
   scrubDetailRef.current = scrubDetail;
 
   // task #38 v3 rail — the open rail panel id (null = closed). Controlled here so
-  // only one panel is ever open. The Filtro panel reuses `capasDetail`; the
-  // others own a local Simple/Detalle flag. (#49 item 10: the methodology
-  // affordance is the rail's own "Acerca" icon now — no KPI-cluster text link.)
+  // only one panel is ever open. The Filtro panel reuses `capasDetail`; Vista/
+  // Período/Exportar/Acerca have no Simple/Detalle toggle of their own — they
+  // always render full detail (panorama QA root-cause #2/3a/5/6). (#49 item
+  // 10: the methodology affordance is the rail's own "Acerca" icon now — no
+  // KPI-cluster text link.)
   const [railOpen, setRailOpen] = useState<string | null>(null);
-  const [vistaDetail, setVistaDetail] = useState(false);
-  const [periodoDetail, setPeriodoDetail] = useState(false);
-  const [exportDetail, setExportDetail] = useState(false);
-  const [acercaDetail, setAcercaDetail] = useState(false);
   // task #38 v3 — the map's exportPng, bridged up from SituationalMap (map-ref
   // coupled) so the "Exportar" rail panel can fire it.
   const exportPngFnRef = useRef<(() => void) | null>(null);
@@ -3666,9 +3664,14 @@ export function PanoramaConsole({
       icon: "vista",
       label: "Vista",
       kind: "panel",
-      detail: vistaDetail,
-      onDetailChange: setVistaDetail,
-      render: (detail) => (
+      // panorama QA root-cause #2: no Simple/Detalle toggle — always full detail.
+      // (The preset description/question line stays OUT regardless: PO
+      // screenshot fix 2026-07-09 — "feat(panorama): simplify header, vista
+      // cards, and simple-mode capas" — deleted it from both the parent
+      // headline and the per-card body; it must never render again, per
+      // PanoramaConsole.test.tsx "PO screenshot fix (2026-07-08)".)
+      detail: true,
+      render: () => (
         <div className="space-y-2">
           <PresetPanel
             presets={PANORAMA_PRESETS}
@@ -3683,11 +3686,6 @@ export function PanoramaConsole({
           <p id="panorama-vista-label" className="sr-only">
             Vista
           </p>
-          {detail && activePreset?.description && (
-            <p className="border-t border-ln-op-line-2 pt-2 text-[var(--text-xs)] leading-snug text-ln-op-mute">
-              {activePreset.description}
-            </p>
-          )}
         </div>
       ),
     },
@@ -3723,12 +3721,13 @@ export function PanoramaConsole({
       icon: "periodo",
       label: "Período",
       kind: "panel",
-      detail: periodoDetail,
-      onDetailChange: setPeriodoDetail,
-      render: (detail) => (
+      // panorama QA root-cause #3a: no Simple/Detalle toggle — always show
+      // every period option (incl. Personalizado).
+      detail: true,
+      render: () => (
         <PeriodPanel
           activePeriod={periodParam}
-          detail={detail}
+          detail={true}
           from={fromParam ?? null}
           to={toParam ?? null}
         />
@@ -3754,26 +3753,42 @@ export function PanoramaConsole({
       icon: "exportar",
       label: "Exportar",
       kind: "panel",
-      detail: exportDetail,
-      onDetailChange: setExportDetail,
-      render: (detail) => (
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={copyView}
-            className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
-          >
-            <span aria-hidden="true">🔗</span> Copiar vista
-            {copied && <span className="text-[var(--text-xs)] text-ln-op-ok">· copiada</span>}
-          </button>
-          <SavedViewsPopover />
-          <button
-            type="button"
-            onClick={() => exportPngFnRef.current?.()}
-            className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
-          >
-            <span aria-hidden="true">🖼️</span> Exportar PNG
-          </button>
+      // panorama QA root-cause #5: no Simple/Detalle toggle — always show every
+      // action, each with its clarification note directly below its button.
+      detail: true,
+      render: () => (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={copyView}
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+            >
+              <span aria-hidden="true">🔗</span> Copiar vista
+              {copied && <span className="text-[var(--text-xs)] text-ln-op-ok">· copiada</span>}
+            </button>
+            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              Copia un enlace con la vista, el alcance y el período actuales.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <SavedViewsPopover />
+            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              Recuerda tableros con nombre para volver a ellos rápido.
+            </p>
+          </div>
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={() => exportPngFnRef.current?.()}
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+            >
+              <span aria-hidden="true">🖼️</span> Exportar PNG
+            </button>
+            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              Descarga el mapa con una nota de método al pie.
+            </p>
+          </div>
           <button
             type="button"
             disabled
@@ -3783,13 +3798,6 @@ export function PanoramaConsole({
           >
             Informe de situación (en desarrollo)
           </button>
-          {detail && (
-            <p className="border-t border-ln-op-line-2 pt-2 text-[var(--text-xs)] leading-snug text-ln-op-mute">
-              «Copiar vista» copia un enlace con la vista, el alcance y el período actuales. «Vistas
-              guardadas» recuerda tableros con nombre. «Exportar PNG» descarga el mapa con una nota
-              de método al pie.
-            </p>
-          )}
         </div>
       ),
     },
@@ -3806,21 +3814,17 @@ export function PanoramaConsole({
       icon: "acerca",
       label: "Acerca",
       kind: "panel",
-      detail: acercaDetail,
-      onDetailChange: setAcercaDetail,
-      render: (detail) => (
+      // panorama QA root-cause #6: no Simple/Detalle toggle — always full detail.
+      detail: true,
+      render: () => (
         <div className="space-y-2 text-[var(--text-sm)] text-ln-op-mute">
           <p className="max-w-prose">
             Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
             (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
           </p>
-          {detail && (
-            <>
-              {demoNotice}
-              {aboutSlot}
-              <PanoramaKpiFooter kpis={kpis} pending={kpisPending} />
-            </>
-          )}
+          {demoNotice}
+          {aboutSlot}
+          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} />
         </div>
       ),
     },
