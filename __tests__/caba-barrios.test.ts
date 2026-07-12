@@ -17,21 +17,19 @@ import { searchLocalities } from "@/lib/infra/ar-localidades";
 const INDEC_FIXTURE_AR_C_IDS = ["02014010", "02002010"] as const;
 
 beforeAll(async () => {
-  // Remove any fixture indec_cppdyl rows for AR-C left by import-indec tests.
+  // Remove any fixture indec_cppdyl rows for AR-C left by import-indec tests
+  // (Palermo/Recoleta) so their stale rows don't skew the barrio counts below.
   for (const id of INDEC_FIXTURE_AR_C_IDS) {
     await db.delete(arLocalities).where(eq(arLocalities.indecId, id));
   }
-  // Restore the real CABA catch-all if it was soft-deleted.
-  await db
-    .update(arLocalities)
-    .set({ removedAt: null })
-    .where(
-      and(
-        eq(arLocalities.provinceCode, "AR-C"),
-        eq(arLocalities.source, "indec_cppdyl"),
-        sql`${arLocalities.removedAt} IS NOT NULL`,
-      ),
-    );
+  // NOTE: we deliberately do NOT restore the CABA whole-city catch-all
+  // ("Ciudad Autónoma de Buenos Aires", indec_id 02000010). It is a
+  // whole-province aggregate the INDEC importer drops on ingest (it double-
+  // counts the 48 barrios tiling the same city) and the locality-integrity gate
+  // (scripts/check-locality-integrity.ts) requires it to stay soft-deleted.
+  // A blanket restore here was the source of the recurring "CABA locality
+  // zombie" — it resurrected the exact aggregate the whole system is built to
+  // drop, re-failing lint:locality after every full-suite run (2026-07-11).
 });
 
 describe("CABA barrios — Ley 1.777 import", () => {
@@ -66,7 +64,13 @@ describe("CABA barrios — Ley 1.777 import", () => {
     expect(row.c).toBe(48);
   });
 
-  it("preserves the INDEC catch-all CABA entry alongside the barrios", async () => {
+  it("drops the INDEC whole-city CABA aggregate (CABA is its 48 barrios)", async () => {
+    // The city-wide "Ciudad Autónoma de Buenos Aires" catch-all (indec_id
+    // 02000010) is a whole-province aggregate: it duplicates its own province
+    // and double-counts the barrios tiling it. The importer drops it on ingest
+    // and the locality-integrity gate (lib/reference/locality-integrity.ts)
+    // requires it to stay soft-deleted, so NO active indec_cppdyl row may
+    // remain for AR-C — CABA is represented by its 48 caba_open_data barrios.
     const [row] = await db
       .select({ c: sql<number>`count(*)::int` })
       .from(arLocalities)
@@ -77,7 +81,7 @@ describe("CABA barrios — Ley 1.777 import", () => {
           isNull(arLocalities.removedAt),
         ),
       );
-    expect(row.c).toBe(1);
+    expect(row.c).toBe(0);
   });
 
   it("includes Palermo, Boedo, and La Boca with accents preserved", async () => {

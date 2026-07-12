@@ -1,14 +1,21 @@
 "use client";
 
-// WelfareReportForm — legacy form used by the org-side welfare denuncia page
-// at /org/[orgToken]/maltrato/nuevo.
+// WelfareReportForm — the org-side welfare denuncia form used at
+// /org/[orgToken]/maltrato/nuevo. NOT legacy: it is the current, supported org
+// path. The PUBLIC /denuncias/nueva route uses DenunciaWizard instead; this form
+// serves the org flow (createOrgWelfareReportAction), which has materially
+// different rules — min 100-char description, MANDATORY evidence, severity
+// auto-overridden to critical — that don't fit the public wizard.
 //
-// The PUBLIC /denuncias/nueva route now uses DenunciaWizard instead of this form.
-// This component is kept alive for the org flow (createOrgWelfareReportAction)
-// which has different UX requirements (min 100-char description, mandatory evidence,
-// severity auto-overridden to critical) that don't fit the public wizard.
-//
-// TODO(M-followup): build a dedicated org-side wizard and retire this form.
+// FOLLOW-UP (deferred, M+ effort — do NOT treat as small): a dedicated org-side
+// wizard could eventually replace this single-form UX with a stepped flow. That
+// is a genuine feature build, not a refactor: it means re-creating DenunciaWizard's
+// whole apparatus (per-step components, WizardShell, step gating) against the
+// ORG action and its stricter rules (100-char gate, an evidence step that blocks
+// on zero files, authenticated reporter context instead of the anonymous/contact
+// modes), plus its own test suite. Until that is scoped and tracked as its own
+// task, this form is the intended, maintained org path — extend it here, don't
+// leave it implying a quick swap is pending.
 
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import Link from "next/link";

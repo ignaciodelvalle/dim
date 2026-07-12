@@ -12,10 +12,12 @@
 // Integration tests use the local Supabase/Postgres stack (127.0.0.1:54322).
 // Fixtures are cleaned up in afterEach.
 
+import { randomUUID } from "node:crypto";
+
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { db, organizations, ownerships, petEvents, pets } from "@/db";
+import { db, organizations, ownerships, petEvents, pets, profiles, reminders } from "@/db";
 import {
   LONG_STAY_DAYS,
   type OrgQueueKey,
@@ -38,6 +40,7 @@ import { withMutationOverride } from "./_helpers/db-overrides";
 const fixtureOrgIds: string[] = [];
 const fixturePetIds: string[] = [];
 const fixtureEventIds: string[] = [];
+const fixtureProfileIds: string[] = [];
 
 // Use a random 6-char suffix so re-runs and parallel workers never collide.
 const RUN_ID = Math.random().toString(36).slice(2, 8).toUpperCase();
@@ -153,6 +156,55 @@ async function makeAdoptionResolved(petId: string, applicationEventId: string): 
   fixtureEventIds.push(row.id);
 }
 
+async function makeProfile(): Promise<string> {
+  const id = randomUUID();
+  await db.insert(profiles).values({
+    id,
+    role: "owner",
+    displayName: `Dash Foster ${id.slice(0, 8)}`,
+    accountType: "personal",
+  });
+  fixtureProfileIds.push(id);
+  return id;
+}
+
+/** Active foster placement on a pet, held by a volunteer (user). */
+async function makeFoster(petId: string, holderUserId: string): Promise<void> {
+  await db.insert(ownerships).values({
+    petId,
+    ownerUserId: holderUserId,
+    role: "foster",
+    startedAt: new Date(),
+  });
+}
+
+/** adoption_finalized event denormalizing the org that adopted the pet out. */
+async function makeAdoptionFinalized(petId: string, prevOrgId: string): Promise<string> {
+  const [row] = await db
+    .insert(petEvents)
+    .values({
+      petId,
+      eventType: "adoption_finalized",
+      occurredAt: new Date(),
+      recordedAt: new Date(),
+      authorRole: "shelter",
+      payload: { previous_owner_organization_id: prevOrgId },
+    })
+    .returning({ id: petEvents.id });
+  fixtureEventIds.push(row.id);
+  return row.id;
+}
+
+async function makeOverdueCheckinReminder(petId: string, userId: string): Promise<void> {
+  await db.insert(reminders).values({
+    petId,
+    userId,
+    reminderType: "post_adoption_checkin",
+    dueAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days overdue
+    title: "Control post-adopción",
+  });
+}
+
 afterEach(async () => {
   // pet_events is append-only at the DB level — deleting requires the
   // withMutationOverride GUC escape hatch (same pattern as govt-dashboards.test.ts).
@@ -177,6 +229,12 @@ afterEach(async () => {
   if (fixtureOrgIds.length > 0) {
     await db.delete(organizations).where(inArray(organizations.id, fixtureOrgIds));
     fixtureOrgIds.length = 0;
+  }
+  // Profiles last: reminders (user_id) and foster ownerships already cascaded
+  // away with their pets above.
+  if (fixtureProfileIds.length > 0) {
+    await db.delete(profiles).where(inArray(profiles.id, fixtureProfileIds));
+    fixtureProfileIds.length = 0;
   }
 });
 
@@ -481,5 +539,112 @@ describe("fetchOrgQueueCounts — empty org", () => {
     const counts = await fetchOrgQueueCounts(orgId, ["openCases"]);
     expect(counts.openCases).toBe(0);
     expect(counts.activeAdoptions).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// activeFosters / overdueCheckins — correctness after the org-scoped-first
+// rewrite (task #40). The counters were rewritten to DRIVE from the org's
+// custody / adoption rows instead of scanning the platform-wide foster or
+// reminder population; these assert the counts are unchanged and stay
+// org-isolated (another org's fosters/checkins never leak in).
+// ---------------------------------------------------------------------------
+
+describe("activeFosters — org-scoped foster count", () => {
+  it("counts an active foster placement on a pet this org holds in custody", async () => {
+    const orgId = await makeOrg();
+    const petId = await makePet();
+    await makeCustody(petId, orgId);
+    await makeFoster(petId, await makeProfile());
+
+    const counts = await fetchOrgQueueCounts(orgId, ["activeFosters"]);
+    expect(counts.activeFosters).toBe(1);
+  });
+
+  it("excludes ended fosters and fosters on another org's custody pets", async () => {
+    const orgA = await makeOrg();
+    const orgB = await makeOrg();
+    const fosterUser = await makeProfile();
+
+    // orgA: active custody + active foster → counts.
+    const petA = await makePet();
+    await makeCustody(petA, orgA);
+    await makeFoster(petA, fosterUser);
+
+    // orgA: active custody but the foster has ENDED → excluded.
+    const petEnded = await makePet();
+    await makeCustody(petEnded, orgA);
+    await db.insert(ownerships).values({
+      petId: petEnded,
+      ownerUserId: fosterUser,
+      role: "foster",
+      startedAt: new Date(Date.now() - 1000),
+      endedAt: new Date(),
+    });
+
+    // orgB holds custody of its own pet with a foster — must not leak into orgA.
+    const petB = await makePet();
+    await makeCustody(petB, orgB);
+    await makeFoster(petB, fosterUser);
+
+    expect((await fetchOrgQueueCounts(orgA, ["activeFosters"])).activeFosters).toBe(1);
+    expect((await fetchOrgQueueCounts(orgB, ["activeFosters"])).activeFosters).toBe(1);
+  });
+});
+
+describe("overdueCheckins — org-scoped post-adoption check-in count", () => {
+  it("counts an overdue checkin reminder for a pet this org adopted out", async () => {
+    const orgId = await makeOrg();
+    const petId = await makePet();
+    await makeAdoptionFinalized(petId, orgId);
+    await makeOverdueCheckinReminder(petId, await makeProfile());
+
+    const counts = await fetchOrgQueueCounts(orgId, ["overdueCheckins"]);
+    expect(counts.overdueCheckins).toBe(1);
+  });
+
+  it("does not double-count when a pet has two adoption_finalized events for this org", async () => {
+    // A re-adoption gives the pet two adoption_finalized events carrying this
+    // org; the DISTINCT in the rewrite must keep the single overdue reminder
+    // counted exactly once (a naive JOIN would return 2).
+    const orgId = await makeOrg();
+    const petId = await makePet();
+    await makeAdoptionFinalized(petId, orgId);
+    await makeAdoptionFinalized(petId, orgId);
+    await makeOverdueCheckinReminder(petId, await makeProfile());
+
+    const counts = await fetchOrgQueueCounts(orgId, ["overdueCheckins"]);
+    expect(counts.overdueCheckins).toBe(1);
+  });
+
+  it("excludes completed / not-yet-due reminders and other orgs' adoptions", async () => {
+    const orgA = await makeOrg();
+    const orgB = await makeOrg();
+    const user = await makeProfile();
+
+    // orgA adopted this pet out, reminder overdue → counts.
+    const petOverdue = await makePet();
+    await makeAdoptionFinalized(petOverdue, orgA);
+    await makeOverdueCheckinReminder(petOverdue, user);
+
+    // orgA adopted out, but the reminder is completed → excluded.
+    const petDone = await makePet();
+    await makeAdoptionFinalized(petDone, orgA);
+    await db.insert(reminders).values({
+      petId: petDone,
+      userId: user,
+      reminderType: "post_adoption_checkin",
+      dueAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      title: "hecho",
+      completedAt: new Date(),
+    });
+
+    // orgB adopted out, reminder overdue → must not leak into orgA.
+    const petB = await makePet();
+    await makeAdoptionFinalized(petB, orgB);
+    await makeOverdueCheckinReminder(petB, user);
+
+    expect((await fetchOrgQueueCounts(orgA, ["overdueCheckins"])).overdueCheckins).toBe(1);
+    expect((await fetchOrgQueueCounts(orgB, ["overdueCheckins"])).overdueCheckins).toBe(1);
   });
 });
