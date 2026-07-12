@@ -99,7 +99,9 @@ export function LegendPill({
             // matrix crosses, not just that it is a matrix.
             <span className="inline-flex shrink-0 items-center gap-1">
               <BivariateHint />
-              <span className="text-[var(--text-xs)] leading-none text-ln-op-faint">cobertura × señal</span>
+              <span className="text-[var(--text-xs)] leading-none text-ln-op-faint">
+                cobertura × señal
+              </span>
             </span>
           )}
           {rampColors !== null && rampColors.length > 0 && (
@@ -148,7 +150,10 @@ export function LegendPill({
               <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
                 {graduatedHint.small.label}
               </span>
-              <span aria-hidden="true" className="text-[var(--text-xs)] leading-none text-ln-op-faint">
+              <span
+                aria-hidden="true"
+                className="text-[var(--text-xs)] leading-none text-ln-op-faint"
+              >
                 –
               </span>
               <span
