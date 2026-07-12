@@ -194,6 +194,14 @@ export function TimeScrubber({
   // panorama-vista-redesign: the active loop window (null = not looping).
   const [looping, setLooping] = useState<LoopWindow | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // H4 (cowork QA): the native <input type=range> reads as "dead to the mouse" —
+  // an operator dragging the thumb or clicking the bar saw nothing move (it stepped
+  // only by keyboard). We drive seeking EXPLICITLY from pointer events on the track
+  // wrapper (below) so drag + click-to-seek work deterministically; the native
+  // input stays for keyboard + a11y (focused on pointerdown so arrow-keys follow a
+  // click). `trackRef` measures the bar; `inputRef` receives focus.
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const labelId = useId();
   const liveId = useId();
@@ -360,6 +368,51 @@ export function TimeScrubber({
     setIndex(Number(e.target.value));
   }, []);
 
+  // H4 — map a clientX along the track to a day index (clamped to [0, steps]).
+  const seekFromClientX = useCallback(
+    (clientX: number) => {
+      const el = trackRef.current;
+      if (el === null || win.steps === 0) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const frac = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      setIndex(Math.round(frac * win.steps));
+    },
+    [win.steps],
+  );
+
+  // H4 — pointerdown seeks immediately (click-to-seek) and captures the pointer so
+  // a drag keeps seeking even if it leaves the thin bar. Stops play/loop like the
+  // native onChange would. Focuses the input so arrow-keys work after a click.
+  const onTrackPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!scrubbable) return;
+      e.preventDefault();
+      setPlaying(false);
+      setLooping(null);
+      e.currentTarget.setPointerCapture(e.pointerId);
+      inputRef.current?.focus();
+      seekFromClientX(e.clientX);
+    },
+    [scrubbable, seekFromClientX],
+  );
+
+  // H4 — seek while dragging, but ONLY when the pointer is captured (pressed) so a
+  // bare hover never moves the thumb.
+  const onTrackPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!scrubbable || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+      seekFromClientX(e.clientX);
+    },
+    [scrubbable, seekFromClientX],
+  );
+
+  const onTrackPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
   const startLoop = useCallback(
     (days: LoopWindow) => {
       const startIdx = dateToDayIndex(win, new Date(untilMs - days * DAY_MS));
@@ -463,7 +516,20 @@ export function TimeScrubber({
               <span aria-hidden="true">{playing ? "⏸" : "▶"}</span>
             </button>
 
-            <div className="relative flex-1">
+            <div
+              ref={trackRef}
+              onPointerDown={onTrackPointerDown}
+              onPointerMove={onTrackPointerMove}
+              onPointerUp={onTrackPointerUp}
+              onPointerCancel={onTrackPointerUp}
+              // H4: py-2/-my-2 grows the pointer HIT area to ~40px (a comfortable
+              // drag/click target) without changing the surrounding layout — the
+              // negative margin cancels the padding. touch-none stops a touch-drag
+              // from scrolling the dock instead of seeking.
+              className={`relative flex-1 py-2 -my-2 ${
+                scrubbable ? "cursor-pointer touch-none" : "cursor-not-allowed"
+              }`}
+            >
               {/* task #65: signal histogram — SCOPE-AGGREGATE event volume over the
                   window, drawn just above the track so the operator can drag to a
                   peak. Decorative (the as-of label + live region carry the state);
@@ -489,11 +555,13 @@ export function TimeScrubber({
                   )}
                 </div>
               )}
-              {/* Shaded loop-window overlay — purely visual, sits under the range input. */}
+              {/* Shaded loop-window overlay — purely visual, sits under the range
+                  input. Pinned to the BAR height (not the enlarged H4 hit box) so
+                  the shade stays a thin pill behind the 6px track. */}
               {windowStartIndex !== null && win.steps > 0 && (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0 rounded-full bg-ln-op-azul/15"
+                  className="pointer-events-none absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-ln-op-azul/15"
                   style={{
                     left: `${(windowStartIndex / win.steps) * 100}%`,
                     right: 0,
@@ -501,6 +569,7 @@ export function TimeScrubber({
                 />
               )}
               <input
+                ref={inputRef}
                 type="range"
                 min={0}
                 max={win.steps}
@@ -508,7 +577,12 @@ export function TimeScrubber({
                 value={index}
                 onChange={onSlider}
                 disabled={!scrubbable}
-                className="relative h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ln-op-line accent-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
+                // H4: pointer is owned by the track wrapper (deterministic drag +
+                // click-to-seek); the input stays for keyboard + a11y and reflects
+                // the value. A styled thumb (webkit + moz) makes the grab point
+                // visible — an unstyled appearance-none range renders NO thumb in
+                // WebKit, which is what made the control look dead.
+                className="pointer-events-none relative block h-1.5 w-full appearance-none rounded-full bg-ln-op-line accent-ln-op-azul disabled:opacity-40 [&::-moz-range-thumb]:h-3.5 [&::-moz-range-thumb]:w-3.5 [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:bg-ln-op-azul [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-ln-op-azul [&::-webkit-slider-thumb]:shadow"
                 aria-label="Línea de tiempo: arrastrá para ver la situación en una fecha anterior"
                 aria-valuemin={0}
                 aria-valuemax={win.steps}
