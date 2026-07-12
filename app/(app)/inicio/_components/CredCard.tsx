@@ -150,7 +150,7 @@ export function CredCard({ data }: { data: CredCardData }) {
               </Link>
             </div>
           </>
-        ) : vac && vac.hasRecords ? (
+        ) : vac?.hasRecords ? (
           <div className="grid grid-cols-3 gap-2">
             <VacTile
               count={vac.vigente}

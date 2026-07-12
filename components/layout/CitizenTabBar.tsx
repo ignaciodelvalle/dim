@@ -122,6 +122,7 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
           className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-ln-azul)] text-[var(--color-ln-card)]"
         >
           <svg
+            aria-hidden="true"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
