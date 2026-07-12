@@ -435,6 +435,54 @@ describe("getPanoramaKpis", () => {
     expect(denuncias.secondary).toContain("2.202");
   });
 
+  it("bounds the cobertura pts delta with a near-zero prior — no relative-% explosion (cowork round 2)", async () => {
+    // At a long window the prior coverage can be ~0; a RELATIVE % blows up
+    // (+44900%). Points (H9) is bounded to the 0–100 coverage scale.
+    vi.mocked(fetchRabiesCoverage)
+      .mockResolvedValueOnce({
+        current: 45,
+        target: 80,
+        partidos: 3,
+        hasData: true,
+        registryDenominator: 12_480,
+        censusDenominator: 474_333,
+        censusCoveragePct: 2.6,
+      })
+      .mockResolvedValueOnce({
+        current: 0.1,
+        target: 80,
+        partidos: 3,
+        hasData: true,
+        registryDenominator: 30,
+        censusDenominator: 474_333,
+        censusCoveragePct: 0.01,
+      })
+      .mockResolvedValueOnce({
+        current: 30,
+        target: 80,
+        partidos: 3,
+        hasData: true,
+        registryDenominator: 9_000,
+        censusDenominator: 474_333,
+        censusCoveragePct: 1.9,
+      });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const cobertura = kpis.find((k) => k.id === "cobertura")!;
+    expect(cobertura.delta?.unit).toBe("pts");
+    expect(cobertura.delta?.pct).toBe(45); // round(45 − 0.1), NOT +44900%
+    expect(Math.abs(cobertura.delta!.pct)).toBeLessThanOrEqual(100);
+  });
+
+  it("blanks the strip to — for a non-admin operator fenced to zero jurisdictions (cowork round 2)", async () => {
+    // narrowGovtScope emptied the scope (fenced out): the fetchers return 0, but
+    // "0%" reads as a real measured zero. Show "—" to match the map/dock.
+    const { kpis, recalculatedFor } = await getPanoramaKpis({ role: "govt" }, [], period);
+    expect(kpis.length).toBeGreaterThan(0);
+    expect(kpis.every((k) => k.value === "—")).toBe(true);
+    expect(kpis.every((k) => k.delta === undefined && k.bar === undefined)).toBe(true);
+    expect(recalculatedFor).toContain("Sin datos en tu alcance");
+  });
+
   // ---------------------------------------------------------------------------
   // task #78 Part 3 — the ministry "both numbers": total coverage as the headline,
   // firmado-por-matrícula share in the sub, via a SECOND verifiedOnly ctx.

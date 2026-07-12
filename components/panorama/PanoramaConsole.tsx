@@ -512,9 +512,13 @@ export function PanoramaConsole({
     province: string | null;
     locality: string | null;
   } | null>(null);
-  const effectiveScopeProvince = scopeOverride
-    ? scopeOverride.province
-    : (searchParams.get("province") ?? null);
+  // Validate the URL province against the known set (cowork round 2): an invalid
+  // `?province=AR-ZZ` used to flow into the scope key + KPI fetch and leave the
+  // strip stuck on "Cargando indicadores…" (the incoherent state never resolved).
+  // Drop an unknown code → national, so every surface stays coherent.
+  const urlProvince = searchParams.get("province");
+  const validUrlProvince = urlProvince && provinceByCode(urlProvince) ? urlProvince : null;
+  const effectiveScopeProvince = scopeOverride ? scopeOverride.province : validUrlProvince;
   const effectiveScopeLocality = scopeOverride
     ? scopeOverride.locality
     : (searchParams.get("locality") ?? null);
@@ -1010,6 +1014,7 @@ export function PanoramaConsole({
     return (
       province != null &&
       province !== "" &&
+      provinceByCode(province) != null &&
       parseCameraFromParams(p) == null &&
       initialDivisionProvince == null
     );
@@ -2077,7 +2082,13 @@ export function PanoramaConsole({
   // map-QOL: the URL (`?preset=`) wins on mount so a shared board reproduces it.
   const [activePresetId, setActivePresetId] = useState<PresetId | null>(() => {
     const raw = searchParams.get("preset");
-    if (raw !== null && getPreset(raw as PresetId)) return raw as PresetId;
+    if (raw !== null) {
+      if (getPreset(raw as PresetId)) return raw as PresetId;
+      // Present but INVALID (`?preset=notreal`): default to the canonical preset
+      // instead of dropping into manual mode — that read as an incoherent
+      // "Pérdidas-ish" view with no coherent vista (cowork round 2).
+      return DEFAULT_PANORAMA_PRESET_ID;
+    }
     // First-visit fast path: adopt the server-seeded preset on mount so (a) the
     // preset row + metrics column read active on first paint, and (b) the
     // derived-level effect sees the preset's level — WITHOUT this, that effect

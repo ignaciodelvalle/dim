@@ -677,8 +677,29 @@ export async function getPanoramaKpis(
     },
   ];
 
+  // Fence honesty (cowork round 2): a NON-admin operator whose scope resolved to
+  // ZERO jurisdictions (fenced out of the requested province) has NO data in
+  // scope — the fetchers legitimately return 0, but "0%"/"0" reads as a real
+  // measured zero (looks like "this province has no coverage"). Blank the values
+  // to "—" so the strip matches the map + dock ("sin datos en tu alcance"); the
+  // recalc caption already says so. Admin universal ([] = national) is exempt.
+  const noScopeData = actor.role !== "admin" && jurisdictions.length === 0;
+  const displayKpis = noScopeData
+    ? kpis.map((k) => ({
+        ...k,
+        value: "—",
+        sub: undefined,
+        bar: undefined,
+        delta: undefined,
+        sparkline: undefined,
+        secondary: undefined,
+        currentState: undefined,
+        tone: "neutral" as const,
+      }))
+    : kpis;
+
   return {
-    kpis,
+    kpis: displayKpis,
     recalculatedFor: describeRecalc(actor, jurisdictions, adminProvince, adminLocality),
     dataAsOf: ingestAt?.toISOString() ?? null,
     // Context denominator ("N mascotas en cobertura") — a footer caption, not a
