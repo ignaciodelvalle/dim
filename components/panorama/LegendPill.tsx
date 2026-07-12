@@ -38,7 +38,10 @@ type Props = {
    * paint no ramp at all, so without this the collapsed pill offered no scale
    * cue beyond a bare color dot.
    */
-  graduatedHint?: { small: { r: number; label: string }; large: { r: number; label: string } } | null;
+  graduatedHint?: {
+    small: { r: number; label: string };
+    large: { r: number; label: string };
+  } | null;
   /** The expanded full reading (MapLegends + captions + notices). */
   children: ReactNode;
 };

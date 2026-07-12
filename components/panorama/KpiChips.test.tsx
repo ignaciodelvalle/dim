@@ -218,7 +218,9 @@ describe("KpiChips — province-only rate chips disabled below province (Round-3
     // tap target.
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
 
-    const coberturaCard = screen.getByText("Cobertura antirrábica").closest('[aria-disabled="true"]');
+    const coberturaCard = screen
+      .getByText("Cobertura antirrábica")
+      .closest('[aria-disabled="true"]');
     expect(coberturaCard).not.toBeNull();
     expect(coberturaCard).toHaveAttribute("title", expect.stringContaining("nivel provincial"));
 
@@ -226,7 +228,10 @@ describe("KpiChips — province-only rate chips disabled below province (Round-3
       .getByText("Cobertura de esterilización")
       .closest('[aria-disabled="true"]');
     expect(esterilizacionCard).not.toBeNull();
-    expect(esterilizacionCard).toHaveAttribute("title", expect.stringContaining("nivel provincial"));
+    expect(esterilizacionCard).toHaveAttribute(
+      "title",
+      expect.stringContaining("nivel provincial"),
+    );
   });
 
   it("does not disable non-rate KPIs below province level", () => {
