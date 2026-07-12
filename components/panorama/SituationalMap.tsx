@@ -3502,24 +3502,24 @@ export function SituationalMap({
       {/* Canvas region — the geography + its on-canvas overlays. `relative` so the
           absolute controls/legends position against the MAP, not the chrome bars. */}
       <div className="relative min-h-0 flex-1">
-        {/* role="img" TRADEOFF (fix, keyboard/focus): the map is an interactive
-            canvas, but exposing it as role="img" gives assistive tech a single
-            static-image summary (the aria-label point count) instead of an
-            unlabeled, un-navigable canvas. The real interactive affordances —
-            zoom (NavigationControl), reset-view, ← Volver, and the pinned popup's
-            ✕ + "Ver detalle" — are all tab-reachable, labeled <button>s outside
-            this element, and Esc closes the popup (handleMapKeyDown).
-            KEYBOARD-MINIMAL: the canvas is now focusable (tabIndex) with a visible
-            focus ring, and the arrow keys pan it (handleCanvasKeyDown). FLAGGED:
-            role="img" on a now-focusable, keyboard-interactive element is a
-            contradiction — retiring it (→ a labeled interactive role + full
-            feature-navigation) stays a deferred, larger effort. */}
+        {/* role="application" (a11y fix, WCAG 4.1.2 nested-interactive): the map
+            is a genuine keyboard-operated widget — it is focusable (tabIndex) and
+            the arrow keys pan the camera (handleCanvasKeyDown). It was formerly
+            role="img", which makes assistive tech treat the whole subtree as a
+            single atomic image leaf (childrenPresentational) — but the subtree has
+            real focusable descendants (MapLibre's canvas region + the Acercar/
+            Alejar zoom buttons), so axe flagged nested-interactive. "application"
+            is the honest role for a custom keyboard widget: it permits focusable
+            children AND routes arrow keys to the pan handler instead of the screen
+            reader's virtual cursor. The aria-label still names the view + point
+            count; zoom / reset-view / ← Volver / the popup's ✕ + "Ver detalle"
+            remain tab-reachable, labeled <button>s. */}
         <div
           ref={containerRef}
           className="h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ln-op-azul"
           style={{ background: COLOR_CANVAS }}
-          role="img"
-          // biome-ignore lint/a11y/noNoninteractiveTabindex: keyboard-minimal interim — the canvas is arrow-pannable so it must be focusable; the role="img"/tabindex contradiction resolves when role="img" is retired (deferred, flagged above).
+          role="application"
+          // biome-ignore lint/a11y/noNoninteractiveTabindex: intentional — this IS an interactive widget (role="application" + arrow-key pan via onKeyDown); biome doesn't classify "application" as interactive, but the element must be focusable to receive the pan keystrokes.
           tabIndex={0}
           aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista. Usá las flechas para desplazar el mapa.`}
           onKeyDown={handleCanvasKeyDown}
