@@ -17,6 +17,28 @@
 // #49 item 10 (progressive disclosure): the methodology affordance is NOT a text
 // link under the cards anymore — it is consolidated into the right rail's
 // "Acerca" (i) icon, so the KPI cluster carries only the numbers.
+//
+// Round-2 review #4 (H8 + a11y, PO-chosen Option C + B's elevation): the
+// base-selecting cards are a radio-exclusive picker (exactly one active at a
+// time) but used to expose `aria-pressed` (independent-toggle semantics) with
+// only a thin border as the selected cue — and read-only reference cards
+// looked near-identical to clickable ones (H8). Fixed:
+//   - a leading radio dot (empty ring idle / filled when active) marks a card
+//     as "one-of-a-set, tap to choose"; placed leading the LABEL line so it
+//     never collides with the tone glyph that already rides with the value.
+//   - the active card additionally gets a left accent bar + ring + stronger
+//     shadow (Option B's elevation), so "selected" is unmistakable beyond the
+//     dot alone.
+//   - read-only cards carry NO dot at all — the absence IS the "not tappable"
+//     signal, resolving the pre-existing ambiguity.
+//   - promoted from `aria-pressed` to a true `role="radiogroup"` / role="radio"
+//     + aria-checked, with roving-tabindex arrow-key navigation — the exact
+//     pattern PresetPanel.tsx already uses for the (also radio-exclusive)
+//     preset strip. Read-only cards are plain divs: no role="radio", no
+//     aria-checked, no tab stop, excluded from the roving index — they are NOT
+//     part of the radiogroup.
+
+import { useRef, useState } from "react";
 
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { Sparkline } from "@/components/panorama/Sparkline";
@@ -76,6 +98,12 @@ export function KpiChips({
   pending = false,
   degraded = false,
 }: Props) {
+  // Roving tabindex (WAI-ARIA radiogroup pattern, mirrors PresetPanel.tsx).
+  // Hooks must run unconditionally, ahead of the degraded/pending/empty early
+  // returns below.
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  const btnRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
   if (degraded) {
     return (
       <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-warn">
@@ -103,54 +131,140 @@ export function KpiChips({
     );
   }
 
+  // The selectable (base-layer) subset, in display order — the actual radio
+  // set. Read-only KPIs (no base layer) are excluded: no role="radio", no
+  // roving tab stop, no arrow-key membership — they are not part of the group.
+  const selectableKpis = shown
+    .map((kpi) => ({ kpi, baseId: baseLayerFor(kpi.id) }))
+    .filter((x): x is { kpi: PanoramaKpi; baseId: LayerId } => x.baseId !== null);
+  const activePos = selectableKpis.findIndex((x) => x.baseId === activeBaseLayerId);
+  const selectedPos = activePos >= 0 ? activePos : 0;
+  const rovingPos = focusIndex ?? selectedPos;
+
+  function focusAt(pos: number) {
+    if (selectableKpis.length === 0) return;
+    const clamped = (pos + selectableKpis.length) % selectableKpis.length;
+    setFocusIndex(clamped);
+    btnRefs.current[clamped]?.focus();
+  }
+
+  function commitAt(pos: number) {
+    const target = selectableKpis[pos];
+    if (target && target.baseId !== activeBaseLayerId) onRebase(target.baseId);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, pos: number) {
+    switch (e.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        e.preventDefault();
+        focusAt(pos + 1);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        e.preventDefault();
+        focusAt(pos - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusAt(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusAt(selectableKpis.length - 1);
+        break;
+      case " ":
+      case "Enter":
+        e.preventDefault();
+        commitAt(pos);
+        break;
+      default:
+        break;
+    }
+  }
+
+  let selPos = -1;
+
   return (
-    <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
-      <legend className="sr-only">Indicadores de esta vista</legend>
+    <div
+      role="radiogroup"
+      aria-labelledby="pano-kpi-radiogroup-label"
+      className="flex flex-col gap-1.5"
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIndex(null);
+      }}
+    >
+      <span id="pano-kpi-radiogroup-label" className="sr-only">
+        Indicadores de esta vista
+      </span>
       {shown.map((kpi) => {
         const baseId = baseLayerFor(kpi.id);
-        const active = baseId !== null && baseId === activeBaseLayerId;
+        const isSelectable = baseId !== null;
+        const active = isSelectable && baseId === activeBaseLayerId;
+        const pos = isSelectable ? ++selPos : -1;
         // #49 item 1: floating chrome must read over ANY basemap. Opaque fill +
         // shadow scrim on every card (prev bg-ln-op-card/95 and the active
         // bg-ln-op-azul/10 were translucent — they washed out over busy barrio /
-        // bivariate maps). Active state now reads via the blue border + ring +
-        // blue value text (CardBody), keeping the fill fully opaque.
+        // bivariate maps). The active card additionally gets a left accent bar +
+        // ring + stronger shadow (Round-2 review #4, Option C+B) so "selected"
+        // reads without relying on the radio dot alone.
         const cardClass = `flex w-full flex-col gap-0.5 rounded-[var(--radius-md)] border px-3 py-2 text-left shadow-md ${
           active
-            ? "border-ln-op-azul bg-ln-op-card ring-1 ring-ln-op-azul/40"
+            ? "border-ln-op-azul border-l-4 bg-ln-op-card shadow-lg ring-2 ring-ln-op-azul/40"
             : "border-ln-op-line bg-ln-op-card"
         }`;
         const title = `${kpi.label} — ${methodNote(kpi)}`;
-        return baseId !== null ? (
+        return isSelectable ? (
           <button
             key={kpi.id}
+            ref={(el) => {
+              btnRefs.current[pos] = el;
+            }}
             type="button"
-            aria-pressed={active}
+            // biome-ignore lint/a11y/useSemanticElements: a native <input type="radio"> can't carry this card's rich Tailwind visual (value + delta + sparkline + accent bar) without a hidden-input + styled-label rework — same accepted div/button radiogroup pattern as PresetPanel.tsx:175.
+            role="radio"
+            aria-checked={active}
+            tabIndex={pos === rovingPos ? 0 : -1}
             title={`${title} · Click para pintar el mapa por esta métrica.`}
             onClick={() => {
               if (!active) onRebase(baseId);
             }}
+            onKeyDown={(e) => handleKeyDown(e, pos)}
             className={`${cardClass} transition-colors hover:border-ln-op-celeste`}
           >
-            <CardBody kpi={kpi} presetId={presetId} active={active} />
+            <CardBody kpi={kpi} presetId={presetId} active={active} isSelectable />
           </button>
         ) : (
           // H8 (cowork QA): a KPI with no BASE map layer (zoonosis, denuncias…) is
           // NOT clickable — but it used to look identical to the clickable base
-          // cards. Mark it honestly: a default cursor, no hover affordance, and a
-          // tooltip stating it does not repaint the map (so the operator does not
-          // click expecting the choropleth to change). aria-disabled announces the
-          // read-only nature to assistive tech.
+          // cards. Mark it honestly: a default cursor, no hover affordance, no
+          // radio dot (the absence IS the "not tappable" signal — round-2 review
+          // #4), and a tooltip stating it does not repaint the map. aria-disabled
+          // announces the read-only nature to assistive tech; it carries no
+          // role="radio"/aria-checked and is not part of the radiogroup.
           <div
             key={kpi.id}
             aria-disabled="true"
             className={`${cardClass} cursor-default`}
             title={`${title} · Indicador de referencia: no pinta el mapa.`}
           >
-            <CardBody kpi={kpi} presetId={presetId} active={active} />
+            <CardBody kpi={kpi} presetId={presetId} active={active} isSelectable={false} />
           </div>
         );
       })}
-    </fieldset>
+    </div>
+  );
+}
+
+/** The leading radio-choice glyph: empty ring idle, filled dot when active. */
+function RadioDot({ active }: { active: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full border-2 ${
+        active ? "border-ln-op-azul bg-ln-op-azul" : "border-ln-op-mute bg-transparent"
+      }`}
+    />
   );
 }
 
@@ -159,10 +273,12 @@ function CardBody({
   kpi,
   presetId,
   active,
+  isSelectable,
 }: {
   kpi: PanoramaKpi;
   presetId: PresetId | null;
   active: boolean;
+  isSelectable: boolean;
 }) {
   const label = shortKpiLabel(presetId, kpi.id, kpi.label);
   const spark = kpi.sparkline;
@@ -189,8 +305,9 @@ function CardBody({
         )}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 flex-1 truncate text-[var(--text-xs)] text-ln-op-mute">
-          {label}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5">
+          {isSelectable && <RadioDot active={active} />}
+          <span className="truncate text-[var(--text-xs)] text-ln-op-mute">{label}</span>
         </span>
         {spark && spark.length > 1 && (
           <Sparkline points={spark} width={64} height={18} ariaLabel={`Tendencia de ${label}`} />

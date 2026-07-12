@@ -400,3 +400,340 @@ shippable now; step 3 lands with P4.
   tasks name the requirement.
 - **D (1):** the one genuine open DECISION — a navigation-input model P4 does not cover;
   recommend adopting the click-driven model.
+
+---
+
+# Round 2 — dock, labels, card affordance (design)
+
+> Same discipline as round 1: for each item — (a) root cause with `file:line`, (b) how it maps
+> to the structure (the ViewState `representation` concept + the viz-suite plan
+> `docs/plans/viz-suite.md` #33 3-axis IA + the #53 design-critique + #44 signal-driven ranking
+> / department-rate gaps), (c) a concrete design recommendation. This round is design-heavy; item
+> 4 gets real, buildable visual options because the PO explicitly asked "how do we solve this
+> visually?"
+>
+> **State line (unchanged since round 1):** the dock is a presentational shell
+> (`PanoramaDock.tsx`) fed bespoke panes by the console; the **`representation` axis of
+> `PanoramaViewState` is NOT built** — there is no representation config, no representation
+> registry, no `representation → columns/units/kind` declaration. Every list/table below is a
+> hand-wired one-off. That absence IS the root of items 1 and 3.
+
+## Verdict table (one line each)
+
+| # | Finding | Root | Verdict |
+|---|---|---|---|
+| 1 | Estadísticas ranking is a FIXED "Peores 10" — no chooser, one hardcoded list | `PanoramaConsole.tsx:3507-3550` derives one ranking from `captionLayer`; `RankedUnitsPanel.tsx:63` title hardcoded; `ranking.ts:14` `RankingKind` fixed to rate\|density | **SOLVED-BY-#33** (representation-chooser) — a small pre-#33 increment is viable |
+| 2 | The bare `-49` has no visible label | `RankedUnitsPanel.tsx:104-111` renders `−gap` with an `aria-label` only (no on-screen label/header); `-49` = `target−value` (`ranking.ts:108`), esterilización target 70% − Salta 21% | **COSMETIC now / structural in #33** — one-file label fix today; representation-declares-columns is the durable form |
+| 3a | Registros "CAPA" column repeats on every row when 1 layer | `MapDataTable.tsx:110-118,129` always renders the Capa column; `PanoramaConsole.tsx:3496` feeds it | **COSMETIC** — conditionally drop the column |
+| 3b | Registros vs Estadísticas: two bespoke components doing ~the same job | `MapDataTable` (Capa/Unidad/Valor, no sort, CSV) vs `PanoramaDataTable`/`RankedUnitsPanel` (ranked, sortable, kind-aware) — three separate table shapes | **SOLVED-BY-#33 + #53** — a shared dock-representation table primitive |
+| 4 | KPI cards don't afford "tap to change the view" — only a thin blue border | `KpiChips.tsx:117-121` active = `border-ln-op-azul … ring-1 ring-ln-op-azul/40`; `:127` uses `aria-pressed` (NOT radiogroup); read-only cards look near-identical (`:143-150`) | **DESIGN-DECISION** — the PO must pick the visual direction (options ranked below) |
+
+---
+
+## 1. Estadísticas "Peores 10" — no chooser, one hardcoded list — **SOLVED-BY-#33** (pre-#33 increment viable)
+
+**Root cause (exact).** The Estadísticas pane renders exactly ONE ranking, fully determined by
+the active base layer — there is no chooser anywhere:
+- `PanoramaConsole.tsx:3507-3518` — `dockStats` builds a single `<RankedUnitsPanel>` from
+  `rankedRows` + `rankingKind`, both derived from `captionLayer` (the active base layer). No
+  metric picker, no best-vs-worst toggle, no dimension selector.
+- `RankedUnitsPanel.tsx:63` — the heading string is literally `Peores {N} jurisdicciones`;
+  "peores" (worst) is baked into the copy AND the data (`rankWorstUnits`).
+- `src/modules/panorama/domain/ranking.ts:93-118` — `rankWorstUnits` only ever returns WORST-N:
+  rate layers keep units strictly below target ordered by largest gap (`:105-110`); density
+  layers order by highest count (`:111-113`). "Best", "vs national average", "by a different
+  dimension" are not expressible — the function has one behavior.
+- `ranking.ts:14-15` — `RankingKind = "rate" | "density"` is the ONLY axis of variation, and it
+  is inferred from the layer's `dataType`, not chosen by the operator.
+
+So "let the user choose what to see" has **no seam to hang on**: the ranking is a pure function
+of `captionLayer`, and the only representation of a layer's per-unit data is this one worst-N
+list (plus its accessible twin `PanoramaDataTable`, same rows).
+
+**Maps to the structure.** This is precisely the missing **`representation`** axis. The viz-suite
+IA (`viz-suite.md` §"Organizing principle", axis 3) says the dock is **non-spatial
+representations GROUPED BY INTENT** — **Listas** (Registros / Estadísticas), Tendencias, Flujos —
+"3-4 intent tabs with a sub-selector, not ten flat tabs." Today the "Listas" family exists as two
+frozen tabs with zero sub-selector. The PO's ask — pick the metric, best-vs-worst, the dimension —
+IS the sub-selector the plan already names. It also lines up with **#44**: signal-driven ranking
+(rank by a signal layer, not just the base) and department-rate coverage (rank at department grain)
+are new *representations of the same view*, not new pages. This is the round-1 pattern repeating:
+just as findings 8 & 9 were one root ("layer render is imperative"), items 1 & 3 here are one root
+— **the dock's list representations are underbuilt and hand-wired** (see synthesis).
+
+**Recommendation.** Model a **ranking representation** as declarative config, so "better dashboards"
+= adding a representation, never editing `dockStats`:
+
+```
+type RankingRepresentation = {
+  id: string;                       // "worst-coverage" | "best-coverage" | "vs-national" | "by-department"
+  label: string;                    // es-AR sub-selector label
+  source: "base" | "signal" | LayerId;   // which layer feeds it (#44 signal-driven)
+  kind: "rate" | "density";
+  order: "worst" | "best";          // drops "peores" from being hardcoded
+  reference: "target" | "national-avg" | "none";  // what the gap column compares to
+  grain?: AggregationLevel;         // #44 department-rate coverage
+  columns: RankingColumn[];         // { key, header, unit } — see item 2
+};
+```
+
+`dockStats` becomes: render a small `<select>`/segmented sub-selector over the representations
+**valid for the current view** (the same `ViewState → allowed` gate #50 uses — a signal-source
+ranking only appears when a signal layer is active; `by-department` only when the scope supports
+department grain), then render the chosen representation through ONE table primitive. The empty/
+suppressed/`dataUnavailable` honesty states (`RankedUnitsPanel.tsx:65-78`) move into the primitive
+unchanged.
+
+**Build as part of #33, or a pre-#33 increment?** A **thin pre-#33 increment is viable and worth
+it**: introduce `RankingRepresentation[]` + the sub-selector for 2-3 representations
+(worst-coverage, best-coverage, and — if a signal is active — signal-ranked) WITHOUT waiting for
+the full `PanoramaViewState.representation` refactor. It is additive (new config + a `<select>`),
+touches only `dockStats` + `ranking.ts`, and it de-risks #33 by proving the representation shape on
+the cheapest surface. Fold the config into `ViewState.representation` when #33 lands (the
+sub-selection becomes a projected ViewState field, deep-linkable + saveable for free). **Do NOT**
+ship "more dashboards" as more bespoke `dockStats` branches — that is the exact debt #33 exists to
+retire.
+
+---
+
+## 2. The unlabeled `-49` — **COSMETIC now / structural in #33**
+
+**Confirmed: `-49` = brecha vs meta (points below the compliance target), NOT delta vs national
+average.** Traced end to end:
+- `RankedUnitsPanel.tsx:104-111` — for a `rate` row with a non-null gap it renders
+  `−{Math.round(row.gap)}` inside a `<span>` whose ONLY label is `aria-label="brecha vs meta"`.
+  Screen readers hear "brecha vs meta"; **sighted users see a bare `−49`** — no header, no unit.
+- `ranking.ts:108` — `const gap = target - p.value` (target minus the unit's rate).
+- `PanoramaConsole.tsx:2964` — `target: captionLayer.complianceTarget` feeds the rank.
+- `layers.ts:253` — esterilización `complianceTarget = TARGETS.STERILIZATION_COVERAGE_PCT` = **70%**
+  (`presets.ts:161` states "anchored at … (70%)"). Salta 21% ⇒ `70 − 21 = 49` ⇒ `−49`. **QED.**
+  The first number `21%` is the coverage value (`:101-103`), also header-less in this panel.
+
+Note the accessible twin already gets this right: `PanoramaDataTable.tsx:112-114` renders real
+column headers — `Jurisdicción` / `Cobertura` (or `Eventos`) / `Brecha vs meta`. So the fix is
+"bring the panel up to the table's honesty," and the correct label text already exists in-repo.
+
+**Maps to the structure.** This is the PO's own stated rule — "siempre que pongamos listas o
+números, indiquemos a qué pertenecen" — and it is the same principle as the ViewState
+"encoding-carries-its-own-legend" idea from round 1 (finding 9's insetBehavior): a representation
+should DECLARE what its numbers mean, not leave the reader to guess. The bare `−49` is that rule
+violated on the Listas surface.
+
+**Verdict: one-file label fix TODAY; structural in #33.** Two tiers:
+1. **Now (COSMETIC, `RankedUnitsPanel.tsx`):** give the panel a header row or inline units. Because
+   `RankedUnitsPanel` is a compact list, a mini header line ("Jurisdicción · cobertura · pts vs
+   objetivo") above the `<ol>` is enough; or suffix the value with `%` (already done) and the gap
+   with a visible " pts" plus a one-time legend caption. The gap column should read as
+   **"pts vs objetivo"** (points vs the 70% target) — not a bare number.
+2. **Durable (#33):** the `columns: { key, header, unit }[]` on `RankingRepresentation` (item 1)
+   makes every column self-describing BY CONSTRUCTION — the table primitive reads headers+units
+   from config, so no representation can ever ship a naked number again. This is why item 2 is
+   "cosmetic today, but its permanent home is the representation declaring its columns."
+
+Do the one-file fix in the same polish PR as item 3a; it does not wait for #33.
+
+---
+
+## 3. Registros vs Estadísticas — divergent components, redundant CAPA column
+
+### 3a. Redundant "CAPA" column when one layer is active — **COSMETIC**
+
+**Root cause.** `MapDataTable` unconditionally renders a Capa column:
+- `MapDataTable.tsx:110-112` — a fixed `<th>Capa</th>` header; `:129` — every row prints
+  `row.layer`. When `activeLayers` has one base layer, every row repeats the same layer name — a
+  column with zero information (all rows identical). `PanoramaConsole.tsx:3496` feeds
+  `mapTableRows` in with no dedup.
+- The CSV twin (`MapDataTable.tsx:33` `CSV_HEADER`) intentionally keeps Capa — for an export that
+  is fine (self-contained file), so gate the on-screen column, not the CSV.
+
+**Signal-vs-noise on the Registros columns.** Today: Capa / Unidad / Valor. When 1 layer: Capa =
+noise, Unidad + Valor = signal. When 2+ layers: Capa becomes signal (it disambiguates interleaved
+rows) — so the column is conditionally useful, exactly the "drop when it repeats" case.
+
+**Fix (COSMETIC).** Render the Capa column only when `activeLayers.length > 1`; when a single layer
+is active, drop the column and instead name the layer once in the table caption / the dock meta
+line (`PanoramaConsole.tsx:3462` already builds `"… · N capas"`). Pure presentational gate, no
+data change, CSV unchanged. Fold into the item-2 polish PR.
+
+### 3b. Registros and Estadísticas are two bespoke components doing ~the same job — **SOLVED-BY-#33 + #53**
+
+**Audit — they ARE divergent bespoke tables of ONE view.** Three separate table shapes exist over
+the same per-unit projection:
+- **Registros** → `MapDataTable.tsx` — columns Capa/Unidad/Valor, **not sortable**, its own CSV
+  builder, `"Protegido (k<5)"` suppression text, its own empty state (`:83-89`).
+- **Estadísticas (primary)** → `RankedUnitsPanel.tsx` — a headerless `<ol>` of buttons, hover-sync
+  with the map, `value` + `−gap`, its own empty/`dataUnavailable` states.
+- **Estadísticas ("Ver tabla completa")** → `PanoramaDataTable.tsx` — a REAL sortable
+  `<table>` with Jurisdicción/Cobertura/Brecha headers, its own sort state, its own empty states.
+
+Three components, three column vocabularies, three empty-state implementations, two suppression
+idioms — all rendering per-administrative-unit values of the currently-active layer(s). The PO's
+instinct is correct: **Registros and Estadísticas are the same job** (tabulate the view's per-unit
+data) shown with gratuitously different structure. The divergence is historical: `MapDataTable` was
+the "accessible map table" (Ley 26.653) promoted into the dock's Registros tab
+(`PanoramaConsole.tsx:3459-3461`), while `RankedUnitsPanel`/`PanoramaDataTable` grew from the
+ia-v2 §3.3 ranking — they were never unified because there was no representation primitive to unify
+them onto.
+
+**Maps to the structure.** This is **#53 (design-system consistency)** on top of the missing
+**`representation` axis**. In the ViewState model, Registros and Estadísticas are BOTH "Listas"
+representations of ONE view (`viz-suite.md` axis 3) — they should share a visual + structural
+family (one table primitive, one suppression idiom, one empty-state idiom, one sort behavior) and
+differ ONLY in what they emphasize: Registros = raw per-unit rows (all units, layer-faceted);
+Estadísticas = ranked/curated rows (worst/best-N, gap column). Same primitive, different
+representation config — not two codebases.
+
+**Recommendation.** Back both with a shared **`<DockTable>`** primitive driven by the
+`RankingRepresentation`/columns config from item 1:
+- Columns come from config (`{ key, header, unit }`) — fixes item 2 for both surfaces at once.
+- One suppression cell renderer (`"Protegido (k<5)"`), one empty/`dataUnavailable` pair, one
+  sort implementation, one CSV export.
+- Registros = the representation `{ order:"none", columns:[unit,value], facetBy:"layer" }`;
+  Estadísticas = `{ order:"worst", columns:[unit,coverage,gapVsTarget] }`. The map hover-sync stays
+  a prop on the primitive (used by Estadísticas, off for Registros).
+This is a #33 deliverable (it needs the representation config to exist), but the **#53 consistency
+pass can start earlier** by at least unifying the empty-state + suppression + header idioms across
+the three files even before the full primitive lands. Recommend: land the item-1 pre-#33 increment
+and the `<DockTable>` primitive together, since they share the columns config.
+
+---
+
+## 4. KPI cards don't afford "tap to change the view" — **DESIGN-DECISION** (options ranked)
+
+**Root cause (exact).** The 4 left cards are `KpiChips.tsx` (task #38 "KPI CARDS over the map"). A
+card whose KPI id names a BASE-role map layer is a button that RE-BASES the choropleth
+(`KpiChips.tsx:10-13, 123-135`, `onRebase(baseId)` → `onToggle` → radio-exclusive base swap). The
+selected affordance is thin:
+- `KpiChips.tsx:117-121` — active = `border-ln-op-azul bg-ln-op-card ring-1 ring-ln-op-azul/40`;
+  idle = `border-ln-op-line bg-ln-op-card`. **The fill is identical** (`bg-ln-op-card`) in both
+  states — deliberately opaque per #49 item 1 (translucent tints washed out over busy basemaps).
+  So selection reads ONLY as a blue 1px border + a 40%-opacity 1px ring + (via `CardBody`
+  `:172-176`) blue value text. That is the "thin blue border" the PO sees.
+- `KpiChips.tsx:132` — hover = `hover:border-ln-op-celeste` (a faint border tint) — the only "these
+  are interactive" cue, and it is invisible until hover.
+- `KpiChips.tsx:127` — semantics are **`aria-pressed`** (toggle-button), NOT `role="radiogroup"` /
+  `role="radio"` — even though the comment (`:11-12`) calls it "the radio-exclusive base swap." So
+  the a11y model is weaker than the behavior; the true radiogroup pattern already exists next door
+  in `PresetPanel.tsx:176-177` and should be adopted here (this UPGRADES a11y, it doesn't fight it).
+- `KpiChips.tsx:143-150` — a KPI with NO base layer renders as a read-only `<div>` that looks
+  **near-identical** to a clickable card (only cursor + tooltip differ). H8 already flagged this;
+  visually the "which of these can I even tap?" ambiguity is unresolved.
+
+**Maps to the structure.** These cards are the operator's control over the map's `encoding`/active
+base layer — a first-class ViewState mutation (round 1: `scope` is mutated by explicit clicks; this
+is the layer analog). The design principle from round 1 applies: an interactive control should
+LOOK like the thing it does. It should also stay in the **v2C light-canvas aesthetic** (opaque
+cards over the map, `ln-op-azul`/`ln-op-celeste` accents, `--radius-md`, the token ratchet — no new
+arbitrary values). Critically, **`PresetPanel` (Vista) already owns the "segmented strip picker"
+visual** directly above — so the KPI cards must read as selectable WITHOUT becoming a second
+segmented strip (two stacked strips meaning different things would be worse than the status quo).
+
+### Options (each buildable, with a sketch)
+
+**Option A — Segmented "métrica" strip (borrow the PresetPanel pattern).** Wrap the base-selecting
+cards in one bordered track; the active tab fills `bg-ln-op-azul/15 text-ln-op-azul`, idle
+`text-ln-op-ink-2 hover:bg-ln-op-stripe` — literally `PresetPanel.tsx:139-148` strip classes.
+
+```
+┌───────────────────────────────────────────────┐
+│ [ Antirrábica ]  Esteriliz.   Microchip   Pérd.│   ← active tab filled blue
+└───────────────────────────────────────────────┘
+```
+- Pros: reuses a tested radiogroup+roving-focus pattern; unmistakably a picker; radiogroup a11y
+  comes free.
+- Cons: **fights the content** — these cards carry value + delta + sparkline (`CardBody`), and a
+  single-line segmented strip is for bare labels. You'd lose the KPI richness. And it DUPLICATES the
+  preset strip's look right below it. **Poor fit for rich tiles.**
+- a11y: excellent (true radiogroup). v2C fit: clashes (double strip).
+
+**Option B — Elevated active card: left accent bar + `seleccionado ●` + elevation.** Keep the cards
+and the opaque fill (respects #49 item 1); make the ACTIVE card unmistakable with three redundant
+cues: a solid 3px left accent bar (`bg-ln-op-azul`), a small `● seleccionada` pill top-right, and a
+stronger shadow + `ring-2` (vs idle `shadow-sm`). Idle base cards get `cursor-pointer` + a persistent
+faint "tap" hint so they read as interactive at rest, not just on hover.
+
+```
+┌─▎ Antirrábica          ● seleccionada ┐   ← accent bar + dot + ring-2 + shadow-lg
+│▎ 64 %            ▲ +2 pts             │
+└───────────────────────────────────────┘
+┌  Esterilización                       ┐   ← idle: cursor-pointer, subtle "tocá para pintar"
+│  38 %            ▼ −1 pts             │
+└───────────────────────────────────────┘
+```
+- Pros: keeps rich KPI content + opaque fill; the active card is obvious via 3 cues; minimal
+  departure from today's cards (low build risk).
+- Cons: still card-shaped — the GROUP doesn't scream "one-of-a-set" as loudly as a radio control;
+  the "seleccionada" pill adds a little chrome.
+- a11y: pair with the radiogroup upgrade (see below). v2C fit: strong (opaque, token accents).
+
+**Option C — Radio-affordance on the cards (recommended).** Add a small radio glyph to each
+base-selecting card — `○` idle / `◉` (`ln-op-azul`) active — in the card's top-left, and promote the
+group from `aria-pressed` to `role="radiogroup"`/`role="radio"` (the code already behaves as radio-
+exclusive; this makes semantics match behavior, reusing `PresetPanel`'s exact pattern). The active
+card keeps the blue border + blue value; the radio dot is the "one-of-a-set, tap to choose" signal.
+Read-only reference cards (no base layer) simply carry **no radio dot** — which structurally fixes
+the H8 clickable-vs-read-only ambiguity (`:143-150`) at the same time.
+
+```
+┌───────────────────────┐   ┌───────────────────────┐
+│ ◉ Antirrábica    ▲+2 │   │ ○ Esterilización  ▼−1 │
+│   64 %  ▁▂▃▅        │   │   38 %  ▂▂▁▂         │   ← ○ = tappable choice, not selected
+└───────────────────────┘   └───────────────────────┘
+   (active: filled dot,        (a read-only KPI card would have
+    blue border, blue value)    NO dot at all — honestly non-tappable)
+```
+- Pros: fixes the ACTUAL root — the cards now read as "a set of choices, tap to change the map";
+  simultaneously resolves the H8 read-only ambiguity (no dot ⇒ not a choice); upgrades a11y to a
+  true radiogroup (matching the documented behavior); keeps rich KPI content AND opaque fill; visually
+  DISTINCT from the preset strip above (dots-on-cards ≠ segmented strip), so no double-strip
+  confusion.
+- Cons: adds one glyph per card (minor density); the dot must be visually distinct from the tone
+  glyph OpKpi already shows — place it leading the label, tone glyph stays with the value.
+- a11y: best (real radiogroup + the dot is a visible selection indicator, not color-only). v2C fit:
+  strong.
+
+### Ranking & recommendation
+
+**C > B > A.** Recommend **Option C as the primary direction, with B's active-card elevation
+layered on** (accent bar + `ring-2` for the active card *plus* the radio dots). Rationale: C is the
+only option that fixes the real defect (cards don't afford "one-of-a-set → tap changes everything")
+AND resolves the pre-existing H8 read-only ambiguity AND upgrades the a11y from `aria-pressed` to
+the true radiogroup the code already behaves as — while staying inside the v2C opaque-card aesthetic
+and NOT colliding with the preset segmented strip directly above. B alone helps but leaves the
+"is this a set of choices?" question soft; A is the wrong pattern for value+delta+sparkline tiles
+and duplicates the preset strip. **This is the item the PO most wants answered: adopt C (radio dots
++ radiogroup semantics) + B's elevation for the active card. It is a `KpiChips.tsx`-local change,
+no ViewState dependency, shippable now once the PO picks the direction.**
+
+---
+
+## Cross-cutting synthesis — the 4 items
+
+**Classification.**
+- **(i) Cosmetic / now:** item **2** (visible label/units on `RankedUnitsPanel` — one file) and
+  item **3a** (drop the redundant CAPA column when 1 layer). One small polish PR, no ViewState
+  dependency. Ship anytime.
+- **(ii) Solved by the #33 representation system:** items **1** (representation-chooser + Listas
+  sub-selector) and **3b** (a shared `<DockTable>` primitive backing both Registros and
+  Estadísticas). Item 2's *durable* form (columns declare their own headers+units) also lands here.
+  Item 1 is worth a **thin pre-#33 increment** (a `RankingRepresentation[]` + sub-selector for 2-3
+  rankings) that de-risks #33 on the cheapest surface; do NOT grow more bespoke `dockStats` branches.
+- **(iii) Design-decision the PO must pick:** item **4** — the KPI-card affordance. Recommendation
+  is firm (Option C + B's elevation), but the visual direction is the PO's call.
+
+**Items 1 & 3 are the SAME root** — exactly as round 1's items 8 & 9 shared the "imperative render
+layer" root. Here the shared root is **the dock's list representations are underbuilt and
+inconsistent**: there is no `representation` axis, so Estadísticas is one frozen worst-N list (item
+1) and Registros/Estadísticas are three hand-wired table shapes of one view (item 3). #33's
+representation system — declarative representations, grouped by intent (Listas/Tendencias/Flujos),
+gated by the `ViewState → allowed` compatibility function (#50) — systematizes both at once:
+"better dashboards" and "consistent tables" both become "add/parameterize a representation," never
+"edit a bespoke component." Item 2 is the honesty rule (numbers self-describe) that the
+representation's `columns` config enforces structurally; item 4 is an independent
+`KpiChips.tsx`-local affordance decision that rides on none of the above.
+
+**Round-2 scoreboard:** 4 findings → 3 buckets.
+- **Cosmetic now (items 2, 3a):** one polish PR.
+- **#33 representation system (items 1, 3b; item 2's durable form):** one root — Listas
+  representations underbuilt + inconsistent; item 1 carveable as a pre-#33 increment.
+- **Design-decision (item 4):** PO picks the card affordance — recommend Option C + B's elevation.

@@ -62,6 +62,21 @@ export function RankedUnitsPanel({
       >
         Peores {rows.length > 0 ? rows.length : 10} jurisdicciones
       </h3>
+      {rows.length > 0 && (
+        // Round-2 review #2: the value/gap numbers used to be bare — the gap
+        // carried only an aria-label (invisible to sighted users). One inline
+        // caption names both columns; the accessible twin (PanoramaDataTable)
+        // already does this with real <th> headers, this brings the compact
+        // list up to the same honesty. The value column reflects the ACTIVE
+        // layer's measure (not a hardcoded word) — measureLabel already
+        // carries that (e.g. "cobertura antirrábica").
+        <p
+          className="truncate px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-ln-op-faint"
+          title={kind === "rate" ? `${measureLabel} · pts vs objetivo` : measureLabel}
+        >
+          {kind === "rate" ? `${measureLabel} · pts vs objetivo` : measureLabel}
+        </p>
+      )}
       {rows.length === 0 ? (
         dataUnavailable ? (
           // trust/safety invariant: no data loaded — never claim "sin
@@ -104,7 +119,10 @@ export function RankedUnitsPanel({
                   {kind === "rate" && row.gap !== null && (
                     <span
                       className="shrink-0 tabular-nums text-ln-op-warn"
-                      aria-label="brecha vs meta"
+                      // The aria-label REPLACES the accessible name entirely, so
+                      // it must carry the actual figure too — otherwise a screen
+                      // reader announces "brecha vs objetivo" and never the −49.
+                      aria-label={`pts vs objetivo: menos ${Math.round(row.gap)}`}
                     >
                       −{Math.round(row.gap)}
                     </span>
