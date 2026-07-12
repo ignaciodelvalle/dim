@@ -67,13 +67,13 @@ beforeEach(() => {
 describe("loadGobPetSubView — linking-case jurisdiction gate", () => {
   it("govt: only linking record is out of scope → { ok:false }", async () => {
     // pet, then [reportRows], [caseRows]
-    h.dbState.queue = [[PET], [{ province: "Salta", locality: "Salta" }], []];
+    h.dbState.queue = [[PET], [{ province: "Salta", locality: "Salta", status: "open" }], []];
     const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
     expect(res.ok).toBe(false);
   });
 
-  it("govt: an in-scope linking welfare report → { ok:true }", async () => {
-    h.dbState.queue = [[PET], [{ province: "CABA", locality: "Palermo" }], []];
+  it("govt: an in-scope OPEN linking welfare report → { ok:true }", async () => {
+    h.dbState.queue = [[PET], [{ province: "CABA", locality: "Palermo", status: "open" }], []];
     const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.pet.publicToken).toBe("DIM-AAAA-BBBB");
@@ -92,7 +92,68 @@ describe("loadGobPetSubView — linking-case jurisdiction gate", () => {
   });
 
   it("admin: any linking record (any jurisdiction) → { ok:true }", async () => {
-    h.dbState.queue = [[PET], [{ province: "Salta", locality: "Salta" }], []];
+    h.dbState.queue = [[PET], [{ province: "Salta", locality: "Salta", status: "open" }], []];
+    const res = await loadGobPetSubView(ADMIN, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(true);
+  });
+});
+
+// #12 LOW-2 — the pet-read nexus EXPIRES on case close (Ley 25.326 minimal
+// exposure). Only an OPEN (non-terminal) in-scope linking record grants access
+// to a GOVT operator; a terminal (closed / resolved-duplicate / merged) record
+// cuts it. Admin (platform controller) is unaffected.
+describe("loadGobPetSubView — nexus expires on close (#12 LOW-2)", () => {
+  it("govt: only in-scope link is a CLOSED welfare report → { ok:false }", async () => {
+    h.dbState.queue = [[PET], [{ province: "CABA", locality: "Palermo", status: "closed" }], []];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(false);
+  });
+
+  it("govt: a duplicate/invalid in-scope welfare report is terminal → { ok:false }", async () => {
+    h.dbState.queue = [[PET], [{ province: "CABA", locality: "Palermo", status: "duplicate" }], []];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(false);
+  });
+
+  it("govt: only in-scope link is a CLOSED case → { ok:false }", async () => {
+    h.dbState.queue = [[PET], [], [{ province: "CABA", locality: "Palermo", status: "closed" }]];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(false);
+  });
+
+  it("govt: a MERGED case is terminal → { ok:false }", async () => {
+    h.dbState.queue = [[PET], [], [{ province: "CABA", locality: "Palermo", status: "merged" }]];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(false);
+  });
+
+  it("govt: an OPEN in-scope case still grants access → { ok:true }", async () => {
+    h.dbState.queue = [[PET], [], [{ province: "CABA", locality: "Palermo", status: "open" }]];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(true);
+  });
+
+  it("govt: an ESCALATED in-scope case is non-terminal → { ok:true }", async () => {
+    h.dbState.queue = [[PET], [], [{ province: "CABA", locality: "Palermo", status: "escalated" }]];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(true);
+  });
+
+  it("govt: an OPEN in-scope link grants even when a CLOSED one also exists", async () => {
+    h.dbState.queue = [
+      [PET],
+      [
+        { province: "CABA", locality: "Palermo", status: "closed" },
+        { province: "CABA", locality: "Palermo", status: "open" },
+      ],
+      [],
+    ];
+    const res = await loadGobPetSubView(GOVT_CABA, "DIM-AAAA-BBBB");
+    expect(res.ok).toBe(true);
+  });
+
+  it("admin: unaffected — a CLOSED in-scope case still resolves → { ok:true }", async () => {
+    h.dbState.queue = [[PET], [], [{ province: "CABA", locality: "Palermo", status: "closed" }]];
     const res = await loadGobPetSubView(ADMIN, "DIM-AAAA-BBBB");
     expect(res.ok).toBe(true);
   });

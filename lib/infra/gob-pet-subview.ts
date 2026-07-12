@@ -30,9 +30,16 @@ import {
 } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { type PetOpenCase, findOpenCasesForPetWithCodes } from "@/lib/infra/case-queries";
+import type { WelfareReportStatus } from "@/src/modules/welfare/domain/types";
+import { isTerminalStatus } from "@/src/modules/welfare/domain/welfare-status-rules";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import type { WelfareInspectorSession } from "./welfare-inspector-detail";
+
+// Cases whose status still grants a pet-read nexus. Mirrors the "open/escalated"
+// active set findOpenCasesForPetWithCodes uses (case-queries.ts) — terminal
+// cases (closed / merged) do not. Kept as a set for O(1) membership.
+const ACTIVE_CASE_STATUSES: ReadonlySet<string> = new Set(["open", "escalated"]);
 
 export type GobPetSubView = {
   publicToken: string;
@@ -102,6 +109,7 @@ export async function loadGobPetSubView(
       .select({
         province: welfareReports.jurisdictionProvince,
         locality: welfareReports.jurisdictionLocality,
+        status: welfareReports.status,
       })
       .from(welfareReports)
       .where(eq(welfareReports.subjectPetId, linkPetId)),
@@ -109,14 +117,34 @@ export async function loadGobPetSubView(
       .select({
         province: cases.jurisdictionProvince,
         locality: cases.jurisdictionLocality,
+        status: cases.status,
       })
       .from(cases)
       .where(eq(cases.primaryPetId, linkPetId)),
   ]);
 
-  const hasLink =
-    reportRows.some((r) => inScope(r.province, r.locality)) ||
-    caseRows.some((c) => inScope(c.province, c.locality));
+  // #12 LOW-2 — the pet-read nexus EXPIRES when the linking case/report closes
+  // (Ley 25.326 minimal-exposure, PO-approved). For a GOVT operator, only an
+  // OPEN (non-terminal) in-scope linking record grants access: once the welfare
+  // nexus reaches a terminal state the purpose is spent and access is cut. Admin
+  // (universal scope, platform controller) is unaffected — any linking record,
+  // any status, still resolves, as before. Status is filtered in JS to preserve
+  // the task-#59 timing-oracle hardening (identical per-table query shape for the
+  // not-found and out-of-scope paths).
+  const reportGrants = (r: {
+    province: string | null;
+    locality: string | null;
+    status: string;
+  }): boolean =>
+    inScope(r.province, r.locality) &&
+    (!isGovt || !isTerminalStatus(r.status as WelfareReportStatus));
+  const caseGrants = (c: {
+    province: string | null;
+    locality: string | null;
+    status: string;
+  }): boolean => inScope(c.province, c.locality) && (!isGovt || ACTIVE_CASE_STATUSES.has(c.status));
+
+  const hasLink = reportRows.some(reportGrants) || caseRows.some(caseGrants);
   if (!pet || !hasLink) return { ok: false };
 
   // Active microchip (canonical pet_identifications row).
