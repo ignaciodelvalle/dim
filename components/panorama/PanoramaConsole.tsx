@@ -35,6 +35,7 @@ import {
   type MapTableRow,
   useMapTableCsvHref,
 } from "@/components/panorama/MapDataTable";
+import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegends } from "@/components/panorama/MapLegends";
 import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
@@ -673,6 +674,11 @@ export function PanoramaConsole({
     { country: "AR", province: pointsScopeProvince, locality: pointsScopeLocality },
     mapZoom,
   );
+
+  // Panorama hardening (task #39): a monotonic key that forces a full remount of
+  // the map island. Bumped by the MapErrorBoundary's retry when a render throw
+  // took the map down — a fresh SituationalMap re-inits MapLibre from scratch.
+  const [mapReloadKey, setMapReloadKey] = useState(0);
 
   const [states, setStates] = useState<Record<LayerId, LayerPanelState>>(() => {
     const s = initialState();
@@ -3539,41 +3545,43 @@ export function PanoramaConsole({
           opening menus or switching views never re-layouts MapLibre (spec
           no-negociable #4). */}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <SituationalMapDynamic
-          layers={mapLayers}
-          label={mapLabel}
-          fill
-          aggregationLabel={aggregationLabel}
-          // task #38 v3: the console owns all chrome now (the floating vertical
-          // rail + the top-left scope pill / KPI cluster). The map renders no
-          // legacy toolbar and no top-right briefing card; it only hands its
-          // map-coupled exportPng up for the "Exportar" rail panel.
-          overlayChrome
-          registerExportPng={registerExportPng}
-          onDivisionLegendChange={setDivisionLegend}
-          onGraduatedScaleChange={setGraduatedScale}
-          onProvinceSeqLegendChange={setProvinceSeqLegend}
-          onFeatureClick={onFeatureClick}
-          onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
-          onReturnNational={canReturnNational ? onReturnNational : undefined}
-          // task #36 fix 5 — semantic scroll navigation. Only free-navigation
-          // operators (admin/universal, no forced jurisdiction) get the wheel
-          // takeover + the general scope commit; a pinned gob operator keeps
-          // cooperative wheel-zoom bounded to their jurisdiction.
-          onScopeCommit={scrollNavEligible ? commitScopeDrill : undefined}
-          scrollNavEnabled={scrollNavEligible}
-          initialBounds={initialBounds}
-          selectedProvinceCode={selectedProvinceCode}
-          selectedLocalityCenter={selectedLocalityCenter}
-          localityCommitted={effectiveScopeLocality != null}
-          frame={presetFrame}
-          onZoom={onMapZoom}
-          initialCamera={initialCamera}
-          onCameraChange={onCameraChange}
-          highlightedUnitKey={highlightedUnitKey}
-          onUnitHover={setHighlightedUnitKey}
-          viewMeta={viewMeta}
-        />
+        <MapErrorBoundary key={mapReloadKey} onReset={() => setMapReloadKey((k) => k + 1)}>
+          <SituationalMapDynamic
+            layers={mapLayers}
+            label={mapLabel}
+            fill
+            aggregationLabel={aggregationLabel}
+            // task #38 v3: the console owns all chrome now (the floating vertical
+            // rail + the top-left scope pill / KPI cluster). The map renders no
+            // legacy toolbar and no top-right briefing card; it only hands its
+            // map-coupled exportPng up for the "Exportar" rail panel.
+            overlayChrome
+            registerExportPng={registerExportPng}
+            onDivisionLegendChange={setDivisionLegend}
+            onGraduatedScaleChange={setGraduatedScale}
+            onProvinceSeqLegendChange={setProvinceSeqLegend}
+            onFeatureClick={onFeatureClick}
+            onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
+            onReturnNational={canReturnNational ? onReturnNational : undefined}
+            // task #36 fix 5 — semantic scroll navigation. Only free-navigation
+            // operators (admin/universal, no forced jurisdiction) get the wheel
+            // takeover + the general scope commit; a pinned gob operator keeps
+            // cooperative wheel-zoom bounded to their jurisdiction.
+            onScopeCommit={scrollNavEligible ? commitScopeDrill : undefined}
+            scrollNavEnabled={scrollNavEligible}
+            initialBounds={initialBounds}
+            selectedProvinceCode={selectedProvinceCode}
+            selectedLocalityCenter={selectedLocalityCenter}
+            localityCommitted={effectiveScopeLocality != null}
+            frame={presetFrame}
+            onZoom={onMapZoom}
+            initialCamera={initialCamera}
+            onCameraChange={onCameraChange}
+            highlightedUnitKey={highlightedUnitKey}
+            onUnitHover={setHighlightedUnitKey}
+            viewMeta={viewMeta}
+          />
+        </MapErrorBoundary>
         <PanoramaDock
           open={dockOpen}
           onOpenChange={setDockOpen}

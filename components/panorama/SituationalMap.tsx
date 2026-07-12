@@ -869,7 +869,49 @@ export function SituationalMap({
   const [cabaViewportInView, setCabaViewportInView] = useState(true);
   const cabaInViewRef = useRef(true);
 
-  // --- One-time map construction (basemap only). ---------------------------
+  // --- Resilience (task #39 hardening) -------------------------------------
+  // A monotonic epoch that forces the one-time construction effect to tear the
+  // map down and rebuild it from scratch — the single recovery primitive shared
+  // by BOTH the WebGL-context-loss handler and the basemap-fetch retry. A rebuild
+  // re-inits the GL context, re-fetches the basemap, re-adds every source/layer/
+  // image and re-applies the camera captured below.
+  const [mapEpoch, setMapEpoch] = useState(0);
+  const setMapEpochRef = useRef(setMapEpoch);
+  setMapEpochRef.current = setMapEpoch;
+  // The camera to restore after a rebuild (WebGL restore / basemap retry), so
+  // recovery lands EXACTLY where the operator was rather than snapping to the
+  // national frame. Captured before a rebuild; consumed once by the load handler.
+  const cameraBeforeReinitRef = useRef<MapCamera | null>(null);
+  // The basemap (ar-provinces) GeoJSON fetch FAILED — the country outline never
+  // loaded, so the canvas would be an honest-less blank. Drives a visible es-AR
+  // error overlay with a retry instead of a silent empty map.
+  const [basemapError, setBasemapError] = useState(false);
+  const setBasemapErrorRef = useRef(setBasemapError);
+  setBasemapErrorRef.current = setBasemapError;
+  // The WebGL context was LOST (GPU reset, tab backgrounded too long, driver
+  // hiccup). We preventDefault the loss so the browser attempts a restore, show a
+  // recovering overlay, and rebuild on restore. A manual "Recargar" is offered as
+  // a fallback if the automatic restore never fires.
+  const [glLost, setGlLost] = useState(false);
+  // Stable handler refs so the construction-effect cleanup can detach the GL
+  // listeners from the canvas before the map (and its canvas) is destroyed.
+  const glLostHandlerRef = useRef<((e: Event) => void) | null>(null);
+  const glRestoredHandlerRef = useRef<(() => void) | null>(null);
+
+  /** Capture the live camera (CPU-side transform, valid even after GL loss) so a
+   * rebuild restores the exact frame. Hoisted like the other map helpers so the
+   * construction effect can call it without a reactive-dep flag. */
+  function captureCameraForReinit(map: maplibregl.Map): void {
+    try {
+      const c = map.getCenter();
+      cameraBeforeReinitRef.current = { zoom: map.getZoom(), lng: c.lng, lat: c.lat };
+    } catch {
+      // Transform unreadable — the rebuild falls back to the computed frame.
+    }
+  }
+
+  // --- Map construction (basemap only). Built at mount; REBUILT on `mapEpoch`. -
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `mapEpoch` is the intentional rebuild trigger — bumping it tears the map down (cleanup) and re-inits it for WebGL-context restore / basemap retry. The other referenced helpers are hoisted + stable.
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
@@ -951,6 +993,27 @@ export function SituationalMap({
         map.scrollZoom.disable();
         map.getCanvas().addEventListener("wheel", handleNavWheel, { passive: false });
       }
+      // task #39 hardening — WebGL context-loss recovery. A GPU reset / driver
+      // hiccup / long-backgrounded tab fires `webglcontextlost` on the canvas;
+      // without preventDefault the browser will NOT try to restore and the map is
+      // dead pixels forever. We preventDefault (opt into restore), capture the
+      // camera (CPU-side transform survives GL loss), and show a recovering
+      // overlay; on `webglcontextrestored` we REBUILD the map (epoch bump) so our
+      // custom sources/layers/images all come back cleanly and the camera lands
+      // where the operator left it.
+      const onContextLost = (e: Event) => {
+        e.preventDefault();
+        captureCameraForReinit(map);
+        setGlLost(true);
+      };
+      const onContextRestored = () => {
+        setGlLost(false);
+        setMapEpochRef.current((n) => n + 1);
+      };
+      glLostHandlerRef.current = onContextLost;
+      glRestoredHandlerRef.current = onContextRestored;
+      map.getCanvas().addEventListener("webglcontextlost", onContextLost, false);
+      map.getCanvas().addEventListener("webglcontextrestored", onContextRestored, false);
       // ARCHETYPE A full-bleed: the card height is now viewport-relative, so a
       // window resize (or a rail/controls reflow) changes the canvas size. Keep
       // MapLibre's GL viewport in sync — without this the map stretches/letterboxes
@@ -1164,8 +1227,17 @@ export function SituationalMap({
           map.on("mouseleave", "ar-prov-fill", () => {
             map.getCanvas().style.cursor = "";
           });
+          // task #39 hardening — the basemap loaded: clear any prior error state
+          // (a retry that succeeded) so the overlay never lingers over a live map.
+          setBasemapErrorRef.current(false);
         } catch {
-          // Basemap unavailable — points still render over the dark canvas.
+          // task #39 hardening — the country outline never loaded. This is NOT a
+          // silent degrade: surface an honest es-AR error overlay with a retry so
+          // the operator is never left staring at a blank canvas wondering if the
+          // map is empty or broken. The retry rebuilds the map (epoch bump), which
+          // re-runs this fetch (the geojson cache evicts rejections, so a transient
+          // failure can genuinely recover).
+          if (!cancelled) setBasemapErrorRef.current(true);
         }
         if (cancelled) return;
         loadedRef.current = true;
@@ -1185,7 +1257,11 @@ export function SituationalMap({
         // view matches the sender's. Otherwise fall through to the computed frame.
         // (The A1 autozoom effect early-returns at mount — it only handles later
         // jurisdiction picks — so it never clobbers this restored camera.)
-        const restoredCamera = initialCameraRef.current;
+        // task #39 hardening — a recovery rebuild (WebGL restore / basemap retry)
+        // captured the live camera; it WINS over the mount-time shared camera so
+        // recovery lands exactly where the operator was, then is consumed once.
+        const restoredCamera = cameraBeforeReinitRef.current ?? initialCameraRef.current;
+        cameraBeforeReinitRef.current = null;
         if (restoredCamera) {
           map.jumpTo({
             center: [restoredCamera.lng, restoredCamera.lat],
@@ -1236,7 +1312,18 @@ export function SituationalMap({
         divisionMoveTimerRef.current = null;
       }
       // task #36 fix 5 — drop the scroll-nav wheel listener + fallback timer.
-      mapRef.current?.getCanvas().removeEventListener("wheel", handleNavWheel);
+      const canvas = mapRef.current?.getCanvas();
+      canvas?.removeEventListener("wheel", handleNavWheel);
+      // task #39 hardening — detach the WebGL context listeners before the canvas
+      // is destroyed (belt-and-braces; map.remove() also tears down the canvas).
+      if (glLostHandlerRef.current) {
+        canvas?.removeEventListener("webglcontextlost", glLostHandlerRef.current);
+        glLostHandlerRef.current = null;
+      }
+      if (glRestoredHandlerRef.current) {
+        canvas?.removeEventListener("webglcontextrestored", glRestoredHandlerRef.current);
+        glRestoredHandlerRef.current = null;
+      }
       if (navAnimTimerRef.current !== null) {
         window.clearTimeout(navAnimTimerRef.current);
         navAnimTimerRef.current = null;
@@ -1246,8 +1333,9 @@ export function SituationalMap({
       mapRef.current?.remove();
       mapRef.current = null;
     };
-    // Build the map ONCE; layer reconciliation happens in the effect below.
-  }, []);
+    // Built once at mount; REBUILT when `mapEpoch` bumps (WebGL-context restore /
+    // basemap retry) — the cleanup above fully tears the old map down first.
+  }, [mapEpoch]);
 
   // task #36 fix 1 — recompute whether CABA is inside the current viewport and,
   // when the boolean flips, push it into state so the inset predicate re-renders.
@@ -3345,6 +3433,17 @@ export function SituationalMap({
     </div>
   ) : null;
 
+  // Hardening test seam (task #39 chaos harness): a window flag forces a render
+  // throw so the automated suite can prove the MapErrorBoundary degrades the map
+  // island to a "Recargar el panorama" card instead of a dead route. Guarded by a
+  // global that only the harness ever sets — zero production surface.
+  if (
+    typeof window !== "undefined" &&
+    (window as unknown as { __PANORAMA_FORCE_THROW__?: boolean }).__PANORAMA_FORCE_THROW__ === true
+  ) {
+    throw new Error("panorama: forced render throw (chaos harness seam)");
+  }
+
   return (
     <div
       data-pano-map
@@ -3483,6 +3582,60 @@ export function SituationalMap({
             <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-4 py-2 text-[var(--text-md)] text-ln-op-ink-2 shadow-sm">
               Sin datos para esta capa {emptyStateScope}.
             </p>
+          </div>
+        )}
+        {/* task #39 hardening — basemap fetch failed: an HONEST error state with a
+            retry, NEVER a silent blank canvas. Opaque so the operator can't mistake
+            it for an empty (but working) map. */}
+        {basemapError && (
+          <div
+            role="alert"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-ln-op-card/95 p-6 text-center"
+          >
+            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+              No pudimos cargar el mapa
+            </p>
+            <p className="max-w-sm text-[var(--text-sm)] text-ln-op-mute">
+              No se pudo descargar la geografía base. Revisá la conexión y volvé a intentar.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (mapRef.current) captureCameraForReinit(mapRef.current);
+                setBasemapError(false);
+                setMapEpoch((n) => n + 1);
+              }}
+              className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+        {/* task #39 hardening — WebGL context lost: a recovering overlay. The
+            browser normally restores the context automatically (→ rebuild); the
+            button is a manual fallback if the restore never fires. */}
+        {glLost && (
+          <div
+            role="alert"
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-ln-op-card/95 p-6 text-center"
+          >
+            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+              Recuperando el mapa…
+            </p>
+            <p className="max-w-sm text-[var(--text-sm)] text-ln-op-mute">
+              El mapa perdió el contexto gráfico y se está recuperando solo. Si no vuelve,
+              recargalo.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setGlLost(false);
+                setMapEpoch((n) => n + 1);
+              }}
+              className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+            >
+              Recargar el mapa
+            </button>
           </div>
         )}
       </div>
