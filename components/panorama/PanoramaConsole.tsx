@@ -870,6 +870,7 @@ export function PanoramaConsole({
   const asOfKpiSeededRef = useRef<boolean>(initialAsOf === null);
   const kpiFetchQsRef = useRef(kpiFetchQs);
   kpiFetchQsRef.current = kpiFetchQs;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: asOfKpiIso is the sole intended trigger — scope/period changes are handled by the effect above; kpiFetchQs is read live via a ref and signalFor is stable.
   useEffect(() => {
     // Mount pass: skip when seeded at LIVE (server strip already matches). A deep
     // link that mounts WITH an ?asOf starts unseeded so the strip reconciles to the
