@@ -388,41 +388,41 @@ export default async function InicioPage() {
           mobile) deep-links here so capture lives in the EXISTING tab bar slot
           rather than a second stacked fixed bar (PO 2026-07-12 #4). */}
       <div id="asentar" className="scroll-mt-24">
-      <LnCard className="mb-6 border-t-[3px] border-t-[var(--color-ln-azul)]">
-        {/* Card header */}
-        <div className="flex items-center gap-3 px-[18px] pb-3 pt-4">
-          <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
-            {/* pencil/edit glyph */}
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
+        <LnCard className="mb-6 border-t-[3px] border-t-[var(--color-ln-azul)]">
+          {/* Card header */}
+          <div className="flex items-center gap-3 px-[18px] pb-3 pt-4">
+            <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
+              {/* pencil/edit glyph */}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+                Asentar un hecho en la libreta
+              </h2>
+              <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
+                Escribí en lenguaje natural — abrimos el formulario que corresponda.
+              </p>
+            </div>
           </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
-              Asentar un hecho en la libreta
-            </h2>
-            <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
-              Escribí en lenguaje natural — abrimos el formulario que corresponda.
-            </p>
-          </div>
-        </div>
 
-        {/* EventCatcher body — behavior untouched, only outer container styled above */}
-        <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-3.5">
-          <EventCatcher pets={eventCatcherPets} />
-        </div>
-      </LnCard>
+          {/* EventCatcher body — behavior untouched, only outer container styled above */}
+          <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-3.5">
+            <EventCatcher pets={eventCatcherPets} />
+          </div>
+        </LnCard>
       </div>
 
       {/* ------------------------------------------------------------------ */}

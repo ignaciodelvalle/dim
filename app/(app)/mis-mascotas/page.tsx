@@ -148,8 +148,7 @@ export default async function MisMascotasPage({
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             {activePets.length} activa{activePets.length === 1 ? "" : "s"}
-            {deceasedPets.length > 0 &&
-              ` · ${deceasedPets.length} en memoria`}
+            {deceasedPets.length > 0 && ` · ${deceasedPets.length} en memoria`}
           </p>
         </div>
         <Link href="/mis-mascotas/nueva">

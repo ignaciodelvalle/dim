@@ -77,10 +77,14 @@ function VacTile({
     <div
       className={`flex flex-col items-center justify-center rounded-[var(--radius-sm)] border px-1 py-2 ${bg} ${border}`}
     >
-      <span className={`font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-none ${text}`}>
+      <span
+        className={`font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-none ${text}`}
+      >
         {count}
       </span>
-      <span className={`mt-1 font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-[.06em] ${text}`}>
+      <span
+        className={`mt-1 font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-[.06em] ${text}`}
+      >
         {label}
       </span>
     </div>

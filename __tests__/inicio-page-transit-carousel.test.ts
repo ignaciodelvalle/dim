@@ -19,9 +19,9 @@ vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
-import { db, ownerships, petEvents, pets } from "@/db";
 import type { CredCardData } from "@/app/(app)/inicio/_components/CredCard";
 import { CredentialRail } from "@/app/(app)/inicio/_components/CredentialRail";
+import { db, ownerships, petEvents, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

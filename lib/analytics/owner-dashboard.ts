@@ -1322,7 +1322,10 @@ export async function fetchVaccinationSummariesForPets(
 
   // Project corrections BEFORE grouping (D2 at the read boundary), same as the
   // compliance batch loader above.
-  const eventsByPet = new Map<string, Array<{ eventType: string; occurredAt: Date; payload: unknown }>>();
+  const eventsByPet = new Map<
+    string,
+    Array<{ eventType: string; occurredAt: Date; payload: unknown }>
+  >();
   for (const r of overlayAmendments(eventRows)) {
     const list = eventsByPet.get(r.petId) ?? [];
     list.push({ eventType: r.eventType, occurredAt: r.occurredAt, payload: r.payload });
