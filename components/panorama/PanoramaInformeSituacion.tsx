@@ -153,9 +153,7 @@ export function PanoramaInformeSituacion({ model }: Props) {
                       <td className="py-1">{row.label}</td>
                       <td className="py-1 text-right tabular-nums">
                         {row.value}
-                        {row.gapText && (
-                          <span className="ml-2 text-ln-op-warn">{row.gapText}</span>
-                        )}
+                        {row.gapText && <span className="ml-2 text-ln-op-warn">{row.gapText}</span>}
                       </td>
                     </tr>
                   ))}
@@ -192,7 +190,10 @@ export function PanoramaInformeSituacion({ model }: Props) {
             </ul>
           )}
           <p>{model.kAnonDisclosure}</p>
-          <p>Fuente: MiMAR — Centro de Situación Nacional. Toda vista es una proyección del registro de eventos.</p>
+          <p>
+            Fuente: MiMAR — Centro de Situación Nacional. Toda vista es una proyección del registro
+            de eventos.
+          </p>
         </footer>
       </article>
     </div>

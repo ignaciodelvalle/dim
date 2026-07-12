@@ -30,7 +30,10 @@ export type ReportedErrorPayload = {
  * Reports a client-side error in a consistent structured shape. Currently
  * logs to `console.error`; the sink is deferred (see module TODO above).
  */
-export function reportError(error: Error & { digest?: string }, context?: ReportErrorContext): void {
+export function reportError(
+  error: Error & { digest?: string },
+  context?: ReportErrorContext,
+): void {
   const payload: ReportedErrorPayload = {
     message: error.message,
     stack: error.stack,

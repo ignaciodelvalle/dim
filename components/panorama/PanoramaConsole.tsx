@@ -74,8 +74,8 @@ import {
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { deferPrint } from "@/lib/infra/defer-print";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
+import { deferPrint } from "@/lib/infra/defer-print";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import {
   type MapCamera,
@@ -96,6 +96,7 @@ import {
 } from "@/src/modules/panorama/domain/bivariate";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
+import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
@@ -107,7 +108,6 @@ import {
   isPointsLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
-import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
@@ -123,7 +123,6 @@ import {
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
-import { explainViewState } from "@/src/modules/panorama/domain/view-state-caption";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -139,6 +138,7 @@ import {
   toPeriodSearchParams,
   toScopeFilter,
 } from "@/src/modules/panorama/domain/view-state";
+import { explainViewState } from "@/src/modules/panorama/domain/view-state-caption";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 

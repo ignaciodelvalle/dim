@@ -13,9 +13,9 @@ describe("derivePreset", () => {
 
   it("is order- and duplicate-independent (a SET, not a sequence)", () => {
     // brotes-activos = [cobertura, zoonosis]; reversed + duplicated still matches.
-    expect(
-      derivePreset(["zoonosis", "cobertura", "cobertura"], null, PANORAMA_PRESETS),
-    ).toBe("brotes-activos");
+    expect(derivePreset(["zoonosis", "cobertura", "cobertura"], null, PANORAMA_PRESETS)).toBe(
+      "brotes-activos",
+    );
   });
 
   it("returns null ('personalizada') for a hand-edited set matching no preset", () => {
@@ -35,9 +35,7 @@ describe("derivePreset", () => {
     // must follow truthfully, not cling to the old preset or force null.
     expect(derivePreset(["cobertura"], null, PANORAMA_PRESETS)).toBe("cumplimiento");
     // And the reverse edit (adding zoonosis to cumplimiento) lands on brotes-activos.
-    expect(derivePreset(["cobertura", "zoonosis"], null, PANORAMA_PRESETS)).toBe(
-      "brotes-activos",
-    );
+    expect(derivePreset(["cobertura", "zoonosis"], null, PANORAMA_PRESETS)).toBe("brotes-activos");
   });
 
   it("returns null when an explicit encoding override is set (custom view)", () => {

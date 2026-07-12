@@ -422,7 +422,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     ui: {
       definition:
         "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado (C7). Exigido por Ley CABA 4078 / Ley Prov. 14.107.",
-      formula: "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
+      formula:
+        "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
       caveat:
         "Mientras no exista el formulario de atestación, el numerador es 0 y la tasa refleja 0% de adopción del registro — esto es un valor verdadero e informativo, no un error.",
     },

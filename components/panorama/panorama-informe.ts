@@ -164,9 +164,7 @@ function formatGeneratedAt(now: Date): string {
  * the live edge reads honestly as live data with no corte (never a fake date).
  */
 export function informeAsOfLabel(asOf: Date | null): string {
-  return asOf
-    ? `Situación al ${formatAsOfDate(asOf)}`
-    : "Datos en vivo (sin corte temporal)";
+  return asOf ? `Situación al ${formatAsOfDate(asOf)}` : "Datos en vivo (sin corte temporal)";
 }
 
 /** Format a ranked value for display — mirrors RankedUnitsPanel.formatValue. */
@@ -189,9 +187,7 @@ function buildRanking(ranking: InformeRankingInput): InformeRankingModel {
     : `Peores ${ranking.rows.length > 0 ? ranking.rows.length : RANKING_LIMIT} · ${ranking.measureLabel}`;
 
   const columnLabel =
-    ranking.kind === "rate"
-      ? `${ranking.measureLabel} · pts vs objetivo`
-      : ranking.measureLabel;
+    ranking.kind === "rate" ? `${ranking.measureLabel} · pts vs objetivo` : ranking.measureLabel;
 
   const rows: InformeRankRowModel[] = ranking.rows.map((row, i) => ({
     key: row.key,

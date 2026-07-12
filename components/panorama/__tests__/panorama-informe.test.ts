@@ -57,7 +57,8 @@ function baseInput(overrides: Partial<BuildInformeInput> = {}): BuildInformeInpu
       suppressedCount: 2,
       unavailable: false,
     },
-    caption: "Cada área es una provincia. Relleno = cobertura antirrábica, estado actual. Meta 80%.",
+    caption:
+      "Cada área es una provincia. Relleno = cobertura antirrábica, estado actual. Meta 80%.",
     activeLayerLabels: ["Cobertura antirrábica", "Señales de zoonosis"],
     suppressedTotal: 3,
     ...overrides,
@@ -144,12 +145,8 @@ describe("buildInformeModel", () => {
 
   it("extracts the first-sentence method note per KPI (dashboard-parity wording)", () => {
     const m = buildInformeModel(baseInput());
-    expect(m.methodNotes).toContain(
-      "Porcentaje de perros del padrón con vacunación antirrábica.",
-    );
-    expect(m.methodNotes).toContain(
-      "Tasa de incidentes de mordedura por cada 10.000 habitantes.",
-    );
+    expect(m.methodNotes).toContain("Porcentaje de perros del padrón con vacunación antirrábica.");
+    expect(m.methodNotes).toContain("Tasa de incidentes de mordedura por cada 10.000 habitantes.");
   });
 
   it("carries the demo banner copy so it is never dropped", () => {
