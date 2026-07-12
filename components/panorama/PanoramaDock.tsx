@@ -18,7 +18,7 @@
 //
 // English identifiers, es-AR user copy (project invariant #4).
 
-import type { ReactNode } from "react";
+import { type ReactNode, useRef, useState } from "react";
 
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 
@@ -64,6 +64,49 @@ export function PanoramaDock({
   timeline,
 }: Props) {
   const panes: Record<PanoramaDockTab, ReactNode> = { registros, stats, timeline };
+
+  // Roving tabindex (WAI-ARIA APG tab pattern, MANUAL activation): only one tab
+  // is Tab-stoppable — the active one, or the tab the operator has arrowed to.
+  // Left/Right/Home/End move FOCUS between tabs without switching the pane;
+  // Enter/Space (native button activation via onClick) commit the switch. This
+  // mirrors PresetPanel's radiogroup and gives role="tablist" the arrow-key
+  // navigation a screen-reader user expects (WCAG 2.1.1 / ARIA APG conformance).
+  const selectedIndex = Math.max(0, TAB_ORDER.indexOf(tab));
+  const [focusIndex, setFocusIndex] = useState<number | null>(null);
+  const rovingIndex = focusIndex ?? selectedIndex;
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  function focusTabAt(index: number) {
+    const clamped = (index + TAB_ORDER.length) % TAB_ORDER.length;
+    setFocusIndex(clamped);
+    tabRefs.current[clamped]?.focus();
+  }
+
+  function handleTabKeyDown(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    switch (e.key) {
+      case "ArrowRight":
+        e.preventDefault();
+        focusTabAt(index + 1);
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        focusTabAt(index - 1);
+        break;
+      case "Home":
+        e.preventDefault();
+        focusTabAt(0);
+        break;
+      case "End":
+        e.preventDefault();
+        focusTabAt(TAB_ORDER.length - 1);
+        break;
+      default:
+        // Enter/Space fall through to the native button click (onClick), which
+        // commits the tab — manual activation (selection does NOT follow focus).
+        break;
+    }
+  }
+
   return (
     <section
       aria-label="Datos de la vista"
@@ -78,17 +121,36 @@ export function PanoramaDock({
         <span aria-hidden="true" className="text-ln-op-faint">
           ≡
         </span>
-        <div role="tablist" aria-label="Paneles de datos" className="flex h-full items-stretch">
-          {TAB_ORDER.map((key) => {
+        <div
+          role="tablist"
+          aria-label="Paneles de datos"
+          className="flex h-full items-stretch"
+          onBlur={(e) => {
+            // Focus left the whole tablist → drop the roving position so a later
+            // Tab-in lands on the SELECTED tab again (APG).
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocusIndex(null);
+          }}
+        >
+          {TAB_ORDER.map((key, index) => {
             const isActive = key === tab;
             return (
               <button
                 key={key}
                 id={`pano-dock-tab-${key}`}
+                ref={(el) => {
+                  tabRefs.current[index] = el;
+                }}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                aria-controls="pano-dock-panel"
+                // aria-controls must only reference an element that EXISTS: the
+                // tabpanel below renders solely while expanded, so pointing at it
+                // when collapsed is a dangling IDREF (axe aria-valid-attr-value,
+                // WCAG 4.1.2). Set the relationship only when the panel is live.
+                aria-controls={open ? "pano-dock-panel" : undefined}
+                // Roving tabindex: only the active/arrowed tab is Tab-stoppable.
+                tabIndex={index === rovingIndex ? 0 : -1}
+                onKeyDown={(e) => handleTabKeyDown(e, index)}
                 onClick={() => {
                   onTabChange(key);
                   // Spec: clicking any tab while collapsed also expands.
