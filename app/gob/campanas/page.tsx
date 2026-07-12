@@ -452,7 +452,7 @@ export default async function GobCampanasPage({
                   </thead>
                   <tbody>
                     {dashboard.geoReach.rows.map((r) => (
-                      <tr key={r.locality} className="border-b border-ln-op-line/50">
+                      <tr key={`${r.province ?? "?"}·${r.locality}`} className="border-b border-ln-op-line/50">
                         <td className="py-1 text-ln-op-ink">{r.locality}</td>
                         <td className="py-1 text-ln-op-mute">{r.province ?? "—"}</td>
                         <td className="py-1 text-right tabular-nums text-ln-op-ink">
