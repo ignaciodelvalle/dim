@@ -23,6 +23,14 @@ different state slice than the map), the deep-links don't round-trip (H14), the 
 compare each re-derive state. Six fuse boxes instead of one panel; nothing on fire, but two boxes
 sometimes disagree, and every new room means tracing wires through all six.
 
+## Companion artifacts (task #50 execution)
+
+- **Concrete design** (the PLAN-FIRST shape gate before P1 code): `panorama-viewstate-design.md` —
+  the canonical `PanoramaViewState`, the STORED-vs-DERIVED table, `capabilitiesFor`, the URL boundary
+  (incl. the dual-write-mechanism + level-seed hazards), and the forks surfaced for PO review.
+- **Migration checklist** (the P0 inventory): `panorama-viewstate-inventory.md` — every scattered site
+  with file:line, a tickable checklist per phase, and the round-trip defects the boundary closes.
+
 ## Non-negotiable framing
 
 The map WORKS and is PO-validated. This is a **behind-the-UX refactor**, incremental, never a
