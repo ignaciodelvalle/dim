@@ -2101,6 +2101,19 @@ export function PanoramaConsole({
     // levelVersion/asOfVersion bump when the province caches (refs) change.
   }, [activeLayers, bivariateActive, levelVersion, asOfVersion]);
 
+  // H12 (cowork QA): on a direct-URL entry the map paints its bubbles 2-4s late,
+  // so the operator stares at a blank canvas wondering if it is empty or broken.
+  // Show a loading skeleton over the map WHILE an active layer is still fetching
+  // AND nothing is painted yet. It clears the instant features arrive; if the
+  // fetch resolves to a legitimately empty scope the skeleton clears too and the
+  // honest empty-state takes over (we gate on `loading`, never on emptiness).
+  const mapIsPainting = useMemo(
+    () => mapLayers.some((l) => l.features.features.length > 0),
+    [mapLayers],
+  );
+  const mapDataLoading = activeLayers.some((l) => states[l.id as LayerId]?.loading);
+  const showMapSkeleton = !mapIsPainting && mapDataLoading;
+
   // task #65: the signal histogram bins for the TimeScrubber. Built ONLY from
   // per-event timestamps ALREADY on the client — the real-event dots (points mode)
   // carry `occurredAt`/`lastSeenAt`; the aggregated overview features carry only a
@@ -3625,6 +3638,21 @@ export function PanoramaConsole({
             viewMeta={viewMeta}
           />
         </MapErrorBoundary>
+        {/* H12: loading skeleton over the map — a shimmer + honest cue while the
+            first bubbles fetch, so a direct-URL entry never reads as a blank map.
+            pointer-events-none so it never blocks the map underneath; cleared the
+            instant features paint. */}
+        {showMapSkeleton && (
+          <div
+            aria-busy="true"
+            aria-live="polite"
+            className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-ln-op-card/45 backdrop-blur-[1px]"
+          >
+            <span className="animate-pulse rounded-full border border-ln-op-line bg-ln-op-card/95 px-4 py-1.5 text-[var(--text-sm)] font-medium text-ln-op-mute shadow-sm">
+              Cargando el mapa…
+            </span>
+          </div>
+        )}
         <PanoramaDock
           open={dockOpen}
           onOpenChange={setDockOpen}
