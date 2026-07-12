@@ -47,6 +47,10 @@ import {
   welfareReports,
 } from "@/db";
 import {
+  type VaccinationSummary,
+  computeVaccinationSummary,
+} from "@/lib/domain/libreta-health-status";
+import {
   type ReminderVariant,
   getReminderVariant,
   isVaccineReportable,
@@ -1267,6 +1271,67 @@ export async function fetchComplianceStatesForPets(
         estimatedWeightKg: petInfo?.estimatedWeightKg ?? null,
       }),
     );
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Batch vaccination summaries — the owner-home credential carousel (task #9)
+// ---------------------------------------------------------------------------
+
+// Event types the vaccine-vigencia summary reads. vaccination_administered is
+// the dose record; event_amended is overlaid first so a corrected dose date /
+// next_due feeds the summary corrected (same read-boundary D2 pattern as
+// fetchComplianceStatesForPets).
+const VACCINE_SUMMARY_EVENT_TYPES = ["vaccination_administered", "event_amended"] as const;
+
+/**
+ * Per-pet vaccine-vigencia summary (Vigente / Por vencer / Vencida counts) for
+ * a bounded set of pets — the credential carousel card body on /inicio.
+ *
+ * Reuses the SAME pure derivation the libreta face and VacunasStatusBadges use
+ * (`computeVaccinationSummary`), so a card's badge counts can never disagree
+ * with the pet profile. One bounded, indexed query keyed by petId (the carousel
+ * is capped at OWNER_CAROUSEL_CAP pets), then pure per-pet derivation.
+ *
+ * Never throws — returns an empty map when `petSpecies` is empty.
+ */
+export async function fetchVaccinationSummariesForPets(
+  petSpecies: Array<{ petId: string; species: string }>,
+): Promise<Map<string, VaccinationSummary>> {
+  if (petSpecies.length === 0) return new Map();
+  const petIds = petSpecies.map((p) => p.petId);
+  const now = new Date();
+
+  const eventRows = await db
+    .select({
+      id: petEvents.id,
+      petId: petEvents.petId,
+      eventType: petEvents.eventType,
+      payload: petEvents.payload,
+      occurredAt: petEvents.occurredAt,
+    })
+    .from(petEvents)
+    .where(
+      and(
+        inArray(petEvents.petId, petIds),
+        inArray(petEvents.eventType, [...VACCINE_SUMMARY_EVENT_TYPES]),
+      ),
+    )
+    .orderBy(asc(petEvents.occurredAt));
+
+  // Project corrections BEFORE grouping (D2 at the read boundary), same as the
+  // compliance batch loader above.
+  const eventsByPet = new Map<string, Array<{ eventType: string; occurredAt: Date; payload: unknown }>>();
+  for (const r of overlayAmendments(eventRows)) {
+    const list = eventsByPet.get(r.petId) ?? [];
+    list.push({ eventType: r.eventType, occurredAt: r.occurredAt, payload: r.payload });
+    eventsByPet.set(r.petId, list);
+  }
+
+  const result = new Map<string, VaccinationSummary>();
+  for (const { petId, species } of petSpecies) {
+    result.set(petId, computeVaccinationSummary(eventsByPet.get(petId) ?? [], species, now));
   }
   return result;
 }

@@ -130,12 +130,19 @@ import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { OWNER_NAV } from "@/components/layout/nav-presets";
 
 describe("CitizenTabBar — 44px tab targets", () => {
-  it("all owner tabs render as links with min-h-12", () => {
+  it("all owner tabs plus the Asentar action render as links with min-h-12", () => {
     const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
     const anchors = html.match(/<a [^>]*>/g) ?? [];
-    expect(anchors.length).toBe(OWNER_NAV.length);
+    // OWNER_NAV tabs + the injected "Asentar un hecho" capture action (task #9).
+    expect(anchors.length).toBe(OWNER_NAV.length + 1);
     for (const anchor of anchors) {
       expect(anchor).toContain("min-h-12");
     }
+  });
+
+  it("includes the Asentar capture action deep-linking to the home capture card", () => {
+    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
+    expect(html).toContain('href="/inicio#asentar"');
+    expect(html).toContain("Asentar");
   });
 });

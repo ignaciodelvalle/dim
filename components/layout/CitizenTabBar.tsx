@@ -78,41 +78,65 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
 
   if (nav.length === 0) return null;
 
+  const navItems = nav.map((item) => {
+    const active = isNavItemActive(item, pathname);
+    return (
+      <li key={item.href} className="min-w-0 flex-1">
+        <Link
+          href={item.href}
+          aria-current={active ? "page" : undefined}
+          className={[
+            "flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 no-underline",
+            "transition-colors active:opacity-70",
+            active
+              ? "text-[var(--color-ln-azul)]"
+              : "text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)]",
+          ].join(" ")}
+        >
+          <TabIcon href={item.href} />
+          <span
+            className={[
+              "w-full truncate text-center text-xs",
+              active ? "font-semibold" : "font-medium",
+            ].join(" ")}
+          >
+            {item.label}
+          </span>
+        </Link>
+      </li>
+    );
+  });
+
+  // "Asentar un hecho" lives in this EXISTING tab-bar slot — the mobile capture
+  // affordance, not a second stacked fixed bar (PO 2026-07-12 #4). It deep-links
+  // to the home capture card (#asentar). Inserted at the visual centre so it
+  // reads as the emphasised primary action.
+  const asentar = (
+    <li key="__asentar" className="min-w-0 flex-1">
+      <Link
+        href="/inicio#asentar"
+        className="flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 text-[var(--color-ln-azul)] no-underline transition-colors active:opacity-70"
+      >
+        <span
+          aria-hidden="true"
+          className="grid h-6 w-6 place-items-center rounded-full bg-[var(--color-ln-azul)] text-[var(--color-ln-card)]"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" className="h-4 w-4">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </span>
+        <span className="w-full truncate text-center text-xs font-semibold">Asentar</span>
+      </Link>
+    </li>
+  );
+  navItems.splice(Math.ceil(navItems.length / 2), 0, asentar);
+
   return (
     <nav
       aria-label="Navegación principal"
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-card)] md:hidden"
     >
-      <ul className="flex">
-        {nav.map((item) => {
-          const active = isNavItemActive(item, pathname);
-          return (
-            <li key={item.href} className="min-w-0 flex-1">
-              <Link
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={[
-                  "flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 no-underline",
-                  "transition-colors active:opacity-70",
-                  active
-                    ? "text-[var(--color-ln-azul)]"
-                    : "text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)]",
-                ].join(" ")}
-              >
-                <TabIcon href={item.href} />
-                <span
-                  className={[
-                    "w-full truncate text-center text-xs",
-                    active ? "font-semibold" : "font-medium",
-                  ].join(" ")}
-                >
-                  {item.label}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <ul className="flex">{navItems}</ul>
     </nav>
   );
 }

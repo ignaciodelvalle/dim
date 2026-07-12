@@ -23,6 +23,7 @@ import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
 import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
+import type { LnPetStatus } from "@/components/ui/Chip";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { approvalRequests, db } from "@/db";
 import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
@@ -32,7 +33,9 @@ import {
   fetchOpenWorkflows,
   fetchPetsForOwner,
   fetchUpcomingAppointments,
+  fetchVaccinationSummariesForPets,
 } from "@/lib/analytics/owner-dashboard";
+import { hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
@@ -43,6 +46,8 @@ import { BRANDING } from "@/lib/ui/branding";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { capCount } from "@/lib/utils/format";
 import { greetingFirstName } from "@/lib/utils/greeting";
+import type { CredCardData } from "./_components/CredCard";
+import { CredentialRail } from "./_components/CredentialRail";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import type { PetComplianceSummary } from "./_components/PetHealthStatusStrip";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
@@ -152,6 +157,69 @@ export default async function InicioPage() {
 
   const eventCatcherPets = pets.map(adaptPet);
   const cases = openWf.map(adaptWorkflow);
+
+  // -------------------------------------------------------------------------
+  // Credential carousel (task #9) — per-pet cards, most-urgent first, capped.
+  // Status comes from the SAME single mapper the profile + /mis-mascotas read
+  // (lnPetStatusFromCompliance, already stored in complianceByPet); a pet not
+  // tracked by the health projection (e.g. a transit-role pet) falls back to
+  // its raw status so every card still shows a coherent state.
+  // -------------------------------------------------------------------------
+  const OWNER_CAROUSEL_CAP = 8;
+  const carouselSource = pets.filter((p) => p.status !== "deceased");
+  const carouselStatusOf = (p: DashboardPet): LnPetStatus =>
+    complianceByPet.get(p.id)?.status ??
+    (p.status === "lost"
+      ? "lost"
+      : p.pregnancyStatus === "in_progress"
+        ? "pregnant"
+        : "registered");
+  const carouselPets = [...carouselSource]
+    .sort((a, b) => credRank(carouselStatusOf(a)) - credRank(carouselStatusOf(b)))
+    .slice(0, OWNER_CAROUSEL_CAP);
+
+  // Vaccine-vigencia summaries only for the non-lost cards that render them
+  // (lost cards show a reassurance line instead). One bounded query (≤ cap pets).
+  const vacByPet = await fetchVaccinationSummariesForPets(
+    carouselPets
+      .filter((p) => carouselStatusOf(p) !== "lost")
+      .map((p) => ({ petId: p.id, species: p.species })),
+  );
+
+  const credCards: CredCardData[] = carouselPets.map((p) => {
+    const status = carouselStatusOf(p);
+    const photoUrl = p.primaryPhotoStoragePath ? petPhotoUrl(p.primaryPhotoStoragePath) : null;
+    if (status === "lost") {
+      return {
+        token: p.publicToken,
+        name: p.name,
+        photoUrl,
+        status,
+        credentialId: p.publicToken,
+        vac: null,
+        lost: {
+          line: `${p.name} está reportada como perdida. Su credencial pública está activa para quien la encuentre.`,
+        },
+      };
+    }
+    const summary = vacByPet.get(p.id);
+    return {
+      token: p.publicToken,
+      name: p.name,
+      photoUrl,
+      status,
+      credentialId: p.publicToken,
+      vac: summary
+        ? {
+            vigente: summary.active,
+            porVencer: summary.dueSoon,
+            vencida: summary.expired,
+            hasRecords: hasAnyVaccineRecord(summary),
+          }
+        : null,
+      lost: null,
+    };
+  });
 
   // "Vencimientos próximos" counts only reminders due within the horizon (plus
   // overdue) — a dose due in ~1 year is NOT "próximo" and must not inflate the
@@ -285,6 +353,15 @@ export default async function InicioPage() {
         </Link>
       )}
 
+      {/* ------------------------------------------------------------------ */}
+      {/* Credential carousel (task #9) — "la mascota es la credencial". The  */}
+      {/* per-pet glance surface, most-urgent first. Glance-and-go: a card    */}
+      {/* navigates to its pet; it drives nothing below it (PO #1).           */}
+      {/* ------------------------------------------------------------------ */}
+      {credCards.length > 0 && (
+        <CredentialRail cards={credCards} totalCount={carouselSource.length} />
+      )}
+
       {/* RemindersSection stays above EventCatcher (keeps visibility gate) */}
       <RemindersSection reminders={reminders} />
 
@@ -295,6 +372,10 @@ export default async function InicioPage() {
       {/* decoration, no behavior. Outer wrapper is now the real LnCard      */}
       {/* component instead of a hand-copied duplicate of its own classes.  */}
       {/* ------------------------------------------------------------------ */}
+      {/* id=asentar: the bottom-tab "Asentar un hecho" action (CitizenTabBar,
+          mobile) deep-links here so capture lives in the EXISTING tab bar slot
+          rather than a second stacked fixed bar (PO 2026-07-12 #4). */}
+      <div id="asentar" className="scroll-mt-24">
       <LnCard className="mb-6 border-t-[3px] border-t-[var(--color-ln-azul)]">
         {/* Card header */}
         <div className="flex items-center gap-3 px-[18px] pb-3 pt-4">
@@ -330,6 +411,7 @@ export default async function InicioPage() {
           <EventCatcher pets={eventCatcherPets} />
         </div>
       </LnCard>
+      </div>
 
       {/* ------------------------------------------------------------------ */}
       {/* 2-col grid                                                          */}
@@ -407,6 +489,28 @@ export default async function InicioPage() {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
+
+// Urgency rank for the credential carousel (PO 2026-07-12 #2): perdido →
+// (en tratamiento) → preñada → por vencer → al día → registrada. "sick" is not
+// produced by lnPetStatusFromCompliance today, so it never occurs here; it is
+// kept in the switch so the ordering contract stays explicit. "registered"
+// means the pet has pending obligations (ok < total) — the "por vencer" bucket.
+function credRank(status: LnPetStatus): number {
+  switch (status) {
+    case "lost":
+      return 0;
+    case "sick":
+      return 1;
+    case "pregnant":
+      return 2;
+    case "registered":
+      return 3;
+    case "ok":
+      return 4;
+    default:
+      return 5;
+  }
+}
 
 const MONTH_ABBR = [
   "ENE",

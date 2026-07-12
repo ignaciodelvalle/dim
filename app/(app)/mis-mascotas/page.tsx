@@ -11,6 +11,7 @@ import { ActionLinkCard } from "@/components/ActionLinkCard";
 import { isTransitRole } from "@/components/PetCard.helpers";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnButton } from "@/components/ui/Button";
+import type { LnPetStatus } from "@/components/ui/Chip";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
@@ -100,6 +101,41 @@ export default async function MisMascotasPage({
     activePets.map(({ pet }) => pet.id),
   );
 
+  // Single status mapper shared with the carousel + pet profile
+  // (lnPetStatusFromCompliance) so a pet's chip never disagrees across surfaces.
+  const statusForPet = (pet: (typeof activePets)[number]["pet"]): LnPetStatus => {
+    const compliance = complianceByPet.get(pet.id);
+    return compliance
+      ? lnPetStatusFromCompliance(
+          { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
+          compliance,
+        )
+      : "registered";
+  };
+
+  // Urgency ordering (handoff 2b.2): Perdido → En tratamiento → Preñada →
+  // Por vencer (registered/pending) → Al día → Registrada. Same rank the
+  // credential carousel uses on /inicio.
+  const misMascotasRank = (status: LnPetStatus): number => {
+    switch (status) {
+      case "lost":
+        return 0;
+      case "sick":
+        return 1;
+      case "pregnant":
+        return 2;
+      case "registered":
+        return 3;
+      case "ok":
+        return 4;
+      default:
+        return 5;
+    }
+  };
+  const sortedActivePets = [...activePets].sort(
+    (a, b) => misMascotasRank(statusForPet(a.pet)) - misMascotasRank(statusForPet(b.pet)),
+  );
+
   return (
     <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
       {/* ------------------------------------------------------------------ */}
@@ -111,7 +147,9 @@ export default async function MisMascotasPage({
             Mis mascotas
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-            Cada una con su libreta sanitaria nacional.
+            {activePets.length} activa{activePets.length === 1 ? "" : "s"}
+            {deceasedPets.length > 0 &&
+              ` · ${deceasedPets.length} en memoria`}
           </p>
         </div>
         <Link href="/mis-mascotas/nueva">
@@ -156,14 +194,8 @@ export default async function MisMascotasPage({
         />
       ) : (
         <LnRegistry className="mb-8">
-          {activePets.map(({ pet, photo, ownershipRole }) => {
-            const compliance = complianceByPet.get(pet.id);
-            const st = compliance
-              ? lnPetStatusFromCompliance(
-                  { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
-                  compliance,
-                )
-              : "registered";
+          {sortedActivePets.map(({ pet, photo, ownershipRole }) => {
+            const st = statusForPet(pet);
             const isTransit = isTransitRole(ownershipRole);
             const breedLine = [
               pet.breed,
@@ -214,19 +246,40 @@ export default async function MisMascotasPage({
       )}
 
       {/* ------------------------------------------------------------------ */}
+      {/* Reclamar una mascota — promoted card (handoff 2b.4). PO Q3: a richer */}
+      {/* inline card that ROUTES to the existing ClaimWizard, rather than     */}
+      {/* duplicating the claim-code validation here.                          */}
+      {/* ------------------------------------------------------------------ */}
+      <section className="mt-8">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
+          <h2 className="m-0 font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-tight text-[var(--color-ln-ink)]">
+            Reclamar una mascota
+          </h2>
+          <p className="mt-1 text-[var(--text-md)] text-[var(--color-ln-mute)]">
+            Tu mascota ya tiene chapita o microchip registrado. Ingresá el código de transferencia
+            para reclamarla a tu cuenta.
+          </p>
+          <div className="mt-3">
+            <Link href="/mis-mascotas/reclamar">
+              <LnButton variant="primary" size="md">
+                Reclamar con un código
+              </LnButton>
+            </Link>
+          </div>
+          <p className="mt-2 text-[var(--text-sm)] text-[var(--color-ln-faint)]">
+            El titular actual debe confirmar la transferencia.
+          </p>
+        </div>
+      </section>
+
+      {/* ------------------------------------------------------------------ */}
       {/* More actions                                                         */}
       {/* ------------------------------------------------------------------ */}
       <section className="mt-8 border-t border-[var(--color-ln-line)] pt-6">
         <p className="mb-3.5 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.12em] text-[var(--color-ln-mute)]">
           Más acciones
         </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <ActionLinkCard
-            href="/mis-mascotas/reclamar"
-            icon="qr"
-            title="Reclamar mascota existente"
-            description="Tu mascota ya tiene chapita o microchip registrado"
-          />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ActionLinkCard
             href="/mis-mascotas/postulaciones"
             icon="corazon"
