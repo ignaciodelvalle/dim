@@ -61,6 +61,7 @@ import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
 import { uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
 import { createClient } from "@/lib/supabase/server";
 import { parseDateInput } from "@/lib/utils/format";
+import { canReceiveDerivedWelfare } from "@/src/modules/welfare/domain/derivation-eligibility";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -462,7 +463,8 @@ export async function deriveWelfareToOrgAction(input: {
     return { ok: false, error: "No se puede derivar una denuncia cerrada o inválida." };
   }
 
-  // Verify the target org exists, is verified, and is shelter or rescue_network.
+  // Verify the target org exists, is verified, and is an eligible derivation
+  // recipient (shelter / rescue_network / sanitary_authority — #48).
   const [targetOrg] = await db
     .select({
       id: organizations.id,
@@ -477,8 +479,12 @@ export async function deriveWelfareToOrgAction(input: {
 
   if (!targetOrg) return { ok: false, error: "Organización no encontrada." };
   if (!targetOrg.verified) return { ok: false, error: "La organización no está verificada." };
-  if (targetOrg.orgType !== "shelter" && targetOrg.orgType !== "rescue_network") {
-    return { ok: false, error: "Solo se puede derivar a refugios o redes de rescate verificados." };
+  if (!canReceiveDerivedWelfare(targetOrg.orgType)) {
+    return {
+      ok: false,
+      error:
+        "Solo se puede derivar a refugios, redes de rescate o autoridades sanitarias verificadas.",
+    };
   }
 
   // Capture the previous derivation target BEFORE overwriting, so we can send a
@@ -647,11 +653,15 @@ async function requireOrgInterventionAccess(
   if (!orgRow) return { error: "No sos miembro activo de esta organización." };
   if (!orgRow.orgVerified)
     return { error: "Tu organización todavía no está verificada por MiMAR." };
-  // Defense-in-depth: derivation targets are restricted to shelter /
-  // rescue_network in deriveWelfareToOrgAction; mirror that constraint here so
-  // a data-integrity drift can never widen the intervention surface.
-  if (orgRow.orgType !== "shelter" && orgRow.orgType !== "rescue_network") {
-    return { error: "Solo refugios y redes de rescate pueden intervenir denuncias derivadas." };
+  // Defense-in-depth: derivation targets are restricted to eligible recipients
+  // in deriveWelfareToOrgAction; mirror that exact constraint here (shared
+  // canReceiveDerivedWelfare rule) so a data-integrity drift can never widen the
+  // intervention surface, and so an eligible sanitary_authority (#48) can act.
+  if (!canReceiveDerivedWelfare(orgRow.orgType)) {
+    return {
+      error:
+        "Solo refugios, redes de rescate y autoridades sanitarias pueden intervenir denuncias derivadas.",
+    };
   }
   if (!ORG_INTERVENTION_ROLES.has(orgRow.memberRole)) {
     return {
