@@ -103,6 +103,7 @@ import {
   isPointsLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
+import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
@@ -2029,8 +2030,10 @@ export function PanoramaConsole({
 
   const onToggle = useCallback(
     async (id: LayerId) => {
-      // A manual toggle exits preset mode.
-      setActivePresetId(null);
+      // A manual toggle only edits the LAYERS. The active preset is DERIVED from
+      // the resulting layer set (task #66 / WS-4) — no imperative discard. The
+      // vista badge re-derives on its own: to "personalizada" (null) when the new
+      // set matches no preset, or honestly to ANOTHER preset when it lands on one.
       // Read the LIVE active flag from the ref, not the closure `states`: a rapid
       // burst of unrelated re-renders (e.g. the coherence-hybrid KPI refetch firing
       // on an asOf scrub) can leave this async callback bound to a stale `states`
@@ -2238,26 +2241,32 @@ export function PanoramaConsole({
     ],
   );
 
-  // F3: active preset — null when the operator is in manual "modo avanzado".
-  // map-QOL: the URL (`?preset=`) wins on mount so a shared board reproduces it.
-  const [activePresetId, setActivePresetId] = useState<PresetId | null>(() => {
-    const raw = searchParams.get("preset");
-    if (raw !== null) {
-      if (getPreset(raw as PresetId)) return raw as PresetId;
-      // Present but INVALID (`?preset=notreal`): default to the canonical preset
-      // instead of dropping into manual mode — that read as an incoherent
-      // "Pérdidas-ish" view with no coherent vista (cowork round 2).
-      return DEFAULT_PANORAMA_PRESET_ID;
-    }
-    // First-visit fast path: adopt the server-seeded preset on mount so (a) the
-    // preset row + metrics column read active on first paint, and (b) the
-    // derived-level effect sees the preset's level — WITHOUT this, that effect
-    // (which runs before the mount preset-activation) would compute a
-    // province-level target for a national scope and fire onLevelChange, drilling
-    // AWAY from the seeded locality caches and blanking the map (C2 class).
-    if (hasSeed) return seededPresetId;
-    return null;
-  });
+  // task #66 / WS-4: the active preset is DERIVED, not stored. It is a pure
+  // projection of the current view — the preset (if any) whose LAYER SET +
+  // encoding match what is on screen (see domain/derive-preset.ts). Storing it
+  // is what let the vista badge diverge from the map: pressing a KPI chip used to
+  // imperatively `setActivePresetId(null)` and jump the vista. Now the badge
+  // FOLLOWS the layers truthfully — edit a layer and the preset re-derives (to
+  // another preset if the config lands on one, else "personalizada"/null).
+  //   - period / scope / asOf are orthogonal modifiers that stay ON a preset,
+  //     so they are (correctly) NOT part of the match.
+  //   - encoding stays "auto" (null) here in P1: the bivariate "riesgo-brotes"
+  //     view is a display toggle WITHIN "Brotes activos", not a stored encoding,
+  //     so it does not leave the preset.
+  //   - First paint: the server seeds exactly `presetLayerIds(seededPresetId)`
+  //     (app/*/panorama/page.tsx), so the derived value is `seededPresetId` on
+  //     the very first render — the preset row + metrics column read active with
+  //     no imperative init. A shared `?preset=` board reproduces because its
+  //     `?layers=` (written alongside `?preset=`) derives back to that preset.
+  const activePresetId = useMemo<PresetId | null>(
+    () =>
+      derivePreset(
+        PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
+        null,
+        PANORAMA_PRESETS,
+      ),
+    [states],
+  );
   // Ref mirror so the popstate board re-derivation can compare against the CURRENT
   // preset without re-running on every preset change (MAP-2).
   const activePresetIdRef = useRef(activePresetId);
@@ -2588,7 +2597,10 @@ export function PanoramaConsole({
         return next;
       });
 
-      setActivePresetId(id);
+      // The active preset is DERIVED (task #66 / WS-4): flipping the layer states
+      // above to this preset's set makes `activePresetId` re-derive to `id` — no
+      // imperative set. The `?preset=id` URL write below stays (SSR/deep-link
+      // seed + saveBoard), and it now agrees with the derived value by construction.
       // W2 fix: this commit writes `period=<preset>` via a shallow History replace
       // that useSearchParams() can't see — record the committed period so the
       // scrubber axis + PeriodPicker highlight track the loaded window, not the
@@ -2709,7 +2721,9 @@ export function PanoramaConsole({
     // No change vs the current board — nothing to re-derive.
     if (poppedPreset === activePresetIdRef.current && !periodChanged && !layersChanged) return;
 
-    setActivePresetId(poppedPreset);
+    // `activePresetId` is DERIVED (task #66 / WS-4): flipping the layer states to
+    // the popped set (below) re-derives it to `poppedPreset` — a popped board
+    // writes `?preset` and `?layers` together, so they agree by construction.
     // The popped URL's period is the truth (null → the bare-URL default). Restore
     // the custom {from,to} shadow too (null unless the popped window IS custom).
     setCommittedPeriod(poppedPeriod);
@@ -2993,11 +3007,9 @@ export function PanoramaConsole({
     if (saved.period !== null) setCommittedPeriod(saved.period);
     setLevel(savedLevel);
     levelRef.current = savedLevel;
-    setActivePresetId(
-      saved.preset !== null && getPreset(saved.preset as PresetId)
-        ? (saved.preset as PresetId)
-        : null,
-    );
+    // `activePresetId` is DERIVED (task #66 / WS-4): flipping the layer states to
+    // the saved set (below) re-derives it. A saved board persists `layers` and
+    // `preset` together (saveBoard), so the derived value matches `saved.preset`.
     setStates((s) => {
       const next = { ...s };
       for (const l of PANORAMA_LAYERS) {
