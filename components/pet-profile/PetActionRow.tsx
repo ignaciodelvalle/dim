@@ -2,11 +2,17 @@
 // sola libreta" handoff's `.actionbar` (icon + short text, bordered,
 // hover→azul; danger = seal red), in the handoff order:
 //
-//   Compartir · Editar datos · Marcar como perdida (danger) · [spacer] · Más
+//   Anotar · Compartir · Editar datos · Marcar como perdida (danger) · [spacer] · Más
 //
 // (PO 2026-07-05 — the earlier icon-only circle bar "read as mystery buttons".)
 //
 // Set by state/role:
+//   - Anotar: owner, not deceased. 3b improvement C (2026-07-12) moved the
+//     mid-face capture textarea out of the front to declutter it; this quiet
+//     link is the pet-specific one-tap capture shortcut (opens ?sheet=anotar
+//     for THIS pet) on every breakpoint, alongside the fixed "Asentar" bar in
+//     CitizenTabBar (mobile, task #9). Owners may still write while lost — the
+//     same owner+not-deceased gate the /anotar sheet uses.
 //   - Compartir: always (owner + org read-only).
 //   - Editar datos: owner, not deceased.
 //   - Marcar como perdida (danger): owner, ACTIVE pet only. On a LOST pet the
@@ -34,6 +40,13 @@ export function PetActionRow({ petPublicToken, isOwner, isDeceased, petStatus }:
 
   return (
     <div data-section="action-row" className="ln-actionbar">
+      {isOwner && !isDeceased && (
+        <SheetTriggerLink href={href("anotar")} className="ln-act">
+          <Icon name="libreta" size="sm" decorative />
+          Anotar
+        </SheetTriggerLink>
+      )}
+
       <SheetTriggerLink href={href("compartir")} className="ln-act">
         <Icon name="share" size="sm" decorative />
         Compartir

@@ -25,9 +25,10 @@ import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
+import { DiscList, DiscRow } from "@/components/pet-profile/DiscList";
 import { LnAlert } from "@/components/ui/Alert";
 import type { LnHeroProps } from "@/components/ui/Hero";
-import { LnMemorialChip } from "@/components/ui/StatusFlag";
+import { LnMemorialChip, LnVstamp } from "@/components/ui/StatusFlag";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 import type { PetSituation } from "@/lib/ui/pet-situation";
 import { registeredAdjective, situationLabelForSex } from "@/lib/utils/format";
@@ -127,6 +128,62 @@ export function CredentialFace({
   const situationLabel = activeSituation
     ? situationLabelForSex(activeSituation.label, petSex)
     : null;
+
+  // 3b improvement B — mobile compliance disclosure. The collapsed summary is
+  // derived from the SAME complianceState the panel renders below (the
+  // provenance-gated ComplianceObligationsPanel), so the glanceable line and
+  // the expanded grid can never tell different stories. `summary.label` is the
+  // "N de M al día" the projection already computes; the "· falta X" tail names
+  // the first still-open obligation (a booked turno / declared-only card is not
+  // "falta"). The trailing stamp reuses LnVstamp only where the tone maps
+  // cleanly (ok/due/over); neutral/reserved lean on the text alone (icon +
+  // shape + text, never color-only — WCAG, matching the panel header).
+  const compliancePending = complianceState.cards.find(
+    (c) => c.tone !== "ok" && c.tone !== "reserved",
+  );
+  const complianceSummary = compliancePending
+    ? `${complianceState.summary.label} · falta ${compliancePending.label.toLowerCase()}`
+    : complianceState.summary.label;
+  const complianceStamp =
+    complianceState.worstTone === "ok" ||
+    complianceState.worstTone === "due" ||
+    complianceState.worstTone === "over"
+      ? complianceState.worstTone
+      : null;
+
+  // Service-dog credential row — the only credential that sits ALONGSIDE the
+  // compliance panel (PPP is surfaced once inside the panel as its canonical
+  // obligation card). Hoisted so the desktop-inline and mobile-disclosure slots
+  // below can share the exact same node without duplicating the markup. NOTE:
+  // the ComplianceObligationsPanel itself is intentionally NOT hoisted — the
+  // page-order source guard (pet-profile-v2-page-order.test.ts) locates the
+  // first ComplianceObligationsPanel element and requires it to appear AFTER the
+  // identity row, so the panel is inlined in the compliance section below.
+  const serviceDogRow = serviceDog ? (
+    <div data-section="credentials" className="mt-3 flex flex-col gap-2">
+      <div data-section="service-dog-row">
+        <LnAlert variant="success" icon="paw">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
+            <span className="flex shrink-0 gap-3">
+              <Link
+                href={serviceDog.manageHref}
+                className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+              >
+                Gestionar →
+              </Link>
+              <Link
+                href={serviceDog.presentHref}
+                className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+              >
+                Presentar →
+              </Link>
+            </span>
+          </div>
+        </LnAlert>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div
@@ -233,41 +290,39 @@ export function CredentialFace({
             </span>
           </div>
           <div className="ln-sec">
-            <ComplianceObligationsPanel
-              state={complianceState}
-              petPublicToken={petPublicToken}
-              bare
-            />
+            {/* Desktop (≥md) has the room: the full provenance-gated grid stays
+                inline, exactly as before. */}
+            <div className="hidden md:block">
+              <ComplianceObligationsPanel
+                state={complianceState}
+                petPublicToken={petPublicToken}
+                bare
+              />
+              {serviceDogRow}
+            </div>
 
-            {/* PPP is surfaced ONCE — as the canonical compliance obligation
-                card above (derivePpp + its "Registrar atestación" action). The
-                old duplicate PPP alert row was removed. Only the service-dog
-                credential row lives here now. */}
-            {serviceDog && (
-              <div data-section="credentials" className="mt-3 flex flex-col gap-2">
-                <div data-section="service-dog-row">
-                  <LnAlert variant="success" icon="paw">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span>Perro de asistencia · {serviceDog.serviceTypeLabel}</span>
-                      <span className="flex shrink-0 gap-3">
-                        <Link
-                          href={serviceDog.manageHref}
-                          className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                        >
-                          Gestionar →
-                        </Link>
-                        <Link
-                          href={serviceDog.presentHref}
-                          className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
-                        >
-                          Presentar →
-                        </Link>
-                      </span>
-                    </div>
-                  </LnAlert>
-                </div>
-              </div>
-            )}
+            {/* Mobile (<md): a glanceable summary row that expands inline to the
+                SAME provenance-gated panel. This is the 3b craft win — the front
+                becomes scannable, depth is one tap away, integrity is untouched
+                (the disclosure wraps the identical ComplianceObligationsPanel,
+                same tone/gate). The disclosure is a native <details>, so it is
+                keyboard-operable with no client JS (CredentialFace stays a
+                server component). */}
+            <DiscList className="md:hidden">
+              <DiscRow
+                icon="shield"
+                title="Estado de cumplimiento"
+                summary={complianceSummary}
+                trailing={complianceStamp ? <LnVstamp variant={complianceStamp} /> : undefined}
+              >
+                <ComplianceObligationsPanel
+                  state={complianceState}
+                  petPublicToken={petPublicToken}
+                  bare
+                />
+                {serviceDogRow}
+              </DiscRow>
+            </DiscList>
           </div>
         </>
       )}

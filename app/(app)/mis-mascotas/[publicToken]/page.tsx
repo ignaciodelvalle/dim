@@ -11,12 +11,15 @@
 //
 // Screen order (normal/active state, AGENTS.md rule 5):
 //   back-link → org notice (org-path only) → PetDetailTabsPanel, whose
-//   `credencialContent` (Face 1, eager) is: CredentialFace (identity +
-//   compliance stamps + QR + owner-only Emergencia card + compact
-//   ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered,
-//   LostCaseBlock leads it when the pet is lost) → <EventCatcherSingle>
-//   (owner + active only, ADR-12a) → an icon-only action row
-//   [Anotar][Compartir][Perdida|Encontrada][Chapita][Más] (ADR-12b, ADR-17b).
+//   `credencialContent` (Face 1, eager) is: CredentialFace (symmetric identity:
+//   photo · centered name · public QR both flanking the band — 3b/A; compliance
+//   as an inline grid on desktop / a tap-to-expand disclosure on mobile — 3b/B;
+//   compact ppp/service-dog rows) → <PetAlertStrip> (avisos, urgency-ordered,
+//   LostCaseBlock leads it when the pet is lost) → the labeled action row
+//   [Anotar][Compartir][Editar][Perdida][Más]. Capture (3b/C) no longer sits
+//   inline as a mid-face textarea: it moved to the fixed "Asentar" bar
+//   (CitizenTabBar, mobile — task #9) plus the pet-specific "Anotar" action-row
+//   link (?sheet=anotar for THIS pet, every breakpoint).
 //   The Libreta face (deferred) is ONE consolidated timeline, no lens chips
 //   (ADR-10) — see LibretaFace.
 //
@@ -52,7 +55,6 @@ import type { PetState } from "@/components/EventCatcher";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
-import { EventCatcherSingle } from "@/components/pet-profile/EventCatcherSingle";
 import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
@@ -693,15 +695,14 @@ export default async function PetDetailPage({
               situation={credentialSituation}
               situationDetail={situationDetail}
               avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
-              anotar={
-                // Owners keep inline capture WHILE the pet is lost (AGENTS.md
-                // scan-location / north-star: the libreta must stay writable
-                // during a lost episode) — gated on owner + not-deceased, NOT
-                // on `active`. Org viewers (isOwner=false) still get no capture.
-                isOwner && !isDeceased ? (
-                  <EventCatcherSingle petPublicToken={pet.publicToken} petName={pet.name} />
-                ) : null
-              }
+              // 3b improvement C — the embedded mid-face capture textarea was
+              // REMOVED to declutter the front. Capture now lives in the fixed
+              // "Asentar un hecho" bar (CitizenTabBar, mobile — task #9) and, as
+              // a pet-specific one-tap shortcut on every breakpoint, in the
+              // PetActionRow "Anotar" quiet link below (opens ?sheet=anotar for
+              // THIS pet). No `anotar` node is passed, so CredentialFace's inline
+              // "Anotar" section stays dormant (owners still write while lost —
+              // the /anotar sheet is gated on owner + not-deceased, unchanged).
               actions={
                 <PetActionRow
                   petPublicToken={pet.publicToken}

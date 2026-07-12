@@ -8,23 +8,26 @@ import { describe, expect, it } from "vitest";
 import { PetActionRow } from "./PetActionRow";
 
 describe("<PetActionRow> — labeled buttons (handoff .actionbar)", () => {
-  it("owner + active pet: Compartir · Editar datos · Marcar como perdida (danger) · Más, in order", () => {
+  it("owner + active pet: Anotar · Compartir · Editar datos · Marcar como perdida (danger) · Más, in order", () => {
     const html = renderToStaticMarkup(
       <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="active" />,
     );
-    // Visible, labeled (not icon-only).
-    for (const label of ["Compartir", "Editar datos", "Marcar como perdida", "Más"]) {
+    // Visible, labeled (not icon-only). Anotar leads — the pet-specific capture
+    // shortcut (3b improvement C moved capture out of the mid-face textarea).
+    for (const label of ["Anotar", "Compartir", "Editar datos", "Marcar como perdida", "Más"]) {
       expect(html).toContain(`>${label}`);
     }
-    // Handoff order.
-    const order = ["Compartir", "Editar datos", "Marcar como perdida", "Más"];
+    // Handoff order (Anotar prepended).
+    const order = ["Anotar", "Compartir", "Editar datos", "Marcar como perdida", "Más"];
     const positions = order.map((l) => html.indexOf(`>${l}`));
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    // Anotar opens THIS pet's capture sheet.
+    expect(html).toContain("sheet=anotar");
     // Marcar como perdida carries the danger modifier.
     expect(html).toContain("ln-act ln-act--danger");
     // Every action uses the shared .ln-act class (44px touch target lives there).
     const anchors = html.match(/<a [^>]*>/g) ?? [];
-    expect(anchors.length).toBe(4);
+    expect(anchors.length).toBe(5);
     for (const a of anchors) expect(a).toContain("ln-act");
   });
 

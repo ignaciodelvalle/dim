@@ -2916,19 +2916,26 @@ body {
 }
 
 /* ---- Identity row -------------------------------------------------------- */
+/* 3b craft (improvement A): a SYMMETRIC credential — the photo and the public
+   QR are equal-weight side elements that BOTH poke up out of the blue band,
+   with the identity centered between them. This reads as a real government
+   credential (balanced, the QR elevated to identity weight) rather than a photo
+   with a small QR bolted to the side. Both frames share the same white ring +
+   shadow and the same negative margin-top so the poke-out is exactly mirrored. */
 .ln-idrow {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: start;
+  justify-items: center;
 }
 .ln-photo {
-  width: 132px;
-  height: 132px;
-  margin-top: -64px;
+  width: 84px;
+  height: 84px;
+  margin-top: -56px;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 0 0 4px #fff, 0 10px 24px -12px rgba(20, 16, 10, 0.5);
-  flex-shrink: 0;
   background: var(--color-ln-stripe);
 }
 .ln-photo img {
@@ -2945,21 +2952,22 @@ body {
   color: var(--color-ln-faint);
 }
 .ln-idmeta {
-  flex: 1;
   min-width: 0;
-  padding-top: 6px;
+  padding-top: 2px;
+  text-align: center;
 }
 .ln-idname {
   font-family: var(--font-ln-serif);
   font-weight: 600;
-  font-size: 32px;
+  font-size: 22px;
   letter-spacing: -0.02em;
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
   flex-wrap: wrap;
-  line-height: 1.02;
+  line-height: 1.06;
   color: var(--color-ln-ink);
 }
 .ln-badge-reg {
@@ -3103,6 +3111,7 @@ body {
 .ln-chips {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
   margin-top: 12px;
 }
@@ -3123,32 +3132,35 @@ body {
 }
 
 /* ---- QR block ------------------------------------------------------------ */
+/* 3b craft (improvement A): the QR is a mirror of the photo — same white ring +
+   shadow, same negative margin-top so it pokes out of the band by the same
+   amount. It IS the credential (the public, verifiable face), so it carries
+   equal identity weight, one on each side of the centered name. */
 .ln-qr {
-  flex-shrink: 0;
   text-align: center;
-  width: 118px;
 }
 .ln-qr-frame {
   display: inline-block;
-  border-radius: 8px;
-  border: 1px solid var(--color-ln-line);
-  padding: 6px;
+  border-radius: 12px;
+  padding: 4px;
   background: #fff;
-  box-shadow: 0 4px 12px -8px rgba(20, 16, 10, 0.4);
+  margin-top: -56px;
+  box-shadow: 0 0 0 4px #fff, 0 10px 24px -12px rgba(20, 16, 10, 0.5);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 .ln-qr-frame svg {
-  width: 104px;
-  height: 104px;
+  width: 76px;
+  height: 76px;
   display: block;
+  border-radius: 6px;
 }
 a.ln-qr-link:hover .ln-qr-frame {
   transform: translateY(-1px);
-  box-shadow: 0 8px 18px -8px rgba(20, 16, 10, 0.45);
+  box-shadow: 0 0 0 4px #fff, 0 12px 22px -10px rgba(20, 16, 10, 0.55);
 }
 a.ln-qr-link:focus-visible .ln-qr-frame {
   outline: 2px solid var(--color-ln-azul);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 .ln-qr-cap {
   font-family: var(--font-ln-mono);
@@ -3163,6 +3175,112 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   color: var(--color-ln-azul);
   font-weight: 600;
   display: block;
+}
+
+/* Desktop has the room to give the symmetric photo + QR more presence: larger
+   frames, a bigger name, and a deeper poke into the band. The two side frames
+   stay exactly mirrored (same size + same margin-top). Breakpoint matches the
+   Tailwind `md` (768px) used for the compliance disclosure below. */
+@media (min-width: 768px) {
+  .ln-idrow {
+    gap: 24px;
+  }
+  .ln-photo {
+    width: 116px;
+    height: 116px;
+    margin-top: -68px;
+  }
+  .ln-idname {
+    font-size: 30px;
+  }
+  .ln-qr-frame {
+    margin-top: -68px;
+  }
+  .ln-qr-frame svg {
+    width: 104px;
+    height: 104px;
+  }
+}
+
+/* ---- Disclosure list (3b improvement B) ---------------------------------- */
+/* DiscList / DiscRow — a thin progressive-disclosure primitive. On mobile the
+   front face collapses the always-expanded compliance grid into a single
+   glanceable summary row that expands inline to the SAME provenance-gated
+   ComplianceObligationsPanel (integrity untouched — it is literally the same
+   component behind a native <details>). Native <details>/<summary> keeps it
+   keyboard-operable (Enter/Space toggles, summary is focusable) with no JS. */
+.ln-disc-list {
+  display: flex;
+  flex-direction: column;
+}
+.ln-disc + .ln-disc {
+  border-top: 1px solid var(--color-ln-line-2);
+}
+.ln-disc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 11px 2px;
+  cursor: pointer;
+  list-style: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.ln-disc-row::-webkit-details-marker {
+  display: none;
+}
+.ln-disc-row:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.ln-disc-ic {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-ln-celeste-100);
+  background: var(--color-ln-celeste-050);
+  color: var(--color-ln-azul);
+}
+.ln-disc-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+.ln-disc-txt b {
+  font-family: var(--font-ln-sans);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-ln-ink);
+}
+.ln-disc-txt span {
+  font-family: var(--font-ln-sans);
+  font-size: 12.5px;
+  line-height: 1.3;
+  color: var(--color-ln-mute);
+}
+.ln-disc-chev {
+  flex-shrink: 0;
+  color: var(--color-ln-faint);
+  transition: transform 0.2s ease;
+}
+.ln-disc[open] .ln-disc-chev {
+  transform: rotate(180deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ln-disc-chev {
+    transition: none;
+  }
+}
+.ln-disc-body {
+  padding: 2px 0 12px;
 }
 
 /* ---- Compliance header (bare — the divider already labels it) ------------ */
