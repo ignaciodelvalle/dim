@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { LnButton } from "@/components/ui/Button";
+import { reportError } from "@/lib/observability/report-error";
 
 type Props = {
   error: Error & { digest?: string };
@@ -28,12 +29,12 @@ export function ErrorBoundary({
   homeHref = "/",
   homeLabel = "Volver al inicio",
 }: Props) {
-  // Log the error so it lands in the browser console + telemetry hooks. The
-  // server side already logged it as part of the boundary trip — this is
-  // purely for in-tab debugging.
+  // Report the error through the shared observability seam. The server side
+  // already logged it as part of the boundary trip — this is purely for
+  // in-tab debugging until a real sink is wired (see lib/observability/report-error.ts).
   useEffect(() => {
-    console.error("[ErrorBoundary]", error);
-  }, [error]);
+    reportError(error, { route: "ErrorBoundary", homeHref });
+  }, [error, homeHref]);
 
   const isProd = process.env.NODE_ENV === "production";
 

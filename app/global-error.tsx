@@ -10,6 +10,8 @@
 
 import { useEffect } from "react";
 
+import { reportError } from "@/lib/observability/report-error";
+
 export default function GlobalError({
   error,
   reset,
@@ -18,9 +20,9 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Surface to the browser console; production digests are also logged
-    // server-side by Next so support can correlate via the digest.
-    console.error("global-error boundary:", error);
+    // Production digests are also logged server-side by Next so support can
+    // correlate via the digest; this is the client-side observability seam.
+    reportError(error, { route: "global-error" });
   }, [error]);
 
   return (
