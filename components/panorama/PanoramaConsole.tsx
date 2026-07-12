@@ -794,10 +794,12 @@ export function PanoramaConsole({
       ? null
       : parseAsOfFromParams(new URLSearchParams(window.location.search)),
   );
-  // Current as-of upper bound. null = live (parked at "ahora"). Lazy-init from a
-  // restored scrub day so the console fetches the as-of features immediately on
-  // load (the scrubber independently seeks its slider to the same day).
-  const [asOf, setAsOf] = useState<Date | null>(() => initialAsOf);
+  // Current as-of upper bound. null = live (parked at "ahora"). Starts null even on
+  // a deep-linked ?asOf so the FIRST client render matches SSR (which can't read
+  // window) — a mount effect below applies the restored cutoff post-hydration,
+  // avoiding a React #418 text/structure mismatch (round-2: ?asOf became a
+  // first-class deep link, which surfaced the pre-existing divergence).
+  const [asOf, setAsOf] = useState<Date | null>(null);
 
   // Coherence hybrid (cowork QA H1): the temporal-scrub cutoff as a stable ISO
   // string (a new Date identity per render must not thrash the as-of KPI effect
@@ -867,6 +869,9 @@ export function PanoramaConsole({
   // (asOf→null, which the scope/period effect does NOT observe since scopePeriodQs is
   // unchanged) — so returning to "ahora" restores the live strip. `signalFor("kpis")`
   // shares the KPI abort key, so a rapid scrub supersedes in-flight requests.
+  // A deep-linked ?asOf starts UNSEEDED so the mount effect's setAsOf triggers the
+  // as-of KPI refetch to reconcile with the restored frame (the SSR seed already
+  // used asOfSeed, so this refetch lands the same numbers — no flash).
   const asOfKpiSeededRef = useRef<boolean>(initialAsOf === null);
   const kpiFetchQsRef = useRef(kpiFetchQs);
   kpiFetchQsRef.current = kpiFetchQs;
@@ -1039,15 +1044,26 @@ export function PanoramaConsole({
   // stale non-live asOf and undoes this console's own reset.
   const [scrubResetToken, setScrubResetToken] = useState(0);
 
+  // Round-2: apply a deep-linked ?asOf AFTER hydration (SSR can't read window, so
+  // the render-affecting states above start at their SSR defaults — asOf null, dock
+  // closed). This mount-once effect restores the shared scrub frame: sets asOf
+  // (which triggers the as-of KPI + layer refetch), opens the dock on the timeline
+  // tab so the restored scrubber is visible, and marks the scale as as-of-anchored.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once restore; initialAsOf is a stable per-load value.
+  useEffect(() => {
+    if (initialAsOf === null) return;
+    setAsOf(initialAsOf);
+    setDockOpen(true);
+    setDockTab("timeline");
+  }, []);
+
   // v2C floating dock — collapsed by default (PO re-ratified 2026-07-11: "MÁS
-  // MAPA, la lista es opcional"). A deep link that pins a scrub position
-  // (?asOf=) opens on the timeline tab so the restored scrubber is visible —
-  // otherwise the park-at-live guard (below, near temporalAvailable) would
-  // clobber the shared position the moment the hidden scrubber unmounted.
-  const [dockOpen, setDockOpen] = useState<boolean>(() => initialAsOf !== null);
-  const [dockTab, setDockTab] = useState<PanoramaDockTab>(() =>
-    initialAsOf !== null ? "timeline" : "registros",
-  );
+  // MAPA, la lista es opcional"). A deep link that pins a scrub position (?asOf=)
+  // opens on the timeline tab — but that is applied in the mount effect below (not
+  // the initializer) so the FIRST client render matches SSR (dock closed), avoiding
+  // the hydration mismatch.
+  const [dockOpen, setDockOpen] = useState<boolean>(false);
+  const [dockTab, setDockTab] = useState<PanoramaDockTab>("registros");
 
   // task #77 bitemporal — the replay basis. "valid" (occurred_at, default) replays
   // "what happened when"; "transaction" (recorded_at) replays "what the State KNEW
@@ -2153,7 +2169,13 @@ export function PanoramaConsole({
   // mid-scrub, so the color/size scale locks to THAT day's domain — it never saw
   // the live edge to anchor against. Disclose that anchor until the operator
   // visits the live edge once (returning to live refreshes the lock correctly).
-  const [scaleAnchoredToAsOf, setScaleAnchoredToAsOf] = useState(initialAsOf !== null);
+  // SSR-safe init (false); a mount-once effect sets it true for a deep-linked ?asOf
+  // (post-hydration, matching the asOf restore above), then it clears on live.
+  const [scaleAnchoredToAsOf, setScaleAnchoredToAsOf] = useState(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-once; initialAsOf is a stable per-load value.
+  useEffect(() => {
+    if (initialAsOf !== null) setScaleAnchoredToAsOf(true);
+  }, []);
   useEffect(() => {
     if (asOf === null) setScaleAnchoredToAsOf(false);
   }, [asOf]);
