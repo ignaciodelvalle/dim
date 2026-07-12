@@ -7,17 +7,14 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, welfareReports } from "@/db";
 import {
-  GOB_ALL_PROVINCES,
   type MaltratoQueue,
-  PROVINCE_ISO_MAP,
   buildMaltratoListConditions,
   fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
@@ -85,56 +82,21 @@ export default async function GobMaltratoPage({
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
-  // Resolve selected province ISO code → ProvinceCode + canonical name.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  // Both lookups depend only on already-resolved sync values — run in parallel.
-  const [localities, selectedLocalityRow] = await Promise.all([
-    // Localities list for <JurisdictionSwitcher> dropdown.
-    selectedProvinceObj != null
-      ? listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : Promise.resolve([] as Awaited<ReturnType<typeof listLocalitiesByProvince>>),
-    // Resolve locality slug → canonical name for the SQL WHERE clause.
-    selectedProvinceObj && selectedLocalitySlug
-      ? localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : Promise.resolve(null),
-  ]);
-
-  // Build allowedProvinces for <JurisdictionSwitcher>.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
-
-  // Narrow the jurisdictions scope when a province/locality filter is active.
-  // Always intersects with the user's assignments — never widens beyond them.
-  // Admin stays unscoped (empty jurisdictions by contract from requireAdminOrGovtOrRedirect).
-  let filteredJurisdictions = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      // Province + locality: intersect with assignments (NOT replacement).
-      // govtAssignments.jurisdictionLocality is NOT NULL, so exact match is correct.
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      // Province only: keep assignments for that province.
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
-
-  // Build the SQL WHERE condition covering all filters (scope + queue + kind + severity).
-  // For admin, pass the canonical province/locality so the SQL WHERE narrows
-  // by the URL selection. Govt scope is already enforced by filteredJurisdictions
-  // (intersection of assignments ∩ URL selection). Never pass these for govt.
-  const adminSelectedProvince = actor.role === "admin" ? (selectedProvinceObj?.name ?? null) : null;
-  const adminSelectedLocality =
-    actor.role === "admin" ? (selectedLocalityRow?.localityName ?? null) : null;
+  // THE FENCE + switcher inputs, resolved once. filteredJurisdictions carries the
+  // govt scope (assignments ∩ URL selection); adminSelectedProvince/Locality are
+  // the admin-only SQL-drill names (null for govt — govt scope is already enforced
+  // by filteredJurisdictions, so passing them for govt would be a widening vector).
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   const whereCondition = buildMaltratoListConditions({
     actor,

@@ -10,11 +10,9 @@ import {
   csvDownloadResponse,
   logGobDashboardExport,
 } from "@/lib/analytics/govt-dashboard-export";
-import type { DashboardJurisdiction } from "@/lib/analytics/govt-dashboards";
-import { localityByName } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, resolveAnalyticsPeriod, windows } from "@/lib/metrics";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -42,24 +40,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   };
 
   // Jurisdiction filter — identical logic to app/gob/campanas/page.tsx.
-  const selectedProvinceIso = searchParams.get("province");
-  const selectedLocalitySlug = searchParams.get("locality");
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    filteredJurisdictions = selectedLocalityRow
-      ? jurisdictions.filter(
-          (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-        )
-      : jurisdictions.filter((j) => j.province === provinceName);
-  }
+  const { filteredJurisdictions } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
+  });
 
   // Same default-window quirk as the page: campañas defaults to trailing 30d
   // (not the 12m dashboard default) when no period/from param is present.

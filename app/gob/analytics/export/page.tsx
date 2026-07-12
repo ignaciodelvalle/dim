@@ -17,28 +17,11 @@ import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { ExportFormClient } from "./ExportFormClient";
 
 export const dynamic = "force-dynamic";
-
-// Mirrors the ALL_PROVINCES list used in the parent analytics page.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Cordoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucuman" },
-  { code: "AR-E", name: "Entre Rios" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 export default async function GobAnalyticsExportPage({
   searchParams,
@@ -74,20 +57,12 @@ export default async function GobAnalyticsExportPage({
   const from = params.from ?? "";
   const to = params.to ?? "";
 
-  // Resolve selected province → localities list for JurisdictionSwitcher.
-  const selectedProvinceIso = params.province ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
+  // Resolve selected province → localities list + switcher options.
+  const { localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: params.province, locality: params.locality },
+  });
 
   return (
     <div className="space-y-6 max-w-2xl">

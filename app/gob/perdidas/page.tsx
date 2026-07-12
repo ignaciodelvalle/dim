@@ -10,18 +10,16 @@ import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchReunificationRate } from "@/lib/analytics/compliance-metrics";
 import {
-  GOB_ALL_PROVINCES,
   type LostPetRow,
   PROVINCE_ISO_MAP,
   type PetStatusFilter,
   fetchLostPets,
   fetchPerdidasMetrics,
 } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 import { formatPercent } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
@@ -84,13 +82,15 @@ export default async function GobPerdidasPage({
   const statusFilter = parseStatusFilter(sp.status);
   const q = sp.q?.trim() || undefined;
 
-  // Resolve selected province ISO code → Province object + localities list.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const localities = selectedProvinceObj
-    ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-    : [];
+  // Switcher inputs (localities dropdown + allowed provinces). NOTE (D4): perdidas
+  // does NOT narrow by filteredJurisdictions — the fetchers below scope internally
+  // on the operator's full `jurisdictions`; the URL province/locality only drives
+  // the switcher UI here. We therefore ignore the primitive's filteredJurisdictions.
+  const { localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
 
   // Fetch the display list with all active display filters applied.
   const lostPets = await fetchLostPets(actor, jurisdictions, {
@@ -138,14 +138,6 @@ export default async function GobPerdidasPage({
   const caseCodesByPet = await fetchLostEpisodeCaseCodesForPets(lostPets.map((p) => p.petId));
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
-
-  // Build allowedProvinces for <JurisdictionSwitcher>.
-  const allowedProvinces =
-    profile.role === "admin"
-      ? GOB_ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
 
   const choroplethData = aggregateLostByProvince(lostPets);
 

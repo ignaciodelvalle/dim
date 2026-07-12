@@ -16,8 +16,7 @@ import {
   csvDownloadResponse,
   logGobDashboardExport,
 } from "@/lib/analytics/govt-dashboard-export";
-import type { DashboardJurisdiction } from "@/lib/analytics/govt-dashboards";
-import { localityByName } from "@/lib/infra/ar-localidades";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   buildProjectionContext,
@@ -28,7 +27,6 @@ import {
   fetchSterilizationNatalidadRatio,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 export async function GET(request: NextRequest): Promise<Response> {
   let profile: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["profile"];
@@ -56,24 +54,11 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Jurisdiction filter — identical logic to app/gob/poblacion/page.tsx so
   // the export always matches the active province/locality selection.
-  const selectedProvinceIso = searchParams.get("province");
-  const selectedLocalitySlug = searchParams.get("locality");
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
-
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    filteredJurisdictions = selectedLocalityRow
-      ? jurisdictions.filter(
-          (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-        )
-      : jurisdictions.filter((j) => j.province === provinceName);
-  }
+  const { filteredJurisdictions } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
+  });
 
   const period = resolveAnalyticsPeriod(sp);
   const actor = { role: profile.role } as const;
