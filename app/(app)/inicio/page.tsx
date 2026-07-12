@@ -123,21 +123,33 @@ export default async function InicioPage() {
     .limit(1);
   const vetUpgradePending = latestVetRequest?.status === "pending";
 
-  // Compliance projection for the health-status pets — the SAME source the pet
-  // profile and /mis-mascotas read (deriveComplianceState). The strip renders
-  // the AL DÍA / REGISTRADA chip from this so /inicio and the profile can never
-  // disagree about whether a pet is compliant (UX gate M5b). One extra bounded
-  // read (4 indexed queries) after the fan-out, since it needs the pet ids.
+  // Compliance projection — the SAME source the pet profile and /mis-mascotas
+  // read (deriveComplianceState). The strip renders the AL DÍA / REGISTRADA
+  // chip from this so /inicio and the profile can never disagree about
+  // whether a pet is compliant (UX gate M5b).
+  //
+  // Fetched over the UNION of the health-nudges pet ids (fetchPetHealthNudges
+  // — owner-role only, lib/infra/owner-nudges.ts) and the carousel's full pet
+  // set (fetchPetsForOwner — no role filter, includes transit/foster pets).
+  // Without the union, a transit-role pet had no entry in complianceByPet, so
+  // the carousel's carouselStatusOf() fell back to the raw "registered"
+  // placeholder even when the pet's REAL compliance was "ok" — while
+  // /mis-mascotas (which computes compliance over every active pet) showed
+  // the true AL DÍA status for the SAME pet (review canon-C2, task #9
+  // follow-up). Unioning here means the "registered" fallback is now reached
+  // only for a pet with genuinely no compliance data.
   const complianceByPet = new Map<string, PetComplianceSummary>();
   const healthPetIds = healthStatus.map((h) => h.petId);
-  if (healthPetIds.length > 0) {
-    const complianceStates = await fetchComplianceStatesForPets(user.id, healthPetIds);
+  const carouselPetIds = pets.filter((p) => p.status !== "deceased").map((p) => p.id);
+  const compliancePetIds = Array.from(new Set([...healthPetIds, ...carouselPetIds]));
+  if (compliancePetIds.length > 0) {
+    const complianceStates = await fetchComplianceStatesForPets(user.id, compliancePetIds);
     const petMetaById = new Map(pets.map((p) => [p.id, p]));
-    for (const h of healthStatus) {
-      const c = complianceStates.get(h.petId);
+    for (const petId of compliancePetIds) {
+      const c = complianceStates.get(petId);
       if (!c) continue;
-      const meta = petMetaById.get(h.petId);
-      complianceByPet.set(h.petId, {
+      const meta = petMetaById.get(petId);
+      complianceByPet.set(petId, {
         status: lnPetStatusFromCompliance(
           { status: meta?.status ?? "active", pregnancyStatus: meta?.pregnancyStatus ?? null },
           c,
@@ -161,9 +173,9 @@ export default async function InicioPage() {
   // -------------------------------------------------------------------------
   // Credential carousel (task #9) — per-pet cards, most-urgent first, capped.
   // Status comes from the SAME single mapper the profile + /mis-mascotas read
-  // (lnPetStatusFromCompliance, already stored in complianceByPet); a pet not
-  // tracked by the health projection (e.g. a transit-role pet) falls back to
-  // its raw status so every card still shows a coherent state.
+  // (lnPetStatusFromCompliance, already stored in complianceByPet — including
+  // transit/foster pets, see the compliancePetIds union above). The raw-status
+  // fallback below now only fires for a pet with genuinely no compliance data.
   // -------------------------------------------------------------------------
   const OWNER_CAROUSEL_CAP = 8;
   const carouselSource = pets.filter((p) => p.status !== "deceased");
