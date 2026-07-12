@@ -218,14 +218,20 @@ async function seedArgo(): Promise<void> {
       },
     },
     {
+      // Canonical microchip_implanted shape (lib/events/event-schemas.ts →
+      // microchipImplanted): the re-derivation harness (replayPetMicrochip) reads
+      // chip_number / country_code / implanted_by / location_on_body /
+      // implant_date_known. Using the legacy keys (chip_id / location) made the
+      // projection derive a null chip, drifting from the canonical
+      // pet_identifications row and failing pet-cache-rederivation.
       eventType: "microchip_implanted",
       occurredAt: microchipDate,
       payload: {
-        chip_id: "858985112999000111",
+        chip_number: ARGO_CHIP,
         country_code: "858",
-        standard: "ISO 11784/11785",
         implanted_by: "Refugio Patitas del Norte",
-        location: "interscapular_left",
+        location_on_body: "interscapular_left",
+        implant_date_known: true,
       },
     },
     {
@@ -247,14 +253,17 @@ async function seedArgo(): Promise<void> {
       },
     },
     {
+      // Canonical weight_recorded shape: payload.kg (string). replayPetWeight
+      // (lib/projections/pet-weight.ts) reads `kg`, not `weight_kg` — the legacy
+      // key derived no weight, drifting estimatedWeightKg from the cached 22.5.
       eventType: "weight_recorded",
       occurredAt: weight1,
-      payload: { weight_kg: 21.0 },
+      payload: { kg: "21.0" },
     },
     {
       eventType: "weight_recorded",
       occurredAt: weight2,
-      payload: { weight_kg: 22.5 },
+      payload: { kg: "22.5" },
     },
   ] as const;
 
@@ -281,6 +290,10 @@ async function seedArgo(): Promise<void> {
     isoManufacturerCode: ARGO_CHIP.slice(3, 7),
     isoNationalId: ARGO_CHIP.slice(7, 15),
     isoCompliant: true,
+    // Mirror the microchip_implanted event's location_on_body so the re-derivation
+    // harness (microchipLocation, implantSite compare) sees both sides normalize to
+    // the same canonical enum via chipImplantSiteFromLocation.
+    implantationSite: "interescapular",
   });
 
   log(
