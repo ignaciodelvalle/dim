@@ -63,6 +63,8 @@ type PanoramaSearchParams = Promise<{
   // custom from/to window) — the signal to seed the role-default preset.
   preset?: string;
   layers?: string;
+  // Round-2 review #5: the temporal-scrub cutoff from a "Copiar vista" deep link.
+  asOf?: string;
 }>;
 
 // RESILIENCE (2026-07-10, PO instrumented-review finding #1): the board's slow
@@ -98,6 +100,14 @@ async function GobPanoramaBoard({
   // the map + scrubber span the seeded history. Detail dashboards are unchanged.
   const period = resolveAnalyticsPeriod({ ...sp, period: sp.period ?? PANORAMA_DEFAULT_PRESET });
   const { since } = period;
+
+  // Round-2 review #5: seed the KPI strip AS-OF a deep-linked ?asOf so SSR never
+  // paints live temporal KPIs over a scrubbed map. Unparseable → live.
+  const asOfSeed = (() => {
+    if (!sp.asOf) return null;
+    const d = new Date(sp.asOf);
+    return Number.isNaN(d.getTime()) ? null : d;
+  })();
 
   const provinceObj = sp.province ? provinceByCode(sp.province) : null;
   const [localities, localityCentroids] = provinceObj
@@ -214,6 +224,7 @@ async function GobPanoramaBoard({
       period: seedPeriod,
       adminProvince,
       adminLocality,
+      asOf: asOfSeed,
       label: "gob/panorama kpis",
     })
       .then((r) => r.value)
@@ -299,6 +310,7 @@ async function GobPanoramaBoard({
     period,
     adminProvince,
     adminLocality,
+    asOf: asOfSeed,
     label: "gob/panorama kpis",
   })
     .then((r) => r.value)
