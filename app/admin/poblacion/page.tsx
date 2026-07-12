@@ -327,7 +327,12 @@ export default async function AdminPoblacionPage({
                       return (
                         <tr
                           key={row.province}
-                          className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
+                          className={[
+                            "border-b border-ln-op-line last:border-0",
+                            // Only signal interactivity when the row actually links
+                            // out — an unresolvable province is not clickable (C4).
+                            drillHref ? "hover:bg-ln-op-stripe/50 transition-colors" : "",
+                          ].join(" ")}
                         >
                           <td className="py-2 pr-4">
                             <span className="text-[11px] tabular-nums text-ln-op-mute mr-2">

@@ -11,7 +11,7 @@
 //
 // Import computeOccupancyBreakdown from lib/org-census.ts for the Ocupación KPI.
 
-import { and, count, eq, gt, gte, isNull, lt, notInArray, sql } from "drizzle-orm";
+import { and, count, eq, exists, gt, gte, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 
 import {
   type OrganizationCapability,
@@ -588,25 +588,75 @@ export function applicableOrgQueues(
 // pre-verification flagged.
 // ---------------------------------------------------------------------------
 
-/** Open cases opened by this org (matches the panel's existing count). */
+/**
+ * Open cases in this org's casos list — matches `listCasesForOrg`
+ * (lib/infra/case-queries.ts) so the badge and the list it links to agree (C2):
+ *   - org membership: opener OR active custody holder (same EXISTS-on-ownerships
+ *     shape the list uses, avoiding co-owner join fan-out), and
+ *   - "open" = closedAt IS NULL (the list's open filter), which counts
+ *     `escalated`/`in_progress` cases that a bare status='open' check dropped.
+ */
 async function countOpenCases(orgId: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(cases)
-    .where(and(eq(cases.openedByOrganizationId, orgId), eq(cases.status, "open")));
+    .where(
+      and(
+        or(
+          eq(cases.openedByOrganizationId, orgId),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(ownerships)
+              .where(
+                and(
+                  eq(ownerships.petId, cases.primaryPetId),
+                  isNull(ownerships.endedAt),
+                  eq(ownerships.ownerOrganizationId, orgId),
+                ),
+              ),
+          ),
+        ),
+        isNull(cases.closedAt),
+      ),
+    );
   return Number(row?.n ?? 0);
 }
 
-/** Open incoming custody-transfer handshakes where this org is the receiver. */
+/**
+ * Open incoming transfers where this org is the receiver — BOTH kinds the
+ * transferencias/recibidas inbox shows (C2): routine custody_transfer_handshake
+ * AND custody_episode (decomiso) handoffs opened by a sanitary_authority. The
+ * decomiso rows carry a hard 7-day legal deadline (Ley 14.346), so omitting them
+ * made the badge read `0` while an open state-seizure custody sat in the inbox.
+ * Discriminators mirror the inbox queries exactly (receiverOrganizationId +
+ * caseKind, decomiso additionally gated on opener.orgType='sanitary_authority').
+ */
 async function countPendingTransfers(orgId: string): Promise<number> {
   const [row] = await db
     .select({ n: count() })
     .from(cases)
     .where(
       and(
-        eq(cases.caseKind, "custody_transfer_handshake"),
         eq(cases.receiverOrganizationId, orgId),
         eq(cases.status, "open"),
+        or(
+          eq(cases.caseKind, "custody_transfer_handshake"),
+          and(
+            eq(cases.caseKind, "custody_episode"),
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(organizations)
+                .where(
+                  and(
+                    eq(organizations.id, cases.openedByOrganizationId),
+                    eq(organizations.orgType, "sanitary_authority"),
+                  ),
+                ),
+            ),
+          ),
+        ),
       ),
     );
   return Number(row?.n ?? 0);

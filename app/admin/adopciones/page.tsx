@@ -101,9 +101,9 @@ export default async function AdminAdopcionesPage({
       >
         <OpKpi
           label="En custodia (refugio)"
-          value={
-            shelterOccupancy.occupied > 0 ? shelterOccupancy.occupied.toLocaleString("es-AR") : "—"
-          }
+          // A real zero (no animals in custody) is operational data, not missing
+          // data — show 0, not "—" (which would read as "metric unavailable").
+          value={shelterOccupancy.occupied.toLocaleString("es-AR")}
           sub="animales en custodia activa en refugios (nacional)"
           info={{
             definition:
@@ -113,11 +113,7 @@ export default async function AdminAdopcionesPage({
         />
         <OpKpi
           label="En tránsito (foster)"
-          value={
-            fosterPool.activeFosterPlacements > 0
-              ? fosterPool.activeFosterPlacements.toLocaleString("es-AR")
-              : "—"
-          }
+          value={fosterPool.activeFosterPlacements.toLocaleString("es-AR")}
           sub="colocaciones foster activas"
           info={{
             definition: "Cantidad de animales con ownerships.role = 'foster' y ended_at IS NULL.",
@@ -126,7 +122,7 @@ export default async function AdminAdopcionesPage({
         />
         <OpKpi
           label="Adopciones"
-          value={funnel.adoption > 0 ? funnel.adoption.toLocaleString("es-AR") : "—"}
+          value={funnel.adoption.toLocaleString("es-AR")}
           sub="adopciones finalizadas en el período"
           sparkline={
             adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined

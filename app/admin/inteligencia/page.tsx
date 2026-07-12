@@ -166,6 +166,26 @@ export default async function AdminInteligenciaPage({
   const totalRecords = quality.rows.reduce((sum, r) => sum + r.total, 0);
   const ghostPct = totalRecords > 0 ? Math.round((totalGhosts / totalRecords) * 1000) / 10 : 0;
 
+  // The KPI totals sum only quality.rows, which fetchProvinceDataQuality has
+  // already stripped of k<5-suppressed provinces and null-province records. The
+  // quality table below (Calidad de datos) discloses that exclusion; the KPI must
+  // say the same thing so the headline count and the table cannot silently
+  // disagree (C2 / C3). Build the same exclusion clause the table renders.
+  const ghostExclusionNote =
+    quality.suppressedProvinces > 0 || quality.unassigned > 0
+      ? ` No incluye ${
+          quality.suppressedProvinces > 0
+            ? `${quality.suppressedProvinces} ${
+                quality.suppressedProvinces === 1 ? "provincia oculta" : "provincias ocultas"
+              } por k<${DATA_QUALITY_K_ANON}`
+            : ""
+        }${quality.suppressedProvinces > 0 && quality.unassigned > 0 ? " ni " : ""}${
+          quality.unassigned > 0
+            ? `${quality.unassigned.toLocaleString("es-AR")} registros sin provincia asignada`
+            : ""
+        } — cuenta solo el padrón evaluado, igual que la tabla de calidad.`
+      : "";
+
   const panelIndexId = "intel-panel-indice-titulo";
   const panelPolicyId = "intel-panel-politica-titulo";
   const panelQualityId = "intel-panel-calidad-titulo";
@@ -220,7 +240,7 @@ export default async function AdminInteligenciaPage({
           info={{
             definition:
               "Registros activos sin ningún titular asociado y sin actividad del propietario en 12 meses — candidatos a conciliación de datos.",
-            caveat: "Señal a nivel registro (conciliación), nunca puntuación de personas.",
+            caveat: `Señal a nivel registro (conciliación), nunca puntuación de personas.${ghostExclusionNote}`,
           }}
         />
       </section>

@@ -148,6 +148,16 @@ export default async function CheckinsPage({
           Vencidos{" "}
           <span className="text-[13px] font-normal text-ln-op-mute">({overdue.length})</span>
         </h2>
+        {/* The 30-row cap is applied to the combined reminder set BEFORE the
+            overdue/upcoming split, so a large overdue backlog can be truncated
+            too — disclose it here, not only under "Próximos", or "Vencidos (N)"
+            silently undercounts. */}
+        {remindersTruncated && (
+          <p className="text-sm text-ln-op-mute">
+            Mostrando los primeros {CHECKIN_CAP} recordatorios por vencimiento; puede haber más
+            vencidos sin listar.
+          </p>
+        )}
         {overdue.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute">
             Ningún check-in vencido. Si el adoptante se atrasa, va a aparecer acá.
