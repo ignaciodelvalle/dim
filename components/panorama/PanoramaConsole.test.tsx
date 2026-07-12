@@ -481,6 +481,54 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     expect(container.querySelector("#pano-dock-panel")).toBeNull();
   });
 
+  // a11y round (task #43) — dock tab semantics.
+  it("A11Y A1 (WCAG 4.1.2): dock tabs carry aria-controls ONLY while expanded (no dangling IDREF collapsed)", () => {
+    renderConsole();
+
+    // Collapsed default: the #pano-dock-panel tabpanel does not exist, so
+    // aria-controls pointing at it would be a dangling IDREF — it must be absent.
+    for (const name of [/Registros/, /Estadísticas/, /Línea de tiempo/]) {
+      expect(screen.getByRole("tab", { name })).not.toHaveAttribute("aria-controls");
+    }
+
+    // Expand → the panel mounts, so the relationship becomes valid.
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+    expect(screen.getByRole("tab", { name: /Estadísticas/ })).toHaveAttribute(
+      "aria-controls",
+      "pano-dock-panel",
+    );
+    expect(document.getElementById("pano-dock-panel")).not.toBeNull();
+  });
+
+  it("A11Y M3 (ARIA APG): dock tablist uses roving tabindex + Arrow/Home/End, manual activation", () => {
+    renderConsole();
+    const registros = screen.getByRole("tab", { name: /Registros/ });
+    const stats = screen.getByRole("tab", { name: /Estadísticas/ });
+    const timeline = screen.getByRole("tab", { name: /Línea de tiempo/ });
+
+    // Only the active tab (Registros, the default) is Tab-stoppable.
+    expect(registros).toHaveAttribute("tabindex", "0");
+    expect(stats).toHaveAttribute("tabindex", "-1");
+    expect(timeline).toHaveAttribute("tabindex", "-1");
+
+    // ArrowRight moves FOCUS to the next tab, without switching the pane.
+    registros.focus();
+    fireEvent.keyDown(registros, { key: "ArrowRight" });
+    expect(stats).toHaveFocus();
+    expect(stats).toHaveAttribute("tabindex", "0");
+    expect(registros).toHaveAttribute("tabindex", "-1");
+    // Selection did NOT follow focus (manual activation): still collapsed,
+    // Registros still the selected tab.
+    expect(registros).toHaveAttribute("aria-selected", "true");
+    expect(document.getElementById("pano-dock-panel")).toBeNull();
+
+    // End → last, Home → first.
+    fireEvent.keyDown(stats, { key: "End" });
+    expect(timeline).toHaveFocus();
+    fireEvent.keyDown(timeline, { key: "Home" });
+    expect(registros).toHaveFocus();
+  });
+
   it("Registros pane hosts the accessible map table (empty-state copy when no aggregate rows)", () => {
     renderConsole();
 
@@ -1890,6 +1938,26 @@ describe("PanoramaConsole — embedded drill: masthead pill + level reset (live-
     const pill = screen.getByTestId("panorama-scope-pill");
     expect(pill).toHaveTextContent("Buenos Aires");
     expect(pill).not.toHaveTextContent("Nacional · todas las provincias");
+    pushSpy.mockRestore();
+  });
+
+  it("A11Y M2 (WCAG 4.1.3): a scope commit is announced in a polite live region", async () => {
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+
+    // The live region exists and is silent on first paint (no announcement of
+    // the initial scope — aria-live only fires on subsequent mutations).
+    const live = screen.getByTestId("panorama-scope-live");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveTextContent("");
+
+    const pushSpy = vi.spyOn(window.history, "pushState").mockImplementation(() => {});
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-B");
+    });
+
+    // After the commit the region publishes the new scope for a screen reader.
+    expect(screen.getByTestId("panorama-scope-live")).toHaveTextContent("Alcance: Buenos Aires");
     pushSpy.mockRestore();
   });
 
