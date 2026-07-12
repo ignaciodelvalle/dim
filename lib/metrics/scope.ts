@@ -65,7 +65,14 @@ export function jurisdictionPairClause(
       ? sql`(${provinceExpr} = ${j.province})`
       : sql`(${provinceExpr} = ${j.province} AND ${localityExpr} = ${j.locality})`,
   );
-  return sql.join(pairs, sql` OR `);
+  // Wrap the OR-chain in an outer group so the clause is a single self-contained
+  // boolean. Without this, a caller composing it via `and(condA, …, pairClause)`
+  // gets `condA AND … AND pair1 OR pair2 OR …`; SQL AND binds tighter than OR, so
+  // every row matching pair2… is returned regardless of the other conditions —
+  // breaking the jurisdiction fence AND the primaryPetId/status/kind filters
+  // (dawn QA #57: Argo pet-drill leaked other pets' cases). One pair alone is
+  // already parenthesized, so the extra group is a harmless no-op there.
+  return sql`(${sql.join(pairs, sql` OR `)})`;
 }
 
 /**
