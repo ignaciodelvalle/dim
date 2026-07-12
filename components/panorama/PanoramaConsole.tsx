@@ -3254,12 +3254,17 @@ export function PanoramaConsole({
   // no classed fill → no ramp cells (label + dots + k-anon pill only). One dot
   // per active POINT layer, in its registry color.
   const legendRampColors = useMemo<readonly string[] | null>(() => {
+    // H10 (cowork QA): in bivariate mode the map paints a 3×3 matrix, NOT a
+    // sequential ramp — but the collapsed pill still had a caption/division ramp
+    // to show and rendered it, mislabeling the encoding. Suppress the ramp here so
+    // the pill shows the honest bivariate hint (LegendPill `bivariate`) instead.
+    if (bivariateActive) return null;
     if (captionLayer && provinceSeqLegend[captionLayer.id]) {
       return provinceSeqLegend[captionLayer.id].colors;
     }
     if (divisionLegend && divisionLegend.colors.length > 0) return divisionLegend.colors;
     return null;
-  }, [captionLayer, provinceSeqLegend, divisionLegend]);
+  }, [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive]);
   const legendLayerDots = useMemo(
     () =>
       activeLayers
@@ -3713,6 +3718,7 @@ export function PanoramaConsole({
               bivariateActive ? "Riesgo combinado" : (captionLayer?.label ?? "Eventos por unidad")
             }
             rampColors={legendRampColors}
+            bivariate={bivariateActive}
             layerDots={legendLayerDots}
           >
             <div className="space-y-2.5">

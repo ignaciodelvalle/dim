@@ -17,13 +17,47 @@ type Props = {
   baseLabel: string;
   /** The classed ramp actually painted (class colors, low→high), or null. */
   rampColors: readonly string[] | null;
+  /**
+   * H10 (cowork QA): the map is in BIVARIATE mode (a 3×3 matrix, not a sequential
+   * ramp). When true the collapsed strip shows an honest 3×3 matrix hint instead
+   * of a ramp — the caller must ALSO pass `rampColors={null}` so no ramp competes
+   * with the hint. The full 3×3 reading lives in the expanded `children`.
+   */
+  bivariate?: boolean;
   /** One dot per active point layer (its registry color + label). */
   layerDots: ReadonlyArray<{ color: string; label: string }>;
   /** The expanded full reading (MapLegends + captions + notices). */
   children: ReactNode;
 };
 
-export function LegendPill({ baseLabel, rampColors, layerDots, children }: Props) {
+/**
+ * Collapsed bivariate cue: a 3×3 grid whose fill deepens toward the high×high
+ * (risk) corner — a recognizable matrix glyph, so the strip never implies a
+ * sequential ramp in bivariate mode. Purely decorative (the expanded panel
+ * carries the real legend + method), hence aria-hidden.
+ */
+function BivariateHint() {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-grid shrink-0 grid-cols-3 gap-px overflow-hidden rounded-[var(--radius-xs)] border border-ln-op-line-2"
+      title="Mapa bivariado (matriz 3×3): tocá para leer la escala."
+    >
+      {[0.15, 0.3, 0.5, 0.3, 0.5, 0.7, 0.5, 0.7, 0.95].map((alpha, i) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: fixed 9-cell positional matrix — index IS the stable identity.
+          key={`biv-${i}`}
+          className="block h-2 w-2"
+          style={{
+            backgroundColor: `color-mix(in srgb, var(--color-ln-op-azul) ${alpha * 100}%, transparent)`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
+export function LegendPill({ baseLabel, rampColors, bivariate, layerDots, children }: Props) {
   return (
     <OverlayDisclosure
       side="up"
@@ -35,6 +69,7 @@ export function LegendPill({ baseLabel, rampColors, layerDots, children }: Props
               clipping the whole strip (the trailing ramp / k-anon pill / caret
               stay pinned via shrink-0) — legend-truncation fix, PO round-2 QA. */}
           <span className="min-w-0 flex-shrink truncate font-semibold">{baseLabel}</span>
+          {bivariate && <BivariateHint />}
           {rampColors !== null && rampColors.length > 0 && (
             <span
               aria-hidden="true"
