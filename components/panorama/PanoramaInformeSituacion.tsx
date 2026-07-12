@@ -54,7 +54,7 @@ const PRINT_CSS = `
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+    <h2 className="mb-2 text-[var(--text-xs)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
       {children}
     </h2>
   );
@@ -72,7 +72,7 @@ export function PanoramaInformeSituacion({ model }: Props) {
             generation stamp. */}
         <header className="space-y-2 border-b border-ln-op-line pb-4">
           <h1 className="text-xl font-bold tracking-tight">{model.title}</h1>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ln-op-ink-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[var(--text-sm)] text-ln-op-ink-2">
             <span className="font-semibold">{model.asOfLabel}</span>
             <span>Período: {model.periodLabel}</span>
             <span>Alcance: {model.scopeLabel}</span>
@@ -91,7 +91,7 @@ export function PanoramaInformeSituacion({ model }: Props) {
 
         {/* One-line view description — the ViewState "explain" gift. */}
         {model.viewSummary && (
-          <p className="text-[13px] leading-snug text-ln-op-ink-2">{model.viewSummary}</p>
+          <p className="text-[var(--text-sm)] leading-snug text-ln-op-ink-2">{model.viewSummary}</p>
         )}
 
         {/* KPIs — value + estado-actual/temporal framing + delta. */}
@@ -111,18 +111,24 @@ export function PanoramaInformeSituacion({ model }: Props) {
                   <p className="flex items-baseline justify-between gap-2">
                     <span className="text-xs text-ln-op-mute">{k.label}</span>
                     {k.stateTag && (
-                      <span className="shrink-0 rounded-full border border-ln-op-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ln-op-mute">
+                      <span className="shrink-0 rounded-full border border-ln-op-line px-1.5 py-0.5 text-[var(--text-xs)] uppercase tracking-wide text-ln-op-mute">
                         {k.stateTag}
                       </span>
                     )}
                   </p>
                   <p className="text-lg font-bold tabular-nums">{k.value}</p>
                   {k.deltaLabel && (
-                    <p className="text-[11px] tabular-nums text-ln-op-ink-2">{k.deltaLabel}</p>
+                    <p className="text-[var(--text-xs)] tabular-nums text-ln-op-ink-2">
+                      {k.deltaLabel}
+                    </p>
                   )}
-                  {k.sub && <p className="text-[11px] leading-snug text-ln-op-mute">{k.sub}</p>}
+                  {k.sub && (
+                    <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">{k.sub}</p>
+                  )}
                   {k.secondary && (
-                    <p className="text-[11px] leading-snug text-ln-op-mute">{k.secondary}</p>
+                    <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+                      {k.secondary}
+                    </p>
                   )}
                 </li>
               ))}
@@ -138,9 +144,9 @@ export function PanoramaInformeSituacion({ model }: Props) {
             {model.ranking.rows.length === 0 ? (
               <p className="text-sm text-ln-op-mute">{model.ranking.emptyText}</p>
             ) : (
-              <table className="w-full border-collapse text-[13px]">
+              <table className="w-full border-collapse text-[var(--text-sm)]">
                 <thead>
-                  <tr className="border-b border-ln-op-line text-left text-[11px] uppercase tracking-wide text-ln-op-faint">
+                  <tr className="border-b border-ln-op-line text-left text-[var(--text-xs)] uppercase tracking-wide text-ln-op-faint">
                     <th className="w-6 py-1 font-semibold">#</th>
                     <th className="py-1 font-semibold">Unidad</th>
                     <th className="py-1 text-right font-semibold">{model.ranking.columnLabel}</th>
@@ -161,7 +167,9 @@ export function PanoramaInformeSituacion({ model }: Props) {
               </table>
             )}
             {model.ranking.suppressedNote && (
-              <p className="mt-2 text-[11px] text-ln-op-mute">{model.ranking.suppressedNote}</p>
+              <p className="mt-2 text-[var(--text-xs)] text-ln-op-mute">
+                {model.ranking.suppressedNote}
+              </p>
             )}
           </section>
         )}
@@ -170,17 +178,21 @@ export function PanoramaInformeSituacion({ model }: Props) {
         <section>
           <SectionTitle>Capas de la vista</SectionTitle>
           {model.activeLayerLabels.length > 0 ? (
-            <p className="text-[13px] text-ln-op-ink-2">{model.activeLayerLabels.join(" · ")}</p>
+            <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+              {model.activeLayerLabels.join(" · ")}
+            </p>
           ) : (
-            <p className="text-[13px] text-ln-op-mute">Sin capas activas.</p>
+            <p className="text-[var(--text-sm)] text-ln-op-mute">Sin capas activas.</p>
           )}
           {model.caption && (
-            <p className="mt-1 text-[12px] leading-snug text-ln-op-mute">{model.caption}</p>
+            <p className="mt-1 text-[var(--text-sm)] leading-snug text-ln-op-mute">
+              {model.caption}
+            </p>
           )}
         </section>
 
         {/* Method / footnote block + the k-anon disclosure. */}
-        <footer className="space-y-2 border-t border-ln-op-line pt-4 text-[11px] leading-snug text-ln-op-mute">
+        <footer className="space-y-2 border-t border-ln-op-line pt-4 text-[var(--text-xs)] leading-snug text-ln-op-mute">
           <SectionTitle>Acerca de las métricas</SectionTitle>
           {model.methodNotes.length > 0 && (
             <ul className="list-disc space-y-1 pl-4">
