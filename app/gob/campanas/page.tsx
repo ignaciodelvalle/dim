@@ -200,7 +200,7 @@ export default async function GobCampanasPage({
 
             <OpKpi
               label="Inscripciones"
-              value={String(dashboard.totals.enrollment)}
+              value={dashboard.totals.enrollment.toLocaleString("es-AR")}
               tone="blue"
               deltaV2={enrollmentDelta ?? undefined}
               sparkline={dashboard.enrollmentSparkline}
@@ -225,7 +225,9 @@ export default async function GobCampanasPage({
                   : "neutral"
               }
               bar={dashboard.totals.completionRate ?? undefined}
-              deltaV2={completionDelta ?? undefined}
+              // No delta chip: the value is a RATE (%), but the only previous-period
+              // signal available is a volume (count) delta — showing "+100%" next to a
+              // flat 72% rate would imply the rate jumped when it didn't (C2 break).
               info={{
                 definition: `Porcentaje de turnos que resultaron en asistencia efectiva. Meta: ${TARGETS.CAMPAIGN_COMPLETION_PCT}%.`,
                 formula: "attended / enrollment × 100",
@@ -234,7 +236,7 @@ export default async function GobCampanasPage({
 
             <OpKpi
               label="Asistencias"
-              value={String(dashboard.totals.completion)}
+              value={dashboard.totals.completion.toLocaleString("es-AR")}
               tone="ok"
               deltaV2={completionDelta ?? undefined}
               info={{
@@ -244,7 +246,7 @@ export default async function GobCampanasPage({
 
             <OpKpi
               label="Ausencias"
-              value={String(dashboard.totals.noShow)}
+              value={dashboard.totals.noShow.toLocaleString("es-AR")}
               tone={dashboard.totals.noShow > 0 ? "warn" : "neutral"}
               deltaV2={noShowDelta ?? undefined}
               info={{
@@ -257,7 +259,7 @@ export default async function GobCampanasPage({
                 Exact per-appointment attribution via appointments.outcome_event_id. */}
             <OpKpi
               label="Impacto sanitario"
-              value={String(dashboard.totals.sanitaryOutcome)}
+              value={dashboard.totals.sanitaryOutcome.toLocaleString("es-AR")}
               tone="ok"
               info={{
                 definition:
@@ -407,7 +409,7 @@ export default async function GobCampanasPage({
               previously sat above this table, but it only re-aggregated the
               same geoReach rows to province granularity (strictly less
               detail than the table below) — demoted per PO review. */}
-          {dashboard.geoReach.length > 0 && (
+          {dashboard.geoReach.rows.length > 0 && (
             <OpCard aria-labelledby={panelGeoId}>
               <OpCardHead
                 title={
@@ -417,6 +419,17 @@ export default async function GobCampanasPage({
                       localidades con asistencias
                     </span>
                   </span>
+                }
+                actions={
+                  dashboard.geoReach.suppressedCount > 0 ? (
+                    <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+                      {dashboard.geoReach.suppressedCount}{" "}
+                      {dashboard.geoReach.suppressedCount === 1
+                        ? "localidad oculta"
+                        : "localidades ocultas"}{" "}
+                      (privacidad · k-anonimato)
+                    </span>
+                  ) : null
                 }
               />
               <OpCardBody>
@@ -438,7 +451,7 @@ export default async function GobCampanasPage({
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard.geoReach.map((r) => (
+                    {dashboard.geoReach.rows.map((r) => (
                       <tr key={r.locality} className="border-b border-ln-op-line/50">
                         <td className="py-1 text-ln-op-ink">{r.locality}</td>
                         <td className="py-1 text-ln-op-mute">{r.province ?? "—"}</td>

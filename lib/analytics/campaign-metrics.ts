@@ -18,7 +18,7 @@
 import { and, count, countDistinct, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
 
 import { appointments, db, petEvents, serviceOfferings } from "@/db";
-import type { ProjectionContext } from "@/lib/metrics";
+import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
 // Sanitary outcome event spine
@@ -123,6 +123,19 @@ export type CampaignGeoReach = {
   attendedCount: number;
 };
 
+/**
+ * k-anonymity-safe geo reach: the locality rows safe to display/export, plus
+ * the number of localities withheld below the k threshold. Both the dashboard
+ * table and the CSV export consume `rows` — there is no second, unsuppressed
+ * query — so suppression holds on every surface.
+ */
+export type CampaignGeoReachResult = {
+  /** Localities with ≥k attendances + one per-province privacy rollup row. */
+  rows: CampaignGeoReach[];
+  /** Number of localities hidden because their count was < k (k-anonimato). */
+  suppressedCount: number;
+};
+
 /** Full campaign dashboard result for the page. */
 export type CampaignDashboardData = {
   offerings: CampaignOfferingStats[];
@@ -146,8 +159,8 @@ export type CampaignDashboardData = {
     completion: number;
     noShow: number;
   };
-  /** Geo reach data for choropleth. */
-  geoReach: CampaignGeoReach[];
+  /** Geo reach data — k-anonymity suppressed (rows + hidden-cell count). */
+  geoReach: CampaignGeoReachResult;
 };
 
 // ---------------------------------------------------------------------------
@@ -334,14 +347,60 @@ async function fetchOfferingOutcomes(
 // ---------------------------------------------------------------------------
 
 /**
+ * k-anonymity suppression for geo-reach cells (pure — no DB, unit-testable).
+ *
+ * A locality with a handful of vaccinated animals is individually identifiable,
+ * so localities whose attendance count is below `k` (default 5) are withheld and
+ * folded into ONE per-province "Otras localidades (privacidad)" rollup row — the
+ * same proven-safe pattern the mortality-by-locality projection uses
+ * (lib/analytics/mortality-metrics.ts, `suppressSmallCells` + province rollup).
+ * The rollup preserves the province-level attendance total without exposing the
+ * sub-threshold locality. Because both the /gob/campanas table and its CSV export
+ * consume the SAME suppressed rows, the leak is closed on every surface.
+ */
+export function suppressGeoReach(cells: CampaignGeoReach[], k = 5): CampaignGeoReachResult {
+  const { visible, suppressed, suppressedCount } = suppressSmallCells<CampaignGeoReach>(cells, {
+    count: (c) => c.attendedCount,
+    key: (c) => c.locality,
+    k,
+  });
+
+  // Fold every suppressed locality into a single rollup row per province.
+  const rollupByProvince = new Map<string, CampaignGeoReach>();
+  for (const c of suppressed) {
+    const provinceKey = c.province ?? "—";
+    const existing = rollupByProvince.get(provinceKey);
+    if (existing) {
+      existing.attendedCount += c.attendedCount;
+    } else {
+      rollupByProvince.set(provinceKey, {
+        locality: "Otras localidades (privacidad)",
+        province: c.province,
+        attendedCount: c.attendedCount,
+      });
+    }
+  }
+
+  // `visible` is branded SuppressedCells at compile time; its runtime elements
+  // are the CampaignGeoReach rows we passed in.
+  const visibleRows = visible as unknown as CampaignGeoReach[];
+  const rows = [...visibleRows, ...rollupByProvince.values()].sort(
+    (a, b) => b.attendedCount - a.attendedCount,
+  );
+
+  return { rows, suppressedCount };
+}
+
+/**
  * Returns distinct localities where ≥1 attendance happened in the period.
- * Groups by jurisdiction_locality from service_offerings (no JSONB required).
+ * Groups by jurisdiction_locality from service_offerings (no JSONB required),
+ * then routes the result through k-anonymity suppression before returning.
  */
 async function fetchGeoReach(
   offeringIds: string[],
   ctx: ProjectionContext,
-): Promise<CampaignGeoReach[]> {
-  if (offeringIds.length === 0) return [];
+): Promise<CampaignGeoReachResult> {
+  if (offeringIds.length === 0) return { rows: [], suppressedCount: 0 };
 
   const { since, until } = ctx.period;
 
@@ -364,7 +423,7 @@ async function fetchGeoReach(
     .where(inArray(serviceOfferings.id, offeringIds))
     .groupBy(serviceOfferings.jurisdictionLocality, serviceOfferings.jurisdictionProvince);
 
-  return rows
+  const cells = rows
     .filter(
       (r): r is { locality: string; province: string | null; attendedCount: number } =>
         r.locality !== null,
@@ -373,8 +432,9 @@ async function fetchGeoReach(
       locality: r.locality,
       province: r.province,
       attendedCount: Number(r.attendedCount),
-    }))
-    .sort((a, b) => b.attendedCount - a.attendedCount);
+    }));
+
+  return suppressGeoReach(cells);
 }
 
 // ---------------------------------------------------------------------------
@@ -499,7 +559,7 @@ export async function fetchCampaignDashboard(
         outcomeConversionRate: null,
       },
       prevTotals: { enrollment: 0, completion: 0, noShow: 0 },
-      geoReach: [],
+      geoReach: { rows: [], suppressedCount: 0 },
     };
   }
 

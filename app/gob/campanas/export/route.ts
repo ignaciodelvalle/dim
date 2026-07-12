@@ -88,7 +88,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     ausencias: o.noShow,
   }));
 
-  const geoReachRows = dashboard.geoReach.map((r) => ({
+  // k-anonymity: dashboard.geoReach.rows is already suppressed + rolled up in
+  // lib/analytics/campaign-metrics.ts (fetchGeoReach → suppressGeoReach), so the
+  // CSV cannot leak a sub-threshold locality count — same suppressed data the
+  // on-screen table renders (no separate unsuppressed query).
+  const geoReachRows = dashboard.geoReach.rows.map((r) => ({
     localidad: r.locality,
     provincia: r.province ?? "",
     asistencias: r.attendedCount,

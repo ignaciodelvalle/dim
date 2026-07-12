@@ -14,12 +14,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { buildProjectionContext } from "@/lib/metrics";
 import {
+  type CampaignGeoReach,
   type CampaignOutcomeRow,
   aggregateCampaignOutcomes,
   computeDelta,
   fetchCampaignDashboard,
   formatDelta,
   isSanitaryOutcomeEvent,
+  suppressGeoReach,
 } from "./campaign-metrics";
 
 // ---------------------------------------------------------------------------
@@ -116,6 +118,86 @@ describe("aggregateCampaignOutcomes — pure projection over synthetic events", 
     const rows: CampaignOutcomeRow[] = [{ offeringId: "A", eventType: "vet_visit_logged" }];
     const result = aggregateCampaignOutcomes(rows);
     expect(result.has("A")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// suppressGeoReach — k-anonymity on geo reach (pure, no DB)
+//
+// Test-pins the F1 fix: government-facing campaign attendance by locality must
+// never ship a < k count (a locality with 2 vaccinated animals is individually
+// identifiable), on the table OR the CSV export.
+// ---------------------------------------------------------------------------
+
+describe("suppressGeoReach — k-anonymity (k=5)", () => {
+  it("returns empty rows + zero suppressed for no cells", () => {
+    expect(suppressGeoReach([])).toEqual({ rows: [], suppressedCount: 0 });
+  });
+
+  it("keeps localities with count ≥ k, with their exact count", () => {
+    const cells: CampaignGeoReach[] = [
+      { locality: "La Plata", province: "Buenos Aires", attendedCount: 12 },
+      { locality: "Mar del Plata", province: "Buenos Aires", attendedCount: 5 },
+    ];
+    const result = suppressGeoReach(cells);
+    expect(result.suppressedCount).toBe(0);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows.find((r) => r.locality === "La Plata")?.attendedCount).toBe(12);
+    // Exactly at the threshold (5) stays visible.
+    expect(result.rows.find((r) => r.locality === "Mar del Plata")?.attendedCount).toBe(5);
+  });
+
+  it("suppresses localities with count < k and never exposes them by name", () => {
+    const cells: CampaignGeoReach[] = [
+      { locality: "La Plata", province: "Buenos Aires", attendedCount: 12 },
+      { locality: "Villa Chica", province: "Buenos Aires", attendedCount: 2 },
+      { locality: "Villa Menor", province: "Buenos Aires", attendedCount: 4 },
+    ];
+    const result = suppressGeoReach(cells);
+    expect(result.suppressedCount).toBe(2);
+    // The sub-threshold localities are gone by name.
+    expect(result.rows.find((r) => r.locality === "Villa Chica")).toBeUndefined();
+    expect(result.rows.find((r) => r.locality === "Villa Menor")).toBeUndefined();
+    // No visible/rollup row may carry a raw sub-threshold locality count.
+    expect(result.rows.some((r) => r.locality === "Villa Chica" && r.attendedCount === 2)).toBe(
+      false,
+    );
+  });
+
+  it("folds suppressed localities into ONE per-province rollup that preserves the total", () => {
+    const cells: CampaignGeoReach[] = [
+      { locality: "La Plata", province: "Buenos Aires", attendedCount: 12 },
+      { locality: "Villa Chica", province: "Buenos Aires", attendedCount: 2 },
+      { locality: "Villa Menor", province: "Buenos Aires", attendedCount: 4 },
+    ];
+    const result = suppressGeoReach(cells);
+    const rollup = result.rows.find((r) => r.locality === "Otras localidades (privacidad)");
+    expect(rollup).toBeDefined();
+    expect(rollup?.province).toBe("Buenos Aires");
+    // 2 + 4 preserved at province granularity (locality identity withheld).
+    expect(rollup?.attendedCount).toBe(6);
+  });
+
+  it("keeps rollups separated per province (no cross-province lumping)", () => {
+    const cells: CampaignGeoReach[] = [
+      { locality: "Villa Chica", province: "Buenos Aires", attendedCount: 2 },
+      { locality: "Pueblo Chico", province: "Córdoba", attendedCount: 3 },
+    ];
+    const result = suppressGeoReach(cells);
+    expect(result.suppressedCount).toBe(2);
+    const rollups = result.rows.filter((r) => r.locality === "Otras localidades (privacidad)");
+    expect(rollups).toHaveLength(2);
+    expect(rollups.find((r) => r.province === "Buenos Aires")?.attendedCount).toBe(2);
+    expect(rollups.find((r) => r.province === "Córdoba")?.attendedCount).toBe(3);
+  });
+
+  it("returns rows sorted by attendance descending", () => {
+    const cells: CampaignGeoReach[] = [
+      { locality: "Small", province: "Buenos Aires", attendedCount: 6 },
+      { locality: "Big", province: "Buenos Aires", attendedCount: 20 },
+    ];
+    const result = suppressGeoReach(cells);
+    expect(result.rows.map((r) => r.locality)).toEqual(["Big", "Small"]);
   });
 });
 
@@ -246,7 +328,8 @@ describe("fetchCampaignDashboard — integration", () => {
     expect(result.totals.completion).toBe(0);
     expect(result.totals.noShow).toBe(0);
     expect(result.totals.completionRate).toBeNull();
-    expect(result.geoReach).toHaveLength(0);
+    expect(result.geoReach.rows).toHaveLength(0);
+    expect(result.geoReach.suppressedCount).toBe(0);
   });
 
   it("counts enrollment as confirmed + attended + no_show (not cancelled)", async () => {
@@ -357,23 +440,27 @@ describe("fetchCampaignDashboard — integration", () => {
     }
   });
 
-  it("geoReach includes the test locality when attended appointments exist", async () => {
-    // Ensure at least one attended appointment in the test locality.
-    const [appt] = await db
+  it("geoReach shows a locality with ≥5 attendances (above the k-anon threshold)", async () => {
+    // Seed 5 attended appointments so the locality clears k=5 and stays visible
+    // by name — a locality below the threshold is suppressed (see the dedicated
+    // suppressGeoReach unit tests and the suppression integration test below).
+    const geoAppts = await db
       .insert(appointments)
-      .values({
-        publicToken: `APT-GEO-${Date.now()}`,
-        slotId,
-        petId,
-        ownerUserId: ownerId,
-        serviceOfferingId: offeringId,
-        organizationId: orgId,
-        status: "attended",
-        attendedAt: new Date(),
-        attendedByUserId: ownerId,
-      })
+      .values(
+        Array.from({ length: 5 }, (_, i) => ({
+          publicToken: `APT-GEO-${Date.now()}-${i}`,
+          slotId,
+          petId,
+          ownerUserId: ownerId,
+          serviceOfferingId: offeringId,
+          organizationId: orgId,
+          status: "attended" as const,
+          attendedAt: new Date(),
+          attendedByUserId: ownerId,
+        })),
+      )
       .returning({ id: appointments.id });
-    createdAppointmentIds.push(appt.id);
+    createdAppointmentIds.push(...geoAppts.map((r) => r.id));
 
     const ctx = buildProjectionContext(
       { role: "govt" },
@@ -382,8 +469,14 @@ describe("fetchCampaignDashboard — integration", () => {
     );
 
     const result = await fetchCampaignDashboard(ctx);
-    const geo = result.geoReach.find((g) => g.locality === TEST_LOCALITY);
+    const geo = result.geoReach.rows.find((g) => g.locality === TEST_LOCALITY);
     expect(geo).toBeDefined();
-    expect(geo?.attendedCount).toBeGreaterThanOrEqual(1);
+    expect(geo?.attendedCount).toBeGreaterThanOrEqual(5);
+    // No visible row may carry a raw sub-threshold count.
+    for (const row of result.geoReach.rows) {
+      if (row.locality !== "Otras localidades (privacidad)") {
+        expect(row.attendedCount).toBeGreaterThanOrEqual(5);
+      }
+    }
   });
 });
