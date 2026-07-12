@@ -8,8 +8,10 @@
 // helpers stay correct — they query the same rows the policies expose.
 
 import { HIDDEN_FROM_SUBJECT_CASE_KINDS } from "@/lib/infra/case-access";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset-pagination";
 import {
+  type SQL,
   and,
   desc,
   eq,
@@ -354,7 +356,27 @@ export interface PetOpenCase {
   openedAt: Date;
 }
 
-export async function findOpenCasesForPetWithCodes(petId: string): Promise<PetOpenCase[]> {
+export async function findOpenCasesForPetWithCodes(
+  petId: string,
+  govtScope?: ReadonlyArray<{ province: string; locality: string }>,
+): Promise<PetOpenCase[]> {
+  // FENCE (govt inspector, task #59): when `govtScope` is provided, restrict the
+  // returned open cases to the operator's jurisdiction in SQL, so no out-of-scope
+  // case code/kind/open-date ever reaches the payload. `undefined` = admin /
+  // universal = unfiltered (existing callers pass nothing and are unchanged).
+  // jurisdictionPairClause is the SQL mirror of jurisdictionScopeContains (same
+  // whole-province subsumption) used by the linking-case gate — one predicate,
+  // no divergence. An empty scope fails closed (`false`), never wide-open.
+  let scopeClause: SQL | undefined;
+  if (govtScope !== undefined) {
+    scopeClause =
+      jurisdictionPairClause(
+        [...govtScope],
+        sql`${cases.jurisdictionProvince}`,
+        sql`${cases.jurisdictionLocality}`,
+      ) ?? sql`false`;
+  }
+
   const rows = await db
     .select({
       id: cases.id,
@@ -369,6 +391,7 @@ export async function findOpenCasesForPetWithCodes(petId: string): Promise<PetOp
         eq(cases.primaryPetId, petId),
         inArray(cases.status, ["open", "escalated"]),
         notInArray(cases.caseKind, [...GENERIC_CASE_LIST_EXCLUDED_KINDS]),
+        scopeClause,
       ),
     )
     .orderBy(desc(cases.openedAt));
