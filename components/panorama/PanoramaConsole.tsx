@@ -1423,9 +1423,9 @@ export function PanoramaConsole({
   scrubDetailRef.current = scrubDetail;
 
   // task #38 v3 rail — the open rail panel id (null = closed). Controlled here so
-  // a KPI card's "Ver metodología" can open the Acerca panel and only one panel
-  // is ever open. The Filtro panel reuses `capasDetail`; the others own a local
-  // Simple/Detalle flag.
+  // only one panel is ever open. The Filtro panel reuses `capasDetail`; the
+  // others own a local Simple/Detalle flag. (#49 item 10: the methodology
+  // affordance is the rail's own "Acerca" icon now — no KPI-cluster text link.)
   const [railOpen, setRailOpen] = useState<string | null>(null);
   const [vistaDetail, setVistaDetail] = useState(false);
   const [periodoDetail, setPeriodoDetail] = useState(false);
@@ -3927,7 +3927,7 @@ export function PanoramaConsole({
               summaryTestId="panorama-scope-pill"
               panelClassName="left-0 w-80 max-w-[80vw]"
               closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
-              summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+              summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul shadow-md hover:bg-ln-op-azul/10"
               summary={
                 <>
                   <span aria-hidden="true">◉</span>
@@ -3963,7 +3963,7 @@ export function PanoramaConsole({
             </OverlayDisclosure>
           )}
           {vistaName && (
-            <p className="w-fit max-w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-3 py-1 text-[var(--text-xs)] text-ln-op-mute shadow-sm">
+            <p className="w-fit max-w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1 text-[var(--text-xs)] text-ln-op-mute shadow-md">
               Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
             </p>
           )}
@@ -3975,7 +3975,6 @@ export function PanoramaConsole({
             onRebase={(id) => {
               void onToggle(id);
             }}
-            onOpenAbout={() => setRailOpen("acerca")}
             pending={kpisPending}
             degraded={kpisDegraded}
           />

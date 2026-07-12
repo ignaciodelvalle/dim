@@ -3560,40 +3560,40 @@ export function SituationalMap({
             {briefingActions}
           </div>
         )}
-        {/* Top-CENTER control cluster (v2C): scope drill ("← Volver a
-            Nacional") + camera reset + aggregation-level badge — centered so
-            the top corners stay free for the overlay clusters. Light chrome
-            (the dark skin is retired). Below 2xl the corner clusters converge
-            on the middle (1366×768 sits INSIDE Tailwind's xl, so xl: was the
-            wrong gate — responsive pass), and the centered group drops BELOW
-            them instead of overlapping the scope pill. */}
-        {/* pointer-events-none on the GROUP (its box floats over drillable
-            geography at narrow widths — clicks must fall through to the map);
+        {/* Top control cluster (#49 item 7): scope drill ("← Volver a
+            Nacional") + camera reset (globe) + aggregation-level badge, pinned
+            to the TOP strip and anchored just right of the scope-pill/KPI column
+            (left-80 clears the w-72 column) so it reads AS a map-control group
+            near the scope pill — not floating over the geography. Prev it was
+            centered and dropped to top-36 below 2xl, landing over drillable
+            provinces at 1366. */}
+        {/* pointer-events-none on the GROUP so any gap falls through to the map;
             each interactive button re-enables its own pointer events. */}
-        <div className="pointer-events-none absolute left-1/2 top-36 z-10 flex -translate-x-1/2 items-center gap-2 2xl:top-3.5">
+        <div className="pointer-events-none absolute left-80 top-3.5 z-10 flex items-center gap-2">
           {/* Click-to-drill (task #55): pop the province scope back to national.
             Rendered only when the operator can return (explicit province pick). */}
           {onReturnNational && (
             <button
               type="button"
               onClick={onReturnNational}
-              className="pointer-events-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
+              className="pointer-events-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 shadow-md hover:bg-ln-op-stripe"
             >
               ← Volver a Nacional
             </button>
           )}
-          {/* Reset view (fix): a HOME icon is the universal "return to the default
-            frame" convention — replaces the internal-jargon "Mi alcance" text.
-            fitToScope re-frames the camera to the operator's scope default
-            (national for admin/universal; the jurisdiction frame for scoped govt).
-            The accessible label + tooltip name the destination honestly per
-            operator type; the visible control is the icon. */}
+          {/* Reset view: a GLOBE/national icon is the honest "return to the whole
+            territory" cue (PO #49 item 8 — a house read as "go home/dashboard",
+            wrong metaphor for a map that reframes to the national/jurisdiction
+            extent). fitToScope re-frames the camera to the operator's scope
+            default (national for admin/universal; the jurisdiction frame for
+            scoped govt). The accessible label + tooltip name the destination
+            honestly per operator type; the visible control is the icon. */}
           <button
             type="button"
             onClick={fitToScope}
             title={resetViewLabel}
             aria-label={resetViewLabel}
-            className="pointer-events-auto flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-sm hover:bg-ln-op-stripe"
+            className="pointer-events-auto flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-md hover:bg-ln-op-stripe"
           >
             <svg
               width="16"
@@ -3606,8 +3606,9 @@ export function SituationalMap({
               strokeLinejoin="round"
               aria-hidden="true"
             >
-              <path d="M3 10.5 12 3l9 7.5" />
-              <path d="M5 9.5V21h14V9.5" />
+              <circle cx="12" cy="12" r="9" />
+              <path d="M3 12h18" />
+              <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
             </svg>
           </button>
           {/* ARCHETYPE A: aggregation-level badge — announces WHAT a map mark
@@ -3615,7 +3616,7 @@ export function SituationalMap({
             so the reader knows the granularity's meaning changed on drill. */}
           {aggregationLabel && (
             <span
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 shadow-sm"
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 shadow-md"
               title="Nivel de agregación del mapa"
             >
               {aggregationLabel}
@@ -3624,7 +3625,7 @@ export function SituationalMap({
         </div>
         {renderableCount === 0 && !hasProvChoro && divisionLegend === null && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <p className="max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 px-4 py-2 text-center text-[var(--text-md)] text-ln-op-ink-2 shadow-sm">
+            <p className="max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-2 text-center text-[var(--text-md)] text-ln-op-ink-2 shadow-md">
               {rateProvinceOnlyEmpty
                 ? "La cobertura se calcula solo a nivel provincia. Volvé al nivel provincia para verla."
                 : `Sin datos para esta capa ${emptyStateScope}.`}

@@ -62,7 +62,7 @@ export function LegendPill({ baseLabel, rampColors, bivariate, layerDots, childr
     <OverlayDisclosure
       side="up"
       panelClassName="left-0 max-h-[55vh] w-[19rem] overflow-y-auto"
-      summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card/95 px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-sm hover:border-ln-op-celeste"
+      summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-md hover:border-ln-op-celeste"
       summary={
         <>
           {/* min-w-0 + truncate: a long metric name ellipsizes instead of hard-

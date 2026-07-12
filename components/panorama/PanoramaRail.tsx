@@ -18,8 +18,8 @@
 // Each panel carries a Simple/Detalle toggle. "action" items (Línea de tiempo,
 // Actualizar) fire immediately with no panel.
 //
-// Controlled: the console owns `open` so a KPI card's "Ver metodología" can open
-// the Acerca panel, and so only ONE panel is ever open.
+// Controlled: the console owns `open` so only ONE panel is ever open (the
+// "Acerca" icon here is the sole methodology entry point — #49 item 10).
 
 import { type ReactNode, useEffect, useId, useRef } from "react";
 
@@ -97,7 +97,7 @@ export function PanoramaRail({ items, open, onOpenChange }: Props) {
           role="toolbar"
           aria-label="Controles del panorama"
           aria-orientation="vertical"
-          className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/95 p-1 shadow-md"
+          className="flex flex-col gap-1 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-1 shadow-lg"
         >
           {items.map((item) => {
             const isOpen = item.kind === "panel" && open === item.id;

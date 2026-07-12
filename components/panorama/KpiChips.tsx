@@ -4,8 +4,8 @@
 // slightly larger card carrying: the value + short label (de-dup, item 5), the
 // period-over-period delta (from the KPI payload), and a mini-sparkline for the
 // window-sensitive metrics that ship one (cobertura / mordeduras / zoonosis —
-// same trend plumbing as /gob home). Hover reveals a one-line method note; a
-// single "Ver metodología" link opens the Acerca rail panel (onOpenAbout).
+// same trend plumbing as /gob home). Hover reveals a one-line method note; the
+// full methodology lives in the right rail's "Acerca" panel (#49 item 10).
 //
 // Click still RE-BASES the choropleth (unchanged): a card whose KPI id names a
 // BASE-role map layer routes onRebase(layerId) → PanoramaConsole.onToggle → the
@@ -13,6 +13,10 @@
 //
 // The cluster stays COMPACT — bigger cards, but the map still dominates (the PO's
 // "MÁS MAPA" ruling). Honesty states (degraded / pending / empty) unchanged.
+//
+// #49 item 10 (progressive disclosure): the methodology affordance is NOT a text
+// link under the cards anymore — it is consolidated into the right rail's
+// "Acerca" (i) icon, so the KPI cluster carries only the numbers.
 
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { Sparkline } from "@/components/panorama/Sparkline";
@@ -46,8 +50,6 @@ type Props = {
   activeBaseLayerId: LayerId | null;
   /** Re-base the map on this layer (routes to the console's onToggle). */
   onRebase: (layerId: LayerId) => void;
-  /** Open the Acerca rail panel (methodology). */
-  onOpenAbout?: () => void;
   pending?: boolean;
   degraded?: boolean;
 };
@@ -71,7 +73,6 @@ export function KpiChips({
   presetId,
   activeBaseLayerId,
   onRebase,
-  onOpenAbout,
   pending = false,
   degraded = false,
 }: Props) {
@@ -108,8 +109,15 @@ export function KpiChips({
       {shown.map((kpi) => {
         const baseId = baseLayerFor(kpi.id);
         const active = baseId !== null && baseId === activeBaseLayerId;
-        const cardClass = `flex w-full flex-col gap-0.5 rounded-[var(--radius-md)] border px-3 py-2 text-left ${
-          active ? "border-ln-op-azul bg-ln-op-azul/10" : "border-ln-op-line bg-ln-op-card/95"
+        // #49 item 1: floating chrome must read over ANY basemap. Opaque fill +
+        // shadow scrim on every card (prev bg-ln-op-card/95 and the active
+        // bg-ln-op-azul/10 were translucent — they washed out over busy barrio /
+        // bivariate maps). Active state now reads via the blue border + ring +
+        // blue value text (CardBody), keeping the fill fully opaque.
+        const cardClass = `flex w-full flex-col gap-0.5 rounded-[var(--radius-md)] border px-3 py-2 text-left shadow-md ${
+          active
+            ? "border-ln-op-azul bg-ln-op-card ring-1 ring-ln-op-azul/40"
+            : "border-ln-op-line bg-ln-op-card"
         }`;
         const title = `${kpi.label} — ${methodNote(kpi)}`;
         return baseId !== null ? (
@@ -142,15 +150,6 @@ export function KpiChips({
           </div>
         );
       })}
-      {onOpenAbout && (
-        <button
-          type="button"
-          onClick={onOpenAbout}
-          className="self-start text-[var(--text-xs)] font-medium text-ln-op-azul hover:underline"
-        >
-          Ver metodología
-        </button>
-      )}
     </fieldset>
   );
 }

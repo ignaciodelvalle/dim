@@ -251,7 +251,7 @@ export function CabaInset({ layer, visible, uniformFill = null, lockedBreaks = n
   return (
     // task #38 v3: pushed LEFT of the floating vertical rail (right-3.5, ~56px
     // wide) so the AMBA magnifier clears it — the rail now owns the right edge.
-    <div className="absolute right-[4.9rem] top-3.5 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/95 shadow-md">
+    <div className="absolute right-[4.9rem] top-3.5 w-[168px] overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card shadow-lg">
       <div className="flex items-baseline justify-between px-2 py-1 text-ln-op-ink-2">
         <span className="text-[var(--text-xs)] font-medium">CABA</span>
         <span className="text-[var(--text-xs)] text-ln-op-mute">
