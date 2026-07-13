@@ -38,6 +38,54 @@ function isFiniteValue(value: unknown): value is number {
 /** value min/max over a province layer's features (for the scale legend). */
 export type ScaleBounds = { min: number; max: number };
 
+/** Collect the (provinceCode, value) pairs — the value-by-code join the fill
+ *  `match` reads. Non-finite / code-less features are dropped (NaN hardening). */
+function provincePairs(features: FeatureCollection): Array<[string, number]> {
+  const pairs: Array<[string, number]> = [];
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
+    pairs.push([p.provinceCode, p.value]);
+  }
+  return pairs;
+}
+
+/**
+ * P3 consolidation — the SINGLE classed-province `fill-color` assembly shared by
+ * BOTH the sequential (provinceColorExpr) and META (provinceMetaColorExpr) paths,
+ * and by the first-class `ChoroplethEncoding` value object (encoding.ts). Given a
+ * feature set and its ALREADY-RESOLVED ClassScale, it builds the exact
+ * `case → match → step` expression both paths used to assemble independently:
+ *  1. a `match` maps each province code → its value (default -1 = "no data");
+ *  2. a `case` short-circuits the -1 no-data cells to COLOR_NO_DATA (k-anon /
+ *     absence honesty — a suppressed or absent cell never enters a color class);
+ *  3. the rest are THRESHOLD-CLASSED via `stepColorExpr(valueMatch, scale)`.
+ * The scale is passed in (never recomputed here), so the fill and any legend /
+ * inset sampling that read the SAME scale object cannot drift. Returns a flat
+ * COLOR_NO_DATA expression when the layer carries no values.
+ */
+export function classedProvinceFill(
+  features: FeatureCollection,
+  scale: ClassScale,
+): ExpressionSpecification {
+  const pairs = provincePairs(features);
+  if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
+
+  const valueMatch = [
+    "match",
+    ["get", "code"],
+    ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
+    -1,
+  ] as unknown as ExpressionSpecification;
+
+  return [
+    "case",
+    ["==", valueMatch, -1],
+    COLOR_NO_DATA,
+    stepColorExpr(valueMatch, scale),
+  ] as unknown as ExpressionSpecification;
+}
+
 /**
  * Build the data-driven `fill-color` for a province choropleth.
  *  1. a `match` maps each province code → its value (default -1 = "no data");
@@ -82,33 +130,12 @@ export function provinceColorExpr(
   // as-of frame.
   lockedBreaks?: readonly number[] | null,
 ): ExpressionSpecification {
-  const pairs: Array<[string, number]> = [];
-  for (const f of features.features) {
-    const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
-    pairs.push([p.provinceCode, p.value]);
-  }
   const scale = provinceSeqClassScale(features, lockedBreaks);
   // No data at all — paint everything neutral.
-  if (pairs.length === 0 || scale === null) {
-    return COLOR_NO_DATA as unknown as ExpressionSpecification;
-  }
-
-  // value-by-code lookup (default -1 → "no data"). MapLibre `match` labels are
-  // string|number; province codes are strings.
-  const valueMatch = [
-    "match",
-    ["get", "code"],
-    ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
-    -1,
-  ] as unknown as ExpressionSpecification;
-
-  return [
-    "case",
-    ["==", valueMatch, -1],
-    COLOR_NO_DATA,
-    stepColorExpr(valueMatch, scale),
-  ] as unknown as ExpressionSpecification;
+  if (scale === null) return COLOR_NO_DATA as unknown as ExpressionSpecification;
+  // P3: the fill is assembled from the ONE resolved scale (classedProvinceFill),
+  // the same assembly the META path and the ChoroplethEncoding value object use.
+  return classedProvinceFill(features, scale);
 }
 
 /**
@@ -157,30 +184,10 @@ export function provinceMetaColorExpr(
   features: FeatureCollection,
   target: number,
 ): ExpressionSpecification {
-  const pairs: Array<[string, number]> = [];
-  for (const f of features.features) {
-    const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
-    pairs.push([p.provinceCode, p.value]);
-  }
-  // No data at all — paint everything neutral.
-  if (pairs.length === 0) return COLOR_NO_DATA as unknown as ExpressionSpecification;
-
-  const scale = computeClassScale([], { target });
-
-  const valueMatch = [
-    "match",
-    ["get", "code"],
-    ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
-    -1,
-  ] as unknown as ExpressionSpecification;
-
-  return [
-    "case",
-    ["==", valueMatch, -1],
-    COLOR_NO_DATA,
-    stepColorExpr(valueMatch, scale),
-  ] as unknown as ExpressionSpecification;
+  // The META scale's breaks come from the target only ([0.5T, 0.75T, T]) — frame-
+  // stable, value-independent. P3: assembled through the SAME classedProvinceFill
+  // as the sequential path (single fill assembly), from the ONE resolved scale.
+  return classedProvinceFill(features, computeClassScale([], { target }));
 }
 
 /** Compute the value min/max for a province layer's features (scale legend).

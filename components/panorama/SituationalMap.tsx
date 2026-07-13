@@ -23,6 +23,7 @@ import {
   bivariateSuppressedFilter,
 } from "@/components/panorama/bivariate-fill";
 import { colorForValue, computeClassScale } from "@/components/panorama/class-scale";
+import { resolveChoroplethEncoding } from "@/components/panorama/encoding";
 import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import {
   type GraduatedScale,
@@ -88,12 +89,10 @@ import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama
 // per-map-component in this repo (see LocationMap/LocationPicker), not globally.
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
-  provinceColorExpr,
   provinceMetaClassScale,
-  provinceMetaColorExpr,
   provinceSeqClassScale,
 } from "@/components/panorama/province-choropleth-style";
-import { COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
+import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -2824,17 +2823,15 @@ export function SituationalMap({
     if (layer.bivariateCells) {
       return bivariateFillColorExpr(layer.bivariateCells);
     }
-    if (isMetaLayer(layer)) {
-      // PO decision (ratified in live QA): the META'd rate layers (cobertura,
-      // esterilización, microchip, ppp) render on the classed 4-threshold scale
-      // anchored on the compliance target ([0.5T, 0.75T, T]), NOT the amber/teal
-      // divergent scale. The breaks are fixed by the target — comparable across
-      // provinces and frame-stable under a scrub, so no lock is needed.
-      return provinceMetaColorExpr(layer.features, layer.complianceTarget);
-    }
-    // Sequential layers: `seqBreaks` are the scrub-frozen live-edge quantile breaks
-    // (null at the live edge, where the expr computes quantiles from the frame).
-    return provinceColorExpr(layer.features, seqBreaks);
+    // P3: the sequential + META fills resolve through the ONE first-class
+    // ChoroplethEncoding value object, so the fill, the off-canvas legend, and the
+    // CABA-inset flat fill all read the SAME scale (scale-matches-paint structural).
+    // META'd rate layers (cobertura / esterilización / microchip / ppp) render on
+    // the target-anchored classed scale [0.5T, 0.75T, T]; sequential layers use the
+    // scrub-frozen live-edge quantile breaks (`seqBreaks`). null resolution (no
+    // numeric data) paints neutral, exactly as the standalone fill functions did.
+    const encoding = resolveChoroplethEncoding(layer, { lockedSeqBreaks: seqBreaks });
+    return encoding?.fillColorExpr ?? (COLOR_NO_DATA as unknown as maplibregl.ExpressionSpecification);
   }
 
   function addProvinceChoroplethLayer(
@@ -3365,29 +3362,20 @@ export function SituationalMap({
     );
     const cabaValue = (cabaFeature?.properties as { value?: number } | null)?.value;
     if (typeof cabaValue === "number") {
-      if (
-        insetProvinceLayer.dataType === "rate" &&
-        typeof insetProvinceLayer.complianceTarget === "number"
-      ) {
-        // Same classed META scale as the main province fill: CABA's value is
-        // painted the class color it lands in ([0.5T, 0.75T, T] thresholds), so
-        // the inset chip matches the main choropleth's class palette.
-        insetUniformFill = colorForValue(
-          computeClassScale([], { target: insetProvinceLayer.complianceTarget }),
-          cabaValue,
-        );
-      } else {
-        // M1 fix: the main SEQUENTIAL province fill is THRESHOLD-CLASSED
-        // (class-scale.ts), NOT a continuous ramp — so the inset must classify
-        // CABA's value with the SAME classed scale, or its color won't match CABA's
-        // tiny main-map polygon (the mismatch bug). Reuse the frozen live-edge
-        // quantile breaks the fill locked (lockedProvinceBreaksRef), falling back to
-        // the live quantile scale when no scrub lock is present.
-        const lockedBreaks = lockedProvinceBreaksRef.current.get(insetProvinceLayer.id) ?? null;
-        const seqScale = provinceSeqClassScale(insetProvinceLayer.features, lockedBreaks);
-        if (seqScale) {
-          insetUniformFill = colorForValue(seqScale, cabaValue);
-        }
+      // P3: the inset flat fill samples the SAME scale object the main province
+      // fill paints (resolveChoroplethEncoding — the identical value object
+      // provinceColorExprForLayer resolves). CABA's single province value is
+      // painted the class color it lands in, so the inset chip matches CABA's tiny
+      // main-map polygon by construction — "inset same color" is now STRUCTURAL,
+      // not a parallel rate/seq branch that could drift. The scrub-frozen live-edge
+      // quantile breaks (lockedProvinceBreaksRef) feed the sequential path; the META
+      // path ignores them (target-anchored breaks are frame-stable).
+      const lockedBreaks = lockedProvinceBreaksRef.current.get(insetProvinceLayer.id) ?? null;
+      const encoding = resolveChoroplethEncoding(insetProvinceLayer, {
+        lockedSeqBreaks: lockedBreaks,
+      });
+      if (encoding) {
+        insetUniformFill = colorForValue(encoding.scale, cabaValue);
       }
     }
   }
