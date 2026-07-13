@@ -57,6 +57,20 @@ const DATA_FILL = "caba-inset-data";
 const SUPPRESS_FILL = "caba-inset-suppress";
 const LINE = "caba-inset-line";
 
+// P4a — GRADUATED/POINT projection: a single bubble at CABA's centroid (the
+// centre of CABA_BBOX), sized + colored by the parent from the SAME graduated
+// scale the main map bubbles read. Mirrors the main map's point chrome (white
+// halo on a colored fill; a muted grey for a k-anon-suppressed CABA).
+const BUBBLE_SRC = "caba-inset-bubble-src";
+const BUBBLE_LAYER = "caba-inset-bubble";
+const CABA_CENTER: [number, number] = [
+  (CABA_BBOX[0][0] + CABA_BBOX[1][0]) / 2,
+  (CABA_BBOX[0][1] + CABA_BBOX[1][1]) / 2,
+];
+const COLOR_BUBBLE_STROKE = "rgba(255,255,255,0.9)";
+const COLOR_BUBBLE_SUPPRESSED = "#d1d5db"; // mirrors the main map COLOR_SUPPRESSED
+const COLOR_BUBBLE_STROKE_SUPPRESSED = "#9aa4ad";
+
 type Props = {
   /** The active choropleth base layer whose CABA cells fill the barrios (or null). */
   layer: ActiveLayer | null;
@@ -91,6 +105,22 @@ type Props = {
    * gate), the panel stays the original display-only div.
    */
   onDrill?: () => void;
+  /**
+   * P4a — es-AR sublabel override for the panel header. The parent names what the
+   * inset is projecting for CABA ("riesgo" for the bivariate cell, "valor
+   * provincial" for a province value/bubble). Absent → the header keeps the
+   * choropleth ternary ("valor provincial" when uniformFill, else "por barrio").
+   */
+  scopeLabel?: string | null;
+  /**
+   * P4a — GRADUATED/POINT projection: CABA's single aggregated bubble, or null.
+   * The main map draws a density/signal point base as one province bubble sized
+   * by the shared graduated scale; when this is set the inset paints CABA's
+   * territory (land + outline, no per-barrio fill) plus ONE centred bubble with
+   * the SAME color + radius, so CABA never reads "sin datos" when it has a value.
+   * Null for the choropleth/bivariate encodings (those drive the polygon fill).
+   */
+  bubble?: { color: string; radius: number; suppressed: boolean } | null;
 };
 
 /** One raw barrio feature, as much as the code read needs. */
@@ -102,6 +132,8 @@ export function CabaInset({
   uniformFill = null,
   lockedBreaks = null,
   onDrill,
+  scopeLabel = null,
+  bubble = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -113,6 +145,8 @@ export function CabaInset({
   uniformFillRef.current = uniformFill;
   const lockedBreaksRef = useRef<readonly number[] | null>(lockedBreaks);
   lockedBreaksRef.current = lockedBreaks;
+  const bubbleRef = useRef<Props["bubble"]>(bubble);
+  bubbleRef.current = bubble;
 
   // Mount the mini-map once the inset becomes visible; tear it down when hidden.
   useEffect(() => {
@@ -192,6 +226,35 @@ export function CabaInset({
             source: SRC,
             paint: { "line-color": COLOR_DIVISION_LINE, "line-width": 0.6, "line-opacity": 0.85 },
           });
+          // P4a — the single CABA graduated bubble (hidden until a graduated base
+          // is active). One point at CABA's centroid; the parent supplies its
+          // radius/color from the SAME graduated scale the main bubbles read.
+          map.addSource(BUBBLE_SRC, {
+            type: "geojson",
+            data: {
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  geometry: { type: "Point", coordinates: CABA_CENTER },
+                  properties: {},
+                },
+              ],
+            } as unknown as GeoJSON.FeatureCollection,
+          });
+          map.addLayer({
+            id: BUBBLE_LAYER,
+            type: "circle",
+            source: BUBBLE_SRC,
+            layout: { visibility: "none" },
+            paint: {
+              "circle-radius": 0,
+              "circle-color": COLOR_LAND,
+              "circle-opacity": DATA_FILL_OPACITY,
+              "circle-stroke-color": COLOR_BUBBLE_STROKE,
+              "circle-stroke-width": 1.5,
+            },
+          });
           map.fitBounds(CABA_BBOX, { padding: 8, animate: false });
           loadedRef.current = true;
           syncFill();
@@ -211,11 +274,38 @@ export function CabaInset({
   }, [visible]);
 
   // Recompute the barrio fill whenever the active base layer, the province-level
-  // uniform fill, or the main map's effective classed breaks change.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill + lockedBreaks are the intended triggers.
+  // uniform fill, the main map's effective classed breaks, or the graduated
+  // bubble change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill + lockedBreaks + bubble are the intended triggers.
   useEffect(() => {
     if (loadedRef.current) syncFill();
-  }, [layer, uniformFill, lockedBreaks]);
+  }, [layer, uniformFill, lockedBreaks, bubble]);
+
+  // Reconcile the single CABA graduated bubble: show it (sized + colored by the
+  // parent from the SAME graduated scale the main map uses) when a graduated base
+  // is active, else hide it. A k-anon-suppressed CABA reads muted grey at the
+  // floor radius — the same treatment the main map's suppressed bubbles get.
+  function syncBubble(map: maplibregl.Map) {
+    if (!map.getLayer(BUBBLE_LAYER)) return;
+    const b = bubbleRef.current;
+    if (!b) {
+      map.setLayoutProperty(BUBBLE_LAYER, "visibility", "none");
+      return;
+    }
+    map.setLayoutProperty(BUBBLE_LAYER, "visibility", "visible");
+    map.setPaintProperty(BUBBLE_LAYER, "circle-radius", b.radius);
+    map.setPaintProperty(
+      BUBBLE_LAYER,
+      "circle-color",
+      b.suppressed ? COLOR_BUBBLE_SUPPRESSED : b.color,
+    );
+    map.setPaintProperty(BUBBLE_LAYER, "circle-opacity", b.suppressed ? 0.6 : DATA_FILL_OPACITY);
+    map.setPaintProperty(
+      BUBBLE_LAYER,
+      "circle-stroke-color",
+      b.suppressed ? COLOR_BUBBLE_STROKE_SUPPRESSED : COLOR_BUBBLE_STROKE,
+    );
+  }
 
   // Join the active layer's cells to the CABA barrios and repaint the data fill +
   // suppression hatch. A province-level layer (no locality names) simply yields
@@ -223,6 +313,7 @@ export function CabaInset({
   function syncFill() {
     const map = mapRef.current;
     if (!map || !map.getLayer(DATA_FILL)) return;
+    syncBubble(map);
     const l = layerRef.current;
     const codes = barrioCodesRef.current;
     // #9 — province-level layer: CABA has one province value, not per-barrio data.
@@ -272,7 +363,7 @@ export function CabaInset({
       <div className="flex items-baseline justify-between px-2 py-1 text-ln-op-ink-2">
         <span className="text-[var(--text-xs)] font-medium">CABA</span>
         <span className="text-[var(--text-xs)] text-ln-op-mute">
-          {uniformFill ? "valor provincial" : "por barrio"}
+          {scopeLabel ?? (uniformFill ? "valor provincial" : "por barrio")}
         </span>
       </div>
       <div ref={containerRef} className="h-[150px] w-full" style={{ background: COLOR_CANVAS }} />

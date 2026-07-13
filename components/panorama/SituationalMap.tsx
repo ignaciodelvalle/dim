@@ -17,6 +17,7 @@ import {
 } from "@/components/panorama/DetailDrawer";
 import { SavedViewsPopover } from "@/components/panorama/SavedViewsPopover";
 import {
+  bivariateCellColor,
   bivariateFillColorExpr,
   bivariateReadouts,
   bivariateSuppressedCodes,
@@ -26,7 +27,9 @@ import { colorForValue, computeClassScale } from "@/components/panorama/class-sc
 import { resolveChoroplethEncoding } from "@/components/panorama/encoding";
 import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
 import {
+  BUBBLE_R_MIN,
   type GraduatedScale,
+  bubbleRadius,
   buildGraduatedScale,
   graduatedMaxCount,
 } from "@/components/panorama/graduated-scale";
@@ -61,6 +64,7 @@ import {
 } from "@/components/panorama/panorama-regions";
 import {
   type Bbox,
+  CABA_INSET_BBOX,
   FRAMING_SNAP_MAX_ZOOM,
   type ProvinceBbox,
   Z_DIVISIONS,
@@ -3349,16 +3353,51 @@ export function SituationalMap({
   // main map uses (divergent for rate layers, sequential otherwise) so the inset
   // color matches CABA's tiny main-map polygon, and label the panel "valor
   // provincial" so it never over-promises per-barrio granularity.
+  // P4a — the CABA inset projects the RESOLVED ENCODING for CABA's scope, per
+  // kind, so it never reads "sin datos" when the main map has a CABA value:
+  //   1. BIVARIATE  → CABA's own 3×3 risk cell (one cell = one color) fills the
+  //      barrios uniformly, using the SAME bivariate palette the main map paints.
+  //   2. CHOROPLETH → per-barrio join (locality) or CABA's single class color
+  //      (province) — the P3 structural path, unchanged.
+  //   3. GRADUATED  → CABA's single aggregated bubble (same color + radius from
+  //      the SAME graduated scale the main map bubbles read).
+  // Precedence mirrors the main map's own render branch: bivariate replaces the
+  // choropleth fill, so it is resolved FIRST; graduated is a disjoint (point)
+  // base, resolved only when no choropleth/bivariate base is active.
+
+  // 1. BIVARIATE — the active base carries the 3×3 cells (buildBivariateCells,
+  // fed by the SAME provinceDataRef cobertura×zoonosis the main fill uses). CABA
+  // (AR-C) has exactly one cell; its palette color IS the inset's flat fill.
+  const insetBivariateLayer = layers.find((l) => (l.bivariateCells?.length ?? 0) > 0) ?? null;
+
+  // 2. CHOROPLETH — only when NOT bivariate (a bivariate base is still a
+  // province choropleth by geomType, so it would otherwise be mis-caught here).
   const insetLocalityLayer =
-    layers.find((l) => l.geomType === "choropleth" && l.level === "locality") ?? null;
+    insetBivariateLayer === null
+      ? (layers.find((l) => l.geomType === "choropleth" && l.level === "locality") ?? null)
+      : null;
   const insetProvinceLayer =
-    insetLocalityLayer === null
+    insetBivariateLayer === null && insetLocalityLayer === null
       ? (layers.find((l) => l.geomType === "choropleth" && l.level === "province") ?? null)
       : null;
 
-  // The single CABA province value + its flat fill color (province-level only).
+  // The flat CABA fill (bivariate cell OR province class color) + its es-AR
+  // sublabel. Bivariate and province-choropleth both collapse CABA to ONE color.
   let insetUniformFill: string | null = null;
-  if (insetProvinceLayer) {
+  let insetScopeLabel: string | null = null;
+  if (insetBivariateLayer) {
+    // CABA's bivariate cell → the SAME palette color the main map paints for AR-C.
+    // A suppressed cell yields null (bivariateCellColor honors k-anon); we then
+    // leave the inset uncolored rather than invent a risk color for a hidden cell.
+    const cabaCell = insetBivariateLayer.bivariateCells?.find((c) => isCABA(c.provinceCode));
+    if (cabaCell) {
+      const color = bivariateCellColor(cabaCell);
+      if (color !== null) {
+        insetUniformFill = color;
+        insetScopeLabel = "riesgo";
+      }
+    }
+  } else if (insetProvinceLayer) {
     const cabaFeature = insetProvinceLayer.features.features.find((f) =>
       isCABA(String((f.properties as { provinceCode?: string } | null)?.provinceCode ?? "")),
     );
@@ -3378,18 +3417,64 @@ export function SituationalMap({
       });
       if (encoding) {
         insetUniformFill = colorForValue(encoding.scale, cabaValue);
+        insetScopeLabel = "valor provincial";
+      }
+    }
+  }
+
+  // 3. GRADUATED — a density/signal POINT base aggregated to province bubbles.
+  // CABA is one province feature; find it by its centroid landing inside CABA's
+  // frame (the aggregated point features carry a province NAME, not an ISO code,
+  // and the bbox test uniquely picks AR-C — no other province centroid is inside
+  // it) and size its bubble on the SAME graduatedScale.maxValue the main bubbles
+  // use. Only when no choropleth/bivariate base owns the fill above.
+  let insetBubble: { color: string; radius: number; suppressed: boolean } | null = null;
+  if (insetBivariateLayer === null && insetLocalityLayer === null && insetProvinceLayer === null) {
+    const insetGraduatedLayer =
+      layers.find((l) => l.geomType === "point" && l.renderMode === "graduated") ?? null;
+    if (insetGraduatedLayer && graduatedScale && graduatedScale.maxValue > 0) {
+      const cabaFeature = insetGraduatedLayer.features.features.find((f) => {
+        const g = f.geometry as { type?: string; coordinates?: [number, number] } | null;
+        if (!g || g.type !== "Point" || !Array.isArray(g.coordinates)) return false;
+        const [lng, lat] = g.coordinates;
+        return (
+          lng >= CABA_INSET_BBOX[0][0] &&
+          lng <= CABA_INSET_BBOX[1][0] &&
+          lat >= CABA_INSET_BBOX[0][1] &&
+          lat <= CABA_INSET_BBOX[1][1]
+        );
+      });
+      const props = cabaFeature?.properties as {
+        count?: number | null;
+        suppressed?: boolean;
+      } | null;
+      const suppressed = props?.suppressed === true;
+      const count = props?.count;
+      if (cabaFeature && (typeof count === "number" || suppressed)) {
+        insetBubble = {
+          color: insetGraduatedLayer.color,
+          // Same area-proportional radius the main map bubbles use; a k-anon
+          // suppressed CABA collapses to the floor radius (never leaks a count).
+          radius: suppressed ? BUBBLE_R_MIN : bubbleRadius(count ?? 0, graduatedScale.maxValue),
+          suppressed,
+        };
+        insetScopeLabel = "valor provincial";
       }
     }
   }
 
   // The layer the inset renders: the locality layer if present, else the
-  // province layer ONLY when a CABA value resolved (avoids an empty panel).
-  const insetLayer = insetLocalityLayer ?? (insetUniformFill !== null ? insetProvinceLayer : null);
+  // bivariate/province layer ONLY when a CABA flat fill resolved (avoids an empty
+  // panel). The inset's uniform-fill path reads the flat color, not this layer's
+  // features, so the bivariate layer here just keeps the panel present + visible.
+  const insetLayer =
+    insetLocalityLayer ??
+    (insetUniformFill !== null ? (insetBivariateLayer ?? insetProvinceLayer) : null);
   // task #36 fix 1 (+ PBA addendum) — key on SCOPE + CABA-in-viewport, not zoom.
   // National scope shows the AMBA magnifier whenever CABA is in the viewport;
   // CABA and PBA drills keep it; any other province hides it.
   const insetVisible = cabaInsetVisible({
-    hasInsetLayer: insetLayer !== null,
+    hasInsetLayer: insetLayer !== null || insetBubble !== null,
     scopeProvince: selectedProvinceCode ?? null,
     scopeIsCaba: selectedProvinceCode != null && isCABA(selectedProvinceCode),
     scopeIsPba: selectedProvinceCode === "AR-B",
@@ -3544,6 +3629,11 @@ export function SituationalMap({
           layer={insetLayer}
           visible={insetVisible}
           uniformFill={insetUniformFill}
+          // P4a — the CABA-scoped projection of the resolved encoding: a per-kind
+          // sublabel + (graduated only) CABA's single aggregated bubble. Choropleth
+          // keeps its polygon fill (uniformFill / per-barrio join); bubble is null.
+          scopeLabel={insetScopeLabel}
+          bubble={insetBubble}
           // LOW #6 (M1 twin): hand the inset the EFFECTIVE division breaks the
           // main fill renders with (lockedDivisionBreaksRef refreshes to the
           // live-edge breaks on every live sync and freezes them mid-scrub), so
