@@ -2831,7 +2831,9 @@ export function SituationalMap({
     // scrub-frozen live-edge quantile breaks (`seqBreaks`). null resolution (no
     // numeric data) paints neutral, exactly as the standalone fill functions did.
     const encoding = resolveChoroplethEncoding(layer, { lockedSeqBreaks: seqBreaks });
-    return encoding?.fillColorExpr ?? (COLOR_NO_DATA as unknown as maplibregl.ExpressionSpecification);
+    return (
+      encoding?.fillColorExpr ?? (COLOR_NO_DATA as unknown as maplibregl.ExpressionSpecification)
+    );
   }
 
   function addProvinceChoroplethLayer(

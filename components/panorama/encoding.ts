@@ -38,8 +38,8 @@ import {
   provinceMetaClassScale,
   provinceSeqClassScale,
 } from "@/components/panorama/province-choropleth-style";
-import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
+import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 /** The classed-choropleth encoding kinds this value object resolves (a subset of
  *  the domain gate's EncodingId — the two that share the ClassScale machinery). */
