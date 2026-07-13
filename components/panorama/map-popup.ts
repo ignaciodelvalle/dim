@@ -9,8 +9,8 @@
 //
 // English identifiers, es-AR user copy (project invariant #4).
 
-import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 
 /** The taxonomy the readout formatter branches on (subset of ActiveLayer.dataType). */
 export type ReadoutDataType = "rate" | "density" | "signal" | "reference" | undefined;

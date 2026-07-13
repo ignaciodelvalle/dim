@@ -94,6 +94,11 @@ import {
   bivariateViable,
   buildBivariateCells,
 } from "@/src/modules/panorama/domain/bivariate";
+import {
+  type PanoramaCapabilities,
+  bivariateEligibleFor,
+  capabilitiesFor,
+} from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
@@ -122,11 +127,6 @@ import {
   rankUnitsInScope,
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
-import {
-  type PanoramaCapabilities,
-  bivariateEligibleFor,
-  capabilitiesFor,
-} from "@/src/modules/panorama/domain/capabilities";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,

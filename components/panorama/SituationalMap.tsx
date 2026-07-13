@@ -94,10 +94,10 @@ import {
   provinceSeqClassScale,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
-import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 
 // ---------------------------------------------------------------------------
 // SituationalMap — the Panorama console's geospatial canvas.
