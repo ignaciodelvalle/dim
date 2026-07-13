@@ -75,8 +75,9 @@ describe("PetActionRow — labeled buttons clear 44px (UX 2.1)", () => {
       <PetActionRow petPublicToken="abc" isOwner isDeceased={false} petStatus="active" />,
     );
     const anchors = html.match(/<a [^>]*>/g) ?? [];
-    // Owner + active: Compartir · Editar datos · Marcar como perdida · Más.
-    expect(anchors.length).toBe(4);
+    // Owner + active: Anotar · Compartir · Editar datos · Marcar como perdida · Más
+    // (Anotar added by the 3b redesign, task #10 — the mid-face capture shortcut).
+    expect(anchors.length).toBe(5);
     for (const anchor of anchors) {
       expect(anchor).toContain("ln-act");
     }

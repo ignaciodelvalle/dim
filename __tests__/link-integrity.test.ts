@@ -137,11 +137,13 @@ for (const p of routePatterns) {
 }
 
 /**
- * Strip query-string from a path before resolution.
- * Routing is based purely on the path component; params don't affect it.
+ * Strip query-string AND hash-fragment from a path before resolution.
+ * Routing is based purely on the path component; neither params (?…) nor
+ * same-page anchors (#…) affect which page.tsx resolves — e.g. the home
+ * capture deep-link "/inicio#asentar" resolves via "/inicio".
  */
 function stripQuery(href: string): string {
-  return href.split("?")[0] ?? href;
+  return href.split(/[?#]/)[0] ?? href;
 }
 
 function resolves(href: string): boolean {
