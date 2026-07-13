@@ -3,6 +3,15 @@
 > The repo anchor for continuing the ViewState refactor if a session ends. The full,
 > auto-loaded version lives in Engram (`resume/panorama-viewstate-arc`). Branch:
 > `integration/all-20260703`.
+>
+> **UPDATE 2026-07-13 — P2 + P3 + P4a DONE + pushed (HEAD `a5a13af0`).** P4a = the CABA
+> inset now projects the resolved encoding (bivariate 3×3 cell + graduated bubble instead of
+> "sin datos") — graduated live-verified via Playwright, bivariate PO-validated. **Next:** P4b
+> (LOD/representationPerZoom → ghosting), P4c (decoupled nav scroll=camera/click=drill), P5 (gifts).
+> **INVESTIGATE FIRST (task #69):** `?preset=brotes-activos` URL loaded pérdidas, not the bivariate —
+> the ?preset URL/SSR seed may no longer apply the preset's layers (possible P2 derived-preset
+> side-effect). Check if the Vista-panel selection works before assuming a regression. The section
+> below still describes the P2→P3 transition; the phase specs + disciplines remain the source of truth.
 
 ## Where we are
 - **WS-4 ViewState P2 DONE** — `capabilitiesFor` gate (`src/modules/panorama/domain/capabilities.ts`)
