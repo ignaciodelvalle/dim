@@ -143,34 +143,24 @@ function baseLayerOf(layers: readonly LayerId[]): PanoramaLayer | null {
   return null;
 }
 
-/** True when a signal (dataType "signal") layer is among the active set. */
-function signalPresent(layers: readonly LayerId[]): boolean {
-  for (const id of layers) {
-    const layer = getLayer(id);
-    if (layer && roleOf(layer) === "signal") return true;
-  }
-  return false;
-}
-
 /**
- * Bivariate eligibility as a REGISTRY predicate — no preset id string (design
- * §2.1). The "riesgo de brotes" 3×3 encoding needs a rate-with-target base
- * (the coverage axis) crossed with an active signal (the outbreak axis), and it
- * only reads at province framing (the join compares provinces).
+ * Bivariate eligibility. The "riesgo de brotes" 3×3 encoding crosses a coverage
+ * axis with an outbreak-signal axis at province framing.
  *
- * Exported so the console's early-in-render bivariate gate reads the SAME
- * predicate the full `capabilitiesFor` uses — one definition, no drift. The
- * `brotes-activos` preset SATISFIES this predicate (base cobertura + signal
- * zoonosis at province); the predicate never names it.
+ * P2 CONSTRAINT (zero-UX-change): the bivariate JOIN (`buildBivariateCells`) is
+ * still hardcoded to read cobertura × zoonosis, and the old gate was exactly the
+ * `brotes-activos` preset — i.e. the active set {cobertura, zoonosis}. So
+ * eligibility is pinned to that exact pair. A broader "any rate-with-target base
+ * × any signal" predicate would offer the toggle for hand-edited combos (e.g.
+ * esterilización × zoonosis, reachable in two clicks) the join CANNOT render —
+ * a byte-identity + correctness regression. P3 generalizes the join and this
+ * predicate together; until then this names the two layer ids the join supports
+ * (layer ids, not a preset id — design §2.1). See the P2 review (2026-07-12).
  */
-export function bivariateEligibleFor(
-  layers: readonly LayerId[],
-  level: AggregationLevel,
-): boolean {
+export function bivariateEligibleFor(layers: readonly LayerId[], level: AggregationLevel): boolean {
   if (level !== "province") return false;
-  const base = baseLayerOf(layers);
-  if (base === null || !isMetaLayer(base)) return false;
-  return signalPresent(layers);
+  const active = new Set(layers);
+  return active.size === 2 && active.has("cobertura") && active.has("zoonosis");
 }
 
 /** Resolve the base layer's encoding kind (design §3 — P2 resolves kind only). */

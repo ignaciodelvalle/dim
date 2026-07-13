@@ -154,9 +154,9 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
 
   it("basisToggle needs a scrub AND a temporal base", () => {
     const temporalBase = makeViewState({ layers: ["perdidas"], asOf: "2026-06-01T00:00:00.000Z" });
-    expect(capabilitiesFor(temporalBase, { zoom: 3, level: "province" }).allowedControls.basisToggle).toBe(
-      true,
-    );
+    expect(
+      capabilitiesFor(temporalBase, { zoom: 3, level: "province" }).allowedControls.basisToggle,
+    ).toBe(true);
     // Same layers, live edge (no asOf) → no basis lens.
     const live = makeViewState({ layers: ["perdidas"] });
     expect(capabilitiesFor(live, { zoom: 3, level: "province" }).allowedControls.basisToggle).toBe(
@@ -167,6 +167,40 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     expect(
       capabilitiesFor(currentBase, { zoom: 3, level: "province" }).allowedControls.basisToggle,
     ).toBe(false);
+  });
+
+  // --- Direct bivariateEligibleFor characterization — hand-edited combos ------
+  //
+  // The suite above only drives bivariateEligibleFor THROUGH gateFor, which
+  // enumerates the 6 PRESETS (presetLayerIds). That is BLIND to hand-edited,
+  // non-preset active-layer sets — e.g. {esterilizacion, zoonosis}, reachable
+  // in two clicks from the console but never emitted by a preset. That gap let
+  // a P2 regression through: the predicate had gone over-general (any
+  // rate-with-target base × any signal) while the bivariate JOIN
+  // (`buildBivariateCells`) stayed hardcoded to cobertura × zoonosis, offering
+  // the toggle for combos it cannot render. The fix constrains
+  // bivariateEligibleFor to that exact pair. These cases call it DIRECTLY to
+  // pin the constrained behavior. See the P2 review (2026-07-12).
+  it("bivariateEligibleFor is constrained to the exact {cobertura, zoonosis} pair the join supports", () => {
+    // The supported pair, at province level.
+    expect(bivariateEligibleFor(["cobertura", "zoonosis"], "province")).toBe(true);
+
+    // The regression: esterilizacion is a rate-with-target base like cobertura,
+    // but it is NOT cobertura — the join can't render this combo.
+    expect(bivariateEligibleFor(["esterilizacion", "zoonosis"], "province")).toBe(false);
+
+    // A different signal paired with the supported base — reunificacion is not
+    // zoonosis, so the join still can't render it.
+    expect(bivariateEligibleFor(["cobertura", "reunificacion"], "province")).toBe(false);
+
+    // A third layer (a reference pin) added to the supported pair — the active
+    // set is no longer exactly {cobertura, zoonosis}. Matches the old
+    // brotes-activos-only behavior (brotes-activos IS exactly that pair).
+    expect(bivariateEligibleFor(["cobertura", "zoonosis", "refugios"], "province")).toBe(false);
+
+    // The supported pair, but off the province level — bivariate is
+    // province-only regardless of the layer set.
+    expect(bivariateEligibleFor(["cobertura", "zoonosis"], "locality")).toBe(false);
   });
 
   it("representationPerZoom declares the near-zoom points swap for points-capable bases", () => {
