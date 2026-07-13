@@ -38,6 +38,7 @@ import {
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
+import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 
 type Props = {
   /** The currently-active layers — the render-derived legends read from these. */
@@ -135,7 +136,8 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
       // META'd rate layers (a `complianceTarget`) now render the discrete classed
       // scale anchored on the target — same discrete swatch legend as the
       // meta-less sequential layers, only with a "%" unit + a "(meta)" top class.
-      isMeta: l.dataType === "rate" && typeof l.complianceTarget === "number",
+      // P2: reads the ONE shared registry helper (the gate's encoding.kind source).
+      isMeta: isMetaLayer(l),
     }))
     .filter(
       (x): x is { layer: ActiveLayer; bounds: ScaleBounds; isMeta: boolean } => x.bounds !== null,

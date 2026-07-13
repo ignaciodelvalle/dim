@@ -122,6 +122,11 @@ import {
   rankUnitsInScope,
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
+import {
+  type PanoramaCapabilities,
+  bivariateEligibleFor,
+  capabilitiesFor,
+} from "@/src/modules/panorama/domain/capabilities";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
@@ -2280,11 +2285,15 @@ export function PanoramaConsole({
   // task #63: the bivariate "riesgo-brotes" encoding is OFFERED only for the
   // "Brotes activos" preset at province framing with both inputs active — the
   // gate for the toggle UI + the caption override under the map.
-  const bivariateEligible =
-    activePresetId === "brotes-activos" &&
-    level === "province" &&
-    (states.cobertura?.active ?? false) &&
-    (states.zoonosis?.active ?? false);
+  // P2: eligibility now reads the shared REGISTRY predicate (the same one
+  // capabilitiesFor exposes as `allowedControls.bivariateEligible`) — NO preset
+  // id string. It is satisfied by a rate-with-target base (the coverage axis)
+  // crossed with an active signal (the outbreak axis) at province framing; the
+  // "Brotes activos" preset SATISFIES it (cobertura × zoonosis) without being named.
+  const bivariateEligible = bivariateEligibleFor(
+    PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
+    level,
+  );
   // The bivariate join reads the LIVE province cache for both axes. cobertura is
   // non-temporal (it can't be replayed), so during a scrub it stays frozen at the
   // live edge while zoonosis has an as-of frame — mixing two time bases into one
@@ -2843,6 +2852,15 @@ export function PanoramaConsole({
         preset: activePresetId,
       }),
     [derivedProvince, derivedLocality, viewPeriod, asOf, states, verifiedOnly, activePresetId],
+  );
+
+  // P2: the declarative capability gate — the ONE pure function every surface
+  // projects from (design §2). `level` is the situational-map-derived aggregation
+  // level (hysteresis state lives in the React layer); the gate echoes it as the
+  // single value. Consumers below read `capabilities.*` instead of re-deriving.
+  const capabilities = useMemo<PanoramaCapabilities>(
+    () => capabilitiesFor(viewState, { zoom: mapZoom, level }),
+    [viewState, mapZoom, level],
   );
 
   useEffect(() => {
@@ -3584,9 +3602,9 @@ export function PanoramaConsole({
   // sourced EXCLUSIVELY from isTemporalLayer() over the ACTIVE layer set —
   // no scrubber-local temporal set (the regression the design flags). Adding
   // a temporal layer flips this true and self-enables the scrubber.
-  const temporalAvailable = PANORAMA_LAYERS.some(
-    (l) => states[l.id]?.active && isTemporalLayer(l.id),
-  );
+  // P2: this aggregate now reads the capability gate's `allowedControls.scrubber`
+  // (identical value: isTemporalLayer over the active set) — one source of truth.
+  const temporalAvailable = capabilities.allowedControls.scrubber;
 
   // trust/safety (2026-07-10): the scrubber reproduces only TEMPORAL layers;
   // current-state layers are dimmed (never reconstructed as-of-t). When the

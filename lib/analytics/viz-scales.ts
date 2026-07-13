@@ -282,34 +282,6 @@ export const COLOR_NO_DATA = "#e7eaed" as const;
 export const COLOR_SUPPRESSED = "#d1d5db" as const;
 
 // ---------------------------------------------------------------------------
-// Semantic scale selector
-// ---------------------------------------------------------------------------
-
-export type ScaleKey = "blue" | "orange" | "purple" | "green";
-
-const RAMP_BY_KEY: Record<ScaleKey, ColorRamp> = {
-  blue: RAMP_BLUE,
-  orange: RAMP_ORANGE,
-  purple: RAMP_PURPLE,
-  green: RAMP_GREEN,
-};
-
-const SCALE5_BY_KEY: Record<ScaleKey, ColorScale5> = {
-  blue: SCALE_BLUE_SEQ,
-  orange: SCALE_ORANGE_SEQ,
-  purple: SCALE_PURPLE_SEQ,
-  green: SCALE_GREEN_SEQ,
-};
-
-export function getRamp(key: ScaleKey): ColorRamp {
-  return RAMP_BY_KEY[key];
-}
-
-export function getScale5(key: ScaleKey): ColorScale5 {
-  return SCALE5_BY_KEY[key];
-}
-
-// ---------------------------------------------------------------------------
 // Chart line / area colors (for TimeSeriesChart / StackedTimeSeriesChart)
 // ---------------------------------------------------------------------------
 

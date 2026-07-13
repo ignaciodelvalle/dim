@@ -9,6 +9,7 @@
 //
 // English identifiers, es-AR user copy (project invariant #4).
 
+import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 import { escapeHtml } from "@/lib/utils/escape-html";
 
 /** The taxonomy the readout formatter branches on (subset of ActiveLayer.dataType). */
@@ -64,10 +65,11 @@ export function buildLayerReadout(input: {
     return { label: input.label, valueText: null, state: "nodata" };
   }
   const valueText = formatValueWithUnit(input.value, input.dataType);
-  const metaText =
-    input.dataType === "rate" && typeof input.complianceTarget === "number"
-      ? formatMetaGap(input.value, input.complianceTarget)
-      : undefined;
+  // P2: the isMeta predicate reads the ONE shared registry helper (the gate's
+  // encoding.kind source) instead of a local copy of the rate+target check.
+  const metaText = isMetaLayer(input)
+    ? formatMetaGap(input.value, input.complianceTarget)
+    : undefined;
   return { label: input.label, valueText, metaText };
 }
 

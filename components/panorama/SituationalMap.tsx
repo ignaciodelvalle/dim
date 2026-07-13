@@ -94,6 +94,7 @@ import {
   provinceSeqClassScale,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
+import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -1943,7 +1944,9 @@ export function SituationalMap({
         // Sequential province layers freeze their classed BREAKS across a scrub.
         // Rate layers already render on target-anchored META breaks (frame-stable
         // by construction), so they need no lock.
-        const isMeta = layer.dataType === "rate" && typeof layer.complianceTarget === "number";
+        // P2: the isMeta predicate now reads the ONE shared registry helper
+        // (capabilitiesFor's `encoding.kind` source) instead of a local copy.
+        const isMeta = isMetaLayer(layer);
         let seqBreaks: number[] | null = null;
         if (isMeta && typeof layer.complianceTarget === "number") {
           // META'd rate layer: the classed scale's breaks are fixed by the target
@@ -2821,7 +2824,7 @@ export function SituationalMap({
     if (layer.bivariateCells) {
       return bivariateFillColorExpr(layer.bivariateCells);
     }
-    if (layer.dataType === "rate" && typeof layer.complianceTarget === "number") {
+    if (isMetaLayer(layer)) {
       // PO decision (ratified in live QA): the META'd rate layers (cobertura,
       // esterilización, microchip, ppp) render on the classed 4-threshold scale
       // anchored on the compliance target ([0.5T, 0.75T, T]), NOT the amber/teal
