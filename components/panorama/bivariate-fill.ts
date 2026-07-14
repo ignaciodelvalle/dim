@@ -28,10 +28,16 @@ import {
  * signal) is a warm pink-red that reads as ALARM against the two cool teal
  * "calm" cells — salient by HUE, not merely luminance, on the dark navy surface.
  *
- * Validated for the panorama surfaces (#161d33 land on #0b1020 canvas): every
- * cell clears a ≥ 2.2 contrast ratio against the land, and the minimum all-pairs
- * perceptual separation is ~56 (no two cells are confusable). Do not reorder —
- * the domain's bivariateIndex and the legend grid both assume this layout.
+ * VALIDATION STATUS (design §8 fork #2, measured 2026-07-14): this palette was
+ * validated on the RETIRED dark navy surface (#161d33 land on #0b1020 canvas:
+ * ≥2.2 vs land, min all-pairs separation ~56). On the CURRENT light v2C canvas
+ * (#eef1f4 land) it has DOCUMENTED gaps: two teal cells measure 2.36/2.42:1
+ * (below the WCAG 1.4.11 3:1 non-text floor) and under protanopia the RISK
+ * corner vs a calm teal collapses to dE ≈ 3.8 — the alarm/calm distinction.
+ * A CVD-safe replacement (same hue families + layout) is validated and pinned
+ * in __tests__/bivariate-cvd.test.ts (BIVARIATE_PALETTE_CANDIDATE); the swap is
+ * PO-GATED (this is the PO's flagship visualization). Do not reorder — the
+ * domain's bivariateIndex and the legend grid both assume this layout.
  */
 export const BIVARIATE_PALETTE: readonly string[] = [
   // signal LOW (bottom row): neutral → teal

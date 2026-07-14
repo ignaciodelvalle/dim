@@ -450,8 +450,12 @@ Per-phase revertible commits; fresh adversarial review each phase.
    ephemeral in P1 (no behavior change). If shared deep-links must reproduce a transaction-time replay
    (embed/compare, #51/#32), we add `?basis=`. **Not blocking P0–P4.**
 2. **Bivariate palette on the light canvas** — `bivariate-fill.ts` palette was CVD-validated against the
-   *retired* dark navy surface. When P3 formalizes the `bivariate` encoding, it likely needs re-validation on
-   the light canvas. **Blocks P3, not P0–P2.**
+   *retired* dark navy surface. **MEASURED 2026-07-14** (arc close): the fear was justified — on the light
+   canvas two teal cells miss the 3:1 non-text floor and under PROTANOPIA the RISK corner vs a calm teal
+   collapses to dE ≈ 3.8 (the alarm/calm distinction). A CVD-safe candidate (same hue families, luminance
+   diagonal; every gate ≥3:1 / min post-CVD dE 9.4 / RISK-vs-teals ≥18.9) is validated + pinned in
+   `components/panorama/__tests__/bivariate-cvd.test.ts`. **The swap is PO-GATED** (flagship viz) — a
+   one-line constant change once approved.
 3. **`representation` naming** — This design models today's reality (dock tab: registros/stats/timeline) under
    the plan's `representation` name, with the grander enum (map/estadisticas/tendencias/flujos) reserved for
    #33. If the PO prefers the field named `dock` until #33, it's a rename only. **Cosmetic, not blocking.**
