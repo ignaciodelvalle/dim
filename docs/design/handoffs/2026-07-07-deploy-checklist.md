@@ -3,7 +3,7 @@
 Steps only YOU can do (gated: prod Supabase, migrations against remote, Vercel env, deploy).
 Ignacio runs these locally on Windows. Run top to bottom. Each `!`-prefixed line can be run in the Claude Code prompt so its output lands here.
 
-> Prereqs already done by Claude: branch `integration/all-20260703` is green (tsc + full test suite + build), demo path verified headless, migrations written through **0134** (forward-only, in the DIM ledger). Includes the total-audit security fixes — **0132** welfare-moderation-escalation, **0133/0134** `handle_new_user` role-hardening (closes a CRITICAL self-mint-admin hole; see `docs/reviews/results/total-audit-synthesis.md`). Nothing below touches code — it's provisioning + deploy.
+> Prereqs already done by Claude: branch `integration/all-20260703` is green (tsc + full test suite + build), demo path verified headless, migrations written through **0141** (forward-only, in the DIM ledger; updated 2026-07-14 — the original 2026-07-07 text said 0134). Includes the total-audit security fixes — **0132** welfare-moderation-escalation, **0133/0134** `handle_new_user` role-hardening (closes a CRITICAL self-mint-admin hole; see `docs/reviews/results/total-audit-synthesis.md`) — plus **0135–0141** (welcome notification, reaper pg_cron, RLS initplan, hot FK indexes, panorama support, org-scoped checkins index `0141`). Nothing below touches code — it's provisioning + deploy.
 
 ---
 

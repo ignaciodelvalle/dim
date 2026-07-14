@@ -2,7 +2,9 @@
 -- ---------------------------------------------------
 -- Apply once per environment (Supabase Studio → SQL Editor, or the MCP).
 -- Idempotent. Version-controlled so prod parity is reproducible (closes the
--- W2 "org-logos/export buckets have no SQL coverage" deploy-readiness gap).
+-- EXPORT-buckets half of the W2 deploy-readiness gap; org-logos and avatars
+-- buckets still have NO SQL coverage and remain manual dashboard steps — see
+-- the 2026-07-07 deploy checklist).
 --
 -- These hold generated PDF exports (welfare case bundles, PPP registries,
 -- cross-border travel document bundles). They are PRIVATE buckets: reads are

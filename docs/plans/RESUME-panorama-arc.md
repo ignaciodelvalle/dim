@@ -4,13 +4,18 @@
 > auto-loaded version lives in Engram (`resume/panorama-viewstate-arc`). Branch:
 > `integration/all-20260703`.
 >
-> **UPDATE 2026-07-13 — P2 + P3 + P4a DONE + pushed (HEAD `a5a13af0`).** P4a = the CABA
-> inset now projects the resolved encoding (bivariate 3×3 cell + graduated bubble instead of
-> "sin datos") — graduated live-verified via Playwright, bivariate PO-validated. **Next:** P4b
-> (LOD/representationPerZoom → ghosting), P4c (decoupled nav scroll=camera/click=drill), P5 (gifts).
-> **INVESTIGATE FIRST (task #69):** `?preset=brotes-activos` URL loaded pérdidas, not the bivariate —
-> the ?preset URL/SSR seed may no longer apply the preset's layers (possible P2 derived-preset
-> side-effect). Check if the Vista-panel selection works before assuming a regression. The section
+> **UPDATE 2026-07-14 — P2 + P3 + P4a + the `?preset=` deep-link fix DONE + pushed (HEAD `fd523492`).**
+> P4a = the CABA inset projects the resolved encoding (bivariate 3×3 cell + graduated bubble instead of
+> "sin datos") — graduated live-verified via Playwright, bivariate PO-validated. **Task #69 FIXED at
+> `fd523492`** — the `?preset=` URL seed never expanded to layers (pre-existing 3-layer bug, NOT a P2
+> regression); the server now seeds the named preset's board. Residue: a national-framed preset opened
+> via `?preset=` still lands unframed (frame set at mount is dropped before the map's async load) —
+> absorbed into P4c (fix inside the load handler, mirroring `frameProvinceOnLoad`). **Next:** P4b
+> (LOD/representationPerZoom → ghosting), P4c (decoupled nav scroll=camera/click=drill + preset framing
+> on load), P5 (gifts — note `explainViewState` already BUILT in `ddf50473`, UI wiring pending; PO 2026-07-14:
+> encoding-in-URL YES in P5, replay = live view, NO `?basis=`). **Before staging:** re-validate the
+> bivariate palette for CVD on the LIGHT canvas (design §8 fork 2 said "blocks P3" but P3 shipped;
+> `bivariate-fill.ts:29-33` still cites the retired dark-navy validation). The section
 > below still describes the P2→P3 transition; the phase specs + disciplines remain the source of truth.
 
 ## Where we are
@@ -42,8 +47,13 @@ the REAL `TEST EXIT`, not the wrapper notification) → commit → push.
 #24 switcher (on the gate) → #33 viz-suite → #51 embed.
 
 ## Other implementable arcs
-#14 onboarding · #44c dept-rate coverage · #31 (perdidas filter-divergence + shared `toChoroplethData`)
-· #19 owner-process-clarity · #15b/c/d · #16a `/p` streaming. Minor: #56a error sink, #16b font tokens.
+#14 onboarding · #44c attribute filters (REAL version gated behind ViewState `ViewScope`; dept-rate
+coverage was #44a — DONE) · #31c shared `toChoroplethData` (#31a perdidas divergence CLOSED as the
+documented D4 variant, `9bb90fca`) · #19 owner-process-clarity (`docs/plans/owner-process-clarity.md` —
+UNBLOCKED: its gates #9/#10 shipped `fa6c0578`/`52ada95e`) · #15b/d (#15c never existed — numbering typo)
+· #16a `/p` streaming. Minor: #56a error sink (seam DONE `da9f8047`, vendor choice PO-gated).
+Done since the 07-12 triage: #55 `f0043191` · #15a `46d39636` · #52a+b `4714f919` · #53 draft `a67f6ba5`
+(PO prioritization pending) · #42 file `85760e2b` (remote apply PO-gated) · #16b investigated, no safe move.
 
 ## Not mine to unblock
 Blocked external: #28 Mi Argentina (convenio), #29 PPP BA (format). PO action = staging: **#3 deploy +

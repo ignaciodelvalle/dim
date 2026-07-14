@@ -42,6 +42,9 @@ supabase/.branches/
 supabase/.temp/
 supabase/snippets/Untitled*.sql
 
+# agent/script scratch output (also the launchworthy audit report target)
+tmp/
+
 # agent tool caches
 .atl/
 .claude/
