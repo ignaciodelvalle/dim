@@ -19,7 +19,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
-import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
+import { toChoroplethData } from "@/lib/analytics/choropleth-data";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -149,11 +149,8 @@ export default async function GobCensoPage({
 
   const fPct = funnelPercents(funnel);
 
-  const choroplethData = provinceRows.map((r) => ({
-    code: PROVINCE_ISO_MAP[r.province] ?? r.province,
-    value: r.count,
-    label: r.province,
-  }));
+  // task #31c dedup: shared toChoroplethData (same shaping as /gob/poblacion)
+  const choroplethData = toChoroplethData(provinceRows, (r) => r.count);
 
   const maxFunnel = funnel.total;
 

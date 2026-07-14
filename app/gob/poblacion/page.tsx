@@ -24,7 +24,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
-import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
+import { toChoroplethData } from "@/lib/analytics/choropleth-data";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -168,12 +168,8 @@ export default async function GobPoblacionPage({
   // but exact value is not because registeredBirths under-counts natalidad.
   const netTone = "neutral" as const;
 
-  // Choropleth: map byProvince rates to the standard format
-  const choroplethData = coverage.byProvince.map((r) => ({
-    code: PROVINCE_ISO_MAP[r.province] ?? r.province,
-    value: r.ratePct,
-    label: r.province,
-  }));
+  // Choropleth: map byProvince rates to the standard format (task #31c dedup)
+  const choroplethData = toChoroplethData(coverage.byProvince, (r) => r.ratePct);
 
   const panelTrendId = "panel-esterilizacion-titulo";
   const panelMapId = "panel-mapa-titulo";
