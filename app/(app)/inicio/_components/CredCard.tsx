@@ -7,10 +7,12 @@
 //                    Vencida tiles) — the SAME derivation VacunasStatusBadges
 //                    renders on the libreta (deriveVacunasBadgeCounts), read-only
 //                    here (no drill-down; that stays on the profile).
-//   • urgent (lost) → a reassurance line + two actions. "Lo encontré" PROMOTES to
-//                    the existing full-screen found wizard (?sheet=marcar-encontrada
-//                    on the profile — same flow LostCaseBlock's "¡Apareció!" opens);
-//                    "Ver reporte" opens the profile where the lost case lives.
+//   • urgent (lost) → a reassurance line + three actions (task #19): "Ver reporte"
+//                    opens the profile where the lost case lives; "Compartir cartel"
+//                    opens the shareable search poster (/cartel); "Lo encontré"
+//                    PROMOTES to the existing full-screen found wizard
+//                    (?sheet=marcar-encontrada on the profile — same flow
+//                    LostCaseBlock's "¡Apareció!" opens).
 //
 // Glance-and-go (PO 2026-07-12 #1): the identity header is a Link to the pet
 // profile; the card never drives anything below the rail. Desktop healthy cards
@@ -140,6 +142,14 @@ export function CredCard({ data }: { data: CredCardData }) {
               <Link href={profileHref} className="no-underline">
                 <LnButton variant="warn" size="sm">
                   Ver reporte
+                </LnButton>
+              </Link>
+              {/* Compartir cartel (task #19, Lens 3): the poster is the fastest
+                  next step for a lost pet — a shareable search notice. The lost
+                  route only offered "Ver reporte" + "Lo encontré" before. */}
+              <Link href={`${profileHref}/cartel`} className="no-underline">
+                <LnButton variant="ghost" size="sm">
+                  Compartir cartel
                 </LnButton>
               </Link>
               {/* Promotes to the existing full-screen found wizard. */}

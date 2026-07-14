@@ -28,6 +28,8 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { approvalRequests, db } from "@/db";
 import type { DashboardPet } from "@/lib/analytics/owner-dashboard";
 import {
+  countPendingApplications,
+  countPendingTransfers,
   fetchActiveReminders,
   fetchComplianceStatesForPets,
   fetchOpenWorkflows,
@@ -36,6 +38,7 @@ import {
   fetchVaccinationSummariesForPets,
 } from "@/lib/analytics/owner-dashboard";
 import { hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
+import { deriveOwnerFirstRunState } from "@/lib/domain/owner-first-run";
 import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
@@ -48,7 +51,9 @@ import { capCount } from "@/lib/utils/format";
 import { greetingFirstName } from "@/lib/utils/greeting";
 import type { CredCardData } from "./_components/CredCard";
 import { CredentialRail } from "./_components/CredentialRail";
+import { FirstRunEmptyState } from "./_components/FirstRunEmptyState";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
+import { OpenCyclesSection } from "./_components/OpenCyclesSection";
 import type { PetComplianceSummary } from "./_components/PetHealthStatusStrip";
 import { PetHealthStatusStrip } from "./_components/PetHealthStatusStrip";
 import { RemindersSection } from "./_components/RemindersSection";
@@ -87,24 +92,48 @@ function adaptPet(p: DashboardPet): EventCatcherPet {
 export default async function InicioPage() {
   const { user } = await requireUserOrRedirect();
 
+  // Email drives the email-branch of countPendingTransfers (a transfer can be
+  // addressed to a not-yet-registered recipient by email). Optional on the
+  // narrowed session type and absent under test mocks — tolerate undefined.
+  const ownerEmail = (user.email ?? "").toLowerCase();
+
   // getProfileCached is warmed by (app)/layout.tsx in the same render pass —
   // this is a memoized hit, not an extra DB round-trip.
-  const [profileRow, petsResult, openWf, appointments, reminders, healthStatus] = await Promise.all(
-    [
-      getProfileCached(user.id),
-      // fetchPetsForOwner is bounded (DASHBOARD_PETS_LIMIT = 50); rows feed the
-      // EventCatcher pet chips only — the per-pet surface is healthStatus.
-      fetchPetsForOwner(user.id),
-      fetchOpenWorkflows(user.id),
-      fetchUpcomingAppointments(user.id, 5),
-      fetchActiveReminders(user.id),
-      // Item 5 — per-pet health-status nudges, derived from the owner's own
-      // events/reminders only (no surveillance/authority data).
-      fetchPetHealthNudges(user.id),
-    ],
-  );
+  const [
+    profileRow,
+    petsResult,
+    openWf,
+    appointments,
+    reminders,
+    healthStatus,
+    pendingApplications,
+    pendingTransfers,
+  ] = await Promise.all([
+    getProfileCached(user.id),
+    // fetchPetsForOwner is bounded (DASHBOARD_PETS_LIMIT = 50); rows feed the
+    // EventCatcher pet chips only — the per-pet surface is healthStatus.
+    fetchPetsForOwner(user.id),
+    fetchOpenWorkflows(user.id),
+    fetchUpcomingAppointments(user.id, 5),
+    fetchActiveReminders(user.id),
+    // Item 5 — per-pet health-status nudges, derived from the owner's own
+    // events/reminders only (no surveillance/authority data).
+    fetchPetHealthNudges(user.id),
+    // Task #19 (Lens 3): the owner's open cycles — pending adoption
+    // applications and incoming transfers. Both carried a badge only on the
+    // secondary /mis-mascotas page; surface them on the default landing too.
+    countPendingApplications(user.id),
+    countPendingTransfers(user.id, ownerEmail),
+  ]);
 
   const { pets } = petsResult;
+
+  // Task #19 (Lens 1): first-run detection. A zero-pet owner used to see a
+  // reassuring "Todo en orden" over a dead capture card; instead we lead with
+  // "Cargá tu primera mascota". `firstRunState` is null once the owner has any
+  // manageable (non-deceased) pet.
+  const firstRunState = deriveOwnerFirstRunState(pets);
+  const hasManageablePets = firstRunState === null;
 
   // In-flight vet-upgrade indicator (task #17): a user who submitted a matrícula
   // upgrade request otherwise sees zero sign of it on /inicio — the status lived
@@ -298,6 +327,15 @@ export default async function InicioPage() {
                 </>
               )}
             </p>
+          ) : !hasManageablePets ? (
+            // Task #19 (Lens 1): a zero-pet owner must NOT read "Todo en orden"
+            // (reassurance over an empty libreta). Say the true state; the
+            // FirstRunEmptyState below carries the directing CTA.
+            <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
+              {firstRunState === "fresh"
+                ? "Todavía no cargaste ninguna mascota."
+                : "No tenés mascotas activas en tu libreta."}
+            </p>
           ) : compliancePending > 0 ? (
             // No imminent vencimientos and no open cases, but not every pet is
             // al día — say so truthfully instead of "Todo en orden", mirroring
@@ -366,6 +404,21 @@ export default async function InicioPage() {
       )}
 
       {/* ------------------------------------------------------------------ */}
+      {/* Open cycles (task #19, Lens 3) — pending adoption applications and   */}
+      {/* incoming transfers, surfaced on the default landing (not only on     */}
+      {/* /mis-mascotas). Renders nothing when both counts are zero.           */}
+      {/* ------------------------------------------------------------------ */}
+      <OpenCyclesSection
+        pendingApplications={pendingApplications}
+        pendingTransfers={pendingTransfers}
+      />
+
+      {/* First-run (task #19, Lens 1): a zero-pet owner leads with the real
+          first action instead of a reassuring "Todo en orden" over a dead
+          capture card. Null once the owner has any manageable pet. */}
+      {firstRunState && <FirstRunEmptyState state={firstRunState} />}
+
+      {/* ------------------------------------------------------------------ */}
       {/* Credential carousel (task #9) — "la mascota es la credencial". The  */}
       {/* per-pet glance surface, most-urgent first. Glance-and-go: a card    */}
       {/* navigates to its pet; it drives nothing below it (PO #1).           */}
@@ -386,44 +439,47 @@ export default async function InicioPage() {
       {/* ------------------------------------------------------------------ */}
       {/* id=asentar: the bottom-tab "Asentar un hecho" action (CitizenTabBar,
           mobile) deep-links here so capture lives in the EXISTING tab bar slot
-          rather than a second stacked fixed bar (PO 2026-07-12 #4). */}
-      <div id="asentar" className="scroll-mt-24">
-        <LnCard className="mb-6 border-t-[3px] border-t-[var(--color-ln-azul)]">
-          {/* Card header */}
-          <div className="flex items-center gap-3 px-[18px] pb-3 pt-4">
-            <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
-              {/* pencil/edit glyph */}
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
+          rather than a second stacked fixed bar (PO 2026-07-12 #4). Hidden
+          pre-first-pet (task #19, Lens 1): nothing to asentar against yet. */}
+      {hasManageablePets && (
+        <div id="asentar" className="scroll-mt-24">
+          <LnCard className="mb-6 border-t-[3px] border-t-[var(--color-ln-azul)]">
+            {/* Card header */}
+            <div className="flex items-center gap-3 px-[18px] pb-3 pt-4">
+              <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
+                {/* pencil/edit glyph */}
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+                  Asentar un hecho en la libreta
+                </h2>
+                <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
+                  Escribí en lenguaje natural — abrimos el formulario que corresponda.
+                </p>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
-                Asentar un hecho en la libreta
-              </h2>
-              <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
-                Escribí en lenguaje natural — abrimos el formulario que corresponda.
-              </p>
-            </div>
-          </div>
 
-          {/* EventCatcher body — behavior untouched, only outer container styled above */}
-          <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-3.5">
-            <EventCatcher pets={eventCatcherPets} />
-          </div>
-        </LnCard>
-      </div>
+            {/* EventCatcher body — behavior untouched, only outer container styled above */}
+            <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-3.5">
+              <EventCatcher pets={eventCatcherPets} />
+            </div>
+          </LnCard>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------ */}
       {/* 2-col grid                                                          */}
@@ -435,7 +491,7 @@ export default async function InicioPage() {
         <div>
           {healthStatus.length > 0 ? (
             <PetHealthStatusStrip pets={healthStatus} complianceByPet={complianceByPet} />
-          ) : (
+          ) : hasManageablePets ? (
             <LnEmptyState
               variant="dashed"
               title="Todavía no cargaste ninguna mascota."
@@ -447,7 +503,9 @@ export default async function InicioPage() {
                 </Link>
               }
             />
-          )}
+          ) : // First-run (task #19): the FirstRunEmptyState above is the single
+          // directing surface; don't repeat a second "cargar mascota" box.
+          null}
         </div>
 
         {/* RIGHT — stacked cards */}
