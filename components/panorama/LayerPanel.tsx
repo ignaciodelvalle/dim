@@ -32,6 +32,12 @@ export type LayerPanelState = {
   /** The 2.000 per-layer cap clipped the result. */
   truncated: boolean;
   /**
+   * Honesty (panorama QA 2026-07-14): the last fetch for this layer returned
+   * the server's BUDGET/FAILURE fallback, not a real answer — the empty map
+   * must read "no pudimos calcular esta capa a tiempo", never "sin datos".
+   */
+  degraded?: boolean;
+  /**
    * F2 compatibility: set when this inactive layer cannot be toggled on due
    * to a compatibility conflict (e.g. a second base or a second signal).
    * The string is an es-AR hint explaining WHY the layer is blocked.

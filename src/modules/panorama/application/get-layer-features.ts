@@ -111,6 +111,14 @@ export type LayerFeaturesResult = {
    * which means "unknown HOME jurisdiction" and carries the wrong copy — A6).
    */
   sinUbicacionCount?: number;
+  /**
+   * TRUE when this is a BUDGET/FAILURE fallback, not a real answer (panorama
+   * QA 2026-07-14: the PBA cobertura drill's live rollup blew the 8s budget
+   * and the empty fallback painted as "sin datos" — a timeout must NEVER be
+   * indistinguishable from an empty dataset). Consumers surface an honest
+   * "no pudimos calcular esta capa a tiempo" state instead of an empty map.
+   */
+  degraded?: boolean;
 };
 
 const empty = (): LayerFeaturesResult => ({
@@ -124,9 +132,10 @@ const empty = (): LayerFeaturesResult => ({
 /**
  * Degraded/empty layer result — an empty FeatureCollection. Used as the
  * withDbBudget fallback on the page + API paths (task #74) so a slow or failing
- * layer fetch renders an empty map instead of hanging the response.
+ * layer fetch renders an empty map instead of hanging the response. Marked
+ * `degraded` so no consumer can mistake a timeout for a real empty dataset.
  */
-export const emptyLayerFeatures = empty;
+export const emptyLayerFeatures = (): LayerFeaturesResult => ({ ...empty(), degraded: true });
 
 /** Wrap a point-layer reader result into the use-case envelope. */
 function pointResult<Row>(rows: LayerRows<Row>, features: FeatureCollection): LayerFeaturesResult {

@@ -157,3 +157,29 @@ describe("emptyOverlayMessage (cowork QA ronda 3 §5 — honest empty copy)", ()
     expect(msg).toContain("solo a nivel provincia");
   });
 });
+
+describe("emptyOverlayMessage — degraded layer (panorama QA 2026-07-14)", () => {
+  it("a budget-degraded layer NEVER reads as 'sin datos' — highest-priority branch", () => {
+    // The PBA cobertura drill: the live rollup blew the 8s budget, the server
+    // returned its empty fallback, and the map painted a silent blank. A
+    // timeout is not an empty dataset — say so, with the retry path.
+    expect(
+      emptyOverlayMessage({
+        layerDegraded: true,
+        rateProvinceOnlyEmpty: true, // even when other branches also apply
+        detailKAnonSuppressed: true,
+        emptyStateScope: "en Buenos Aires",
+      }),
+    ).toBe("No pudimos calcular esta capa a tiempo. Tocá Actualizar para reintentar.");
+  });
+
+  it("absent/false degraded keeps every prior branch byte-identical", () => {
+    expect(
+      emptyOverlayMessage({
+        rateProvinceOnlyEmpty: false,
+        detailKAnonSuppressed: false,
+        emptyStateScope: "en Buenos Aires",
+      }),
+    ).toBe("Sin datos para esta capa en Buenos Aires.");
+  });
+});

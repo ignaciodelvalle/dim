@@ -207,6 +207,11 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
       headers["x-cube-built-at"] = sourced.builtAt.toISOString();
     }
 
+    // Honesty (panorama QA 2026-07-14): a budget/failure fallback must never
+    // read as an empty dataset — declare it so the console can say "no pudimos
+    // calcular esta capa a tiempo" instead of painting a silent blank map.
+    if (result.degraded) headers["x-layer-degraded"] = "1";
+
     return NextResponse.json(
       {
         features: result.features,
@@ -218,6 +223,7 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         // aggregated path — the console falls back to its aggregated disclosure).
         mode: result.mode,
         sinUbicacionCount: result.sinUbicacionCount ?? 0,
+        degraded: result.degraded ?? false,
       },
       { headers },
     );

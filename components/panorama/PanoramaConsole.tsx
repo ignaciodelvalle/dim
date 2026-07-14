@@ -181,6 +181,9 @@ type ApiResponse = {
   // response ("points"); undefined/absent on the aggregated path.
   mode?: "points" | "aggregated";
   sinUbicacionCount?: number;
+  /** Honesty (panorama QA 2026-07-14): the server returned its budget/failure
+   *  fallback — an empty that must never read as a real "sin datos". */
+  degraded?: boolean;
 };
 
 // The two choropleth layer ids — the only layers the aggregation level affects.
@@ -1229,6 +1232,7 @@ export function PanoramaConsole({
               suppressedCount: body.suppressedCount,
               noLocalityCount: body.noLocalityCount ?? 0,
               truncated: body.truncated,
+              degraded: body.degraded === true,
             },
           }));
         } catch (err) {
@@ -1869,6 +1873,8 @@ export function PanoramaConsole({
                 suppressedCount: body.suppressedCount,
                 noLocalityCount: body.noLocalityCount ?? 0,
                 truncated: body.truncated,
+                // Honesty: a budget-fallback empty is NOT "sin datos".
+                degraded: body.degraded === true,
               },
             }));
           } catch (err) {
@@ -2048,6 +2054,7 @@ export function PanoramaConsole({
               suppressedCount: body?.suppressedCount ?? 0,
               noLocalityCount: body?.noLocalityCount ?? 0,
               truncated: body?.truncated ?? false,
+              degraded: body?.degraded === true,
             },
           }));
         }),
@@ -2093,6 +2100,7 @@ export function PanoramaConsole({
           suppressedCount: body?.suppressedCount ?? 0,
           noLocalityCount: body?.noLocalityCount ?? 0,
           truncated: body?.truncated ?? false,
+          degraded: body?.degraded === true,
         },
       }));
       setLevelVersion((v) => v + 1);
@@ -2247,6 +2255,7 @@ export function PanoramaConsole({
                 suppressedCount: body.suppressedCount,
                 noLocalityCount: body.noLocalityCount ?? 0,
                 truncated: body.truncated,
+                degraded: body.degraded === true,
               }
             : { active: false, loading: false, count: 0, suppressedCount: 0, truncated: false };
           // The swap only lands when the activation succeeded — a failed fetch
@@ -2304,6 +2313,7 @@ export function PanoramaConsole({
               suppressedCount: body.suppressedCount,
               noLocalityCount: body.noLocalityCount ?? 0,
               truncated: body.truncated,
+              degraded: body.degraded === true,
             },
           };
           return applyHintsAfterActivate(base, nextActive);
@@ -3252,6 +3262,12 @@ export function PanoramaConsole({
   // the BASE choropleth (captionLayer), so it reads the base's dataType directly
   // (the ranking layer may now differ from the base under a rankBy preset).
   const rateProvinceOnlyEmpty = captionLayer?.dataType === "rate" && level !== "province";
+  // Honesty (panorama QA 2026-07-14): ANY active layer whose last fetch was the
+  // server's budget/failure fallback — the map overlay + a live notice must say
+  // "no pudimos calcular a tiempo", never let a timeout read as "sin datos".
+  const degradedLayerLabels = PANORAMA_LAYERS.filter(
+    (l) => states[l.id]?.active && states[l.id]?.degraded,
+  ).map((l) => l.label);
 
   const rankedActiveLayer = useMemo(
     () => (rankingLayer ? activeLayers.find((l) => l.id === rankingLayer.id) : undefined),
@@ -4449,6 +4465,7 @@ export function PanoramaConsole({
             initialBounds={initialBounds}
             frameProvinceOnLoad={frameProvinceOnLoad}
             rateProvinceOnlyEmpty={rateProvinceOnlyEmpty}
+            layerDegraded={degradedLayerLabels.length > 0}
             detailKAnonSuppressed={dockSuppressedCount > 0}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}
@@ -4653,6 +4670,16 @@ export function PanoramaConsole({
             <div className="space-y-2.5">
               {/* k-anon disclosure — the full per-layer suppression counts. */}
               <PanoramaSuppressionNotice states={states} />
+              {/* Honesty (panorama QA 2026-07-14): a budget-degraded layer says so. */}
+              {degradedLayerLabels.length > 0 && (
+                <output
+                  aria-live="polite"
+                  className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+                >
+                  No pudimos calcular a tiempo: {degradedLayerLabels.join(", ")}. Tocá Actualizar
+                  para reintentar.
+                </output>
+              )}
               {/* panorama-ia-v2 §2.4: plain-language caption — what a map mark
                   means at the active VISTA + derived level. Under the bivariate
                   encoding it explains the 3×3 matrix + tercile method instead. */}

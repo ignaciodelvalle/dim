@@ -125,7 +125,14 @@ export function emptyOverlayMessage(opts: {
   rateProvinceOnlyEmpty: boolean;
   detailKAnonSuppressed: boolean;
   emptyStateScope: string;
+  /** Panorama QA 2026-07-14: the layer's last fetch was the server's
+   *  budget/failure fallback — a TIMEOUT, not an empty dataset. Highest
+   *  priority: painting it as "sin datos" was the PBA cobertura lie. */
+  layerDegraded?: boolean;
 }): string {
+  if (opts.layerDegraded) {
+    return "No pudimos calcular esta capa a tiempo. Tocá Actualizar para reintentar.";
+  }
   if (opts.rateProvinceOnlyEmpty) {
     return "La cobertura se calcula solo a nivel provincia. Volvé al nivel provincia para verla.";
   }

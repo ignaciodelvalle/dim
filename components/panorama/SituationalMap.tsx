@@ -283,6 +283,13 @@ type Props = {
    */
   rateProvinceOnlyEmpty?: boolean;
   /**
+   * Panorama QA 2026-07-14: TRUE when an ACTIVE layer's last fetch was the
+   * server's budget/failure fallback (a timeout, not data). The empty overlay
+   * must read "no pudimos calcular esta capa a tiempo", never "sin datos" —
+   * the PBA cobertura drill painted a silent blank for exactly this case.
+   */
+  layerDegraded?: boolean;
+  /**
    * Cowork QA ronda 3 §5 (privacy invariant §5 / C3): TRUE when the active base
    * layer HAS a scope-level aggregate (its KPI value exists) but every per-unit
    * cell is k-anon suppressed — so the empty overlay must read "detalle protegido
@@ -624,6 +631,7 @@ export function SituationalMap({
   initialBounds,
   frameProvinceOnLoad = false,
   rateProvinceOnlyEmpty = false,
+  layerDegraded = false,
   detailKAnonSuppressed = false,
   selectedProvinceCode = null,
   selectedLocalityCenter = null,
@@ -3515,6 +3523,7 @@ export function SituationalMap({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
             <p className="max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-2 text-center text-[var(--text-md)] text-ln-op-ink-2 shadow-md">
               {emptyOverlayMessage({
+                layerDegraded,
                 rateProvinceOnlyEmpty,
                 detailKAnonSuppressed,
                 emptyStateScope,

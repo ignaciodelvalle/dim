@@ -86,6 +86,7 @@ Env vars (Vercel → Project → Settings → Environment Variables), Production
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | the anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | the service_role key |
 | `CRON_ALERT_WEBHOOK` | a Slack/Discord webhook URL (the cron fleet 500s + alerts here — Wave F2) |
+| `CUBE_READS` | `1` — serves the 5 admin choropleth layers from the precomputed `panorama_cube` (added 2026-07-14: with the flag OFF, a whole-province drill on the heavy layers runs the LIVE rollup, and at Buenos Aires scale the cobertura query blows the 8s budget → a degraded-empty map. The refresh cron — `app/api/cron/refresh-cube` — must be scheduled alongside; cube staleness > 6h falls back to live) |
 | _(any others the current build reads)_ | cross-check `.env.example` / `.env.local` for the full set before deploy |
 
 > Cross-check the full var list against your local `.env.local` — anything the app reads at build/runtime must be set in Vercel or the build fails.
