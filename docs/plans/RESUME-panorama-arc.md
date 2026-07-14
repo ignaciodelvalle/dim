@@ -46,6 +46,16 @@ the REAL `TEST EXIT`, not the wrapper notification) → commit → push.
 ## Then, in cascade
 #24 switcher (on the gate) → #33 viz-suite → #51 embed.
 
+**#51 embed — PARTIAL DONE.** `/gob/poblacion` map migrated to `<PanoramaEmbed>` (layer
+`esterilizacion`, national frozen view via `gobEmbedView`) — byte-identical byProvince ratePct
+(same `fetchSterilizationCoverage`). censo/perdidas/vigilancia stay COUPLED: censo has no
+registry-COUNT layer; perdidas is entity-state pets + status·species·q filters vs the event-density
+`perdidas` layer; vigilancia needs province→subregion drill + k-anon the read-only v1 embed excludes.
+Residual: govt users who NARROW poblacion via the JurisdictionSwitcher — the national embed won't
+re-narrow the map (route only fences govt to full assignments), a coherence gap vs the KPIs/table
+(admin is unaffected — poblacion is always national for admin). Carrying scope is NOT a fix: a
+scoped view flips the embed to the locality count-density axis (rate-by-locality deferred).
+
 ## Other implementable arcs
 #14 onboarding · #44c attribute filters (REAL version gated behind ViewState `ViewScope`; dept-rate
 coverage was #44a — DONE) · #31c shared `toChoroplethData` (#31a perdidas divergence CLOSED as the

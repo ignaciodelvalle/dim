@@ -4,9 +4,14 @@
 //
 // `<PanoramaEmbed viewState={...} />` is the master-plan P5 deliverable: the map
 // island as a pure projection of the canonical value, with NO chrome and NO URL
-// coupling. The #51 cascade migrates the four analytics-screen maps
-// (poblacion/censo/perdidas/vigilancia) onto this component; #24/#33 build their
-// modes on the same seam. v1 scope (documented, deliberate):
+// coupling. The #51 cascade migrates the analytics-screen maps that SEMANTICALLY
+// match a panorama layer: /gob/poblacion → esterilizacion (province ratePct,
+// byte-identical to fetchSterilizationCoverage.byProvince). censo/perdidas/
+// vigilancia stay on MapChoroplethDynamic — no equivalent layer (censo = registry
+// COUNT) or map-local coupling the read-only v1 embed cannot honor (perdidas
+// status·species·q filters + entity-vs-event population; vigilancia
+// province→subregion drill + k-anon). #24/#33 build their modes on the same seam.
+// v1 scope (documented, deliberate):
 //  - aggregated + reference marks only (no near-zoom real-dots band — points are
 //    an operator surface, not an embed surface);
 //  - live view only (PO 2026-07-14: replay is live view, no ?basis=) — asOf IS

@@ -8,23 +8,22 @@
 //                  nacimientos registrados (caveat) · tasa neta de crecimiento (caveat)
 //                  · ratio esterilización/natalidad (sub o tile 5)
 //   Trend        — TimeSeriesChart (sterilization_performed trend)
-//   Coropleta    — MapChoroplethDynamic (sterilización por provincia)
+//   Coropleta    — <PanoramaEmbed> (esterilización por provincia, capa panorama · #51)
 //   Freshness footer
 //
 // PANORAMA NOTE: The Paquete G Panorama layer/preset (population-control map layer
 // and preset in /gob/panorama) is deferred to a separate work unit. This page is
 // the standalone jurisdiction dashboard — not the Panorama integration.
 
-import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { PanoramaEmbed } from "@/components/panorama/PanoramaEmbed";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
-import { toChoroplethData } from "@/lib/analytics/choropleth-data";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -42,6 +41,7 @@ import {
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { formatPercent, formatRate } from "@/lib/utils/format";
+import { gobEmbedView } from "@/src/modules/panorama/domain/embed-view";
 
 export const dynamic = "force-dynamic";
 
@@ -167,9 +167,6 @@ export default async function GobPoblacionPage({
   // Net growth: directional only. Tone is neutral — sign alone is meaningful
   // but exact value is not because registeredBirths under-counts natalidad.
   const netTone = "neutral" as const;
-
-  // Choropleth: map byProvince rates to the standard format (task #31c dedup)
-  const choroplethData = toChoroplethData(coverage.byProvince, (r) => r.ratePct);
 
   const panelTrendId = "panel-esterilizacion-titulo";
   const panelMapId = "panel-mapa-titulo";
@@ -360,23 +357,25 @@ export default async function GobPoblacionPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Choropleth — sterilization coverage by province */}
-      {choroplethData.length > 0 && (
+      {/* Panorama embed (#51) — the SAME per-province sterilization ratePct
+          choropleth, now rendered through the shared panorama surface. Data is
+          byte-identical: the esterilizacion layer's province loader delegates to
+          fetchSterilizationCoverage(...).byProvince — the very coverage value the
+          KPI tile above already uses. A national frozen view keeps the province
+          aggregation axis; /api/panorama/[layer] fences govt scope server-side. */}
+      {coverage.byProvince.length > 0 && (
         <OpCard aria-labelledby={panelMapId}>
           <OpCardHead
             title={<span id={panelMapId}>Cobertura de esterilización por provincia</span>}
           />
           <OpCardBody>
-            <MapChoroplethDynamic
-              data={choroplethData}
-              level="province"
-              scaleMode="divergent"
-              target={TARGETS.STERILIZATION_COVERAGE_PCT}
-              scaleLabel="Cobertura de esterilización (%)"
-              fallbackTableLabel="Cobertura de esterilización por provincia"
-              height={400}
-              cartography="panorama"
-            />
+            {profile.role !== "admin" && (sp.province || sp.locality) && (
+              <p className="mb-2 text-[var(--text-sm)] text-ln-op-mute">
+                El mapa muestra tu asignación completa; el filtro de jurisdicción no se aplica en
+                esta vista.
+              </p>
+            )}
+            <PanoramaEmbed viewState={gobEmbedView("esterilizacion", "trailing12m")} height={400} />
           </OpCardBody>
         </OpCard>
       )}
