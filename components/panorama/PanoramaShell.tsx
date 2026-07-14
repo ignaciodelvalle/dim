@@ -98,8 +98,9 @@ type Props = {
    * page resolves the role-default preset and seeds ALL its layers (cached) at
    * the preset's level + period; these props carry that seed to the console so
    * the map paints on first render with zero client fetches. Absent on
-   * non-first visits (the page keeps seeding perdidas). `seededPresetId` equals
-   * `defaultPresetId` on this path.
+   * non-first visits (the page keeps seeding perdidas). `seededPresetId` is the
+   * seeded preset — the role default on a first visit, or the `?preset=<id>` a
+   * deep-link named (so it may differ from `defaultPresetId`).
    */
   seededPresetId?: PresetId;
   seededLayers?: SeededLayer[];

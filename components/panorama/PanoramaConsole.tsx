@@ -429,8 +429,9 @@ type Props = {
    * perf plan commit 1.2 — first-visit fast path. On a TRULY-first visit the
    * server resolves the role-default preset and seeds ALL its layers (via the
    * cached loader) at the preset's level + period. `seededPresetId` is that
-   * preset (equals `defaultPresetId`); `seededLayers` carries the per-layer
-   * envelopes. When present the console seeds its caches + states from these,
+   * preset — the role default on a first visit, OR the `?preset=<id>` a deep-link
+   * named (so it may differ from `defaultPresetId`); `seededLayers` carries the
+   * per-layer envelopes. When present the console seeds its caches + states from these,
    * paints on first render, and the mount's preset activation PRESERVES the
    * seeded caches (zero client fetches). Absent → today's behavior (perdidas
    * seed + client-side preset activation that fetches, now cache-warmed).

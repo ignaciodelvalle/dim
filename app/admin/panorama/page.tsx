@@ -24,6 +24,7 @@ import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 import {
   DEFAULT_PANORAMA_PRESET_ID,
+  type PresetId,
   getPreset,
   presetLayerIds,
 } from "@/src/modules/panorama/domain/presets";
@@ -182,9 +183,25 @@ async function AdminPanoramaBoard({
     sp.from === undefined &&
     sp.to === undefined;
 
-  if (isFirstVisit) {
-    // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
-    const preset = getPreset(defaultPresetId)!;
+  // The preset to seed server-side (its layers + window), or null to fall through
+  // to the perdidas seed. Two paths land here:
+  //  (1) a first visit → the role-default vista (perf plan 1.2);
+  //  (2) an explicit `?preset=<id>` deep-link with NO `?layers=` override → THAT
+  //      preset. Without this, a shared/embedded `?preset=brotes-activos` link
+  //      disqualified itself from the first-visit gate (sp.preset !== undefined)
+  //      and fell through to the orphan perdidas seed — the deep-link never
+  //      painted its own board (pre-existing bug, not a P2 regression). An
+  //      explicit `?layers=` still wins: a hand-built board is not a preset seed.
+  const urlPreset =
+    sp.layers === undefined && sp.preset !== undefined
+      ? (getPreset(sp.preset as PresetId) ?? null)
+      : null;
+  // biome-ignore lint/style/noNonNullAssertion: defaultPresetId is a static registry id.
+  const roleDefaultPreset = isFirstVisit ? getPreset(defaultPresetId)! : null;
+  const seedPreset = urlPreset ?? roleDefaultPreset;
+
+  if (seedPreset) {
+    const preset = seedPreset;
     // CRITICAL C2 INVARIANT: seed AND initialLevel are BOTH `seedLevel`. The
     // console initializes `level` from initialLevel and reads each seeded layer
     // from the cache keyed by that level — a mismatch blanks the map.
@@ -195,8 +212,13 @@ async function AdminPanoramaBoard({
     // at LOCALITY (scope-wins). The preset's own `level` is only a preference.
     const seedLevel = provinceObj ? ("locality" as const) : ("province" as const);
     // The preset's OWN window (90d/30d) — not the 3y default. This also scopes
-    // the KPI fan-out to that window, killing the wasted 3-year compute.
-    const seedPeriod = resolveAnalyticsPeriod({ period: preset.periodPreset });
+    // the KPI fan-out to that window, killing the wasted 3-year compute. A
+    // `?preset=X&period=Y` deep-link honors its explicit window (`period`, already
+    // resolved above from sp.period); a bare `?preset=X` uses the preset's window.
+    const seedPeriod =
+      urlPreset && sp.period !== undefined
+        ? period
+        : resolveAnalyticsPeriod({ period: preset.periodPreset });
     const seedIds = presetLayerIds(preset);
     // Streamed KPIs — NOT awaited here. `.catch` degrades an early rejection so
     // the promise always resolves to an honest strip (the loader carries its own
@@ -269,7 +291,7 @@ async function AdminPanoramaBoard({
         // fence), so the semantic scroll-nav wheel takeover is enabled (HIGH 1).
         universalNav
         defaultPresetId={defaultPresetId}
-        seededPresetId={defaultPresetId}
+        seededPresetId={preset.id}
         seededLayers={seededLayers}
       />
     );
