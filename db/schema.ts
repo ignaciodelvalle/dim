@@ -3767,6 +3767,28 @@ export type PetAchievementView = typeof petAchievementViews.$inferSelect;
 export type NewPetAchievementView = typeof petAchievementViews.$inferInsert;
 
 // ============================================================================
+// Operator "Novedades" feed watermark — viz-suite Wave 1 (migration 0143)
+// ============================================================================
+// Per-operator high-water mark (transaction-time / recorded_at) for the
+// session-start "Novedades" orientation feed on the /gob and /admin homes. One
+// row per operator (user_id PK); advanced ONLY by the explicit "Marcar como
+// visto" action (never on render). Per-user UI state — NOT an event; the
+// append-only pet_events log is never touched by the feed. RLS: owner-only for
+// every operation (see migration 0143).
+
+export const operatorFeedWatermarks = pgTable("operator_feed_watermarks", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  /** recorded_at high-water mark: the feed shows pet_events strictly newer than this. */
+  lastSeenRecordedAt: timestamp("last_seen_recorded_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OperatorFeedWatermark = typeof operatorFeedWatermarks.$inferSelect;
+export type NewOperatorFeedWatermark = typeof operatorFeedWatermarks.$inferInsert;
+
+// ============================================================================
 // Event notification outbox — ENO Event-Trust Tier 1, Fase C.1
 // ============================================================================
 // Durable delivery queue for regulated event notifications (ENO and future

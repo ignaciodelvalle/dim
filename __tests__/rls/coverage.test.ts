@@ -83,6 +83,10 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // Threshold alert subscriptions (migration 0108): owner-scoped via
   // actor_user_id, RLS enabled with read/write-by-owner(+admin) policies.
   "alert_subscriptions",
+  // Novedades feed watermark (migration 0143): per-user UI state, RLS enabled
+  // with owner-only SELECT/INSERT/UPDATE policies (user_id = auth.uid()); no
+  // admin branch, no DELETE (rows go via profiles CASCADE only).
+  "operator_feed_watermarks",
   // Advisor remediation (migration 0113): deny-all on four tables the Supabase
   // security advisor flagged rls_disabled_in_public. The app reaches all four
   // only via Drizzle / service-role (BYPASSRLS); deny-all just closes the

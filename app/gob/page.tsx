@@ -14,6 +14,7 @@ import Link from "next/link";
 import { CaseBadge } from "@/components/CaseBadge";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
+import { NovedadesCard } from "@/components/operator/NovedadesCard";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -50,6 +51,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { fetchNovedadesFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { formatCount, formatDate, formatPercent, formatRate } from "@/lib/utils/format";
@@ -191,6 +193,11 @@ export default async function GobiernoDashboardPage({
       profile.role === "admin"
         ? listOpenCasesForAdminPreview(5)
         : listOpenCasesForGovtPreview(filteredJurisdictions, 5),
+      // Novedades — session-start orientation feed. Reuses ctx12m for SCOPE only
+      // (admin → universal; govt → its jurisdictions, narrowed by the active
+      // switcher filter); the feed window is the per-user watermark, not the
+      // ctx period. Bounded by the same loadWithTimeout deadline as the rest.
+      fetchNovedadesFeed(ctx12m, user.id),
     ]),
   );
 
@@ -228,6 +235,7 @@ export default async function GobiernoDashboardPage({
     mortality,
     perdidas,
     openCasesPreview,
+    novedades,
   ] = load.value;
 
   // Shape the bites trend for TimeSeriesChart (x/y points).
@@ -241,6 +249,11 @@ export default async function GobiernoDashboardPage({
     <div className="space-y-6">
       {/* Page header */}
       {header}
+
+      {/* Novedades — session-start orientation feed ("esto cambió en tu
+          jurisdicción desde tu última visita"). Orientation content leads, below
+          the header. */}
+      <NovedadesCard feed={novedades} />
 
       {/* Jurisdiction filter — same URL contract (province=ISO, locality=slug)
           as every /gob sub-page, so scope carries across drill-downs. */}

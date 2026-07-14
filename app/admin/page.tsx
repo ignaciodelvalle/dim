@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
+import { NovedadesCard } from "@/components/operator/NovedadesCard";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import {
@@ -10,20 +11,25 @@ import {
 } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
+import { fetchNovedadesFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
 
 export default async function AdminDashboardPage() {
-  await requireAdminOrRedirect();
+  const { user } = await requireAdminOrRedirect();
 
   // Admin context: global scope (no jurisdiction restriction), trailing 12m window.
   // Used for DashboardFreshnessFooter (lastIngestAt) — admin sees all pet_events.
+  // The Novedades feed reuses it for scope (admin → universal); its window is the
+  // per-user watermark, not the ctx period.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
-  const [users, queue, decisions] = await Promise.all([
+  const [users, queue, decisions, novedades] = await Promise.all([
     fetchUserMetrics(),
     fetchQueueHealth(),
     fetchDecisionsMetrics(),
+    // Session-start orientation feed (universal scope for admin).
+    fetchNovedadesFeed(adminCtx, user.id),
   ]);
 
   // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
@@ -46,6 +52,10 @@ export default async function AdminDashboardPage() {
           se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
         </p>
       </header>
+
+      {/* Novedades — session-start orientation feed ("esto cambió desde tu
+          última visita"). Orientation content leads, below the header. */}
+      <NovedadesCard feed={novedades} />
 
       {/* Live system metrics — shared operational strip (C26). Leads the landing
           so the North-Star numbers come before the account cards. */}
