@@ -27,12 +27,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
-import { overlayAmendments } from "@/lib/infra/amendment";
-import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-org";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { petPhotoUrl } from "@/lib/infra/storage";
@@ -47,11 +43,17 @@ import { BRANDING } from "@/lib/ui/branding";
 import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
+import Image from "next/image";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import {
+  CredentialOriginOrg,
+  CredentialTier2Medical,
+  CredentialTier2MedicalSkeleton,
+} from "./CredentialStreamedSections";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
-import { Tier2MedicalView } from "./Tier2MedicalView";
-import { type CredentialEvent, deriveActiveMedications, isRabiesAtRisk } from "./credential-badges";
+import { type CredentialEvent, isRabiesAtRisk } from "./credential-badges";
 
 // The page calls headers() at runtime — mark it dynamic explicitly so Next.js
 // does not attempt to statically render it (matches the sibling encontre /
@@ -175,9 +177,10 @@ export default async function PublicCredentialPage({
 
   // WAVE D1 (Invariant #3): every clinical badge below folds `event_amended`
   // corrections via overlayAmendments so a stranger scanning the QR sees the
-  // CORRECTED value — same projection the authenticated libreta applies. The
-  // pet's amendment rows are rare, fetched at most ONCE, and only when a badge
-  // that reads amendable payload is actually rendered (Tier 2 / service-dog).
+  // CORRECTED value — same projection the authenticated libreta applies. This
+  // shell-side cache now serves only the service-dog rabies warning; the
+  // streamed Tier-2 section fetches its own copy (#16a) — at most one extra
+  // query, only for the rare tier2-AND-bannered-service-dog pet.
   let amendmentEventsCache: CredentialEvent[] | null = null;
   const getAmendmentEvents = async (): Promise<CredentialEvent[]> => {
     if (amendmentEventsCache === null) {
@@ -306,90 +309,12 @@ export default async function PublicCredentialPage({
   const tier2Active =
     pet.tier2PublicPermanent || (!!tier2EnabledUntil && tier2EnabledUntil > new Date());
 
-  let tier2VaccineSummary = { active: 0, expired: 0, dueSoon: 0, missing: 0 };
-  let tier2HasVaccineRecord = false;
-  let tier2IsSterilized = false;
-  const tier2ActiveMedications: string[] = [];
-  if (tier2Active) {
-    // Run the tier2 queries concurrently — none depends on the others. Each
-    // clinical query selects the full overlay shape (id/eventType/occurredAt/
-    // payload) and is folded with the pet's `event_amended` rows (WAVE D1) so a
-    // corrected vaccine/medication supersedes on the public credential too.
-    const [vaccineEvents, sterilRows, medRows, amendmentEvents, dueSoonWindowRule] =
-      await Promise.all([
-        // FULL vaccination history — the same input the owner's libreta feeds
-        // into computeVaccinationSummary (a dose from years ago still determines
-        // catalog currency). The former 12-month name-dedupe stopgap
-        // (countActiveVaccineNames) produced counts that contradicted the
-        // owner's libreta for the same pet (staging validation 2026-07-04,
-        // bug 3). Type-narrow, so it stays cheap at scale (same rationale as
-        // get-libreta-face-data's uncapped summary query).
-        db
-          .select({
-            id: petEvents.id,
-            eventType: petEvents.eventType,
-            occurredAt: petEvents.occurredAt,
-            payload: petEvents.payload,
-          })
-          .from(petEvents)
-          .where(
-            and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
-          ),
-        db
-          .select({ id: petEvents.id })
-          .from(petEvents)
-          .where(
-            and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")),
-          )
-          .limit(1),
-        // Active medications: started without a referencing stop. Same shape
-        // as computeMedicationsActive (lib/domain/libreta-health-status.ts) but
-        // inlined to avoid coupling this page to that PR until both ship.
-        db
-          .select({
-            id: petEvents.id,
-            eventType: petEvents.eventType,
-            occurredAt: petEvents.occurredAt,
-            payload: petEvents.payload,
-          })
-          .from(petEvents)
-          .where(
-            and(
-              eq(petEvents.petId, pet.id),
-              sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
-            ),
-          ),
-        getAmendmentEvents(),
-        // Same jurisdiction-resolved window the owner's libreta uses — the two
-        // surfaces MUST share the whole derivation, thresholds included.
-        resolveBusinessRule("due_soon_window", {
-          country: "AR",
-          province: pet.jurisdictionProvince,
-          locality: pet.jurisdictionLocality,
-        }),
-      ]);
-
-    // SINGLE SHARED DERIVATION (bug 3): the exact function + inputs the owner
-    // libreta uses (get-libreta-face-data.ts) — corrections folded first, then
-    // catalog/due-date classification. Owner and share can no longer disagree.
-    const summary = computeVaccinationSummary(
-      overlayAmendments([...vaccineEvents, ...amendmentEvents]),
-      pet.species,
-      new Date(),
-      dueSoonWindowRule.payload.days,
-    );
-    tier2VaccineSummary = {
-      active: summary.active,
-      expired: summary.expired,
-      dueSoon: summary.dueSoon,
-      missing: summary.missing,
-    };
-    tier2HasVaccineRecord = hasAnyVaccineRecord(summary);
-
-    tier2IsSterilized = sterilRows.length > 0;
-
-    tier2ActiveMedications.push(...deriveActiveMedications([...medRows, ...amendmentEvents]));
-  }
+  // #16a — the Tier-2 medical projection (FULL vaccination history + medications
+  // + sterilization, folded with event_amended corrections) is the heaviest read
+  // on this page. It no longer blocks the credential shell / LCP photo: it moved
+  // into <CredentialTier2Medical>, streamed behind <Suspense> in the active
+  // render below. `tier2Active` (a pet-row flag) still gates it here so the
+  // skeleton only ever shows for tier2-enabled pets.
 
   // Service dog banner (Ley 26.858). Renders ONLY when the owner has opted
   // in to full_banner visibility AND the credential is vigente AND in
@@ -575,11 +500,6 @@ export default async function PublicCredentialPage({
       lostSince: latestLostEvent?.occurredAt ?? null,
     };
   }
-
-  // T-4.3: Origin-org badge — resolved server-side, no PII.
-  // Active credential only (lost branch has its own render path).
-  const originOrg = isLost ? null : await resolveOriginOrg(pet.id);
-  const showOriginOrg = shouldShowOriginOrgBadge(originOrg);
 
   // Lost branch — v2 public credential. ScanLogger still fires so scan
   // analytics are captured even in lost mode. lostSince falls back to now()
@@ -784,16 +704,21 @@ export default async function PublicCredentialPage({
             </span>
           </div>
 
-          {/* Photo */}
+          {/* Photo — LCP element on the busiest path in the product (every QR
+              scan lands here, mostly mobile). next/image `priority` preloads +
+              eager-loads it, preserving the deliberate eager LCP choice, while
+              the optimizer serves a device-sized WebP — byte-smaller than the
+              raw Supabase original on a phone, never larger. `sizes` reflects the
+              card: full-width up to the 460px cap. The Supabase storage host is
+              allowlisted in next.config (images.remotePatterns). */}
           {photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={photoUrl}
               alt={pet.name}
               width={460}
               height={345}
-              loading="eager"
-              decoding="sync"
+              priority
+              sizes="(max-width: 480px) 100vw, 460px"
               className="block w-full aspect-[4/3] object-cover"
             />
           ) : (
@@ -839,19 +764,22 @@ export default async function PublicCredentialPage({
             </div>
           )}
 
-          {/* Tier 2 medical summary */}
+          {/* Tier 2 medical summary — STREAMED (#16a). The shell (photo, name,
+              identity) paints first; this heavy vaccination projection streams in
+              behind a skeleton that reserves its height so the sections below do
+              not jump. Same rendered output as the former inline block. */}
           {tier2Active && (
-            <div className="border-t border-ln-line-2">
-              <Tier2MedicalView
+            <Suspense fallback={<CredentialTier2MedicalSkeleton />}>
+              <CredentialTier2Medical
+                petId={pet.id}
+                species={pet.species}
+                jurisdictionProvince={pet.jurisdictionProvince}
+                jurisdictionLocality={pet.jurisdictionLocality}
                 enabledUntil={tier2EnabledUntil}
-                vaccineSummary={tier2VaccineSummary}
-                hasVaccineRecords={tier2HasVaccineRecord}
-                isSterilized={tier2IsSterilized}
-                activeMedications={tier2ActiveMedications}
                 permanentConditions={pet.permanentConditions ?? []}
                 permanentConditionsOther={pet.permanentConditionsOther}
               />
-            </div>
+            </Suspense>
           )}
 
           {/* Identity section */}
@@ -882,31 +810,13 @@ export default async function PublicCredentialPage({
             </div>
           )}
 
-          {/* T-4.3: Origin-org badge */}
-          {showOriginOrg && originOrg && (
-            <div
-              data-section="origin-org-badge"
-              className="flex items-center gap-2.5 border-t border-ln-line-2 px-4 py-3"
-            >
-              {originOrg.avatarUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={originOrg.avatarUrl}
-                  alt=""
-                  aria-hidden="true"
-                  className="h-[28px] w-[28px] flex-shrink-0 rounded-full object-cover"
-                />
-              )}
-              <div className="min-w-0">
-                <p className="m-0 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-ln-mute">
-                  Refugio de origen
-                </p>
-                <p className="m-0 truncate text-[13px] font-medium text-ln-ink">
-                  {originOrg.displayName}
-                </p>
-              </div>
-            </div>
-          )}
+          {/* T-4.3: Origin-org badge — STREAMED (#16a). Below the fold and off
+              the LCP path; resolveOriginOrg walks up to three rows. null fallback
+              — the badge is absent for most pets, so a skeleton would only flash
+              then vanish. Same resolver + gate + markup as the former block. */}
+          <Suspense fallback={null}>
+            <CredentialOriginOrg petId={pet.id} />
+          </Suspense>
 
           {/* "Found this pet?" action area */}
           <div className="border-t border-ln-line bg-ln-stripe px-4 py-3.5">

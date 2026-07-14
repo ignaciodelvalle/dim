@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2331,
+    "totalViolations": 2325,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -398,13 +398,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "components/panorama/CabaInset.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 1,
-      "hexStyle": 0
-    },
     "components/panorama/DetailDrawer.tsx": {
       "text": 6,
       "space": 0,
@@ -421,13 +414,6 @@
     },
     "components/panorama/PanoramaDemoDisclosure.tsx": {
       "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "components/panorama/PanoramaShell.tsx": {
-      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -539,7 +525,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/page.tsx": {
-      "text": 23,
+      "text": 19,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1434,13 +1420,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/analytics/_components/RegionRankingTable.tsx": {
-      "text": 2,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/gob/analytics/export/ExportFormClient.tsx": {
       "text": 10,
       "space": 0,
@@ -1742,6 +1721,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/(public)/p/[publicToken]/CredentialStreamedSections.tsx": {
+      "text": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/(public)/p/[publicToken]/opengraph-image.tsx": {
       "text": 0,
       "space": 0,
@@ -1750,7 +1736,7 @@
       "hexStyle": 3
     },
     "app/(public)/p/[publicToken]/page.tsx": {
-      "text": 24,
+      "text": 22,
       "space": 11,
       "rounded": 0,
       "shadow": 2,
@@ -2531,6 +2517,13 @@
       "space": 3,
       "rounded": 0,
       "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/inicio/_components/CredentialRail.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 2,
       "hexStyle": 0
     },
     "app/(app)/inicio/_components/IntentApplyBanner.tsx": {
