@@ -426,10 +426,11 @@ export function isAggregatedPointLayer(id: LayerId): boolean {
 
 /**
  * panorama-event-points (design D5): ids of the layers that swap to REAL
- * event-location dots at near zoom (renderPolicy.points set). Slice 1: perdidas
- * only. The console reads THIS to decide the imperative points-mode render switch
- * (A7 — renderPolicy is never read at runtime), keeping descriptor and behavior
- * in sync from a single declarative source.
+ * event-location dots at near zoom (renderPolicy.points set). P4b: the CLIENT no
+ * longer reads this — the console resolves the live LOD band from the capability
+ * gate's `representationPerZoom` (`markForZoom`, capabilities.ts). This set
+ * remains as the SERVER-side gate's derived view of the same declaration
+ * (get-layer-features re-derives points mode independently of the client).
  */
 export const POINTS_LAYER_IDS: ReadonlySet<LayerId> = new Set(
   PANORAMA_LAYERS.filter((l) => l.renderPolicy.points != null).map((l) => l.id),

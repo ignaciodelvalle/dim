@@ -22,16 +22,28 @@
 // glow) is the ONE phase allowed to update this snapshot, DELIBERATELY, with the
 // change documented in the commit.
 //
+// ── P4b UPDATE (DELIBERATE, 2026-07-14) ─────────────────────────────────────
+// The imperative points switch (`pointsEligible` + `POINTS_LAYER_IDS`) was
+// replaced by the declaration-driven LOD bands (`markForZoom` over
+// `ZOOM_REPRESENTATIONS` — renderPolicy finally read at runtime, closing A7).
+// The record gains two fields:
+//   `lodBand`     — the base layer's resolved band (national|drilled|near);
+//   `paintedAxis` — the axis the base's FEATURES paint on (the cache routing).
+// BEHAVIOR CHANGE pinned here (the GHOST fix): with a province in scope at
+// national zoom (zoom < autoLevel.belowZoom), `level` stays "locality"
+// (scope-wins, PO decision #1 — unchanged) but the base now PAINTS the
+// province-axis rollup (`paintedAxis: "province"`) instead of hundreds of stale
+// locality marks over the national frame. Every other cell is value-identical
+// to the P0 net.
+//
 // Pure — no DB, no React, no maplibre. Deterministic (fixed periods, no `now`).
 
 import { describe, expect, it } from "vitest";
 
-import {
-  derivedLevelWithHysteresis,
-  pointsEligible,
-} from "@/components/panorama/situational-map-utils";
+import { derivedLevelWithHysteresis } from "@/components/panorama/situational-map-utils";
+import { ZOOM_REPRESENTATIONS, markForZoom } from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
-import { getLayer, isPointsLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
+import { getLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
 import {
   PANORAMA_PRESETS,
   type PanoramaPreset,
@@ -81,9 +93,10 @@ function bivariateEligible(
   );
 }
 
-/** The base layer's rendered mark — the imperative switch at
- *  PanoramaConsole.tsx:1519-1526 (point layers) composed with the province-fill
- *  isMeta branch (choropleth layers). `usesPoints = pointsMode && isPointsLayer`. */
+/** The base layer's rendered mark — P4b: the former imperative switch
+ *  (PanoramaConsole `usesPoints = pointsMode && isPointsLayer`) is now the
+ *  declaration read: near band ∧ pointsCapable. Composed with the province-fill
+ *  isMeta branch (choropleth layers), unchanged. */
 function baseEncoding(
   base: PanoramaLayer,
   level: AggregationLevel,
@@ -95,7 +108,7 @@ function baseEncoding(
     return isMeta(base) ? "choropleth-meta" : "choropleth-seq";
   }
   // point base (density/signal — a preset base is never a reference layer)
-  if (pointsMode && isPointsLayer(base.id)) return "points";
+  if (pointsMode && ZOOM_REPRESENTATIONS[base.id].pointsCapable) return "points";
   return "graduated";
 }
 
@@ -129,6 +142,11 @@ type ProjectionRecord = {
   level: AggregationLevel;
   base: LayerId;
   baseEncoding: string;
+  /** P4b — the base layer's resolved LOD band at this camera. */
+  lodBand: "national" | "drilled" | "near";
+  /** P4b — the axis the base's features PAINT on (the cache routing; the ghost
+   *  fix makes this "province" at national zoom even under scope-wins). */
+  paintedAxis: AggregationLevel;
   pointsMode: boolean;
   bivariateEligible: boolean;
   temporalLayers: LayerId[];
@@ -137,8 +155,8 @@ type ProjectionRecord = {
 };
 
 /** Compose the full current projection for one matrix cell using the real pure
- *  helpers + the cited reconstructions above. This is EXACTLY the shape P2's
- *  `capabilitiesFor` must reproduce. */
+ *  helpers + the cited reconstructions above. This is EXACTLY the shape the
+ *  console's assembly reproduces from `capabilitiesFor` + `markForZoom`. */
 function project(
   preset: PanoramaPreset,
   scopeKey: string,
@@ -146,15 +164,26 @@ function project(
   scrubbing: boolean,
 ): ProjectionRecord {
   const scope = SCOPES[scopeKey];
+  const provinceInScope = scope.province != null;
   const layers = presetLayerIds(preset);
   // Live level derivation: the console threads the previous level via a ref; from
   // a cold mount the previous is the seed. Scope-wins dominates, so the `prev`
   // only matters inside the national dead-band — use "province" as the cold seed.
   const level = derivedLevelWithHysteresis("province", scope, zoom);
   const base = getLayer(preset.base)!;
-  const pm = pointsEligible(scope, zoom) && layers.some((id) => isPointsLayer(id));
+  // P4b: points mode = some active layer's declared band resolves NEAR and it is
+  // points-capable (the former global pointsEligible × POINTS_LAYER_IDS gate).
+  const pm = layers.some((id) => {
+    const rep = ZOOM_REPRESENTATIONS[id];
+    return rep.pointsCapable && markForZoom(rep, zoom, provinceInScope).band === "near";
+  });
   const biv = bivariateEligible(preset.id, level, layers);
   const temporalLayers = layers.filter((id) => isTemporalLayer(id));
+  // P4b: the base's own band + the axis its features paint on (the console's
+  // cache routing: province cache at level=province OR in the national band).
+  const baseBand = markForZoom(ZOOM_REPRESENTATIONS[preset.base], zoom, provinceInScope).band;
+  const paintedAxis: AggregationLevel =
+    level === "province" || baseBand === "national" ? "province" : "locality";
   return {
     preset: preset.id,
     scope: scopeKey,
@@ -164,6 +193,8 @@ function project(
     level,
     base: preset.base,
     baseEncoding: baseEncoding(base, level, pm, biv),
+    lodBand: baseBand,
+    paintedAxis,
     pointsMode: pm,
     bivariateEligible: biv,
     temporalLayers,
@@ -209,6 +240,23 @@ describe("panorama view-projection characterization (P0 fence)", () => {
         expect(project(preset, "province", zoom, false).level).toBe("locality");
         expect(project(preset, "locality", zoom, false).level).toBe("locality");
       }
+    }
+  });
+
+  it("P4b GHOST FIX: scoped at national zoom → the base PAINTS the province axis (level stays locality)", () => {
+    // Scope-wins (PO decision #1) keeps `level` at locality for any scoped view —
+    // unchanged. But at zoom 3 (below every autoLevel.belowZoom=5) the base's
+    // declared band is NATIONAL, so its features paint the province rollup: no
+    // more stale locality marks ghosting over the national frame.
+    for (const preset of PANORAMA_PRESETS) {
+      const r = project(preset, "province", 3, false);
+      expect(r.level).toBe("locality"); // scope-wins, unchanged
+      expect(r.lodBand).toBe("national"); // declaration read at runtime (A7 closed)
+      expect(r.paintedAxis).toBe("province"); // the ghost fix
+      // Inside the drill (zoom 7) the drilled band paints the locality axis.
+      const drilled = project(preset, "province", 7, false);
+      expect(drilled.lodBand).toBe("drilled");
+      expect(drilled.paintedAxis).toBe("locality");
     }
   });
 

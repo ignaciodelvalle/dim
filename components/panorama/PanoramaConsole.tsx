@@ -69,7 +69,6 @@ import {
   Z_LOCALITY_ENTER,
   Z_LOCALITY_EXIT,
   derivedLevelWithHysteresis,
-  pointsEligible,
 } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
@@ -96,8 +95,11 @@ import {
 } from "@/src/modules/panorama/domain/bivariate";
 import {
   type PanoramaCapabilities,
+  ZOOM_REPRESENTATIONS,
+  type ZoomBand,
   bivariateEligibleFor,
   capabilitiesFor,
+  markForZoom,
 } from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
@@ -107,10 +109,8 @@ import {
   AGGREGATED_POINT_LAYERS,
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
-  POINTS_LAYER_IDS,
   getLayer,
   isAggregatedPointLayer,
-  isPointsLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import {
@@ -208,11 +208,14 @@ export type SeededLayer = {
 
 /**
  * True when a layer's features at `level` live in the PROVINCE cache
- * (provinceDataRef) rather than the locality cache (dataRef). Mirrors EXACTLY
- * the cache routing `activeLayers` uses to READ features (choropleth OR
- * aggregated-point layer, at province level). Seeding a layer through this same
- * predicate guarantees the seed lands in the SAME cache activeLayers reads it
- * from at `initialLevel` — the C2 level-invariant, enforced by construction.
+ * (provinceDataRef) rather than the locality cache (dataRef). Mirrors the
+ * LEVEL half of the cache routing `activeLayers` uses to READ features
+ * (choropleth OR aggregated-point layer, at province level). P4b added a second
+ * read route — the NATIONAL LOD band — which this seed predicate deliberately
+ * ignores: at mount the scope-aware `mapZoom` init keeps the band at `drilled`
+ * for a seeded locality view, so seed placement still equals read placement
+ * (the C2 level-invariant); post-mount band flips are covered by the
+ * national-band cache-warm effect, never by the seed.
  */
 function seededLayerUsesProvinceCache(id: LayerId, level: AggregationLevel): boolean {
   return (CHOROPLETH_IDS.has(id) || isAggregatedPointLayer(id)) && level === "province";
@@ -680,7 +683,17 @@ export function PanoramaConsole({
   // selection or zooming past Z_LOCALITY drills the map to the locality mark,
   // preferring the finer precision whenever it renders (PO decision #1). The
   // live camera zoom flows up from SituationalMap via `onZoom`.
-  const [mapZoom, setMapZoom] = useState<number>(Z_LOCALITY - 1);
+  //
+  // P4b: the placeholder (pre-map-load) zoom is SCOPE-AWARE. A scoped view
+  // (initialLevel="locality") seeds its layers in the LOCALITY cache and its
+  // camera will land inside the province (zoom ≥ Z_LOCALITY); starting the
+  // placeholder below Z_LOCALITY would resolve the LOD band to NATIONAL on the
+  // very first render and route the read to the (empty) province cache — a
+  // blank first paint. Start inside the drilled band instead; the first
+  // moveend/zoomend corrects to the real camera.
+  const [mapZoom, setMapZoom] = useState<number>(
+    initialLevel === "locality" ? Z_LOCALITY + 1 : Z_LOCALITY - 1,
+  );
   const onMapZoom = useCallback((zoom: number) => setMapZoom(zoom), []);
 
   // panorama-event-points — near-zoom REAL event-location DOTS (design D1/D2).
@@ -688,10 +701,10 @@ export function PanoramaConsole({
   // A DEDICATED, additive cache slot (A5): points features live HERE, never in
   // dataRef/provinceDataRef, so there is NO collision with the locality-aggregated
   // cache at the same `level` — toggling points↔aggregated repaints from the
-  // correct source with no stale paint. `pointsMode` is a UX gate only; the server
+  // correct source with no stale paint. The near-band gate is UX only; the server
   // independently re-derives it (see the points effect + route). Points-capable
-  // layers (POINTS_LAYER_IDS): perdidas (Slice 1, sightings), mordeduras (Slice 2,
-  // operator-scoped incidents), denuncias (Slice 3, locality centroids).
+  // layers (renderPolicy.points): perdidas (Slice 1, sightings), mordeduras
+  // (Slice 2, operator-scoped incidents), denuncias (Slice 3, locality centroids).
   const pointsDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
   // Version bump to recompute the activeLayers memo after a points fetch resolves
   // (the cache is a ref). The disclosure meta (cap + "sin ubicación" residual) is
@@ -702,15 +715,29 @@ export function PanoramaConsole({
   const [pointsInfo, setPointsInfo] = useState<
     Record<string, { count: number; truncated: boolean; sinUbicacion: number }>
   >({});
-  // Effective scope for the UX points gate: an explicit picker province wins
+  // Effective scope for the LOD bands: an explicit picker province wins
   // (embedded-drill: the CLIENT-committed scope, not the stale searchParams);
   // otherwise the govt operator's implicit single-province scope.
   const pointsScopeProvince = effectiveScopeProvince ?? initialDivisionProvince;
-  const pointsScopeLocality = effectiveScopeLocality;
-  const pointsMode = pointsEligible(
-    { country: "AR", province: pointsScopeProvince, locality: pointsScopeLocality },
-    mapZoom,
-  );
+  const provinceInScope = pointsScopeProvince != null;
+
+  // P4b — the LOD band per layer, resolved from the DECLARATION (renderPolicy →
+  // ZOOM_REPRESENTATIONS) against the live camera. This replaces the imperative
+  // `pointsEligible`/`POINTS_LAYER_IDS` switch (A7): the band is a pure function
+  // of (declaration, zoom, scope), re-evaluated on every camera settle, so no
+  // stale mark can linger. `zoomBandsSig` is the stable identity — downstream
+  // memos key on it so a zoom settle that flips NO band repaints nothing.
+  const zoomBandsSig = PANORAMA_LAYERS.map(
+    (l) => markForZoom(ZOOM_REPRESENTATIONS[l.id], mapZoom, provinceInScope).band,
+  ).join(",");
+  const zoomBands = useMemo(() => {
+    const bands = zoomBandsSig.split(",") as ZoomBand[];
+    const out = {} as Record<LayerId, ZoomBand>;
+    PANORAMA_LAYERS.forEach((l, i) => {
+      out[l.id] = bands[i];
+    });
+    return out;
+  }, [zoomBandsSig]);
 
   // Panorama hardening (task #39): a monotonic key that forces a full remount of
   // the map island. Bumped by the MapErrorBoundary's retry when a render throw
@@ -1540,16 +1567,29 @@ export function PanoramaConsole({
       if (!states[l.id]?.active) continue;
       const temporal = isTemporalLayer(l.id);
       const isAggregatedPoint = AGGREGATED_POINT_IDS.has(l.id);
+      const rep = ZOOM_REPRESENTATIONS[l.id];
+      const band = zoomBands[l.id];
       // panorama-event-points Slice 1: near-zoom REAL sighting dots override the
-      // aggregated mark for a points-capable layer (perdidas) ONCE its dedicated
-      // points cache has resolved. Until then it falls back to the aggregated
-      // features below, so the map never blanks while the points fetch is inflight.
-      const usesPoints = pointsMode && isPointsLayer(l.id) && pointsDataRef.current.has(l.id);
+      // aggregated mark for a points-capable layer ONCE its dedicated points
+      // cache has resolved. Until then it falls back to the aggregated features
+      // below, so the map never blanks while the points fetch is inflight.
+      // P4b: the gate is the declared LOD band (near ∧ pointsCapable), not the
+      // former global pointsEligible switch.
+      const usesPoints = band === "near" && rep.pointsCapable && pointsDataRef.current.has(l.id);
       // Choropleth layers in province mode fill basemap polygons (province cache).
       // Aggregated point layers (F1 density+signal) in province mode also read the
       // province cache — the server returned province-grouped AggregatedPointCells.
+      //
+      // P4b GHOST FIX: the NATIONAL band also routes here. Scope-wins keeps
+      // `level="locality"` at any zoom, so before P4b a scoped operator zooming
+      // out past the layer's declared autoLevel.belowZoom kept painting hundreds
+      // of locality marks over the national frame. The declaration now wins at
+      // national zoom: paint the province-axis rollup (the cache-warm effect
+      // below fetches it when missing).
       const usesProvinceCache =
-        !usesPoints && (CHOROPLETH_IDS.has(l.id) || isAggregatedPoint) && level === "province";
+        !usesPoints &&
+        (CHOROPLETH_IDS.has(l.id) || isAggregatedPoint) &&
+        (level === "province" || band === "national");
       // Order matters: a SCRUB on a temporal layer reads the as-of frame FIRST,
       // even at province framing — the as-of effect now fetches that frame at the
       // active level (province/locality), so it is the correct axis. Before this
@@ -1585,12 +1625,19 @@ export function PanoramaConsole({
         geomType: l.geomType,
         renderMode,
         features,
-        // Choropleth layers + aggregated point layers carry the active aggregation
-        // level so the map can use it for popup labeling (e.g. "province" means
-        // the feature represents a whole province). Points-mode + reference layers
-        // omit it (individual dots are not an aggregation unit).
+        // Choropleth layers + aggregated point layers carry the axis their
+        // FEATURES are on so the map labels popups honestly ("province" means
+        // the feature represents a whole province). P4b: under the national-band
+        // override the painted features ARE the province rollup even while the
+        // scope-derived level is still "locality", so the axis follows the cache
+        // routing, not `level`. Points-mode + reference layers omit it
+        // (individual dots are not an aggregation unit).
         level:
-          !usesPoints && (l.geomType === "choropleth" || isAggregatedPoint) ? level : undefined,
+          !usesPoints && (l.geomType === "choropleth" || isAggregatedPoint)
+            ? usesProvinceCache
+              ? "province"
+              : "locality"
+            : undefined,
         // Non-temporal layers can't be reproduced in time — mute them while scrubbing.
         dimmed: scrubbing && !temporal,
         // F5: thread data-type taxonomy + compliance target from the registry so
@@ -1602,29 +1649,37 @@ export function PanoramaConsole({
       });
     }
     return out;
-    // asOfVersion + scrubbing + level + levelVersion + pointsMode/pointsVersion
-    // are intentional triggers (the caches are refs).
-  }, [states, scrubbing, asOfVersion, level, levelVersion, pointsMode, pointsVersion, opacities]);
+    // asOfVersion + level + levelVersion + zoomBands/pointsVersion are
+    // intentional triggers (the caches are refs). zoomBands has stable identity
+    // per band signature, so a zoom settle that flips no band recomputes nothing.
+  }, [states, scrubbing, asOfVersion, level, levelVersion, zoomBands, pointsVersion, opacities]);
 
   // panorama-event-points — resolve the REAL event-location dots for every ACTIVE
   // points-capable layer (perdidas / mordeduras / denuncias).
   //
   // Additive + orthogonal to the level/aggregation plumbing: this effect ONLY
   // populates the dedicated pointsDataRef + disclosure, it never touches the
-  // aggregated caches. Runs when the UX gate opens (pointsMode, i.e. zoom ≥
-  // Z_POINTS with a province in scope). Keyed on the scope+period subset AND the
-  // active points-layer set so a province/period/toggle change refetches. The
-  // SERVER is authoritative: it echoes `mode:"points"` only when it actually
-  // returned dots; an aggregated/declined response clears that layer's overlay
-  // (fall back to bubbles).
-  const activePointsLayerIds = [...POINTS_LAYER_IDS]
-    .filter((id) => states[id]?.active)
+  // aggregated caches. P4b: it runs when a layer's declared LOD band resolves
+  // NEAR (zoom ≥ its nearAtZoom with a province in scope) — the former global
+  // pointsMode gate, now read from the declaration. Keyed on the scope+period
+  // subset AND the active near-band set so a province/period/toggle/zoom-band
+  // change refetches. The SERVER is authoritative: it echoes `mode:"points"`
+  // only when it actually returned dots; an aggregated/declined response clears
+  // that layer's overlay (fall back to bubbles).
+  const activePointsLayerIds = PANORAMA_LAYERS.filter(
+    (l) =>
+      ZOOM_REPRESENTATIONS[l.id].pointsCapable &&
+      zoomBands[l.id] === "near" &&
+      states[l.id]?.active,
+  )
+    .map((l) => l.id)
     .sort()
     .join(",");
   useEffect(() => {
     const activeIds = (activePointsLayerIds ? activePointsLayerIds.split(",") : []) as LayerId[];
-    // Gate closed → clear every points overlay + disclosure and fall back to bubbles.
-    if (!pointsMode || activeIds.length === 0) {
+    // Gate closed (no active layer in its near band) → clear every points
+    // overlay + disclosure and fall back to bubbles.
+    if (activeIds.length === 0) {
       if (pointsDataRef.current.size > 0) {
         pointsDataRef.current.clear();
         setPointsInfo({});
@@ -1680,7 +1735,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [pointsMode, activePointsLayerIds, scopePeriodQs, signalFor]);
+  }, [activePointsLayerIds, scopePeriodQs, signalFor]);
 
   // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
   // layer is toggled on mid-scrub, so it paints at the current instant, not live).
@@ -1741,6 +1796,43 @@ export function PanoramaConsole({
     },
     [searchParams, signalFor, applyVerifiedParam],
   );
+
+  // P4b GHOST FIX (data side) — warm the province-axis cache for layers whose
+  // LOD band resolved NATIONAL while the scope-derived level is still
+  // "locality" (scope-wins at any zoom). The activeLayers memo routes their
+  // read to provinceDataRef; without this warm fetch that cache is empty on the
+  // first zoom-out (the level-flip effect never fires — level never changed)
+  // and the national frame would paint blank instead of the honest rollup.
+  // Keyed on the missing-set signature: cached bands repaint with zero fetches.
+  const nationalBandMissing =
+    level === "locality"
+      ? PANORAMA_LAYERS.filter(
+          (l) =>
+            zoomBands[l.id] === "national" &&
+            (CHOROPLETH_IDS.has(l.id) || AGGREGATED_POINT_IDS.has(l.id)) &&
+            states[l.id]?.active &&
+            !provinceDataRef.current.has(l.id),
+        )
+          .map((l) => l.id)
+          .sort()
+          .join(",")
+      : "";
+  useEffect(() => {
+    if (!nationalBandMissing) return;
+    const ids = nationalBandMissing.split(",") as LayerId[];
+    void Promise.all(
+      ids.map((id) =>
+        // Distinct abort key: the warm fetch must never supersede an active
+        // same-layer fetch (same idiom as the boundary prefetch).
+        fetchChoroplethAt(id, "province", `${id}:national-band`).catch((err) => {
+          if (isAbortError(err)) return null;
+          // Transient failure — the band keeps painting EMPTY until the next
+          // trigger; never deactivate the layer for a warm-cache miss.
+          return null;
+        }),
+      ),
+    ).then(() => setLevelVersion((v) => v + 1));
+  }, [nationalBandMissing, fetchChoroplethAt]);
 
   // map-QOL: fetch a set of layers into the right caches at a given aggregation
   // level, updating each layer's panel state as it resolves. Used by the fluid
@@ -4520,8 +4612,9 @@ export function PanoramaConsole({
                 graduatedScale={graduatedScale}
                 provinceSeqLegend={provinceSeqLegend}
               />
-              {/* panorama-event-points: honest points-mode disclosure. */}
-              {pointsMode && Object.keys(pointsInfo).length > 0 && (
+              {/* panorama-event-points: honest points-mode disclosure. P4b: shown
+                  while some active layer is in its NEAR band (declaration-driven). */}
+              {activePointsLayerIds !== "" && Object.keys(pointsInfo).length > 0 && (
                 <output
                   aria-live="polite"
                   className="block space-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs text-ln-op-ink-2"

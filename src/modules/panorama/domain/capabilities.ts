@@ -24,7 +24,7 @@
 // DERIVATION ONLY: this file computes; it never reads component state.
 
 import { roleOf } from "./compatibility";
-import { getLayer, isTemporalLayer } from "./layers";
+import { PANORAMA_LAYERS, getLayer, isTemporalLayer } from "./layers";
 import type {
   AggregationLevel,
   LayerId,
@@ -85,9 +85,20 @@ export type ResolvedEncoding = {
   suppression: SuppressionStyle;
 };
 
+/**
+ * Camera zoom at/above which points-capable layers swap their aggregated mark
+ * for REAL event-location dots — with a province in scope (design D1). Moved
+ * here from `situational-map-utils` at P4b: the LOD thresholds are part of the
+ * layer DECLARATION the gate projects, not map-component trivia. Deeper than
+ * Z_DIVISIONS (6.5): real dots are only legible — and only defensible (the
+ * operator is looking INSIDE their turf) — at street scale.
+ */
+export const Z_POINTS = 10;
+
 /** The representation to draw at each zoom band, per layer — declared from
- *  `renderPolicy` (design §5). P2 DECLARES it; P4 makes the map READ it against
- *  live zoom to replace the imperative `POINTS_LAYER_IDS` switch. */
+ *  `renderPolicy` (design §5). P2 DECLARED it; P4b makes the map READ it against
+ *  live zoom (`markForZoom`), replacing the imperative `pointsEligible` /
+ *  `POINTS_LAYER_IDS` switch (A7). */
 export type ZoomRepresentation = {
   /** below the locality band → the national mark (province choropleth / bubble). */
   national: RenderMode;
@@ -95,7 +106,44 @@ export type ZoomRepresentation = {
   drilled: RenderMode;
   /** near zoom in scope → real points (if `renderPolicy.points`) else drilled. */
   near: RenderMode;
+  /**
+   * Camera zoom below which the NATIONAL mark applies regardless of the
+   * scope-derived level (from `renderPolicy.autoLevel.belowZoom`). `null` = the
+   * layer never forces the national mark (reference pins render at any zoom).
+   * This is the structural GHOST fix: scope-wins keeps `level="locality"` at any
+   * zoom, so before P4b a scoped operator zooming out to the national frame
+   * painted hundreds of stale locality marks — the declared autoLevel was never
+   * read at runtime.
+   */
+  nationalBelowZoom: number | null;
+  /** Camera zoom at/above which — with a province in scope — the NEAR band applies. */
+  nearAtZoom: number;
+  /** near is a REAL-dots mark that needs the dedicated points fetch. */
+  pointsCapable: boolean;
 };
+
+/** The LOD band the camera is in for one layer (design §5). */
+export type ZoomBand = "national" | "drilled" | "near";
+
+/**
+ * P4b — resolve the LOD band + mark for one layer at the live camera. Pure
+ * `(declaration, zoom, scope) → mark`: evaluated on every render, so no stale
+ * imperative state can linger (the A7 fix). Band boundaries come from the
+ * layer's own declaration; the near band additionally requires a province in
+ * scope (real dots are an inside-your-turf mark — the server independently
+ * re-derives this, see get-layer-features).
+ */
+export function markForZoom(
+  rep: ZoomRepresentation,
+  zoom: number,
+  provinceInScope: boolean,
+): { band: ZoomBand; mark: RenderMode } {
+  if (provinceInScope && zoom >= rep.nearAtZoom) return { band: "near", mark: rep.near };
+  if (rep.nationalBelowZoom !== null && zoom < rep.nationalBelowZoom) {
+    return { band: "national", mark: rep.national };
+  }
+  return { band: "drilled", mark: rep.drilled };
+}
 
 export type PanoramaCapabilities = {
   /** the resolved aggregation level — DERIVED, echoed as the single source. */
@@ -188,8 +236,24 @@ function zoomRepresentationOf(layer: PanoramaLayer): ZoomRepresentation {
     national: rp.province,
     drilled: rp.locality,
     near: rp.points ?? rp.locality,
+    nationalBelowZoom: rp.autoLevel ? rp.autoLevel.belowZoom : null,
+    nearAtZoom: Z_POINTS,
+    pointsCapable: rp.points != null,
   };
 }
+
+/**
+ * The per-layer zoom representation, precomputed ONCE from the static registry
+ * (renderPolicy never changes at runtime). This is the SAME value
+ * `capabilitiesFor` exposes per active layer — exported so render-path memos
+ * that run before the gate memo (the console's activeLayers assembly) read the
+ * one declaration instead of re-deriving their own copy.
+ */
+export const ZOOM_REPRESENTATIONS: Readonly<Record<LayerId, ZoomRepresentation>> = (() => {
+  const out = {} as Record<LayerId, ZoomRepresentation>;
+  for (const layer of PANORAMA_LAYERS) out[layer.id] = zoomRepresentationOf(layer);
+  return out;
+})();
 
 // ---------------------------------------------------------------------------
 // The gate
@@ -225,8 +289,8 @@ export function capabilitiesFor(
 
   const representationPerZoom: Record<string, ZoomRepresentation> = {};
   for (const id of layers) {
-    const layer = getLayer(id);
-    if (layer) representationPerZoom[id] = zoomRepresentationOf(layer);
+    const rep = ZOOM_REPRESENTATIONS[id];
+    if (rep) representationPerZoom[id] = rep;
   }
 
   // CABA inset: it projects the SAME encoding the main map paints (P3 structural).
