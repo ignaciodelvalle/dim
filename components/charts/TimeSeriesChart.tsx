@@ -61,6 +61,13 @@ export type TimeSeriesChartProps = {
   fillColor?: string;
   /** Alto del gráfico en px. Default 300. */
   height?: number;
+  /**
+   * Curve interpolation (viz-suite wave 0): "monotone" (default, smooth) or
+   * "stepAfter" — step curves are the honest render for SURVIVAL / time-to-event
+   * series (cohort curves, reunification medians), where the value holds until
+   * the next event instead of gliding between points.
+   */
+  lineType?: "monotone" | "stepAfter";
   className?: string;
   /** Descripción del contenido de la tabla de accesibilidad. */
   fallbackTableLabel?: string;
@@ -74,6 +81,7 @@ export function TimeSeriesChart({
   strokeColor = "#242c4f",
   fillColor,
   height = 300,
+  lineType = "monotone",
   className = "",
   fallbackTableLabel = "Datos del gráfico",
 }: TimeSeriesChartProps) {
@@ -124,7 +132,7 @@ export function TimeSeriesChart({
             {tooltip}
             {legend}
             <Area
-              type="monotone"
+              type={lineType}
               dataKey="valor"
               name={seriesLabel}
               stroke={strokeColor}
@@ -141,7 +149,7 @@ export function TimeSeriesChart({
             {tooltip}
             {legend}
             <Line
-              type="monotone"
+              type={lineType}
               dataKey="valor"
               name={seriesLabel}
               stroke={strokeColor}

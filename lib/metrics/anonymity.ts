@@ -151,3 +151,77 @@ export function suppressedMetric<Row>(
   const { visible, suppressedCount } = suppressSmallCells(rows, opts);
   return { value: visible, suppressedCount };
 }
+
+// ---------------------------------------------------------------------------
+// Delta suppression (viz-suite wave 0 — THE differencing privacy rule)
+// ---------------------------------------------------------------------------
+
+/**
+ * The k-anonymity DIFFERENCING rule for two-window deltas (viz-suite wave 0):
+ * a delta cell is suppressed when EITHER window carries a PROTECTED count —
+ * a count in (0, k). Publishing "Δ = current − prior" alongside one visible
+ * window would otherwise reveal the hidden window by subtraction — the delta
+ * must never leak a cell the single-window rule protects.
+ *
+ * The ZERO nuance: a count of exactly 0 is NOT protected — an empty window
+ * produces no row under the single-window rule (nothing to re-identify), so a
+ * "+N desde cero" delta is exactly as public as the visible current window
+ * itself. Only sub-k POSITIVE counts suppress. (Event-window metrics only —
+ * coverage/stock metrics have no windows and never route here.)
+ *
+ * Pure predicate; k defaults to 5 (AGENTS.md "Aggregation & privacy policy").
+ * Pin THIS before any delta render (verification contract, viz-suite plan).
+ */
+export function suppressDelta(currentCount: number, priorCount: number, k = 5): boolean {
+  const protectedCount = (n: number) => n > 0 && n < k;
+  return protectedCount(currentCount) || protectedCount(priorCount);
+}
+
+/** One two-window delta cell after the differencing rule. `delta` is null when
+ *  suppressed — a suppressed Δ has NO numeric value, not a hidden one. */
+export type DeltaCell<Row> = {
+  key: string;
+  current: Row | null;
+  prior: Row | null;
+  /** current − prior, or null when the differencing rule suppresses the cell. */
+  delta: number | null;
+  suppressed: boolean;
+};
+
+/**
+ * Pair two windows' rows by key and apply the differencing rule per cell —
+ * `suppressDelta` is the single source of the rule (including its zero
+ * nuance); a key missing from one window counts as an honest zero.
+ */
+export function deltaCells<Row>(
+  currentRows: Row[],
+  priorRows: Row[],
+  opts: { key: (r: Row) => string; count: (r: Row) => number; k?: number },
+): DeltaCell<Row>[] {
+  const priorByKey = new Map(priorRows.map((r) => [opts.key(r), r]));
+  const out: DeltaCell<Row>[] = [];
+  const seen = new Set<string>();
+  for (const cur of currentRows) {
+    const key = opts.key(cur);
+    seen.add(key);
+    const prior = priorByKey.get(key) ?? null;
+    const curN = opts.count(cur);
+    const priN = prior ? opts.count(prior) : 0;
+    const suppressed = suppressDelta(curN, priN, opts.k);
+    out.push({ key, current: cur, prior, delta: suppressed ? null : curN - priN, suppressed });
+  }
+  for (const pri of priorRows) {
+    const key = opts.key(pri);
+    if (seen.has(key)) continue;
+    const priN = opts.count(pri);
+    const suppressed = suppressDelta(0, priN, opts.k);
+    out.push({
+      key,
+      current: null,
+      prior: pri,
+      delta: suppressed ? null : 0 - priN,
+      suppressed,
+    });
+  }
+  return out;
+}

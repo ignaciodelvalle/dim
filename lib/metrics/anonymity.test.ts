@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { complementarySuppress, suppressSmallCells, suppressedMetric } from "./anonymity";
+import {
+  complementarySuppress,
+  deltaCells,
+  suppressDelta,
+  suppressSmallCells,
+  suppressedMetric,
+} from "./anonymity";
 
 describe("suppressSmallCells", () => {
   const mkRow = (key: string, count: number) => ({ key, count, extra: "x" });
@@ -220,5 +226,75 @@ describe("suppressedMetric", () => {
     expect(result.suppressedCount).toBe(1);
     expect(result.value).toHaveLength(1);
     expect(result.value[0]?.key).toBe("A");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// viz-suite wave 0 — the delta differencing rule (pinned BEFORE any delta render)
+// ---------------------------------------------------------------------------
+
+describe("suppressDelta (the differencing privacy rule)", () => {
+  it("suppresses when EITHER window carries a protected (0 < n < k) count", () => {
+    expect(suppressDelta(10, 3)).toBe(true); // visible current would reveal prior=3
+    expect(suppressDelta(3, 10)).toBe(true); // and vice versa
+    expect(suppressDelta(2, 4)).toBe(true); // both protected
+  });
+
+  it("passes when both windows clear k", () => {
+    expect(suppressDelta(5, 5)).toBe(false);
+    expect(suppressDelta(120, 87)).toBe(false);
+  });
+
+  it("the ZERO nuance: an empty window is not a protected value", () => {
+    // "+20 desde cero" is exactly as public as the visible current window —
+    // an empty prior produces no row under the single-window rule.
+    expect(suppressDelta(20, 0)).toBe(false);
+    expect(suppressDelta(0, 20)).toBe(false);
+    expect(suppressDelta(0, 0)).toBe(false);
+    // But a sub-k PRESENT side still suppresses even against zero.
+    expect(suppressDelta(2, 0)).toBe(true);
+    expect(suppressDelta(0, 3)).toBe(true);
+  });
+
+  it("honors a custom k", () => {
+    expect(suppressDelta(7, 9, 10)).toBe(true);
+    expect(suppressDelta(10, 10, 10)).toBe(false);
+  });
+});
+
+describe("deltaCells (two-window pairing under the rule)", () => {
+  type R = { unit: string; n: number };
+  const opts = { key: (r: R) => r.unit, count: (r: R) => r.n };
+
+  it("pairs by key: visible delta = current − prior", () => {
+    const cells = deltaCells<R>([{ unit: "AR-C", n: 12 }], [{ unit: "AR-C", n: 7 }], opts);
+    expect(cells).toEqual([
+      {
+        key: "AR-C",
+        current: { unit: "AR-C", n: 12 },
+        prior: { unit: "AR-C", n: 7 },
+        delta: 5,
+        suppressed: false,
+      },
+    ]);
+  });
+
+  it("a suppressed cell carries delta null — no numeric value, not a hidden one", () => {
+    const cells = deltaCells<R>([{ unit: "AR-C", n: 12 }], [{ unit: "AR-C", n: 3 }], opts);
+    expect(cells[0].suppressed).toBe(true);
+    expect(cells[0].delta).toBeNull();
+  });
+
+  it("keys missing from one window are honest zeros (new activity / gone quiet)", () => {
+    const cells = deltaCells<R>([{ unit: "AR-B", n: 20 }], [{ unit: "AR-X", n: 9 }], opts);
+    const byKey = new Map(cells.map((c) => [c.key, c]));
+    expect(byKey.get("AR-B")).toMatchObject({ delta: 20, suppressed: false, prior: null });
+    expect(byKey.get("AR-X")).toMatchObject({ delta: -9, suppressed: false, current: null });
+  });
+
+  it("a protected count on the missing-key path still suppresses", () => {
+    const cells = deltaCells<R>([], [{ unit: "AR-X", n: 2 }], opts);
+    expect(cells[0].suppressed).toBe(true);
+    expect(cells[0].delta).toBeNull();
   });
 });

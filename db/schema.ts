@@ -1159,6 +1159,15 @@ export const petEvents = pgTable(
       table.eventType,
       table.occurredAt,
     ),
+    // Transaction-time twin of the above (viz-suite wave 0, migration 0142):
+    // the reporting-lag aggregate (median(recorded_at - occurred_at) per unit,
+    // filtered by type) and every basis=transaction window scan sort/filter on
+    // recorded_at, which had no index. Same composite shape as its valid-time
+    // sibling so the planner treats both bases symmetrically.
+    eventTypeRecordedAtIdx: index("pet_events_event_type_recorded_at_idx").on(
+      table.eventType,
+      table.recordedAt,
+    ),
     authorRoleIdx: index("pet_events_author_role_idx").on(table.authorRole),
     locationIdx: index("pet_events_location_idx").on(table.locationLat, table.locationLng),
     // Partial unique index for client-side idempotency keys (migration 0047).
