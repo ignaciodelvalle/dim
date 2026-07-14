@@ -8,9 +8,9 @@ import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { aggregateChoroplethData } from "@/lib/analytics/choropleth-data";
 import { fetchReunificationRate } from "@/lib/analytics/compliance-metrics";
 import {
-  type LostPetRow,
   PROVINCE_ISO_MAP,
   type PetStatusFilter,
   fetchLostPets,
@@ -22,27 +22,6 @@ import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { formatPercent } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
-
-/**
- * Aggregate lost pets by province for the choropleth map.
- * Groups LostPetRow[] by province -> ISO code via PROVINCE_ISO_MAP.
- */
-function aggregateLostByProvince(
-  lost: LostPetRow[],
-): Array<{ code: string; value: number; label: string }> {
-  const codeToCount = new Map<string, number>();
-  for (const p of lost) {
-    if (!p.province) continue;
-    const code = PROVINCE_ISO_MAP[p.province];
-    if (!code) continue;
-    codeToCount.set(code, (codeToCount.get(code) ?? 0) + 1);
-  }
-  return Array.from(codeToCount.entries()).map(([code, value]) => ({
-    code,
-    value,
-    label: `${value} mascota${value !== 1 ? "s" : ""} perdida${value !== 1 ? "s" : ""}`,
-  }));
-}
 
 const VALID_STATUSES: PetStatusFilter[] = ["all", "lost", "active", "deceased"];
 
@@ -139,7 +118,13 @@ export default async function GobPerdidasPage({
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
-  const choroplethData = aggregateLostByProvince(lostPets);
+  // task #31c dedup: shared aggregateChoroplethData (same fold as /gob/vigilancia)
+  const choroplethData = aggregateChoroplethData(
+    lostPets,
+    (p) => (p.province ? PROVINCE_ISO_MAP[p.province] : undefined),
+    () => 1,
+    (value) => `${value} mascota${value !== 1 ? "s" : ""} perdida${value !== 1 ? "s" : ""}`,
+  );
 
   const panelMapId = "panel-perdidas-mapa-titulo";
 

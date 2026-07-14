@@ -17,6 +17,7 @@ import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFa
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { aggregateChoroplethData } from "@/lib/analytics/choropleth-data";
 import {
   computeDiseaseSummary,
   fetchCasesPerLocality,
@@ -155,17 +156,15 @@ export default async function GobVigilanciaPage({
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
-  // Shape map data into ChoroplethRegionDatum format (aggregate by province code).
-  const codeToCount = new Map<string, number>();
-  for (const row of mapData) {
-    if (!row.code) continue;
-    codeToCount.set(row.code, (codeToCount.get(row.code) ?? 0) + row.count);
-  }
-  const provinceChoroplethData = Array.from(codeToCount.entries()).map(([code, value]) => ({
-    code,
-    value,
-    label: `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
-  }));
+  // Shape map data into ChoroplethRegionDatum format (aggregate by province
+  // code) — shared aggregateChoroplethData, same fold as /gob/perdidas
+  // (task #31c dedup).
+  const provinceChoroplethData = aggregateChoroplethData(
+    mapData,
+    (row) => row.code,
+    (row) => row.count,
+    (value) => `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
+  );
 
   // When a province is drilled into, build the sub-region choropleth.
   //
