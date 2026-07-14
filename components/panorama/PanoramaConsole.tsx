@@ -37,6 +37,7 @@ import {
 } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegends } from "@/components/panorama/MapLegends";
+import { ModeSwitcher } from "@/components/panorama/ModeSwitcher";
 import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
@@ -4014,66 +4015,53 @@ export function PanoramaConsole({
   // province framing (both inputs active). A map ENCODING switch (how the two
   // layers are drawn), not a data toggle. ARCHETYPE A: relocated from above the
   // map into the monitoring rail so the geography leads the fold.
-  const bivariateControl = bivariateEligible ? (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2">
-      <div className="flex flex-col">
-        <span className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
-          Ver riesgo combinado
-        </span>
-        <span className="text-[var(--text-xs)] text-ln-op-mute">
-          Cobertura baja × señales altas — el rincón de riesgo del mapa bivariado
-        </span>
-      </div>
-      <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
-        <legend className="sr-only">Codificación del mapa de brotes</legend>
-        <button
-          type="button"
-          aria-pressed={!bivariateMode}
-          onClick={() => setBivariateMode(false)}
-          className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
-            !bivariateMode
-              ? "bg-ln-op-azul/10 text-ln-op-azul"
-              : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
-          }`}
-        >
-          Capas
-        </button>
-        <button
-          type="button"
-          aria-pressed={bivariateActive}
-          // The bivariate join can't mix a frozen (non-temporal) cobertura
-          // with an as-of zoonosis frame — offered only at the live edge; and
-          // it needs enough comparable units to classify (WARNING 7).
-          disabled={scrubbing || bivariateDegenerate}
-          title={
-            scrubbing
-              ? "Riesgo bivariado — solo al último evento"
-              : bivariateDegenerate
-                ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables`
-                : undefined
-          }
-          onClick={() => setBivariateMode(true)}
-          className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-            bivariateActive
-              ? "bg-ln-op-azul/10 text-ln-op-azul"
-              : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
-          }`}
-        >
-          Riesgo (bivariado)
-        </button>
-      </fieldset>
-      {scrubbing && (
-        <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
-          Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo).
-        </p>
-      )}
-      {!scrubbing && bivariateDegenerate && (
-        <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
-          Riesgo bivariado requiere al menos {BIVARIATE_MIN_UNITS} unidades comparables en la vista.
-        </p>
-      )}
-    </div>
-  ) : null;
+  // task #24 fase 1 — the "Modo" switcher: ONE control projecting the gate's
+  // declarative mode list (capabilities.mapModes). The bivariate constraints
+  // stay console-owned (they read live caches/scrub state the domain doesn't
+  // hold): the join can't mix a frozen cobertura with an as-of zoonosis frame
+  // (live-edge only) and needs enough comparable units to classify (WARNING 7).
+  // #33 modes (delta/lag/as-of/heatmap) append options here, never new toggles.
+  const MODE_LABELS: Record<string, string> = {
+    auto: "Capas",
+    bivariate: "Riesgo (bivariado)",
+  };
+  const modeOptions = capabilities.mapModes.map((id) => ({
+    id,
+    label: MODE_LABELS[id] ?? id,
+    disabled: id === "bivariate" ? scrubbing || bivariateDegenerate : false,
+    title:
+      id === "bivariate"
+        ? scrubbing
+          ? "Riesgo bivariado — solo al último evento"
+          : bivariateDegenerate
+            ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables`
+            : undefined
+        : undefined,
+  }));
+  // The ACTIVE segment mirrors what the MAP paints: "auto" when the operator
+  // hasn't selected the bivariate; "bivariate" while it actually renders; and
+  // NO segment while the selection is suspended (mode on, mid-scrub/degenerate)
+  // — the note below explains why. Preserves the pre-#24 visual semantics.
+  const modeValue = bivariateActive ? "bivariate" : bivariateMode ? "" : "auto";
+  const bivariateControl = (
+    <ModeSwitcher
+      options={modeOptions}
+      value={modeValue}
+      onChange={(id) => setBivariateMode(id === "bivariate")}
+      heading="Modo del mapa"
+      sub="Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas"
+      note={
+        // Same visibility as pre-#24: the note explains the disabled segment
+        // even before the operator selects it (only while bivariate is offered
+        // at all — ModeSwitcher hides itself when mapModes is just ["auto"]).
+        bivariateEligible && scrubbing
+          ? "Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo)."
+          : bivariateEligible && bivariateDegenerate
+            ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables en la vista.`
+            : null
+      }
+    />
+  );
 
   // task #38 v3 rail — the active vista name (shown once) + the Filtro badge.
   const vistaName = activeVistaName(activePresetId);

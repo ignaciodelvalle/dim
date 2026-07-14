@@ -144,11 +144,27 @@ export function markForZoom(
   return { band: "drilled", mark: rep.drilled };
 }
 
+/**
+ * A selectable MAP MODE (task #24 — the "Modo" switcher, IA axis 2: how the map
+ * paints). `"auto"` is the layer-derived encoding (choropleth-seq/meta,
+ * graduated, reference — whatever the base implies); every other entry is an
+ * explicit `EncodingId` the current view is ELIGIBLE for. The #33 viz-suite
+ * modes (delta, reporting-lag, as-of, heatmap) extend this list — declared
+ * here, never as ad-hoc console toggles, so availability stays structural.
+ */
+export type MapMode = "auto" | EncodingId;
+
 export type PanoramaCapabilities = {
   /** the resolved aggregation level — DERIVED, echoed as the single source. */
   level: AggregationLevel;
   /** which modifiers apply. */
   allowedControls: AllowedControls;
+  /**
+   * The map modes the CURRENT view may select (task #24, always ≥ ["auto"]).
+   * One switcher on the map projects this list; a mode that does not apply is
+   * ABSENT, not disabled — the operator sees the options that exist.
+   */
+  mapModes: MapMode[];
   /** which dock tabs / representations light up (temporal off ⇒ no timeline). */
   allowedRepresentations: Representation[];
   /** the encoding for what is painted (scale ALWAYS matches paint — P3 structural). */
@@ -300,9 +316,15 @@ export function capabilitiesFor(
     encoding: base !== null ? encoding : null,
   };
 
+  // task #24 — the declarative mode list the "Modo" switcher projects. "auto"
+  // always; "bivariate" when the view is eligible. #33 modes append here.
+  const mapModes: MapMode[] = ["auto"];
+  if (bivariateEligible) mapModes.push("bivariate");
+
   return {
     level,
     allowedControls: { scrubber, basisToggle, bivariateEligible },
+    mapModes,
     allowedRepresentations,
     encoding,
     insetBehavior,

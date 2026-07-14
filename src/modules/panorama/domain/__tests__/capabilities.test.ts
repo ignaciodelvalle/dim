@@ -209,6 +209,16 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     expect(bivariateEligibleFor(["cobertura", "zoonosis"], "locality")).toBe(false);
   });
 
+  it("mapModes (task #24): always ['auto']; bivariate joins ONLY when eligible", () => {
+    // brotes-activos at national → province level: bivariate offered.
+    const brotes = gateFor(getPreset("brotes-activos"), "national", 3);
+    expect(brotes.caps.mapModes).toEqual(["auto", "bivariate"]);
+    // Same preset drilled (locality level) → auto only.
+    expect(gateFor(getPreset("brotes-activos"), "province", 7).caps.mapModes).toEqual(["auto"]);
+    // A preset with no declared encodings → auto only, at any scope.
+    expect(gateFor(getPreset("bienestar"), "national", 3).caps.mapModes).toEqual(["auto"]);
+  });
+
   it("representationPerZoom declares the near-zoom points swap for points-capable bases", () => {
     // perdidas declares renderPolicy.points (clustered-points) → near band = points.
     const perdidasView = makeViewState({ layers: ["perdidas"] });
