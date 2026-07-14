@@ -65,14 +65,25 @@ async function insertRabiesDose(petId: string, signed: boolean): Promise<void> {
   });
 }
 
+const FIXTURE_TOKENS = Array.from({ length: 6 }, (_, i) => `DIM-PANO-COB-${i}`);
+
+// Clear by TOKEN, not by remembered ids: a run killed mid-suite leaves rows the
+// in-memory petIds array can't see, and the fixed tokens then collide on the
+// next run's inserts (unique pets_public_token). Token-keyed cleanup makes the
+// suite self-healing (same idiom as outbreak-investigation).
 async function cleanup(): Promise<void> {
-  if (petIds.length) {
+  const stale = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .where(inArray(pets.publicToken, FIXTURE_TOKENS));
+  const staleIds = stale.map((r) => r.id);
+  if (staleIds.length) {
     await withMutationOverride(async (tx) => {
-      await tx.delete(petEvents).where(inArray(petEvents.petId, petIds));
+      await tx.delete(petEvents).where(inArray(petEvents.petId, staleIds));
     });
-    await db.delete(pets).where(inArray(pets.id, petIds));
-    petIds.length = 0;
+    await db.delete(pets).where(inArray(pets.id, staleIds));
   }
+  petIds.length = 0;
 }
 
 beforeAll(async () => {
