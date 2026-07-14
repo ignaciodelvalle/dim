@@ -52,17 +52,24 @@ beforeAll(async () => {
   ownerUserId = ownerProfile.id;
 
   await withMutationOverride(async (tx) => {
+    // FK-safe order: pet_events references BOTH cases (case_id) and pets, so it
+    // must go FIRST — deleting cases first violates pet_events_case_id_cases_id_fk
+    // whenever a previous run left a welfare event behind (the wedged-state
+    // failure this cleanup exists to heal). Then ownerships → cases → pets.
+    await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
+    await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
+    await tx.execute(sql`UPDATE cases SET welfare_report_id = NULL WHERE primary_pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
     await tx.execute(sql`
       DELETE FROM cases WHERE primary_pet_id IN (
         SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
       )
     `);
-    await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
-      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
-    )`);
-    await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
-      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
-    )`);
     await tx.execute(sql`DELETE FROM pets WHERE public_token = ${PET_TOKEN}`);
   });
 
@@ -123,13 +130,23 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await withMutationOverride(async (tx) => {
-    await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${petId}::uuid`);
-    await tx.execute(sql`DELETE FROM ownerships WHERE pet_id = ${petId}::uuid`);
-    await tx.execute(
-      sql`UPDATE cases SET welfare_report_id = NULL WHERE id = ${welfareCaseId}::uuid`,
-    );
-    await tx.execute(sql`DELETE FROM cases WHERE id = ${welfareCaseId}::uuid`);
-    await tx.execute(sql`DELETE FROM pets WHERE id = ${petId}::uuid`);
+    // TOKEN-based (not id-based) + the same FK-safe order as the setup cleanup:
+    // if beforeAll aborted mid-fixture, petId/welfareCaseId are undefined and an
+    // id-based delete interpolates `= ::uuid` (a syntax error that masks the real
+    // failure). The token form tears down whatever the setup got through.
+    await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
+    await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
+    await tx.execute(sql`UPDATE cases SET welfare_report_id = NULL WHERE primary_pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
+    await tx.execute(sql`DELETE FROM cases WHERE primary_pet_id IN (
+      SELECT id FROM pets WHERE public_token = ${PET_TOKEN}
+    )`);
+    await tx.execute(sql`DELETE FROM pets WHERE public_token = ${PET_TOKEN}`);
   });
 });
 
@@ -254,9 +271,15 @@ describe("getLibretaFaceData — pagination boundary (PAST_EVENTS_WINDOW)", () =
 
   afterAll(async () => {
     await withMutationOverride(async (tx) => {
-      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pagePetId}::uuid`);
-      await tx.execute(sql`DELETE FROM ownerships WHERE pet_id = ${pagePetId}::uuid`);
-      await tx.execute(sql`DELETE FROM pets WHERE id = ${pagePetId}::uuid`);
+      // TOKEN-based for the same reason as the first describe's teardown: an
+      // aborted setup leaves pagePetId undefined → `= ::uuid` syntax error.
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${PAGINATION_TOKEN}
+      )`);
+      await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
+        SELECT id FROM pets WHERE public_token = ${PAGINATION_TOKEN}
+      )`);
+      await tx.execute(sql`DELETE FROM pets WHERE public_token = ${PAGINATION_TOKEN}`);
     });
   });
 
