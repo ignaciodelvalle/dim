@@ -1,43 +1,33 @@
-// Bivariate palette — LIGHT-canvas CVD + contrast validation (design §8 fork #2).
+// Bivariate palette — LIGHT-canvas CVD + contrast fence (design §8 fork #2).
 //
 // The design doc gated P3 on re-validating BIVARIATE_PALETTE for color-vision
-// deficiency on the light v2C canvas; P3/P4a shipped without it. This file IS
-// that validation, measured 2026-07-14 with Machado et al. (2009) severity-1.0
-// simulation in linear RGB + CIE76 deltaE:
+// deficiency on the light v2C canvas. Measured 2026-07-14 (Machado et al. 2009
+// severity-1.0 simulation in linear RGB + CIE76 deltaE), the dark-canvas-era
+// palette FAILED: two teal cells below the WCAG 1.4.11 3:1 non-text floor vs
+// the land, and under protanopia the RISK corner collapsed into a calm teal
+// (dE ≈ 3.8) — the alarm/calm distinction the encoding exists to carry. The
+// PO approved the replacement the same day (hill-climbed Lab targets, hue
+// families + 3×3 layout preserved, luminance-diagonal structure).
 //
-//   CURRENT palette (validated on the RETIRED dark navy canvas):
-//     - contrast vs land (#eef1f4): two teal cells at 2.36/2.42 — BELOW the
-//       WCAG 1.4.11 3:1 non-text floor; the RISK corner at 2.93.
-//     - PROTANOPIA: min all-pairs dE 3.8 — and the confused pair is the RISK
-//       corner vs a calm teal, i.e. the alarm/calm distinction the encoding
-//       exists to carry. Deuteranopia min 3.9.
-//
-//   CANDIDATE palette (hill-climbed over Lab targets, hue families preserved:
-//   slate→teal coverage axis, dim→hot signal axis, crimson RISK corner):
-//     - every cell ≥ 3.19:1 vs land; normal-vision min dE 13.2;
-//     - protanopia min 9.4 / deuteranopia min 9.4 (all pairs);
-//     - RISK vs the calm teals ≥ 18.9 under both simulations.
-//
-// The palette swap changes the PO's favorite visualization — it is PO-gated.
-// This suite pins BOTH measurements so (a) any accidental edit to the current
-// palette surfaces immediately, and (b) on PO approval the swap is a one-line
-// constant change with this fence already green. Pure — no DOM, no map.
+// This suite is the PERMANENT fence: any palette edit must keep clearing every
+// gate below. Pure — no DOM, no map.
 
 import { describe, expect, it } from "vitest";
 
 import { BIVARIATE_PALETTE } from "@/components/panorama/bivariate-fill";
 
-/** The PO-pending CVD-safe replacement (see header). Same 3×3 layout/semantics. */
-export const BIVARIATE_PALETTE_CANDIDATE: readonly string[] = [
-  "#698ba2",
-  "#4f8b8b",
-  "#4e8771",
-  "#905270",
-  "#505274",
-  "#066461",
-  "#8f072e",
-  "#551f5e",
-  "#0b3578",
+/** The RETIRED dark-canvas palette — pinned so an accidental revert (e.g. a
+ *  stale-branch merge resolving the constant backwards) fails loudly. */
+const RETIRED_DARK_CANVAS_PALETTE: readonly string[] = [
+  "#4a566e",
+  "#3f8183",
+  "#33b0a0",
+  "#9c6079",
+  "#7c8093",
+  "#54a9ad",
+  "#f0567a",
+  "#c063a1",
+  "#8f79d1",
 ] as const;
 
 const LAND = "#eef1f4"; // SituationalMap COLOR_LAND (light v2C)
@@ -104,56 +94,34 @@ function riskVsTeals(palette: readonly string[], mode: "protanopia" | "deuterano
   return Math.min(deltaE(labs[6], labs[2]), deltaE(labs[6], labs[5]), deltaE(labs[6], labs[8]));
 }
 
-// --- the CURRENT palette: pinned measurement (known light-canvas gaps) --------
+// --- the shipped palette must clear every light-canvas gate -------------------
 
-describe("BIVARIATE_PALETTE — light-canvas measurement (fork #2, PO-gated swap pending)", () => {
-  it("documents the known contrast gap: not every cell clears 3:1 vs the light land", () => {
-    // KNOWN GAP (not a regression fence): #33b0a0 measures 2.36:1 and #54a9ad
-    // 2.42:1 vs #eef1f4 — below the WCAG 1.4.11 non-text floor. The dark-canvas
-    // validation (≥2.2 vs #161d33) no longer applies. If this test starts
-    // FAILING, the palette changed — re-run the full measurement and update the
-    // header numbers (or activate the candidate suite below).
-    const worst = Math.min(...BIVARIATE_PALETTE.map((c) => contrast(c, LAND)));
-    expect(worst).toBeGreaterThan(2.2); // the old dark bar still holds
-    expect(worst).toBeLessThan(3); // the light bar does NOT — the documented gap
-  });
-
-  it("documents the protanopia calm/alarm collapse (min all-pairs dE ≈ 3.8)", () => {
-    const min = minPairwise(BIVARIATE_PALETTE, "protanopia");
-    expect(min).toBeGreaterThan(3);
-    expect(min).toBeLessThan(5); // the documented gap — RISK vs a calm teal
-  });
-
-  it("normal-vision separation is healthy (the palette is fine for trichromats)", () => {
-    expect(minPairwise(BIVARIATE_PALETTE)).toBeGreaterThan(14);
-  });
-});
-
-// --- the CANDIDATE: must clear every gate so the swap is turnkey --------------
-
-describe("BIVARIATE_PALETTE_CANDIDATE — clears every light-canvas gate", () => {
+describe("BIVARIATE_PALETTE — light-canvas CVD fence (PO-approved 2026-07-14)", () => {
   it("every cell ≥ 3:1 vs the light land (WCAG 1.4.11 non-text)", () => {
-    for (const c of BIVARIATE_PALETTE_CANDIDATE) {
+    for (const c of BIVARIATE_PALETTE) {
       expect(contrast(c, LAND), c).toBeGreaterThanOrEqual(3);
     }
   });
 
   it("normal-vision min all-pairs dE ≥ 10 (no confusable cells)", () => {
-    expect(minPairwise(BIVARIATE_PALETTE_CANDIDATE)).toBeGreaterThanOrEqual(10);
+    expect(minPairwise(BIVARIATE_PALETTE)).toBeGreaterThanOrEqual(10);
   });
 
   it("protanopia + deuteranopia min all-pairs dE ≥ 9 (structural, not luck)", () => {
-    expect(minPairwise(BIVARIATE_PALETTE_CANDIDATE, "protanopia")).toBeGreaterThanOrEqual(9);
-    expect(minPairwise(BIVARIATE_PALETTE_CANDIDATE, "deuteranopia")).toBeGreaterThanOrEqual(9);
+    expect(minPairwise(BIVARIATE_PALETTE, "protanopia")).toBeGreaterThanOrEqual(9);
+    expect(minPairwise(BIVARIATE_PALETTE, "deuteranopia")).toBeGreaterThanOrEqual(9);
   });
 
   it("the RISK corner stays ALARM vs every calm teal under both simulations (≥ 15)", () => {
-    expect(riskVsTeals(BIVARIATE_PALETTE_CANDIDATE, "protanopia")).toBeGreaterThanOrEqual(15);
-    expect(riskVsTeals(BIVARIATE_PALETTE_CANDIDATE, "deuteranopia")).toBeGreaterThanOrEqual(15);
+    expect(riskVsTeals(BIVARIATE_PALETTE, "protanopia")).toBeGreaterThanOrEqual(15);
+    expect(riskVsTeals(BIVARIATE_PALETTE, "deuteranopia")).toBeGreaterThanOrEqual(15);
   });
 
-  it("keeps the 3×3 layout contract (9 cells, RISK at index 6)", () => {
-    expect(BIVARIATE_PALETTE_CANDIDATE).toHaveLength(9);
+  it("keeps the 3×3 layout contract (9 cells) and is NOT the retired dark-canvas palette", () => {
     expect(BIVARIATE_PALETTE).toHaveLength(9);
+    // The retired palette fails the protanopia gate (RISK vs calm teal dE ≈ 3.8);
+    // a merge that resolves the constant backwards must fail loudly here.
+    expect([...BIVARIATE_PALETTE]).not.toEqual([...RETIRED_DARK_CANVAS_PALETTE]);
+    expect(minPairwise(RETIRED_DARK_CANVAS_PALETTE, "protanopia")).toBeLessThan(5);
   });
 });

@@ -28,30 +28,32 @@ import {
  * signal) is a warm pink-red that reads as ALARM against the two cool teal
  * "calm" cells — salient by HUE, not merely luminance, on the dark navy surface.
  *
- * VALIDATION STATUS (design §8 fork #2, measured 2026-07-14): this palette was
- * validated on the RETIRED dark navy surface (#161d33 land on #0b1020 canvas:
- * ≥2.2 vs land, min all-pairs separation ~56). On the CURRENT light v2C canvas
- * (#eef1f4 land) it has DOCUMENTED gaps: two teal cells measure 2.36/2.42:1
- * (below the WCAG 1.4.11 3:1 non-text floor) and under protanopia the RISK
- * corner vs a calm teal collapses to dE ≈ 3.8 — the alarm/calm distinction.
- * A CVD-safe replacement (same hue families + layout) is validated and pinned
- * in __tests__/bivariate-cvd.test.ts (BIVARIATE_PALETTE_CANDIDATE); the swap is
- * PO-GATED (this is the PO's flagship visualization). Do not reorder — the
- * domain's bivariateIndex and the legend grid both assume this layout.
+ * VALIDATED for the LIGHT v2C canvas (#eef1f4 land), PO-approved 2026-07-14
+ * (design §8 fork #2 closed): hill-climbed over Lab targets with the hue
+ * families preserved (slate→teal coverage axis, dim→hot signal axis, crimson
+ * RISK corner) and a luminance-diagonal structure that survives dichromacy.
+ * Measured (Machado 2009 severity-1.0 + CIE76, fence in
+ * __tests__/bivariate-cvd.test.ts): every cell ≥ 3.19:1 vs the land (WCAG
+ * 1.4.11), normal-vision min all-pairs dE 13.2, protanopia/deuteranopia min
+ * dE 9.4, RISK vs the calm teals ≥ 18.9 under both simulations. It replaces
+ * the dark-navy-validated palette whose light-canvas measurement showed the
+ * RISK corner collapsing into a calm teal for protanopes (dE 3.8). Do not
+ * reorder — the domain's bivariateIndex and the legend grid both assume this
+ * layout.
  */
 export const BIVARIATE_PALETTE: readonly string[] = [
-  // signal LOW (bottom row): neutral → teal
-  "#4a566e",
-  "#3f8183",
-  "#33b0a0",
+  // signal LOW (bottom row): slate → teal
+  "#698ba2",
+  "#4f8b8b",
+  "#4e8771",
   // signal MID
-  "#9c6079",
-  "#7c8093",
-  "#54a9ad",
-  // signal HIGH (top row): RISK → purple
-  "#f0567a",
-  "#c063a1",
-  "#8f79d1",
+  "#905270",
+  "#505274",
+  "#066461",
+  // signal HIGH (top row): RISK crimson → deep violet
+  "#8f072e",
+  "#551f5e",
+  "#0b3578",
 ] as const;
 
 /** The palette hex of the RISK corner (low coverage × high signal). */
