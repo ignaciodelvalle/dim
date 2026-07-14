@@ -156,16 +156,16 @@ beforeAll(async () => {
   govtUserId = await ensureUser(GOVT_EMAIL, "govt");
   adminUserId = await ensureUser(ADMIN_EMAIL, "admin");
 
-  // Ensure govt user has jurisdiction (La Plata, Buenos Aires).
-  try {
-    await db.insert(govtAssignments).values({
-      userId: govtUserId,
-      jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "La Plata",
-    });
-  } catch {
-    // Already assigned — OK.
-  }
+  // Ensure govt user has EXACTLY ONE jurisdiction assignment. The old
+  // insert-and-swallow ran on EVERY suite run with no unique constraint to
+  // trip its catch — 44 duplicate rows had accumulated (found during the
+  // 2026-07-14 test-isolation sweep). Idempotent form: clear, then insert.
+  await db.delete(govtAssignments).where(eq(govtAssignments.userId, govtUserId));
+  await db.insert(govtAssignments).values({
+    userId: govtUserId,
+    jurisdictionProvince: "Buenos Aires",
+    jurisdictionLocality: "La Plata",
+  });
 
   await cleanupTestCasesForUsers([govtUserId, adminUserId]);
 });
