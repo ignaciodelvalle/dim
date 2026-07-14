@@ -2,7 +2,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
+import {
+  binDailyCounts,
+  binTimestamps,
+  dailyCountsFromTimestamps,
+} from "@/components/panorama/signal-histogram";
 
 const DAY = 86_400_000;
 const since = Date.UTC(2026, 0, 1);
@@ -93,5 +97,32 @@ describe("binDailyCounts", () => {
   it("returns an empty array for a degenerate window or bin count", () => {
     expect(binDailyCounts([{ date: iso(since), count: 1 }], until, since, 10)).toEqual([]);
     expect(binDailyCounts([{ date: iso(since), count: 1 }], since, until, 0)).toEqual([]);
+  });
+});
+
+describe("dailyCountsFromTimestamps", () => {
+  it("groups per-event timestamps into UTC per-day counts, sorted ascending", () => {
+    const result = dailyCountsFromTimestamps([
+      "2026-01-05T10:00:00Z",
+      "2026-01-05T23:00:00Z",
+      Date.UTC(2026, 0, 7, 8, 0, 0), // epoch millis accepted too
+    ]);
+    expect(result).toEqual([
+      { date: "2026-01-05", count: 2 },
+      { date: "2026-01-07", count: 1 },
+    ]);
+  });
+
+  it("keys by the UTC calendar day (matching the server's date_trunc)", () => {
+    // 23:30Z on Jan 5 stays on Jan 5; 00:30Z on Jan 6 is Jan 6 — a pure UTC split.
+    const result = dailyCountsFromTimestamps(["2026-01-05T23:30:00Z", "2026-01-06T00:30:00Z"]);
+    expect(result).toEqual([
+      { date: "2026-01-05", count: 1 },
+      { date: "2026-01-06", count: 1 },
+    ]);
+  });
+
+  it("skips unparseable entries and returns [] when nothing is valid", () => {
+    expect(dailyCountsFromTimestamps(["not-a-date", ""])).toEqual([]);
   });
 });

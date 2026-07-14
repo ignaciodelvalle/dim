@@ -25,6 +25,7 @@ import {
   type JurisdictionScope,
   JurisdictionSwitcher,
 } from "@/components/gob/JurisdictionSwitcher";
+import { CalendarHeatmap } from "@/components/panorama/CalendarHeatmap";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { FiltroPanel } from "@/components/panorama/FiltroPanel";
 import { KpiChips } from "@/components/panorama/KpiChips";
@@ -64,7 +65,11 @@ import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduat
 import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import { activeVistaName, countFiltroModifiers } from "@/components/panorama/panorama-labels";
-import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
+import {
+  binDailyCounts,
+  binTimestamps,
+  dailyCountsFromTimestamps,
+} from "@/components/panorama/signal-histogram";
 import { Z_LOCALITY } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
@@ -2494,7 +2499,12 @@ export function PanoramaConsole({
   // carry `occurredAt`/`lastSeenAt`; the aggregated overview features carry only a
   // count, so this stays null there (honest: no fabricated distribution). The bins
   // are SCOPE-AGGREGATE totals, never per-unit, so they reveal no suppressed cell.
-  const signalHistogramBins = useMemo<number[] | undefined>(() => {
+  // The raw per-event timestamps of the active temporal layers that ALREADY
+  // reached the client (real-event dots in points mode). Aggregated overview
+  // features carry only a count, so this is undefined there (honest: no
+  // fabricated distribution). ONE source feeds BOTH the scrubber histogram and
+  // the calendar heatmap, so the two views can never diverge (viz-suite W1 #8).
+  const signalTimestamps = useMemo<number[] | undefined>(() => {
     const times: number[] = [];
     for (const l of activeLayers) {
       if (!isTemporalLayer(l.id as LayerId)) continue;
@@ -2511,9 +2521,26 @@ export function PanoramaConsole({
         if (Number.isFinite(v)) times.push(v);
       }
     }
-    if (times.length === 0) return undefined;
-    return binTimestamps(times, since.getTime(), until.getTime(), 48);
-  }, [activeLayers, since, until]);
+    return times.length === 0 ? undefined : times;
+  }, [activeLayers]);
+
+  // task #65: the 48-bucket scrubber track. Bins are SCOPE-AGGREGATE totals,
+  // never per-unit, so they reveal no suppressed cell.
+  const signalHistogramBins = useMemo<number[] | undefined>(
+    () =>
+      signalTimestamps === undefined
+        ? undefined
+        : binTimestamps(signalTimestamps, since.getTime(), until.getTime(), 48),
+    [signalTimestamps, since, until],
+  );
+
+  // The calendar's per-DAY counts for the POINTS path — the same timestamps,
+  // UTC-day-bucketed (matching the server's date_trunc) instead of binned.
+  const pointsDailyCounts = useMemo(
+    () =>
+      signalTimestamps === undefined ? undefined : dailyCountsFromTimestamps(signalTimestamps),
+    [signalTimestamps],
+  );
 
   // NIGHT-3 item #3: at AGGREGATE level the temporal layers carry only a count
   // per unit — no per-event timestamps — so `signalHistogramBins` above is empty
@@ -2533,6 +2560,12 @@ export function PanoramaConsole({
   const [aggregateHistogramBins, setAggregateHistogramBins] = useState<number[] | undefined>(
     undefined,
   );
+  // The calendar's per-DAY counts for the AGGREGATE path — the merged server
+  // histogram BEFORE it is binned into the 48-bucket scrubber track. Lifted to
+  // state so the CalendarHeatmap reuses THIS fetch (no duplicate request).
+  const [aggregateDailyCounts, setAggregateDailyCounts] = useState<
+    Array<{ date: string; count: number }> | undefined
+  >(undefined);
   useEffect(() => {
     // M2: effectiveScopeProvince/Locality are recompute TRIGGERS — the effect reads
     // the drilled scope off window.location.search (fresher than useSearchParams),
@@ -2541,8 +2574,10 @@ export function PanoramaConsole({
     void effectiveScopeProvince;
     void effectiveScopeLocality;
     // Points-mode timestamps already feed the histogram — don't double-count.
+    // (The calendar's points path derives from those same timestamps too.)
     if (signalHistogramBins !== undefined || activeTemporalKey === "") {
       setAggregateHistogramBins(undefined);
+      setAggregateDailyCounts(undefined);
       return;
     }
     const ids = activeTemporalKey.split(",") as LayerId[];
@@ -2592,6 +2627,8 @@ export function PanoramaConsole({
       const merged = Array.from(byDay, ([date, count]) => ({ date, count }));
       const bins = binDailyCounts(merged, since.getTime(), until.getTime(), 48);
       setAggregateHistogramBins(bins.some((b) => b > 0) ? bins : undefined);
+      // Same merged series feeds the calendar heatmap (per-day, not binned).
+      setAggregateDailyCounts(merged);
     });
     return () => {
       cancelled = true;
@@ -3924,7 +3961,19 @@ export function PanoramaConsole({
   // suppressed count renders as an explicit last row (privacy visible).
   const dockSuppressedCount =
     rankingLayer !== null ? (states[rankingLayer.id]?.suppressedCount ?? 0) : 0;
-  const dockStats =
+  // viz-suite Wave 1 — the CalendarHeatmap's per-day series. Source-of-truth
+  // mirror of the TimeScrubber histogram: the points path (client timestamps)
+  // shadows the aggregate path (server ?histogram=1), EXACTLY like
+  // signalHistogramBins ?? aggregateHistogramBins — one series feeds both views,
+  // so they never diverge (W1 #8). Empty array → the calendar narrates its own
+  // empty/non-temporal state.
+  const scopeDailyCounts = pointsDailyCounts ?? aggregateDailyCounts ?? [];
+  const calendarMethodNote = `Total del alcance por día · ${
+    timeBasis === "transaction"
+      ? "por fecha de registro (lo que el Estado conocía)"
+      : "por fecha de ocurrencia"
+  }`;
+  const dockRanking =
     effectiveRankingKind !== null && rankingLayer !== null ? (
       <div className="space-y-2">
         <RankedUnitsPanel
@@ -3975,6 +4024,30 @@ export function PanoramaConsole({
         Sin ranking para las capas activas en este alcance.
       </p>
     );
+
+  // The calendar heatmap sits ABOVE the ranking as its own <section>, so a later
+  // regroup into a "Tendencias" dock family (organizing principle, PO 2026-07-12)
+  // is a move, not a rewrite. It always renders — its own empty/non-temporal
+  // state narrates why when there is nothing to show. Day-cell click filters the
+  // map to that single day through the EXISTING period-change path (commitPeriod
+  // custom window), never a new state axis.
+  const dockStats = (
+    <div className="space-y-4">
+      <CalendarHeatmap
+        data={scopeDailyCounts}
+        since={captionPeriod.from}
+        until={captionPeriod.to}
+        methodNote={calendarMethodNote}
+        emptyMessage={
+          activeTemporalKey === ""
+            ? "Activá una capa con dimensión temporal (denuncias, mordeduras, pérdidas, síntomas o zoonosis) para ver la actividad por día."
+            : "Sin eventos registrados en este período y alcance."
+        }
+        onDayClick={(date) => commitPeriod("custom", date, date)}
+      />
+      {dockRanking}
+    </div>
+  );
 
   // v2C legend pill — the compact strip's data. The ramp mirrors what the map
   // ACTUALLY paints: the lifted province classed scale for the caption layer

@@ -69,3 +69,34 @@ export function binDailyCounts(
   }
   return bins;
 }
+
+/**
+ * Collapse per-event timestamps into per-DAY scope-total counts keyed by UTC
+ * calendar day ("YYYY-MM-DD") — the POINTS-mode counterpart to the server's
+ * loadScopeDailyCounts, whose `date_trunc('day', …)` buckets in the DB session's
+ * UTC default (no `AT TIME ZONE` override in the query). Keying by getUTC* here
+ * matches that definition exactly, so the CalendarHeatmap sees the SAME "day"
+ * whether the counts came from the client timestamps (points mode) or the
+ * server histogram (aggregate mode) — one definition of a day across panorama.
+ *
+ * Feeds the calendar the SAME timestamp set the scrubber's binTimestamps bins,
+ * so the two views never diverge. Unparseable entries are skipped; the result is
+ * sorted ascending by date. Kept pure (no React/DOM) for unit testing.
+ */
+export function dailyCountsFromTimestamps(
+  times: ReadonlyArray<string | number>,
+): Array<{ date: string; count: number }> {
+  const byDay = new Map<string, number>();
+  for (const t of times) {
+    const v = typeof t === "number" ? t : Date.parse(t);
+    if (!Number.isFinite(v)) continue;
+    const d = new Date(v);
+    const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const da = String(d.getUTCDate()).padStart(2, "0");
+    const key = `${d.getUTCFullYear()}-${mo}-${da}`;
+    byDay.set(key, (byDay.get(key) ?? 0) + 1);
+  }
+  return Array.from(byDay, ([date, count]) => ({ date, count })).sort((a, b) =>
+    a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
+  );
+}
