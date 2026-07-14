@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 //
-// KpiChips — Round-2 review #4 (H8 + a11y). Pins the fix: the base-selecting
-// cards are promoted from `aria-pressed` to a true `role="radiogroup"` /
-// `role="radio"` + `aria-checked` (matching PresetPanel.tsx's pattern), with
-// roving-tabindex arrow-key navigation that skips read-only cards. Read-only
-// KPIs (no base map layer, e.g. zoonosis / reunificación — signal-role
-// layers) carry no radio semantics and are excluded from the group.
+// KpiChips — READ-ONLY contract (#53 Option A, PO 2026-07-14). The chips are
+// INDICATORS, never controls: reading a number and changing the map are
+// different acts, and the old click-to-rebase (a chip that looked like a stat
+// but silently swapped the choropleth base) was the panorama's most confusing
+// interaction. These tests pin the new contract: NO radiogroup, NO buttons, NO
+// rebase — plus the honesty states (pending/degraded/empty, "estado actual")
+// that survive unchanged from the interactive era.
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import type {
   PanoramaKpi,
@@ -19,22 +20,26 @@ import type {
 import { KpiChips } from "./KpiChips";
 
 /** Minimal PanoramaKpi fixture — only the fields KpiChips reads matter. */
-function kpi(id: string, label: string, value: string): PanoramaKpi {
+function kpi(
+  id: string,
+  label: string,
+  value: string,
+  extra: Partial<PanoramaKpi> = {},
+): PanoramaKpi {
   return {
     id: id as PanoramaKpi["id"],
     label,
     value,
     tone: "neutral",
-    info: { definition: `Definición de ${label}.` },
+    info: { definition: `Definición de ${label}. Segunda oración.` },
     href: "/gob/mock",
     source: "mock",
+    ...extra,
   };
 }
 
-// Interleaved selectable/read-only order, mirroring a real preset's `metrics`
-// array (e.g. presets.ts:111 `["cobertura", "zoonosis", "mordeduras"]`):
-//   cobertura (base → selectable), zoonosis (signal → read-only),
-//   esterilizacion (base → selectable), reunificacion (signal → read-only).
+// The same interleaved mix the old radio contract used (base-role and
+// signal-role KPIs) — under #53 Option A they are ALL equal read-only cards.
 const KPIS: PanoramaKpis = {
   kpis: [
     kpi("cobertura", "Cobertura antirrábica", "64%"),
@@ -48,225 +53,79 @@ const KPIS: PanoramaKpis = {
 
 afterEach(cleanup);
 
-describe("KpiChips — radiogroup semantics (Round-2 review #4)", () => {
-  it("exposes role=radiogroup with exactly the selectable (base-layer) cards as radios", () => {
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    const group = screen.getByRole("radiogroup", { name: "Indicadores de esta vista" });
-    const radios = within(group).getAllByRole("radio");
-    // Only cobertura + esterilizacion are base-role layers — zoonosis and
-    // reunificación (signal-role) are read-only and must NOT appear as radios.
-    expect(radios).toHaveLength(2);
-    expect(within(group).queryByRole("radio", { name: /zoonosis/i })).not.toBeInTheDocument();
-    expect(within(group).queryByRole("radio", { name: /reunificaci/i })).not.toBeInTheDocument();
+describe("KpiChips — read-only contract (#53 Option A)", () => {
+  it("renders every KPI value with NO radio semantics and NO buttons", () => {
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} />);
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("38%")).toBeInTheDocument();
+    expect(screen.getByText("71%")).toBeInTheDocument();
+    // Reading is not steering: nothing here is interactive.
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("read-only cards carry no radio semantics and are aria-disabled", () => {
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    const zoonosisCard = screen.getByText("Señales de zoonosis").closest('[aria-disabled="true"]');
-    expect(zoonosisCard).not.toBeNull();
-    expect(zoonosisCard).not.toHaveAttribute("role", "radio");
-    expect(zoonosisCard).not.toHaveAttribute("aria-checked");
+  it("is an accessible LIST of indicators (es-AR label)", () => {
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} />);
+    const list = screen.getByRole("list", { name: "Indicadores de esta vista" });
+    expect(list).toBeInTheDocument();
+    expect(list.querySelectorAll("li")).toHaveLength(4);
   });
 
-  it("aria-checked toggles with the active base layer", () => {
-    const { rerender } = render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        onRebase={vi.fn()}
-      />,
+  it("the hover title carries the method note and promises NO map action", () => {
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} />);
+    const card = screen.getByText("64%").closest("li");
+    expect(card).toHaveAttribute(
+      "title",
+      "Cobertura antirrábica — Definición de Cobertura antirrábica.",
     );
-
-    expect(screen.getByRole("radio", { name: /Cobertura antirrábica/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
-    expect(screen.getByRole("radio", { name: /Cobertura de esterilización/ })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
-
-    rerender(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="esterilizacion"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("radio", { name: /Cobertura antirrábica/ })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
-    expect(screen.getByRole("radio", { name: /Cobertura de esterilización/ })).toHaveAttribute(
-      "aria-checked",
-      "true",
-    );
+    // The old affordance copy ("Click para pintar el mapa…") must be gone.
+    expect(card?.getAttribute("title")).not.toMatch(/[Cc]lick/);
   });
 
-  it("a click on an inactive selectable card calls onRebase with its layer id", () => {
-    const onRebase = vi.fn();
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        onRebase={onRebase}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("radio", { name: /Cobertura de esterilización/ }));
-    expect(onRebase).toHaveBeenCalledWith("esterilizacion");
-  });
-
-  it("arrow keys move focus between radios only, skipping the interleaved read-only card", () => {
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    const first = screen.getByRole("radio", { name: /Cobertura antirrábica/ });
-    first.focus();
-    fireEvent.keyDown(first, { key: "ArrowRight" });
-
-    // zoonosis sits between the two radios in display order but is not part
-    // of the radiogroup — focus must land on the next RADIO, not on it.
-    expect(screen.getByRole("radio", { name: /Cobertura de esterilización/ })).toHaveFocus();
-  });
-
-  it("Enter commits the focused radio without a click", () => {
-    const onRebase = vi.fn();
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        onRebase={onRebase}
-      />,
-    );
-
-    const first = screen.getByRole("radio", { name: /Cobertura antirrábica/ });
-    first.focus();
-    fireEvent.keyDown(first, { key: "ArrowRight" });
-    const second = screen.getByRole("radio", { name: /Cobertura de esterilización/ });
-    fireEvent.keyDown(second, { key: "Enter" });
-
-    expect(onRebase).toHaveBeenCalledWith("esterilizacion");
+  it("caps the cluster at 4 cards (the map dominates)", () => {
+    const many: PanoramaKpis = {
+      ...KPIS,
+      kpis: [
+        ...KPIS.kpis,
+        kpi("mordeduras", "Mordeduras", "12"),
+        kpi("denuncias", "Denuncias", "7"),
+      ],
+    };
+    render(<KpiChips kpis={many} metricIds={null} presetId={null} />);
+    expect(screen.getByRole("list").querySelectorAll("li")).toHaveLength(4);
   });
 });
 
-describe("KpiChips — province-only rate chips disabled below province (Round-3 QA fix 5)", () => {
-  it("at province level, both rate chips (cobertura, esterilización) stay selectable radios", () => {
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        level="province"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByRole("radio", { name: /Cobertura antirrábica/ })).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Cobertura de esterilización/ })).toBeInTheDocument();
+describe("KpiChips — honesty states (unchanged from the interactive era)", () => {
+  it("degraded state renders the honest failure copy", () => {
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} degraded />);
+    expect(
+      screen.getByText("No pudimos cargar los indicadores en este momento."),
+    ).toBeInTheDocument();
   });
 
-  it("below province level, rate chips lose radio semantics and become aria-disabled with a tooltip", () => {
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        level="locality"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    // Neither province-only rate metric is a radio anymore — they read like
-    // the pre-existing read-only reference cards (H8 idiom), not like a dead
-    // tap target.
-    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
-
-    const coberturaCard = screen
-      .getByText("Cobertura antirrábica")
-      .closest('[aria-disabled="true"]');
-    expect(coberturaCard).not.toBeNull();
-    expect(coberturaCard).toHaveAttribute("title", expect.stringContaining("nivel provincial"));
-
-    const esterilizacionCard = screen
-      .getByText("Cobertura de esterilización")
-      .closest('[aria-disabled="true"]');
-    expect(esterilizacionCard).not.toBeNull();
-    expect(esterilizacionCard).toHaveAttribute(
-      "title",
-      expect.stringContaining("nivel provincial"),
-    );
+  it("pending state renders the loading copy with aria-busy", () => {
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} pending />);
+    expect(screen.getByText("Cargando indicadores…")).toHaveAttribute("aria-busy", "true");
   });
 
-  it("does not disable non-rate KPIs below province level", () => {
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        level="locality"
-        onRebase={vi.fn()}
-      />,
-    );
-
-    // zoonosis / reunificación are signal-role (no base layer) — already
-    // read-only for an unrelated reason, but must NOT carry the province-only
-    // tooltip copy.
-    const zoonosisCard = screen.getByText("Señales de zoonosis").closest('[aria-disabled="true"]');
-    expect(zoonosisCard).not.toHaveAttribute("title", expect.stringContaining("nivel provincial"));
+  it("empty selection renders the no-metrics copy", () => {
+    render(<KpiChips kpis={{ ...KPIS, kpis: [] }} metricIds={null} presetId={null} />);
+    expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
   });
 
-  it("clicking a disabled province-only chip does not call onRebase", () => {
-    const onRebase = vi.fn();
-    render(
-      <KpiChips
-        kpis={KPIS}
-        metricIds={null}
-        presetId={null}
-        activeBaseLayerId="cobertura"
-        level="locality"
-        onRebase={onRebase}
-      />,
+  it("a STOCK KPI shows the emphasized 'estado actual' tag while a temporal frame is active", () => {
+    const stock: PanoramaKpis = {
+      ...KPIS,
+      kpis: [kpi("cobertura", "Cobertura antirrábica", "64%", { currentState: true })],
+    };
+    const { rerender } = render(
+      <KpiChips kpis={stock} metricIds={null} presetId={null} temporalFrameActive={false} />,
     );
-
-    fireEvent.click(screen.getByText("Cobertura de esterilización"));
-    expect(onRebase).not.toHaveBeenCalled();
+    expect(screen.getByText("estado actual")).toBeInTheDocument();
+    rerender(<KpiChips kpis={stock} metricIds={null} presetId={null} temporalFrameActive />);
+    expect(screen.getByText("estado actual · no varía con la fecha")).toBeInTheDocument();
   });
 });

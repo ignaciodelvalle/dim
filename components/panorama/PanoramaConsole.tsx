@@ -2368,6 +2368,23 @@ export function PanoramaConsole({
   const activePresetIdRef = useRef(activePresetId);
   activePresetIdRef.current = activePresetId;
 
+  // #53 QOL — the honest "personalizada" moment. When the derived vista flips
+  // from a named preset to null (a hand-edit via Personalizar / a chip-less
+  // layer toggle), the board changed SILENTLY before; now an inline note says
+  // so and offers a one-tap return to the vista it left. Only fires on the
+  // TRANSITION (a personalizada board restored from a URL shows no note), and
+  // clears itself the moment any preset re-derives. Dismissible.
+  const prevPresetRef = useRef<PresetId | null>(null);
+  const [personalizadaFrom, setPersonalizadaFrom] = useState<PresetId | null>(null);
+  useEffect(() => {
+    if (activePresetId !== null) {
+      prevPresetRef.current = activePresetId;
+      setPersonalizadaFrom(null);
+      return;
+    }
+    if (prevPresetRef.current !== null) setPersonalizadaFrom(prevPresetRef.current);
+  }, [activePresetId]);
+
   // task #63: the bivariate "riesgo-brotes" encoding is OFFERED only for the
   // "Brotes activos" preset at province framing with both inputs active — the
   // gate for the toggle UI + the caption override under the map.
@@ -4492,87 +4509,120 @@ export function PanoramaConsole({
             center. */}
         {/* P5 presentation mode (#32 gift): the whole top-left cluster is chrome. */}
         {!presentationMode && (
-          <div className="absolute left-3.5 top-3.5 z-10 flex w-64 max-w-[calc(100%-1.75rem)] flex-col gap-2 2xl:w-72">
-            {/* WCAG 4.1.3: polite live region announcing the committed scope — the
-              scope pill's one keyboard commit path was otherwise silent to AT. */}
-            <p aria-live="polite" className="sr-only" data-testid="panorama-scope-live">
-              {scopeAnnouncement}
-            </p>
-            {(scopeLabel !== undefined ||
-              allowedProvinces !== undefined ||
-              filtersSlot !== undefined) && (
-              <OverlayDisclosure
-                summaryTestId="panorama-scope-pill"
-                panelClassName="left-0 w-80 max-w-[80vw]"
-                closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
-                summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul shadow-md hover:bg-ln-op-azul/10"
-                summary={
-                  <>
-                    <span aria-hidden="true">◉</span>
-                    <span className="sr-only">Alcance</span>
-                    {liveScopeLabel || "Nacional"}
-                    <span aria-hidden="true" className="text-[var(--text-xs)]">
-                      ▾
-                    </span>
-                  </>
-                }
-              >
-                <div className="space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-                    Jurisdicción
-                  </p>
-                  {/* The JurisdictionSwitcher is rendered CLIENT-SIDE (embedded
-                    drill): a province/locality pick commits the scope shallowly
-                    (no reload). Native selects = the full keyboard path. */}
-                  {allowedProvinces !== undefined && (
-                    <JurisdictionSwitcher
-                      allowedProvinces={allowedProvinces}
-                      localities={scopeData.localities}
-                      selectedProvince={effectiveScopeProvince}
-                      selectedLocality={effectiveScopeLocality}
-                      onScopeCommit={onSwitcherScopeCommit}
-                    />
-                  )}
-                  {filtersSlot}
-                  <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
-                    También podés hacer click en una provincia del mapa.
-                  </p>
-                </div>
-              </OverlayDisclosure>
-            )}
-            {vistaName && (
-              <p className="w-fit max-w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1 text-[var(--text-xs)] text-ln-op-mute shadow-md">
-                Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
+          <div className="absolute left-3.5 top-3.5 z-10 w-64 max-w-[calc(100%-1.75rem)] 2xl:w-72">
+            {/* #53 QOL — ONE consolidated card (scope → vista → indicadores →
+                modo): the old stack was 4-5 independently-shadowed floating
+                surfaces competing over the map. The container is now the single
+                elevated surface; everything inside sits flat (borders, no own
+                shadows). Hierarchy reads top-down: WHERE (alcance) → WHAT
+                question (vista) → the NUMBERS → HOW the map paints (modo). */}
+            <div className="flex flex-col gap-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-2.5 shadow-lg">
+              {/* WCAG 4.1.3: polite live region announcing the committed scope — the
+                scope pill's one keyboard commit path was otherwise silent to AT. */}
+              <p aria-live="polite" className="sr-only" data-testid="panorama-scope-live">
+                {scopeAnnouncement}
               </p>
-            )}
-            <KpiChips
-              kpis={kpis}
-              metricIds={metricIds}
-              presetId={activePresetId}
-              activeBaseLayerId={captionLayer?.id ?? null}
-              level={level}
-              onRebase={(id) => {
-                void onToggle(id);
-              }}
-              pending={kpisPending}
-              degraded={kpisDegraded}
-              // P2.4 (C2): while the scrubber is off the live edge, emphasize the
-              // "estado actual" tag on stock KPIs so their frozen big number reads
-              // as intentional, not stuck. Temporal KPIs (no currentState) untouched.
-              temporalFrameActive={scrubbing}
-            />
-            {kpisStale && (
-              // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
-              // the cards show the last-known numbers, not live ones — say so.
-              <output
-                aria-live="polite"
-                className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
-              >
-                No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
-              </output>
-            )}
-            {/* task #63: bivariate map-encoding toggle (only on Brotes activos). */}
-            {bivariateControl}
+              {(scopeLabel !== undefined ||
+                allowedProvinces !== undefined ||
+                filtersSlot !== undefined) && (
+                <OverlayDisclosure
+                  summaryTestId="panorama-scope-pill"
+                  panelClassName="left-0 w-80 max-w-[80vw]"
+                  closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
+                  summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+                  summary={
+                    <>
+                      <span aria-hidden="true">◉</span>
+                      <span className="sr-only">Alcance</span>
+                      {liveScopeLabel || "Nacional"}
+                      <span aria-hidden="true" className="text-[var(--text-xs)]">
+                        ▾
+                      </span>
+                    </>
+                  }
+                >
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                      Jurisdicción
+                    </p>
+                    {/* The JurisdictionSwitcher is rendered CLIENT-SIDE (embedded
+                      drill): a province/locality pick commits the scope shallowly
+                      (no reload). Native selects = the full keyboard path. */}
+                    {allowedProvinces !== undefined && (
+                      <JurisdictionSwitcher
+                        allowedProvinces={allowedProvinces}
+                        localities={scopeData.localities}
+                        selectedProvince={effectiveScopeProvince}
+                        selectedLocality={effectiveScopeLocality}
+                        onScopeCommit={onSwitcherScopeCommit}
+                      />
+                    )}
+                    {filtersSlot}
+                    <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                      También podés hacer click en una provincia del mapa.
+                    </p>
+                  </div>
+                </OverlayDisclosure>
+              )}
+              {/* #53 QOL — the vista, named ONCE (the standalone shadowed pill is
+                  gone; the dock meta / caption serve other surfaces). */}
+              {vistaName && (
+                <p className="text-[var(--text-xs)] text-ln-op-mute">
+                  Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
+                </p>
+              )}
+              {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
+                  changes the board silently; one tap returns to the vista left. */}
+              {personalizadaFrom !== null && activePresetId === null && (
+                <output
+                  aria-live="polite"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-[var(--text-xs)] text-ln-op-ink-2"
+                >
+                  <span>
+                    Editaste la vista — ahora es{" "}
+                    <span className="font-semibold">personalizada</span>.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset(personalizadaFrom, "replace")}
+                    className="-my-1 rounded-[var(--radius-sm)] px-1 py-1 font-semibold text-ln-op-azul underline-offset-2 hover:underline"
+                  >
+                    Volver a {getPreset(personalizadaFrom)?.label ?? personalizadaFrom}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Descartar aviso"
+                    onClick={() => setPersonalizadaFrom(null)}
+                    className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
+                  >
+                    ✕
+                  </button>
+                </output>
+              )}
+              <KpiChips
+                kpis={kpis}
+                metricIds={metricIds}
+                presetId={activePresetId}
+                pending={kpisPending}
+                degraded={kpisDegraded}
+                // P2.4 (C2): while the scrubber is off the live edge, emphasize the
+                // "estado actual" tag on stock KPIs so their frozen big number reads
+                // as intentional, not stuck. Temporal KPIs (no currentState) untouched.
+                temporalFrameActive={scrubbing}
+              />
+              {kpisStale && (
+                // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
+                // the cards show the last-known numbers, not live ones — say so.
+                <output
+                  aria-live="polite"
+                  className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+                >
+                  No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
+                </output>
+              )}
+              {/* task #63 encoding, #24 switcher: the "Modo" map control. */}
+              {bivariateControl}
+            </div>
           </div>
         )}
         {/* task #38 v3 — the vertical modifier rail (right edge of the map). */}
