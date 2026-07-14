@@ -17,6 +17,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Icon } from "@/components/Icon";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -134,7 +135,7 @@ export default async function FinderInPossessionPage({
                     href={`tel:${ownerPhone}`}
                     className="flex items-center gap-3 rounded-lg border border-[var(--color-ln-line)] px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                   >
-                    <span aria-hidden="true">📞</span>
+                    <Icon name="telefono" size="sm" decorative />
                     Llamar al {ownerPhone}
                   </a>
                 </li>
@@ -145,7 +146,7 @@ export default async function FinderInPossessionPage({
                     href={`mailto:${ownerEmail}`}
                     className="flex items-center gap-3 rounded-lg border border-[var(--color-ln-line)] px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                   >
-                    <span aria-hidden="true">✉️</span>
+                    <Icon name="mail" size="sm" decorative />
                     Escribir a {ownerEmail}
                   </a>
                 </li>

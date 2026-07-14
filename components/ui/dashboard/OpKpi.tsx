@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
+
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
  *
@@ -87,10 +89,10 @@ type Props = {
 // non-chromatic state to convey and are left unchanged.
 // ---------------------------------------------------------------------------
 
-const TONE_ICONS: Partial<Record<Tone, string>> = {
-  danger: "⚠",
-  warn: "⚠",
-  ok: "●",
+const TONE_ICONS: Partial<Record<Tone, ReactNode>> = {
+  danger: <Icon name="alerta" size={13} decorative />,
+  warn: <Icon name="alerta" size={13} decorative />,
+  ok: <Icon name="circle-dot" size={13} decorative />,
 };
 
 /** sr-only label appended after the icon so screen readers announce the state. */
@@ -215,7 +217,7 @@ export function OpKpi({
       <div className="mb-2 flex items-center gap-1">
         {TONE_ICONS[tone] && (
           <>
-            <span aria-hidden="true" className="text-[11px] leading-none">
+            <span aria-hidden="true" className="inline-flex items-center leading-none">
               {TONE_ICONS[tone]}
             </span>
             <span className="sr-only">{TONE_LABELS[tone]}:</span>

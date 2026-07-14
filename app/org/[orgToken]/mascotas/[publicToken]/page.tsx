@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+import { Icon } from "@/components/Icon";
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -281,11 +282,15 @@ export default async function OrgPetDetailPage({
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=elegibilidad`}
                   className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
-                  {pet.adoptionEligible === true
-                    ? "Elegibilidad · Apta ✓"
-                    : pet.adoptionEligible === false
-                      ? "Elegibilidad · NO apta"
-                      : "Elegibilidad"}
+                  {pet.adoptionEligible === true ? (
+                    <span className="inline-flex items-center gap-1">
+                      Elegibilidad · Apta <Icon name="check" size={13} decorative />
+                    </span>
+                  ) : pet.adoptionEligible === false ? (
+                    "Elegibilidad · NO apta"
+                  ) : (
+                    "Elegibilidad"
+                  )}
                 </Link>
               )}
               {canRecordClinical && (

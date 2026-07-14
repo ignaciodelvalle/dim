@@ -13,6 +13,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
 import { reportError } from "@/lib/observability/report-error";
 
@@ -42,10 +43,10 @@ export function ErrorBoundary({
     <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
       <div className="max-w-md w-full text-center space-y-4">
         <div
-          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-warn)]/15 text-[var(--color-ln-warn)] text-3xl"
+          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-warn)]/15 text-[var(--color-ln-warn)]"
           aria-hidden="true"
         >
-          ⚠
+          <Icon name="alerta" size={28} decorative />
         </div>
         <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">Algo salió mal</h1>
         <p className="text-sm text-[var(--color-ln-mute)]">

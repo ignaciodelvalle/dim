@@ -17,6 +17,7 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
 
 import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
@@ -104,10 +105,8 @@ export function LostLastSeenCard({
         </div>
       ) : (
         <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  ">
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span aria-hidden className="text-4xl drop-shadow">
-              📍
-            </span>
+          <div className="absolute inset-0 flex items-center justify-center text-[var(--color-ln-ok)] drop-shadow">
+            <Icon name="ubicacion" size={36} decorative />
           </div>
           <Link
             href={editHref}

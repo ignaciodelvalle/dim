@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { formatDate } from "@/lib/utils/format";
 
 export function PregnancyInProgressCard({
@@ -28,9 +29,7 @@ export function PregnancyInProgressCard({
       className="rounded-2xl border border-ln-err bg-[var(--color-ln-err-050)] p-5 text-ln-err    space-y-3"
     >
       <header className="flex items-center gap-2">
-        <span aria-hidden className="text-xl">
-          🌸
-        </span>
+        <Icon name="embarazo" size="lg" decorative />
         <h2 className="text-base font-semibold">Embarazo en seguimiento</h2>
       </header>
 

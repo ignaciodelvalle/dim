@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { lookupTransferTargetAction, resolveDisputeAction } from "@/app/actions/custody-disputes";
+import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
@@ -181,10 +182,13 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
 
             {verifyState.status === "ok" && (
               <p
-                className={`text-sm mt-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
+                className={`text-sm mt-1 flex items-center gap-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
               >
-                {verifyState.active ? "✓" : "✗"} {verifyState.displayName}
-                {!verifyState.active && " — cuenta desactivada"}
+                <Icon name={verifyState.active ? "check" : "close"} size={14} decorative />
+                <span>
+                  {verifyState.displayName}
+                  {!verifyState.active && " — cuenta desactivada"}
+                </span>
               </p>
             )}
             {verifyState.status === "error" && (

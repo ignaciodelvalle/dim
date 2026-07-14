@@ -7,6 +7,7 @@
 // Intentionally minimal: no attestation block, no requirements list, no CTAs.
 // Those are owner-context concerns shown only on the owner profile (PpPCard).
 
+import { Icon } from "@/components/Icon";
 import { buildPppDisclaimerLine, buildPppHeadline } from "@/lib/domain/ppp-public-badge";
 
 interface Props {
@@ -21,7 +22,10 @@ export function PppPublicBadge({ petName, breed }: Props) {
       className="rounded-2xl border border-ln-warn bg-[var(--color-ln-warn-050)] p-4 space-y-2  "
     >
       <header className="flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-ln-warn ">{buildPppHeadline()}</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ln-warn ">
+          <Icon name="alerta" size="sm" decorative />
+          {buildPppHeadline()}
+        </h2>
         <span className="text-xs font-medium uppercase tracking-wider text-ln-warn ">
           Ley 4078 · Prov 14.107
         </span>

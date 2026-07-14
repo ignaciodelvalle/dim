@@ -327,8 +327,8 @@ export async function reportFinderInPossessionAction(
     userId: owner.userId,
     notificationType: "pet_in_possession",
     title: isUrgent
-      ? `🚨 URGENTE: Alguien tiene a ${pet.name} y necesita vet`
-      : `🚨 Alguien tiene a ${pet.name}`,
+      ? `URGENTE: Alguien tiene a ${pet.name} y necesita vet`
+      : `Alguien tiene a ${pet.name}`,
     body: notifBody,
     severity: "urgent",
     category: "perdidas",

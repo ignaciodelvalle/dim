@@ -21,6 +21,7 @@ import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
 import type { WelfareReportFormState } from "@/src/modules/welfare/actions";
@@ -341,7 +342,7 @@ export function WelfareReportForm({
                         />
                       ) : (
                         <div className="w-full aspect-square rounded-lg border border-ln-line bg-ln-stripe flex flex-col items-center justify-center gap-1 p-2">
-                          <span className="text-2xl select-none">▶</span>
+                          <Icon name="reproducir" size="lg" decorative className="text-ln-mute" />
                           <p className="text-xs text-ln-mute text-center truncate w-full">
                             {entry.file.name}
                           </p>
@@ -372,7 +373,12 @@ export function WelfareReportForm({
           className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-ln-ink-2 hover:bg-ln-stripe rounded-lg transition-colors"
         >
           <span>Contacto opcional</span>
-          <span className="text-ln-mute">{showContact ? "▲" : "▼"}</span>
+          <Icon
+            name="chevron-right"
+            size="sm"
+            decorative
+            className={`text-ln-mute transition-transform duration-150 ${showContact ? "-rotate-90" : "rotate-90"}`}
+          />
         </button>
         {showContact && (
           <div className="px-4 pb-4 space-y-4 border-t border-ln-line pt-4">

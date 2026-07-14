@@ -38,6 +38,8 @@ import type maplibregl from "maplibre-gl";
 import { useEffect, useId, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
+import { Icon } from "@/components/Icon";
+
 export type StaticFirstMapProps = {
   /** Marker/center latitude. */
   lat: number;
@@ -123,11 +125,9 @@ export function StaticFirstMap({
         <div
           role="img"
           aria-label={`Mapa estático${label ? ` de ${label}` : ""}, latitud ${lat}, longitud ${lng}. ${precisionLabel}.`}
-          className={`${heightClassName} relative flex w-full flex-col items-center justify-center gap-2 bg-ln-op-stripe px-4 text-center`}
+          className={`${heightClassName} relative flex w-full flex-col items-center justify-center gap-2 bg-ln-op-stripe px-4 text-center text-ln-op-mute`}
         >
-          <span aria-hidden="true" className="text-3xl">
-            📍
-          </span>
+          <Icon name="ubicacion" size={28} decorative />
           {label && <p className="text-sm font-semibold text-ln-op-ink">{label}</p>}
           <p className="text-xs text-ln-op-mute">{precisionLabel}</p>
           <button

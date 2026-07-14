@@ -114,7 +114,7 @@ export function PetSightingForm({
       {/* Photo group — collapsible */}
       <details className="rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)]">
-          📷 ¿Le sacaste foto? (opcional)
+          ¿Le sacaste foto? (opcional)
         </summary>
         <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
           {/* B-1: explicit label for the file input */}
@@ -138,7 +138,7 @@ export function PetSightingForm({
       {/* Contact group — collapsible */}
       <details className="rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)]">
-          📞 ¿Querés que te puedan contactar? (opcional)
+          ¿Querés que te puedan contactar? (opcional)
         </summary>
         <div className="p-4 border-t border-[var(--color-ln-line)] space-y-3">
           <div className="space-y-1">

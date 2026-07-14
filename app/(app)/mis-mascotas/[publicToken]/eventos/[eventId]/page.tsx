@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Icon } from "@/components/Icon";
 import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { attachments, db, petEvents } from "@/db";
@@ -288,9 +289,8 @@ function AuthorChip({ role, verified }: { role: string; verified: boolean }) {
           className="inline-flex h-[13px] w-[13px] items-center justify-center rounded-full bg-[var(--color-ln-ok)] text-white"
           title="Verificado"
           aria-label="verificado"
-          style={{ fontSize: 8 }}
         >
-          ✓
+          <Icon name="check" size={9} decorative />
         </span>
       )}
     </span>

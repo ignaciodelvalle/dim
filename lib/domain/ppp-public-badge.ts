@@ -5,7 +5,7 @@
 // PppPublicBadge.test.ts guards this contract.
 
 export function buildPppHeadline(): string {
-  return "⚠ Animal Potencialmente Peligroso (PPP)";
+  return "Animal Potencialmente Peligroso (PPP)";
 }
 
 /**

@@ -3,6 +3,8 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
+
 /**
  * Libreta Nacional Sheet frame.
  *
@@ -27,7 +29,7 @@ import type { ReactNode } from "react";
  * Usage:
  *   <LnSheetPage
  *     tone="verde"
- *     icon="💉"
+ *     icon={<Icon name="vacuna" decorative />}
  *     title="Registrar vacuna"
  *     subtitle="Libreta sanitaria"
  *     routeChip="?asiento=vacuna"
@@ -248,9 +250,7 @@ export function LnSheetHeader({
           aria-label="Cerrar"
           className="grid h-[30px] w-[30px] flex-shrink-0 cursor-pointer place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
-          <span aria-hidden="true" className="text-lg leading-none">
-            ×
-          </span>
+          <Icon name="close" size="sm" decorative />
         </button>
       )}
     </div>
@@ -461,8 +461,8 @@ export function LnSheetAccordion({
         </span>
         {/* Complete badge — hidden when open */}
         {complete && (
-          <span className="font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ok)] group-open:hidden">
-            ✓ completo
+          <span className="inline-flex items-center gap-1 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ok)] group-open:hidden">
+            <Icon name="check" size={14} decorative /> completo
           </span>
         )}
         {/* Chevron */}

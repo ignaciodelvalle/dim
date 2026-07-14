@@ -120,9 +120,12 @@ function ObligationCardView({
       {card.dual && (
         <div className="mt-0.5 flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2.5">
-            <span aria-hidden className="font-semibold text-[var(--color-ln-ok)]">
-              ✓
-            </span>
+            <Icon
+              name="check"
+              size="sm"
+              decorative
+              className="flex-shrink-0 text-[var(--color-ln-ok)]"
+            />
             <span className="text-xs font-medium leading-relaxed text-[var(--color-ln-ink)]">
               {card.dual.ownerLabel}
             </span>

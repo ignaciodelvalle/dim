@@ -23,6 +23,7 @@
 import Link from "next/link";
 import { type ReactNode, useEffect, useId, useRef } from "react";
 
+import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard";
 
 type Props = {
@@ -83,10 +84,11 @@ export function InspectorPanel({ title, fullPageHref, onClose, onBack, children 
             <Link
               href={fullPageHref}
               prefetch={false}
-              className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[var(--text-sm)] text-ln-op-mute hover:bg-ln-op-stripe hover:text-ln-op-ink-2"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[var(--text-sm)] text-ln-op-mute hover:bg-ln-op-stripe hover:text-ln-op-ink-2"
               title="Abrir en página completa"
             >
-              ◹ Abrir en página completa
+              <Icon name="externo" size="sm" decorative />
+              Abrir en página completa
             </Link>
           )}
           <OpButton
@@ -97,7 +99,7 @@ export function InspectorPanel({ title, fullPageHref, onClose, onBack, children 
             aria-label="Cerrar inspector"
             data-inspector-close
           >
-            ✕
+            <Icon name="close" size="sm" decorative />
           </OpButton>
         </div>
       </header>

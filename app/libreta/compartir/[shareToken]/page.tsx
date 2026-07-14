@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { LibretaIdentityHeader } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaIdentityHeader";
 import { LibretaSanitariaView } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView";
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { attachments, db, libretaShareTokens, petEvents, pets, profiles } from "@/db";
 import { excludeSelfScansClause } from "@/lib/events/events";
@@ -295,8 +296,8 @@ function TerminalShell({
                 className="h-full w-full object-cover"
               />
             ) : (
-              <span aria-hidden="true" className="text-3xl">
-                🐾
+              <span aria-hidden="true" className="text-[var(--color-ln-mute)]">
+                <Icon name="huella" size={40} decorative />
               </span>
             )}
           </span>

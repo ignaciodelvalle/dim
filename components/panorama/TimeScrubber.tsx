@@ -38,6 +38,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import {
   type ScrubWindow,
@@ -545,7 +546,7 @@ export function TimeScrubber({
               }
               className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <span aria-hidden="true">{playing ? "⏸" : "▶"}</span>
+              <Icon name={playing ? "pausa" : "reproducir"} size="sm" decorative />
             </button>
 
             <div

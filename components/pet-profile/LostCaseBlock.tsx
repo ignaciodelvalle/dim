@@ -143,8 +143,8 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
   // disclosure prefs but never actually varied on them) — only names the
   // owner when discloseFirstNameWhenLost is on.
   const shareText = pet.discloseFirstNameWhenLost
-    ? `🚨 ${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Lo busca ${ownerFirstName}. Si la ves, escaneá el QR o avisanos.`
-    : `🚨 ${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Si la ves, escaneá el QR o avisanos.`;
+    ? `${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Lo busca ${ownerFirstName}. Si la ves, escaneá el QR o avisanos.`
+    : `${pet.name} ${lostThirdPersonPhrase(pet.sex)}. Si la ves, escaneá el QR o avisanos.`;
   const posterHref = `/mis-mascotas/${pet.publicToken}/cartel`;
   const publicHref = `/p/${pet.publicToken}`;
   const editLastSeenHref = `/mis-mascotas/${pet.publicToken}/perdida`;
@@ -213,7 +213,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
         <div className="p-4" style={{ background: "var(--color-ln-card)" }}>
           {/* Prominent happy-path CTA — capability 2 (PO 2026-07-05: the found
               action was "hard to find" as a small icon). A worried owner looks
-              here first, so the "¡Apareció!" primary button leads the block
+              here first, so the "Apareció" primary button leads the block
               (opens ?sheet=marcar-encontrada). This is now the ONLY found
               affordance — PetActionRow no longer carries it. */}
           <SheetTriggerLink
@@ -221,7 +221,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
             className="ln-found-cta mb-4"
           >
             <Icon name="check" size="sm" decorative />
-            ¡Apareció! Marcar como {foundParticiple(pet.sex)}
+            Apareció — marcar como {foundParticiple(pet.sex)}
           </SheetTriggerLink>
 
           {/* Share-first hero — capability 6. Rendered directly (no LnCard

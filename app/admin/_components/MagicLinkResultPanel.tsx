@@ -11,6 +11,8 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
+
 import { OpButton } from "@/components/ui/dashboard";
 import { MAGIC_LINK_TTL_SECONDS, formatTtl } from "@/lib/utils/magic-link-ttl";
 
@@ -85,7 +87,15 @@ export function MagicLinkResultPanel({
   }
 
   const copyLabel =
-    copyState === "copied" ? "Copiado ✓" : copyState === "error" ? "Error al copiar" : "Copiar";
+    copyState === "copied" ? (
+      <span className="inline-flex items-center gap-1">
+        Copiado <Icon name="check" size={14} decorative />
+      </span>
+    ) : copyState === "error" ? (
+      "Error al copiar"
+    ) : (
+      "Copiar"
+    );
 
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">

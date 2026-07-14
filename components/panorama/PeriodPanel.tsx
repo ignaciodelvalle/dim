@@ -17,6 +17,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { DateRangePicker } from "@/components/gob/DateRangePicker";
 import type { DateRange } from "@/components/gob/DateRangePicker";
 import type { PeriodPreset } from "@/components/gob/PeriodPicker";
@@ -94,8 +95,8 @@ export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: 
                 : "text-ln-op-ink hover:bg-ln-op-stripe"
             }`}
           >
-            <span aria-hidden="true" className="w-3 text-ln-op-azul">
-              {isActive ? "✓" : ""}
+            <span aria-hidden="true" className="inline-flex w-3 items-center text-ln-op-azul">
+              {isActive ? <Icon name="check" size={12} decorative /> : null}
             </span>
             {label}
           </button>
@@ -113,8 +114,8 @@ export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: 
                 : "text-ln-op-ink hover:bg-ln-op-stripe"
             }`}
           >
-            <span aria-hidden="true" className="w-3 text-ln-op-azul">
-              {customActive ? "✓" : ""}
+            <span aria-hidden="true" className="inline-flex w-3 items-center text-ln-op-azul">
+              {customActive ? <Icon name="check" size={12} decorative /> : null}
             </span>
             Personalizado…
           </button>

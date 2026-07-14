@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Icon } from "@/components/Icon";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -129,7 +130,7 @@ export default async function InvestigacionDetailPage({
       <OpBreach
         title="Notificación externa no integrada"
         detail="La notificación obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) no está integrada en esta versión: debe realizarse por los canales habituales de la jurisdicción. Registrá acá cuándo y por qué canal notificaste para dejar el rastro de auditoría."
-        icon="⚠"
+        icon={<Icon name="alerta" decorative />}
       />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

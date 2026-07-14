@@ -34,6 +34,7 @@ import {
   reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
+import { Icon } from "@/components/Icon";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnInput, LnSelect } from "@/components/ui/Field";
 import { PROVINCES, type Province, provinceByName } from "@/lib/reference/ar-provincias";
@@ -376,7 +377,7 @@ export function LocationFields({
           aria-label="Usar mi ubicación actual"
           className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-ln-azul text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-2 transition-colors"
         >
-          <span aria-hidden="true">📍</span>
+          <Icon name="ubicacion" size="sm" decorative />
           {geoLoading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
         </button>
       )}

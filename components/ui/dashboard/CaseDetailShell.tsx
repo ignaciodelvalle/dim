@@ -22,6 +22,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
 import { CaseHeader } from "@/components/ui/dashboard/CaseHeader";
 import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
@@ -287,9 +288,9 @@ function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
         ) : (
           <div
             aria-hidden="true"
-            className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-ln-op-stripe text-2xl"
+            className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-ln-op-stripe text-ln-op-mute"
           >
-            🐾
+            <Icon name="huella" size={28} decorative />
           </div>
         )}
         <div className="min-w-0 flex-1">

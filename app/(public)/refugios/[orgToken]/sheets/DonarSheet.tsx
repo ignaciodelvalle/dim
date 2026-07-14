@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/ui/VaulSheet";
 import type { DonationMethods } from "@/lib/infra/org-public-profile";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
@@ -104,9 +105,15 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
                         <button
                           type="button"
                           onClick={() => copy(row.label, row.value)}
-                          className="text-xs text-[var(--color-ln-azul)] hover:underline shrink-0"
+                          className="flex items-center gap-1 text-xs text-[var(--color-ln-azul)] hover:underline shrink-0"
                         >
-                          {copiedKey === row.label ? "✓" : "Copiar"}
+                          {copiedKey === row.label ? (
+                            <>
+                              <Icon name="check" size="sm" decorative /> Copiado
+                            </>
+                          ) : (
+                            "Copiar"
+                          )}
                         </button>
                       )}
                     </div>

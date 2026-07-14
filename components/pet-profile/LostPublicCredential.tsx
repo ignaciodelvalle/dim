@@ -176,7 +176,8 @@ export function LostPublicCredential({
                 href={`tel:${normalizePhoneForTel(ownerPhoneE164) ?? ownerPhoneE164}`}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-ok px-5 text-sm font-semibold text-white hover:bg-ln-ok/90"
               >
-                📞 Llamar{ownerFirstName ? ` a ${ownerFirstName}` : ""}
+                <Icon name="telefono" size="sm" decorative /> Llamar
+                {ownerFirstName ? ` a ${ownerFirstName}` : ""}
               </a>
             )}
             {finderFormHref && (
@@ -184,7 +185,7 @@ export function LostPublicCredential({
                 href={finderFormHref}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-azul px-5 text-sm font-semibold text-white hover:bg-ln-azul-700"
               >
-                📍 {foundPossessivePhrase(petSex)}
+                <Icon name="ubicacion" size="sm" decorative /> {foundPossessivePhrase(petSex)}
               </Link>
             )}
             {sightingFormHref && (
@@ -192,7 +193,7 @@ export function LostPublicCredential({
                 href={sightingFormHref}
                 className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-card border border-ln-line px-5 text-sm font-semibold text-ln-ink hover:bg-ln-stripe   "
               >
-                👀 {sightingPhrase(petSex)}
+                <Icon name="ojo" size="sm" decorative /> {sightingPhrase(petSex)}
               </Link>
             )}
           </div>
@@ -263,10 +264,8 @@ export function LostPublicCredential({
                 <LocationMap lat={lastSeenLat as number} lng={lastSeenLng as number} />
               </div>
             ) : (
-              <div className="mt-3 flex h-32 flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  ">
-                <span aria-hidden="true" className="text-3xl">
-                  📍
-                </span>
+              <div className="mt-3 flex h-32 flex-col items-center justify-center gap-1 rounded-xl bg-gradient-to-br from-[var(--color-ln-ok-050)] to-ln-celeste/10  text-[var(--color-ln-mute)]">
+                <Icon name="ubicacion" size={28} decorative />
                 <span className="text-xs text-[var(--color-ln-mute)]">
                   Sin punto exacto en el mapa
                 </span>

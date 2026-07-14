@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { OpBreach } from "@/components/ui/dashboard";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { ENO_DISEASES_AR } from "@/src/modules/surveillance/domain/eno-catalog";
@@ -38,7 +39,7 @@ export default async function NuevaInvestigacionPage({
       <OpBreach
         title="Notificación externa no integrada"
         detail="La notificación obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) no está integrada en esta versión. Realizala a través de los canales habituales de tu jurisdicción antes o después de registrar la investigación en este sistema."
-        icon="⚠"
+        icon={<Icon name="alerta" decorative />}
       />
 
       <OpenInvestigationForm

@@ -12,6 +12,7 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { CaseBadge } from "@/components/CaseBadge";
+import { Icon } from "@/components/Icon";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
@@ -600,9 +601,9 @@ export default async function GobiernoDashboardPage({
                       {c.primaryPetPublicToken && c.primaryPetName ? (
                         <Link
                           href={`/mis-mascotas/${c.primaryPetPublicToken}`}
-                          className="text-sm text-ln-op-mute hover:underline no-underline"
+                          className="inline-flex items-center gap-1 text-sm text-ln-op-mute hover:underline no-underline"
                         >
-                          🐾 {c.primaryPetName}
+                          <Icon name="huella" size={14} decorative /> {c.primaryPetName}
                         </Link>
                       ) : null}
                     </li>

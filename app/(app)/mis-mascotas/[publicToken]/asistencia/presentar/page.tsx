@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 
+import { Icon } from "@/components/Icon";
 import { attachments, db, petServiceDog } from "@/db";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -95,8 +96,8 @@ export default async function AsistenciaPresentarPage({
             className="h-[144px] w-[144px] rounded-full object-cover shadow-md ring-4 ring-[var(--color-ln-ok)]"
           />
         ) : (
-          <div className="flex h-[144px] w-[144px] items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-6xl shadow-md ring-4 ring-[var(--color-ln-ok)]">
-            🦮
+          <div className="flex h-[144px] w-[144px] items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] shadow-md ring-4 ring-[var(--color-ln-ok)]">
+            <Icon name="huella" size={72} decorative />
           </div>
         )}
 

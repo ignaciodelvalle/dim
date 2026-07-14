@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterVolunteers, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
@@ -143,9 +144,9 @@ function PreCheckChecklist({
         {items.map((item) => (
           <li key={item.label} className="flex items-center gap-2">
             <span
-              className={`flex-shrink-0 font-[var(--font-ln-mono)] text-sm ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
+              className={`inline-flex flex-shrink-0 items-center ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
             >
-              {item.ok ? "✓" : "○"}
+              <Icon name={item.ok ? "check" : "circle"} size={14} decorative />
             </span>
             <span className="flex-1 text-[12.5px] text-[var(--color-ln-ink-2)]">{item.label}</span>
             {item.cta && (

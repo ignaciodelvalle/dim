@@ -53,7 +53,10 @@ describe("PanoramaKpiTile — v+1 rail (meta-progress meters + sparklines)", () 
 
   it("keeps the delta line a NEUTRAL glyph — never a valence color (code review 2026-07-03)", () => {
     const html = renderToStaticMarkup(<PanoramaKpiTile kpi={COBERTURA_KPI} />);
-    expect(html).toContain("▲");
+    // UI professionalism pass: the raw "▲" glyph was retired in favor of the
+    // Icon registry (data-icon-name="chevron-up") — same "up" signal, no bare
+    // symbol-as-icon text.
+    expect(html).toContain('data-icon-name="chevron-up"');
     expect(html).toContain("+12% vs período anterior");
     // The neutral delta line must not carry the ok/err color tokens (those are
     // reserved for the v1/v2 OpKpi delta props, unused by PanoramaKpiTile).

@@ -37,6 +37,14 @@ const STATUS_LABEL: Record<AlertFiringStatus, string> = {
 
 // Icon reinforces meaning beyond color (WCAG 1.4.1). aria-hidden — the visible
 // text label is the accessible name.
+//
+// DELIBERATE GLYPH EXCEPTION (PO-approved 2026-07-14, UI professionalism pass).
+// These six escalation marks encode a *quarter-fill progression* — ▲ (fired) →
+// ◔ (¼) → ◑ (½) → ◕ (¾) → ● (full/resolved), with ○ (empty) for discarded. The
+// increasing pie-fill communicates triage advancement at a glance, an ordinal
+// metaphor that lucide-react has NO equivalent for (its Circle family is not a
+// graduated fill set). Substituting stroke icons would lose the progression, so
+// these glyphs are whitelisted in the emoji/icon professionalism fence.
 const STATUS_ICON: Record<AlertFiringStatus, string> = {
   disparada: "▲",
   reconocida: "◔",

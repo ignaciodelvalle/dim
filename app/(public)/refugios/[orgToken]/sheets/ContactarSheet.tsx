@@ -12,6 +12,7 @@
 
 import { useActionState, useEffect } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnInput, LnTextarea } from "@/components/ui/Field";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
@@ -68,15 +69,23 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
             </p>
             {orgEmail && (
               <p>
-                <a href={`mailto:${orgEmail}`} className="text-[var(--color-ln-azul)] underline">
-                  ✉ {orgEmail}
+                <a
+                  href={`mailto:${orgEmail}`}
+                  className="inline-flex items-center gap-1.5 text-[var(--color-ln-azul)] underline"
+                >
+                  <Icon name="mail" size="sm" decorative />
+                  {orgEmail}
                 </a>
               </p>
             )}
             {orgPhone && (
               <p>
-                <a href={`tel:${orgPhone}`} className="text-[var(--color-ln-azul)] underline">
-                  📞 {orgPhone}
+                <a
+                  href={`tel:${orgPhone}`}
+                  className="inline-flex items-center gap-1.5 text-[var(--color-ln-azul)] underline"
+                >
+                  <Icon name="telefono" size="sm" decorative />
+                  {orgPhone}
                 </a>
               </p>
             )}

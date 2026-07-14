@@ -34,9 +34,9 @@ export default function IntegracionMiArgPage() {
           {/* Coat-of-arms placeholder */}
           <div
             aria-hidden="true"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-ln-op-navy text-lg font-bold select-none"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-ln-op-navy text-sm font-bold tracking-wide select-none"
           >
-            🇦🇷
+            AR
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
@@ -61,8 +61,8 @@ export default function IntegracionMiArgPage() {
               Mascotas registradas en MiMAR
             </p>
             <ul className="space-y-0.5 text-[13px] text-ln-op-ink">
-              <li>🐕 Duque — Labrador Retriever — Microchip 858000011223</li>
-              <li>🐈 Mimi — Angora — sin microchip</li>
+              <li>• Duque — Labrador Retriever — Microchip 858000011223</li>
+              <li>• Mimi — Angora — sin microchip</li>
             </ul>
           </div>
 

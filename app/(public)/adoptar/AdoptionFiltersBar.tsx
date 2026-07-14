@@ -5,6 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
+import { Icon } from "@/components/Icon";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
 import {
@@ -320,9 +321,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
                 }}
               >
                 {label}
-                <span aria-hidden="true" className="text-xs leading-none">
-                  ×
-                </span>
+                <Icon name="close" size="sm" decorative />
               </Link>
             );
           })}

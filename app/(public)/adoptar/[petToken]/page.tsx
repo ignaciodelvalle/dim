@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 
+import { Icon } from "@/components/Icon";
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -295,7 +296,7 @@ export default async function AdoptarFichaPage({
                     className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
-                    ✓ Vacunas al día
+                    <Icon name="check" size="sm" decorative /> Vacunas al día
                   </span>
                 )}
                 {isSterilized && (
@@ -303,7 +304,7 @@ export default async function AdoptarFichaPage({
                     className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
-                    ✓ Castrada
+                    <Icon name="check" size="sm" decorative /> Castrada
                   </span>
                 )}
                 {hasMicrochip && (
@@ -679,7 +680,7 @@ function HealthRow({
             : { background: "#fdecec", color: "#9c2b1d" }
         }
       >
-        {ok ? "✓" : "—"}
+        {ok ? <Icon name="check" size="sm" decorative /> : "—"}
       </span>
       <div>
         <span className="text-[13px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
@@ -704,10 +705,15 @@ function ConvivenciaChip({ label, value }: { label: string; value: boolean | nul
       : { background: "#fff4d6", color: "#8a5e00", borderColor: "#ffe39c" };
   return (
     <span
-      className="inline-flex rounded-full border px-[11px] py-[5px] text-sm font-semibold"
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-semibold"
       style={style}
     >
-      {value ? "✓" : "✗"} {label}
+      {value ? (
+        <Icon name="check" size="sm" decorative />
+      ) : (
+        <Icon name="close" size="sm" decorative />
+      )}
+      {label}
     </span>
   );
 }
@@ -727,7 +733,6 @@ function RecentlyAdopted({ name }: { name: string }) {
         }}
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
-        <p className="text-[56px]">🎉</p>
         <h1
           className="font-[var(--font-ln-serif)] font-semibold text-[30px] tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}

@@ -5,6 +5,8 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
+
 interface Props {
   /** Full canonical URL for this adoption ficha. */
   fichaUrl: string;
@@ -52,7 +54,8 @@ export function AdoptionShareRow({ fichaUrl, petName }: Props) {
           color: "var(--color-ln-ok)",
         }}
       >
-        💬 Compartir por WhatsApp
+        <Icon name="mensaje" size="sm" decorative />
+        Compartir por WhatsApp
       </button>
       <button
         type="button"
@@ -64,7 +67,15 @@ export function AdoptionShareRow({ fichaUrl, petName }: Props) {
           color: "var(--color-ln-ink-2)",
         }}
       >
-        {copied ? "¡Copiado! ✓" : "🔗 Copiar link"}
+        {copied ? (
+          <>
+            ¡Copiado! <Icon name="check" size="sm" decorative />
+          </>
+        ) : (
+          <>
+            <Icon name="enlace" size="sm" decorative /> Copiar link
+          </>
+        )}
       </button>
     </div>
   );

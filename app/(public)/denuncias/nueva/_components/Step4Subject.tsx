@@ -15,6 +15,7 @@ import {
   type PublicLookupResult,
   lookupPetForDenunciaAction,
 } from "@/app/actions/pet-lookup-public";
+import { Icon } from "@/components/Icon";
 import { LnInput, LnTextarea } from "@/components/ui/Field";
 
 const LOOKUP_DEBOUNCE_MS = 300;
@@ -27,13 +28,13 @@ const SUBJECT_CARDS = [
     value: "registered_pet" as SubjectKindWizard,
     label: "Una mascota",
     description: "El animal tiene o puede tener dueño",
-    icon: "🐾",
+    icon: "huella",
   },
   {
     value: "unowned_animal" as SubjectKindWizard,
     label: "Animal sin dueño / no lo sé",
     description: "Callejero, abandonado, o no sé si tiene dueño",
-    icon: "🐕",
+    icon: "huella",
   },
 ];
 
@@ -92,11 +93,8 @@ export function Step4Subject({
                   onChange={() => onSubjectKindChange(card.value)}
                   className="sr-only"
                 />
-                <span
-                  className="text-xl leading-none flex-shrink-0 w-6 text-center"
-                  aria-hidden="true"
-                >
-                  {card.icon}
+                <span className="flex-shrink-0 w-6 flex items-center justify-center text-[var(--color-ln-mute)]">
+                  <Icon name={card.icon} size="md" decorative />
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
@@ -130,7 +128,10 @@ export function Step4Subject({
             : "border-dashed border-[var(--color-ln-line-strong)] text-[var(--color-ln-mute)] hover:border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]"
         }`}
       >
-        🏢 Edificio / persona / lugar específico
+        <span className="flex items-center gap-1.5">
+          <Icon name="edificio" size="sm" decorative />
+          Edificio / persona / lugar específico
+        </span>
       </button>
 
       {/* Conditional fields */}
@@ -275,7 +276,8 @@ function PetLookupPreview({ query }: { query: string }) {
   return (
     <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
       <p>
-        ✓ Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
+        <Icon name="check" size="sm" decorative className="inline align-text-bottom mr-1" />
+        Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
         <span className="text-[var(--color-ln-mute)]">({statusLabel})</span>
         {result.ownerInitials && (
           <>

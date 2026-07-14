@@ -21,6 +21,7 @@
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import {
   type JurisdictionScope,
   JurisdictionSwitcher,
@@ -4379,7 +4380,7 @@ export function PanoramaConsole({
               onClick={copyView}
               className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
             >
-              <span aria-hidden="true">🔗</span> Copiar vista
+              <Icon name="enlace" size="sm" decorative /> Copiar vista
               {copied && <span className="text-[var(--text-xs)] text-ln-op-ok">· copiada</span>}
             </button>
             <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
@@ -4398,7 +4399,7 @@ export function PanoramaConsole({
               onClick={() => exportPngFnRef.current?.()}
               className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
             >
-              <span aria-hidden="true">🖼️</span> Exportar PNG
+              <Icon name="exportar-imagen" size="sm" decorative /> Exportar PNG
             </button>
             <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
               Descarga el mapa con una nota de método al pie.
@@ -4410,7 +4411,7 @@ export function PanoramaConsole({
               onClick={handlePrintInforme}
               className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
             >
-              <span aria-hidden="true">📄</span> Informe de situación
+              <Icon name="nota" size="sm" decorative /> Informe de situación
             </button>
             <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
               Genera un informe imprimible de la vista actual (indicadores, ranking y método) para
@@ -4685,7 +4686,7 @@ export function PanoramaConsole({
                     onClick={() => setPersonalizadaFrom(null)}
                     className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
                   >
-                    ✕
+                    <Icon name="close" size="sm" decorative />
                   </button>
                 </output>
               )}

@@ -147,7 +147,7 @@ export function Tier2MedicalView({
                 className="flex items-center gap-[7px] border-b border-ln-line-2 py-1 text-[13px] text-ln-ink"
               >
                 <span aria-hidden="true" className="text-xs text-ln-azul">
-                  ●
+                  •
                 </span>
                 {drug}
               </li>

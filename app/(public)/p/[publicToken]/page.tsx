@@ -13,6 +13,7 @@
 // page renders a soft throttle notice (not a 429 hard error) to preserve UX.
 // Token entropy widening is tracked as a follow-up (would invalidate existing tokens).
 
+import { Icon } from "@/components/Icon";
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
@@ -605,8 +606,8 @@ export default async function PublicCredentialPage({
             className="sticky top-0 z-30 -mx-4 mb-4 flex items-start gap-[11px] border-b border-ln-err-100 bg-ln-err-050 px-[18px] py-[13px] md:static md:mx-0 md:mb-4 md:rounded-[var(--radius-sm)]"
           >
             {/* Heartbeat icon */}
-            <span aria-hidden="true" className="mt-px flex-shrink-0 text-lg text-ln-seal">
-              ♥
+            <span aria-hidden="true" className="mt-px flex-shrink-0 text-ln-seal">
+              <Icon name="corazon" size="md" decorative />
             </span>
             <div>
               <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
@@ -755,7 +756,7 @@ export default async function PublicCredentialPage({
           {/* Tier 2 enabled notice */}
           {tier2Active && (
             <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-4 py-2.5 font-[var(--font-ln-mono)] text-xs leading-[1.5] tracking-[.02em] text-ln-azul-700">
-              <span aria-hidden="true">🔓</span>
+              <Icon name="unlock" size="sm" decorative />
               {pet.tier2PublicPermanent
                 ? "El dueño habilitó la libreta médica de forma permanente"
                 : tier2EnabledUntil

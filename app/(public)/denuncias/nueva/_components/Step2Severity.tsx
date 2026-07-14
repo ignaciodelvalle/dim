@@ -11,6 +11,8 @@
 // callout is shown directing the reporter to call 911 for immediate danger.
 // The async report flow still proceeds — this is a safety net, not a blocker.
 
+import { Icon } from "@/components/Icon";
+
 export type WizardSeverity = "grave_urgente" | "moderado" | "sospecha";
 
 // Maps wizard value → DB enum value
@@ -36,7 +38,7 @@ const SEVERITY_CARDS: SeverityCard[] = [
     value: "grave_urgente",
     label: "Grave / urgente",
     description: "El animal está en peligro inmediato o hay heridas visibles",
-    icon: "🚨",
+    icon: "sirena",
     baseClass:
       "border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]",
     selectedClass:
@@ -46,7 +48,7 @@ const SEVERITY_CARDS: SeverityCard[] = [
     value: "moderado",
     label: "Moderado",
     description: "Condiciones de vida malas, abandono, descuido sostenido",
-    icon: "⚠️",
+    icon: "alerta",
     baseClass:
       "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] text-[var(--color-ln-warn)]",
     selectedClass:
@@ -56,7 +58,7 @@ const SEVERITY_CARDS: SeverityCard[] = [
     value: "sospecha",
     label: "Sospecha",
     description: "Creo que algo no está bien, pero no estoy seguro/a",
-    icon: "🔍",
+    icon: "lupa",
     baseClass:
       "border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink)]",
     selectedClass:
@@ -105,8 +107,8 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
                     onChange={() => onSelect(card.value)}
                     className="sr-only"
                   />
-                  <span className="text-xl leading-none" aria-hidden="true">
-                    {card.icon}
+                  <span className="block" aria-hidden="true">
+                    <Icon name={card.icon} size={22} decorative />
                   </span>
                   <span className="block mt-1 text-sm font-semibold">{card.label}</span>
                   <span className="block text-xs mt-0.5 leading-relaxed opacity-80">
@@ -132,7 +134,7 @@ export function Step2Severity({ selected, onSelect }: Step2SeverityProps) {
           className="rounded-[var(--radius-md)] border-2 border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-4 py-4 space-y-2"
         >
           <p className="text-sm font-bold text-[var(--color-ln-seal)]">
-            ⚠️ Si el animal está en peligro inmediato, llamá al{" "}
+            Si el animal está en peligro inmediato, llamá al{" "}
             <strong className="text-[var(--color-ln-seal)]">911</strong> ahora.
           </p>
           <p className="text-xs text-[var(--color-ln-seal)] leading-relaxed">

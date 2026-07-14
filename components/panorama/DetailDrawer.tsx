@@ -39,6 +39,7 @@ import { usePathname } from "next/navigation";
 import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 
@@ -789,7 +790,7 @@ export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
               aria-label="Cerrar"
               className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
             >
-              ✕
+              <Icon name="close" size="sm" decorative />
             </button>
           </header>
 

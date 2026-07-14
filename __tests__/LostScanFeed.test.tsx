@@ -62,7 +62,7 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
     // The alt text should be descriptive (in Spanish, per repo convention).
     expect(html).toContain("Foto adjunta al avistaje");
     // The "foto adjunta" text fallback should NOT appear when a real img is rendered.
-    expect(html).not.toContain("📷 foto adjunta");
+    expect(html).not.toContain("foto adjunta");
   });
 
   it("renders 'foto adjunta' text fallback when photoStoragePath is set but photoUrl is absent", () => {
@@ -86,7 +86,8 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
     const html = renderFeed(items);
 
     expect(html).toContain("11-5555-1234");
-    expect(html).toContain("📞");
+    // The phone glyph is now a lucide icon routed through <Icon name="telefono">.
+    expect(html).toContain('data-icon-name="telefono"');
   });
 
   it("renders nothing for photo/contact when neither is set", () => {
@@ -95,8 +96,8 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
     ];
     const html = renderFeed(items);
 
-    expect(html).not.toContain("📞");
-    expect(html).not.toContain("📷");
+    expect(html).not.toContain('data-icon-name="telefono"');
+    expect(html).not.toContain('data-icon-name="camara"');
     expect(html).not.toContain("<img");
   });
 });

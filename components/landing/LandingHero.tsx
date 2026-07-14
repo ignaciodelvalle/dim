@@ -58,9 +58,9 @@ type HeroState = {
 // PO-approved sequence. "encontrada" resolves back to AL DÍA (green) on
 // purpose — being found returns the credential to its resting state.
 const HERO_STATES: HeroState[] = [
-  { key: "aldia", badge: "AL DÍA", tone: "ok", row: "Vacunas firmadas ✓" },
-  { key: "perdida", badge: "PERDIDA", tone: "lost", row: "📞 Llamar al dueño" },
-  { key: "encontrada", badge: "AL DÍA", tone: "ok", row: "Volvió a casa ✓" },
+  { key: "aldia", badge: "AL DÍA", tone: "ok", row: "Vacunas firmadas" },
+  { key: "perdida", badge: "PERDIDA", tone: "lost", row: "Llamar al dueño" },
+  { key: "encontrada", badge: "AL DÍA", tone: "ok", row: "Volvió a casa" },
   { key: "observacion", badge: "EN OBSERVACIÓN", tone: "watch", row: "Cierra sola en 8 días" },
   { key: "tratamiento", badge: "EN TRATAMIENTO", tone: "sick", row: "Plan en el historial" },
   { key: "ppp", badge: "REGISTRO PPP", tone: "ppp", row: "Requisito jurisdiccional" },
@@ -283,21 +283,21 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                         <span className="lp-hcard-libwhat">Antirrábica</span>
                         <span className="lp-hcard-libwho">Vet. M.N. 12.345 · 03/2026</span>
                       </span>
-                      <span className="lp-hcard-libstamp">✓ FIRMADA</span>
+                      <span className="lp-hcard-libstamp">FIRMADA</span>
                     </div>
                     <div className="lp-hcard-librow">
                       <span>
                         <span className="lp-hcard-libwhat">Desparasitación</span>
                         <span className="lp-hcard-libwho">Vet. M.N. 12.345 · 01/2026</span>
                       </span>
-                      <span className="lp-hcard-libstamp">✓ FIRMADA</span>
+                      <span className="lp-hcard-libstamp">FIRMADA</span>
                     </div>
                     <div className="lp-hcard-librow">
                       <span>
                         <span className="lp-hcard-libwhat">Control anual</span>
                         <span className="lp-hcard-libwho">Clínica Recoleta · 11/2025</span>
                       </span>
-                      <span className="lp-hcard-libstamp">✓ FIRMADA</span>
+                      <span className="lp-hcard-libstamp">FIRMADA</span>
                     </div>
                     <div className="lp-hcard-libfoot">…y toda su historia, inmutable.</div>
                   </div>

@@ -26,6 +26,7 @@
 import Link from "next/link";
 import { type FormEvent, useActionState, useEffect, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
@@ -457,11 +458,11 @@ function SpeciesField({
       <div className="grid grid-cols-3 gap-2">
         {(
           [
-            { value: "dog", emoji: "🐶", label: "Perro/a" },
-            { value: "cat", emoji: "🐱", label: "Gato/a" },
-            { value: "other", emoji: "🐾", label: "Otra" },
+            { value: "dog", icon: "perro", label: "Perro/a" },
+            { value: "cat", icon: "gato", label: "Gato/a" },
+            { value: "other", icon: "huella", label: "Otra" },
           ] as const
-        ).map(({ value, emoji, label }) => (
+        ).map(({ value, icon, label }) => (
           <button
             key={value}
             type="button"
@@ -471,7 +472,7 @@ function SpeciesField({
               .filter(Boolean)
               .join(" ")}
           >
-            <span className="text-[var(--text-2xl)] leading-none">{emoji}</span>
+            <Icon name={icon} size={24} decorative />
             <span>{label}</span>
           </button>
         ))}

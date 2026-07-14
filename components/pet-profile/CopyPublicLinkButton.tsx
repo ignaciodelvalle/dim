@@ -6,6 +6,8 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
+
 interface Props {
   /** Full public credential URL. e.g. https://mimar.ar/p/{token} */
   publicUrl: string;
@@ -27,7 +29,13 @@ export function CopyPublicLinkButton({ publicUrl }: Props) {
       onClick={handleCopy}
       className="mt-3 w-full rounded-lg border border-ln-line bg-ln-card px-3 py-2 text-xs font-medium text-ln-ink hover:bg-ln-stripe"
     >
-      {copied ? "¡Copiado! ✓" : "Copiar link público"}
+      {copied ? (
+        <span className="inline-flex items-center justify-center gap-1">
+          ¡Copiado! <Icon name="check" size={14} decorative />
+        </span>
+      ) : (
+        "Copiar link público"
+      )}
     </button>
   );
 }

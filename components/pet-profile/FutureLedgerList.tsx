@@ -6,6 +6,7 @@
 // its one action per design: "Marcar dada" (medication), a reschedule link
 // (appointment), or "Programar turno" (a due/over rabies reminder).
 
+import { Icon } from "@/components/Icon";
 import { LnLinkButton } from "@/components/ui/LinkButton";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -15,9 +16,9 @@ import { useActionState } from "react";
 import type { FutureLedgerItem } from "./libreta-future.helpers";
 
 const KIND_ICON: Record<FutureLedgerItem["kind"], string> = {
-  reminder: "💉",
-  appointment: "🏥",
-  medication: "💊",
+  reminder: "vacuna",
+  appointment: "hospital",
+  medication: "medicacion",
 };
 
 function formatDueAt(date: Date): string {
@@ -123,9 +124,9 @@ export function FutureLedgerList({
           <li key={item.id} className="flex items-center gap-3 py-2.5">
             <span
               aria-hidden
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-ln-stripe)] text-sm"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]"
             >
-              {KIND_ICON[item.kind]}
+              <Icon name={KIND_ICON[item.kind]} size="sm" decorative />
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium text-[var(--color-ln-ink)]">

@@ -19,6 +19,7 @@
 // The cluster stays COMPACT — the map still dominates (the PO's "MÁS MAPA"
 // ruling). Honesty states (degraded / pending / empty) unchanged.
 
+import { Icon } from "@/components/Icon";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { Sparkline } from "@/components/panorama/Sparkline";
 import { shortKpiLabel } from "@/components/panorama/panorama-labels";
@@ -30,11 +31,13 @@ import type {
 import type { PresetId } from "@/src/modules/panorama/domain/presets";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 
-const DELTA_GLYPH: Record<KpiDelta["direction"], string> = {
-  up: "▲",
-  down: "▼",
-  flat: "＝",
-};
+// Delta direction glyph — up/down route through the Icon registry (no bare
+// triangle glyphs); "flat" has no lucide equivalent worth a registry entry
+// for a single fullwidth "＝" (not a banned symbol-as-icon character).
+function DeltaGlyph({ direction }: { direction: KpiDelta["direction"] }) {
+  if (direction === "flat") return <span aria-hidden="true">＝</span>;
+  return <Icon name={direction === "up" ? "chevron-up" : "chevron-down"} size="sm" decorative />;
+}
 
 /** Cap so the overlay never buries the map (presets curate 2-3). */
 const MAX_CHIPS = 4;
@@ -120,8 +123,7 @@ export function KpiChips({
                 className="shrink-0 text-[var(--text-xs)] tabular-nums text-ln-op-faint"
                 title={kpi.delta.label}
               >
-                <span aria-hidden="true">{DELTA_GLYPH[kpi.delta.direction]}</span>{" "}
-                {kpi.delta.pct > 0 ? "+" : ""}
+                <DeltaGlyph direction={kpi.delta.direction} /> {kpi.delta.pct > 0 ? "+" : ""}
                 {kpi.delta.pct.toLocaleString("es-AR")}
                 {kpi.delta.unit === "pts" ? " pts" : "%"}
               </span>

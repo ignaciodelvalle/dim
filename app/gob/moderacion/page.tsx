@@ -14,6 +14,7 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { OpButton, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import {
@@ -267,8 +268,9 @@ export default async function GobModeracionPage({
                             {" · "}
                             {r.flaggedAt && formatDateTime(r.flaggedAt)}
                             {r.moderationResolvedAt && (
-                              <span className="ml-2 text-ln-op-ok">
-                                ✓ resuelta {formatDate(r.moderationResolvedAt)}
+                              <span className="ml-2 inline-flex items-center gap-1 text-ln-op-ok">
+                                <Icon name="check" size={13} decorative /> resuelta{" "}
+                                {formatDate(r.moderationResolvedAt)}
                               </span>
                             )}
                           </p>

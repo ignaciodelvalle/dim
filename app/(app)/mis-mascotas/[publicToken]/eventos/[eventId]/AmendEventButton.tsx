@@ -8,6 +8,7 @@
 //
 // Opens the AmendEventForm sheet/modal inline.
 
+import { Icon } from "@/components/Icon";
 import type { EventType } from "@/db/schema";
 import { isAmendableEventType } from "@/lib/infra/amendment";
 import { useRef, useState } from "react";
@@ -54,7 +55,7 @@ export function AmendEventButton({
         ].join(" ")}
         aria-label="Corregir este registro"
       >
-        <span aria-hidden="true">✎</span>
+        <Icon name="editar" size={12} decorative />
         Corregir registro
       </button>
 

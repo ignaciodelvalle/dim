@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav } from "@/lib/ui/sheet-nav";
@@ -67,9 +68,15 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
           <button
             type="button"
             onClick={copy}
-            className="w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
+            className="flex w-full items-center justify-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
           >
-            {copied ? "✓ Link copiado" : "Copiar link"}
+            {copied ? (
+              <>
+                <Icon name="check" size="sm" decorative /> Link copiado
+              </>
+            ) : (
+              "Copiar link"
+            )}
           </button>
           {typeof navigator !== "undefined" && "share" in navigator && (
             <button

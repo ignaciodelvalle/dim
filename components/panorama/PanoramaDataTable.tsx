@@ -12,6 +12,7 @@
 
 import { useMemo, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import type { RankedUnit, RankingKind } from "@/src/modules/panorama/domain/ranking";
 
 type SortKey = "label" | "value" | "gap";
@@ -78,7 +79,9 @@ export function PanoramaDataTable({
         >
           {label}
           <span aria-hidden="true" className="text-ln-op-mute">
-            {active ? (sortDir === "asc" ? "▲" : "▼") : ""}
+            {active && (
+              <Icon name={sortDir === "asc" ? "chevron-up" : "chevron-down"} size="sm" decorative />
+            )}
           </span>
         </button>
       </th>

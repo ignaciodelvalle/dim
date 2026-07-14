@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
@@ -13,7 +14,7 @@ import type { PublicServiceOffering } from "@/lib/infra/org-public-offerings";
 // privacy-first default keeps surfaces clean by default.
 //
 // Each row:
-//   [emoji 32px] Title
+//   [icon 24px] Title
 //                Short description (one line)
 //                [chips: Gratuito / Sin turno / Próximo / Sin agenda]
 //                                                        Reservar →
@@ -26,16 +27,16 @@ import type { PublicServiceOffering } from "@/lib/infra/org-public-offerings";
 // because LnChip is an interactive toggle button — APIs are not
 // compatible for static display use. Token-swap handled by wrapper classes.
 
-const KIND_EMOJI: Record<string, string> = {
-  sterilization: "✂",
-  vaccine: "💉",
-  microchip: "📍",
-  consultation: "🩺",
-  other: "🐾",
+const KIND_ICON: Record<string, string> = {
+  sterilization: "esterilizacion",
+  vaccine: "vacuna",
+  microchip: "microchip",
+  consultation: "vet",
+  other: "huella",
 };
 
-function kindEmoji(kind: string): string {
-  return KIND_EMOJI[kind] ?? KIND_EMOJI.other;
+function kindIcon(kind: string): string {
+  return KIND_ICON[kind] ?? KIND_ICON.other;
 }
 
 function formatDate(d: Date): string {
@@ -87,8 +88,8 @@ export function ServicesPanel({ orgToken, offerings }: Props) {
                     href={href}
                     className="flex items-start gap-3 py-3 px-4 transition-colors hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] focus-visible:ring-inset"
                   >
-                    <span aria-hidden className="text-2xl shrink-0 mt-0.5">
-                      {kindEmoji(offering.serviceKind)}
+                    <span aria-hidden className="shrink-0 mt-0.5 text-[var(--color-ln-azul)]">
+                      <Icon name={kindIcon(offering.serviceKind)} size="lg" decorative />
                     </span>
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="text-sm font-medium text-[var(--color-ln-ink)]">

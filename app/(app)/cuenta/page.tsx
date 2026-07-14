@@ -20,6 +20,7 @@ import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 
+import { Icon } from "@/components/Icon";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
@@ -479,9 +480,9 @@ function VerificationBadge({ verified }: { verified: boolean }) {
     return (
       <span
         aria-label="declarado"
-        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[11px] font-bold text-[var(--color-ln-ok)]"
+        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]"
       >
-        ✓
+        <Icon name="check" size={13} decorative />
       </span>
     );
   }
@@ -534,11 +535,7 @@ function ActionRow({
         <p
           className={`flex items-center gap-1.5 text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
         >
-          {danger && (
-            <span aria-hidden="true" className="text-sm leading-none">
-              ⚠
-            </span>
-          )}
+          {danger && <Icon name="alerta" size={14} decorative />}
           {label}
         </p>
         <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>

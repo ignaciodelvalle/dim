@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
@@ -246,7 +247,7 @@ export default async function GobVigilanciaPage({
         <OpCallout
           title="Sin localidades asignadas"
           body="Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos una."
-          icon="⚠"
+          icon={<Icon name="alerta" decorative />}
         />
       )}
 
@@ -259,8 +260,8 @@ export default async function GobVigilanciaPage({
           href="/gob/vigilancia/investigaciones"
           className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
         >
-          <span className="text-[var(--text-2xl)]" aria-hidden="true">
-            🔬
+          <span className="text-ln-op-azul" aria-hidden="true">
+            <Icon name="microscopio" size={24} decorative />
           </span>
           <div>
             <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">Investigaciones</p>
@@ -392,7 +393,7 @@ export default async function GobVigilanciaPage({
       {/* A9 — live breach banner: rabies observations open past the legal 10-day window. */}
       {rabiesCompliance.openBreaches > 0 && (
         <OpBreach
-          icon="⚠"
+          icon={<Icon name="alerta" decorative />}
           title={`${rabiesCompliance.openBreaches} observación(es) rábica(s) fuera del plazo legal de 10 días`}
           detail={
             // Only admins have an observation queue console; govt operators get

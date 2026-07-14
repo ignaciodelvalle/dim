@@ -6,6 +6,7 @@
 //
 // Render logic (groupedEvents, agrupada/cronologica toggle) is UNCHANGED.
 
+import { Icon } from "@/components/Icon";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -167,28 +168,29 @@ function eventColor(eventType: string): string {
   }
 }
 
+// Returns an ICON_MAP name for the timeline dot; rendered via <Icon>.
 function eventIcon(eventType: string): string {
   switch (eventType) {
     case "weight_recorded":
-      return "⚖️";
+      return "peso";
     case "vet_visit_logged":
-      return "🩺";
+      return "vet";
     case "medication_started":
-      return "💊";
+      return "medicacion";
     case "medication_stopped":
-      return "✓";
+      return "medicacion-fin";
     case "note_added":
-      return "📝";
+      return "nota";
     case "sterilization_performed":
-      return "✂️";
+      return "esterilizacion";
     case "microchip_implanted":
-      return "🔖";
+      return "microchip";
     case "clinical_info_logged":
-      return "📋";
+      return "clinico";
     case "death_recorded":
-      return "🍃";
+      return "fallecimiento";
     default:
-      return "·";
+      return "circle";
   }
 }
 
@@ -256,7 +258,7 @@ function LnTimelineSection({
                   background: "var(--color-ln-card)",
                 }}
               >
-                {icon}
+                <Icon name={icon} size={16} decorative />
               </div>
               {!isLast && (
                 <div

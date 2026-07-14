@@ -150,7 +150,7 @@ export function PosterPreview({
           <div className="text-sm text-[var(--color-ln-ink)] space-y-0.5">
             {placeName && (
               <p>
-                <span className="font-semibold">📍 Última vez vista:</span> {placeName}
+                <span className="font-semibold">Última vez vista:</span> {placeName}
               </p>
             )}
             {lostSinceLabel && (
@@ -164,7 +164,7 @@ export function PosterPreview({
         {/* Owner contact */}
         {(ownerFirstName || ownerPhone) && (
           <div className="text-sm text-[var(--color-ln-ink)] space-y-0.5">
-            <p className="font-semibold">📞 Contacto:</p>
+            <p className="font-semibold">Contacto:</p>
             {ownerFirstName && ownerPhone && (
               <p>
                 {ownerFirstName} · {ownerPhone}

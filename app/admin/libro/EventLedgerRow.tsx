@@ -15,6 +15,7 @@
 
 import { useId, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { type AmendmentChainEntry, fetchEventAmendmentChainAction } from "./actions";
@@ -65,7 +66,7 @@ export function EventLedgerRow({ row }: Props) {
             <span className="font-medium text-ln-op-ink">{row.eventTypeLabel}</span>
             {row.hasAmendment && (
               <span className="inline-flex items-center gap-[5px] text-[11px] text-ln-op-warn">
-                <span aria-hidden="true">✎</span>
+                <Icon name="editar" size={12} decorative />
                 Corregido por enmienda
               </span>
             )}
@@ -90,8 +91,12 @@ export function EventLedgerRow({ row }: Props) {
           <span className="inline-flex items-center gap-1">
             {actorLabel}
             {row.authorVerified && (
-              <span className="text-ln-op-ok" title="Verificado" aria-label="verificado">
-                ✓
+              <span
+                className="inline-flex items-center text-ln-op-ok"
+                title="Verificado"
+                aria-label="verificado"
+              >
+                <Icon name="check" size={13} decorative />
               </span>
             )}
           </span>

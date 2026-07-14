@@ -16,6 +16,7 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -320,11 +321,10 @@ export default async function GobOutreachPage() {
                     <td className="py-1.5 text-ln-op-ink">
                       {idx === 0 && (
                         <span
-                          aria-label="Primer lugar"
-                          className="mr-1 text-ln-op-ok font-bold"
+                          className="mr-1 inline-flex items-center text-ln-op-ok"
                           aria-hidden="true"
                         >
-                          ★
+                          <Icon name="estrella" size={14} decorative />
                         </span>
                       )}
                       {vet.vetLabel}

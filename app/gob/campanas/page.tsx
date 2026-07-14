@@ -10,6 +10,7 @@
 // Consumes Item 23 primitives: OpKpi v2, MapChoropleth v2, JurisdictionSwitcher, PeriodPicker.
 // Builds on lib/metrics/ (ProjectionContext, buildProjectionContext).
 
+import { Icon } from "@/components/Icon";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -343,7 +344,7 @@ export default async function GobCampanasPage({
                           </p>
                           {offering.noShow > 0 && (
                             <p className="text-[var(--text-xs)] text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
-                              <span aria-hidden="true">⚠</span>
+                              <Icon name="alerta" size={12} decorative />
                               <span>No-show</span>
                             </p>
                           )}

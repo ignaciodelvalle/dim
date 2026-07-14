@@ -15,6 +15,7 @@
 // key → old → new. It is not event-type-specific (D1 says "no new schema").
 
 import { amendEventAction } from "@/app/actions/amendment";
+import { Icon } from "@/components/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
@@ -174,7 +175,7 @@ export function AmendEventForm({
             className="rounded-[3px] p-1.5 text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]"
             aria-label="Cerrar"
           >
-            ✕
+            <Icon name="close" size="sm" decorative />
           </button>
         </div>
 

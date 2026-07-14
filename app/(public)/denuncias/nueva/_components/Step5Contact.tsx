@@ -8,6 +8,7 @@
 
 import { useRef } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnInput } from "@/components/ui/Field";
 
 export type ContactMode = "anonymous" | "with_contact";
@@ -143,8 +144,8 @@ export function Step5Contact({
           }`}
         >
           <span className="flex items-center gap-3">
-            <span className="text-xl leading-none flex-shrink-0 w-6 text-center" aria-hidden="true">
-              🕵️
+            <span className="flex-shrink-0 w-6 flex items-center justify-center text-[var(--color-ln-mute)]">
+              <Icon name="anonimo" size="md" decorative />
             </span>
             <span className="flex-1 min-w-0">
               <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
@@ -177,8 +178,8 @@ export function Step5Contact({
           }`}
         >
           <span className="flex items-center gap-3">
-            <span className="text-xl leading-none flex-shrink-0 w-6 text-center" aria-hidden="true">
-              📞
+            <span className="flex-shrink-0 w-6 flex items-center justify-center text-[var(--color-ln-mute)]">
+              <Icon name="telefono" size="md" decorative />
             </span>
             <span className="flex-1 min-w-0">
               <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">
@@ -260,7 +261,8 @@ export function Step5Contact({
       <div className="space-y-3 rounded-[var(--radius-md)] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] p-4">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-[var(--color-ln-ink)]">
-            📎 Sumar fotos o videos{" "}
+            <Icon name="adjuntar" size="sm" decorative className="inline align-text-bottom mr-1" />
+            Sumar fotos o videos{" "}
             <span className="font-normal text-[var(--color-ln-mute)]">(opcional)</span>
           </span>
           {evidenceFiles.length > 0 && (
@@ -312,10 +314,8 @@ export function Step5Contact({
                     className="w-full aspect-square object-cover rounded-[5px] border border-[var(--color-ln-line-strong)]"
                   />
                 ) : (
-                  <div className="w-full aspect-square rounded-[5px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] flex flex-col items-center justify-center gap-1 p-2">
-                    <span className="text-2xl select-none" aria-hidden="true">
-                      ▶
-                    </span>
+                  <div className="w-full aspect-square rounded-[5px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] flex flex-col items-center justify-center gap-1 p-2 text-[var(--color-ln-mute)]">
+                    <Icon name="reproducir" size={24} decorative />
                     <p className="text-xs text-[var(--color-ln-mute)] text-center truncate w-full">
                       {entry.file.name}
                     </p>
@@ -327,7 +327,7 @@ export function Step5Contact({
                   aria-label={`Quitar ${entry.file.name}`}
                   className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[var(--color-ln-ink)] text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
                 >
-                  ×
+                  <Icon name="close" size="sm" decorative />
                 </button>
               </div>
             ))}

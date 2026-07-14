@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LOST_SCAN_FEED_CAP } from "@/lib/infra/lost-mode";
 
 // LostScanFeed — unified feed of QR scans and finder messages for an
@@ -93,7 +94,7 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
           role="alert"
           className="mb-3 rounded-xl border border-ln-ok bg-[var(--color-ln-ok-050)] px-4 py-2.5"
         >
-          <p className="text-sm font-bold text-ln-ok">🏠 ¡Alguien tiene a tu mascota!</p>
+          <p className="text-sm font-bold text-ln-ok">Alguien tiene a tu mascota</p>
           <p className="mt-0.5 text-xs text-ln-ink-2">
             {possessionCount === 1
               ? "Una persona reportó que la tiene con ella. Contactala para coordinar el reencuentro."
@@ -165,11 +166,11 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
       >
         <span
           aria-hidden
-          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg ${
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
             urgent ? "bg-ln-err text-white" : "bg-ln-ok text-white"
           }`}
         >
-          🏠
+          <Icon name="casa" size="md" decorative />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ln-ink">{item.finderName} tiene a tu mascota</p>
@@ -183,8 +184,8 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             <p className="mt-0.5 text-xs text-ln-mute">{item.localityLabel}</p>
           )}
           {item.finderContact && (
-            <p className="mt-1 text-sm font-semibold text-ln-azul">
-              📞{" "}
+            <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-ln-azul">
+              <Icon name="telefono" size="sm" decorative />
               <a href={`tel:${item.finderContact}`} className="hover:underline">
                 {item.finderContact}
               </a>
@@ -228,7 +229,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
           aria-hidden
           className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-ln-ok-050)] text-ln-ok  "
         >
-          👀
+          <Icon name="ojo" size="sm" decorative />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-ln-ink ">Avistaje reportado</p>
@@ -260,12 +261,16 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             </div>
           ) : item.photoStoragePath ? (
             <p className="mt-1 text-xs text-ln-mute">
-              <span>📷 foto adjunta</span>
+              <span className="inline-flex items-center gap-1">
+                <Icon name="camara" size="sm" decorative /> foto adjunta
+              </span>
             </p>
           ) : null}
           {item.finderContact && (
             <p className="mt-1 text-xs text-ln-mute">
-              <span>📞 {item.finderContact}</span>
+              <span className="inline-flex items-center gap-1">
+                <Icon name="telefono" size="sm" decorative /> {item.finderContact}
+              </span>
             </p>
           )}
         </div>
@@ -280,7 +285,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
         aria-hidden
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ln-celeste/10 text-ln-azul  "
       >
-        📱
+        <Icon name="celular" size="sm" decorative />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-ln-ink ">

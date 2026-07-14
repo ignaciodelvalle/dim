@@ -305,7 +305,7 @@ export function FinderInPossessionForm({
         {/* Optional current photo */}
         <details className="rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)]">
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-[var(--color-ln-ink)]">
-            📷 ¿Le sacás una foto ahora para confirmar? (opcional)
+            ¿Le sacás una foto ahora para confirmar? (opcional)
           </summary>
           <div className="p-4 border-t border-[var(--color-ln-line)] space-y-2">
             {/* B-1: explicit label for the file input */}

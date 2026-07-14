@@ -3,22 +3,26 @@
 // Step 1 — Qué pasó: single-select kind cards.
 // Tap a card → immediately advances to the next step.
 
+import { Icon } from "@/components/Icon";
 import {
   WELFARE_REPORT_KINDS,
   type WelfareReportKind,
   welfareReportKindLabel,
 } from "@/src/modules/welfare/domain/types";
 
+// Sober lucide icons (via the Icon registry) — one per welfare-report kind.
+// The category picker keeps a glanceable icon column, but the tone stays
+// gov-grade: no emoji on a cruelty-report flow.
 const KIND_ICONS: Record<WelfareReportKind, string> = {
-  abandonment: "🚪",
-  neglect: "🍃",
-  physical_abuse: "🩹",
-  chained: "⛓️",
-  no_shelter: "🌧️",
-  hoarding: "🏚️",
-  dog_fighting: "⚡",
-  trafficking: "📦",
-  other: "❓",
+  abandonment: "door-open",
+  neglect: "droplets",
+  physical_abuse: "shield-alert",
+  chained: "cadena",
+  no_shelter: "cloud-rain",
+  hoarding: "warehouse",
+  dog_fighting: "espadas",
+  trafficking: "package",
+  other: "help-circle",
 };
 
 const KIND_DESCRIPTIONS: Record<WelfareReportKind, string> = {
@@ -76,11 +80,8 @@ export function Step1Kind({ selected, onSelect }: Step1KindProps) {
                     onChange={() => onSelect(kind)}
                     className="sr-only"
                   />
-                  <span
-                    className="text-xl leading-none flex-shrink-0 w-6 text-center"
-                    aria-hidden="true"
-                  >
-                    {KIND_ICONS[kind]}
+                  <span className="flex-shrink-0 w-6 flex items-center justify-center text-[var(--color-ln-mute)]">
+                    <Icon name={KIND_ICONS[kind]} size="md" decorative />
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block text-sm font-semibold text-[var(--color-ln-ink)]">

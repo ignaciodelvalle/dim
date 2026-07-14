@@ -31,6 +31,7 @@
 //   - intakeCondition:              optional text
 //   - attachmentFiles:              >= 2 mandatory files (photo + acta)
 
+import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -795,8 +796,12 @@ export function DecomisoForm({
                       className="w-10 h-10 object-cover rounded-[var(--radius-sm)] flex-shrink-0 border border-ln-op-line"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-ln-op-stripe flex items-center justify-center flex-shrink-0 text-lg">
-                      {entry.file.type === "application/pdf" ? "📄" : "▶"}
+                    <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-ln-op-stripe flex items-center justify-center flex-shrink-0 text-ln-op-mute">
+                      {entry.file.type === "application/pdf" ? (
+                        <Icon name="nota" size={20} decorative />
+                      ) : (
+                        <Icon name="reproducir" size={20} decorative />
+                      )}
                     </div>
                   )}
                   <span className="text-sm text-ln-op-ink truncate flex-1">{entry.file.name}</span>
@@ -807,9 +812,9 @@ export function DecomisoForm({
                     type="button"
                     onClick={() => removeAttachment(i)}
                     aria-label={`Quitar ${entry.file.name}`}
-                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute text-sm hover:bg-ln-op-line hover:text-ln-op-ink transition-colors"
+                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute hover:bg-ln-op-line hover:text-ln-op-ink transition-colors inline-flex items-center justify-center"
                   >
-                    {"×"}
+                    <Icon name="close" size={14} decorative />
                   </button>
                 </li>
               ))}

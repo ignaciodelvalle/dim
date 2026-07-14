@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnGuilloche } from "@/components/ui/DocElements";
 import type { OrgPublicProfile } from "@/lib/infra/org-public-profile";
@@ -38,12 +39,12 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
   const logoUrl = orgLogoUrl(org.logoStoragePath);
   const initial = org.displayName.charAt(0).toUpperCase();
 
-  // "📅 Desde {año}" chip — only when verified more than a year ago.
+  // "Desde {año}" chip — only when verified more than a year ago.
   const showYearChip =
     org.verifiedAt && Date.now() - org.verifiedAt.getTime() > 365 * 24 * 60 * 60 * 1000;
   const verifiedYear = org.verifiedAt?.getFullYear();
 
-  const orgTypeChipLabel = org.orgType === "shelter" ? "🏠 Refugio" : "🌎 Red de rescate";
+  const orgTypeChipLabel = org.orgType === "shelter" ? "Refugio" : "Red de rescate";
 
   const showStats = adoptionCount > 0 || serviceCount > 0;
 
@@ -94,13 +95,17 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
               </h1>
               {/* Verified chip (inline with name) */}
               <Link href="?sheet=verificacion-info" className="focus:outline-none">
-                <LnBadge variant="success">✓ Verificado</LnBadge>
+                <LnBadge variant="success" icon="shield-check">
+                  Verificado
+                </LnBadge>
               </Link>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <LnBadge variant="neutral">{orgTypeChipLabel}</LnBadge>
               {showYearChip && verifiedYear && (
-                <LnBadge variant="neutral">📅 Desde {verifiedYear}</LnBadge>
+                <LnBadge variant="neutral" icon="calendario">
+                  Desde {verifiedYear}
+                </LnBadge>
               )}
             </div>
             {(localityLabel || (org.legalName && org.legalName !== org.displayName)) && (
@@ -126,13 +131,15 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
               href="?sheet=contactar"
               className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
-              ✉ Contactar al refugio
+              <Icon name="mail" size="sm" decorative />
+              Contactar al refugio
             </Link>
             <Link
               href="?sheet=compartir-org"
               className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-sm font-medium px-4 py-2.5 hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] transition-colors"
             >
-              ↗ Compartir
+              <Icon name="externo" size="sm" decorative />
+              Compartir
             </Link>
           </div>
         </div>

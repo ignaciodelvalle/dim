@@ -4,6 +4,7 @@
 
 import { useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import { setMemberEventWriteAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -53,7 +54,15 @@ export function EventWriteToggle({ organizationId, membershipId, canWrite }: Pro
             : "border border-ln-op-line text-ln-op-mute hover:bg-ln-op-stripe",
         ].join(" ")}
       >
-        {pending ? "..." : write ? "Clínica ✓" : "Clínica"}
+        {pending ? (
+          "..."
+        ) : write ? (
+          <span className="inline-flex items-center gap-1">
+            Clínica <Icon name="check" size={13} decorative />
+          </span>
+        ) : (
+          "Clínica"
+        )}
       </button>
       {error && (
         <p className="text-sm text-ln-op-danger" role="alert">

@@ -26,8 +26,8 @@ export const TONE_CLASSES: Record<StatusTone, string> = {
 interface Props {
   tone: StatusTone;
   children: ReactNode;
-  /** Optional decorative icon string; aria-hidden automatically. */
-  icon?: string;
+  /** Optional decorative icon (e.g. <Icon .../>); wrapped aria-hidden automatically. */
+  icon?: ReactNode;
 }
 
 /**
@@ -48,7 +48,11 @@ export function OpStatusPill({ tone, children, icon }: Props) {
         TONE_CLASSES[tone],
       ].join(" ")}
     >
-      {icon && <span aria-hidden="true">{icon}</span>}
+      {icon && (
+        <span aria-hidden="true" className="inline-flex items-center">
+          {icon}
+        </span>
+      )}
       {children}
     </span>
   );

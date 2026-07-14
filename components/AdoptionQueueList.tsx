@@ -23,6 +23,7 @@ import {
   bulkApproveAdoptionApplicationsAction,
   bulkRejectAdoptionApplicationsAction,
 } from "@/app/actions/bulk-adoption-actions";
+import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
 import type { OpBulkAction } from "@/components/ui/dashboard/OpBulkBar";
 import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
@@ -381,7 +382,14 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                       {/* Age/SLA badge */}
                       <OpPill tone={isStale ? "open" : "neutral"}>
                         {ageLabel(days)}
-                        {isStale && " ⚠"}
+                        {isStale && (
+                          <Icon
+                            name="warning"
+                            size="sm"
+                            decorative
+                            className="ml-0.5 inline align-text-bottom"
+                          />
+                        )}
                       </OpPill>
                     </div>
 

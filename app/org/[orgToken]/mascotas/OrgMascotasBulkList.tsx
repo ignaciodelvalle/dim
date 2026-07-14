@@ -27,6 +27,7 @@ import {
   bulkVaccinateAction,
 } from "@/app/actions/bulk-pet-events";
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
+import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton, OpStateBadge } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
@@ -396,11 +397,15 @@ export function OrgMascotasBulkList({
                         href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=elegibilidad`}
                         className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
-                        {card.adoptionEligible === true
-                          ? "Apta ✓"
-                          : card.adoptionEligible === false
-                            ? "NO apta"
-                            : "Elegibilidad"}
+                        {card.adoptionEligible === true ? (
+                          <span className="inline-flex items-center gap-1">
+                            Apta <Icon name="check" size={13} decorative />
+                          </span>
+                        ) : card.adoptionEligible === false ? (
+                          "NO apta"
+                        ) : (
+                          "Elegibilidad"
+                        )}
                       </Link>
                     )}
                     {canManageAdoptionListing && card.ownershipRole === "shelter_custody" && (
@@ -408,11 +413,15 @@ export function OrgMascotasBulkList({
                         href={`/org/${orgToken}/mascotas/${card.publicToken}/adoptar`}
                         className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
                       >
-                        {card.adoptionListedAt && !card.adoptionListingPausedAt
-                          ? "Publicada ✓"
-                          : card.adoptionListedAt && card.adoptionListingPausedAt
-                            ? "Pausada"
-                            : "Publicar"}
+                        {card.adoptionListedAt && !card.adoptionListingPausedAt ? (
+                          <span className="inline-flex items-center gap-1">
+                            Publicada <Icon name="check" size={13} decorative />
+                          </span>
+                        ) : card.adoptionListedAt && card.adoptionListingPausedAt ? (
+                          "Pausada"
+                        ) : (
+                          "Publicar"
+                        )}
                       </Link>
                     )}
                     {canFinalizeAdoption && card.ownershipRole === "shelter_custody" && (

@@ -19,6 +19,7 @@ import { useId, useRef, useState, useTransition } from "react";
 
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { Icon } from "@/components/Icon";
 import { MOTIVO_MIN } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpBulkBar } from "@/components/ui/dashboard";
@@ -330,8 +331,8 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
               {uploadedFiles.length > 0 && (
                 <ul className="mt-2 space-y-1 text-xs">
                   {uploadedFiles.map((f) => (
-                    <li key={f.attachmentId} className="text-ln-op-ok">
-                      ✓ {f.name}
+                    <li key={f.attachmentId} className="flex items-center gap-1 text-ln-op-ok">
+                      <Icon name="check" size={14} decorative /> {f.name}
                     </li>
                   ))}
                 </ul>

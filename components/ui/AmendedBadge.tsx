@@ -9,6 +9,8 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
+
 export type AmendedBadgeProps = {
   /** ISO date string or Date of when the amendment occurred. */
   amendedAt: Date | string;
@@ -27,7 +29,7 @@ export function AmendedBadge({ amendedAt, originalHref }: AmendedBadgeProps) {
       className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-bg,var(--color-ln-stripe))] px-2 py-0.5 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ink-2)]"
       aria-label={`Registro corregido el ${formatAmendedAt(amendedAt)}`}
     >
-      <span aria-hidden="true">✎</span>
+      <Icon name="editar" size={14} decorative />
       Corregido el {formatAmendedAt(amendedAt)}
       {" · "}
       <Link

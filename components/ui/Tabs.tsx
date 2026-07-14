@@ -2,6 +2,8 @@
 
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
+
 /**
  * Libreta Nacional Tabs.
  *
@@ -131,7 +133,7 @@ export function LnAccordion({
         {/* "✓ completo" — only shown when closed */}
         {complete && (
           <span className="flex items-center gap-1 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ok)] group-open:hidden">
-            ✓ completo
+            <Icon name="check" size={14} decorative /> completo
           </span>
         )}
 

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
+
 /**
  * Libreta Nacional Card + Sheet frame.
  *
@@ -202,9 +204,7 @@ export function LnSheet({
               onClick={onClose}
               className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
             >
-              <span aria-hidden="true" className="text-base leading-none">
-                ×
-              </span>
+              <Icon name="close" size="sm" decorative />
             </button>
           )}
         </div>

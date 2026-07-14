@@ -12,14 +12,17 @@
 // straight pass-throughs to OpKpi — both already existed on OpKpi, only
 // `kpi.sparkline` is new (get-panorama-kpis.ts). No new visual language.
 
+import { Icon } from "@/components/Icon";
 import { OpKpi } from "@/components/ui/dashboard";
 import type { KpiDelta, PanoramaKpi } from "@/src/modules/panorama/application/get-panorama-kpis";
 
-const DELTA_GLYPH: Record<KpiDelta["direction"], string> = {
-  up: "▲",
-  down: "▼",
-  flat: "＝",
-};
+// Delta direction glyph — up/down route through the Icon registry (no bare
+// triangle glyphs); "flat" has no lucide equivalent worth a registry entry
+// for a single fullwidth "＝" (not a banned symbol-as-icon character).
+function DeltaGlyph({ direction }: { direction: KpiDelta["direction"] }) {
+  if (direction === "flat") return <span aria-hidden="true">＝</span>;
+  return <Icon name={direction === "up" ? "chevron-up" : "chevron-down"} size="sm" decorative />;
+}
 
 type Props = {
   kpi: PanoramaKpi;
@@ -40,7 +43,7 @@ export function PanoramaKpiTile({ kpi }: Props) {
       />
       {kpi.delta && (
         <p className="flex items-center gap-1 text-xs tabular-nums text-ln-op-mute">
-          <span aria-hidden="true">{DELTA_GLYPH[kpi.delta.direction]}</span>
+          <DeltaGlyph direction={kpi.delta.direction} />
           <span>{kpi.delta.label}</span>
         </p>
       )}

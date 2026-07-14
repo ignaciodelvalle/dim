@@ -14,6 +14,8 @@ type Props = {
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
+
 export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName }: Props) {
   const [isPending, startTransition] = useTransition();
   const [sent, setSent] = useState(false);
@@ -34,8 +36,8 @@ export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName 
 
   if (sent) {
     return (
-      <span className="text-sm text-[var(--color-ln-ok)] font-medium whitespace-nowrap">
-        ✓ Solicitud enviada a {orgDisplayName}
+      <span className="inline-flex items-center gap-1 text-sm text-[var(--color-ln-ok)] font-medium whitespace-nowrap">
+        <Icon name="check" size={14} decorative /> Solicitud enviada a {orgDisplayName}
       </span>
     );
   }

@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import {
   type SavedView,
   loadSavedViews,
@@ -140,7 +141,7 @@ export function SavedViewsPopover() {
                     aria-label={`Eliminar la vista ${v.name}`}
                     className="shrink-0 rounded-[var(--radius-sm)] px-1.5 py-1 text-xs text-ln-op-mute hover:bg-ln-op-stripe hover:text-ln-op-ink"
                   >
-                    ✕
+                    <Icon name="close" size="sm" decorative />
                   </button>
                 </li>
               ))}

@@ -8,6 +8,7 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, organizationMemberships, pets, welfareReports } from "@/db";
@@ -237,7 +238,20 @@ export default async function OrgMaltratoRecibidosPage({
                       </p>
                       <p className="text-sm text-ln-op-mute">
                         {welfareReportSubjectKindLabel(r.subjectKind)}
-                        {r.petName ? ` · 🐾 ${r.petName}` : ""}
+                        {r.petName ? (
+                          <>
+                            {" · "}
+                            <Icon
+                              name="huella"
+                              size={13}
+                              decorative
+                              className="inline-block align-text-bottom"
+                            />{" "}
+                            {r.petName}
+                          </>
+                        ) : (
+                          ""
+                        )}
                         {!r.petName && r.subjectDescription
                           ? ` · ${r.subjectDescription.slice(0, 60)}`
                           : ""}

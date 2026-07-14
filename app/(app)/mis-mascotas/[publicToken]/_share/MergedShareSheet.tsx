@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager";
 import { getActiveLibretaSharesAction } from "@/app/actions/libreta-share";
+import { Icon } from "@/components/Icon";
 import type { LibretaShareToken } from "@/db";
 import { ShareLibretaSheet } from "../_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "../_tier2-public/Tier2PublicView";
@@ -101,7 +102,7 @@ export function MergedShareSheet({
     const url = `${window.location.origin}/p/${petPublicToken}`;
     // Generic copy on purpose — see the `isLost` prop doc comment: this
     // sheet has no disclosure prefs to gate on, unlike LostShareCard.
-    const text = `🚨 ${petName} está perdida. Mirá su credencial y avisanos si la viste:`;
+    const text = `${petName} está perdida. Mirá su credencial y avisanos si la viste:`;
     const waUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
     window.open(waUrl, "_blank", "noopener");
   }
@@ -121,7 +122,7 @@ export function MergedShareSheet({
             onClick={handleShareWhatsApp}
             className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90"
           >
-            <span aria-hidden>💬</span>
+            <Icon name="mensaje" size="sm" decorative />
             Compartir por WhatsApp
           </button>
         )}

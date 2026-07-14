@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { getDrawerWidth } from "@/lib/ui/sheet-helpers";
 import type { ReactNode, RefObject } from "react";
 import { useEffect } from "react";
@@ -120,10 +121,7 @@ export function Sheet({
               aria-label="Cerrar"
               className="flex h-11 w-11 items-center justify-center rounded-full text-ln-ink-2 transition-colors hover:bg-ln-stripe hover:text-ln-ink active:bg-ln-line"
             >
-              {/* Simple × glyph — no Icon dep to keep the component self-contained */}
-              <span aria-hidden="true" className="text-lg leading-none">
-                ×
-              </span>
+              <Icon name="close" size="sm" decorative />
             </Drawer.Close>
           </div>
 

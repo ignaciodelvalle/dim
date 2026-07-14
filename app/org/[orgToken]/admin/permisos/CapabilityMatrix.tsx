@@ -6,6 +6,7 @@
 // Implicit cells (role-based) remain inert.
 // Admin row cells are all inert (universal implicit grant).
 
+import { Icon } from "@/components/Icon";
 import {
   type CapabilityActionState,
   decideCapabilityAction,
@@ -65,18 +66,16 @@ function RevokeCell({ grantId }: { grantId: string }) {
             onClick={() => setConfirming(false)}
             className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
-            <span aria-hidden className="text-sm leading-none font-bold">
-              ✓
-            </span>
+            <Icon name="check" size={14} decorative />
           </button>
         </form>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="text-[9px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+          className="inline-flex items-center justify-center text-ln-op-mute hover:text-ln-op-ink transition-colors"
           aria-label="Cancelar revocación"
         >
-          ✕
+          <Icon name="close" size={12} decorative />
         </button>
         {state.error && <span className="text-xs text-ln-op-danger">{state.error}</span>}
       </div>
@@ -93,9 +92,7 @@ function RevokeCell({ grantId }: { grantId: string }) {
         onClick={() => setConfirming(true)}
         className="group flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
       >
-        <span aria-hidden className="text-md leading-none">
-          ✓
-        </span>
+        <Icon name="check" size={14} decorative />
       </button>
       {state.error && <span className="text-xs text-ln-op-danger">{state.error}</span>}
     </div>
@@ -136,9 +133,7 @@ function GrantCell({
           aria-label="Permiso concedido"
           className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] bg-ln-op-ok-bg text-ln-op-ok"
         >
-          <span aria-hidden className="text-md leading-none">
-            ✓
-          </span>
+          <Icon name="check" size={14} decorative />
         </span>
       </div>
     );
@@ -182,17 +177,15 @@ function GrantCell({
           onClick={handleGrant}
           className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
-          <span aria-hidden className="text-sm leading-none font-bold">
-            ✓
-          </span>
+          <Icon name="check" size={14} decorative />
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="text-[9px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+          className="inline-flex items-center justify-center text-ln-op-mute hover:text-ln-op-ink transition-colors"
           aria-label="Cancelar"
         >
-          ✕
+          <Icon name="close" size={12} decorative />
         </button>
         {error && <span className="text-xs text-ln-op-danger">{error}</span>}
       </div>
@@ -301,7 +294,12 @@ export function CapabilityMatrix({
                         aria-label="Incluido por rol"
                         className="flex items-center justify-center"
                       >
-                        <span className="text-[13px] text-ln-op-mute opacity-50">✓</span>
+                        <Icon
+                          name="check"
+                          size={13}
+                          decorative
+                          className="text-ln-op-mute opacity-50"
+                        />
                         <span className="sr-only">por rol</span>
                       </span>
                     </td>
@@ -338,11 +336,11 @@ export function CapabilityMatrix({
       {/* Legend */}
       <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-ln-op-mute">
         <span className="flex items-center gap-1">
-          <span className="text-[13px] text-ln-op-ok">✓</span>
+          <Icon name="check" size={13} decorative className="text-ln-op-ok" />
           Explícito (revocable)
         </span>
         <span className="flex items-center gap-1">
-          <span className="text-[13px] opacity-50">✓</span>
+          <Icon name="check" size={13} decorative className="opacity-50" />
           Por rol (implícito)
         </span>
         <span className="flex items-center gap-1">

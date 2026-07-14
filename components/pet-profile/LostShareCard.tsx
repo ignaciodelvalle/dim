@@ -17,6 +17,8 @@
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
+
 interface Props {
   /** Public credential URL. e.g. https://mimar.ar/p/{token} */
   publicUrl: string;
@@ -63,9 +65,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
         onClick={shareWhatsApp}
         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-ln-ok)] px-5 py-3 text-[var(--text-md)] font-semibold text-white transition-colors hover:opacity-90"
       >
-        <span aria-hidden className="text-lg">
-          💬
-        </span>
+        <Icon name="mensaje" size="md" decorative />
         Compartir por WhatsApp
       </button>
 
@@ -76,7 +76,13 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
           onClick={copy}
           className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-ln-line bg-ln-card px-3 text-sm font-medium text-ln-ink-2 transition-colors hover:bg-ln-stripe"
         >
-          {copied ? "Copiado ✓" : "Copiar link"}
+          {copied ? (
+            <>
+              <Icon name="check" size="sm" decorative /> Copiado
+            </>
+          ) : (
+            "Copiar link"
+          )}
         </button>
         <a
           href={posterHref}
@@ -84,7 +90,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
           rel="noreferrer"
           className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-ln-line bg-ln-card px-3 text-sm font-medium text-ln-ink-2 no-underline transition-colors hover:bg-ln-stripe"
         >
-          <span aria-hidden>🖨</span>
+          <Icon name="impresora" size="sm" decorative />
           Afiche
         </a>
       </div>
