@@ -7,6 +7,7 @@ import {
   WEEKDAY_INITIALS_MON,
   buildCalendarGrid,
   cellAriaLabel,
+  clampSinceToRecentMonths,
   intensityLevel,
 } from "@/components/panorama/calendar-heatmap-grid";
 
@@ -136,6 +137,58 @@ describe("buildCalendarGrid — window → columns", () => {
     });
     expect(grid.columns).toHaveLength(1);
     expect(grid.columns[0].cells[0]?.date).toBe("2026-01-04"); // Sunday at row 0
+  });
+});
+
+describe("clampSinceToRecentMonths — 12-month cap boundary (PO 2026-07-14)", () => {
+  it("leaves a window SHORTER than the cap unchanged", () => {
+    expect(clampSinceToRecentMonths("2026-01-01", "2026-07-14", 12)).toEqual({
+      since: "2026-01-01",
+      capped: false,
+    });
+  });
+
+  it("does NOT cap a window spanning EXACTLY 12 months (since === cutoff)", () => {
+    // until 2026-07-14 → cutoff = same day one year earlier.
+    expect(clampSinceToRecentMonths("2025-07-14", "2026-07-14", 12)).toEqual({
+      since: "2025-07-14",
+      capped: false,
+    });
+  });
+
+  it("caps a window one day past the boundary, clamping since to the cutoff", () => {
+    expect(clampSinceToRecentMonths("2025-07-13", "2026-07-14", 12)).toEqual({
+      since: "2025-07-14",
+      capped: true,
+    });
+  });
+
+  it("caps a multi-year window to the most recent 12 months", () => {
+    expect(clampSinceToRecentMonths("2023-03-01", "2026-07-14", 12)).toEqual({
+      since: "2025-07-14",
+      capped: true,
+    });
+  });
+
+  it("returns the window unchanged for a malformed or inverted range", () => {
+    expect(clampSinceToRecentMonths("2026-02-01", "2026-01-01", 12)).toEqual({
+      since: "2026-02-01",
+      capped: false,
+    });
+    expect(clampSinceToRecentMonths("nope", "2026-01-01", 12)).toEqual({
+      since: "nope",
+      capped: false,
+    });
+  });
+
+  it("the clamped since drives a ~12-month buildCalendarGrid span", () => {
+    const { since, capped } = clampSinceToRecentMonths("2020-01-01", "2026-07-14", 12);
+    expect(capped).toBe(true);
+    const grid = buildCalendarGrid({ since, until: "2026-07-14", counts: [] });
+    // 12 months ≈ 365–366 days; assert it is neither the multi-year original
+    // nor collapsed to nothing.
+    expect(grid.dayCount).toBeGreaterThan(360);
+    expect(grid.dayCount).toBeLessThan(372);
   });
 });
 

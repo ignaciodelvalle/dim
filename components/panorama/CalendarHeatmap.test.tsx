@@ -60,6 +60,29 @@ describe("<CalendarHeatmap>", () => {
     expect(onDayClick).toHaveBeenLastCalledWith("2026-01-07");
   });
 
+  it("caps a multi-year window to the recent 12 months and notes the truncation", () => {
+    render(
+      <CalendarHeatmap
+        data={[
+          { date: "2026-07-07", count: 2 }, // within the recent 12 months
+          { date: "2021-03-05", count: 5 }, // older than the cap → dropped
+        ]}
+        since="2020-01-01"
+        until="2026-07-14"
+      />,
+    );
+    // The truncation note appears (es-AR).
+    expect(screen.getByText("Últimos 12 meses del período activo.")).toBeInTheDocument();
+    // The recent day survives in the a11y table; the old one is dropped.
+    expect(screen.getByText("7 de julio de 2026")).toBeInTheDocument();
+    expect(screen.queryByText("5 de marzo de 2021")).not.toBeInTheDocument();
+  });
+
+  it("shows no cap note for a window within 12 months", () => {
+    render(<CalendarHeatmap data={DATA} {...WEEK} />);
+    expect(screen.queryByText("Últimos 12 meses del período activo.")).not.toBeInTheDocument();
+  });
+
   it("narrates the empty/non-temporal state instead of a blank box", () => {
     render(
       <CalendarHeatmap

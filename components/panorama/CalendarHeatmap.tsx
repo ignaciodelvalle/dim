@@ -30,9 +30,13 @@ import {
   type DailyCount,
   buildCalendarGrid,
   cellAriaLabel,
+  clampSinceToRecentMonths,
 } from "@/components/panorama/calendar-heatmap-grid";
 import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
 import { formatDate, parseDateInput } from "@/lib/utils/format";
+
+/** Widest window the day-cell grid renders before clamping to the recent tail. */
+const CALENDAR_CAP_MONTHS = 12;
 
 type Props = {
   /** Per-day scope-total counts (from loadScopeDailyCounts / client timestamps). */
@@ -107,8 +111,19 @@ export function CalendarHeatmap({
   onDayClick,
 }: Props) {
   const titleId = useId();
-  const grid = buildCalendarGrid({ since, until, counts: data, weekStartsOn });
-  const isEmpty = data.length === 0 || grid.columns.length === 0;
+  // PO cap (2026-07-14): a multi-year panorama window would render an
+  // unreadably wide day-cell grid, so clamp to the most recent 12 months and
+  // note the truncation. Windows ≤ 12 months are byte-identical to before.
+  const { since: effectiveSince, capped } = clampSinceToRecentMonths(
+    since,
+    until,
+    CALENDAR_CAP_MONTHS,
+  );
+  const grid = buildCalendarGrid({ since: effectiveSince, until, counts: data, weekStartsOn });
+  // The a11y table mirrors the shown window — drop days outside the cap so it
+  // never lists dates absent from the heatmap above.
+  const tableData = capped ? data.filter((d) => d.date >= effectiveSince) : data;
+  const isEmpty = tableData.length === 0 || grid.columns.length === 0;
 
   return (
     <section aria-labelledby={titleId} className="space-y-2">
@@ -121,6 +136,11 @@ export function CalendarHeatmap({
         </h3>
         {methodNote && (
           <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">{methodNote}</p>
+        )}
+        {capped && (
+          <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+            Últimos {CALENDAR_CAP_MONTHS} meses del período activo.
+          </p>
         )}
       </div>
 
@@ -204,7 +224,7 @@ export function CalendarHeatmap({
 
       {/* A11y fallback table — the keyboard/screen-reader path. Rows mirror the
           INPUT series (days with data); each date filters when onDayClick is set. */}
-      {data.length > 0 && (
+      {tableData.length > 0 && (
         <details className="text-[var(--text-sm)]">
           <summary className="cursor-pointer text-[var(--text-xs)] font-medium text-ln-op-azul hover:underline">
             Ver datos
@@ -230,7 +250,7 @@ export function CalendarHeatmap({
               </tr>
             </thead>
             <tbody>
-              {[...data]
+              {[...tableData]
                 .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
                 .map((d) => {
                   const display = formatDate(parseDateInput(d.date));

@@ -133,6 +133,39 @@ export function intensityLevel(count: number, max: number): 0 | 1 | 2 | 3 | 4 {
 }
 
 /**
+ * Cap a heatmap window to the most recent `maxMonths` calendar months.
+ *
+ * The panorama's default period can span multiple years; rendering every ISO
+ * week then makes the day-cell grid unreadably wide. PO decision (2026-07-14):
+ * when the window exceeds `maxMonths`, clamp the START forward to `until` minus
+ * `maxMonths` calendar months and flag it (`capped`) so the UI can note the
+ * truncation. A window at or under the cap (or a malformed/inverted one) is
+ * returned unchanged with `capped: false`.
+ *
+ * Boundary: a window spanning EXACTLY `maxMonths` (since === cutoff) is NOT
+ * capped — only a strictly longer window (since < cutoff) is.
+ */
+export function clampSinceToRecentMonths(
+  since: string,
+  until: string,
+  maxMonths: number,
+): { since: string; capped: boolean } {
+  const startT = parseDayUTC(since);
+  const endT = parseDayUTC(until);
+  if (startT === null || endT === null || startT > endT || maxMonths <= 0) {
+    return { since, capped: false };
+  }
+  const end = new Date(endT);
+  // Same day-of-month, `maxMonths` earlier (JS Date rolls negative months into
+  // the prior year); UTC throughout, matching the module's calendar-date rule.
+  const cutoffT = Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - maxMonths, end.getUTCDate());
+  if (startT < cutoffT) {
+    return { since: dayKeyUTC(cutoffT), capped: true };
+  }
+  return { since, capped: false };
+}
+
+/**
  * Build the week-column grid spanning [since, until] inclusive.
  *
  * Contract:
