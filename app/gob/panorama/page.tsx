@@ -300,7 +300,6 @@ async function GobPanoramaBoard({
         initialBounds={initialBounds ?? undefined}
         initialLevel={seedLevel}
         initialDivisionProvince={initialDivisionProvince}
-        universalNav={profile.role === "admin"}
         defaultPresetId={defaultPresetId}
         seededPresetId={preset.id}
         seededLayers={seededLayers}
@@ -372,7 +371,6 @@ async function GobPanoramaBoard({
       initialBounds={initialBounds ?? undefined}
       initialLevel={initialLevel}
       initialDivisionProvince={initialDivisionProvince}
-      universalNav={profile.role === "admin"}
       defaultPresetId={defaultPresetId}
     />
   );

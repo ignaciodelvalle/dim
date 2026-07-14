@@ -177,10 +177,10 @@ export function scopeProvince(view: PanoramaViewState): string | null {
   return view.scope.kind === "national" ? null : view.scope.province;
 }
 
-/** The DERIVED aggregation level for a scope + live zoom is computed by the
- *  situational-map layer (`derivedLevelWithHysteresis`), NOT stored here — level
- *  is a projection output. This helper only expresses the scope-wins half that is
- *  zoom-independent, for callers that need it without a camera. */
+/** The DERIVED aggregation level is a pure function of the SCOPE (P4c, design
+ *  §5.5): a committed province/locality reads the locality axis; national reads
+ *  province at any zoom — level is a projection output, never stored. This
+ *  predicate IS that derivation (true ⇒ locality axis). */
 export function scopeForcesLocality(view: PanoramaViewState): boolean {
   return view.scope.kind !== "national";
 }

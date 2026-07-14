@@ -36,11 +36,19 @@
 // locality marks over the national frame. Every other cell is value-identical
 // to the P0 net.
 //
+// ── P4c UPDATE (DELIBERATE, 2026-07-14, design §5.5) ────────────────────────
+// The DATA axis (`level`) now follows the SCOPE alone: committed
+// province/locality ⇒ locality; national ⇒ province at ANY zoom. The
+// camera-driven half of the old derivedLevelWithHysteresis is gone (scroll =
+// camera, click = drill — the wheel-hierarchy takeover was deleted with it).
+// Matrix change: national-scope cells at zoom 7/11 keep `level: "province"`
+// (they used to flip to locality past the Schmitt band); every scoped cell is
+// unchanged. Rendering granularity remains the P4b LOD bands' job.
+//
 // Pure — no DB, no React, no maplibre. Deterministic (fixed periods, no `now`).
 
 import { describe, expect, it } from "vitest";
 
-import { derivedLevelWithHysteresis } from "@/components/panorama/situational-map-utils";
 import { ZOOM_REPRESENTATIONS, markForZoom } from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { getLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
@@ -166,10 +174,10 @@ function project(
   const scope = SCOPES[scopeKey];
   const provinceInScope = scope.province != null;
   const layers = presetLayerIds(preset);
-  // Live level derivation: the console threads the previous level via a ref; from
-  // a cold mount the previous is the seed. Scope-wins dominates, so the `prev`
-  // only matters inside the national dead-band — use "province" as the cold seed.
-  const level = derivedLevelWithHysteresis("province", scope, zoom);
+  // P4c (design §5.5): the data axis derives from the SCOPE alone — the camera
+  // never flips it. Mirrors the console's level effect exactly.
+  const level: AggregationLevel =
+    scope.province != null || scope.locality != null ? "locality" : "province";
   const base = getLayer(preset.base)!;
   // P4b: points mode = some active layer's declared band resolves NEAR and it is
   // points-capable (the former global pointsEligible × POINTS_LAYER_IDS gate).
@@ -227,10 +235,14 @@ describe("panorama view-projection characterization (P0 fence)", () => {
 
   // --- Invariant spot-checks (human-readable, survive a snapshot regen) -------
 
-  it("national scope below the locality band → province level (kills the green blob)", () => {
+  it("national scope → province level at ANY zoom (P4c: the camera never flips the data axis)", () => {
     for (const preset of PANORAMA_PRESETS) {
-      const r = project(preset, "national", 3, false);
-      expect(r.level).toBe("province");
+      for (const zoom of ZOOMS) {
+        // Before P4c, zoom 7/11 flipped national scope to locality (a nationwide
+        // every-locality refetch triggered by looking closer). Now committing to
+        // a jurisdiction is a CLICK; free zoom only changes the render bands.
+        expect(project(preset, "national", zoom, false).level).toBe("province");
+      }
     }
   });
 
@@ -332,10 +344,12 @@ describe("panorama view-projection characterization (P0 fence)", () => {
     expect(normalizedScope).toEqual({ kind: "national" });
     const normalized = toScopeFilter(makeViewState({ scope: normalizedScope }));
     expect(normalized).toEqual({ country: "AR", province: null, locality: null });
-    // Below the locality band the normalized (national) scope derives PROVINCE —
-    // the level is now CAMERA-driven, no longer scope-forced. This is the crisp
-    // contrast with the old path: the orphan locality forced locality at ANY zoom.
-    expect(derivedLevelWithHysteresis("province", normalized, 3)).toBe("province"); // fixed
-    expect(derivedLevelWithHysteresis("province", orphan, 3)).toBe("locality"); // old, incoherent
+    // The normalized (national) scope derives PROVINCE under the P4c scope-only
+    // rule; the raw orphan would have forced locality. The structural fix is the
+    // normalization — a locality-without-province is unrepresentable in ViewScope.
+    const levelOf = (s: PanoramaScope) =>
+      s.province != null || s.locality != null ? "locality" : "province";
+    expect(levelOf(normalized)).toBe("province"); // fixed
+    expect(levelOf(orphan)).toBe("locality"); // old, incoherent input
   });
 });

@@ -64,12 +64,7 @@ import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import { activeVistaName, countFiltroModifiers } from "@/components/panorama/panorama-labels";
 import { binDailyCounts, binTimestamps } from "@/components/panorama/signal-histogram";
-import {
-  Z_LOCALITY,
-  Z_LOCALITY_ENTER,
-  Z_LOCALITY_EXIT,
-  derivedLevelWithHysteresis,
-} from "@/components/panorama/situational-map-utils";
+import { Z_LOCALITY } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
@@ -459,19 +454,6 @@ type Props = {
    */
   allowedProvinces?: Array<{ code: string; name: string }>;
   /**
-   * True ONLY for a true universal navigator (admin / no jurisdiction fence).
-   * Gates the semantic scroll-nav wheel takeover AND the wheel-driven center
-   * scope commit. Adversarial QA 2026-07-11 (HIGH 1): the old heuristic
-   * `initialDivisionProvince == null` mis-classified a MULTI-province govt
-   * operator as universal — they lost cooperative wheel-zoom and could
-   * center-drill (camera-only) into provinces outside their mental model. Only
-   * an actor with no jurisdiction fence may own the wheel + free scope commit;
-   * a multi-province govt keeps cooperative zoom and click-drills their own
-   * provinces (still data-fenced server-side). Default false (tests / embedding
-   * callers get no takeover).
-   */
-  universalNav?: boolean;
-  /**
    * Localities of the INITIALLY-selected province (JurisdictionSwitcher
    * dropdown). Seeds the console's live scope-data state; an embedded drill
    * refreshes it from /api/panorama/scope for the newly-drilled province.
@@ -511,7 +493,6 @@ export function PanoramaConsole({
   seededLayers,
   scopeLabel,
   allowedProvinces,
-  universalNav = false,
   localities: initialLocalities = [],
   aboutSlot,
   demoNotice,
@@ -1405,13 +1386,11 @@ export function PanoramaConsole({
       // National scope (return-to-national) needs no bundle — reset in place.
       if (!province) {
         setScopeData({ localities: [], centroids: {} });
-        // Live-QA regression (2026-07-11): a drill flips the derived level to
-        // "locality" (scope-wins) and the autozoom leaves the camera at the
-        // drilled-in zoom. Returning to national must NOT leave the level stuck
-        // in "Localidades" (a national locality choropleth reads "sin datos").
-        // Reset the camera baseline to the national default so the (scope, zoom)
-        // hysteresis re-derives "province" immediately, instead of holding
-        // "locality" off the stale drilled-in zoom until the fit animation ends.
+        // Return-to-national: the scope-only level effect flips the axis back to
+        // "province" on its own (P4c). The camera-baseline reset is for the P4b
+        // LOD bands — pre-seed the national band so the first paint after the
+        // return doesn't render the drilled band off the stale drilled-in zoom
+        // until the fit animation settles.
         setMapZoom(Z_LOCALITY - 1);
         return;
       }
@@ -1460,11 +1439,10 @@ export function PanoramaConsole({
         // Return-to-national: abort any in-flight province bundle, reset in place.
         signalFor("scope");
         setScopeData({ localities: [], centroids: {} });
-        // Same reset as commitScopeDrill's national branch: the popped URL implies
-        // the national province axis (no ?level), so drop the camera baseline to
-        // the national default and let the (scope, zoom) hysteresis flip the level
-        // back to "province" — otherwise Back leaves the choropleth stuck in
-        // "Localidades" off the stale drilled-in zoom (live-QA regression).
+        // Same reset as commitScopeDrill's national branch: the scope-only level
+        // effect restores the province axis (P4c); the camera-baseline reset
+        // pre-seeds the national LOD band (P4b) so Back never paints the drilled
+        // band off the stale drilled-in zoom until the fit settles.
         setMapZoom(Z_LOCALITY - 1);
         return;
       }
@@ -2904,19 +2882,15 @@ export function PanoramaConsole({
     if (toFetch.length > 0) void fetchLayersInto(toFetch, levelRef.current, params);
   };
 
-  // panorama magnetic-zoom Phase 2: DERIVE the aggregation level from (scope,
-  // zoom) with HYSTERESIS. The scope-wins rule is unchanged — a jurisdiction
-  // drill (explicit ?province/?locality, or the implicit single-province scope
-  // of a jurisdiction-scoped operator) is always locality. For national scope
-  // the flip is a Schmitt trigger (Z_LOCALITY_ENTER / _EXIT) so a camera that
-  // settles near the boundary produces ZERO oscillation. `levelRef.current` is
-  // threaded as `prev` so the dead-band holds the current level.
+  // P4c (design §5.5): the aggregation level derives from the SCOPE alone —
+  // a jurisdiction drill (explicit ?province/?locality, or the implicit
+  // single-province scope of a jurisdiction-scoped operator) is locality;
+  // national scope is province at any zoom. The camera no longer flips the
+  // data axis (the old Schmitt-trigger hysteresis is gone with the wheel
+  // takeover); rendering granularity is the P4b LOD bands' job.
   //
-  // PO-ratified 2026-07-09: a preset's `level: "locality"` is now an INITIAL
-  // PREFERENCE (the server seed / the current camera), NOT a force — in national
-  // framing every preset starts at province and locality arrives only on an
-  // intentional zoom past the boundary or a jurisdiction drill. So this effect
-  // NO LONGER pins the level to the active preset's level.
+  // PO-ratified 2026-07-09 (unchanged): a preset's `level: "locality"` is an
+  // INITIAL PREFERENCE realized by the server seed, never a force.
   const derivedProvince = effectiveScopeProvince ?? initialDivisionProvince;
   // effectiveScopeLocality is already orphan-normalized at its source (Fork A,
   // above) — a locality only survives when a province exists somewhere, so this
@@ -2957,39 +2931,18 @@ export function PanoramaConsole({
   );
 
   useEffect(() => {
-    // The level derivation reads the scope filter off the ONE canonical view via
-    // the converter — the primary map consumer no longer builds its own literal.
-    const desired = derivedLevelWithHysteresis(levelRef.current, toScopeFilter(viewState), mapZoom);
+    // P4c (design §5.5): the DATA axis follows the SCOPE, never the camera. A
+    // committed province/locality (click-drill, switcher, URL) reads the
+    // locality axis; national scope stays on the province axis at ANY zoom —
+    // free-zooming is *looking*, committing is a *click*. This deletes the
+    // camera-driven half of the old derivedLevelWithHysteresis (and with it the
+    // only path that fetched every locality in the country at once); the camera
+    // now drives only the RENDER via the P4b LOD bands (markForZoom).
+    const f = toScopeFilter(viewState);
+    const desired: AggregationLevel =
+      f.province != null || f.locality != null ? "locality" : "province";
     if (desired !== levelRef.current) onLevelChange(desired);
-  }, [mapZoom, viewState, onLevelChange]);
-
-  // panorama magnetic-zoom Phase 2 — BOUNDARY PREFETCH. While national scope is
-  // still at PROVINCE but the camera is APPROACHING the locality boundary (inside
-  // the dead-band, below the ENTER edge), warm the LOCALITY cache for the active
-  // level-sensitive layers so the eventual flip repaints for free. Uses a
-  // dedicated `:warm` abort key so it NEVER cancels an in-flight province fetch,
-  // and only fetches layers still missing from the locality cache. It does NOT
-  // flip the level or bump levelVersion — purely cache-warming.
-  useEffect(() => {
-    if (levelRef.current !== "province") return;
-    // Approach band only: from just below the EXIT edge up to (not past) ENTER.
-    // Past ENTER the level effect above flips outright and owns the fetch.
-    if (mapZoom < Z_LOCALITY_EXIT - 0.4 || mapZoom >= Z_LOCALITY_ENTER) return;
-    const toWarm = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(
-      (l) => statesRef.current[l.id]?.active && !dataRef.current.has(l.id),
-    );
-    if (toWarm.length === 0) return;
-    for (const l of toWarm) {
-      void (async () => {
-        try {
-          await fetchChoroplethAt(l.id, "locality", `${l.id}:warm`);
-        } catch {
-          // Superseded warm fetch (keyed abort) or a transient failure — the
-          // flip will fetch on demand. Warming is best-effort, never fatal.
-        }
-      })();
-    }
-  }, [mapZoom, fetchChoroplethAt]);
+  }, [viewState, onLevelChange]);
 
   // map-QOL URL sync: mirror the board (active layers / level / preset) into
   // the URL via shallow replaceState whenever it changes — toggles are silent
@@ -3076,8 +3029,25 @@ export function PanoramaConsole({
     }
 
     // Bare URL — offer the saved board, if any. Explicit period/preset params
-    // mean the operator navigated here on purpose: don't override.
-    if (current.get("period") !== null || current.get("preset") !== null) return;
+    // mean the operator navigated here on purpose: don't override the board.
+    if (current.get("period") !== null || current.get("preset") !== null) {
+      // P4c (task_ccc31326): a `?preset=` deep-link's board is server-seeded, so
+      // applyPreset (the only other framing site) never runs — apply the seeded
+      // preset's camera FRAMING here or a national-framed vista lands unframed
+      // (reads as blank when the base layer is sparse). setPresetFrame fires
+      // before the map's async load; SituationalMap BUFFERS a pre-load frame and
+      // applies it in its load handler (camera-pin and province-drill win there).
+      // Skip when the link pins its own camera (?z — parseCameraFromParams needs
+      // z+lat+lng, so z-null ⇒ no pinned camera).
+      if (hasSeed && seededPresetId != null && current.get("z") === null) {
+        const seededPreset = getPreset(seededPresetId);
+        if (seededPreset?.framing) {
+          frameTokenRef.current += 1;
+          setPresetFrame({ framing: seededPreset.framing, token: frameTokenRef.current });
+        }
+      }
+      return;
+    }
     if (saved === null) {
       // (c) No explicit board, no saved board — first visit: land on the
       // role-aware question-framed preset (govt → local surveillance, admin →
@@ -3563,14 +3533,9 @@ export function PanoramaConsole({
   //    (an effective `province` scope), never for the implicit jurisdiction scope.
   const canDrillProvince = initialDivisionProvince == null;
   const canReturnNational = effectiveScopeProvince != null;
-  // Adversarial QA 2026-07-11 (HIGH 1): the semantic scroll-nav wheel takeover
-  // and the wheel-driven center scope commit are gated on TRUE universal reach
-  // (admin / no jurisdiction fence), NOT the `initialDivisionProvince == null`
-  // heuristic. A multi-province govt operator satisfies that heuristic yet must
-  // keep cooperative wheel-zoom and may only click-drill (data-fenced) their own
-  // provinces — never own the wheel or free-commit a scope by centering. Click
-  // drill / "← Volver" stay on canDrillProvince (multi-province govt keeps them).
-  const scrollNavEligible = universalNav;
+  // P4c (design §5.5): the admin wheel-hierarchy takeover is GONE — every
+  // operator gets the same cooperative wheel-zoom (scroll = camera) and drills
+  // by CLICK (click-drill / switcher / "← Volver", gated on canDrillProvince).
   // Locality centroid for autozoom — from the live scope-data (refreshed on an
   // embedded drill), so a locality picked after a province drill flies correctly.
   const selectedLocalityCenter: [number, number] | null =
@@ -4415,19 +4380,12 @@ export function PanoramaConsole({
             onFeatureClick={onFeatureClick}
             onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
             onReturnNational={canReturnNational ? onReturnNational : undefined}
-            // task #36 fix 5 — semantic scroll navigation. Only free-navigation
-            // operators (admin/universal, no forced jurisdiction) get the wheel
-            // takeover + the general scope commit; a pinned gob operator keeps
-            // cooperative wheel-zoom bounded to their jurisdiction.
-            onScopeCommit={scrollNavEligible ? commitScopeDrill : undefined}
-            scrollNavEnabled={scrollNavEligible}
             initialBounds={initialBounds}
             frameProvinceOnLoad={frameProvinceOnLoad}
             rateProvinceOnlyEmpty={rateProvinceOnlyEmpty}
             detailKAnonSuppressed={dockSuppressedCount > 0}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}
-            localityCommitted={effectiveScopeLocality != null}
             frame={presetFrame}
             onZoom={onMapZoom}
             initialCamera={initialCamera}

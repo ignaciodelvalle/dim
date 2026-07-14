@@ -88,8 +88,8 @@ export type RenderMode = "choropleth-fill" | "graduated-symbol" | "clustered-poi
  * "green blob": nationally a layer fills province polygons; entering a province
  * (scope or zoom) switches to the locality mark. `autoLevel.belowZoom` is the
  * camera threshold that forces `level` (nacional → province) regardless of the
- * point count. The render branch resolves the mark via `derivedLevel(scope,zoom)`
- * then reads `renderPolicy[level]`.
+ * point count. P4b: the render branch resolves the mark via `markForZoom`
+ * (capabilities.ts) reading these declared bands against the live camera.
  */
 export type RenderPolicy = {
   province: RenderMode;

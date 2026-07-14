@@ -287,9 +287,6 @@ async function AdminPanoramaBoard({
         kpisPromise={kpisPromise}
         suppressDemoDisclosure={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)}
         initialLevel={seedLevel}
-        // /admin/panorama is admin-only (universal reach — no jurisdiction
-        // fence), so the semantic scroll-nav wheel takeover is enabled (HIGH 1).
-        universalNav
         defaultPresetId={defaultPresetId}
         seededPresetId={preset.id}
         seededLayers={seededLayers}

@@ -16,72 +16,18 @@ import type {
 // panorama-ia-v2 §1.1 — derived aggregation level (replaces AggregationToggle)
 // ---------------------------------------------------------------------------
 
-/** Camera zoom at/above which the national view drills to the locality mark. */
+/**
+ * Camera zoom around which programmatic frames snap (see FRAMING_SNAP_MAX_ZOOM)
+ * and the P4b national LOD band ends (`autoLevel.belowZoom` in the layer
+ * registry declares 5 per layer).
+ *
+ * P4c (design §5.5): the camera-driven LEVEL derivation that used to live here
+ * (`derivedLevel` + the `derivedLevelWithHysteresis` Schmitt trigger over
+ * Z_LOCALITY_ENTER/EXIT) is GONE — the data axis follows the SCOPE alone
+ * (committed province/locality ⇒ locality axis; national ⇒ province axis at any
+ * zoom), and rendering granularity is the P4b LOD bands' job (`markForZoom`).
+ */
 export const Z_LOCALITY = 5;
-
-/**
- * Derive the aggregation level from (scope, zoom) — the level is no longer a
- * manual control (design §1.1). PO decision #1: BOTH a scope selection AND
- * zooming in trigger the locality mark, preferring the finer precision whenever
- * it renders. A selected province/locality scope WINS over zoom (you asked to
- * look inside a jurisdiction, so you see its localities even zoomed far out);
- * otherwise the national view stays at `province` until the camera crosses
- * `belowZoom` (Z_LOCALITY), which is what kills the national "green blob".
- *
- * Pure — no map, no DOM. `zoom` is the current camera zoom (SituationalMap
- * reads it from maplibre); `belowZoom` is the layer's autoLevel threshold.
- */
-export function derivedLevel(
-  scope: PanoramaScope,
-  zoom: number,
-  belowZoom: number = Z_LOCALITY,
-): AggregationLevel {
-  // Scope wins: any province/locality selection means "look inside" → locality.
-  if (scope.province != null || scope.locality != null) return "locality";
-  // National scope: the camera decides. At/above the threshold → locality.
-  return zoom >= belowZoom ? "locality" : "province";
-}
-
-// ---------------------------------------------------------------------------
-// panorama magnetic-zoom Phase 2 — hysteresis around the province↔locality flip
-// ---------------------------------------------------------------------------
-//
-// The single Z_LOCALITY threshold makes the level FLICKER: a camera that settles
-// right on 5.0 (or a frame that lands there) toggles province↔locality on every
-// jitter, each flip triggering a refetch of the active level-sensitive layers.
-// A Schmitt-trigger band fixes it: enter locality only well ABOVE the old line,
-// fall back to province only well BELOW it, and hold the previous level inside
-// the dead-band so tiny oscillations produce ZERO flips.
-
-/** Zoom at/above which national scope ENTERS locality (upper Schmitt edge). */
-export const Z_LOCALITY_ENTER = 5.4;
-/** Zoom below which national scope EXITS back to province (lower Schmitt edge). */
-export const Z_LOCALITY_EXIT = 4.6;
-
-/**
- * Derive the aggregation level with hysteresis — the flip-free counterpart of
- * `derivedLevel`. The scope-wins rule is UNCHANGED (any province/locality scope
- * is always locality). For national scope the flip is a Schmitt trigger:
- *
- *  - `zoom >= Z_LOCALITY_ENTER` → locality (decisive drill-in past the boundary),
- *  - `zoom <  Z_LOCALITY_EXIT`  → province (decisive pull-out below the boundary),
- *  - otherwise (inside the dead-band) → keep `prev` — no flip, no refetch.
- *
- * Pure — no map, no DOM. `prev` is the CURRENT aggregation level (the caller
- * threads it via a ref); it is only consulted for national scope inside the band.
- */
-export function derivedLevelWithHysteresis(
-  prev: AggregationLevel,
-  scope: PanoramaScope,
-  zoom: number,
-): AggregationLevel {
-  // Scope wins over the camera, exactly as `derivedLevel` — a jurisdiction drill
-  // always shows its localities regardless of zoom.
-  if (scope.province != null || scope.locality != null) return "locality";
-  if (zoom >= Z_LOCALITY_ENTER) return "locality";
-  if (zoom < Z_LOCALITY_EXIT) return "province";
-  return prev;
-}
 
 /**
  * Max-zoom a PROGRAMMATIC camera move (initial fit, jurisdiction viewport, preset

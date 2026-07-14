@@ -41,12 +41,11 @@ import type { EncodingId, PanoramaViewState, Representation } from "./view-state
 /**
  * The runtime facts the gate needs beyond the canonical ViewState.
  *
- * `level` is DERIVED (not stored) by the situational-map layer via
- * `derivedLevelWithHysteresis(prev, scope, zoom)` — that derivation is stateful
- * (it consults the previous level inside the Schmitt dead-band), so it lives
- * where the hysteresis state lives (the React map layer), and the caller passes
- * the result in. The gate ECHOES it in `capabilities.level` so every surface
- * reads the ONE value instead of re-deriving its own (design §1.1 / §4.3).
+ * `level` is DERIVED (not stored) by the console from the SCOPE alone (P4c,
+ * design §5.5): a committed province/locality reads the locality axis; national
+ * reads province at any zoom — the camera never flips the data axis. The gate
+ * ECHOES it in `capabilities.level` so every surface reads the ONE value
+ * instead of re-deriving its own (design §1.1 / §4.3).
  */
 export type CapabilityRuntime = {
   /** live camera zoom — the only continuous input; labels LOD bands (P4). */

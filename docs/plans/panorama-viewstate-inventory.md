@@ -43,7 +43,7 @@ write is lossy. Both become red tests under `viewStateFromParams(viewStateToPara
 
 ## LOD axes (P4) — three independent thresholds today
 
-- [ ] `Z_LOCALITY=5` / `Z_LOCALITY_ENTER=5.4` / `Z_LOCALITY_EXIT=4.6` — province↔locality hysteresis (`derivedLevelWithHysteresis`, used Console:2656-2660).
+- [x] `Z_LOCALITY=5` / `Z_LOCALITY_ENTER=5.4` / `Z_LOCALITY_EXIT=4.6` — province↔locality hysteresis *(DELETED at P4c, design §5.5: the level is scope-only; the camera drives only the P4b LOD bands. `Z_LOCALITY` survives as the band/snap constant.)*
 - [ ] `Z_POINTS=10` — near-zoom real dots (`pointsEligible`).
 - [ ] `Z_DIVISIONS=6.5` — departamento/barrio admin-division activation (`resolveDivisionProvinces`, 413-426) — a parallel overlay axis, folds in as a `divisions` band.
 - [ ] Mark selection is imperative (Console:1514-1526), never reads `renderPolicy`. → unify under `representationPerZoom`.

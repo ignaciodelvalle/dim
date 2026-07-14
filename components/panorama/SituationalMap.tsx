@@ -56,13 +56,6 @@ import {
   visibleDivisionLabels,
 } from "@/components/panorama/division-labels";
 import {
-  type NavState,
-  type RegionId,
-  frameForNavState,
-  regionAtPoint,
-  resolveScrollNav,
-} from "@/components/panorama/panorama-regions";
-import {
   type Bbox,
   CABA_INSET_BBOX,
   FRAMING_SNAP_MAX_ZOOM,
@@ -310,16 +303,6 @@ type Props = {
    */
   selectedLocalityCenter?: [number, number] | null;
   /**
-   * MED 7 (adversarial QA 2026-07-11): true when a `?locality` data scope is
-   * COMMITTED. The scroll-nav machine must read the committed locality scope,
-   * NOT infer it from `selectedLocalityCenter` presence — the centroid arrives
-   * asynchronously (scopeData fetch) and lags the commit, so a wheel OUT fired
-   * in that window mis-reads the level as "provincia" and skips to región,
-   * silently dropping the locality scope. This flag mirrors the committed
-   * `?locality` param directly.
-   */
-  localityCommitted?: boolean;
-  /**
    * panorama-redesign Fase 1: preset map framing. Set by PanoramaConsole when
    * the operator activates a preset that carries a `framing` field. `token`
    * is a monotonic counter so re-clicking the same preset re-frames. CAMERA
@@ -427,22 +410,6 @@ type Props = {
    */
   onProvinceSeqLegendChange?: (legends: ProvinceSeqLegend) => void;
   /**
-   * task #36 fix 5 — general scope commit for semantic scroll navigation. Maps
-   * to the console's commitScopeDrill(province, locality). Scroll steps that
-   * change the DATA scope (localidad→provincia, provincia→región return,
-   * región→provincia) call this; the console's autozoom effect then frames the
-   * new scope. Absent → scroll navigation is disabled (kept for gob operators
-   * pinned to a jurisdiction).
-   */
-  onScopeCommit?: (province: string | null, locality: string | null) => void;
-  /**
-   * task #36 fix 5 — enables the wheel/pinch → hierarchy-navigation takeover
-   * (localidad → provincia → región → nación, snapping to canonical framed
-   * views). Only free-navigation operators (admin, no forced jurisdiction) get
-   * it; a pinned gob operator keeps cooperative wheel-zoom. Read once at mount.
-   */
-  scrollNavEnabled?: boolean;
-  /**
    * task #38 v3 rail: the console owns the chrome now (a floating vertical rail
    * replaces the legacy top toolbar / the v2C floating clusters). When true the
    * map renders NO legacy top chrome bar and NO top-right briefing card — the
@@ -508,16 +475,6 @@ const MIN_ZOOM = 3;
 // pass the same ceiling to `framingMaxZoom`.
 const FRAME_MAX_ZOOM = 11;
 const FRAME_PADDING = 56;
-
-// task #36 fix 5 — semantic-scroll tuning. WHEEL_STEP_THRESHOLD is the
-// accumulated |deltaY| that commits ONE hierarchy step (hysteresis so a light
-// touch of the wheel never ping-pongs); NAV_COOLDOWN_MS is the minimum gap
-// between steps so a single flick advances exactly one level; NAV_GUARD_MS is
-// the fallback that releases the in-flight guard if a no-op fit never emits
-// moveend.
-const WHEEL_STEP_THRESHOLD = 80;
-const NAV_COOLDOWN_MS = 420;
-const NAV_GUARD_MS = 650;
 
 /**
  * panorama magnetic-zoom Phase 2 — resolve the max-zoom a PROGRAMMATIC fitBounds
@@ -685,9 +642,6 @@ export function SituationalMap({
   onDivisionLegendChange,
   onGraduatedScaleChange,
   onProvinceSeqLegendChange,
-  onScopeCommit,
-  scrollNavEnabled = false,
-  localityCommitted = false,
   overlayChrome = false,
   registerExportPng,
 }: Props) {
@@ -729,25 +683,9 @@ export function SituationalMap({
   const onProvinceDrillRef = useRef(onProvinceDrill);
   onProvinceDrillRef.current = onProvinceDrill;
   const drillingRef = useRef(false);
-  // task #36 fix 5 — semantic scroll navigation. onScopeCommit is the general
-  // data-scope commit; selectedLocalityCenter tells the scroll machine whether a
-  // locality is committed; regionFocusRef holds the CAMERA-ONLY region focus
-  // (national data scope); scrollNav guards the wheel takeover + in-flight fits.
-  const onScopeCommitRef = useRef(onScopeCommit);
-  onScopeCommitRef.current = onScopeCommit;
-  const selectedLocalityCenterRef = useRef(selectedLocalityCenter);
-  selectedLocalityCenterRef.current = selectedLocalityCenter;
-  // MED 7: the COMMITTED ?locality scope (from the URL/console), read by the
-  // scroll-nav machine instead of the async-lagging centroid presence.
-  const localityCommittedRef = useRef(localityCommitted);
-  localityCommittedRef.current = localityCommitted;
-  const regionFocusRef = useRef<RegionId | null>(null);
-  const scrollNavEnabledRef = useRef(scrollNavEnabled);
-  scrollNavEnabledRef.current = scrollNavEnabled;
-  const navAnimatingRef = useRef(false);
-  const navAnimTimerRef = useRef<number | null>(null);
-  const wheelAccumRef = useRef(0);
-  const lastNavAtRef = useRef(0);
+  // P4c (design §5.5): the wheel-hierarchy takeover (performNavStep + its
+  // accumulator/cooldown/region refs) is GONE — scroll is camera-only under
+  // cooperative gestures; drilling is a click (onProvinceDrill) or the switcher.
   // Time-scrub color-scale lock (fixes the flicker bug). While an as-of scrub is
   // active, the graduated bubble MAX and the choropleth/division classed BREAKS are
   // FROZEN at the live-edge frame so a datum keeps the same color/size across
@@ -796,6 +734,13 @@ export function SituationalMap({
   // value decoded from the URL). When present the load handler reproduces it
   // verbatim instead of computing a frame.
   const initialCameraRef = useRef(initialCamera);
+  // P4c (task_ccc31326): a preset frame set BEFORE the map finished loading (a
+  // `?preset=` deep-link to a national-framed vista fires setPresetFrame at
+  // mount). The [frame] effect can't apply it yet (loadedRef false) and never
+  // re-fires (frame identity doesn't change), so it BUFFERS here and the load
+  // handler applies it — after, and only in the absence of, a pinned camera and
+  // the frameProvinceOnLoad province fit (camera-pin > province > preset frame).
+  const pendingFrameRef = useRef<{ framing: PresetFraming; token: number } | null>(null);
   // A1 PR-7: the national bbox used as fallback for the autozoom helper.
   // Populated after the initial fitBounds resolves on load. Never mutated.
   const nationalBboxRef = useRef<[[number, number], [number, number]] | null>(null);
@@ -960,12 +905,6 @@ export function SituationalMap({
         layers: [{ id: "bg", type: "background", paint: { "background-color": COLOR_CANVAS } }],
       };
 
-      // task #36 fix 5 — capture the scroll-nav mode ONCE at mount (the map is
-      // built once). When enabled, wheel/pinch drives HIERARCHY navigation (not
-      // free zoom): cooperativeGestures is off and maplibre's scrollZoom is
-      // disabled below, so our own wheel handler owns the gesture.
-      const scrollNav = scrollNavEnabledRef.current;
-
       const map = new maplibregl.Map({
         container: containerRef.current,
         style,
@@ -978,9 +917,10 @@ export function SituationalMap({
         // once — the operator lost their place every time they scrolled past the
         // console. cooperativeGestures gates wheel-zoom behind Ctrl/⌘ (and pan
         // behind two fingers on touch), so a plain scroll moves the PAGE, never
-        // the map. Help text localized below. Under scroll-nav (fix 5) the wheel
-        // is instead a hierarchy-navigation gesture, so cooperative gating is off.
-        cooperativeGestures: !scrollNav,
+        // the map. Help text localized below. P4c (design §5.5): EVERY operator
+        // gets this — the admin wheel-hierarchy takeover is gone; scroll is
+        // camera-only and drilling is a click.
+        cooperativeGestures: true,
         // map-QOL zoom bounds: pan/zoom clamped to the national territory —
         // the operator can never get lost in the open ocean or zoom out to
         // a meaningless world view.
@@ -1026,14 +966,6 @@ export function SituationalMap({
       // production since nothing but the harness ever reads it.
       if (typeof window !== "undefined") {
         (window as unknown as { __PANORAMA_MAP__?: maplibregl.Map }).__PANORAMA_MAP__ = map;
-      }
-      // task #36 fix 5 — take over the wheel for hierarchy navigation: disable
-      // maplibre's own scroll-zoom so the camera only ever lands on canonical
-      // framed views, and route wheel/pinch through performNavStep (with
-      // hysteresis + an in-flight guard). Keyboard/NavigationControl zoom stay.
-      if (scrollNav) {
-        map.scrollZoom.disable();
-        map.getCanvas().addEventListener("wheel", handleNavWheel, { passive: false });
       }
       // task #39 hardening — WebGL context-loss recovery. A GPU reset / driver
       // hiccup / long-backgrounded tab fires `webglcontextlost` on the canvas;
@@ -1116,10 +1048,6 @@ export function SituationalMap({
         // of them (fitBounds/flyTo settle with moveend); setMapZoom no-ops when the
         // value is unchanged, so a pure pan costs nothing.
         onZoomRef.current?.(map.getZoom());
-        // task #36 fix 5 — a scroll-nav fit has settled; release the takeover
-        // guard so the next wheel step can fire (a fallback timer also clears it
-        // in case a no-op fit never emits moveend).
-        navAnimatingRef.current = false;
         // task #36 fix 1 — re-evaluate whether CABA is in view after every camera
         // settle (pan or zoom). Flip-gated, so a pan that keeps CABA on the same
         // side of the viewport edge triggers no re-render.
@@ -1341,6 +1269,17 @@ export function SituationalMap({
               bbox ?? AR_BBOX,
             );
             if (vp.kind === "fitBounds") frameBbox = vp.bbox;
+          } else if (pendingFrameRef.current != null) {
+            // P4c (task_ccc31326): a pre-load preset frame (a `?preset=`
+            // deep-link to a national-framed vista) buffered by the [frame]
+            // effect — resolve and apply it now that the map can fit. The
+            // pinned-camera and province-drill branches above take precedence.
+            const vp = computePresetFrameViewport(
+              pendingFrameRef.current.framing,
+              nationalBboxRef.current,
+              AR_BBOX,
+            );
+            if (vp?.kind === "fitBounds") frameBbox = vp.bbox;
           }
           if (frameBbox) {
             map.fitBounds(frameBbox, {
@@ -1352,6 +1291,8 @@ export function SituationalMap({
             });
           }
         }
+        // The buffered pre-load frame is consumed (applied or superseded) once.
+        pendingFrameRef.current = null;
         // task #36 fix 1 — seed the CABA-in-view flag from the actual initial
         // frame (a govt jurisdiction that fits away from CABA hides the inset
         // immediately, instead of showing it until the first user gesture).
@@ -1367,9 +1308,7 @@ export function SituationalMap({
         window.clearTimeout(divisionMoveTimerRef.current);
         divisionMoveTimerRef.current = null;
       }
-      // task #36 fix 5 — drop the scroll-nav wheel listener + fallback timer.
       const canvas = mapRef.current?.getCanvas();
-      canvas?.removeEventListener("wheel", handleNavWheel);
       // task #39 hardening — detach the WebGL context listeners before the canvas
       // is destroyed (belt-and-braces; map.remove() also tears down the canvas).
       if (glLostHandlerRef.current) {
@@ -1379,10 +1318,6 @@ export function SituationalMap({
       if (glRestoredHandlerRef.current) {
         canvas?.removeEventListener("webglcontextrestored", glRestoredHandlerRef.current);
         glRestoredHandlerRef.current = null;
-      }
-      if (navAnimTimerRef.current !== null) {
-        window.clearTimeout(navAnimTimerRef.current);
-        navAnimTimerRef.current = null;
       }
       resizeObsRef.current?.disconnect();
       resizeObsRef.current = null;
@@ -1410,140 +1345,6 @@ export function SituationalMap({
       cabaInViewRef.current = next;
       setCabaViewportInView(next);
     }
-  }
-
-  // task #36 fix 5 — wheel/pinch → hierarchy navigation. Accumulates delta with
-  // hysteresis, guards against a running camera animation, and enforces a
-  // cooldown so one flick advances exactly one level. Pinch-zoom on a trackpad
-  // arrives as wheel + ctrlKey and maps to the same semantics.
-  function handleNavWheel(e: WheelEvent) {
-    // We own the gesture (scrollZoom is disabled) — stop the page/scroll default.
-    e.preventDefault();
-    const map = mapRef.current;
-    if (!map) return;
-    if (navAnimatingRef.current) return; // never fight a running fit
-    const now = performance.now();
-    if (now - lastNavAtRef.current < NAV_COOLDOWN_MS) return;
-    // Reset the accumulator when the wheel direction flips so a reversal is
-    // decisive rather than having to unwind the previous direction's charge.
-    if (e.deltaY !== 0 && Math.sign(e.deltaY) !== Math.sign(wheelAccumRef.current)) {
-      wheelAccumRef.current = 0;
-    }
-    wheelAccumRef.current += e.deltaY;
-    if (Math.abs(wheelAccumRef.current) < WHEEL_STEP_THRESHOLD) return;
-    const direction: "in" | "out" = wheelAccumRef.current < 0 ? "in" : "out";
-    wheelAccumRef.current = 0;
-    // MED 6 (adversarial QA 2026-07-11): the cooldown (lastNavAtRef) is armed
-    // INSIDE performNavStep, and ONLY when a step actually executes — a genuine
-    // no-op (already national going OUT, nothing under the centre) must not eat
-    // the gesture for 420 ms. The wheel event is threaded so an in-scope wheel-IN
-    // can anchor its free zoom at the cursor (HIGH 2).
-    performNavStep(map, direction, e);
-  }
-
-  // HIGH 3 (adversarial QA 2026-07-11): derive the region CAMERA focus from the
-  // LIVE viewport — the camera is the source of truth. Free zoom (± buttons,
-  // finger pinch, programmatic) moves the camera without touching regionFocusRef,
-  // so trusting that ref alone desyncs the hierarchy (a later wheel-OUT jumps to
-  // nación from a stale region). A national-wide viewport (≥55% of the national
-  // east-west span) reads as "national" → no region; a tighter frame reads as the
-  // region under the viewport centre. The width heuristic tracks what the operator
-  // SEES and avoids a brittle magic-zoom constant.
-  function deriveCameraRegion(
-    map: maplibregl.Map,
-    provinceBboxes: readonly ProvinceBbox[],
-  ): RegionId | null {
-    const b = map.getBounds();
-    const viewSpan = b.getEast() - b.getWest();
-    const nationalSpan = AR_BBOX[1][0] - AR_BBOX[0][0];
-    if (!(viewSpan > 0) || viewSpan >= nationalSpan * 0.55) return null;
-    const c = map.getCenter();
-    return regionAtPoint([c.lng, c.lat], provinceBboxes);
-  }
-
-  // HIGH 2 (adversarial QA 2026-07-11): a NATIVE free zoom-in toward the cursor.
-  // At a committed data scope the hierarchy has no finer *snap* level (localities
-  // are click-drilled), but the operator must still be able to reach the z≥8 label
-  // tier by wheel. This zooms without touching the hierarchy state (the province
-  // stays committed, so a later wheel-OUT still snaps to región), and it is silent
-  // — the PO's "no-op" expectation becomes useful in the good direction.
-  function freeZoomTowardCursor(map: maplibregl.Map, wheelEvent?: WheelEvent) {
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const target = Math.min(map.getZoom() + 0.75, map.getMaxZoom());
-    const around =
-      wheelEvent != null ? map.unproject([wheelEvent.offsetX, wheelEvent.offsetY]) : undefined;
-    map.easeTo({ zoom: target, around, duration: 160, animate: !prefersReducedMotion });
-  }
-
-  // Resolve + apply one hierarchy step. Data-scope changes go through
-  // onScopeCommit (the console's autozoom effect frames them, region-aware);
-  // region-only transitions (nación⇄región) are framed here directly.
-  function performNavStep(map: maplibregl.Map, direction: "in" | "out", wheelEvent?: WheelEvent) {
-    const provinceBboxes = provinceBboxesRef.current;
-    const c = map.getCenter();
-    const center: [number, number] = [c.lng, c.lat];
-    const centerBbox: Bbox = [center, center];
-    const provinceAtCenter =
-      provinceBboxes.find((p) => bboxesIntersect(p.bbox, centerBbox))?.code ?? null;
-    const regionAtCenter = regionAtPoint(center, provinceBboxes);
-    const committedProvince = selectedProvinceRef.current ?? null;
-    const current: NavState = {
-      province: committedProvince,
-      // MED 7: read the COMMITTED ?locality scope, not the async centroid presence
-      // (the centroid lags the commit and would mis-read the level mid-window).
-      locality: localityCommittedRef.current ? "committed" : null,
-      // HIGH 3: camera-as-truth for the region focus (see deriveCameraRegion).
-      region: committedProvince != null ? null : deriveCameraRegion(map, provinceBboxes),
-    };
-    const next = resolveScrollNav({ current, direction, provinceAtCenter, regionAtCenter });
-    if (next === null) {
-      // HIGH 2: at a committed data scope, wheel-IN falls through to native free
-      // zoom (silent, useful) instead of a dead no-op. Wheel-OUT keeps the snap.
-      if (direction === "in" && current.province != null) {
-        lastNavAtRef.current = performance.now();
-        freeZoomTowardCursor(map, wheelEvent);
-      }
-      // MED 6: a genuine no-op — do NOT arm the cooldown, allow immediate retry.
-      return;
-    }
-
-    // An executed hierarchy step — arm the cooldown now (MED 6).
-    lastNavAtRef.current = performance.now();
-
-    const scopeChanged =
-      next.province !== current.province || (next.locality != null) !== (current.locality != null);
-    // Record the region CAMERA focus (drives the region-aware national fallback
-    // in the autozoom effect + the region-only fit below).
-    regionFocusRef.current = next.region;
-
-    // Arm the in-flight guard (released on moveend; NAV_GUARD_MS is the fallback
-    // for a fit that lands where it already is and never emits moveend).
-    navAnimatingRef.current = true;
-    if (navAnimTimerRef.current !== null) window.clearTimeout(navAnimTimerRef.current);
-    navAnimTimerRef.current = window.setTimeout(() => {
-      navAnimatingRef.current = false;
-      navAnimTimerRef.current = null;
-    }, NAV_GUARD_MS);
-
-    if (scopeChanged) {
-      // The console commits the scope; its autozoom effect frames the new scope
-      // (province bbox / locality centroid / region-or-national fallback).
-      onScopeCommitRef.current?.(next.province, next.locality);
-      return;
-    }
-    // Region-only transition (nación⇄región): frame it here — no scope change to
-    // trigger the console's effect.
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const bbox = frameForNavState(next, provinceBboxes, AR_BBOX);
-    map.fitBounds(bbox, {
-      padding: FRAME_PADDING,
-      animate: !prefersReducedMotion,
-      maxZoom: framingMaxZoom(map, bbox),
-    });
   }
 
   // --- Reconcile layers whenever the prop changes. -------------------------
@@ -1609,25 +1410,9 @@ export function SituationalMap({
     // session it equals the restored regional view, so «← Volver a Nacional»
     // re-framed to the same regional camera (a visible no-op). The reset
     // promises the national picture; only the static extent delivers it.
-    // task #36 fix 5 — a data scope OVERRIDES any region camera focus: once a
-    // province/locality is committed (by scroll, click, switcher or Back), clear
-    // the region focus so a later return-to-national frames the country, not a
-    // stale region.
-    if (selectedProvinceCode != null || selectedLocalityCenter != null) {
-      regionFocusRef.current = null;
-    }
-    // task #36 fix 5 — the no-scope fallback frame: the region UNION when a region
-    // is in camera focus (provincia→región scroll-out lands here), else the static
-    // national extent. computeJurisdictionViewport uses this only for the
-    // no-selection case, so a province/locality scope is unaffected.
-    const nationalBbox: [[number, number], [number, number]] =
-      regionFocusRef.current != null
-        ? frameForNavState(
-            { province: null, locality: null, region: regionFocusRef.current },
-            provinceBboxesRef.current,
-            AR_BBOX,
-          )
-        : AR_BBOX;
+    // P4c: the no-scope fallback frame is always the STATIC national extent —
+    // the wheel takeover's region camera focus is gone with it.
+    const nationalBbox: [[number, number], [number, number]] = AR_BBOX;
 
     let cancelled = false;
 
@@ -1670,7 +1455,12 @@ export function SituationalMap({
   // canvas. The camera stays clamped by AR_MAX_BOUNDS (map maxBounds).
   useEffect(() => {
     if (frame == null) return;
-    if (!loadedRef.current) return;
+    if (!loadedRef.current) {
+      // P4c (task_ccc31326): the map is still loading — buffer the frame; the
+      // load handler applies it (unless a pinned camera / province fit wins).
+      pendingFrameRef.current = frame;
+      return;
+    }
     const map = mapRef.current;
     if (!map) return;
 

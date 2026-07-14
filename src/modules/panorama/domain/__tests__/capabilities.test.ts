@@ -18,7 +18,6 @@
 
 import { describe, expect, it } from "vitest";
 
-import { derivedLevelWithHysteresis } from "@/components/panorama/situational-map-utils";
 import {
   bivariateEligibleFor,
   capabilitiesFor,
@@ -30,7 +29,11 @@ import {
   type PanoramaPreset,
   presetLayerIds,
 } from "@/src/modules/panorama/domain/presets";
-import type { PanoramaLayer, PanoramaScope } from "@/src/modules/panorama/domain/types";
+import type {
+  AggregationLevel,
+  PanoramaLayer,
+  PanoramaScope,
+} from "@/src/modules/panorama/domain/types";
 import type { EncodingId } from "@/src/modules/panorama/domain/view-state";
 import { makeViewState, scopeFromFilter } from "@/src/modules/panorama/domain/view-state";
 
@@ -58,11 +61,14 @@ function expectedEncodingKind(base: PanoramaLayer): EncodingId {
 }
 
 /** Build the gate output for one matrix cell exactly as the console would: layers
- *  = the preset's activation set, level = the situational-map hysteresis result. */
+ *  = the preset's activation set, level = the SCOPE-derived axis (P4c, design
+ *  §5.5 — a committed province/locality reads the locality axis; national reads
+ *  province at ANY zoom; the camera no longer drives the data axis). */
 function gateFor(preset: PanoramaPreset, scopeKey: string, zoom: number) {
   const scope = SCOPES[scopeKey];
   const layers = presetLayerIds(preset);
-  const level = derivedLevelWithHysteresis("province", scope, zoom);
+  const level: AggregationLevel =
+    scope.province != null || scope.locality != null ? "locality" : "province";
   const view = makeViewState({ scope: scopeFromFilter(scope), layers });
   return { level, layers, caps: capabilitiesFor(view, { zoom, level }) };
 }

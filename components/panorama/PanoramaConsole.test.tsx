@@ -1420,8 +1420,8 @@ describe("PanoramaConsole — implicit single-province division scope (PO valida
   });
 });
 
-describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, replaces AggregationToggle)", () => {
-  it("drills to LOCALITY when the camera zooms past Z_LOCALITY at national scope", async () => {
+describe("PanoramaConsole — derived aggregation level (P4c design §5.5: scope-only, camera never flips it)", () => {
+  it("KEEPS the province axis when the camera zooms past Z_LOCALITY at national scope (P4c)", async () => {
     renderConsole();
     // Activate a province-baseline preset with a choropleth base (cobertura).
     openVista();
@@ -1431,20 +1431,18 @@ describe("PanoramaConsole — derived aggregation level (panorama-ia-v2 §1.1, r
     });
     fetchMock.mockClear();
 
-    // Zoom past the locality threshold — the map reports the new camera zoom.
+    // Zoom past the old locality threshold — the map reports the new camera zoom.
     act(() => {
       (mapProps!.onZoom as (z: number) => void)(6);
     });
 
-    // The derived level flips to locality → cobertura is refetched WITHOUT the
-    // province level flag (locality is the default, un-flagged fetch).
-    await waitFor(() => {
-      const coberturaCalls = fetchMock.mock.calls
-        .map((c) => String(c[0]))
-        .filter((u) => u.includes("/api/panorama/cobertura"));
-      expect(coberturaCalls.length).toBeGreaterThan(0);
-      expect(coberturaCalls.every((u) => !u.includes("level=province"))).toBe(true);
-    });
+    // P4c: free zoom is LOOKING, not drilling — the data axis stays province and
+    // NO nationwide locality refetch fires (the old hysteresis flip fetched every
+    // locality in the country here). Committing a jurisdiction is a CLICK.
+    const coberturaCalls = fetchMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes("/api/panorama/cobertura"));
+    expect(coberturaCalls.length).toBe(0);
   });
 
   it("keeps PROVINCE at national scope while the camera stays below Z_LOCALITY", async () => {

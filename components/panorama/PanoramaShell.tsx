@@ -79,13 +79,6 @@ type Props = {
    */
   initialDivisionProvince?: string | null;
   /**
-   * True ONLY for a true universal navigator (admin / no jurisdiction fence) —
-   * gates the semantic scroll-nav wheel takeover + wheel scope commit in the
-   * console (adversarial QA 2026-07-11, HIGH 1). Multi-province govt is NOT
-   * universal. Default false.
-   */
-  universalNav?: boolean;
-  /**
    * Role-aware default vista auto-activated on a first visit (bare URL). The
    * page resolves it from the operator's role: a jurisdiction (govt) operator
    * opens on local syndromic surveillance; admin keeps the national default.
@@ -121,7 +114,6 @@ export function PanoramaShell({
   suppressDemoDisclosure = false,
   initialLevel = "province",
   initialDivisionProvince,
-  universalNav = false,
   defaultPresetId,
   seededPresetId,
   seededLayers,
@@ -161,7 +153,6 @@ export function PanoramaShell({
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}
         initialDivisionProvince={initialDivisionProvince}
-        universalNav={universalNav}
         defaultPresetId={defaultPresetId}
         seededPresetId={seededPresetId}
         seededLayers={seededLayers}

@@ -349,6 +349,44 @@ and folds in as a `divisions` band rather than replacing the mark. P4 must accou
 The characterization net's snapshots are updated **deliberately** at P4, with the change documented — every
 prior phase must leave them byte-identical.
 
+### 5.5 P4c — decoupled navigation (PO-decided 2026-07-13; spec'd 2026-07-14)
+
+The PO's navigation model: **scroll = camera, click = drill.** Zooming is *looking*; committing to a
+jurisdiction is an explicit *choice*. Three changes, mostly deletions:
+
+1. **Kill the admin wheel-hierarchy takeover.** `scrollNavEnabled` routed wheel/pinch through
+   `performNavStep` (nación⇄región⇄provincia snap navigation, `SituationalMap.tsx`), disabling native
+   wheel-zoom on `/admin/panorama`. It goes away entirely: BOTH consoles get the same cooperative
+   wheel-zoom (camera-only). The región concept existed only for wheel snap-steps — click-drill goes
+   straight to a province — so the scroll-nav resolver + region machinery (`resolveScrollNav`,
+   `regionAtPoint`, `frameForNavState`, `regionFocusRef`, `deriveCameraRegion`, `freeZoomTowardCursor`,
+   wheel accumulators/cooldowns) is deleted with it, not preserved dead.
+2. **The data axis (`level`) follows the SCOPE, never the camera.** `derivedLevelWithHysteresis`
+   flipped a NATIONAL view to the locality axis when the camera crossed Z_LOCALITY_ENTER — a
+   nationwide every-locality refetch triggered by *looking closer*, and the model P4b's declared LOD
+   bands obsolete. Now: scope committed (click-drill / switcher / URL) ⇒ locality axis; national scope
+   ⇒ province axis, at any zoom. The camera drives only the RENDER (P4b `markForZoom` bands: national
+   mark below `autoLevel.belowZoom`, drilled mark above, real dots in the near band inside a scoped
+   province). Free-zooming into a province at national scope shows province marks until the operator
+   clicks — the click IS the drill. Scope-wins (PO decision #1) is unchanged; only the camera-driven
+   half of the level derivation is removed.
+3. **Preset framing applies on load.** A `?preset=` deep-link to a national-framed vista lands
+   unframed today: the console sets the frame at mount, but SituationalMap's `[frame]` effect
+   early-returns before the map's async `load` and never re-fires (task_ccc31326 / fd523492 residue).
+   Fix inside the map: a pre-load `setPresetFrame` is BUFFERED (`pendingFrameRef`) and applied in the
+   load handler, after — and only in the absence of — a pinned `?z/lat/lng` camera and the
+   `frameProvinceOnLoad` province fit (camera-pin > province-drill > preset frame > data-extent fit).
+
+Characterization-net update #2 (deliberate, like P4b's): the `level` column of the matrix loses its
+camera dependence (national scope stays `province` at zoom 7/11). The `paintedAxis`/band FORMULAS are
+unchanged (P4b already de-coupled rendering from `level`), but their OUTPUTS at national zoom 7/11
+follow the level change (province axis painted; bivariate eligible at national mid-zoom) — intended
+and internally coherent (map = caption = numbers). The URL `?level=` param stays honored on restore
+(a shared board reproduces its axis); it simply stops being *written* by camera movement.
+
+**Perf note:** this deletes the only path that fetched every locality in the country at once (the
+national zoom-in flip) — the axis now only narrows inside a committed scope.
+
 ---
 
 ## 6. Projection boundaries — who reads what
