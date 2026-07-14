@@ -9,18 +9,20 @@
 // fails red instead of shipping as a field report.
 //
 // SERIALIZED (round-trips): scope, period, asOf, layers, verifiedOnly, preset,
-// camera. EPHEMERAL by design (§4.2): basis (a lens, not a coordinate — fork #1),
-// encoding (reserved for #24), representation (dock tab). Those carry through the
-// `seed` argument, not the URL.
+// camera, encoding (P5, PO 2026-07-14 — a shared link reproduces the operator's
+// encoding selection; only preset-DECLARED encodings parse). EPHEMERAL by design
+// (§4.2): basis (a lens, not a coordinate — fork #1 resolved: stays out),
+// representation (dock tab). Those carry through the `seed` argument, not the URL.
 //
 // Pure — NO @/db, NO next, NO React. Operates on URLSearchParams + strings only.
 
 import { isLayerId } from "./layers";
-import { getPreset } from "./presets";
+import { PANORAMA_PRESETS, getPreset } from "./presets";
 import type { LayerId } from "./types";
 import {
   type AnalyticsPeriodPreset,
   DEFAULT_VIEW_STATE,
+  type EncodingId,
   type PanoramaViewState,
   type ViewCamera,
   type ViewPeriod,
@@ -28,6 +30,13 @@ import {
   type ViewStateSeed,
   makeViewState,
 } from "./view-state";
+
+/** The operator-SELECTABLE encodings — the union every preset declares (P5).
+ *  Only these round-trip the URL; a crafted `?encoding=` outside the set parses
+ *  to null (auto) so it can never silently flip the vista to "personalizada". */
+const SELECTABLE_ENCODINGS: ReadonlySet<string> = new Set(
+  PANORAMA_PRESETS.flatMap((p) => p.encodings ?? []),
+);
 
 // Current URL param names (verified against the working tree — see the inventory).
 const PARAM = {
@@ -40,6 +49,7 @@ const PARAM = {
   layers: "layers",
   verified: "verified",
   preset: "preset",
+  encoding: "encoding",
   z: "z",
   lat: "lat",
   lng: "lng",
@@ -63,7 +73,8 @@ const PERIOD_PRESETS: ReadonlySet<string> = new Set<AnalyticsPeriodPreset>([
  * Serialize a ViewState to URL search params, emitting ONLY the params that
  * differ from a bare national default — so an unchanged view yields the same
  * minimal URL the console emits today (no gratuitous `?verified=0` noise). The
- * ephemeral fields (basis/encoding/representation) are never emitted.
+ * ephemeral fields (basis/representation) are never emitted; an explicit
+ * encoding selection IS (P5).
  */
 export function viewStateToParams(view: PanoramaViewState): URLSearchParams {
   const p = new URLSearchParams();
@@ -96,6 +107,9 @@ export function viewStateToParams(view: PanoramaViewState): URLSearchParams {
 
   // preset — only when a preset is active
   if (view.preset !== null) p.set(PARAM.preset, view.preset);
+
+  // encoding — only an explicit operator selection (P5); auto (null) is absent
+  if (view.encoding !== null) p.set(PARAM.encoding, view.encoding);
 
   // camera frame — z / lat / lng
   if (view.camera !== null) {
@@ -133,6 +147,7 @@ export function viewStateFromParams(
   const layers = parseLayers(get(PARAM.layers));
   const verifiedOnly = get(PARAM.verified) === "1";
   const preset = parsePreset(get(PARAM.preset));
+  const encoding = parseEncoding(get(PARAM.encoding));
   const camera = parseCamera(get);
 
   // Build from defaults ← seed (ephemerals + role defaults) ← URL (serialized).
@@ -146,6 +161,8 @@ export function viewStateFromParams(
     verifiedOnly,
     // preset: a URL preset wins; else the seed's preset (first-visit default).
     preset: preset ?? base.preset,
+    // encoding: a URL selection wins; else the seed's (normally null = auto).
+    encoding: encoding ?? base.encoding,
     camera: camera ?? base.camera,
   };
 }
@@ -205,6 +222,13 @@ function parseLayers(raw: string | undefined): LayerId[] {
 function parsePreset(raw: string | undefined): PanoramaViewState["preset"] {
   if (!raw) return null;
   return getPreset(raw as never) ? (raw as PanoramaViewState["preset"]) : null;
+}
+
+/** Only preset-declared (operator-selectable) encodings parse; anything else is
+ *  auto (null) — a crafted value never flips the derived vista (P5). */
+function parseEncoding(raw: string | undefined): EncodingId | null {
+  if (!raw) return null;
+  return SELECTABLE_ENCODINGS.has(raw) ? (raw as EncodingId) : null;
 }
 
 function parseCamera(get: Getter): ViewCamera | null {

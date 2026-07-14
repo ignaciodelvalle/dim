@@ -286,9 +286,16 @@ untouched).
 | level | `level` | **SEED only** — written just for `locality`, deleted for `province` (lossy today). See §4.3 |
 | camera | `z`, `lat`, `lng` | continuous shallow write via `onCameraChange`; mount-decoded into `initialCamera` |
 | preset | `preset` | first-visit / preset activation |
-| basis | *(none)* | **intentionally NOT serialized** — existing code calls it "a viewing lens, not a shareable coordinate" (PanoramaConsole:1072). It IS injected into outgoing `/api/panorama/*` fetches as `?basis=transaction`, never the visible URL. Kept ephemeral in P1; a future decision can add `?basis=` for embed/compare reproduction (fork #1). |
-| encoding | *(none in P1)* | reserved for #24; `null` today ⇒ nothing to emit |
-| representation | *(none in P1)* | dock tab is ephemeral today; not URL-backed |
+| basis | *(none)* | **intentionally NOT serialized** — existing code calls it "a viewing lens, not a shareable coordinate" (PanoramaConsole:1072). It IS injected into outgoing `/api/panorama/*` fetches as `?basis=transaction`, never the visible URL. **Fork #1 RESOLVED (PO 2026-07-14): stays out — replay is LIVE VIEW, no `?basis=`.** |
+| encoding | `encoding` *(P5)* | **PO 2026-07-14: a shared link MUST reproduce the encoding.** Serialized when non-null (today only `bivariate` is operator-selectable — the "Riesgo" toggle); parse validates against the selectable set. `null` (auto) ⇒ absent. #24 broadens the selectable set. |
+| representation | *(none)* | dock tab is ephemeral today; not URL-backed |
+
+**P5 amendment — encoding joins the preset, not replaces it.** `derivePreset` treated ANY non-null
+encoding as "personalizada"; but the bivariate is a display toggle WITHIN "Brotes activos" (P2's own
+docstring). Presets now DECLARE the encodings they own (`PanoramaPreset.encodings?: EncodingId[]`;
+brotes-activos: `["bivariate"]`), and `derivePreset(layers, encoding, presets)` matches a non-null
+encoding only against a preset that declares it — the badge stays "Brotes activos" with the bivariate
+on, and a hand-forced encoding on a non-owning set still derives "personalizada".
 
 **Consequence:** P1 changes the *internal* plumbing (one value, one boundary) with **zero** change to the
 emitted URL or the SSR contract. Deep-link round-trip is fixed (H14) because the boundary is now symmetric,
@@ -387,9 +394,24 @@ and internally coherent (map = caption = numbers). The URL `?level=` param stays
 **Perf note:** this deletes the only path that fetched every locality in the country at once (the
 national zoom-in flip) — the axis now only narrows inside a committed scope.
 
----
+### 5.6 P5 — harvest the gifts (spec'd 2026-07-14; PO decisions applied)
 
-## 6. Projection boundaries — who reads what
+Four deliverables, all projections of the canonical value (master plan P5):
+
+1. **Encoding round-trips the URL** (PO 2026-07-14) — see the §4.2 amendment: `?encoding=bivariate`
+   serializes the operator's "Riesgo" selection; the console seeds `bivariateMode` from it on mount and
+   shallow-syncs it like `verified`; `saveBoard` persists it; `derivePreset` accepts preset-owned
+   encodings so the vista badge stays honest. "Copiar vista" now reproduces the PO's favorite view.
+2. **"Explain this view" wired** — `explainViewState` (built at `ddf50473`, view-state-caption.ts)
+   renders in the Exportar rail above "Copiar vista": the operator sees IN WORDS exactly what the link
+   they are about to share reproduces. Gains an encoding clause ("riesgo combinado (bivariado)") now
+   that encoding is a shareable coordinate.
+3. **Presentation mode (#32 gift)** — `?presentation=1`: the console hides its chrome projections
+   (masthead, rail, dock, KPI strip) and keeps map + legends + caption. A ViewState with chrome hidden,
+   nothing else — the sanitary_authority read surface (#32 proper) builds on it later.
+4. **`<PanoramaEmbed>` (#51 gift)** — a component rendering the map surfaces from a FROZEN ViewState
+   (no URL coupling, no chrome), for the #24/#33/#51 cascade to adopt. The gift is the component; the
+   4-screen migration is #51 itself (cascade, not P5).
 
 After the refactor, each surface is a pure function of `(view, capabilities)`:
 

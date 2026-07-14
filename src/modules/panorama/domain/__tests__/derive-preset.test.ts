@@ -38,11 +38,19 @@ describe("derivePreset", () => {
     expect(derivePreset(["cobertura", "zoonosis"], null, PANORAMA_PRESETS)).toBe("brotes-activos");
   });
 
-  it("returns null when an explicit encoding override is set (custom view)", () => {
-    // Even a layer set that matches a preset is 'personalizada' once the operator
-    // picks a non-'auto' encoding — no preset owns an explicit encoding in P1.
-    const explicit: EncodingId = "bivariate";
-    expect(derivePreset(["cobertura", "zoonosis"], explicit, PANORAMA_PRESETS)).toBeNull();
+  it("P5: a preset-DECLARED encoding stays on the preset; an un-owned one is personalizada", () => {
+    // brotes-activos declares encodings:["bivariate"] — the "Riesgo" toggle is a
+    // display encoding WITHIN the vista, so the badge stays "Brotes activos" and
+    // the ?encoding=bivariate deep-link derives honestly.
+    expect(derivePreset(["cobertura", "zoonosis"], "bivariate", PANORAMA_PRESETS)).toBe(
+      "brotes-activos",
+    );
+    // An encoding NO preset owns on that set → personalizada.
+    const unowned: EncodingId = "glow";
+    expect(derivePreset(["cobertura", "zoonosis"], unowned, PANORAMA_PRESETS)).toBeNull();
+    // A declared encoding forced onto a DIFFERENT preset's set → that preset does
+    // not own it → personalizada (cumplimiento = {cobertura} owns no encodings).
+    expect(derivePreset(["cobertura"], "bivariate", PANORAMA_PRESETS)).toBeNull();
   });
 
   it("matches against the passed catalogue only", () => {

@@ -7,6 +7,7 @@
 // Pure module — no DB, no React, no Next.
 
 import type { AggregationLevel, LayerId, PanoramaKpiId } from "./types";
+import type { EncodingId } from "./view-state";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,6 +99,14 @@ export type PanoramaPreset = {
    * caption (metric-honesty demotion 2026-07-09), shown once for every vista.
    */
   metrics: readonly PanoramaKpiId[];
+  /**
+   * P5 (design §4.2 amendment): the display ENCODINGS this preset OWNS — the
+   * operator-selectable toggles that stay WITHIN the vista instead of making it
+   * "personalizada". `derivePreset` matches a non-null ViewState encoding only
+   * against a preset that declares it. Today only `brotes-activos` owns one
+   * (`bivariate`, the "Riesgo" toggle); #24's mode switcher broadens this.
+   */
+  encodings?: readonly EncodingId[];
 };
 
 // ---------------------------------------------------------------------------
@@ -124,6 +133,10 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     framing: { kind: "national" },
     // panorama-vista-redesign: the metrics column for "¿dónde hay brotes?".
     metrics: ["cobertura", "zoonosis", "mordeduras"],
+    // P5: the "Riesgo (bivariado)" toggle is a display encoding WITHIN this
+    // vista — selecting it keeps the badge on "Brotes activos" and round-trips
+    // the URL (?encoding=bivariate) so a shared link reproduces the view.
+    encodings: ["bivariate"],
   },
   {
     id: "sintomas",

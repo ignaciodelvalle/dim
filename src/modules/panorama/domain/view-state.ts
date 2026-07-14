@@ -89,7 +89,9 @@ export type PanoramaViewState = {
   verifiedOnly: boolean;
   /** The preset this view came from; null once hand-edited into "modo avanzado". */
   preset: PresetId | null;
-  /** Encoding selection seam; null = auto (P1). Ephemeral (not URL in P1). */
+  /** Encoding selection; null = auto. P5 (PO 2026-07-14): an explicit selection
+   *  SERIALIZES (`?encoding=`) so a shared link reproduces it — only encodings a
+   *  preset declares (`preset.encodings`) parse back. */
   encoding: EncodingId | null;
   /** Which surface the dock foregrounds. Ephemeral (dock tab is not URL-backed). */
   representation: Representation;
@@ -98,7 +100,8 @@ export type PanoramaViewState = {
 };
 
 /** The URL-SERIALIZED subset — the fields the boundary round-trips. The other
- *  three (basis, encoding, representation) are ephemeral by design (§4.2). */
+ *  two (basis, representation) are ephemeral by design (§4.2; fork #1 resolved:
+ *  basis stays out — replay is live view). */
 export const SERIALIZED_FIELDS = [
   "scope",
   "period",
@@ -106,6 +109,7 @@ export const SERIALIZED_FIELDS = [
   "layers",
   "verifiedOnly",
   "preset",
+  "encoding",
   "camera",
 ] as const;
 
@@ -186,9 +190,10 @@ export function scopeForcesLocality(view: PanoramaViewState): boolean {
 }
 
 /** True when this view can be fully reconstructed from its URL (no ephemeral
- *  field diverges from its default). Used to guard "Copiar vista" honesty. */
+ *  field diverges from its default). Used to guard "Copiar vista" honesty.
+ *  P5: `encoding` left this list — it serializes now, so it always reproduces. */
 export function isUrlReproducible(view: PanoramaViewState): boolean {
-  return view.basis === DEFAULT_VIEW_STATE.basis && view.encoding === DEFAULT_VIEW_STATE.encoding;
+  return view.basis === DEFAULT_VIEW_STATE.basis;
 }
 
 // A no-op reference so `AggregationLevel` stays imported for the JSDoc contract

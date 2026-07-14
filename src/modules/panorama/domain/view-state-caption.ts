@@ -92,8 +92,9 @@ function layerLabels(view: PanoramaViewState): string[] {
  *    (tiempo de {validez|transacción})][, solo con firma veterinaria].
  *    Capas: {labels}."
  *
- * Every ViewState field that changes what the operator sees appears here; the
- * three ephemeral fields (encoding=auto, representation=dock tab) do not, because
+ * Every ViewState field that changes what the operator sees appears here — since
+ * P5 that includes an explicit encoding selection (it round-trips the URL). The
+ * remaining ephemerals (basis default, representation=dock tab) do not, because
  * they do not change the DATA in view — only how the current surface presents it.
  */
 export function explainViewState(view: PanoramaViewState, names?: ExplainNames): string {
@@ -109,6 +110,12 @@ export function explainViewState(view: PanoramaViewState, names?: ExplainNames):
 
   if (view.verifiedOnly) {
     parts.push("solo con firma veterinaria");
+  }
+
+  // P5: encoding became a shareable coordinate (?encoding= round-trips), so an
+  // explicit selection is part of what the link reproduces — say it.
+  if (view.encoding === "bivariate") {
+    parts.push("riesgo combinado (bivariado)");
   }
 
   const labels = layerLabels(view);

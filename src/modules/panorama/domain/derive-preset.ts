@@ -27,10 +27,10 @@ import type { EncodingId } from "./view-state";
  * @param activeLayers the layers currently active, in any order (a SET is
  *   compared — activation order is irrelevant to preset identity).
  * @param encoding the encoding SELECTION. `null` = "auto" (the encoding a preset
- *   implies). An explicit, non-null encoding is a custom override that no preset
- *   owns → always `null`. P1 keeps this `null` everywhere (the bivariate
- *   "riesgo-brotes" view is a display toggle WITHIN "Brotes activos", not a
- *   stored encoding, so it does not leave the preset).
+ *   implies). P5 (design §4.2 amendment): a non-null encoding matches ONLY a
+ *   preset that DECLARES it (`preset.encodings`) — the bivariate "Riesgo" toggle
+ *   is a display encoding WITHIN "Brotes activos" (the badge stays honest), while
+ *   an encoding forced onto a set no preset owns is still "personalizada".
  * @param presets the preset catalogue to match against.
  */
 export function derivePreset(
@@ -38,13 +38,11 @@ export function derivePreset(
   encoding: EncodingId | null,
   presets: readonly PanoramaPreset[],
 ): PresetId | null {
-  // An explicit encoding override is a hand-customized view — presets are the
-  // "auto" (encoding-null) views, so only then can the layer set name one.
-  if (encoding !== null) return null;
-
   const active = new Set<LayerId>(activeLayers);
   for (const preset of presets) {
-    if (sameLayerSet(active, presetLayerIds(preset))) return preset.id;
+    if (!sameLayerSet(active, presetLayerIds(preset))) continue;
+    // Auto (null) always matches; an explicit encoding needs the preset to own it.
+    if (encoding === null || preset.encodings?.includes(encoding)) return preset.id;
   }
   return null;
 }

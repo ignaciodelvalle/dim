@@ -256,6 +256,8 @@ type SavedBoard = {
   level: AggregationLevel;
   preset: string | null;
   period: string | null;
+  /** P5: the encoding selection (`?encoding=`); optional — older boards lack it. */
+  encoding?: string | null;
   /**
    * panorama-vista-redesign Phase 5 (design Decision 5): CapasBox / TimeScrubber
    * Simple-Detalle prefs. OPTIONAL — folded into the EXISTING `panorama:board:v1`
@@ -316,6 +318,7 @@ function saveBoard(
       level: params.get("level") === "locality" ? "locality" : "province",
       preset: params.get("preset"),
       period: params.get("period"),
+      encoding: params.get("encoding"),
       capasDetail: prefs.capasDetail,
       scrubDetail: prefs.scrubDetail,
     };
@@ -1511,11 +1514,20 @@ export function PanoramaConsole({
     );
   }, []);
 
-  // task #63: the bivariate "riesgo-brotes" map encoding. Client-only view state
-  // (like opacities) — never URL-encoded. Offered ONLY for the "Brotes activos"
-  // preset at province framing (where cobertura × zoonosis both land in the
-  // province cache); default OFF so nothing changes until the operator opts in.
-  const [bivariateMode, setBivariateMode] = useState(false);
+  // task #63: the bivariate "riesgo-brotes" map encoding. P5 (PO 2026-07-14): the
+  // selection is a SHAREABLE coordinate — seeded from `?encoding=bivariate` on
+  // mount and shallow-synced back (the URL-sync effect), so "Copiar vista"
+  // reproduces the operator's favorite view. Offered ONLY while eligible
+  // (cobertura × zoonosis at province framing); default OFF otherwise.
+  const [bivariateMode, setBivariateMode] = useState(
+    () => searchParams.get("encoding") === "bivariate",
+  );
+
+  // P5 gift (#32): presentation mode — `?presentation=1` hides the chrome
+  // projections (masthead, top-left cluster, rail, dock) and keeps the map +
+  // legends + caption. A ViewState with chrome hidden, nothing else. Read once
+  // at mount (it is a per-load lens, not a runtime toggle).
+  const [presentationMode] = useState(() => searchParams.get("presentation") === "1");
 
   // ARCHETYPE A: the map's scale legends render OFF-canvas in the "Referencias"
   // rail section (MapLegends). The province ramp + bivariate legends are derived
@@ -2331,9 +2343,11 @@ export function PanoramaConsole({
   // another preset if the config lands on one, else "personalizada"/null).
   //   - period / scope / asOf are orthogonal modifiers that stay ON a preset,
   //     so they are (correctly) NOT part of the match.
-  //   - encoding stays "auto" (null) here in P1: the bivariate "riesgo-brotes"
-  //     view is a display toggle WITHIN "Brotes activos", not a stored encoding,
-  //     so it does not leave the preset.
+  //   - encoding (P5): the operator's selection is threaded — a preset-DECLARED
+  //     encoding (brotes-activos owns "bivariate") keeps the badge on the preset;
+  //     an encoding forced onto a set no preset owns derives "personalizada".
+  //     The SELECTION (bivariateMode) is passed, not the active state: a scrub
+  //     suspends the encoding without flipping the vista name.
   //   - First paint: the server seeds exactly `presetLayerIds(seededPresetId)`
   //     (app/*/panorama/page.tsx), so the derived value is `seededPresetId` on
   //     the very first render — the preset row + metrics column read active with
@@ -2343,10 +2357,10 @@ export function PanoramaConsole({
     () =>
       derivePreset(
         PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
-        null,
+        bivariateMode ? "bivariate" : null,
         PANORAMA_PRESETS,
       ),
-    [states],
+    [states, bivariateMode],
   );
   // Ref mirror so the popstate board re-derivation can compare against the CURRENT
   // preset without re-running on every preset change (MAP-2).
@@ -2902,8 +2916,8 @@ export function PanoramaConsole({
   // map/fetch scope filter derives from it via the pure domain converter
   // (toScopeFilter), and the analytic window via toPeriodSearchParams (above),
   // so no surface re-derives scope or period from a different state slice. The
-  // camera + ephemeral lenses (basis/encoding/representation) are not consumed by
-  // these converters and stay at their defaults here.
+  // camera + ephemeral lenses (basis/representation) stay at their defaults
+  // here; the encoding selection IS threaded (P5 — it round-trips the URL).
   const viewState = useMemo<PanoramaViewState>(
     () =>
       makeViewState({
@@ -2917,8 +2931,20 @@ export function PanoramaConsole({
         layers: PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
         verifiedOnly,
         preset: activePresetId,
+        // P5: the encoding selection is part of the canonical value — it feeds
+        // the gate, explainViewState, and the URL boundary (?encoding=).
+        encoding: bivariateMode ? ("bivariate" as const) : null,
       }),
-    [derivedProvince, derivedLocality, viewPeriod, asOf, states, verifiedOnly, activePresetId],
+    [
+      derivedProvince,
+      derivedLocality,
+      viewPeriod,
+      asOf,
+      states,
+      verifiedOnly,
+      activePresetId,
+      bivariateMode,
+    ],
   );
 
   // P2: the declarative capability gate — the ONE pure function every surface
@@ -2928,6 +2954,19 @@ export function PanoramaConsole({
   const capabilities = useMemo<PanoramaCapabilities>(
     () => capabilitiesFor(viewState, { zoom: mapZoom, level }),
     [viewState, mapZoom, level],
+  );
+
+  // P5 gift: the honest one-line es-AR description of the WHOLE view — rendered
+  // beside "Copiar vista" so the operator reads in words exactly what the link
+  // they are about to share reproduces (explainViewState is the proof the
+  // canonical value is complete: every visible coordinate is describable).
+  const viewExplanation = useMemo(
+    () =>
+      explainViewState(viewState, {
+        provinceLabel: (code) => provinceByCode(code)?.name,
+        localityLabel: (_prov, loc) => scopeData.localities.find((l) => l.slug === loc)?.name,
+      }),
+    [viewState, scopeData.localities],
   );
 
   useEffect(() => {
@@ -2972,6 +3011,10 @@ export function PanoramaConsole({
     // task #78 Part 3: encode the vet-signed toggle so a shared board reproduces it.
     if (verifiedOnly) params.set("verified", "1");
     else params.delete("verified");
+    // P5 (PO 2026-07-14): the encoding selection is a shareable coordinate —
+    // "Copiar vista" reproduces the bivariate view.
+    if (bivariateMode) params.set("encoding", "bivariate");
+    else params.delete("encoding");
     if (params.toString() !== before) {
       const qsStr = params.toString();
       replaceMapStateUrl(`${window.location.pathname}${qsStr ? `?${qsStr}` : ""}`);
@@ -2980,7 +3023,15 @@ export function PanoramaConsole({
     // run of this effect — including a Simple/Detalle-only flip, which never
     // changes the URL params above — so the UI pref is never lost.
     saveBoard(params, { capasDetail, scrubDetail });
-  }, [activeLayersKey, level, activePresetId, verifiedOnly, capasDetail, scrubDetail]);
+  }, [
+    activeLayersKey,
+    level,
+    activePresetId,
+    verifiedOnly,
+    bivariateMode,
+    capasDetail,
+    scrubDetail,
+  ]);
 
   // map-QOL mount effect (runs once): resolve the initial board.
   // (a) URL carries `layers` → fetch whatever the server didn't seed.
@@ -3076,6 +3127,12 @@ export function PanoramaConsole({
       nextParams.set("preset", saved.preset);
     }
     if (saved.period !== null) nextParams.set("period", saved.period);
+    // P5: restore the encoding selection with the board (tolerant — older boards
+    // lack the field; only the known selectable value applies).
+    if (saved.encoding === "bivariate") {
+      nextParams.set("encoding", "bivariate");
+      setBivariateMode(true);
+    }
 
     // The restored period differs from the server-rendered one → the seeded
     // default features are stale for the new window: drop every cache and
@@ -4218,6 +4275,10 @@ export function PanoramaConsole({
       detail: true,
       render: () => (
         <div className="space-y-3">
+          {/* P5: what the shared link reproduces, in words (explainViewState). */}
+          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-2 text-[var(--text-xs)] leading-snug text-ln-op-ink-2">
+            {viewExplanation}
+          </p>
           <div className="space-y-1">
             <button
               type="button"
@@ -4311,7 +4372,7 @@ export function PanoramaConsole({
           jurisdiction menu). Rendered only when the caller passes `scopeLabel`
           (the pages always do; unit/embedding callers that omit it keep no
           masthead). */}
-      {scopeLabel !== undefined && (
+      {!presentationMode && scopeLabel !== undefined && (
         <header className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-ln-op-line bg-ln-op-card px-4 py-1.5">
           <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-ink-2">
             Centro de Situación Nacional
@@ -4410,123 +4471,137 @@ export function PanoramaConsole({
             </span>
           </div>
         )}
-        <PanoramaDock
-          open={dockOpen}
-          onOpenChange={setDockOpen}
-          tab={dockTab}
-          onTabChange={setDockTab}
-          recordCount={dockBadgeCount}
-          meta={dockMeta}
-          csvAction={
-            dockCsvHref !== null ? (
-              <a
-                href={dockCsvHref}
-                download="panorama-mapa.csv"
-                className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-0.5 text-xs font-medium text-ln-op-ink-2 hover:border-ln-op-azul/40"
-              >
-                Exportar CSV
-              </a>
-            ) : undefined
-          }
-          registros={dockRegistros}
-          stats={dockStats}
-          timeline={scrubberDock}
-        />
+        {/* P5 presentation mode (#32 gift): the dock is chrome — hidden. */}
+        {!presentationMode && (
+          <PanoramaDock
+            open={dockOpen}
+            onOpenChange={setDockOpen}
+            tab={dockTab}
+            onTabChange={setDockTab}
+            recordCount={dockBadgeCount}
+            meta={dockMeta}
+            csvAction={
+              dockCsvHref !== null ? (
+                <a
+                  href={dockCsvHref}
+                  download="panorama-mapa.csv"
+                  className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-0.5 text-xs font-medium text-ln-op-ink-2 hover:border-ln-op-azul/40"
+                >
+                  Exportar CSV
+                </a>
+              ) : undefined
+            }
+            registros={dockRegistros}
+            stats={dockStats}
+            timeline={scrubberDock}
+          />
+        )}
         {/* task #38 v3 top-LEFT cluster: the floating scope pill (THE keyboard
             path to the jurisdiction menu — NOT in the rail, per spec), the vista
             name stated ONCE (de-dup), then the KPI cards, stale notice and the
             bivariate encoding toggle. The rail owns the right edge. Absolute —
             never re-layouts the map. Narrows below 2xl so 1366 releases the map
             center. */}
-        <div className="absolute left-3.5 top-3.5 z-10 flex w-64 max-w-[calc(100%-1.75rem)] flex-col gap-2 2xl:w-72">
-          {/* WCAG 4.1.3: polite live region announcing the committed scope — the
+        {/* P5 presentation mode (#32 gift): the whole top-left cluster is chrome. */}
+        {!presentationMode && (
+          <div className="absolute left-3.5 top-3.5 z-10 flex w-64 max-w-[calc(100%-1.75rem)] flex-col gap-2 2xl:w-72">
+            {/* WCAG 4.1.3: polite live region announcing the committed scope — the
               scope pill's one keyboard commit path was otherwise silent to AT. */}
-          <p aria-live="polite" className="sr-only" data-testid="panorama-scope-live">
-            {scopeAnnouncement}
-          </p>
-          {(scopeLabel !== undefined ||
-            allowedProvinces !== undefined ||
-            filtersSlot !== undefined) && (
-            <OverlayDisclosure
-              summaryTestId="panorama-scope-pill"
-              panelClassName="left-0 w-80 max-w-[80vw]"
-              closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
-              summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul shadow-md hover:bg-ln-op-azul/10"
-              summary={
-                <>
-                  <span aria-hidden="true">◉</span>
-                  <span className="sr-only">Alcance</span>
-                  {liveScopeLabel || "Nacional"}
-                  <span aria-hidden="true" className="text-[var(--text-xs)]">
-                    ▾
-                  </span>
-                </>
-              }
-            >
-              <div className="space-y-3">
-                <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-                  Jurisdicción
-                </p>
-                {/* The JurisdictionSwitcher is rendered CLIENT-SIDE (embedded
+            <p aria-live="polite" className="sr-only" data-testid="panorama-scope-live">
+              {scopeAnnouncement}
+            </p>
+            {(scopeLabel !== undefined ||
+              allowedProvinces !== undefined ||
+              filtersSlot !== undefined) && (
+              <OverlayDisclosure
+                summaryTestId="panorama-scope-pill"
+                panelClassName="left-0 w-80 max-w-[80vw]"
+                closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
+                summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul shadow-md hover:bg-ln-op-azul/10"
+                summary={
+                  <>
+                    <span aria-hidden="true">◉</span>
+                    <span className="sr-only">Alcance</span>
+                    {liveScopeLabel || "Nacional"}
+                    <span aria-hidden="true" className="text-[var(--text-xs)]">
+                      ▾
+                    </span>
+                  </>
+                }
+              >
+                <div className="space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                    Jurisdicción
+                  </p>
+                  {/* The JurisdictionSwitcher is rendered CLIENT-SIDE (embedded
                     drill): a province/locality pick commits the scope shallowly
                     (no reload). Native selects = the full keyboard path. */}
-                {allowedProvinces !== undefined && (
-                  <JurisdictionSwitcher
-                    allowedProvinces={allowedProvinces}
-                    localities={scopeData.localities}
-                    selectedProvince={effectiveScopeProvince}
-                    selectedLocality={effectiveScopeLocality}
-                    onScopeCommit={onSwitcherScopeCommit}
-                  />
-                )}
-                {filtersSlot}
-                <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
-                  También podés hacer click en una provincia del mapa.
-                </p>
-              </div>
-            </OverlayDisclosure>
-          )}
-          {vistaName && (
-            <p className="w-fit max-w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1 text-[var(--text-xs)] text-ln-op-mute shadow-md">
-              Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
-            </p>
-          )}
-          <KpiChips
-            kpis={kpis}
-            metricIds={metricIds}
-            presetId={activePresetId}
-            activeBaseLayerId={captionLayer?.id ?? null}
-            level={level}
-            onRebase={(id) => {
-              void onToggle(id);
-            }}
-            pending={kpisPending}
-            degraded={kpisDegraded}
-            // P2.4 (C2): while the scrubber is off the live edge, emphasize the
-            // "estado actual" tag on stock KPIs so their frozen big number reads
-            // as intentional, not stuck. Temporal KPIs (no currentState) untouched.
-            temporalFrameActive={scrubbing}
-          />
-          {kpisStale && (
-            // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
-            // the cards show the last-known numbers, not live ones — say so.
-            <output
-              aria-live="polite"
-              className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
-            >
-              No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
-            </output>
-          )}
-          {/* task #63: bivariate map-encoding toggle (only on Brotes activos). */}
-          {bivariateControl}
-        </div>
+                  {allowedProvinces !== undefined && (
+                    <JurisdictionSwitcher
+                      allowedProvinces={allowedProvinces}
+                      localities={scopeData.localities}
+                      selectedProvince={effectiveScopeProvince}
+                      selectedLocality={effectiveScopeLocality}
+                      onScopeCommit={onSwitcherScopeCommit}
+                    />
+                  )}
+                  {filtersSlot}
+                  <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                    También podés hacer click en una provincia del mapa.
+                  </p>
+                </div>
+              </OverlayDisclosure>
+            )}
+            {vistaName && (
+              <p className="w-fit max-w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1 text-[var(--text-xs)] text-ln-op-mute shadow-md">
+                Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
+              </p>
+            )}
+            <KpiChips
+              kpis={kpis}
+              metricIds={metricIds}
+              presetId={activePresetId}
+              activeBaseLayerId={captionLayer?.id ?? null}
+              level={level}
+              onRebase={(id) => {
+                void onToggle(id);
+              }}
+              pending={kpisPending}
+              degraded={kpisDegraded}
+              // P2.4 (C2): while the scrubber is off the live edge, emphasize the
+              // "estado actual" tag on stock KPIs so their frozen big number reads
+              // as intentional, not stuck. Temporal KPIs (no currentState) untouched.
+              temporalFrameActive={scrubbing}
+            />
+            {kpisStale && (
+              // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
+              // the cards show the last-known numbers, not live ones — say so.
+              <output
+                aria-live="polite"
+                className="block rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-xs text-ln-op-warn"
+              >
+                No pudimos actualizar los indicadores. Mostrando los últimos valores conocidos.
+              </output>
+            )}
+            {/* task #63: bivariate map-encoding toggle (only on Brotes activos). */}
+            {bivariateControl}
+          </div>
+        )}
         {/* task #38 v3 — the vertical modifier rail (right edge of the map). */}
-        <PanoramaRail items={railItems} open={railOpen} onOpenChange={setRailOpen} />
+        {!presentationMode && (
+          <PanoramaRail items={railItems} open={railOpen} onOpenChange={setRailOpen} />
+        )}
         {/* v2C single-line legend pill (bottom-left, above the dock bar): base
             label + classed ramp + per-layer dots + the ALWAYS-VISIBLE k-anon
             pill. Expands upward into the FULL reading: the real MapLegends
             blocks + caption + honesty notices + the one-line auto-reading. */}
-        <div className="absolute bottom-16 left-3.5 z-10 max-w-[calc(100%-1.75rem)]">
+        <div
+          className={`absolute left-3.5 z-10 max-w-[calc(100%-1.75rem)] ${
+            // P5 presentation mode: the dock bar is hidden, so the legend pill
+            // drops to the map edge instead of floating above a bar that isn't there.
+            presentationMode ? "bottom-3.5" : "bottom-16"
+          }`}
+        >
           <LegendPill
             baseLabel={
               bivariateActive ? "Riesgo combinado" : (captionLayer?.label ?? "Eventos por unidad")

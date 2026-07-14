@@ -4,7 +4,8 @@
 // serialized fields) is the structural fix for the H14 deep-link round-trip
 // defect: any param read-but-never-written (or written-but-never-read) fails RED
 // here instead of shipping as a coherence break. Ephemeral fields (basis /
-// encoding / representation) are held at defaults so the FULL value round-trips.
+// representation) are held at defaults so the FULL value round-trips; encoding
+// SERIALIZES since P5 and the matrix deliberately varies it.
 
 import { describe, expect, it } from "vitest";
 
@@ -44,6 +45,13 @@ const VIEWS: Record<string, PanoramaViewState> = {
   "verified only": makeViewState({ verifiedOnly: true }),
   "with preset": makeViewState({ preset: "brotes-activos" }),
   "with camera frame": makeViewState({ camera: { zoom: 8.5, lat: -34.6, lng: -58.4 } }),
+  // P5: an explicit encoding selection round-trips (?encoding=bivariate) — the
+  // PO's shared "riesgo de brotes" link reproduces the bivariate view.
+  "with bivariate encoding": makeViewState({
+    preset: "brotes-activos",
+    layers: ["cobertura", "zoonosis"],
+    encoding: "bivariate",
+  }),
   "the full deep link (H14)": makeViewState({
     scope: { kind: "locality", province: "AR-B", locality: "La Plata" },
     period: { kind: "preset", preset: "30d" },
@@ -85,14 +93,27 @@ describe("view-state URL boundary — minimal serialization", () => {
     expect(viewStateToParams(makeViewState({ verifiedOnly: true })).get("verified")).toBe("1");
   });
 
-  it("NEVER emits the ephemeral fields (basis / encoding / representation)", () => {
+  it("NEVER emits the ephemeral fields (basis / representation)", () => {
     const p = viewStateToParams(
-      makeViewState({ basis: "transaction", encoding: "glow", representation: "timeline" }),
+      makeViewState({ basis: "transaction", representation: "timeline" }),
     );
     expect(p.has("basis")).toBe(false);
-    expect(p.has("encoding")).toBe(false);
     expect(p.has("representation")).toBe(false);
     expect(p.has("mode")).toBe(false);
+  });
+
+  it("P5: encoding serializes only when explicitly selected; only preset-declared values parse", () => {
+    // auto (null) → absent.
+    expect(viewStateToParams(makeViewState({})).has("encoding")).toBe(false);
+    // the operator's bivariate selection → emitted.
+    expect(viewStateToParams(makeViewState({ encoding: "bivariate" })).get("encoding")).toBe(
+      "bivariate",
+    );
+    // a crafted value NO preset declares parses to auto — it can never flip the
+    // derived vista to "personalizada" from the address bar.
+    expect(viewStateFromParams({ encoding: "glow" }).encoding).toBeNull();
+    expect(viewStateFromParams({ encoding: "garbage" }).encoding).toBeNull();
+    expect(viewStateFromParams({ encoding: "bivariate" }).encoding).toBe("bivariate");
   });
 });
 
