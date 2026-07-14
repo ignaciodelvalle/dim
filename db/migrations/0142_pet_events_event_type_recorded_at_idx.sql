@@ -14,3 +14,8 @@
 
 CREATE INDEX IF NOT EXISTS pet_events_event_type_recorded_at_idx
   ON pet_events (event_type, recorded_at);
+
+-- Plain (non-CONCURRENT) build, same as sibling 0122 on this table: the ledger
+-- is append-only and the build window on current volumes is short; the remote
+-- apply session (Ignacio-gated) can switch to CONCURRENTLY if prod volume
+-- warrants it at apply time.

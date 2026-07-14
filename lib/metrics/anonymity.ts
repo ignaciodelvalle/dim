@@ -169,6 +169,13 @@ export function suppressedMetric<Row>(
  * itself. Only sub-k POSITIVE counts suppress. (Event-window metrics only —
  * coverage/stock metrics have no windows and never route here.)
  *
+ * ⚠️ RAW COUNTS ONLY: both arguments MUST be pre-suppression counts straight
+ * from the aggregate query. A count that already went through
+ * suppressSmallCells has lost its sub-k rows — feeding a "missing because
+ * suppressed" side as 0 DEFEATS this rule (it would publish "+N desde cero"
+ * against a protected prior). Route raw rows here FIRST; suppress the
+ * single-window render separately.
+ *
  * Pure predicate; k defaults to 5 (AGENTS.md "Aggregation & privacy policy").
  * Pin THIS before any delta render (verification contract, viz-suite plan).
  */
@@ -191,11 +198,23 @@ export type DeltaCell<Row> = {
 /**
  * Pair two windows' rows by key and apply the differencing rule per cell —
  * `suppressDelta` is the single source of the rule (including its zero
- * nuance); a key missing from one window counts as an honest zero.
+ * nuance).
+ *
+ * ⚠️ RAW ROWS ONLY — THE CONTRACT THAT KEEPS THE RULE SOUND: both windows MUST
+ * be raw pre-suppression aggregates (straight from the query). Only then is "a
+ * key missing from one window" a TRUE zero. Rows that already went through
+ * suppressSmallCells have their sub-k cells REMOVED — a missing key would be
+ * ambiguous between zero and a PROTECTED count, and this helper would publish
+ * "+N desde cero" against a suppressed prior: exactly the differencing leak
+ * the rule exists to prevent. TypeScript cannot negate the SuppressedCells
+ * brand, so this contract is documentation + review-enforced; the wave-2 delta
+ * pipeline must wire raw query outputs directly here, and its RENDER must also
+ * apply complementary suppression to any published group totals (mirroring
+ * complementarySuppress).
  */
 export function deltaCells<Row>(
-  currentRows: Row[],
-  priorRows: Row[],
+  currentRows: readonly Row[],
+  priorRows: readonly Row[],
   opts: { key: (r: Row) => string; count: (r: Row) => number; k?: number },
 ): DeltaCell<Row>[] {
   const priorByKey = new Map(priorRows.map((r) => [opts.key(r), r]));
