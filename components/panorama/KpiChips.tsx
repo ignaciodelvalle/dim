@@ -251,6 +251,7 @@ export function KpiChips({
           <button
             type="button"
             aria-expanded={showAll}
+            aria-controls="kpi-irrelevant-list"
             onClick={() => setShowAll((v) => !v)}
             className="w-fit text-[var(--text-xs)] font-medium text-ln-op-azul hover:underline"
           >
@@ -260,9 +261,11 @@ export function KpiChips({
           </button>
           {showAll && (
             <ul
+              id="kpi-irrelevant-list"
               aria-label="Indicadores de otras capas"
               className="m-0 flex list-none flex-col gap-1.5 p-0"
             >
+
               {irrelevant.map((kpi) => (
                 <KpiCard
                   key={kpi.id}

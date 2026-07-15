@@ -1984,13 +1984,17 @@ export function SituationalMap({
   }
 
   /**
-   * C4a — enforce point-marks-above-fills stacking. `map.moveLayer(id)` with no
-   * beforeId lifts a layer to the very top, so raising each active layer's mark
-   * ids in active order leaves the last (overlay/signal) marks topmost. Idempotent
-   * and cheap (a handful of layers); runs at the end of every syncLayers pass so
-   * the invariant holds at initial mount AND after any toggle / data resolution.
+   * C4a — enforce point-marks-above-fills stacking. Marks are raised in active
+   * order (last = overlay/signal marks topmost among marks) but anchored BELOW
+   * the division chrome: `moveLayer(id)` with no beforeId would lift a mark to
+   * the absolute top, above DIVISION_LINE_ID/DIVISION_HOVER_ID, breaking the
+   * crisp outlines + hover highlight. Anchoring to DIVISION_LINE_ID (the lowest
+   * chrome layer) keeps fills < marks < outline < hover. Idempotent and cheap;
+   * runs at the end of every syncLayers pass so the invariant holds at initial
+   * mount AND after any toggle / data resolution.
    */
   function raiseMarksAboveFills(map: maplibregl.Map, active: readonly ActiveLayer[]) {
+    const chromeAnchor = map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined;
     for (const layer of active) {
       // Point layers: cluster bubbles (reference/points mode) + the point circles.
       // Choropleth layers only expose a mark when rendered as centroid circles
@@ -2001,7 +2005,7 @@ export function SituationalMap({
           ? [clusterLayerId(layer.id), pointLayerId(layer.id)]
           : [choroLayerId(layer.id)];
       for (const id of markIds) {
-        if (map.getLayer(id)) map.moveLayer(id);
+        if (map.getLayer(id)) map.moveLayer(id, chromeAnchor);
       }
     }
   }

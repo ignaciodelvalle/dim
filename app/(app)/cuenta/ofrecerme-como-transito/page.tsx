@@ -129,12 +129,12 @@ function PreCheckChecklist({
     {
       ok: checks.hasDisplayName,
       label: "Nombre cargado",
-      cta: checks.hasDisplayName ? null : { href: "/cuenta/editar", text: "Editar perfil" },
+      cta: checks.hasDisplayName ? null : { href: "/cuenta?sheet=editar-perfil", text: "Editar perfil" },
     },
     {
       ok: checks.hasPhone,
       label: "Teléfono cargado",
-      cta: checks.hasPhone ? null : { href: "/cuenta/editar", text: "Editar perfil" },
+      cta: checks.hasPhone ? null : { href: "/cuenta?sheet=editar-perfil", text: "Editar perfil" },
     },
   ];
 
