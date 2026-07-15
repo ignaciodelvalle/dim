@@ -35,6 +35,98 @@ const STATUS_TONE: Record<string, CronTone> = {
 // dozens of duplicate seed govts) never pushes live operators below the fold.
 const GOVT_ACTIVITY_LIMIT = 25;
 
+// Operator-facing plain-es-AR explanation of each background job (Cowork M6).
+// `does` = what the job does for the program; `whenFails` = what stops working
+// when it is in FALLO. The dev-only detail (logs / CRON_SECRET) is kept in a
+// collapsed "Detalle técnico" block — an operator needs the impact and the
+// action ("avisale al equipo técnico"), not the curl command.
+const CRON_JOB_HELP: Record<string, { does: string; whenFails: string }> = {
+  vaccine_due: {
+    does: "Envía los recordatorios de vacunas a los dueños.",
+    whenFails: "los recordatorios de vacunas no se están enviando.",
+  },
+  post_adoption_checkin: {
+    does: "Envía los seguimientos post-adopción a las familias adoptantes.",
+    whenFails: "los seguimientos post-adopción no se están enviando.",
+  },
+  expire_foster_proposals: {
+    does: "Cierra las propuestas de tránsito que vencieron sin respuesta.",
+    whenFails: "las propuestas de tránsito vencidas quedan abiertas.",
+  },
+  auto_expire_approvals: {
+    does: "Da de baja las solicitudes de aprobación que caducaron.",
+    whenFails: "solicitudes ya vencidas siguen figurando como pendientes en la cola.",
+  },
+  close_rabies_observations: {
+    does: "Cierra las observaciones antirrábicas de 10 días ya cumplidas.",
+    whenFails: "las observaciones antirrábicas cumplidas no se cierran solas.",
+  },
+  close_stale_lost_episodes: {
+    does: "Cierra los casos de mascota perdida que quedaron inactivos.",
+    whenFails: "los casos de pérdida inactivos siguen abiertos.",
+  },
+  close_followup_expired_adoptions: {
+    does: "Cierra los seguimientos de adopción vencidos.",
+    whenFails: "los seguimientos de adopción vencidos quedan abiertos.",
+  },
+  escalate_stale_welfare_cases: {
+    does: "Escala las denuncias de maltrato que no tuvieron avance.",
+    whenFails: "las denuncias estancadas no se escalan al siguiente nivel.",
+  },
+  escalate_stale_disputes: {
+    does: "Escala las disputas de custodia que no tuvieron avance.",
+    whenFails: "las disputas estancadas no se escalan.",
+  },
+  expire_cross_org_transfers: {
+    does: "Vence las transferencias entre organizaciones que nadie aceptó.",
+    whenFails: "las transferencias entre organizaciones sin aceptar no vencen.",
+  },
+  drain_outbox: {
+    does: "Entrega las notificaciones pendientes de la bandeja de salida.",
+    whenFails: "las notificaciones pendientes (incluidas las ENO) no se entregan.",
+  },
+  process_eno_queue: {
+    does: "Notifica los eventos ENO (enfermedades de notificación obligatoria) a la autoridad sanitaria.",
+    whenFails: "las notificaciones ENO a la autoridad sanitaria no se están enviando.",
+  },
+  expire_pet_transfers: {
+    does: "Vence las transferencias de mascota que nadie aceptó.",
+    whenFails: "las transferencias de mascota sin aceptar no vencen.",
+  },
+  expire_decomiso_handoffs: {
+    does: "Vence las entregas de decomiso que no se confirmaron.",
+    whenFails: "las entregas de decomiso sin confirmar no vencen.",
+  },
+  materialize_slots: {
+    does: "Genera los turnos disponibles de las agendas.",
+    whenFails: "no se generan turnos nuevos en las agendas.",
+  },
+  business_rules_reeval: {
+    does: "Reevalúa las reglas de negocio por jurisdicción.",
+    whenFails: "las reglas no se reevalúan con los datos nuevos.",
+  },
+  data_lifecycle: {
+    does: "Aplica las políticas de retención y borrado de datos.",
+    whenFails: "las políticas de retención de datos no se aplican.",
+  },
+  purge_scan_events: {
+    does: "Depura los eventos de escaneo antiguos.",
+    whenFails: "los eventos de escaneo antiguos no se depuran.",
+  },
+  evaluate_alerts: {
+    does: "Evalúa las reglas de vigilancia y dispara las alertas.",
+    whenFails: "las alertas de vigilancia no se están disparando.",
+  },
+  reconcile_pet_status: {
+    does: "Reconcilia el estado cacheado de las mascotas con el libro de eventos.",
+    whenFails: "el estado de las mascotas puede quedar desactualizado.",
+  },
+  cron_health: {
+    does: "Controla que el resto de los procesos automáticos hayan corrido.",
+    whenFails: "no se controla la salud de los demás procesos automáticos.",
+  },
+};
+
 export default async function AdminSistemaPage() {
   await requireAdminOrRedirect();
 
@@ -199,29 +291,48 @@ export default async function AdminSistemaPage() {
                           )}
                         </span>
                       </div>
-                      {/* Failure diagnostic: show error detail inline with a copy hint.
-                          No automated re-trigger is provided because the cron routes
-                          require `Authorization: Bearer <CRON_SECRET>` from the Vercel
-                          infrastructure and there is no safe way to reconstruct that header
-                          in a server action without exposing the secret value in the
-                          browser. Diagnose via server logs / Vercel dashboard instead. */}
-                      {c.lastStatus === "failed" && (
-                        <details className="text-[11px] text-ln-op-danger space-y-0.5">
-                          <summary className="cursor-pointer select-none font-medium">
-                            Ver detalle del error
-                          </summary>
-                          <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-ln-op-danger-bg px-2 py-1 text-xs text-ln-op-danger">
-                            {errorSummary ??
-                              JSON.stringify(c.lastDetails, null, 2) ??
-                              "Sin detalle disponible."}
-                          </pre>
-                          <p className="text-ln-op-mute">
-                            Para reintentar: revisá los logs del servidor en el dashboard de Vercel
-                            y ejecutá el cron manualmente desde ahí o vía curl con el CRON_SECRET
-                            configurado.
-                          </p>
-                        </details>
-                      )}
+                      {/* Failure copy is operator-first (Cowork M6): a plain-es-AR
+                          impact line + the action ("avisale al equipo técnico"),
+                          with the dev detail (logs / CRON_SECRET) folded into a
+                          collapsed "Detalle técnico" block. No automated re-trigger
+                          is offered: the cron routes require `Authorization: Bearer
+                          <CRON_SECRET>` from the Vercel infrastructure and there is
+                          no safe way to reconstruct that header in a server action
+                          without exposing the secret in the browser. */}
+                      {c.lastStatus === "failed" &&
+                        (() => {
+                          const help = CRON_JOB_HELP[c.cronName];
+                          return (
+                            <div className="space-y-1.5 text-[11px]">
+                              {help && (
+                                <>
+                                  <p className="text-ln-op-danger">
+                                    <span className="font-semibold">FALLO:</span> {help.whenFails}{" "}
+                                    Avisale al equipo técnico.
+                                  </p>
+                                  <p className="text-ln-op-mute">
+                                    Qué hace este proceso: {help.does}
+                                  </p>
+                                </>
+                              )}
+                              <details className="space-y-0.5 text-ln-op-mute">
+                                <summary className="cursor-pointer select-none font-medium">
+                                  Detalle técnico
+                                </summary>
+                                <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-ln-op-danger-bg px-2 py-1 text-xs text-ln-op-danger">
+                                  {errorSummary ??
+                                    JSON.stringify(c.lastDetails, null, 2) ??
+                                    "Sin detalle disponible."}
+                                </pre>
+                                <p className="text-ln-op-mute">
+                                  Para el equipo técnico: revisá los logs en el dashboard de Vercel
+                                  y reejecutá el cron desde ahí (o vía curl con el CRON_SECRET
+                                  configurado).
+                                </p>
+                              </details>
+                            </div>
+                          );
+                        })()}
                     </li>
                   );
                 })}
