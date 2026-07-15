@@ -180,25 +180,39 @@ export function KpiChips({
       </p>
     );
   }
-  if (pending) {
-    return (
-      <p
-        aria-busy="true"
-        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
-      >
-        Cargando indicadores…
-      </p>
-    );
-  }
 
   const selected = selectMetricKpis(kpis, metricIds);
+
+  // Stale-while-revalidate (PO: "los KPI aparecen y desaparecen, quedan raros"):
+  // during a timeline scrub the as-of KPI refetch flips `pending` on each settle,
+  // which used to REPLACE the whole strip with a "Cargando indicadores…" block —
+  // the values blinked out and back on every frame. Instead we KEEP the previous
+  // values on screen (the parent retains them: `setKpis` only fires on success)
+  // and mark the strip busy with a subtle "actualizando" treatment. The full
+  // placeholder is reserved for the genuine cold start (pending with NO prior
+  // values), where there is nothing to hold.
   if (selected.length === 0) {
+    if (pending) {
+      return (
+        <p
+          aria-busy="true"
+          className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
+        >
+          Cargando indicadores…
+        </p>
+      );
+    }
     return (
       <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute">
         Métricas no disponibles para esta vista.
       </p>
     );
   }
+
+  // We have values to show; a pending refetch just refreshes them in place.
+  const refreshing = pending;
+  // Subtle "updating" affordance: dim slightly + announce busy, never unmount.
+  const refreshingClass = refreshing ? "opacity-60 transition-opacity" : "";
 
   // Preset mode (metricIds set) OR no layer context: unchanged — show the curated
   // (or full) set capped at MAX_CHIPS, no relevance partition.
@@ -208,7 +222,8 @@ export function KpiChips({
     return (
       <ul
         aria-label="Indicadores de esta vista"
-        className="m-0 flex list-none flex-col gap-1.5 p-0"
+        aria-busy={refreshing}
+        className={`m-0 flex list-none flex-col gap-1.5 p-0 ${refreshingClass}`}
       >
         {shown.map((kpi) => (
           <KpiCard
@@ -227,7 +242,7 @@ export function KpiChips({
   const shownRelevant = relevant.slice(0, MAX_CHIPS);
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`flex flex-col gap-1.5 ${refreshingClass}`} aria-busy={refreshing}>
       <ul
         aria-label="Indicadores de esta vista"
         className="m-0 flex list-none flex-col gap-1.5 p-0"

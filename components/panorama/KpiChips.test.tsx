@@ -106,9 +106,36 @@ describe("KpiChips — honesty states (unchanged from the interactive era)", () 
     ).toBeInTheDocument();
   });
 
-  it("pending state renders the loading copy with aria-busy", () => {
-    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} pending />);
+  it("COLD START (pending, no prior values) renders the loading copy with aria-busy", () => {
+    render(<KpiChips kpis={{ ...KPIS, kpis: [] }} metricIds={null} presetId={null} pending />);
     expect(screen.getByText("Cargando indicadores…")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("REFETCH (pending WITH prior values) keeps the values on screen — never blinks out", () => {
+    // Fix (PO: "los KPI aparecen y desaparecen"): a scrub refetch must not replace
+    // the strip with a loading placeholder. The previous values stay, marked busy.
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} pending />);
+    expect(screen.queryByText("Cargando indicadores…")).not.toBeInTheDocument();
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Indicadores de esta vista" });
+    expect(list).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("REFETCH in manual mode also holds the values and marks the group busy", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeLayerIds={["cobertura", "zoonosis"]}
+        pending
+      />,
+    );
+    expect(screen.queryByText("Cargando indicadores…")).not.toBeInTheDocument();
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    // The manual-mode wrapper carries aria-busy while the refetch is pending.
+    const list = screen.getByRole("list", { name: "Indicadores de esta vista" });
+    expect(list.parentElement).toHaveAttribute("aria-busy", "true");
   });
 
   it("empty selection renders the no-metrics copy", () => {
