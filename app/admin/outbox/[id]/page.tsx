@@ -11,7 +11,6 @@ import { notFound } from "next/navigation";
 
 import {
   OpBreach,
-  OpButton,
   OpCallout,
   OpCard,
   OpCardBody,
@@ -26,7 +25,7 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
 import { eventTypeLabel } from "@/lib/utils/format";
 
-import { retryOutboxRowAction } from "../actions";
+import { RetryOutboxButton } from "./RetryOutboxButton";
 
 const TARGET_KIND_LABEL: Record<string, string> = {
   govt_webhook: "Webhook de gobierno",
@@ -258,16 +257,7 @@ export default async function AdminOutboxDetailPage({
                 <code className="font-mono text-xs">status = pending</code> para que el cron de
                 drenaje lo procese en el próximo ciclo (máximo 5 min).
               </span>
-              <form
-                action={async () => {
-                  "use server";
-                  await retryOutboxRowAction(row.id);
-                }}
-              >
-                <OpButton type="submit" variant="primary" className="mt-2">
-                  Reintentar ahora
-                </OpButton>
-              </form>
+              <RetryOutboxButton rowId={row.id} />
             </span>
           }
         />
