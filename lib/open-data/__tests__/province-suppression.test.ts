@@ -27,7 +27,11 @@ const rate = (provinceCode: string, numerator: number, denominator: number): Rat
 
 const suppressedCodes = <Row extends { provinceCode: string }>(
   tagged: { row: Row; suppressed: boolean }[],
-): string[] => tagged.filter((t) => t.suppressed).map((t) => t.row.provinceCode).sort();
+): string[] =>
+  tagged
+    .filter((t) => t.suppressed)
+    .map((t) => t.row.provinceCode)
+    .sort();
 
 describe("k threshold", () => {
   it("defaults to 5", () => {

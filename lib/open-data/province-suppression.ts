@@ -92,7 +92,10 @@ export function isRateCellProtected(
 /** Tag original rows by identity against the final suppressed partition,
  *  preserving input order. suppressSmallCells / complementarySuppress both keep
  *  the original row object references, so Set identity membership is exact. */
-function tagByIdentity<Row>(original: readonly Row[], suppressed: readonly Row[]): TaggedRow<Row>[] {
+function tagByIdentity<Row>(
+  original: readonly Row[],
+  suppressed: readonly Row[],
+): TaggedRow<Row>[] {
   const suppressedSet = new Set<Row>(suppressed);
   return original.map((row) => ({ row, suppressed: suppressedSet.has(row) }));
 }
