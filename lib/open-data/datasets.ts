@@ -37,6 +37,7 @@ import {
   OPEN_DATA_K,
   type RateRow,
   SUPPRESSED_MARKER,
+  type TaggedRow,
   suppressDensityProvinces,
   suppressRateProvinces,
 } from "@/lib/open-data/province-suppression";
@@ -367,6 +368,49 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
 };
 
 /**
+ * Province codes whose SHARED population base must be suppressed in this dataset.
+ *
+ * Several rate datasets publish the SAME base column computed from the SAME
+ * denominator (today: `mascotas_activas` in cobertura-esterilizacion AND
+ * cobertura-microchip). Per-dataset suppression alone lets an attacker join two
+ * such files on codigo_iso and recover a base that one file withheld but the
+ * other cleared — defeating the very marker the withholding file emitted. So the
+ * base column follows a JOINT rule: a province suppressed in ANY dataset of the
+ * shared-base group has its base marked in ALL of them. (The dataset-specific
+ * numerator/rate columns keep their own per-dataset suppression.)
+ *
+ * The group is DERIVED from the builders (rate datasets that share `baseColumn`),
+ * so a future third dataset publishing the same base inherits the behavior with
+ * no code change here. The set is computed from the underlying counts at build
+ * time — never from another dataset's cached artifact — so each dataset's cached
+ * unit stays deterministic and both files agree regardless of build/cache order.
+ *
+ * `self`'s own suppression is folded in from `selfTagged` (already computed);
+ * only OTHER members of the group are fetched. For a base published by a single
+ * dataset this is a no-op that returns that dataset's own suppression set.
+ */
+async function sharedBaseSuppressedCodes(
+  selfId: DatasetId,
+  selfBuilder: RateBuild,
+  selfTagged: readonly TaggedRow<RateRow>[],
+): Promise<Set<string>> {
+  const codes = new Set<string>();
+  for (const { row, suppressed } of selfTagged) {
+    if (suppressed) codes.add(row.provinceCode);
+  }
+  for (const memberId of DATASET_IDS) {
+    if (memberId === selfId) continue;
+    const member = BUILDERS[memberId];
+    if (member.kind !== "rate" || member.baseColumn !== selfBuilder.baseColumn) continue;
+    const tagged = suppressRateProvinces(await member.fetch());
+    for (const { row, suppressed } of tagged) {
+      if (suppressed) codes.add(row.provinceCode);
+    }
+  }
+  return codes;
+}
+
+/**
  * Build one dataset: fetch canonical national rows, suppress at the province
  * tier, and shape the published rows (suppressed cells → SUPPRESSED_MARKER).
  * Rows are sorted by province name for a stable, diff-friendly download.
@@ -384,12 +428,20 @@ export async function buildDataset(id: DatasetId, now: Date = new Date()): Promi
   if (builder.kind === "rate") {
     const raw = await builder.fetch();
     const tagged = suppressRateProvinces(raw);
+    // The base column obeys the JOINT shared-base rule; the pct column keeps its
+    // own per-dataset suppression. baseSuppressedCodes is a superset of this
+    // dataset's own suppressed provinces, so any pct-suppressed row is
+    // base-suppressed too (a row never shows a base while hiding its own pct).
+    const baseSuppressedCodes = await sharedBaseSuppressedCodes(id, builder, tagged);
     rows = tagged.map(({ row, suppressed }) => {
-      if (suppressed) suppressedCount += 1;
+      const baseSuppressed = suppressed || baseSuppressedCodes.has(row.provinceCode);
+      // suppressedCount = rows carrying at least one marker (== base-suppressed,
+      // since base ⊇ pct suppression).
+      if (baseSuppressed) suppressedCount += 1;
       return {
         provincia: row.provinceName,
         codigo_iso: row.provinceCode,
-        [builder.baseColumn]: suppressed ? SUPPRESSED_MARKER : row.denominator,
+        [builder.baseColumn]: baseSuppressed ? SUPPRESSED_MARKER : row.denominator,
         [builder.pctColumn]: suppressed ? SUPPRESSED_MARKER : row.ratePct,
       };
     });
