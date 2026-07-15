@@ -265,7 +265,6 @@ export function KpiChips({
               aria-label="Indicadores de otras capas"
               className="m-0 flex list-none flex-col gap-1.5 p-0"
             >
-
               {irrelevant.map((kpi) => (
                 <KpiCard
                   key={kpi.id}
