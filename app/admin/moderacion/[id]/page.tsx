@@ -247,7 +247,13 @@ export default async function ModeracionDetailPage({
                       {"Abrir ->"}
                     </a>
                   ) : (
-                    <span className="text-[11px] text-ln-op-faint">(no disponible)</span>
+                    // Honest empty state (Cowork M3): the signed URL is null when
+                    // the object isn't in the welfare-evidence bucket. Say so —
+                    // "(no disponible)" left an operator unsure if it was a
+                    // permission wall or a missing file.
+                    <span className="shrink-0 text-right text-[11px] text-ln-op-faint">
+                      No disponible — el archivo no se encontró en el almacenamiento
+                    </span>
                   )}
                 </li>
               ))}

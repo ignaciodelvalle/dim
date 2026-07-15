@@ -174,6 +174,32 @@ function log(tag: LogTag, msg: string): void {
   console.log(`[${tag.padEnd(4)}] ${msg}`);
 }
 
+// Minimal valid 1x1 PNG — a placeholder evidence object so the welfare-evidence
+// signed URL actually resolves in demo data. Cowork M3: the attachment ROW was
+// seeded but no object was ever uploaded to the bucket, so `createSignedUrl`
+// failed and the moderation UI showed "(no disponible)".
+const PLACEHOLDER_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+// Upload a placeholder evidence object for a welfare report and return its
+// canonical storage path. The path is `${reportId}/<name>` with NO bucket
+// prefix — matching lib/infra/welfare-uploads.ts. Deterministic path + upsert,
+// so re-running the seed is idempotent and never orphans objects.
+async function uploadWelfarePlaceholder(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  reportId: string,
+): Promise<string> {
+  const storagePath = `${reportId}/evidencia-demo.png`;
+  const { error } = await supabase.storage
+    .from("welfare-evidence")
+    .upload(storagePath, PLACEHOLDER_PNG, { contentType: "image/png", upsert: true });
+  if (error) log("WARN", `  welfare placeholder upload failed: ${error.message}`);
+  return storagePath;
+}
+
 // ---------------------------------------------------------------------------
 // 6. Lookup helpers — find seeded prerequisite entities
 // ---------------------------------------------------------------------------
@@ -447,13 +473,14 @@ async function runSeed(): Promise<void> {
 
       // ── 2. welfare_report_attachments ──────────────────────────────────
       log("STEP", "2/16 welfare_report_attachments");
+      const attachmentPath = await uploadWelfarePlaceholder(supabase, row.id);
       await db.insert(welfareReportAttachments).values({
         welfareReportId: row.id,
         uploadedByUserId: ownerUserId,
-        storagePath: `welfare-evidence/${COV_TAG}/foto-denuncia.jpg`,
-        mimeType: "image/jpeg",
-        fileSize: 204800,
-        originalFilename: "foto-denuncia.jpg",
+        storagePath: attachmentPath,
+        mimeType: "image/png",
+        fileSize: PLACEHOLDER_PNG.length,
+        originalFilename: "evidencia-demo.png",
       });
       log("OK", "  Inserted welfare_report_attachment");
     }
@@ -475,13 +502,14 @@ async function runSeed(): Promise<void> {
         .limit(1);
       if (!existingAtt && !DRY_RUN) {
         log("STEP", "2/16 welfare_report_attachments (standalone)");
+        const attachmentPath = await uploadWelfarePlaceholder(supabase, report.id);
         await db.insert(welfareReportAttachments).values({
           welfareReportId: report.id,
           uploadedByUserId: ownerUserId,
-          storagePath: `welfare-evidence/${COV_TAG}/foto-denuncia.jpg`,
-          mimeType: "image/jpeg",
-          fileSize: 204800,
-          originalFilename: "foto-denuncia.jpg",
+          storagePath: attachmentPath,
+          mimeType: "image/png",
+          fileSize: PLACEHOLDER_PNG.length,
+          originalFilename: "evidencia-demo.png",
         });
         log("OK", "  Inserted welfare_report_attachment (idempotency pass)");
       } else if (existingAtt) {
