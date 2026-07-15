@@ -56,6 +56,12 @@ export const TOUCH_TARGET_ALLOWLIST = new Set<string>([
   "components/CasesWidget.tsx:h-9",
   "components/CasesWidget.tsx:w-9",
 
+  // app/(app)/mis-mascotas/_components/OwnerRollupStrip.tsx — aria-hidden
+  // <span> icon badge inside the rollup cell, non-interactive (same shape
+  // as CasesWidget's allowlisted container).
+  "app/(app)/mis-mascotas/_components/OwnerRollupStrip.tsx:h-9",
+  "app/(app)/mis-mascotas/_components/OwnerRollupStrip.tsx:w-9",
+
   // components/pet-profile/LostScanFeed.tsx — aria-hidden emoji <span>
   // icon container, non-interactive.
   "components/pet-profile/LostScanFeed.tsx:h-9",
