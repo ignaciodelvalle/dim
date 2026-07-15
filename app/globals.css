@@ -2824,11 +2824,18 @@ body {
       var(--color-ln-celeste)
     );
 }
+/* Top-LEFT of the band (mirrors the turn button top-right). It used to sit
+   bottom-right, where the QR card — which pokes up into the band like the
+   photo — covered it on the credential face ("LIBRETA SANI…", PO QA 2026-07-15).
+   Top-left is structurally free on BOTH faces: photo/QR are bottom-anchored
+   and the turn button owns the top-right. max-width keeps it clear of the
+   button on narrow viewports (wrapping is fine, clipping is not). */
 .ln-band-title {
   position: absolute;
-  right: 22px;
-  bottom: 13px;
-  text-align: right;
+  left: 22px;
+  top: 16px;
+  max-width: calc(100% - 190px);
+  text-align: left;
   font-family: var(--font-ln-mono);
   font-size: 10px;
   letter-spacing: 0.24em;
