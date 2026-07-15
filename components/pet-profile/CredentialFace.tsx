@@ -216,8 +216,15 @@ export function CredentialFace({
         </div>
       )}
 
-      {/* Identity row — the photo pokes up into the band (negative margin). */}
-      <div className="ln-sec">
+      {/* Identity row — the photo pokes up into the band (negative margin).
+          `data-swipe-zone` marks this header/identity band as one of the
+          constrained horizontal-swipe surfaces for the owner credential
+          carousel (owner-ia-redesign P4): PetCredentialCarousel's delegated
+          pointer handler only starts a swipe when the gesture begins inside a
+          `[data-swipe-zone]`, so the long document's vertical scroll never
+          fights the swipe. Inert for non-owner viewers (the shell — and thus
+          the handler — is never mounted for them). */}
+      <div className="ln-sec" data-swipe-zone>
         <div className="ln-idrow">
           <div className="ln-photo">
             {heroProps.photoSrc ? (

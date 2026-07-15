@@ -58,6 +58,7 @@ import { CredentialFace } from "@/components/pet-profile/CredentialFace";
 import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
+import { PetCredentialCarousel } from "@/components/pet-profile/PetCredentialCarousel";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
 import { PetOwnerActivity } from "@/components/pet-profile/PetOwnerActivity";
 import {
@@ -75,11 +76,18 @@ import {
 import type { Pet } from "@/db";
 import {
   fetchActiveRemindersForPet,
+  fetchComplianceStatesForPets,
   fetchOpenWorkflows,
   fetchPetEventsForProfileV2,
+  fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
+import {
+  type CarouselPet,
+  rankOwnerCarousel,
+  shouldShowCarousel,
+} from "@/lib/domain/owner-carousel";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
@@ -626,6 +634,141 @@ export default async function PetDetailPage({
   // PregnancyInProgressCard already show the date, so the pill repeating it
   // was the one real duplicate the PO found.
 
+  // owner-ia-redesign P4 — the credential carousel ("the heart"). The profile
+  // SWIPES between the owner's LIVE pets, urgent-first (shared pet-urgency-rank),
+  // deceased NEVER in the swipe (decision 6). Owner-only: org/admin/public/vet
+  // viewers of the same route get no chrome (shouldShowCarousel gates on
+  // isOwner). Bounded and reuses the SAME owner-dashboard fetchers + compliance→
+  // status mapper that /inicio and the header use, so the position dots agree
+  // with every other owner surface (the cross-pet glance). Cost note (perf
+  // watchpoint): this adds the pet-list + batch-compliance queries on the owner
+  // path only — the same price /inicio already pays for its rail.
+  let carouselPets: CarouselPet[] = [];
+  if (isOwner) {
+    const { pets: ownerPets } = await fetchPetsForOwner(user.id);
+    const livePets = ownerPets.filter((p) => p.status !== "deceased");
+    const complianceStates = await fetchComplianceStatesForPets(
+      user.id,
+      livePets.map((p) => p.id),
+    );
+    carouselPets = rankOwnerCarousel(
+      livePets.map((p) => {
+        const compliance = complianceStates.get(p.id);
+        return {
+          token: p.publicToken,
+          status: p.status,
+          pregnancyStatus: p.pregnancyStatus,
+          complianceStatus: compliance
+            ? lnPetStatusFromCompliance(
+                { status: p.status, pregnancyStatus: p.pregnancyStatus ?? null },
+                compliance,
+              )
+            : null,
+        };
+      }),
+    );
+  }
+  const showCarousel = shouldShowCarousel({
+    isOwner,
+    tokens: carouselPets.map((p) => p.token),
+    currentToken: pet.publicToken,
+  });
+
+  // The credential document — server-rendered per route. A swipe/arrow/dot is a
+  // NAVIGATION to the neighbor's route, not a client pane slide, so this same
+  // node renders whether or not the carousel chrome wraps it.
+  const documentNode = (
+    <Suspense
+      fallback={
+        <div className="h-12 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] animate-pulse" />
+      }
+    >
+      <PetDetailTabsPanel
+        petPublicToken={pet.publicToken}
+        initialFace={activeFace}
+        isOwner={isOwner}
+        emergencyContacts={
+          // owner-ia-redesign P2: pet-level override with account fallback.
+          // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
+          // own columns win per row, else the owner's profile default shows
+          // (tagged "de tu cuenta" in the block). Non-owners get null (no
+          // block), and so do foster/transit holders — legal owners only
+          // (M2 fresh-review required fix 2).
+          isOwner && ownershipRole === "owner"
+            ? resolveEmergencyContacts(
+                {
+                  preferredVetName: pet.preferredVetName,
+                  preferredVetPhone: pet.preferredVetPhone,
+                  emergencyContactName: pet.emergencyContactName,
+                  emergencyContactPhone: pet.emergencyContactPhone,
+                },
+                {
+                  preferredVetName: viewerContacts?.preferredVetName ?? null,
+                  preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
+                  emergencyContactName: viewerContacts?.emergencyContactName ?? null,
+                  emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
+                },
+              )
+            : null
+        }
+        credencialContent={
+          // The whole front face is ONE framed sheet ("Una sola libreta"):
+          // identity → Cumplimiento → Avisos → Anotar → action row, bound by
+          // labeled hairline dividers inside CredentialFace. H1 provenance
+          // gates the stamp row. Deceased (ADR-15/REQ-9.3): `anotar` is null
+          // (a closed life record accepts no new events) and `actions`
+          // collapses to [Compartir][Más]; org viewers get the same read-only
+          // object with a null `anotar`.
+          <CredentialFace
+            heroProps={{
+              name: pet.name,
+              status: lnPetStatus,
+              breed: breedLine,
+              photoSrc: photoUrl ?? undefined,
+              tags: heroTags,
+            }}
+            complianceState={complianceState}
+            qrSvg={credentialQrSvg}
+            publicHref={`/p/${pet.publicToken}`}
+            serviceDog={
+              serviceDogRow &&
+              serviceDogRow.credentialStatus === "vigente" &&
+              serviceDogRow.inService
+                ? {
+                    serviceTypeLabel:
+                      SERVICE_TYPE_LABELS[serviceDogRow.serviceType] ?? serviceDogRow.serviceType,
+                    manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
+                    presentHref: buildPresentarHref(pet.publicToken),
+                  }
+                : null
+            }
+            petPublicToken={pet.publicToken}
+            petSex={pet.sex}
+            memorial={memorial}
+            situation={credentialSituation}
+            avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
+            // 3b improvement C — the embedded mid-face capture textarea was
+            // REMOVED to declutter the front. Capture now lives in the fixed
+            // "Asentar un hecho" bar (CitizenTabBar, mobile — task #9) and, as
+            // a pet-specific one-tap shortcut on every breakpoint, in the
+            // PetActionRow "Anotar" quiet link below (opens ?sheet=anotar for
+            // THIS pet). No `anotar` node is passed, so CredentialFace's inline
+            // "Anotar" section stays dormant (owners still write while lost —
+            // the /anotar sheet is gated on owner + not-deceased, unchanged).
+            actions={
+              <PetActionRow
+                petPublicToken={pet.publicToken}
+                isOwner={isOwner}
+                isDeceased={isDeceased}
+                petStatus={pet.status as "active" | "lost" | "deceased"}
+              />
+            }
+          />
+        }
+      />
+    </Suspense>
+  );
+
   return (
     <div
       className="mx-auto max-w-4xl pb-12 px-4 md:px-8"
@@ -658,96 +801,19 @@ export default async function PetDetailPage({
       {/* Two-face tabs: Credencial (eager) · Libreta (deferred). Face 1     */}
       {/* owns identity/credential + avisos + capture, per the new AGENTS.md */}
       {/* rule 5 block order (design.md ADR-1/ADR-6).                        */}
+      {/*                                                                    */}
+      {/* owner-ia-redesign P4 — when the owner has more than one live pet,  */}
+      {/* the document is wrapped by the credential carousel shell (position */}
+      {/* dots + desktop arrows + constrained swipe). Non-owner viewers, and */}
+      {/* owners with a single live pet, get the bare document (no chrome).  */}
       {/* ------------------------------------------------------------------ */}
-      <Suspense
-        fallback={
-          <div className="h-12 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] animate-pulse" />
-        }
-      >
-        <PetDetailTabsPanel
-          petPublicToken={pet.publicToken}
-          initialFace={activeFace}
-          isOwner={isOwner}
-          emergencyContacts={
-            // owner-ia-redesign P2: pet-level override with account fallback.
-            // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
-            // own columns win per row, else the owner's profile default shows
-            // (tagged "de tu cuenta" in the block). Non-owners get null (no
-            // block), and so do foster/transit holders — legal owners only
-            // (M2 fresh-review required fix 2).
-            isOwner && ownershipRole === "owner"
-              ? resolveEmergencyContacts(
-                  {
-                    preferredVetName: pet.preferredVetName,
-                    preferredVetPhone: pet.preferredVetPhone,
-                    emergencyContactName: pet.emergencyContactName,
-                    emergencyContactPhone: pet.emergencyContactPhone,
-                  },
-                  {
-                    preferredVetName: viewerContacts?.preferredVetName ?? null,
-                    preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
-                    emergencyContactName: viewerContacts?.emergencyContactName ?? null,
-                    emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
-                  },
-                )
-              : null
-          }
-          credencialContent={
-            // The whole front face is ONE framed sheet ("Una sola libreta"):
-            // identity → Cumplimiento → Avisos → Anotar → action row, bound by
-            // labeled hairline dividers inside CredentialFace. H1 provenance
-            // gates the stamp row. Deceased (ADR-15/REQ-9.3): `anotar` is null
-            // (a closed life record accepts no new events) and `actions`
-            // collapses to [Compartir][Más]; org viewers get the same read-only
-            // object with a null `anotar`.
-            <CredentialFace
-              heroProps={{
-                name: pet.name,
-                status: lnPetStatus,
-                breed: breedLine,
-                photoSrc: photoUrl ?? undefined,
-                tags: heroTags,
-              }}
-              complianceState={complianceState}
-              qrSvg={credentialQrSvg}
-              publicHref={`/p/${pet.publicToken}`}
-              serviceDog={
-                serviceDogRow &&
-                serviceDogRow.credentialStatus === "vigente" &&
-                serviceDogRow.inService
-                  ? {
-                      serviceTypeLabel:
-                        SERVICE_TYPE_LABELS[serviceDogRow.serviceType] ?? serviceDogRow.serviceType,
-                      manageHref: `/mis-mascotas/${pet.publicToken}/asistencia`,
-                      presentHref: buildPresentarHref(pet.publicToken),
-                    }
-                  : null
-              }
-              petPublicToken={pet.publicToken}
-              petSex={pet.sex}
-              memorial={memorial}
-              situation={credentialSituation}
-              avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
-              // 3b improvement C — the embedded mid-face capture textarea was
-              // REMOVED to declutter the front. Capture now lives in the fixed
-              // "Asentar un hecho" bar (CitizenTabBar, mobile — task #9) and, as
-              // a pet-specific one-tap shortcut on every breakpoint, in the
-              // PetActionRow "Anotar" quiet link below (opens ?sheet=anotar for
-              // THIS pet). No `anotar` node is passed, so CredentialFace's inline
-              // "Anotar" section stays dormant (owners still write while lost —
-              // the /anotar sheet is gated on owner + not-deceased, unchanged).
-              actions={
-                <PetActionRow
-                  petPublicToken={pet.publicToken}
-                  isOwner={isOwner}
-                  isDeceased={isDeceased}
-                  petStatus={pet.status as "active" | "lost" | "deceased"}
-                />
-              }
-            />
-          }
-        />
-      </Suspense>
+      {showCarousel ? (
+        <PetCredentialCarousel pets={carouselPets} currentToken={pet.publicToken}>
+          {documentNode}
+        </PetCredentialCarousel>
+      ) : (
+        documentNode
+      )}
 
       {/* owner-ia-redesign P3 — the profile absorbs its pet's content. This
           pet's reminders, turnos, and open cycles, below the document. Owner-
