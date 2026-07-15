@@ -131,9 +131,7 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
   // pet's credential — where this same tab bar then targets that pet's
   // ?sheet=anotar.
   const currentPetToken = petTokenFromPathname(pathname);
-  const asentarHref = currentPetToken
-    ? `/mis-mascotas/${currentPetToken}?sheet=anotar`
-    : "/inicio";
+  const asentarHref = currentPetToken ? `/mis-mascotas/${currentPetToken}?sheet=anotar` : "/inicio";
   const asentar = (
     <li key="__asentar" className="min-w-0 flex-1">
       <Link

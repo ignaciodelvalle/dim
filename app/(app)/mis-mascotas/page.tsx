@@ -300,11 +300,9 @@ export default async function MisMascotasPage({
             title={`Sin resultados para "${query}".`}
             description="Probá con otro nombre."
           />
-        ) : hasAnyOwned ? (
-          // Owner has only deceased pets — the In memoriam section below carries
-          // them; don't show a "no pets" box that contradicts it.
-          null
-        ) : (
+        ) : hasAnyOwned ? // Owner has only deceased pets — the In memoriam section below carries
+        // them; don't show a "no pets" box that contradicts it.
+        null : (
           <LnEmptyState
             variant="dashed"
             title="No tenés mascotas registradas."
