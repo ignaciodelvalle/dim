@@ -1969,9 +1969,41 @@ export function SituationalMap({
       return same ? prev : nextProvinceSeqLegend;
     });
 
+    // C4a — z-order: MapLibre draws layers in INSERTION order, so a fill added on
+    // a LATER sync (e.g. a base choropleth whose features resolved after the
+    // signal points, or a level toggle that re-adds the fill) lands ON TOP of the
+    // point marks added earlier — dropping outbreak/signal POINTS below the
+    // choropleth. Structural fix: after every sync, raise every point/circle MARK
+    // above all fills, in active order (base marks first, overlay/signal marks
+    // last → topmost). Order-of-addition no longer decides stacking.
+    raiseMarksAboveFills(map, active);
+
     // cursors #4 + #5: reconcile basemap luminance + border hierarchy after every
     // layer change (a province choropleth toggling on/off flips the basemap dim).
     updateChromeHierarchy(map);
+  }
+
+  /**
+   * C4a — enforce point-marks-above-fills stacking. `map.moveLayer(id)` with no
+   * beforeId lifts a layer to the very top, so raising each active layer's mark
+   * ids in active order leaves the last (overlay/signal) marks topmost. Idempotent
+   * and cheap (a handful of layers); runs at the end of every syncLayers pass so
+   * the invariant holds at initial mount AND after any toggle / data resolution.
+   */
+  function raiseMarksAboveFills(map: maplibregl.Map, active: readonly ActiveLayer[]) {
+    for (const layer of active) {
+      // Point layers: cluster bubbles (reference/points mode) + the point circles.
+      // Choropleth layers only expose a mark when rendered as centroid circles
+      // (locality level, no division fill) via choroLayerId; province FILLS
+      // (provinceFillLayerId) are NOT marks and stay below by omission.
+      const markIds =
+        layer.geomType === "point"
+          ? [clusterLayerId(layer.id), pointLayerId(layer.id)]
+          : [choroLayerId(layer.id)];
+      for (const id of markIds) {
+        if (map.getLayer(id)) map.moveLayer(id);
+      }
+    }
   }
 
   // --- Always-visible divisions: fill + outline lifecycle. -------------------
