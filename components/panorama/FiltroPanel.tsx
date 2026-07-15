@@ -37,6 +37,13 @@ type Props = {
   onOpacity?: (id: LayerId, value: number) => void;
   verifiedOnly?: boolean;
   onToggleVerified?: (id: LayerId) => void;
+  /**
+   * LOD disclosure (panorama campaign C2): per-ACTIVE-layer hint shown when the
+   * layer's zoom band paints the coarser province/national rollup while the scope
+   * is drilled. Keyed by layer id; absent entries render nothing. Purely
+   * presentational — the console derives it (lodProvinceRollupHint).
+   */
+  lodRollupHints?: Partial<Record<LayerId, string>>;
 };
 
 const ROLE_GROUPS: readonly { role: LayerRole; title: string }[] = [
@@ -55,6 +62,7 @@ export function FiltroPanel({
   onOpacity,
   verifiedOnly = false,
   onToggleVerified,
+  lodRollupHints = {},
 }: Props) {
   const vista = activeVistaName(presetId);
   return (
@@ -83,6 +91,9 @@ export function FiltroPanel({
                   ? (st?.compatibilityHint ?? undefined)
                   : undefined;
                 const isBlocked = Boolean(compatibilityHint);
+                // LOD disclosure — only meaningful on an ACTIVE layer (an inactive
+                // layer paints nothing, so there is no coarse rollup to explain).
+                const lodHint = active ? lodRollupHints[layer.id] : undefined;
                 const rowLabel = shortLayerLabel(presetId, layer.id, layer.label);
                 return (
                   <li key={layer.id}>
@@ -100,7 +111,13 @@ export function FiltroPanel({
                         checked={active}
                         disabled={isBlocked}
                         aria-disabled={isBlocked}
-                        aria-describedby={isBlocked ? `filtro-hint-${layer.id}` : undefined}
+                        aria-describedby={
+                          isBlocked
+                            ? `filtro-hint-${layer.id}`
+                            : lodHint
+                              ? `filtro-lod-${layer.id}`
+                              : undefined
+                        }
                         onChange={() => {
                           if (!isBlocked) onToggle(layer.id);
                         }}
@@ -146,6 +163,19 @@ export function FiltroPanel({
                         className="px-1.5 pl-8 text-[var(--text-xs)] text-ln-op-mute"
                       >
                         {compatibilityHint}
+                      </p>
+                    )}
+                    {/* LOD disclosure — this active layer is painting the coarser
+                        province/national rollup because the camera is zoomed out,
+                        even though the scope reads a drilled province/locality.
+                        Visible, associated, and never color-only. */}
+                    {lodHint && (
+                      <p
+                        id={`filtro-lod-${layer.id}`}
+                        className="px-1.5 pl-8 text-[var(--text-xs)] leading-snug text-ln-op-mute"
+                        role="note"
+                      >
+                        {lodHint}
                       </p>
                     )}
                     {/* Detalle advanced controls for the ACTIVE layer. */}

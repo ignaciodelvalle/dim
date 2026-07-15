@@ -103,6 +103,7 @@ import {
   type ZoomBand,
   bivariateEligibleFor,
   capabilitiesFor,
+  lodProvinceRollupHint,
   markForZoom,
 } from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
@@ -1657,6 +1658,30 @@ export function PanoramaConsole({
     // intentional triggers (the caches are refs). zoomBands has stable identity
     // per band signature, so a zoom settle that flips no band recomputes nothing.
   }, [states, scrubbing, asOfVersion, level, levelVersion, zoomBands, pointsVersion, opacities]);
+
+  // C2 coherence disclosure — per ACTIVE layer, the LOD hint shown when the layer's
+  // live zoom band resolved NATIONAL (it is painting the province/national rollup)
+  // while the operator's scope is a drilled province/locality. Purely presentational:
+  // the layer panel renders this note on the row, nothing here touches camera, scope,
+  // or level (the ratified "scroll = camera, click = drill" contract is untouched).
+  // "Drilled" = the console is scoped below the national overview: a locality axis, or
+  // a province in scope. Reference layers (refugios/decomisos) are exempt in the pure
+  // derivation. Keyed on the same (states, level, provinceInScope, zoomBands) inputs
+  // the bands already depend on, so a zoom settle that flips no band recomputes nothing.
+  const lodRollupHints = useMemo<Partial<Record<LayerId, string>>>(() => {
+    const scopeIsDrilled = level === "locality" || provinceInScope;
+    const out: Partial<Record<LayerId, string>> = {};
+    for (const l of PANORAMA_LAYERS) {
+      if (!states[l.id]?.active) continue;
+      const hint = lodProvinceRollupHint({
+        band: zoomBands[l.id],
+        scopeIsDrilled,
+        isReferenceLayer: l.dataType === "reference",
+      });
+      if (hint) out[l.id] = hint;
+    }
+    return out;
+  }, [states, level, provinceInScope, zoomBands]);
 
   // panorama-event-points — resolve the REAL event-location dots for every ACTIVE
   // points-capable layer (perdidas / mordeduras / denuncias).
@@ -4354,6 +4379,7 @@ export function PanoramaConsole({
           onOpacity={onOpacity}
           verifiedOnly={verifiedOnly}
           onToggleVerified={onToggleVerified}
+          lodRollupHints={lodRollupHints}
         />
       ),
     },

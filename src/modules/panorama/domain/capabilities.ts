@@ -145,6 +145,42 @@ export function markForZoom(
 }
 
 /**
+ * es-AR disclosure shown on a layer row when its live LOD band paints the coarser
+ * province/national rollup while the operator has drilled into a province/locality
+ * scope. Matches the panel's secondary-hint copy tone (plain, says what is happening
+ * and what to do).
+ */
+export const LOD_PROVINCE_ROLLUP_HINT =
+  "Vista provincial por el nivel de zoom — acercá para ver el detalle.";
+
+/**
+ * Pure derivation for the LOD-band disclosure (panorama campaign C2 coherence
+ * canon: label = number = map = table). A layer whose declared zoom band resolved
+ * `national` while the console scope/level is a drilled province or locality is
+ * silently painting a coarser rollup than the scope suggests — the exact gap the PO
+ * flagged ("algunas capas te sacan del zoom pero el scope queda en localidad").
+ * Surface a per-row hint so the operator understands why the mark is coarse and how
+ * to get the detail. Reference layers (refugios/decomisos — always discrete pins,
+ * `nationalBelowZoom = null`, never national) and the national overview
+ * (`scopeIsDrilled = false`, the national band is expected) show nothing. Purely
+ * presentational — never mutates camera, scope, or level.
+ *
+ * @returns the hint string to render, or `null` when no disclosure is warranted.
+ */
+export function lodProvinceRollupHint(args: {
+  band: ZoomBand;
+  /** The console scope/level is a drilled province or locality (not national overview). */
+  scopeIsDrilled: boolean;
+  /** Reference layers (refugios/decomisos) are exempt — they always render pins. */
+  isReferenceLayer: boolean;
+}): string | null {
+  const { band, scopeIsDrilled, isReferenceLayer } = args;
+  if (isReferenceLayer) return null;
+  if (!scopeIsDrilled) return null;
+  return band === "national" ? LOD_PROVINCE_ROLLUP_HINT : null;
+}
+
+/**
  * A selectable MAP MODE (task #24 — the "Modo" switcher, IA axis 2: how the map
  * paints). `"auto"` is the layer-derived encoding (choropleth-seq/meta,
  * graduated, reference — whatever the base implies); every other entry is an

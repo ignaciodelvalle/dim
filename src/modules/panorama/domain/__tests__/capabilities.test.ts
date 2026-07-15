@@ -19,9 +19,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  LOD_PROVINCE_ROLLUP_HINT,
+  ZOOM_REPRESENTATIONS,
   bivariateEligibleFor,
   capabilitiesFor,
   isMetaLayer,
+  lodProvinceRollupHint,
+  markForZoom,
 } from "@/src/modules/panorama/domain/capabilities";
 import { getLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
 import {
@@ -229,6 +233,68 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     const covCaps = capabilitiesFor(covView, { zoom: 3, level: "province" });
     expect(covCaps.representationPerZoom.cobertura.near).toBe("choropleth-fill");
     expect(covCaps.representationPerZoom.cobertura.national).toBe("choropleth-fill");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LOD province-rollup disclosure (panorama campaign C2 coherence). Pure logic:
+// (band, scopeIsDrilled, isReferenceLayer) → hint | null. This is the guard for
+// the "algunas capas te sacan del zoom pero el scope queda en localidad" gap.
+// ---------------------------------------------------------------------------
+
+describe("lodProvinceRollupHint — LOD band disclosure", () => {
+  it("hints ONLY when band is national AND the scope is drilled AND the layer is not reference", () => {
+    // The one case that warrants the disclosure.
+    expect(
+      lodProvinceRollupHint({ band: "national", scopeIsDrilled: true, isReferenceLayer: false }),
+    ).toBe(LOD_PROVINCE_ROLLUP_HINT);
+  });
+
+  it("stays silent on the national overview (scope not drilled) — the national band is expected", () => {
+    expect(
+      lodProvinceRollupHint({ band: "national", scopeIsDrilled: false, isReferenceLayer: false }),
+    ).toBeNull();
+  });
+
+  it("stays silent when the band already matches the drilled scope (drilled / near)", () => {
+    expect(
+      lodProvinceRollupHint({ band: "drilled", scopeIsDrilled: true, isReferenceLayer: false }),
+    ).toBeNull();
+    expect(
+      lodProvinceRollupHint({ band: "near", scopeIsDrilled: true, isReferenceLayer: false }),
+    ).toBeNull();
+  });
+
+  it("exempts reference layers (refugios/decomisos) even at the national band on a drilled scope", () => {
+    expect(
+      lodProvinceRollupHint({ band: "national", scopeIsDrilled: true, isReferenceLayer: true }),
+    ).toBeNull();
+  });
+
+  it("cross-checks against the real registry: a drilled scope at wide zoom flags aggregated layers, exempts reference layers", () => {
+    // markForZoom drives the same band the console threads in. At a wide zoom (below
+    // the layer's autoLevel.belowZoom) with a province in scope, aggregated/choropleth
+    // layers resolve NATIONAL while reference layers (nationalBelowZoom=null) never do.
+    const perdidasBand = markForZoom(ZOOM_REPRESENTATIONS.perdidas, 3, true).band;
+    expect(perdidasBand).toBe("national");
+    expect(
+      lodProvinceRollupHint({
+        band: perdidasBand,
+        scopeIsDrilled: true,
+        isReferenceLayer: getLayer("perdidas")!.dataType === "reference",
+      }),
+    ).toBe(LOD_PROVINCE_ROLLUP_HINT);
+
+    // refugios (reference) at the same wide zoom never forces national, and is exempt.
+    const refBand = markForZoom(ZOOM_REPRESENTATIONS.refugios, 3, true).band;
+    expect(refBand).not.toBe("national");
+    expect(
+      lodProvinceRollupHint({
+        band: refBand,
+        scopeIsDrilled: true,
+        isReferenceLayer: getLayer("refugios")!.dataType === "reference",
+      }),
+    ).toBeNull();
   });
 });
 
