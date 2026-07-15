@@ -25,6 +25,19 @@ import { usePathname } from "next/navigation";
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { isNavItemActive } from "@/components/layout/nav-active";
 
+// The pet-profile route is `/mis-mascotas/{DIM-token}` (and its sub-routes:
+// /asistencia, /libreta, …). Pet public tokens always start with `DIM-`, so a
+// prefix test cleanly separates a real profile from the reserved index children
+// (/mis-mascotas/nueva, /postulaciones, /reclamar, /reclamar-dni). Returns the
+// current pet's token when on any of its routes, else null.
+function petTokenFromPathname(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments[0] !== "mis-mascotas") return null;
+  const token = segments[1];
+  return token && /^DIM-/i.test(token) ? token : null;
+}
+
 // Stroke icons in the masthead bell's style (24 viewBox, strokeWidth 2).
 // Mapped by href prefix; items without a mapping fall back to a neutral dot
 // so a future nav item never renders a broken tab.
@@ -108,13 +121,21 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
   });
 
   // "Asentar un hecho" lives in this EXISTING tab-bar slot — the mobile capture
-  // affordance, not a second stacked fixed bar (PO 2026-07-12 #4). It deep-links
-  // to the home capture card (#asentar). Inserted at the visual centre so it
-  // reads as the emphasised primary action.
+  // affordance, not a second stacked fixed bar (PO 2026-07-12 #4). Inserted at
+  // the visual centre so it reads as the emphasised primary action.
+  //
+  // owner-ia-redesign P4: on a pet-profile route the pet is already known, so
+  // "Asentar" retargets to THAT pet's capture sheet (?sheet=anotar) — no picker,
+  // no cross-route hop to /inicio. Everywhere else it keeps deep-linking to the
+  // home capture card (#asentar), the pre-P4 behavior.
+  const currentPetToken = petTokenFromPathname(pathname);
+  const asentarHref = currentPetToken
+    ? `/mis-mascotas/${currentPetToken}?sheet=anotar`
+    : "/inicio#asentar";
   const asentar = (
     <li key="__asentar" className="min-w-0 flex-1">
       <Link
-        href="/inicio#asentar"
+        href={asentarHref}
         className="flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 text-[var(--color-ln-azul)] no-underline transition-colors active:opacity-70"
       >
         <span
