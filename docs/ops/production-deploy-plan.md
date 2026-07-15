@@ -180,39 +180,35 @@ overall order.
 ## 3. Site URL consistency (W5)
 
 `NEXT_PUBLIC_SITE_URL` is the single source of truth for the app's public
-origin. Every call site below reads it with a hardcoded fallback for local
-dev — in production, always set the env var explicitly so the fallback is
-never exercised:
+origin. In production, always set the env var explicitly so the fallback is
+never exercised.
 
+**Reconciled 2026-07-15**: the previously-divergent per-file fallbacks
+(`www.mimar.gob.ar` vs `mimar.gob.ar` vs `mimar.ar`) are unified. Every
+public-origin call site now routes through the single resolver
+`lib/infra/site-url.ts` (`resolveSiteUrl()`): it trims the env var, strips
+trailing slashes, and falls back to ONE canonical default `https://mimar.ar`
+when unset OR set-but-empty (the empty-string case is what caused the earlier
+unscannable-QR bug — the resolver's unit test pins it). Interim canonical is
+`mimar.ar`; the real prod origin (`www.mimar.gob.ar`, pending `.gob.ar`
+delegation) is set explicitly via `NEXT_PUBLIC_SITE_URL` in Vercel, so the
+fallback only ever fires in local/preview.
+
+Three readers are intentionally NOT routed through the resolver and keep their
+own fallbacks by design:
 - `app/sitemap.ts` — fails loud in production if unset (`NODE_ENV=production`
-  **and** `VERCEL` both set) rather than silently emitting URLs for a domain
-  that isn't the actual production one. Falls back to `http://localhost:3000`
-  outside production.
-- `app/(public)/refugios/[orgToken]/page.tsx`, `app/(public)/adoptar/[petToken]/page.tsx`
-  — fall back to `https://www.mimar.gob.ar`.
-- `app/org/[orgToken]/miembros/page.tsx`, `src/modules/transfers/actions.ts`,
-  `src/modules/organizations/application/invite-member.ts` — fall back to
-  `https://mimar.gob.ar` (no `www.` — inconsistent with the above, but not in
-  scope here).
-- `app/(app)/mis-mascotas/[publicToken]/page.tsx`,
-  `app/(app)/mis-mascotas/nueva/[publicToken]/credencial/page.tsx`,
-  `app/(app)/mis-mascotas/[publicToken]/chapita/page.tsx`,
-  `app/(app)/mis-mascotas/[publicToken]/cartel/page.tsx`,
-  `components/pet-profile/LostCaseBlock.tsx` — fall back to `https://mimar.ar`
-  (a **third**, different domain).
+  **and** `VERCEL` both set) rather than guessing a domain for search engines;
+  falls back to `http://localhost:3000` outside production.
+- `app/layout.tsx` metadataBase and `components/pet-profile/LostCaseBlock.tsx`
+  — fall back to `http://localhost:3000` (never advertise a guessed prod
+  origin from a metadata/share surface).
 - `src/modules/auth/application/password-reset/request-password-reset.ts` —
-  falls back to `http://localhost:<PORT>` (correct for local, harmless if
-  never hit in prod since the var is set).
+  falls back to `http://localhost:<PORT>` (correct for local).
 
-**Known inconsistency, not fixed here**: the fallback domains above disagree
-with each other (`www.mimar.gob.ar` vs `mimar.gob.ar` vs `mimar.ar`). This is
-harmless as long as `NEXT_PUBLIC_SITE_URL` is always set in production — every
-call site defers to it first — but it means an *unset* var doesn't fail
-uniformly; some routes would 500 (sitemap, after this fix) while others would
-silently render a wrong domain. Do not let that ambiguity persist by omission:
-treat "`NEXT_PUBLIC_SITE_URL` set in Vercel Production" as a hard pre-build
-gate (§2 step 2), not a per-file concern. Reconciling the three fallback
-domains into one is out of scope for this runbook (owned separately).
+Treat "`NEXT_PUBLIC_SITE_URL` set in Vercel Production" as a hard pre-build
+gate (§2 step 2) regardless: the canonical fallback keeps unset behavior
+consistent (no wrong-domain divergence), but the real prod domain must still
+be set explicitly.
 
 ---
 
