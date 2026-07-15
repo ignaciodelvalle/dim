@@ -135,8 +135,12 @@ Para cerrar esa grieta, la base compartida se suprime de forma **conjunta**:
 Esta regla se deriva automáticamente de la definición de los conjuntos: si en el
 futuro un tercer conjunto publica esa misma base, queda incluido en la supresión
 conjunta sin ningún cambio de criterio. El cálculo se hace sobre los conteos vigentes
-al generar cada archivo, no leyendo el archivo ya publicado del otro conjunto, así que
-ambos archivos son coherentes independientemente de cuál se genere o cachee primero.
+al generar cada archivo, no leyendo el archivo ya publicado del otro conjunto. Como
+cada archivo se regenera de forma independiente (caché diaria), dos archivos generados
+en momentos distintos pueden diferir transitoriamente en qué provincias marcan; esa
+diferencia nunca expone un grupo menor a 5, porque una base solo se publica en un
+archivo cuando, al momento de generarlo, ningún conjunto del grupo la suprimía —
+es decir, cuando ya era un agregado ≥ 5 apto para publicación.
 
 ## Autoevaluación de riesgo de reidentificación
 

@@ -383,7 +383,11 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
  * so a future third dataset publishing the same base inherits the behavior with
  * no code change here. The set is computed from the underlying counts at build
  * time — never from another dataset's cached artifact — so each dataset's cached
- * unit stays deterministic and both files agree regardless of build/cache order.
+ * unit is deterministic for its own build. Because each dataset caches
+ * independently (daily TTL), two files built at different times can transiently
+ * disagree on the joint set; that drift never exposes a sub-k value, since a base
+ * is only published when no group member suppressed it at that build's snapshot
+ * (i.e. it was already >= k). Coherence is per-build, not cross-file-absolute.
  *
  * `self`'s own suppression is folded in from `selfTagged` (already computed);
  * only OTHER members of the group are fetched. For a base published by a single
