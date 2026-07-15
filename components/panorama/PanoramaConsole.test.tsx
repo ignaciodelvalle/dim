@@ -1795,11 +1795,18 @@ describe("PanoramaConsole — streamed KPIs (perf plan 1.3)", () => {
       await promise;
     });
 
-    // Resolved: the streamed KPI is rendered; the pending cue is gone.
+    // Resolved: the pending cue is gone. C2a — in manual mode the mordeduras KPI
+    // does NOT describe the active perdidas layer, so it starts hidden behind the
+    // "Ver todos los indicadores" toggle (an indicator never headlines over a
+    // layer it doesn't measure); revealing it proves the streamed KPI landed.
     await waitFor(() => {
-      expect(screen.getByText("Mordeduras / 10k hab.")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Ver todos los indicadores/ }),
+      ).toBeInTheDocument();
     });
     expect(screen.queryByText("Cargando indicadores…")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Ver todos los indicadores/ }));
+    expect(screen.getByText("Mordeduras / 10k hab.")).toBeInTheDocument();
   });
 
   it("last-set-wins: a client refetch that takes over is NOT clobbered by the late-resolving streamed seed", async () => {

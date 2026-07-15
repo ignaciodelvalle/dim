@@ -10,7 +10,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type {
@@ -127,5 +127,59 @@ describe("KpiChips — honesty states (unchanged from the interactive era)", () 
     expect(screen.getByText("estado actual")).toBeInTheDocument();
     rerender(<KpiChips kpis={stock} metricIds={null} presetId={null} temporalFrameActive />);
     expect(screen.getByText("estado actual · no varía con la fecha")).toBeInTheDocument();
+  });
+});
+
+describe("KpiChips — C2a manual-mode relevance (KPI ↔ active layers)", () => {
+  it("shows only KPIs whose subject layer is active; hides the rest behind a toggle", () => {
+    // Active layers: cobertura + zoonosis. Relevant KPIs: cobertura, zoonosis.
+    // Irrelevant: esterilizacion, reunificacion.
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeLayerIds={["cobertura", "zoonosis"]}
+      />,
+    );
+    expect(screen.getByText("64%")).toBeInTheDocument(); // cobertura (relevant)
+    expect(screen.getByText("3")).toBeInTheDocument(); // zoonosis (relevant)
+    // Irrelevant KPIs are not rendered until the toggle is opened.
+    expect(screen.queryByText("38%")).not.toBeInTheDocument();
+    expect(screen.queryByText("71%")).not.toBeInTheDocument();
+    // The toggle names how many are hidden.
+    const toggle = screen.getByRole("button", { name: /Ver todos los indicadores \(2\)/ });
+    fireEvent.click(toggle);
+    expect(screen.getByText("38%")).toBeInTheDocument();
+    expect(screen.getByText("71%")).toBeInTheDocument();
+    // Each revealed irrelevant card carries the honest caption (one per card).
+    expect(screen.getAllByText("no corresponde a las capas activas")).toHaveLength(2);
+  });
+
+  it("when no active layer maps to a KPI, says so and offers the toggle", () => {
+    render(
+      <KpiChips kpis={KPIS} metricIds={null} presetId={null} activeLayerIds={["refugios"]} />,
+    );
+    expect(
+      screen.getByText("Ningún indicador corresponde directamente a las capas activas."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Ver todos los indicadores \(4\)/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("preset mode (metricIds set) ignores relevance — no toggle, curated set shown", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={["cobertura", "zoonosis"]}
+        presetId={"brotes-activos"}
+        activeLayerIds={["denuncias"]}
+      />,
+    );
+    // Curated metrics shown regardless of active layers; no relevance toggle.
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Ver todos/ })).not.toBeInTheDocument();
   });
 });
