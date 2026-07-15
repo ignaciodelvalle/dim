@@ -2244,7 +2244,11 @@ async function seedLostPetEpisodeCases(
       jurisdictionProvince: pet.jurisdictionProvince ?? "Buenos Aires",
       jurisdictionLocality: pet.jurisdictionLocality,
       openedByUserId: ownership?.ownerUserId ?? fallbackOwnerUserId,
-      openedReason: `Pet ${pet.publicToken} marked as lost — seed-panorama`,
+      // Visible "Motivo de apertura" — plain es-AR, no English and no seed tag
+      // leaking into a user-facing field (Cowork B4). Idempotency is keyed on
+      // primaryPetId + caseKind above, not on this reason, so it is safe to drop
+      // the "seed-panorama" marker here.
+      openedReason: "Mascota reportada como perdida por su responsable",
     });
 
     created++;
