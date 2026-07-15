@@ -1,14 +1,13 @@
 // Standalone /cuenta/casos page removed (owner-ia-redesign P1 item 5).
-// Transitional redirect — /inicio's "Casos abiertos" section (#casos anchor)
-// is the interim destination until P5's real index+inbox lands with a proper
-// history view. NOTE (discovered while wiring this): the deleted page also
-// rendered CLOSED/past cases via fetchPreviousWorkflows — /inicio only ever
-// fetches OPEN workflows, so that history view has no home until P5. PO-locked
-// as an accepted transitional gap (plan explicitly calls this redirect
-// "transitional" pending the P5 inbox).
+//
+// P5: the real index+inbox has landed on /mis-mascotas — open workflows AND the
+// closed-cases history (fetchPreviousWorkflows) that this page used to render
+// now live in the "Bandeja" section there. A direct URL fragment works fine
+// here (no server branching needed, unlike /inicio's redirect), so this points
+// straight at that section.
 
 import { redirect } from "next/navigation";
 
 export default function CasosPage() {
-  redirect("/inicio#casos");
+  redirect("/mis-mascotas#inbox");
 }
