@@ -121,6 +121,16 @@ type Props = {
    * Null for the choropleth/bivariate encodings (those drive the polygon fill).
    */
   bubble?: { color: string; radius: number; suppressed: boolean } | null;
+  /**
+   * Cowork B6 fix: a short es-AR clarifier for WHY the CABA panel is showing when
+   * the drilled scope is NOT CABA. The inset is CABA-specific by design and stays
+   * visible during a Buenos Aires drill (CABA sits inside the AMBA conurbano — the
+   * magnifier), but a bare "CABA" header read as "you are viewing CABA" instead of
+   * "CABA as a reference within Buenos Aires". When set, the header names it a
+   * reference so the panel never masquerades as the primary scope. Null (national
+   * / CABA scope) keeps the plain header — there CABA IS what the map shows.
+   */
+  referenceNote?: string | null;
 };
 
 /** One raw barrio feature, as much as the code read needs. */
@@ -134,6 +144,7 @@ export function CabaInset({
   onDrill,
   scopeLabel = null,
   bubble = null,
+  referenceNote = null,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -361,7 +372,12 @@ export function CabaInset({
   const content = (
     <>
       <div className="flex items-baseline justify-between px-2 py-1 text-ln-op-ink-2">
-        <span className="text-[var(--text-xs)] font-medium">CABA</span>
+        <span className="text-[var(--text-xs)] font-medium">
+          CABA
+          {referenceNote && (
+            <span className="ml-1 font-normal text-ln-op-mute">· {referenceNote}</span>
+          )}
+        </span>
         <span className="text-[var(--text-xs)] text-ln-op-mute">
           {scopeLabel ?? (uniformFill ? "valor provincial" : "por barrio")}
         </span>

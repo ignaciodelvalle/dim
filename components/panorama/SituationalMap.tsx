@@ -3502,6 +3502,12 @@ export function SituationalMap({
           // undefined when the console has no drill target (mirrors the main
           // map's canDrillProvince gate), so the inset stays inert then.
           onDrill={onProvinceDrill ? () => onProvinceDrill("AR-C") : undefined}
+          // Cowork B6: the inset stays visible during a Buenos Aires (AR-B) drill
+          // as the AMBA magnifier (CABA sits inside the conurbano), but its bare
+          // "CABA" header read as the primary scope. Name it a reference so it
+          // never masquerades as "you are viewing CABA". National / CABA scope
+          // keep the plain header (there CABA IS the mark on the map).
+          referenceNote={selectedProvinceCode === "AR-B" ? "referencia AMBA" : null}
         />
         {/* v2C floating top-right cluster: the console's scope pill + period
             control (slot) over the map-owned briefing actions. Absolute overlay
