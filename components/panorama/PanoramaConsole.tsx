@@ -117,6 +117,7 @@ import {
   isAggregatedPointLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
+import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
 import {
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
@@ -3766,7 +3767,20 @@ export function PanoramaConsole({
   // known ids + deltas (reading.ts qualify()), so narrowing the input array
   // just narrows which deltas are eligible to headline — it never breaks the
   // sentence construction.
-  const readingKpis = useMemo(() => selectMetricKpis(kpis, metricIds), [kpis, metricIds]);
+  // Relevance gating (review finding 5): C2a hid off-map KPIs in the KpiChips
+  // overlay ONLY — the one-line reading (PanoramaReading) and the printable
+  // Informe still headlined off the FULL set in manual mode, so both could
+  // surface a metric absent from the active layers (the exact "projection lie"
+  // C2a fixed for the chips). In MANUAL mode (no preset), narrow the reading +
+  // Informe input to the KPIs whose subject layer is on the map — the SAME
+  // partition KpiChips applies. Preset mode is immune (metricIds already curates
+  // a coherent set) and must not be re-filtered, so the gate is scoped to
+  // metricIds === null.
+  const readingKpis = useMemo(() => {
+    const selected = selectMetricKpis(kpis, metricIds);
+    if (metricIds !== null) return selected;
+    return partitionKpiIdsByRelevance(selected, activeLayerIdList).relevant;
+  }, [kpis, metricIds, activeLayerIdList]);
 
   // trust/safety invariant (2026-07-10): the KPI fan-out resolved to the honest
   // degraded payload (no real numbers). Every CONCLUSION surface fed by the KPI

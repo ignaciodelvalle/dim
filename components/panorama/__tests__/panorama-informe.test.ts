@@ -11,9 +11,21 @@ import { describe, expect, it } from "vitest";
 
 import {
   type BuildInformeInput,
+  type InformeKpiInput,
   buildInformeModel,
   informeAsOfLabel,
 } from "@/components/panorama/panorama-informe";
+import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
+import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+
+/** The informe KPI inputs carry `id: string`; the relevance gate keys on the
+ *  PanoramaKpiId union. In the console the ids ARE PanoramaKpiIds (they come from
+ *  the KPI payload); the test narrows the fixture ids the same way. */
+function asRelevanceInput(
+  kpis: readonly InformeKpiInput[],
+): Array<InformeKpiInput & { id: PanoramaKpiId }> {
+  return kpis as Array<InformeKpiInput & { id: PanoramaKpiId }>;
+}
 
 function baseInput(overrides: Partial<BuildInformeInput> = {}): BuildInformeInput {
   return {
@@ -177,5 +189,35 @@ describe("buildInformeModel", () => {
       }),
     );
     expect(m.ranking?.emptyText).toBe("No pudimos calcular el ranking en este momento.");
+  });
+});
+
+// Review finding 5 — the manual-mode relevance gate that the console applies to
+// the Informe's KPI input (partitionKpiIdsByRelevance → relevant). This mirrors
+// the exact composition PanoramaConsole.readingKpis performs before handing the
+// list to buildInformeModel, so the printable report never headlines a metric
+// whose subject layer is NOT on the map (the same "projection lie" C2a fixed for
+// the KPI chips). Preset mode is immune (the curated metricIds are not re-filtered)
+// and is exercised by not calling the partition.
+describe("Informe manual-mode relevance gating (finding 5)", () => {
+  it("drops a KPI whose subject layer is not active from the informe kpis + method notes", () => {
+    // Manual mode with ONLY the mordeduras layer painted: the cobertura KPI does
+    // not describe the map and must not reach the printable report.
+    const { relevant } = partitionKpiIdsByRelevance(asRelevanceInput(baseInput().kpis), ["mordeduras"]);
+    const m = buildInformeModel(baseInput({ kpis: relevant }));
+
+    const ids = m.kpis.map((k) => k.id);
+    expect(ids).toContain("mordeduras");
+    expect(ids).not.toContain("cobertura");
+    // The method footnotes derive from the SAME shown KPIs — the cobertura note
+    // must also be gone (no orphaned methodology for a hidden metric).
+    expect(m.methodNotes.join(" ")).not.toContain("vacunación antirrábica");
+    expect(m.methodNotes.join(" ")).toContain("mordedura");
+  });
+
+  it("keeps every KPI when both subject layers are active (nothing to gate)", () => {
+    const { relevant } = partitionKpiIdsByRelevance(asRelevanceInput(baseInput().kpis), ["cobertura", "mordeduras"]);
+    const m = buildInformeModel(baseInput({ kpis: relevant }));
+    expect(m.kpis.map((k) => k.id)).toEqual(["cobertura", "mordeduras"]);
   });
 });
