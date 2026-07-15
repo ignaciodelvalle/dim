@@ -11,7 +11,7 @@ Load this section every session. Load deep sections on demand via the anchors in
 
 **DIM / MiMAR** — Argentina's digital pet credential system. Internal codename: **DIM** (stays in code, schema, tokens `DIM-XXXX-XXXX`, audit logs). User-facing brand: **MiMAR (Mi Mascota Argentina)**.
 
-Owner: **Ignacio Del Valle** (ignaciodelvalle2014@gmail.com) — non-technical. Claude writes the code; Ignacio drives product decisions and runs commands locally on Windows.
+Owner: **Ignacio Del Valle** — non-technical. Claude writes the code; Ignacio drives product decisions and runs commands locally on Windows.
 
 Ultimate trajectory: **Mi Argentina integration** — federation with the Argentine government identity platform. Every architectural decision is filtered through whether it preserves or harms that path.
 
@@ -108,7 +108,7 @@ At its core: every pet has a verifiable digital identity — a credential that c
 
 The user-facing brand is **MiMAR (Mi Mascota Argentina)**. The internal codename is **DIM** — it stays in code, schema, token formats, and audit logs. See the **Naming** section below for the full rationale.
 
-The owner of the project is **Ignacio Del Valle** (ignaciodelvalle2014@gmail.com), part of the original 2021 team. Ignacio is **non-technical** — Claude writes the code, Ignacio drives product decisions and runs commands locally on Windows.
+The owner of the project is **Ignacio Del Valle**, part of the original 2021 team. Ignacio is **non-technical** — Claude writes the code, Ignacio drives product decisions and runs commands locally on Windows.
 
 ## North Star
 
@@ -141,7 +141,7 @@ DIM is rooted in concrete data about the city it was designed for. Figures below
 3. **Designed for expansion.** The data model includes columns and roles for veterinary and government actors from day one. Pet owner UI ships first; other actors are activated later with no schema rewrite.
 4. **Start tight, loosen later.** The public credential page exposes the minimum necessary by default; richer reveals are gated by status (lost), explicit owner action (shared link), or verified identity (future).
 5. **Build it properly, bit by bit.** No throwaway prototypes. Every milestone is usable. Foundation pays off.
-6. **Open source from day one.** Public GitHub repo, MIT license. The credibility this buys with future government partners is massive.
+6. **Private repo, open by design.** The repo is private to protect design IP (PO decision 2026-07-15); it is maintained publishable-at-any-moment (no secrets, no plaintext PII, clean history — see `docs/ops/going-public-runbook.md`). Public transparency is delivered through open data and methodology at `/transparencia` (CC-BY 4.0), not open code. A future open-core carve-out of the credential-verification module is a deferred option, not current policy.
 7. **Projections are first-class.** Every view — owner timeline, public credential, vet record, government dashboard — is a *projection* over the event log: `(events, filters) → view`. No view is the source of truth. New dashboards = new queries, not new schemas.
 8. **Designed for the population, not just the pet.** Every event a pet owner records is potentially a public-health signal. Aggregation is a first-class architectural concern, with privacy preserved by k-anonymity and opt-in for granular contribution.
 
@@ -162,7 +162,7 @@ DIM is rooted in concrete data about the city it was designed for. Figures below
 | Package manager  | pnpm                                |
 | Local dev        | Supabase CLI (Docker)               |
 | Deploy           | Vercel + Supabase Cloud (when ready)|
-| Repo             | GitHub, public, MIT                 |
+| Repo             | GitHub, private, proprietary (open-by-design discipline) |
 | Locale           | Spanish (es-AR)                     |
 
 ## Form factor
@@ -1270,14 +1270,14 @@ If a new feature seems to need an exception, write the exception into the PR des
 
 ## Open questions / future work
 
-- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md` for the GTM analysis)
+- Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md`)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - ~~**`/pro` portal**~~ — removed in Sprint 1A Phase B. Independent vets now create a clinic org via `/cuenta/crear-consultorio` and operate from `/org/[orgToken]`.
 - **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/archive/2026-05-17-code-rename-refugio-to-org.md`.
 - **`/gob` portal** — govt scope-bound portal for locality approvals + regional dashboards. Designed in admin page spec v2.2; implementation follows admin page Fase 0.
 - **`/admin` portal** — already partially implemented; needs refinement to split govt-shared surfaces into `/gob`.
 - **Adoption-listing public surface (`/adoptar`)** — projection over (`pets` where current `Ownership` is org-held by `org_type` in (`shelter`, `rescue_network`), not death, not paused). Filters, region, species. UX and listing copy open.
-- **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA alignment is the diplomatic open question; we want to feed it, not compete with it.
+- **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA interoperability is an open integration question; the goal is to complement it.
 - **Decomiso → temporary welfare-authority custody → refugio chain** — Ley Nacional 14.346 seizures should flow through `custody_transferred` events with a municipal welfare authority holding `shelter_custody` briefly before transferring to a refugio. Schema supports this; the authority-side portal and UX are open.
 - **Bulk operations for high-capacity refugios** — El Campito-scale shelters (200+ animals) need table-shaped UIs for bulk intake, vaccination logging, listing edits. Deferred to a later iteration; schema does not change.
 - **Cross-org transfer UX** — refugio-to-refugio handoffs need a sender-confirms / receiver-accepts flow. Event always emitted on completion (`custody_transferred`).

@@ -5,7 +5,6 @@
 > **Note:** DIM is the internal codename used in schema, tokens (`DIM-XXXX-XXXX`), code identifiers, and audit logs. MiMAR is the user-facing brand.
 
 [![CI](https://github.com/ignaciodelvalle/dim/actions/workflows/ci.yml/badge.svg)](https://github.com/ignaciodelvalle/dim/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A reborn 2021 university project (UTN), reimagined for 2026 as a modern PWA with public-health-grade architecture.
 
@@ -161,7 +160,6 @@ docs/
   architecture/             Hexagonal-lite architecture guide (+ Mermaid diagrams)
   superpowers/              specs and plans for upcoming features
   archive/                  2021 carpeta, CONAIISI paper, BMC (provenance, not spec)
-docs/archive/mimar-go-to-market.md  GTM strategy: Mi Argentina integration path and decision-makers
 ```
 
 ## Documentation
@@ -173,4 +171,4 @@ docs/archive/mimar-go-to-market.md  GTM strategy: Mi Argentina integration path 
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+Proprietary — all rights reserved. See [LICENSE](./LICENSE). This system's aggregate open data is published separately at `/transparencia` under CC-BY 4.0.
