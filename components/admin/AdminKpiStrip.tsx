@@ -126,38 +126,74 @@ export function AdminKpiStrip({
           }}
         />
       )}
-      <OpKpi
-        label="Decisiones 7d"
-        value={data.decisionsTotal7d}
-        tone="ok"
-        sub={`${data.approved7d} aprobadas · ${data.rejected7d} rechazadas`}
-        href={data.decisionsDrillHref ?? "/admin/auditoria"}
-        info={{
-          definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
-          formula: "request_approved + request_rejected en audit_log (últimos 7d)",
-        }}
-        deltaV2={
-          data.decisionsDelta !== null
-            ? { value: data.decisionsDelta, period: "vs 7d anteriores (aprox.)" }
-            : undefined
-        }
-      />
-      {hasEno && eno && (
-        <OpKpi
-          label="SLA ENO"
-          value={eno.onTimePct !== null ? `${eno.onTimePct}%` : "—"}
-          tone={enoSlaTone(eno)}
-          sub={
-            eno.breachedOpen > 0
-              ? `${eno.breachedOpen} en breach activo`
-              : eno.total > 0
-                ? "sin breach activo"
-                : "sin notificaciones en el período"
-          }
-          href="/admin/outbox"
-          info={getKpiInfo("eno_sla_compliance")}
-        />
-      )}
+      {(() => {
+        // Zero-activity is not a crash (Cowork B2): a demo week with no
+        // decisions previously rendered "0" in ok-green with a red "−100%"
+        // deltaV2 (↓ arrow) — reading as "something broke". When there are no
+        // decisions this week, render a neutral "Sin decisiones esta semana"
+        // and suppress the delta chip entirely (a −100% vs a prior week is not
+        // an alarm on an empty demo).
+        const noDecisions = data.decisionsTotal7d === 0;
+        return (
+          <OpKpi
+            label="Decisiones 7d"
+            value={data.decisionsTotal7d}
+            tone={noDecisions ? "neutral" : "ok"}
+            sub={
+              noDecisions
+                ? "Sin decisiones esta semana"
+                : `${data.approved7d} aprobadas · ${data.rejected7d} rechazadas`
+            }
+            href={data.decisionsDrillHref ?? "/admin/auditoria"}
+            info={{
+              definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
+              formula: "request_approved + request_rejected en audit_log (últimos 7d)",
+            }}
+            deltaV2={
+              !noDecisions && data.decisionsDelta !== null
+                ? { value: data.decisionsDelta, period: "vs 7d anteriores (aprox.)" }
+                : undefined
+            }
+          />
+        );
+      })()}
+      {hasEno &&
+        eno &&
+        (() => {
+          // Headline honesty (Cowork A3/C1). `onTimePct` measures ONLY delivered
+          // rows (onTime / delivered), so it reads 100% while notifications sit
+          // pending PAST their sla_due_at — the tile showed "100%" in green next
+          // to "12 en breach activo", two numbers that contradict. The two
+          // windows don't share a denominator (onTimePct is period-scoped over
+          // delivered rows; breachedOpen is a live "now" count of pending+overdue
+          // rows), so folding them into one % would be dishonest. Instead, when
+          // there is an active breach we LEAD with the breach count (the live,
+          // actionable number) and demote the historical % to the sub-line, which
+          // states exactly what it measures ("de las entregadas"). Tone comes from
+          // enoSlaTone, which already degrades to warn/danger on any open breach.
+          const hasBreach = eno.breachedOpen > 0;
+          const pctLabel = eno.onTimePct !== null ? `${eno.onTimePct}%` : "—";
+          return (
+            <OpKpi
+              label="SLA ENO"
+              value={hasBreach ? `${eno.breachedOpen} en incumplimiento` : pctLabel}
+              tone={enoSlaTone(eno)}
+              sub={
+                hasBreach
+                  ? eno.onTimePct !== null
+                    ? `Cumplimiento histórico ${pctLabel} de las entregadas · ${eno.breachedOpen} vencidas AHORA`
+                    : `Sin entregas en el período · ${eno.breachedOpen} vencidas AHORA`
+                  : eno.total > 0
+                    ? eno.onTimePct !== null
+                      ? `${pctLabel} de las entregadas a tiempo · sin vencidas`
+                      : "Sin entregas en el período"
+                    : "Sin notificaciones en el período"
+              }
+              href="/admin/outbox"
+              info={getKpiInfo("eno_sla_compliance")}
+            />
+          );
+        })()}
     </div>
   );
 }
