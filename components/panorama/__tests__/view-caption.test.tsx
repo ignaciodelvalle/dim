@@ -23,7 +23,8 @@ function mockOverflow(overflowing: boolean) {
   vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(20);
 }
 
-const LONG = "Brotes activos — Argentina (todas las provincias), últimos 90 días, capas: focos, señales de zoonosis, cobertura antirrábica.";
+const LONG =
+  "Brotes activos — Argentina (todas las provincias), últimos 90 días, capas: focos, señales de zoonosis, cobertura antirrábica.";
 
 describe("ViewCaption", () => {
   it("always keeps the full text reachable via the title attribute", () => {

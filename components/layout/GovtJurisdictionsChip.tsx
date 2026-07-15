@@ -50,10 +50,10 @@ export function GovtJurisdictionsChip({
             role="tooltip"
             className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-ln-op-line bg-ln-op-card p-3 shadow-lg"
           >
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+            <p className="mb-1.5 text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
               Tus jurisdicciones
             </p>
-            <ul className="space-y-0.5 text-[13px] text-ln-op-ink">
+            <ul className="space-y-0.5 text-[var(--text-sm)] text-ln-op-ink">
               {jurisdictions.map((j) => (
                 <li key={`${j.province}|${j.locality}`}>
                   {j.locality}, {j.province}

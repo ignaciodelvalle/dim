@@ -130,7 +130,7 @@ export function AdminSiteMap({
                             </span>
                             {count > 0 ? (
                               <span
-                                className="shrink-0 rounded-full bg-ln-op-warn-bg px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-ln-op-warn"
+                                className="shrink-0 rounded-full bg-ln-op-warn-bg px-1.5 py-0.5 text-[var(--text-xs)] font-bold tabular-nums text-ln-op-warn"
                                 aria-label={`${count} pendientes`}
                               >
                                 {count}

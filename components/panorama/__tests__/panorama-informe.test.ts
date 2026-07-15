@@ -203,7 +203,9 @@ describe("Informe manual-mode relevance gating (finding 5)", () => {
   it("drops a KPI whose subject layer is not active from the informe kpis + method notes", () => {
     // Manual mode with ONLY the mordeduras layer painted: the cobertura KPI does
     // not describe the map and must not reach the printable report.
-    const { relevant } = partitionKpiIdsByRelevance(asRelevanceInput(baseInput().kpis), ["mordeduras"]);
+    const { relevant } = partitionKpiIdsByRelevance(asRelevanceInput(baseInput().kpis), [
+      "mordeduras",
+    ]);
     const m = buildInformeModel(baseInput({ kpis: relevant }));
 
     const ids = m.kpis.map((k) => k.id);
@@ -216,7 +218,10 @@ describe("Informe manual-mode relevance gating (finding 5)", () => {
   });
 
   it("keeps every KPI when both subject layers are active (nothing to gate)", () => {
-    const { relevant } = partitionKpiIdsByRelevance(asRelevanceInput(baseInput().kpis), ["cobertura", "mordeduras"]);
+    const { relevant } = partitionKpiIdsByRelevance(asRelevanceInput(baseInput().kpis), [
+      "cobertura",
+      "mordeduras",
+    ]);
     const m = buildInformeModel(baseInput({ kpis: relevant }));
     expect(m.kpis.map((k) => k.id)).toEqual(["cobertura", "mordeduras"]);
   });
