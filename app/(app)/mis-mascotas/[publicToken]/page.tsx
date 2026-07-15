@@ -600,12 +600,10 @@ export default async function PetDetailPage({
     inTransit: isTransit,
   });
   const credentialSituation = !isDeceased && !petSituation.isDefault ? petSituation : null;
-  let situationDetail: string | null = null;
-  if (credentialSituation?.key === "perdida" && lostEpisode) {
-    situationDetail = `desde ${lostEpisode.openedAt.toLocaleDateString("es-AR")}`;
-  } else if (credentialSituation?.key === "prenada" && pregnancyCardData) {
-    situationDetail = `parto estimado ${pregnancyCardData.expectedBirthAt.toLocaleDateString("es-AR")}`;
-  }
+  // The situation pill carries the LABEL only ("Perdida"/"Preñada") — the date
+  // suffix was dropped (owner-ia-redesign P1): LostCaseBlock and
+  // PregnancyInProgressCard already show the date, so the pill repeating it
+  // was the one real duplicate the PO found.
 
   return (
     <div
@@ -693,7 +691,6 @@ export default async function PetDetailPage({
               petSex={pet.sex}
               memorial={memorial}
               situation={credentialSituation}
-              situationDetail={situationDetail}
               avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
               // 3b improvement C — the embedded mid-face capture textarea was
               // REMOVED to declutter the front. Capture now lives in the fixed
@@ -800,7 +797,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
   return (
     <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
       <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
-        Observación antirrábica en curso
+        Vigilancia por mordedura
       </p>
       <p className="text-[13px] text-[var(--color-ln-warn)]">
         {biteDate

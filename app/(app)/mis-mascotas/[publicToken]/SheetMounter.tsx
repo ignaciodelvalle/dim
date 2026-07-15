@@ -30,7 +30,7 @@
  * `sp.sheet`), so open state simply reacts to useSearchParams(), which Next
  * updates reactively on both the SSR-provided initial URL AND on
  * pushSheetUrl()'s shallow window.history.pushState calls from every
- * trigger (PetActionRow, EventCatcherSingle, CredentialFace's Emergencia
+ * trigger (PetActionRow, LibretaFace's EmergenciaBlock
  * link, MasSheet — see lib/ui/sheet-nav.ts). `close()` uses closeSheetNav
  * instead of router.replace so closing never touches the router either.
  */
@@ -176,7 +176,7 @@ export function SheetMounter({
 
   // EmergencyContactSheet's onSaved (not its "×"/cancel onClose, which stays
   // on the regular shallow `close` above): the save mutates
-  // `profiles.emergency_*`, which CredentialFace's EmergencyCard renders
+  // `profiles.emergency_*`, which LibretaFace's EmergenciaBlock renders
   // server-side from page.tsx's initial SSR output. A shallow close never
   // re-fetches that RSC tree, so the card kept the old phone until a hard
   // reload — see closeSheetNavWithFullReload's docblock for why

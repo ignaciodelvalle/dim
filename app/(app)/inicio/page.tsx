@@ -536,8 +536,16 @@ export default async function InicioPage() {
             </LnCard>
           )}
 
-          {/* Casos abiertos — CasesWidget has its own card frame */}
-          {cases.length > 0 && <CasesWidget cases={cases} historyHref="/cuenta/casos" />}
+          {/* Casos abiertos — CasesWidget has its own card frame. id="casos" is
+              the anchor target for /cuenta/casos's redirect (owner-ia-redesign
+              P1 item 5) — no `historyHref` because there is no distinct
+              history destination anymore (closed/past cases have no home
+              until P5's real inbox); linking one would just bounce back here. */}
+          {cases.length > 0 && (
+            <div id="casos">
+              <CasesWidget cases={cases} />
+            </div>
+          )}
         </div>
       </div>
 

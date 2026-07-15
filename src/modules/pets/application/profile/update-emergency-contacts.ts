@@ -3,7 +3,7 @@
 //
 // The 4 vet/emergency-contact fields live on `profiles` (per-user, not
 // per-pet — see update-profile.ts), but the entry point is the pet profile's
-// CredentialFace EmergencyCard. `updateProfileForUser`'s schema requires
+// LibretaFace EmergenciaBlock. `updateProfileForUser`'s schema requires
 // `displayName` (non-optional) — this use-case loads the viewer's CURRENT
 // displayName and passes it through unchanged so the caller never has to
 // carry or resubmit it, keeping the write scoped to only the fields

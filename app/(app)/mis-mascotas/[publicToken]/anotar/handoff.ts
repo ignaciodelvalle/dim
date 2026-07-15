@@ -11,9 +11,10 @@ import {
 } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
-// Builds the URL EventCatcher / EventCatcherSingle use to hand off typed
-// text + chosen kind to the capture surface. Pure function, lives outside
-// EventCatcher.tsx so the vitest import-analysis can parse it without JSX.
+// Builds the URL EventCatcher (the /inicio multi-pet capture widget) uses to
+// hand off typed text + chosen kind to the capture surface. Pure function,
+// lives outside EventCatcher.tsx so the vitest import-analysis can parse it
+// without JSX.
 //
 // Flow audit 2026-07-03: the target is the PROFILE with ?sheet=anotar — the
 // canonical capture surface — not the standalone /anotar page. From the

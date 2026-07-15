@@ -1,21 +1,22 @@
 // capture-nav — shared same-route/cross-route classification for the
-// quick-capture flow (EventCatcherSingle + CaptureBox).
+// quick-capture flow (CaptureBox).
 //
-// WHY: EventCatcherSingle already classified its destination URL correctly —
-// same-route `?sheet=`/`?tab=` targets go through pushSheetUrl (History API,
-// no router — see lib/ui/sheet-nav.ts for the router-hot-path rationale),
-// while a genuinely different route (a full `/eventos/nuevo/*` page) is a
-// real navigation via next/navigation's router. CaptureBox (the /anotar
-// fallback page AND the ?sheet=anotar sheet body — SheetMounter mounts it at
-// `/mis-mascotas/{token}`) never got this fix: it always called
-// router.push/router.replace regardless of destination, so a routeOverride
-// landing back on the SAME profile route (e.g. `?sheet=marcar-perdida`)
-// regressed into the exact router-hot-path defect this module exists to
-// avoid (engram #621, verify-report #617 CRITICAL-1).
+// WHY: same-route `?sheet=`/`?tab=` targets go through pushSheetUrl (History
+// API, no router — see lib/ui/sheet-nav.ts for the router-hot-path
+// rationale), while a genuinely different route (a full `/eventos/nuevo/*`
+// page) is a real navigation via next/navigation's router. CaptureBox (the
+// /anotar fallback page AND the ?sheet=anotar sheet body — SheetMounter
+// mounts it at `/mis-mascotas/{token}`) used to call router.push/
+// router.replace regardless of destination, so a routeOverride landing back
+// on the SAME profile route (e.g. `?sheet=marcar-perdida`) regressed into
+// the exact router-hot-path defect this module exists to avoid (engram #621,
+// verify-report #617 CRITICAL-1).
 //
-// This helper is the ONE place both components resolve "same route or not" —
-// consumed by BOTH EventCatcherSingle (submit) and CaptureBox (mount-redirect
-// + submit) so the classification never drifts between them again.
+// This helper is the ONE place capture-flow navigation resolves "same route
+// or not" — CaptureBox is the sole consumer (mount-redirect + submit) today;
+// a former embedded-capture component (EventCatcherSingle, dormant since the
+// mid-face textarea was removed) also used to share it before it was deleted
+// (owner-ia-redesign P1).
 
 import { isSameRouteUrl, pushSheetUrl } from "@/lib/ui/sheet-nav";
 

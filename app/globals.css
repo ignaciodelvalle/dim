@@ -3050,10 +3050,6 @@ body {
 .ln-sit-label {
   letter-spacing: 0.01em;
 }
-.ln-sit-detail {
-  font-weight: 400;
-  color: var(--sit-detail);
-}
 .ln-sit--alerta {
   --sit-ink: var(--color-ln-err);
   --sit-soft: var(--color-ln-err-050);

@@ -49,10 +49,10 @@ export default async function OfrecermeComoTransitoPage() {
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
-        href="/cuenta/transitos"
+        href="/cuenta"
         className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
-        ← Tránsitos
+        ← Mi cuenta
       </Link>
 
       {/* Header */}

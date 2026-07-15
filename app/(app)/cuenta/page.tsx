@@ -1,8 +1,8 @@
 // Cuenta hub — Item 14.1 reorder.
 //
-// Layout: serif page title → identity card → verifications → privacy section
-//   → grouped action sections (Tu información / Rol y organizaciones /
-//     Privacidad y datos / Zona de riesgo) → logout → footer → sheet mounter.
+// Layout: serif page title → identity card → verifications → grouped action
+//   sections (Tu información / Rol y organizaciones / Privacidad y datos /
+//   Zona de riesgo) → logout → footer → sheet mounter.
 //
 // Changes from previous flat "01 Acciones" list:
 //   - Replaced single group with four named LnSectionHead groups.
@@ -17,6 +17,10 @@ import { Suspense } from "react";
 import { logoutAction } from "@/app/actions/auth";
 import { db, organizationMemberships, ownerships, profiles } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
+import {
+  countActiveFosterOwnerships,
+  countPendingFosterProposals,
+} from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, count, eq, inArray, isNull } from "drizzle-orm";
 
@@ -27,7 +31,6 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
-import { PrivacySection } from "./_components/PrivacySection";
 
 // Role display labels
 const ROLE_LABELS: Record<string, string> = {
@@ -60,7 +63,7 @@ const CUENTA_LOAD_TIMEOUT_MS = 8_000;
  * fragile (and it violated admin.ts's "only import from admin-institutional").
  */
 async function loadCuentaData(userId: string) {
-  const [rows, petCount] = await Promise.all([
+  const [rows, petCount, pendingProposals, activeFosters] = await Promise.all([
     db
       .select({
         role: profiles.role,
@@ -73,10 +76,6 @@ async function loadCuentaData(userId: string) {
         matriculaNumber: profiles.matriculaNumber,
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
         matriculaVerified: profiles.matriculaVerified,
-        discloseNameCredential: profiles.discloseNameCredential,
-        disclosePhoneCredential: profiles.disclosePhoneCredential,
-        allowOrgContact: profiles.allowOrgContact,
-        allowLostAlertsInZone: profiles.allowLostAlertsInZone,
         preferredVetName: profiles.preferredVetName,
         preferredVetPhone: profiles.preferredVetPhone,
         emergencyContactName: profiles.emergencyContactName,
@@ -93,6 +92,11 @@ async function loadCuentaData(userId: string) {
       .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
       .then((r) => Number(r[0]?.n ?? 0))
       .catch(() => 0),
+    // Foster badges (owner-ia-redesign P1 item 5) — the /cuenta/transitos hub
+    // page that used to fetch these was removed; its 4 links folded into the
+    // "Rol y organizaciones" group below, badges included.
+    countPendingFosterProposals(userId).catch(() => 0),
+    countActiveFosterOwnerships(userId).catch(() => 0),
   ]);
 
   const profile = rows[0];
@@ -113,7 +117,7 @@ async function loadCuentaData(userId: string) {
     vetNeedsClinic = !adminRow;
   }
 
-  return { profile, petCount, vetNeedsClinic };
+  return { profile, petCount, vetNeedsClinic, pendingProposals, activeFosters };
 }
 
 export default async function CuentaPage() {
@@ -150,7 +154,7 @@ export default async function CuentaPage() {
     );
   }
 
-  const { profile, petCount, vetNeedsClinic } = load.value;
+  const { profile, petCount, vetNeedsClinic, pendingProposals, activeFosters } = load.value;
 
   if (!profile) {
     return (
@@ -289,20 +293,6 @@ export default async function CuentaPage() {
       </LnCard>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Privacy controls (PrivacySection is a client component — unchanged) */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="mb-7">
-        <PrivacySection
-          prefs={{
-            discloseNameCredential: profile.discloseNameCredential,
-            disclosePhoneCredential: profile.disclosePhoneCredential,
-            allowOrgContact: profile.allowOrgContact,
-            allowLostAlertsInZone: profile.allowLostAlertsInZone,
-          }}
-        />
-      </div>
-
-      {/* ------------------------------------------------------------------ */}
       {/* Vet clinic banner                                                    */}
       {/* ------------------------------------------------------------------ */}
       {vetNeedsClinic && (
@@ -378,10 +368,30 @@ export default async function CuentaPage() {
               label="Mis solicitudes"
               description="Estado de tus solicitudes de rol"
             />
+            {/* Tránsitos — folded in from the removed /cuenta/transitos hub
+                page (owner-ia-redesign P1 item 5): its 4 links, badges
+                included. */}
             <ActionRow
-              href="/cuenta/transitos"
-              label="Tránsitos"
-              description="Hogar de tránsito, propuestas, tránsitos activos e historial"
+              href="/cuenta/ofrecerme-como-transito"
+              label="Ofrecerme como hogar de tránsito"
+              description="Inscribite en el pool de voluntarios para cuidar mascotas en custodia"
+            />
+            <ActionRow
+              href="/cuenta/transitos/propuestas"
+              label="Propuestas de tránsito"
+              description="Refugios proponiéndote cuidar mascotas"
+              badge={pendingProposals > 0 ? pendingProposals : undefined}
+            />
+            <ActionRow
+              href="/cuenta/transitos/activos"
+              label="Tránsitos activos"
+              description="Mascotas que estás cuidando ahora"
+              badge={activeFosters > 0 ? activeFosters : undefined}
+            />
+            <ActionRow
+              href="/cuenta/transitos/historial"
+              label="Historial de tránsitos"
+              description="Tránsitos terminados y propuestas no concretadas"
             />
             {profile.role === "vet" && (
               <ActionRow
@@ -515,11 +525,14 @@ function ActionRow({
   label,
   description,
   danger = false,
+  badge,
 }: {
   href: string;
   label: string;
   description: string;
   danger?: boolean;
+  /** Pending-count pill (e.g. tránsitos propuestas/activos), folded in from the removed hub page. */
+  badge?: number;
 }) {
   return (
     <Link
@@ -540,9 +553,16 @@ function ActionRow({
         </p>
         <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
       </div>
-      <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-mute)] text-base">
-        ›
-      </span>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        {badge !== undefined && (
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-1.5 font-[var(--font-ln-mono)] text-xs font-semibold text-white">
+            {badge}
+          </span>
+        )}
+        <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
+          ›
+        </span>
+      </div>
     </Link>
   );
 }

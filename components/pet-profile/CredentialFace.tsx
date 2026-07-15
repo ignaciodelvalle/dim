@@ -83,11 +83,16 @@ export type CredentialFaceProps = {
    * skin above owns that state) so the two skins never stack.
    */
   situation?: PetSituation | null;
-  /** es-AR detail appended after the situation label, e.g. "desde 3 jul 2026". */
-  situationDetail?: string | null;
   /** Prioritized alert strip node. `null`/absent → no "Avisos" section. */
   avisos?: ReactNode;
-  /** Embedded capture node (EventCatcherSingle). `null`/absent → no "Anotar" section. */
+  /**
+   * Embedded capture node. Currently always `null` — the caller
+   * (`app/(app)/mis-mascotas/[publicToken]/page.tsx`) stopped passing one when
+   * the mid-face capture textarea was removed in favor of the "Asentar" tab-bar
+   * action and the PetActionRow "Anotar" link (both route to `?sheet=anotar`).
+   * The prop stays so a future embedded-capture surface has a slot without
+   * touching every caller again; `null`/absent → no "Anotar" section renders.
+   */
   anotar?: ReactNode;
   /** Action row node (PetActionRow). Always rendered as the sheet footer. */
   actions?: ReactNode;
@@ -102,7 +107,6 @@ export function CredentialFace({
   petPublicToken,
   memorial,
   situation,
-  situationDetail,
   avisos,
   anotar,
   actions,
@@ -209,7 +213,6 @@ export function CredentialFace({
         <div className={`ln-sit ln-sit--${activeSituation.tone}`} data-section="pet-situation">
           <Icon name={activeSituation.icon} size="sm" decorative />
           <span className="ln-sit-label">{situationLabel}</span>
-          {situationDetail && <span className="ln-sit-detail">— {situationDetail}</span>}
         </div>
       )}
 

@@ -1,6 +1,6 @@
 // Tests for lib/ui/capture-nav.ts — the shared same-route/cross-route
-// classification EventCatcherSingle and CaptureBox both consume. Node env
-// (window stubbed manually), mirroring lib/ui/sheet-nav.test.ts's pattern.
+// classification CaptureBox consumes. Node env (window stubbed manually),
+// mirroring lib/ui/sheet-nav.test.ts's pattern.
 //
 // Regression coverage: CaptureBox used to call router.push/router.replace
 // unconditionally, regardless of whether the resolved capture destination

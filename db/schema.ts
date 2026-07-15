@@ -443,15 +443,6 @@ export const profiles = pgTable(
     // emails came back blank. The last-admin guard and the admin roster
     // partition read this flag instead of inspecting the display name.
     isSystem: boolean("is_system").notNull().default(false),
-    // Global disclosure prefs (handoff P1-2). Each toggle controls a
-    // single surface; per-pet overrides live on `pets.disclose_*_when_lost`.
-    // Defaults follow privacy-first: name + phone hidden, org contact
-    // opt-in (allows shelters/clinics to reach you), zone alerts opt-in
-    // (community help). Surfaced in /cuenta Privacy section (handoff P3-3).
-    discloseNameCredential: boolean("disclose_name_credential").notNull().default(false),
-    disclosePhoneCredential: boolean("disclose_phone_credential").notNull().default(false),
-    allowOrgContact: boolean("allow_org_contact").notNull().default(true),
-    allowLostAlertsInZone: boolean("allow_lost_alerts_in_zone").notNull().default(true),
     // Irreversible soft-deactivation timestamp. NULL = active. Set by
     // deactivateAdminAction / deactivateGovtAction in Fase 5.
     deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),

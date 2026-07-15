@@ -18,11 +18,9 @@
 
 import { revalidatePath } from "next/cache";
 
-import type { PrivacyPrefKey } from "@/lib/domain/privacy-prefs";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { govtSelfDeactivateForUser as _govtSelfDeactivate } from "@/src/modules/pets/application/profile/govt-self-deactivate";
 import { selfDeactivatePersonalAccountForUser as _selfDeactivatePersonal } from "@/src/modules/pets/application/profile/self-deactivate-personal-account";
-import { updatePrivacyPrefForUser as _updatePrivacyPref } from "@/src/modules/pets/application/profile/update-privacy-pref";
 import { vetSelfResignForUser as _vetSelfResign } from "@/src/modules/pets/application/profile/vet-self-resign";
 
 // ---------------------------------------------------------------------------
@@ -32,7 +30,6 @@ import { vetSelfResignForUser as _vetSelfResign } from "@/src/modules/pets/appli
 export type {
   GovtSelfDeactivateResult,
   PersonalSelfDeactivateResult,
-  UpdatePrivacyPrefResult,
   VetSelfResignResult,
 } from "@/src/modules/pets/application/profile/types";
 
@@ -57,15 +54,6 @@ export async function govtSelfDeactivateAction(input?: {
   const { user } = await requireUserOrRedirect();
   const result = await _govtSelfDeactivate(user.id, input);
   if ("ok" in result && !result.noOp) {
-    revalidatePath("/cuenta");
-  }
-  return result;
-}
-
-export async function updatePrivacyPrefAction(key: PrivacyPrefKey, next: boolean) {
-  const { user } = await requireUserOrRedirect();
-  const result = await _updatePrivacyPref(user.id, key, next);
-  if ("ok" in result) {
     revalidatePath("/cuenta");
   }
   return result;

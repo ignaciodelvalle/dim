@@ -158,7 +158,12 @@ describe("OWNER_NAV exclusion contract for /cuenta", () => {
       "/cuenta/crear-consultorio",
       "/cuenta/memberships",
       "/cuenta/solicitudes",
-      "/cuenta/transitos",
+      // /cuenta/transitos (hub) was removed (owner-ia-redesign P1 item 5) —
+      // its 4 links fold in directly; children survive at their own routes.
+      "/cuenta/ofrecerme-como-transito",
+      "/cuenta/transitos/propuestas",
+      "/cuenta/transitos/activos",
+      "/cuenta/transitos/historial",
       "?sheet=renunciar-rol",
       "/cuenta/privacidad",
     ];

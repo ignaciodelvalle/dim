@@ -74,7 +74,7 @@ export function closeSheetNav(closeUrl: string): void {
  * Use this (not closeSheetNav) when the sheet's action just mutated
  * server-rendered content elsewhere on the page that a shallow close does
  * NOT re-fetch — e.g. EmergencyContactSheet saving `profiles.emergency_*`,
- * which CredentialFace's EmergencyCard (a Server Component) renders as part
+ * which LibretaFace's EmergenciaBlock (a Server Component) renders as part
  * of page.tsx's initial SSR output. The server action already calls
  * revalidatePath(), but that only marks the RSC cache stale — nothing in
  * this shallow-routing architecture ever issues the follow-up RSC fetch

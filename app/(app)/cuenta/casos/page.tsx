@@ -1,47 +1,14 @@
-import Link from "next/link";
+// Standalone /cuenta/casos page removed (owner-ia-redesign P1 item 5).
+// Transitional redirect — /inicio's "Casos abiertos" section (#casos anchor)
+// is the interim destination until P5's real index+inbox lands with a proper
+// history view. NOTE (discovered while wiring this): the deleted page also
+// rendered CLOSED/past cases via fetchPreviousWorkflows — /inicio only ever
+// fetches OPEN workflows, so that history view has no home until P5. PO-locked
+// as an accepted transitional gap (plan explicitly calls this redirect
+// "transitional" pending the P5 inbox).
 
-import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
-import { fetchOpenWorkflows, fetchPreviousWorkflows } from "@/lib/analytics/owner-dashboard";
-import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { redirect } from "next/navigation";
 
-// Full cases history — the destination for the home "Ver historial →" link.
-// Shows the owner's open cases plus the closed/past ones (resolved across all
-// domains via fetchPreviousWorkflows).
-
-export default async function CasosPage() {
-  const { user } = await requireUserOrRedirect();
-  const [open, previous] = await Promise.all([
-    fetchOpenWorkflows(user.id),
-    fetchPreviousWorkflows(user.id, 50),
-  ]);
-  const openRows = open.map(adaptWorkflow);
-  const pastRows = previous.map(adaptWorkflow);
-
-  return (
-    <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
-      <div className="mb-6">
-        <Link
-          href="/inicio"
-          className="text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
-        >
-          ← Volver al inicio
-        </Link>
-        <h1 className="m-0 mt-2 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Mis casos
-        </h1>
-        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-          Todos tus casos: los abiertos y el historial de cerrados y pasados.
-        </p>
-      </div>
-
-      <div className="space-y-[20px]">
-        <CasesWidget title="Abiertos" cases={openRows} emptyText="No tenés casos abiertos." />
-        <CasesWidget
-          title="Historial"
-          cases={pastRows}
-          emptyText="Todavía no hay casos cerrados o pasados."
-        />
-      </div>
-    </div>
-  );
+export default function CasosPage() {
+  redirect("/inicio#casos");
 }
