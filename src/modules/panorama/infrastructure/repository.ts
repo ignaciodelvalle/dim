@@ -363,13 +363,13 @@ export async function loadDenunciaCentroids(
   const centroidLat = sql<string | null>`(
     SELECT MIN(al.latitude) FROM ar_localities al
     WHERE al.province_code = ${provinceIsoMapSql(sql`${welfareReports.jurisdictionProvince}`)}
-      AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}
+      AND ${sql`al.locality_name_norm`} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}
       AND al.removed_at IS NULL
   )`;
   const centroidLng = sql<string | null>`(
     SELECT MIN(al.longitude) FROM ar_localities al
     WHERE al.province_code = ${provinceIsoMapSql(sql`${welfareReports.jurisdictionProvince}`)}
-      AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}
+      AND ${sql`al.locality_name_norm`} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}
       AND al.removed_at IS NULL
   )`;
 
@@ -545,13 +545,13 @@ export async function loadDecomisos(
   const centroidLat = sql<string | null>`(
     SELECT MIN(al.latitude) FROM ar_localities al
     WHERE al.province_code = ${provinceIsoMapSql(sql`${cases.jurisdictionProvince}`)}
-      AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(sql`${cases.jurisdictionLocality}`)}
+      AND ${sql`al.locality_name_norm`} = ${normNameSql(sql`${cases.jurisdictionLocality}`)}
       AND al.removed_at IS NULL
   )`;
   const centroidLng = sql<string | null>`(
     SELECT MIN(al.longitude) FROM ar_localities al
     WHERE al.province_code = ${provinceIsoMapSql(sql`${cases.jurisdictionProvince}`)}
-      AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(sql`${cases.jurisdictionLocality}`)}
+      AND ${sql`al.locality_name_norm`} = ${normNameSql(sql`${cases.jurisdictionLocality}`)}
       AND al.removed_at IS NULL
   )`;
 
@@ -913,39 +913,55 @@ async function rollupPetsPerLocality(
   whereExtra: SQL[],
   scopeClause: SQL | null,
 ): Promise<RollupRow[]> {
-  const provinceCol = sql`${pets.jurisdictionProvince}`;
-  const localityCol = sql`${pets.jurisdictionLocality}`;
   const conditions = [...whereExtra, isNotNull(pets.jurisdictionLocality)];
   if (scopeClause) conditions.push(sql`(${scopeClause})`);
 
-  const rows = await db
+  // AGGREGATE-THEN-RESOLVE (perf). Aggregate pets by (province, locality) FIRST,
+  // with NO ar_localities join, so the expensive metric predicate is evaluated
+  // once per pet and the result collapses to ≈one row per raw locality string
+  // (~705 for Buenos Aires). Joining ar_localities BEFORE this grouping made the
+  // planner nested-loop the whole ar_localities partition for every candidate pet
+  // (~millions of unaccent()/regexp evals → ~15-20s, past the 8s budget).
+  const agg = db
     .select({
       province: pets.jurisdictionProvince,
       locality: pets.jurisdictionLocality,
-      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
-      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
-      // Deterministic department pick (MIN), same discipline as the centroid: an
-      // ambiguous (province, locality-name) pair can match several ar_localities
-      // rows, so we pin ONE department code/name per cell for the map roll-up.
-      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
-      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
-      // COUNT(DISTINCT pets.id), not COUNT(*): the leftJoin to ar_localities can
-      // fan out when an INDEC (province, name) pair is ambiguous, so counting
-      // rows would double-count a pet. We count distinct pets.
-      n: countDistinct(pets.id),
+      // COUNT(DISTINCT pets.id) computed pre-join: no ar_localities fan-out can
+      // reach it, so the count is exact by construction (no double-counting).
+      n: countDistinct(pets.id).as("n"),
     })
     .from(pets)
+    .where(and(...conditions))
+    .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
+    .limit(PER_LAYER_CAP)
+    .as("agg");
+
+  // RESOLVE. Join ONLY the grouped rows to ar_localities on the sargable
+  // normalized-name column (migration 0146): each locality is an index scan on
+  // (province_code, locality_name_norm), not a full-partition scan per pet. MIN()
+  // still pins ONE deterministic centroid/department per cell — an ambiguous
+  // INDEC (province, name) pair matching several rows can no longer inflate the
+  // count (already fixed above), only the resolved centroid, unchanged.
+  const rows = await db
+    .select({
+      province: agg.province,
+      locality: agg.locality,
+      centroidLat: sql<string | null>`MIN(${arLocalities.latitude})`,
+      centroidLng: sql<string | null>`MIN(${arLocalities.longitude})`,
+      departmentCode: sql<string | null>`MIN(${arLocalities.departmentCode})`,
+      departmentName: sql<string | null>`MIN(${arLocalities.departmentName})`,
+      n: agg.n,
+    })
+    .from(agg)
     .leftJoin(
       arLocalities,
       and(
-        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(provinceCol)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(localityCol)}`,
+        sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${agg.province}`)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`${agg.locality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
-    .where(and(...conditions))
-    .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
-    .limit(PER_LAYER_CAP);
+    .groupBy(agg.province, agg.locality, agg.n);
 
   return rows
     .filter((r) => r.province !== null && r.locality !== null)
@@ -1562,7 +1578,7 @@ export async function loadPerdidasByUnit(
       arLocalities,
       and(
         sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
@@ -1772,7 +1788,7 @@ export async function loadMordedurassByUnit(
       arLocalities,
       and(
         sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
@@ -1889,7 +1905,7 @@ export async function loadDenunciasByUnit(
       arLocalities,
       and(
         sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${welfareReports.jurisdictionProvince}`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`${welfareReports.jurisdictionLocality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
@@ -2001,7 +2017,7 @@ export async function loadZoonosisByUnit(
       arLocalities,
       and(
         sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`(${petEvents.payload}->>'pet_jurisdiction_province')`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
@@ -2149,7 +2165,7 @@ export async function loadSintomasByUnit(
       arLocalities,
       and(
         sql`${arLocalities.provinceCode} = ${provinceIsoMapSql(sql`${pets.jurisdictionProvince}`)}`,
-        sql`${normNameSql(sql`${arLocalities.localityName}`)} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
+        sql`${arLocalities.localityNameNorm} = ${normNameSql(sql`${pets.jurisdictionLocality}`)}`,
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
@@ -2581,7 +2597,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         WHERE al.province_code = ${provinceIsoMapSql(sql`${province}`)}
           AND al.removed_at IS NULL
           AND al.department_code = ${departmentCode}
-          AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(localityCol)}
+          AND ${sql`al.locality_name_norm`} = ${normNameSql(localityCol)}
       )`;
     }
     // No department code — a CABA barrio, a locality that resolved no department
@@ -2596,7 +2612,7 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         WHERE al.province_code = ${provinceIsoMapSql(sql`${province}`)}
           AND al.removed_at IS NULL
           AND ${normNameSql(sql`al.department_name`)} = ${normNameSql(sql`${locality}`)}
-          AND ${normNameSql(sql`al.locality_name`)} = ${normNameSql(localityCol)}
+          AND ${sql`al.locality_name_norm`} = ${normNameSql(localityCol)}
       )
     )`;
   }
