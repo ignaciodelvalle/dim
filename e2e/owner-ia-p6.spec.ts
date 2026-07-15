@@ -80,12 +80,19 @@ async function login(page: Page, email: string) {
   // reads page.url() on its own schedule, independent of navigation lifecycle
   // events (networkidle/commit both proved flaky against it). A visible login
   // error (e.g. rate-limit) surfaces here as a fast, explicit failure.
-  const loginError = page.getByRole("alert").filter({ hasText: /intento|contraseñ|inválid|error/i });
+  const loginError = page
+    .getByRole("alert")
+    .filter({ hasText: /intento|contraseñ|inválid|error/i });
   await expect
     .poll(
       async () => {
         if (await loginError.count()) {
-          const txt = (await loginError.first().innerText().catch(() => "")).trim();
+          const txt = (
+            await loginError
+              .first()
+              .innerText()
+              .catch(() => "")
+          ).trim();
           if (txt) throw new Error(`login blocked for ${email}: "${txt}"`);
         }
         return new URL(page.url()).pathname;
@@ -366,9 +373,7 @@ test("7 — vet /mis-mascotas redirects to the org portal; ?as=owner shows the i
     await page.goto("/mis-mascotas");
     // The vet redirect is a server redirect to /org/<token>; poll until it
     // settles rather than reading the URL before it completes.
-    await expect
-      .poll(() => new URL(page.url()).pathname, { timeout: 20_000 })
-      .toMatch(/^\/org\//);
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 20_000 }).toMatch(/^\/org\//);
 
     await page.goto("/mis-mascotas?as=owner");
     await page.waitForLoadState("domcontentloaded");
