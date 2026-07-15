@@ -2682,31 +2682,46 @@ export function SituationalMap({
     if (!map.getSource("ar-provinces")) return;
     const fillId = provinceFillLayerId(layer.id);
     const lineId = provinceLineLayerId(layer.id);
+    // Z-order root cause (fix): anchor the fill + line BELOW the division chrome
+    // (DIVISION_LINE_ID, the lowest chrome layer) exactly as addDivisionFillLayer
+    // does. Without the anchor, a province choropleth mounted AFTER division chrome
+    // already exists lands at the ABSOLUTE top — above the outline/hover chrome AND
+    // above the raised outbreak/signal marks (raiseMarksAboveFills anchors marks to
+    // the same layer), so "brotes" briefly paints under the province fill. The
+    // anchor is undefined (→ top, unchanged) in the common national case where no
+    // division chrome is mounted; it only bites when chrome pre-exists.
+    const chromeAnchor = map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined;
     if (!map.getLayer(fillId)) {
-      map.addLayer({
-        id: fillId,
-        type: "fill",
-        source: "ar-provinces",
-        paint: {
-          "fill-color": provinceColorExprForLayer(layer, seqBreaks),
-          "fill-opacity": DATA_FILL_OPACITY,
+      map.addLayer(
+        {
+          id: fillId,
+          type: "fill",
+          source: "ar-provinces",
+          paint: {
+            "fill-color": provinceColorExprForLayer(layer, seqBreaks),
+            "fill-opacity": DATA_FILL_OPACITY,
+          },
         },
-      });
+        chromeAnchor,
+      );
     }
     if (!map.getLayer(lineId)) {
       // cursor #1: admin-neutral stroke (NOT COLOR_CANVAS) so province edges read
       // as boundaries over the fill, never as near-black cracks. Faded by
       // updateChromeHierarchy when divisions are active (cursor #5).
-      map.addLayer({
-        id: lineId,
-        type: "line",
-        source: "ar-provinces",
-        paint: {
-          "line-color": COLOR_ADMIN_STROKE,
-          "line-width": PROV_LINE_WIDTH,
-          "line-opacity": PROV_LINE_OPACITY,
+      map.addLayer(
+        {
+          id: lineId,
+          type: "line",
+          source: "ar-provinces",
+          paint: {
+            "line-color": COLOR_ADMIN_STROKE,
+            "line-width": PROV_LINE_WIDTH,
+            "line-opacity": PROV_LINE_OPACITY,
+          },
         },
-      });
+        chromeAnchor,
+      );
     }
     wireProvinceChoroplethInteractions(map, layer);
   }
@@ -2745,7 +2760,12 @@ export function SituationalMap({
       ? { "fill-pattern": HATCH_IMAGE_ID, "fill-opacity": HATCH_FILL_OPACITY }
       : { "fill-color": COLOR_SUPPRESSED, "fill-opacity": SUPPRESS_SOLID_OPACITY };
     if (!map.getLayer(sid)) {
-      map.addLayer({ id: sid, type: "fill", source: "ar-provinces", paint });
+      // Z-order (fix): anchor below the division chrome like the fill/line above,
+      // so the hatch never mounts over the outline/hover chrome or the raised
+      // marks. It is still added AFTER the province fill this pass, so it lands
+      // just above the fill (hatch-over-fill) while both stay under the chrome.
+      const chromeAnchor = map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined;
+      map.addLayer({ id: sid, type: "fill", source: "ar-provinces", paint }, chromeAnchor);
     }
     map.setFilter(sid, bivariateSuppressedFilter(codes));
   }
