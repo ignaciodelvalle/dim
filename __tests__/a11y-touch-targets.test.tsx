@@ -141,12 +141,14 @@ describe("CitizenTabBar — 44px tab targets", () => {
     }
   });
 
-  it("includes the Asentar capture action pointing at /inicio (P5: the home redirect)", () => {
+  it("includes the Asentar capture action pointing at /inicio?sheet=anotar (P5 review fix)", () => {
     const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
     // Off any pet-profile route (usePathname is unmocked → null here), the
-    // capture action falls back to plain /inicio, which server-redirects to the
-    // most-urgent pet. Isolate the Asentar anchor by its unique label.
+    // capture action falls back to /inicio?sheet=anotar — /inicio's redirect
+    // forwards the query string, so the most-urgent pet's profile opens WITH
+    // the anotar sheet in one navigation (P5 fresh-review CRITICAL fix; a bare
+    // /inicio landed on the profile without the sheet).
     const asentarSeg = html.split(/<a /).find((s) => />Asentar</.test(s));
-    expect(asentarSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/inicio");
+    expect(asentarSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/inicio?sheet=anotar");
   });
 });
