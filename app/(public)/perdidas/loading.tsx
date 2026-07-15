@@ -29,7 +29,7 @@ export default function PerdidasLoading() {
           {KPI_KEYS.map((k) => (
             <div
               key={k}
-              className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 flex flex-col gap-2"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 flex flex-col gap-2"
             >
               <Skeleton w="70%" h="11px" radius="3px" />
               <Skeleton w="48px" h="30px" radius="4px" />
@@ -38,7 +38,7 @@ export default function PerdidasLoading() {
         </div>
 
         {/* Card grid — matches the sm:2 / lg:3 listing grid */}
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px]">
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {CARD_KEYS.map((k) => (
             <li
               key={k}
