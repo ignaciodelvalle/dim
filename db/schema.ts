@@ -2619,6 +2619,13 @@ export const arLocalities = pgTable(
     departmentCode: text("department_code"),
     localityName: text("locality_name").notNull(),
     localitySlug: text("locality_slug").notNull(),
+    // Sargable normalized locality name (migration 0146). Materializes the exact
+    // normNameSql() expression the panorama centroid joins apply at query time,
+    // so the (province_code, locality_name_norm) index below can serve the join
+    // as a plain equality instead of an unindexable per-row unaccent()/regexp.
+    localityNameNorm: text("locality_name_norm").generatedAlwaysAs(
+      sql`btrim(regexp_replace(lower(translate(public.immutable_unaccent(locality_name), '.', '')), '\\s+', ' ', 'g'))`,
+    ),
     indecId: text("indec_id").unique(),
     category: text("category").notNull().$type<ArgentineLocalityCategory>(),
     latitude: numeric("latitude", { precision: 10, scale: 7 }),
@@ -2639,6 +2646,11 @@ export const arLocalities = pgTable(
       .where(sql`${table.removedAt} IS NULL`),
     provinceIdx: index("ar_localities_province_idx")
       .on(table.provinceCode)
+      .where(sql`${table.removedAt} IS NULL`),
+    // Sargable centroid-join index (migration 0146): (province, normalized name)
+    // resolves the panorama locality rollup joins with an index scan.
+    provinceLocalityNormIdx: index("ar_localities_province_locality_norm_idx")
+      .on(table.provinceCode, table.localityNameNorm)
       .where(sql`${table.removedAt} IS NULL`),
     // CHECK constraints — also declared inline in migration 0019 (province,
     // category) and 0028 (source). Declared here too so that `drizzle-kit
