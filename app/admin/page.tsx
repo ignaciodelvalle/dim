@@ -61,9 +61,11 @@ export default async function AdminDashboardPage() {
           Leads the page: it is what an admin comes here to triage. */}
       <QueueHealthCockpit cockpit={cockpit} />
 
-      {/* (2) System metrics — the shared operational KPI strip (C26). Pending
-          approvals + oldest come from the same cockpit query so this strip and
-          the cockpit above can't disagree. Links to the richer /admin/sistema. */}
+      {/* (2) System metrics — the shared operational KPI strip (C26). The
+          pending-queue tile is OMITTED here: the QueueHealthCockpit above already
+          owns that number (per type), so showing "Cola pendiente" again just
+          duplicated it (PO ronda 4 + Cowork B1). The strip promotes
+          "Instituciones activas" in its place. Links to the richer /admin/sistema. */}
       <section aria-label="Métricas del sistema" className="space-y-2">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -77,8 +79,10 @@ export default async function AdminDashboardPage() {
           </Link>
         </div>
         <AdminKpiStrip
+          omitPendingQueue
           data={{
             totalPersonal: users.totalPersonal,
+            totalInstitutionalActive: users.totalInstitutionalActive,
             pendingTotal: cockpit.approvals.pendingTotal,
             oldestPendingDaysAgo: cockpit.approvals.oldestPendingDaysAgo,
             decisionsTotal7d: total7d,

@@ -68,9 +68,6 @@ function QueueTile({
         {count}
       </span>
       {sub ? <span className="mt-1 text-[var(--text-sm)] text-ln-op-mute">{sub}</span> : null}
-      <span className="mt-auto pt-2 text-[var(--text-sm)] font-semibold text-ln-op-azul">
-        Ir a la cola {"->"}
-      </span>
     </Link>
   );
 }
@@ -93,8 +90,10 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
       <OpCardHead
         title="Estado de las colas"
         actions={
+          // The single GLOBAL unfiltered jump-off. Each tile below deep-links to
+          // its OWN filtered queue, so this is the only link to the full cola.
           <Link href="/admin/cola" className="hover:underline">
-            Cola completa {"->"}
+            Ver cola completa {"->"}
           </Link>
         }
       />
@@ -108,20 +107,24 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
             <span className="text-[var(--text-sm)] text-ln-op-mute">{oldestNote}</span>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {/* Each approval tile deep-links to its OWN filtered queue via ?type=
+                (the cola page validates it against APPROVAL_REQUEST_TYPES —
+                app/gob/cola/page.tsx) so the tile lands on exactly the queue it
+                counts, not the lumped list. */}
             <QueueTile
-              href="/admin/cola"
+              href="/admin/cola?type=role_upgrade_vet"
               label="Matrículas veterinarias"
               count={approvals.roleUpgradeVet}
               tone={warnIf(approvals.roleUpgradeVet)}
             />
             <QueueTile
-              href="/admin/cola"
+              href="/admin/cola?type=organization_verification"
               label="Verificación de organizaciones"
               count={approvals.organizationVerification}
               tone={warnIf(approvals.organizationVerification)}
             />
             <QueueTile
-              href="/admin/cola"
+              href="/admin/cola?type=service_dog_credential_verification"
               label="Credenciales RUPGA"
               count={approvals.serviceDogCredentialVerification}
               tone={warnIf(approvals.serviceDogCredentialVerification)}
@@ -148,7 +151,9 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
               tone={warnIf(cockpit.alertsOpen)}
             />
             <QueueTile
-              href="/admin/outbox"
+              // Deep-link to the breached rows only (breach=yes → pending AND
+              // past SLA — app/admin/outbox/page.tsx), not the full outbox.
+              href="/admin/outbox?breach=yes"
               label="Vencimientos de SLA (outbox)"
               count={cockpit.outboxBreaches}
               tone={cockpit.outboxBreaches > 0 ? "danger" : "neutral"}

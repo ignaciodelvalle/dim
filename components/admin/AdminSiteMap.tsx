@@ -69,16 +69,21 @@ export function AdminSiteMap() {
               <ul className="space-y-2">
                 {section.items.map((item) => (
                   <li key={item.href}>
+                    {/* flex column + padding: the anchor now sizes to and
+                        contains its own content with a real hit area. It
+                        previously collapsed to a 0x0 box (text overflowing a
+                        zero-sized link), so nothing was clickable (Cowork M1).
+                        Negative margin keeps the label flush with the heading. */}
                     <Link
                       href={item.href}
-                      className="group block no-underline"
+                      className="group -mx-2 flex flex-col gap-0.5 rounded-[var(--radius-sm)] px-2 py-1.5 no-underline transition-colors hover:bg-ln-op-card"
                       aria-label={item.label}
                     >
                       <span className="text-[var(--text-md)] font-semibold text-ln-op-ink group-hover:text-ln-op-azul">
                         {item.label}
                       </span>
                       {ROUTE_PURPOSE[item.href] ? (
-                        <span className="block text-[var(--text-sm)] leading-snug text-ln-op-mute">
+                        <span className="text-[var(--text-sm)] leading-snug text-ln-op-mute">
                           {ROUTE_PURPOSE[item.href]}
                         </span>
                       ) : null}

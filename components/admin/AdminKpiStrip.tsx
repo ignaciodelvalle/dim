@@ -19,6 +19,12 @@ import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 export type AdminKpiStripData = {
   /** Total personal accounts (count). */
   totalPersonal: number;
+  /**
+   * Active institutional accounts (count). Rendered in place of the pending-queue
+   * tile when `omitPendingQueue` is set (the admin home, where the cockpit above
+   * already owns the pending number). Omit when the pending tile is shown.
+   */
+  totalInstitutionalActive?: number;
   /** Queue: pending approvals right now. */
   pendingTotal: number;
   /** Queue: age in days of the oldest pending request (null when none pending). */
@@ -59,7 +65,19 @@ export type AdminKpiStripData = {
  * the surrounding <section>/heading; this returns the tiles wrapped in a grid
  * so the layout stays consistent across both pages.
  */
-export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
+export function AdminKpiStrip({
+  data,
+  omitPendingQueue = false,
+}: {
+  data: AdminKpiStripData;
+  /**
+   * Hide the "Cola pendiente" tile and render "Instituciones activas" in its
+   * place. Used by the admin home, where the QueueHealthCockpit above already
+   * shows the pending count (per-type) — the two must not duplicate it (PO ronda
+   * 4 + Cowork B1). /admin/sistema keeps the pending tile (no duplication there).
+   */
+  omitPendingQueue?: boolean;
+}) {
   const hasEno = data.enoSla !== undefined;
   const eno = data.enoSla;
 
@@ -79,19 +97,35 @@ export function AdminKpiStrip({ data }: { data: AdminKpiStripData }) {
           formula: "count(*) where account_type = 'personal'",
         }}
       />
-      <OpKpi
-        label="Cola pendiente"
-        value={data.pendingTotal}
-        tone={data.pendingTotal > 0 ? "warn" : "neutral"}
-        sub={
-          data.oldestPendingDaysAgo != null ? `Más vieja: ${data.oldestPendingDaysAgo}d` : undefined
-        }
-        href="/admin/cola"
-        info={{
-          definition: "Solicitudes de aprobación en estado pendiente en este momento.",
-          caveat: "Incluye solicitudes de todas las jurisdicciones.",
-        }}
-      />
+      {omitPendingQueue ? (
+        // The cockpit above owns the pending-approvals number (broken out per
+        // type), so the home strip promotes a non-duplicated metric here instead.
+        <OpKpi
+          label="Instituciones activas"
+          value={data.totalInstitutionalActive ?? 0}
+          href="/admin/organizaciones"
+          info={{
+            definition: "Cuentas institucionales activas (no desactivadas).",
+            formula: "count(*) where account_type = 'institutional' and deactivated_at is null",
+          }}
+        />
+      ) : (
+        <OpKpi
+          label="Cola pendiente"
+          value={data.pendingTotal}
+          tone={data.pendingTotal > 0 ? "warn" : "neutral"}
+          sub={
+            data.oldestPendingDaysAgo != null
+              ? `Más vieja: ${data.oldestPendingDaysAgo}d`
+              : undefined
+          }
+          href="/admin/cola"
+          info={{
+            definition: "Solicitudes de aprobación en estado pendiente en este momento.",
+            caveat: "Incluye solicitudes de todas las jurisdicciones.",
+          }}
+        />
+      )}
       <OpKpi
         label="Decisiones 7d"
         value={data.decisionsTotal7d}
