@@ -157,9 +157,7 @@ describe("KpiChips — C2a manual-mode relevance (KPI ↔ active layers)", () =>
   });
 
   it("when no active layer maps to a KPI, says so and offers the toggle", () => {
-    render(
-      <KpiChips kpis={KPIS} metricIds={null} presetId={null} activeLayerIds={["refugios"]} />,
-    );
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} activeLayerIds={["refugios"]} />);
     expect(
       screen.getByText("Ningún indicador corresponde directamente a las capas activas."),
     ).toBeInTheDocument();

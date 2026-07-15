@@ -206,7 +206,10 @@ export function KpiChips({
   if (!manualMode) {
     const shown = selected.slice(0, MAX_CHIPS);
     return (
-      <ul aria-label="Indicadores de esta vista" className="m-0 flex list-none flex-col gap-1.5 p-0">
+      <ul
+        aria-label="Indicadores de esta vista"
+        className="m-0 flex list-none flex-col gap-1.5 p-0"
+      >
         {shown.map((kpi) => (
           <KpiCard
             key={kpi.id}
@@ -225,7 +228,10 @@ export function KpiChips({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <ul aria-label="Indicadores de esta vista" className="m-0 flex list-none flex-col gap-1.5 p-0">
+      <ul
+        aria-label="Indicadores de esta vista"
+        className="m-0 flex list-none flex-col gap-1.5 p-0"
+      >
         {shownRelevant.map((kpi) => (
           <KpiCard
             key={kpi.id}

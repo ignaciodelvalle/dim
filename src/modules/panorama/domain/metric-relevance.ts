@@ -45,10 +45,7 @@ export const KPI_RELATED_LAYERS: Record<PanoramaKpiId, readonly LayerId[]> = {
  * True when at least one of the KPI's related layers is active — i.e. the KPI
  * honestly describes something the operator can see painted on the map.
  */
-export function isKpiRelevant(
-  kpiId: PanoramaKpiId,
-  activeLayerIds: readonly LayerId[],
-): boolean {
+export function isKpiRelevant(kpiId: PanoramaKpiId, activeLayerIds: readonly LayerId[]): boolean {
   const related = KPI_RELATED_LAYERS[kpiId];
   if (related === undefined || related.length === 0) return false;
   return related.some((id) => activeLayerIds.includes(id));
