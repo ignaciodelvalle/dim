@@ -36,6 +36,7 @@ import { generatePublicToken } from "@/lib/infra/publicToken";
 // (impersonation triage, review 07).
 import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
+import { createIntake } from "@/src/modules/pets/application/intake/create-intake";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -723,5 +724,71 @@ describe("cross-check logic — intake scenarios", () => {
     expect(result).not.toBeNull();
     expect(result?.pet.status).toBe("deceased");
     // Caller: always return error regardless of forceToken.
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. createIntake — active-chip match is an HONEST hard block (real insert path)
+// ---------------------------------------------------------------------------
+// Regression for the "force past active-chip match is a guaranteed crash" bug:
+// the old forceToken fall-through wrote a second active pet_identifications row
+// with the same code, always violating pet_identifications_chip_unique — the tx
+// threw and the generic catch leaked a raw driver message. createIntake is called
+// directly (the capability shim lives in app/actions/intake.ts); the use-case
+// itself needs no Next.js session, only an authenticated {user, organization}.
+
+describe("createIntake — active-chip cross-check", () => {
+  function intakeFormData(microchipId: string): FormData {
+    const fd = new FormData();
+    fd.set("name", "Intake Active Chip");
+    fd.set("species", "dog");
+    fd.set("sex", "unknown");
+    fd.set("intakeReason", "rescue");
+    fd.set("custodyRole", "shelter_custody");
+    fd.set("microchipId", microchipId);
+    fd.set("microchipCountryCode", "032");
+    fd.set("noRedirect", "1");
+    return fd;
+  }
+
+  it("blocks honestly (no crash, no duplicate ident) when the chip belongs to an active pet", async () => {
+    // 15-digit ISO code so insertPetWithChip stores it verbatim and validateMicrochipId
+    // accepts it unchanged — the intake sees the exact same canonical code.
+    const chip = "032000000012345";
+    const { canonicalChip } = await insertPetWithChip({
+      microchipId: chip,
+      status: "active",
+      ownerUserId,
+      tokenSuffix: "INTAKEACT",
+    });
+    expect(canonicalChip).toBe(chip);
+
+    const result = await createIntake(
+      orgToken,
+      { id: refugioMemberUserId },
+      { id: orgId, displayName: "Chip Match Refugio", verified: true },
+      intakeFormData(chip),
+    );
+
+    // Honest hard block — NOT a raw unique-violation crash, NOT a "continue anyway".
+    expect(result.ok).toBeUndefined();
+    expect(result.error).toMatch(/ya está registrado en MiMAR para una mascota activa/i);
+    // The old bug surfaced the raw driver string — assert it never does.
+    expect(result.error ?? "").not.toMatch(/unique|constraint|duplicate key/i);
+    // No warning / continue-anyway path is offered for the doomed case.
+    expect(result.warning).toBeUndefined();
+
+    // Exactly ONE active microchip_iso row for the chip — no duplicate was inserted.
+    const chipRows = await db
+      .select({ id: petIdentifications.id })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.code, chip),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(chipRows.length).toBe(1);
   });
 });

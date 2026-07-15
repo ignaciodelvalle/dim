@@ -36,8 +36,8 @@ import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { EventPayloadValidationError, validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { matchesDbError } from "@/lib/infra/db-errors";
 import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
-import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateTattooAckToken, validateTattooAckToken } from "@/lib/infra/tattoo-ack-token";
@@ -63,6 +63,19 @@ const INTAKE_REASONS: readonly IntakeReason[] = ["rescue", "surrender", "stray_f
 // adoption / long-term-keep cases where there's no rehoming pathway planned.
 type CustodyRole = "shelter_custody" | "owner";
 const CUSTODY_ROLES: readonly CustodyRole[] = ["shelter_custody", "owner"];
+
+// A microchip is a globally-unique identity (pet_identifications_chip_unique:
+// one active microchip_iso row per code). When the chip already belongs to an
+// ACTIVE registered pet, creating a second intake for it is structurally doomed —
+// the insert always violates the unique index. The old "continue anyway"
+// forceToken path therefore never worked: it fell through to that guaranteed
+// constraint violation and surfaced a raw driver error. So this is an HONEST hard
+// block, not a warning — it explains WHY and points at the flows that actually
+// apply (mirrors the owner-side CHIP_ALREADY_REGISTERED_MSG for the org context).
+// Note: a chip on a LOST pet is handled earlier (redirect to the match/
+// reunification flow); this message covers the active-owner case only.
+const CHIP_MATCH_ACTIVE_BLOCK_MSG =
+  "Este microchip ya está registrado en MiMAR para una mascota activa con familia. No se puede crear un segundo ingreso con el mismo chip. Si la familia entregó al animal, tiene que iniciar la transferencia de titularidad desde su cuenta. Si el animal está perdido, pedile a la familia que lo marque como perdido en MiMAR: recién ahí el sistema te propone confirmar la coincidencia y registrar la custodia.";
 
 function parseIntakeForm(formData: FormData) {
   const loc = parseLocationFromFormData(formData);
@@ -225,22 +238,10 @@ export async function createIntake(
       }
 
       if (match.pet.status === "active") {
-        // WARN: chip is registered to a live active pet.
-        // Check if the caller is presenting a valid force-create token.
-        const forceToken = String(formData.get("forceToken") ?? "").trim();
-        const forceValid = forceToken ? validateForceToken(parsed.microchipId, forceToken) : false;
-
-        if (!forceValid) {
-          // Block and return a warning with a fresh forceToken for the UI
-          // to present the "continue anyway" confirmation.
-          return {
-            error: null,
-            warning: "CHIP_MATCH_ACTIVE",
-            matchedPetToken: match.pet.publicToken,
-            forceToken: generateForceToken(parsed.microchipId),
-          };
-        }
-        // Force token valid — fall through to normal intake flow.
+        // HARD BLOCK: the chip belongs to a live active pet. A second intake for
+        // the same chip would always violate pet_identifications_chip_unique, so
+        // there is no honest "continue anyway" — return helpful guidance instead.
+        return { error: CHIP_MATCH_ACTIVE_BLOCK_MSG };
       }
 
       if (match.pet.status === "deceased") {
@@ -268,18 +269,16 @@ export async function createIntake(
       const tattooMatch = await lookupByTattoo(parsed.tattooCode);
       if (tattooMatch && tattooMatch.pet.status !== "deceased") {
         // Advisory: surface the possible match so the operator can photo-verify.
-        // If a microchip is also present, the chip check already passed above
-        // (forceToken was valid). Carry a fresh forceToken forward so the next
-        // submit (with tattooAckToken) doesn't re-trigger CHIP_MATCH_ACTIVE
-        // and loop indefinitely.
+        // Tattoo codes collide across registries, so this stays a warn-with-continue
+        // case (via tattooAckToken) — unlike an active chip, a duplicate tattoo does
+        // NOT violate a unique constraint, so proceeding is legitimate. If a chip is
+        // also present it already cleared the cross-check above (no active match, or
+        // a lost/deceased match already returned), so no chip token is threaded here.
         return {
           error: null,
           warning: "TATTOO_MATCH_POSSIBLE",
           matchedPetToken: tattooMatch.pet.publicToken,
           tattooAckToken: generateTattooAckToken(parsed.tattooCode),
-          ...(parsed.microchipId
-            ? { forceToken: generateForceToken(parsed.microchipId) }
-            : undefined),
         };
       }
     }
@@ -557,6 +556,13 @@ export async function createIntake(
         error:
           "No pudimos registrar el ingreso por un problema con los datos de la mascota. Revisá los campos e intentá de nuevo; si persiste, avisanos.",
       };
+    }
+    // A concurrent insert (or any path that reached the insert with a chip already
+    // active — e.g. a race between the cross-check and the tx) trips the unique
+    // index. Translate it into the same friendly guidance instead of leaking the
+    // raw driver string ("duplicate key value violates unique constraint …").
+    if (matchesDbError(err, { code: "23505", constraint: "pet_identifications_chip_unique" })) {
+      return { error: CHIP_MATCH_ACTIVE_BLOCK_MSG };
     }
     return {
       error: `No se pudo registrar el ingreso: ${

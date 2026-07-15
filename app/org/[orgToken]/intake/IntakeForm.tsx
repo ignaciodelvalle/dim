@@ -102,9 +102,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     if (rescueJurisdiction) fd.set("rescueJurisdiction", rescueJurisdiction);
     fd.set("noRedirect", "1");
     fd.set("clientIdempotencyKey", idempotencyKey);
-    // Thread bypass tokens from previous server responses so re-submits skip
-    // already-acknowledged warnings (chip force, tattoo ack).
-    if (state.forceToken) fd.set("forceToken", state.forceToken);
+    // Thread the tattoo ack token from a previous server response so a re-submit
+    // skips the already-acknowledged advisory. (There is no chip-force token: an
+    // active-chip match is a hard block, not a "continue anyway" warning.)
     if (state.tattooAckToken) fd.set("tattooAckToken", state.tattooAckToken);
     startTransition(async () => {
       const result = await action({ error: null }, fd);
@@ -487,13 +487,6 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             </dd>
           </dl>
         </div>
-
-        {state.warning === "CHIP_MATCH_ACTIVE" && (
-          <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
-            El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
-            admin antes de continuar.
-          </div>
-        )}
 
         {state.warning === "TATTOO_MATCH_POSSIBLE" && state.matchedPetToken && (
           <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2 space-y-2">

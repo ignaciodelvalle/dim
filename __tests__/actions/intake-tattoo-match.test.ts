@@ -79,34 +79,24 @@ describe("tattoo-ack-token: generateTattooAckToken / validateTattooAckToken", ()
     expect(validateForceToken(sharedCode, tattooToken)).toBe(false);
   });
 
-  it("TATTOO_MATCH_POSSIBLE return shape includes forceToken when microchipId is present", () => {
-    // Regression test for the combined chip-active + tattoo-match infinite loop.
-    // Simulates what createIntakeAction does at the TATTOO_MATCH_POSSIBLE branch:
-    // when parsed.microchipId is set (chip check already passed), it regenerates
-    // a forceToken so the next submit carries BOTH tokens and completes.
-    const microchipId = "900123456789012";
+  it("TATTOO_MATCH_POSSIBLE response carries ONLY the tattoo ack token, never a chip force token", () => {
+    // The combined chip-active + tattoo-match "infinite loop" the old carry-forward
+    // guarded against can no longer happen: an ACTIVE-chip match is now a HARD BLOCK
+    // returned before the tattoo check ever runs (a second intake for the same chip
+    // always violates pet_identifications_chip_unique). So the tattoo branch threads
+    // ONLY the tattooAckToken — there is no forceToken to bundle anymore.
     const tattooCode = "K9-COMBINED";
-
-    const forceToken = generateForceToken(microchipId);
     const tattooAckToken = generateTattooAckToken(tattooCode);
-
-    // Both tokens must be independently valid before being bundled in the response.
-    expect(validateForceToken(microchipId, forceToken)).toBe(true);
     expect(validateTattooAckToken(tattooCode, tattooAckToken)).toBe(true);
 
-    // The simulated TATTOO_MATCH_POSSIBLE return object carries both tokens.
     const responseShape = {
       error: null,
       warning: "TATTOO_MATCH_POSSIBLE" as const,
       matchedPetToken: "some-pet-token",
       tattooAckToken,
-      forceToken,
     };
-    expect(responseShape.forceToken).toBeDefined();
     expect(responseShape.tattooAckToken).toBeDefined();
-    // Verify that a subsequent submit carrying both would pass both validations.
-    expect(validateForceToken(microchipId, responseShape.forceToken)).toBe(true);
-    expect(validateTattooAckToken(tattooCode, responseShape.tattooAckToken)).toBe(true);
+    expect("forceToken" in responseShape).toBe(false);
   });
 });
 

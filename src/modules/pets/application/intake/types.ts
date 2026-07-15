@@ -2,13 +2,13 @@
 
 export type IntakeFormState = {
   error: string | null;
-  // Present when a chip cross-check found an active match (WARN state).
-  // The UI should show the conflict details and offer a "continue anyway" path
-  // backed by the forceToken.
-  warning?: "CHIP_MATCH_ACTIVE" | "TATTOO_MATCH_POSSIBLE";
+  // Present when a tattoo cross-check found a possible match (advisory WARN state).
+  // Tattoo codes collide across registries, so the UI shows the possible match and
+  // offers a photo-verified "continue anyway" path backed by the tattooAckToken.
+  // (An ACTIVE-chip match is NOT a warning — it is a hard block returned via `error`,
+  // because a second intake for the same chip always violates the unique index.)
+  warning?: "TATTOO_MATCH_POSSIBLE";
   matchedPetToken?: string;
-  // Chip bypass token — bound to the microchip code, expires in 15 min.
-  forceToken?: string;
   // Tattoo advisory ack token — bound to the normalized tattoo code, expires in 15 min.
   // Re-submitting with a valid tattooAckToken skips the tattoo cross-check.
   tattooAckToken?: string;
