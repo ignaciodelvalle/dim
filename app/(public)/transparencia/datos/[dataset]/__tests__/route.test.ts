@@ -79,6 +79,16 @@ describe("GET /transparencia/datos/[dataset]", () => {
     expect(buildDataset).not.toHaveBeenCalled();
   });
 
+  it("rate-limits unknown-id probing (429 before the 404) so enumeration is not free", async () => {
+    // The limiter runs BEFORE slug validation: an unknown id under rate-limit
+    // pressure gets 429, not a free 404. Guards against unknown-id scrape bursts.
+    enforceRateLimit.mockRejectedValueOnce(new RateLimitError(new Date(), "test"));
+    const res = await GET(req("https://x/transparencia/datos/nope"), params("nope"));
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body).toEqual({ error: "rate_limited" });
+  });
+
   it("defaults to JSON with { meta, data } and metadata headers", async () => {
     const res = await GET(req("https://x/transparencia/datos/mortalidad"), params("mortalidad"));
     expect(res.status).toBe(200);

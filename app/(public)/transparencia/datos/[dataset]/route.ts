@@ -72,13 +72,9 @@ export async function GET(
   try {
     const { dataset } = await ctx.params;
 
-    if (!isDatasetId(dataset)) {
-      return NextResponse.json(
-        { error: "unknown_dataset", datasets: DATASET_IDS },
-        { status: 404 },
-      );
-    }
-
+    // Rate-limit BEFORE validating the slug: otherwise an unknown-id 404 returns
+    // before the limiter runs and unknown-id probing (enumeration/scrape burst)
+    // would be free. Legit typos still get the helpful 404 body below.
     try {
       await enforceRateLimit("open_data_dataset", callerIp(request.headers), OPEN_DATA_RATE_LIMIT);
     } catch (err) {
@@ -89,6 +85,13 @@ export async function GET(
         );
       }
       throw err;
+    }
+
+    if (!isDatasetId(dataset)) {
+      return NextResponse.json(
+        { error: "unknown_dataset", datasets: DATASET_IDS },
+        { status: 404 },
+      );
     }
 
     const format: DatasetFormat = parseFormat(new URL(request.url).searchParams.get("format"));
