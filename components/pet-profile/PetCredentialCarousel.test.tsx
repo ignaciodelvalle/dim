@@ -120,6 +120,45 @@ describe("PetCredentialCarousel — keyboard navigation (clamp at ends, no wrap)
   });
 });
 
+describe("PetCredentialCarousel — pointer swipe gated under open sheets", () => {
+  function chromeOf(container: HTMLElement): HTMLElement {
+    return container.querySelector<HTMLElement>('[data-testid="pet-carousel-chrome"]')!;
+  }
+
+  it("navigates on a horizontal swipe that starts in a swipe zone (no sheet open)", () => {
+    const { container } = renderCarousel("DIM-PREG-0002");
+    const chrome = chromeOf(container);
+    // Swipe left (dx negative, clears the 48px threshold) → NEXT (less urgent).
+    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    expect(push).toHaveBeenCalledWith("/mis-mascotas/DIM-OKAY-0003");
+  });
+
+  it("does NOT navigate on the same swipe while a dialog/sheet is open", () => {
+    const { container } = renderCarousel("DIM-PREG-0002");
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    document.body.appendChild(dialog);
+    const chrome = chromeOf(container);
+    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    expect(push).not.toHaveBeenCalled();
+    dialog.remove();
+  });
+
+  it("does NOT navigate while a Vaul drawer is mounted", () => {
+    const { container } = renderCarousel("DIM-PREG-0002");
+    const drawer = document.createElement("div");
+    drawer.setAttribute("data-vaul-drawer", "");
+    document.body.appendChild(drawer);
+    const chrome = chromeOf(container);
+    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    expect(push).not.toHaveBeenCalled();
+    drawer.remove();
+  });
+});
+
 describe("PetCredentialCarousel — desktop arrows", () => {
   it("disables the previous arrow at the first pet and the next arrow at the last", () => {
     const first = renderCarousel("DIM-LOST-0001");

@@ -126,6 +126,17 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
     const g = gestureRef.current;
     gestureRef.current = null;
     if (!g || !g.inZone) return;
+    // Gate the swipe while any dialog/sheet is open — the SAME guard the keyboard
+    // path applies. A horizontal swipe on the identity band / chrome above an
+    // open Vaul sheet (the ?sheet= capture drawer) would navigate to a neighbor
+    // pet and destroy the unsaved capture-form state (M3 fresh-review MAJOR 1
+    // — keyboard was gated, the pointer path was not).
+    if (
+      typeof document !== "undefined" &&
+      document.querySelector("[role='dialog'], [data-vaul-drawer]")
+    ) {
+      return;
+    }
     const dx = e.clientX - g.x;
     const dy = e.clientY - g.y;
     if (Math.abs(dx) < SWIPE_THRESHOLD_PX || Math.abs(dx) <= Math.abs(dy)) return;
