@@ -167,16 +167,15 @@ describe("LibretaFace — Emergencia block (wave-3 P3)", () => {
     expect(html).not.toContain("libreta-emergencia");
   });
 
-  it("renders vet + contact rows with tel: links when both are set", () => {
+  it("renders vet + contact rows with tel: links and the vet name when set", () => {
     const html = renderToStaticMarkup(
       <LibretaFace
         data={faceData()}
         petPublicToken="abc"
         isOwner
         emergencyContacts={{
-          preferredVetPhone: "1122334455",
-          emergencyContactName: "Ana",
-          emergencyContactPhone: "1166778899",
+          vet: { name: "Dra. Pérez", phone: "1122334455", source: "pet" },
+          emergency: { name: "Ana", phone: "1166778899", source: "pet" },
         }}
       />,
     );
@@ -184,21 +183,38 @@ describe("LibretaFace — Emergencia block (wave-3 P3)", () => {
     expect(html).toContain("Emergencia");
     expect(html).toContain('href="tel:1122334455"');
     expect(html).toContain('href="tel:1166778899"');
+    // owner-ia-redesign P2: the preferred vet NAME now renders (was fetched-but-unused).
+    expect(html).toContain("Dra. Pérez");
     expect(html).toContain("Ana");
     expect(html).toContain("Editar →");
+    // Both rows come from the pet override — no account-fallback tag.
+    expect(html).not.toContain("(de tu cuenta)");
   });
 
-  it("shows the add-data prompt and opens ?sheet=emergencia when a field is missing", () => {
+  it("tags a row that fell back to the account default as '(de tu cuenta)'", () => {
     const html = renderToStaticMarkup(
       <LibretaFace
         data={faceData()}
         petPublicToken="abc"
         isOwner
         emergencyContacts={{
-          preferredVetPhone: null,
-          emergencyContactName: null,
-          emergencyContactPhone: null,
+          vet: { name: "Dr. Cuenta", phone: "1100000000", source: "account" },
+          emergency: null,
         }}
+      />,
+    );
+    expect(html).toContain("Dr. Cuenta");
+    expect(html).toContain("(de tu cuenta)");
+    expect(html).toContain("Editar →");
+  });
+
+  it("shows the add-data prompt and opens ?sheet=emergencia when neither level has data", () => {
+    const html = renderToStaticMarkup(
+      <LibretaFace
+        data={faceData()}
+        petPublicToken="abc"
+        isOwner
+        emergencyContacts={{ vet: null, emergency: null }}
       />,
     );
     expect(html).toContain("Agregar datos de emergencia →");
@@ -212,9 +228,8 @@ describe("LibretaFace — Emergencia block (wave-3 P3)", () => {
         petPublicToken="abc"
         isOwner
         emergencyContacts={{
-          preferredVetPhone: "1122334455",
-          emergencyContactName: "Ana",
-          emergencyContactPhone: "1166778899",
+          vet: { name: "Dra. Pérez", phone: "1122334455", source: "pet" },
+          emergency: { name: "Ana", phone: "1166778899", source: "pet" },
         }}
       />,
     );

@@ -567,6 +567,16 @@ export const pets = pgTable(
     // Pet-insurance info — entirely optional, owner-provided.
     insuranceCompany: text("insurance_company"),
     insurancePolicyNumber: text("insurance_policy_number"),
+    // Per-pet emergency contact / preferred vet override (owner-ia-redesign P2,
+    // PO decision 2 — migration 0145). Mirror of the account-level defaults on
+    // profiles (migration 0042). NULL = fall back to the owner's profile-level
+    // value; a non-null pet value overrides it for this pet only. UI preference,
+    // NOT a fact about the pet — editing does NOT emit a pet event. Fallback
+    // resolution lives in lib/domain/emergency-contacts.ts.
+    preferredVetName: text("preferred_vet_name"),
+    preferredVetPhone: text("preferred_vet_phone"),
+    emergencyContactName: text("emergency_contact_name"),
+    emergencyContactPhone: text("emergency_contact_phone"),
     // Coarse administrative tagging for aggregation. Never precise coordinates.
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),

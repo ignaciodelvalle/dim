@@ -165,6 +165,7 @@ export type UpcomingAppointment = {
 export async function fetchUpcomingAppointments(
   userId: string,
   limit = 5,
+  petIdFilter?: string,
 ): Promise<UpcomingAppointment[]> {
   const now = new Date();
   const rows = await db
@@ -191,6 +192,9 @@ export async function fetchUpcomingAppointments(
         eq(appointments.ownerUserId, userId),
         eq(appointments.status, "confirmed"),
         gte(timeSlots.startsAt, now),
+        // owner-ia-redesign P3: optional pet scoping so the pet profile can
+        // reuse this fetcher for its own upcoming turnos.
+        ...(petIdFilter ? [eq(appointments.petId, petIdFilter)] : []),
       ),
     )
     .orderBy(timeSlots.startsAt)
@@ -343,7 +347,10 @@ export type WorkflowItem = {
   severity: "info" | "warning" | "urgent";
 };
 
-async function fetchPendingFosterProposals(userId: string): Promise<WorkflowItem[]> {
+async function fetchPendingFosterProposals(
+  userId: string,
+  petIdFilter?: string,
+): Promise<WorkflowItem[]> {
   const rows = await db
     .select({
       id: fosterProposals.id,
@@ -355,7 +362,13 @@ async function fetchPendingFosterProposals(userId: string): Promise<WorkflowItem
     .from(fosterProposals)
     .innerJoin(pets, eq(pets.id, fosterProposals.petId))
     .innerJoin(organizations, eq(organizations.id, fosterProposals.organizationId))
-    .where(and(eq(fosterProposals.volunteerUserId, userId), eq(fosterProposals.status, "pending")));
+    .where(
+      and(
+        eq(fosterProposals.volunteerUserId, userId),
+        eq(fosterProposals.status, "pending"),
+        ...(petIdFilter ? [eq(fosterProposals.petId, petIdFilter)] : []),
+      ),
+    );
   return rows.map((r) => ({
     id: `foster_proposal:${r.id}`,
     kind: "foster_proposal_pending" as const,
@@ -369,7 +382,10 @@ async function fetchPendingFosterProposals(userId: string): Promise<WorkflowItem
 
 // Consolidated query: pets requiring attention — lost + pending PPP attestation.
 // Replaces fetchLostPets(owner-dashboard) + fetchPendingPppAttestations (2 → 1 query).
-async function fetchPetAlerts(userId: string): Promise<WorkflowItem[]> {
+async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<WorkflowItem[]> {
+  // owner-ia-redesign P3: optional pet scoping — the profile reuses this for
+  // its own open cycles. Nested sql fragment is inert when no filter is set.
+  const petClause = petIdFilter ? sql`AND p.id = ${petIdFilter}` : sql``;
   const rows = await db.execute<{
     kind: "pet_lost" | "dangerous_breed_pending_attestation";
     pet_id: string;
@@ -390,6 +406,7 @@ async function fetchPetAlerts(userId: string): Promise<WorkflowItem[]> {
      AND o.role = 'owner'
      AND o.ended_at IS NULL
     WHERE p.status = 'lost'
+      ${petClause}
 
     UNION ALL
 
@@ -407,6 +424,7 @@ async function fetchPetAlerts(userId: string): Promise<WorkflowItem[]> {
      AND o.ended_at IS NULL
     WHERE p.potentially_dangerous_breed = TRUE
       AND p.status != 'deceased'
+      ${petClause}
       AND NOT EXISTS (
         SELECT 1 FROM pet_events e
         WHERE e.pet_id = p.id
@@ -470,7 +488,12 @@ async function fetchOpenWelfareReports(userId: string): Promise<WorkflowItem[]> 
 
 // Consolidated query: pending pet-event workflows — adoption applications +
 // custody transfer proposals. Replaces two separate petEvents queries (2 → 1).
-async function fetchPendingPetEventWorkflows(userId: string): Promise<WorkflowItem[]> {
+async function fetchPendingPetEventWorkflows(
+  userId: string,
+  petIdFilter?: string,
+): Promise<WorkflowItem[]> {
+  // owner-ia-redesign P3: optional pet scoping (inert fragment when unset).
+  const petClause = petIdFilter ? sql`AND p.id = ${petIdFilter}` : sql``;
   const rows = await db.execute<{
     kind: "adoption_application_pending" | "custody_transfer_pending";
     item_id: string;
@@ -491,6 +514,7 @@ async function fetchPendingPetEventWorkflows(userId: string): Promise<WorkflowIt
     JOIN pets p ON p.id = e.pet_id
     WHERE e.event_type = 'adoption_application_submitted'
       AND e.payload->>'applicant_user_id' = ${userId}
+      ${petClause}
       AND NOT EXISTS (
         SELECT 1 FROM pet_events r
         WHERE r.pet_id = e.pet_id
@@ -520,6 +544,7 @@ async function fetchPendingPetEventWorkflows(userId: string): Promise<WorkflowIt
      AND o.role = 'owner'
      AND o.ended_at IS NULL
     WHERE e.event_type = 'custody_transfer_proposed'
+      ${petClause}
       AND NOT EXISTS (
         SELECT 1 FROM pet_events t
         WHERE t.pet_id = e.pet_id
@@ -577,7 +602,10 @@ async function fetchPendingApprovalRequests(userId: string): Promise<WorkflowIte
   }));
 }
 
-async function fetchOpenCustodyDisputes(userId: string): Promise<WorkflowItem[]> {
+async function fetchOpenCustodyDisputes(
+  userId: string,
+  petIdFilter?: string,
+): Promise<WorkflowItem[]> {
   const rows = await db
     .select({
       id: custodyDisputes.id,
@@ -589,7 +617,13 @@ async function fetchOpenCustodyDisputes(userId: string): Promise<WorkflowItem[]>
     .from(custodyDisputeParties)
     .innerJoin(custodyDisputes, eq(custodyDisputes.id, custodyDisputeParties.disputeId))
     .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
-    .where(and(eq(custodyDisputeParties.partyUserId, userId), eq(custodyDisputes.status, "open")));
+    .where(
+      and(
+        eq(custodyDisputeParties.partyUserId, userId),
+        eq(custodyDisputes.status, "open"),
+        ...(petIdFilter ? [eq(custodyDisputes.petId, petIdFilter)] : []),
+      ),
+    );
   return rows.map((r) => ({
     id: `custody_dispute:${r.id}`,
     kind: "custody_dispute_open" as const,
@@ -616,7 +650,7 @@ const CASES_HANDLED_BY_OTHER_FETCHERS = [
 // Consolidated query: open cases connected to the user — bite_incident
 // (rabies observation) + any other open case kind not handled by a dedicated
 // fetcher. Replaces fetchOpenBiteCases + fetchOpenCasesGenericSweep (2 → 1 query).
-async function fetchOpenCasesSweep(userId: string): Promise<WorkflowItem[]> {
+async function fetchOpenCasesSweep(userId: string, petIdFilter?: string): Promise<WorkflowItem[]> {
   const rows = await db
     .selectDistinct({
       caseId: cases.id,
@@ -640,6 +674,7 @@ async function fetchOpenCasesSweep(userId: string): Promise<WorkflowItem[]> {
       and(
         ne(cases.status, "closed"),
         notInArray(cases.caseKind, [...CASES_HANDLED_BY_OTHER_FETCHERS]),
+        ...(petIdFilter ? [eq(cases.primaryPetId, petIdFilter)] : []),
         or(
           // bite_incident is reachable only via the ownership arm — it must NOT
           // surface through openedByUserId / applicantUserId because those arms
@@ -708,16 +743,25 @@ function caseKindLabelFallback(caseKind: string): string {
 // After:  fetchPetAlerts (1) + fetchPendingPetEventWorkflows (1) + fetchOpenCasesSweep (1)
 // Remaining unchanged: fetchPendingFosterProposals, fetchOpenWelfareReports,
 //   fetchPendingApprovalRequests, fetchOpenCustodyDisputes (structurally distinct).
-export async function fetchOpenWorkflows(userId: string): Promise<WorkflowItem[]> {
+// owner-ia-redesign P3: `petIdFilter` scopes the result to open cycles about a
+// SINGLE pet, so the pet profile can reuse this fetcher for its own section.
+// The two account-scoped (not pet-scoped) sources — welfare denuncias the user
+// filed (about OTHER pets) and account-level approval requests — are skipped
+// when a pet filter is set; they belong to the /mis-mascotas inbox (P5), not a
+// pet's own profile.
+export async function fetchOpenWorkflows(
+  userId: string,
+  petIdFilter?: string,
+): Promise<WorkflowItem[]> {
   const [foster, petAlerts, welfare, petEventWorkflows, approval, disputes, casesSweep] =
     await Promise.all([
-      fetchPendingFosterProposals(userId),
-      fetchPetAlerts(userId),
-      fetchOpenWelfareReports(userId),
-      fetchPendingPetEventWorkflows(userId),
-      fetchPendingApprovalRequests(userId),
-      fetchOpenCustodyDisputes(userId),
-      fetchOpenCasesSweep(userId),
+      fetchPendingFosterProposals(userId, petIdFilter),
+      fetchPetAlerts(userId, petIdFilter),
+      petIdFilter ? Promise.resolve([]) : fetchOpenWelfareReports(userId),
+      fetchPendingPetEventWorkflows(userId, petIdFilter),
+      petIdFilter ? Promise.resolve([]) : fetchPendingApprovalRequests(userId),
+      fetchOpenCustodyDisputes(userId, petIdFilter),
+      fetchOpenCasesSweep(userId, petIdFilter),
     ]);
   // Sort by `since` desc — most recently opened workflow on top.
   return [

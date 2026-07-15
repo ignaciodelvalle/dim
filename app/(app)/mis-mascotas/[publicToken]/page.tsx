@@ -59,6 +59,7 @@ import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
+import { PetOwnerActivity } from "@/components/pet-profile/PetOwnerActivity";
 import {
   appointments,
   attachments,
@@ -74,8 +75,11 @@ import {
 import type { Pet } from "@/db";
 import {
   fetchActiveRemindersForPet,
+  fetchOpenWorkflows,
   fetchPetEventsForProfileV2,
+  fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
+import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
 import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
@@ -276,9 +280,10 @@ export default async function PetDetailPage({
         ? fetchPendingReturnProposalForOwner(pet.id, user.id, db)
         : Promise.resolve(false);
 
-    // Emergency / vet contacts from the viewer's profile — J-followup columns
-    // (migration 0042). Only displayName feeds Face 1 (titular); the rest is
-    // fetched for parity with the pre-redesign query shape.
+    // Account-level emergency / vet contacts from the viewer's profile —
+    // J-followup columns (migration 0042). displayName feeds Face 1 (titular);
+    // the 4 contact fields are the ACCOUNT DEFAULT that the pet-level override
+    // falls back to (owner-ia-redesign P2 — see resolveEmergencyContacts below).
     const contactsQuery = db
       .select({
         preferredVetName: profiles.preferredVetName,
@@ -408,7 +413,13 @@ export default async function PetDetailPage({
   // Achievements, medication doses, upcoming appointments, and weight history
   // moved out of Face 1 entirely (design.md deletion list) — Face 2 re-queries
   // its own future/weight sources inside getLibretaFaceData when it activates.
-  const [petActiveReminders, canonicalIds, reservedRabiesTurnoRows] = await Promise.all([
+  const [
+    petActiveReminders,
+    canonicalIds,
+    reservedRabiesTurnoRows,
+    petUpcomingAppointments,
+    petOpenWorkflows,
+  ] = await Promise.all([
     // Vaccine reminders for owner path only.
     accessPath === "owner"
       ? fetchActiveRemindersForPet(user.id, pet.id)
@@ -439,6 +450,16 @@ export default async function PetDetailPage({
       )
       .orderBy(asc(timeSlots.startsAt))
       .limit(1),
+    // owner-ia-redesign P3 — the pet profile absorbs its own reminders/turnos/
+    // open cycles. Owner-only, pet-scoped: the SAME fetchers /inicio uses,
+    // filtered to this pet. `/inicio` still renders the cross-pet versions this
+    // phase (transitional duplication; removal is P5's gate).
+    accessPath === "owner"
+      ? fetchUpcomingAppointments(user.id, 5, pet.id)
+      : Promise.resolve([] as Awaited<ReturnType<typeof fetchUpcomingAppointments>>),
+    accessPath === "owner"
+      ? fetchOpenWorkflows(user.id, pet.id)
+      : Promise.resolve([] as Awaited<ReturnType<typeof fetchOpenWorkflows>>),
   ]);
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
@@ -648,12 +669,25 @@ export default async function PetDetailPage({
           initialFace={activeFace}
           isOwner={isOwner}
           emergencyContacts={
+            // owner-ia-redesign P2: pet-level override with account fallback.
+            // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
+            // own columns win per row, else the owner's profile default shows
+            // (tagged "de tu cuenta" in the block). Non-owners get null (no block).
             isOwner
-              ? {
-                  preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
-                  emergencyContactName: viewerContacts?.emergencyContactName ?? null,
-                  emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
-                }
+              ? resolveEmergencyContacts(
+                  {
+                    preferredVetName: pet.preferredVetName,
+                    preferredVetPhone: pet.preferredVetPhone,
+                    emergencyContactName: pet.emergencyContactName,
+                    emergencyContactPhone: pet.emergencyContactPhone,
+                  },
+                  {
+                    preferredVetName: viewerContacts?.preferredVetName ?? null,
+                    preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
+                    emergencyContactName: viewerContacts?.emergencyContactName ?? null,
+                    emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
+                  },
+                )
               : null
           }
           credencialContent={
@@ -713,6 +747,18 @@ export default async function PetDetailPage({
         />
       </Suspense>
 
+      {/* owner-ia-redesign P3 — the profile absorbs its pet's content. This
+          pet's reminders, turnos, and open cycles, below the document. Owner-
+          only (org/public/vet viewers of the same route never see it) and
+          pet-scoped. Renders nothing when the pet has none of the three. */}
+      {isOwner && (
+        <PetOwnerActivity
+          reminders={petActiveReminders}
+          appointments={petUpcomingAppointments}
+          workflows={petOpenWorkflows}
+        />
+      )}
+
       {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
             Renders nothing when the param is absent or unknown.
             Lives outside PetDetailTabsPanel so it's always mounted. */}
@@ -748,12 +794,15 @@ export default async function PetDetailPage({
         chapitaData={chapitaData}
         physicalCredentialChannels={physicalCredentialChannels}
         emergencyContacts={
+          // The edit sheet writes the PET-LEVEL override (owner-ia-redesign P2),
+          // so its initial values are this pet's own columns (empty when unset),
+          // NOT the account default. Clearing a field falls back to the account.
           isOwner
             ? {
-                preferredVetName: viewerContacts?.preferredVetName ?? "",
-                preferredVetPhone: viewerContacts?.preferredVetPhone ?? "",
-                emergencyContactName: viewerContacts?.emergencyContactName ?? "",
-                emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? "",
+                preferredVetName: pet.preferredVetName ?? "",
+                preferredVetPhone: pet.preferredVetPhone ?? "",
+                emergencyContactName: pet.emergencyContactName ?? "",
+                emergencyContactPhone: pet.emergencyContactPhone ?? "",
               }
             : null
         }

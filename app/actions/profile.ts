@@ -20,7 +20,7 @@ import { revalidatePath } from "next/cache";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   type UpdateEmergencyContactsInput,
-  updateEmergencyContactsForUser as _updateEmergencyContactsForUser,
+  updateEmergencyContactsForPet as _updateEmergencyContactsForPet,
 } from "@/src/modules/pets/application/profile/update-emergency-contacts";
 import { updateProfileForUser as _updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
 import { uploadAvatarForUser as _uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
@@ -69,17 +69,18 @@ export async function uploadAvatarAction(input: {
   return result;
 }
 
-// updateEmergencyContactsAction — narrow write for `?sheet=emergencia`
-// (ADR-13). Logic lives in update-emergency-contacts.ts; this wrapper only
-// adds the auth guard and revalidatePath.
+// updateEmergencyContactsAction — narrow write for the pet profile's
+// `?sheet=emergencia` (owner-ia-redesign P2, PO decision 2). Writes the
+// PET-LEVEL override columns (not the account default). Logic + ownership
+// scoping live in update-emergency-contacts.ts; this wrapper only adds the
+// auth guard and revalidatePath.
 export async function updateEmergencyContactsAction(
   petPublicToken: string,
   input: UpdateEmergencyContactsInput,
 ) {
   const { user } = await requireUserOrRedirect();
-  const result = await _updateEmergencyContactsForUser(user.id, input);
+  const result = await _updateEmergencyContactsForPet(user.id, petPublicToken, input);
   if ("ok" in result) {
-    revalidatePath("/cuenta");
     revalidatePath(`/mis-mascotas/${petPublicToken}`);
   }
   return result;

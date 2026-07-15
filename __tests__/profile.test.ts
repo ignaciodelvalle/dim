@@ -30,7 +30,7 @@ vi.mock("next/cache", () => ({
 }));
 
 import { updateEmergencyContactsAction } from "@/app/actions/profile";
-import { auditLog, db, notifications, profiles } from "@/db";
+import { auditLog, db, notifications, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
 import { uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
@@ -238,17 +238,36 @@ describe("updateProfileForUser — validation rejections", () => {
 });
 
 // ============================================================================
-// updateEmergencyContactsAction — narrow write (pet-document-redesign
-// ADR-13, Phase 5). Scoped to the 4 vet/emergency fields; must never touch
-// displayName even though it reuses updateProfileForUser under the hood.
+// updateEmergencyContactsAction — PET-LEVEL override write (owner-ia-redesign
+// P2, PO decision 2). Writes the 4 pet.preferred_vet_* / emergency_contact_*
+// columns (migration 0145), scoped to a pet the caller currently OWNS. Must
+// never touch the account-level profiles columns.
 // ============================================================================
 
-describe("updateEmergencyContactsAction — scoped write", () => {
-  it("updates only the 4 emergency fields, displayName untouched", async () => {
+const EMERGENCY_PET_TOKEN = "DIM-TEST-EMG1";
+
+describe("updateEmergencyContactsAction — pet-level override write", () => {
+  beforeAll(async () => {
+    // Seed a pet owned by the actor so the ownership-scoped write can target it.
+    const [pet] = await db
+      .insert(pets)
+      .values({ publicToken: EMERGENCY_PET_TOKEN, species: "dog", name: "Test Emg Pet" })
+      .returning({ id: pets.id });
+    await db.insert(ownerships).values({ petId: pet.id, ownerUserId: actorUserId, role: "owner" });
+  });
+
+  afterAll(async () => {
+    // Ownerships cascade on pet delete; profile deletion (top-level afterAll)
+    // does not remove the pet row, so drop it explicitly here.
+    await db.delete(pets).where(eq(pets.publicToken, EMERGENCY_PET_TOKEN));
+  });
+
+  it("writes the 4 emergency fields onto the PET, leaving the account profile untouched", async () => {
     vi.mocked(requireUserOrRedirect).mockResolvedValue({
       user: { id: actorUserId },
     } as never);
 
+    // Account-level columns are a distinct default surface — must stay null.
     await db
       .update(profiles)
       .set({
@@ -260,7 +279,7 @@ describe("updateEmergencyContactsAction — scoped write", () => {
       })
       .where(eq(profiles.id, actorUserId));
 
-    const result = await updateEmergencyContactsAction("pet-token-does-not-matter", {
+    const result = await updateEmergencyContactsAction(EMERGENCY_PET_TOKEN, {
       preferredVetName: "Dra. Pérez",
       preferredVetPhone: "+54 9 11 1111-1111",
       emergencyContactName: "Lucía F.",
@@ -269,32 +288,63 @@ describe("updateEmergencyContactsAction — scoped write", () => {
 
     expect(result).not.toHaveProperty("error");
 
-    const [row] = await db
+    const [petRow] = await db
+      .select({
+        preferredVetName: pets.preferredVetName,
+        preferredVetPhone: pets.preferredVetPhone,
+        emergencyContactName: pets.emergencyContactName,
+        emergencyContactPhone: pets.emergencyContactPhone,
+      })
+      .from(pets)
+      .where(eq(pets.publicToken, EMERGENCY_PET_TOKEN))
+      .limit(1);
+
+    expect(petRow.preferredVetName).toBe("Dra. Pérez");
+    expect(petRow.preferredVetPhone).toBe("+54 9 11 1111-1111");
+    expect(petRow.emergencyContactName).toBe("Lucía F.");
+    expect(petRow.emergencyContactPhone).toBe("+54 9 11 2222-2222");
+
+    // The account-level default is a separate surface and stays untouched.
+    const [profileRow] = await db
       .select({
         displayName: profiles.displayName,
         preferredVetName: profiles.preferredVetName,
-        preferredVetPhone: profiles.preferredVetPhone,
-        emergencyContactName: profiles.emergencyContactName,
-        emergencyContactPhone: profiles.emergencyContactPhone,
       })
       .from(profiles)
       .where(eq(profiles.id, actorUserId))
       .limit(1);
-
-    // Scoped: displayName is passed through unchanged, never overwritten.
-    expect(row.displayName).toBe("Untouched Display Name");
-    expect(row.preferredVetName).toBe("Dra. Pérez");
-    expect(row.preferredVetPhone).toBe("+54 9 11 1111-1111");
-    expect(row.emergencyContactName).toBe("Lucía F.");
-    expect(row.emergencyContactPhone).toBe("+54 9 11 2222-2222");
+    expect(profileRow.displayName).toBe("Untouched Display Name");
+    expect(profileRow.preferredVetName).toBeNull();
   });
 
-  it("returns NOT_FOUND for a user with no profile row", async () => {
+  it("clears an override to null when a field is submitted empty (account fallback on read)", async () => {
+    vi.mocked(requireUserOrRedirect).mockResolvedValue({
+      user: { id: actorUserId },
+    } as never);
+
+    const result = await updateEmergencyContactsAction(EMERGENCY_PET_TOKEN, {
+      preferredVetName: "",
+      preferredVetPhone: "",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+    });
+
+    expect(result).not.toHaveProperty("error");
+
+    const [petRow] = await db
+      .select({ preferredVetPhone: pets.preferredVetPhone })
+      .from(pets)
+      .where(eq(pets.publicToken, EMERGENCY_PET_TOKEN))
+      .limit(1);
+    expect(petRow.preferredVetPhone).toBeNull();
+  });
+
+  it("returns NOT_FOUND when the pet is not owned by the caller", async () => {
     vi.mocked(requireUserOrRedirect).mockResolvedValue({
       user: { id: "00000000-0000-0000-0000-000000000099" },
     } as never);
 
-    const result = await updateEmergencyContactsAction("pet-token-does-not-matter", {
+    const result = await updateEmergencyContactsAction(EMERGENCY_PET_TOKEN, {
       preferredVetName: "Should not save",
     });
 

@@ -18,17 +18,20 @@ import { ExportLibretaButton } from "@/components/pet-profile/ExportLibretaButto
 import { FutureLedgerList } from "@/components/pet-profile/FutureLedgerList";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { VacunasStatusBadges } from "@/components/pet-profile/VacunasStatusBadges";
+import type {
+  ResolvedEmergencyContacts,
+  ResolvedEmergencyPair,
+} from "@/lib/domain/emergency-contacts";
 import { speciesLabel } from "@/lib/utils/format";
 import type { LibretaFaceData } from "@/src/modules/pets/application/tab-data/types";
 import { useState } from "react";
 import { toAsientoView } from "./asiento-fields";
 import { pastEventMatchesAudience } from "./libreta-lens";
 
-export type LibretaFaceEmergencyContacts = {
-  preferredVetPhone: string | null;
-  emergencyContactName: string | null;
-  emergencyContactPhone: string | null;
-};
+// Resolved pet-level-override-with-account-fallback contacts (owner-ia-redesign
+// P2). Resolution happens in the RSC (lib/domain/emergency-contacts.ts); this
+// face just renders each row and labels it "de tu cuenta" when it fell back.
+export type LibretaFaceEmergencyContacts = ResolvedEmergencyContacts;
 
 type Props = {
   data: LibretaFaceData;
@@ -173,9 +176,45 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
 
 // ---------------------------------------------------------------------------
 // EmergenciaBlock — compact vet + emergency contact info, tap-to-call.
-// Owner-only (see Props.emergencyContacts). Shows a quiet "Agregar datos de
-// emergencia" prompt when any of the three source fields is missing.
+// Owner-only (see Props.emergencyContacts). Renders the per-pet override with
+// account fallback (owner-ia-redesign P2): each row is honestly tagged "de tu
+// cuenta" when it fell back to the account default. Shows a quiet "Agregar
+// datos de emergencia" prompt when neither level carries any contact.
 // ---------------------------------------------------------------------------
+
+function ContactRow({
+  pair,
+  fallbackLabel,
+}: { pair: ResolvedEmergencyPair; fallbackLabel: string }) {
+  if (!pair) return null;
+  const label = pair.name ?? fallbackLabel;
+  const fromAccount = pair.source === "account";
+  const inner = (
+    <>
+      <span className="flex items-center gap-1.5 text-[var(--color-ln-mute)]">
+        {label}
+        {fromAccount && (
+          <span className="text-xs text-[var(--color-ln-faint)]">(de tu cuenta)</span>
+        )}
+      </span>
+      {pair.phone && (
+        <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
+          <Icon name="telefono" size="sm" decorative />
+          {pair.phone}
+        </span>
+      )}
+    </>
+  );
+  const rowClass =
+    "flex items-center justify-between gap-3 py-2 text-sm no-underline first:pt-0 last:pb-0";
+  return pair.phone ? (
+    <a href={`tel:${pair.phone}`} className={rowClass}>
+      {inner}
+    </a>
+  ) : (
+    <div className={rowClass}>{inner}</div>
+  );
+}
 
 function EmergenciaBlock({
   contacts,
@@ -184,12 +223,12 @@ function EmergenciaBlock({
   contacts: LibretaFaceEmergencyContacts;
   petPublicToken: string;
 }) {
-  const { preferredVetPhone, emergencyContactName, emergencyContactPhone } = contacts;
-  const hasAnyContact = Boolean(preferredVetPhone || emergencyContactPhone);
-  const isMissingSomething = !preferredVetPhone || !emergencyContactName || !emergencyContactPhone;
+  const { vet, emergency } = contacts;
+  const hasAnyContact = Boolean(vet || emergency);
   // pet-document-redesign ADR-13 (Phase 5): the edit entry point is the
   // narrow in-profile `?sheet=emergencia` sheet — same destination for both
-  // the "add" prompt (missing data) and the "edit" affordance (has data).
+  // the "add" prompt (no data) and the "edit" affordance (has data). The sheet
+  // now writes the PET-LEVEL override (owner-ia-redesign P2).
   const editHref = `/mis-mascotas/${petPublicToken}?sheet=emergencia`;
 
   return (
@@ -204,32 +243,8 @@ function EmergenciaBlock({
       </p>
       {hasAnyContact && (
         <div className="divide-y divide-[var(--color-ln-line-2)]">
-          {preferredVetPhone && (
-            <a
-              href={`tel:${preferredVetPhone}`}
-              className="flex items-center justify-between gap-3 py-2 text-sm no-underline first:pt-0 last:pb-0"
-            >
-              <span className="text-[var(--color-ln-mute)]">Veterinario</span>
-              <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
-                <Icon name="telefono" size="sm" decorative />
-                {preferredVetPhone}
-              </span>
-            </a>
-          )}
-          {emergencyContactPhone && (
-            <a
-              href={`tel:${emergencyContactPhone}`}
-              className="flex items-center justify-between gap-3 py-2 text-sm no-underline first:pt-0 last:pb-0"
-            >
-              <span className="text-[var(--color-ln-mute)]">
-                {emergencyContactName ?? "Contacto de emergencia"}
-              </span>
-              <span className="flex items-center gap-1.5 font-medium text-[var(--color-ln-azul)]">
-                <Icon name="telefono" size="sm" decorative />
-                {emergencyContactPhone}
-              </span>
-            </a>
-          )}
+          <ContactRow pair={vet} fallbackLabel="Veterinario" />
+          <ContactRow pair={emergency} fallbackLabel="Contacto de emergencia" />
         </div>
       )}
       <SheetTriggerLink
@@ -239,7 +254,7 @@ function EmergenciaBlock({
           hasAnyContact ? "mt-2" : "",
         ].join(" ")}
       >
-        {isMissingSomething ? "Agregar datos de emergencia →" : "Editar →"}
+        {hasAnyContact ? "Editar →" : "Agregar datos de emergencia →"}
       </SheetTriggerLink>
     </div>
   );

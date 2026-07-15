@@ -22,6 +22,7 @@ import {
   countPendingTransfers,
   fetchComplianceStatesForPets,
 } from "@/lib/analytics/owner-dashboard";
+import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/infra/pet-projections";
 import { getProfileCached } from "@/lib/infra/request-cache";
@@ -114,26 +115,11 @@ export default async function MisMascotasPage({
   };
 
   // Urgency ordering (handoff 2b.2): Perdido → En tratamiento → Preñada →
-  // Por vencer (registered/pending) → Al día → Registrada. Same rank the
-  // credential carousel uses on /inicio.
-  const misMascotasRank = (status: LnPetStatus): number => {
-    switch (status) {
-      case "lost":
-        return 0;
-      case "sick":
-        return 1;
-      case "pregnant":
-        return 2;
-      case "registered":
-        return 3;
-      case "ok":
-        return 4;
-      default:
-        return 5;
-    }
-  };
+  // Por vencer (registered/pending) → Al día → Registrada. The SAME rank the
+  // credential carousel uses on /inicio and the profile carousel will use
+  // (owner-ia-redesign P4) — shared in lib/domain/pet-urgency-rank.ts.
   const sortedActivePets = [...activePets].sort(
-    (a, b) => misMascotasRank(statusForPet(a.pet)) - misMascotasRank(statusForPet(b.pet)),
+    (a, b) => petUrgencyRank(statusForPet(a.pet)) - petUrgencyRank(statusForPet(b.pet)),
   );
 
   return (

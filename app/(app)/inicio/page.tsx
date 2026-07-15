@@ -39,6 +39,7 @@ import {
 } from "@/lib/analytics/owner-dashboard";
 import { hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { deriveOwnerFirstRunState } from "@/lib/domain/owner-first-run";
+import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
 import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
@@ -216,7 +217,7 @@ export default async function InicioPage() {
         ? "pregnant"
         : "registered");
   const carouselPets = [...carouselSource]
-    .sort((a, b) => credRank(carouselStatusOf(a)) - credRank(carouselStatusOf(b)))
+    .sort((a, b) => petUrgencyRank(carouselStatusOf(a)) - petUrgencyRank(carouselStatusOf(b)))
     .slice(0, OWNER_CAROUSEL_CAP);
 
   // Vaccine-vigencia summaries only for the non-lost cards that render them
@@ -565,28 +566,6 @@ export default async function InicioPage() {
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
-
-// Urgency rank for the credential carousel (PO 2026-07-12 #2): perdido →
-// (en tratamiento) → preñada → por vencer → al día → registrada. "sick" is not
-// produced by lnPetStatusFromCompliance today, so it never occurs here; it is
-// kept in the switch so the ordering contract stays explicit. "registered"
-// means the pet has pending obligations (ok < total) — the "por vencer" bucket.
-function credRank(status: LnPetStatus): number {
-  switch (status) {
-    case "lost":
-      return 0;
-    case "sick":
-      return 1;
-    case "pregnant":
-      return 2;
-    case "registered":
-      return 3;
-    case "ok":
-      return 4;
-    default:
-      return 5;
-  }
-}
 
 const MONTH_ABBR = [
   "ENE",

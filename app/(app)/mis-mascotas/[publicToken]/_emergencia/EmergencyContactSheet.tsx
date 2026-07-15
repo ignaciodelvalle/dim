@@ -49,7 +49,8 @@ export function EmergencyContactSheet({ petPublicToken, initialValues, onSaved }
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <p className="text-sm text-[var(--color-ln-ink-2)]">
-        Estos datos aparecen en la credencial de todas tus mascotas.
+        Estos datos son específicos de esta mascota. Si dejás un campo vacío, mostramos el de tu
+        cuenta.
       </p>
 
       <EmergencyContactFields values={values} onChange={handleChange} framed={false} />
