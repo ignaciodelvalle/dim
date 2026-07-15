@@ -108,11 +108,15 @@ export default async function PerdidasPage({
           </p>
         </header>
 
-        {/* KPI strip — universe counts, not filter-scoped */}
+        {/* KPI strip — universe counts, not filter-scoped. The two recency tiles
+            measure NEW reports in a window, not the active total; labelling them
+            "Nuevas en …" stops "0 / 0" from reading as a contradiction next to
+            "Activas ahora" when the active pool is older than the window
+            (Cowork B5). */}
         <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <KpiCard label="Activas ahora" value={totalActive} tone="err" />
-          <KpiCard label="Últimas 24h" value={last24h} tone="warn" />
-          <KpiCard label="Últimos 7 días" value={last7d} tone="mute" />
+          <KpiCard label="Nuevas en 24h" value={last24h} tone="warn" />
+          <KpiCard label="Nuevas en 7 días" value={last7d} tone="mute" />
         </section>
 
         <LostFiltersBar filters={filters} />
