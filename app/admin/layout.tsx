@@ -137,9 +137,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             {/* Scope chip — neutral/outline so it never out-weighs the page H1 (D1). */}
             <OpScopeChip code="SUPERADMIN" label="Universal" variant="neutral" />
           </div>
-          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
+          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log.
+              Admin searches with universal scope, so the empty state must not
+              say "en tu jurisdicción" (Cowork B3). */}
           <div className="flex-shrink-0">
-            <OpOmnibox />
+            <OpOmnibox universalScope />
           </div>
           {/* Right: switcher + logout */}
           <div className="flex flex-shrink-0 items-center gap-2">{topbarActions}</div>

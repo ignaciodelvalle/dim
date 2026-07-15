@@ -2,6 +2,7 @@ import { logoutAction } from "@/app/actions/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
+import { GovtJurisdictionsChip } from "@/components/layout/GovtJurisdictionsChip";
 import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
@@ -86,16 +87,25 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
           <AppShellDrawer sections={GOB_NAV_SECTIONS} variant="gob" brandSubtitle="Gobierno" />
           {/* Left: breadcrumbs — derived from route (UX 1.2) */}
           <OperatorBreadcrumbs portal="gob" />
-          {/* Scope chip */}
-          <OpScopeChip
-            code={profile.role === "admin" ? "SUPERADMIN" : "GOB"}
-            label={scopeCode}
-            variant={profile.role === "admin" ? "superadmin" : "default"}
-          />
+          {/* Scope chip. A multi-locality govt gets the expandable variant so
+              the operator can see WHICH jurisdictions they cover (Cowork M5),
+              not just the count. Admin (universal) and single-locality govt
+              already read their full scope in the label. */}
+          {profile.role !== "admin" && jurisdictions.length > 1 ? (
+            <GovtJurisdictionsChip label={scopeCode} jurisdictions={jurisdictions} />
+          ) : (
+            <OpScopeChip
+              code={profile.role === "admin" ? "SUPERADMIN" : "GOB"}
+              label={scopeCode}
+              variant={profile.role === "admin" ? "superadmin" : "default"}
+            />
+          )}
           {/* Spacer */}
           <div className="flex-1" />
-          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log. */}
-          <OpOmnibox />
+          {/* Global search omnibox (Item 10) — operator jump-to-record + PII log.
+              An admin visiting /gob searches universally; a govt is scoped to its
+              jurisdictions (Cowork B3). */}
+          <OpOmnibox universalScope={profile.role === "admin"} />
           {/* Right: switcher + logout */}
           <div className="flex items-center gap-2">{topbarActions}</div>
         </header>

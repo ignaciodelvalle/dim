@@ -79,7 +79,18 @@ function resultMeta(r: OmniboxResult): string {
   return `${caseKindLabel(r.caseKind)} · ${caseStatusDisplay(r.status as CaseStatus).label}`;
 }
 
-export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
+export function OpOmnibox({
+  orgToken,
+  universalScope = false,
+}: {
+  orgToken?: string;
+  /**
+   * True when the viewer searches with UNIVERSAL scope (admin) — no jurisdiction
+   * limit. The empty-state copy then drops "en tu jurisdicción", which otherwise
+   * implies a territorial limit the admin does not have (Cowork B3).
+   */
+  universalScope?: boolean;
+} = {}) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
@@ -259,7 +270,7 @@ export function OpOmnibox({ orgToken }: { orgToken?: string } = {}) {
 
           {!loading && noResults && (
             <div className="px-4 py-3 text-sm text-ln-op-mute">
-              Sin coincidencias en tu jurisdicción
+              {universalScope ? "Sin coincidencias" : "Sin coincidencias en tu jurisdicción"}
             </div>
           )}
 
