@@ -34,10 +34,14 @@ describe("/inicio folds into the profile (decision 7)", () => {
   });
 
   it("redirects a zero-live-pet owner to the index+inbox, forwarding the query", () => {
-    // QA ronda 4 CONFIRMED: the zero-pet branch used to be a bare
-    // redirect("/mis-mascotas") that discarded searchParams, so Asentar's
-    // ?sheet=anotar never opened the capture sheet for a pets-less owner. It now
-    // forwards the same query string the profile branch does.
+    // The zero-pet branch forwards the same query string the profile branch
+    // does, so any OTHER forwarded param (not just ?sheet=anotar) survives the
+    // hop. This does NOT mean ?sheet=anotar opens anything here: the bare
+    // index doesn't mount SheetMounter, and with zero live pets there is no
+    // pet to capture an event against — the index's own "Cargar una mascota"
+    // CTA is the correct landing for a pets-less owner (W1 review fix bar
+    // 2026-07-15 — the prior comment's "fixes the capture sheet for zero-pet
+    // owners" claim was false; this only pins the forward+redirect mechanics).
     expect(inicioSrc).toMatch(/redirect\(`\/mis-mascotas\$\{query \? `\?\$\{query\}` : ""\}`\)/);
   });
 

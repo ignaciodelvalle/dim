@@ -8,8 +8,13 @@
 //            index's own empty state + reclamar entry.
 //   Lens 3 — open cycles (applications + transfers) (was OpenCyclesSection on
 //            /inicio) → the index's ActionLinkCards.
-//   Lens 3 — the lost credential card still offers "Compartir cartel" (CredCard,
-//            moved to the index component folder).
+//   Lens 3 — the lost-pet next steps (was CredCard, the /mis-mascotas index
+//            card) → CredCard is DELETED (W1 fix-bar: zero live imports, the
+//            index renders LnRegRow rows instead — PO ronda 4 revert). The
+//            actual lost quick actions live on the pet PROFILE's lost-case
+//            block now (share/poster, mark-found, "ver reporte" IS the
+//            profile itself). This block follows them there instead of
+//            reading a deleted file that proved nothing.
 //
 // Source-scan style (same as owner-home-fold.test.ts): cheap, no render, no DB.
 
@@ -20,7 +25,8 @@ import { describe, expect, it } from "vitest";
 const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), "utf8");
 
 const indexSrc = read("app", "(app)", "mis-mascotas", "page.tsx");
-const credCardSrc = read("app", "(app)", "mis-mascotas", "_components", "CredCard.tsx");
+const profileSrc = read("app", "(app)", "mis-mascotas", "[publicToken]", "page.tsx");
+const lostCaseBlockSrc = read("components", "pet-profile", "LostCaseBlock.tsx");
 
 describe("index — first-run empty state (task #19, Lens 1)", () => {
   it("leads a zero-pet owner with the real first action, not a reassurance", () => {
@@ -45,15 +51,20 @@ describe("index — open cycles surfaced (task #19, Lens 3)", () => {
   });
 });
 
-describe("credential card — lost pet next steps (task #19, Lens 3)", () => {
-  it("offers 'Compartir cartel' linking to the poster route", () => {
-    expect(credCardSrc).toContain("Compartir cartel");
-    expect(credCardSrc).toContain("/cartel");
+describe("pet profile — lost pet next steps (task #19, Lens 3, relocated)", () => {
+  it("the profile mounts the lost-case block for a lost pet (the 'ver reporte' surface itself)", () => {
+    expect(profileSrc).toContain("<LostCaseBlock");
+    expect(lostCaseBlockSrc).toContain('data-section="lost-case-block"');
   });
 
-  it("keeps the shipped #9 lost actions (extend, don't rewrite)", () => {
-    expect(credCardSrc).toContain("Ver reporte");
-    expect(credCardSrc).toContain("Lo encontré");
-    expect(credCardSrc).toContain("?sheet=marcar-encontrada");
+  it("offers the share/poster affordance linking to the poster route", () => {
+    expect(lostCaseBlockSrc).toContain("posterHref");
+    expect(lostCaseBlockSrc).toContain("/cartel");
+    expect(lostCaseBlockSrc).toContain("LostShareCard");
+  });
+
+  it("keeps the mark-found quick action wired to the found sheet", () => {
+    expect(lostCaseBlockSrc).toContain("marcar como");
+    expect(lostCaseBlockSrc).toContain("?sheet=marcar-encontrada");
   });
 });

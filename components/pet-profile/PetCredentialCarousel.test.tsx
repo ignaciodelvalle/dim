@@ -157,6 +157,23 @@ describe("PetCredentialCarousel — pointer swipe gated under open sheets", () =
     expect(push).not.toHaveBeenCalled();
     drawer.remove();
   });
+
+  it("does NOT navigate while a native <dialog open> is mounted (ConfirmDialog has no explicit role)", () => {
+    // W1 review fix bar 2026-07-15: ConfirmDialog (components/ui/ConfirmDialog)
+    // renders a bare native <dialog> — no role="dialog" attribute, since the
+    // element already carries implicit ARIA dialog semantics. The gate selector
+    // used to miss it entirely, so a swipe over an open ConfirmDialog could
+    // still navigate to a neighbor pet mid-confirmation.
+    const { container } = renderCarousel("DIM-PREG-0002");
+    const dialog = document.createElement("dialog");
+    dialog.setAttribute("open", "");
+    document.body.appendChild(dialog);
+    const chrome = chromeOf(container);
+    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    expect(push).not.toHaveBeenCalled();
+    dialog.remove();
+  });
 });
 
 describe("PetCredentialCarousel — desktop arrows", () => {

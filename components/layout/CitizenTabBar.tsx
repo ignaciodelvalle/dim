@@ -5,7 +5,9 @@
 //
 // The single strongest "website vs app" signal: primary navigation moves from
 // the hamburger drawer (2 taps) to persistent bottom tabs (1 tap), matching
-// the native iOS/Android pattern. OWNER_NAV's 3 items map 1:1 onto tabs.
+// the native iOS/Android pattern. OWNER_NAV's 2 items (PO ronda 4, 2026-07-15:
+// the former "Inicio" tab was removed) map 1:1 onto tabs, plus the inserted
+// "Asentar" capture slot below.
 //
 //   - Renders < md only; the masthead's inline nav owns md+ (desktop).
 //   - Fixed to the viewport bottom with pb-safe so the tabs clear the iOS
@@ -51,15 +53,6 @@ function TabIcon({ href }: { href: string }) {
     strokeLinejoin: "round" as const,
     className: "h-6 w-6",
   };
-  if (href.startsWith("/inicio")) {
-    return (
-      <svg {...common} aria-hidden="true">
-        <path d="M3 9.5 12 3l9 6.5" />
-        <path d="M5 8.5V21h14V8.5" />
-        <path d="M9 21v-6h6v6" />
-      </svg>
-    );
-  }
   if (href.startsWith("/mis-mascotas")) {
     return (
       <svg {...common} aria-hidden="true">

@@ -8,9 +8,9 @@
 //      so has no credential to live on: open workflows (foster proposals,
 //      denuncias, custody, approvals) AND their closed history, inbound
 //      transfers, adoption postulaciones, plus the resume-application banner.
-//   3. the per-pet INDEX — the CredCard credential rows (moved here from the
-//      old home carousel), with a real name search (§9.3) so the 200-cap notice
-//      stops promising a buscador that never existed.
+//   3. the per-pet INDEX — the LnRegRow credential rows (PO ronda 4 revert from
+//      the P5 card grid back to list rows), with a real name search (§9.3) so
+//      the 200-cap notice stops promising a buscador that never existed.
 //   4. "En memoria" — deceased pets live HERE ONLY (decision 6), never in the
 //      swipe.
 //   5. reclamar — the claim-code entry.

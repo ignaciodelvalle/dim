@@ -18,9 +18,14 @@
 // is a single server redirect (/inicio?sheet=anotar → /mis-mascotas/DIM-XXXX?
 // sheet=anotar) where the profile's SheetMounter opens the anotar sheet on
 // arrival — no second hop, no capture-flow break. The zero-pet path forwards the
-// SAME query onto /mis-mascotas (QA ronda 4 CONFIRMED: dropping it meant an
-// owner with no live pets could never open the capture sheet from Asentar). The
-// former /cuenta/casos #casos anchor now points at /mis-mascotas#inbox directly.
+// SAME query onto the bare /mis-mascotas index for consistency (harmless — it
+// preserves any OTHER forwarded params) but ?sheet=anotar itself is INERT there:
+// the index doesn't mount SheetMounter, and with zero live pets there is nothing
+// to capture an event against anyway. For a pets-less owner the index's own
+// "Cargar una mascota" CTA is the correct landing, not a capture sheet (W1
+// review fix bar 2026-07-15: the prior comment claimed this forward "opens the
+// capture sheet for zero-pet owners" — it never did). The former /cuenta/casos
+// #casos anchor now points at /mis-mascotas#inbox directly.
 //
 // Vet gate: /inicio is also a post-login landing target, so a dual-role vet can
 // arrive here. It honours the SAME vet-landing gate /mis-mascotas uses
@@ -74,8 +79,12 @@ export default async function InicioPage({
   // they live in the index's "En memoria".
   const livePets = await fetchLivePetsForCarouselRanking(user.id);
 
-  // No live pet → the index+inbox is the home. Forward the query so Asentar's
-  // ?sheet=anotar still opens the capture sheet for a pets-less owner.
+  // No live pet → the index+inbox is the home. Forward the query for
+  // consistency with the profile branch below (harmless — preserves any other
+  // params), but note ?sheet=anotar itself is inert on the bare index: there is
+  // no pet yet to capture an event against, and the index doesn't mount
+  // SheetMounter. The index's own "Cargar una mascota" CTA is the right next
+  // step for a zero-pet owner.
   if (livePets.length === 0) {
     redirect(`/mis-mascotas${query ? `?${query}` : ""}`);
   }

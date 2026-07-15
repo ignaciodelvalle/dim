@@ -42,6 +42,14 @@ import { type CarouselPet, computeCarouselNeighbors } from "@/lib/domain/owner-c
 // merely started on the band from navigating.
 const SWIPE_THRESHOLD_PX = 48;
 
+// Matches any open modal/dialog surface that should gate carousel navigation
+// (keyboard arrows + pointer swipe): Vaul drawers, anything with an explicit
+// role="dialog", AND a native <dialog open> (e.g. ConfirmDialog, which relies
+// on the browser's own modal semantics and renders no explicit role — W1
+// review fix bar 2026-07-15: the selector missed it, so a swipe/arrow-key
+// could navigate to a neighbor pet while a native confirm dialog sat open).
+const OPEN_DIALOG_SELECTOR = "[role='dialog'], [data-vaul-drawer], dialog[open]";
+
 function routeForToken(token: string): string {
   return `/mis-mascotas/${token}`;
 }
@@ -95,12 +103,12 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
       if (
         target instanceof Element &&
         target.closest(
-          "input, textarea, select, [contenteditable='true'], [role='tab'], [role='tablist'], [role='dialog'], [data-vaul-drawer]",
+          `input, textarea, select, [contenteditable='true'], [role='tab'], [role='tablist'], ${OPEN_DIALOG_SELECTOR}`,
         )
       ) {
         return;
       }
-      if (document.querySelector("[role='dialog'], [data-vaul-drawer]")) return;
+      if (document.querySelector(OPEN_DIALOG_SELECTOR)) return;
       navigate(e.key === "ArrowLeft" ? prevToken : nextToken);
     }
     window.addEventListener("keydown", onKeyDown);
@@ -131,10 +139,7 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
     // open Vaul sheet (the ?sheet= capture drawer) would navigate to a neighbor
     // pet and destroy the unsaved capture-form state (M3 fresh-review MAJOR 1
     // — keyboard was gated, the pointer path was not).
-    if (
-      typeof document !== "undefined" &&
-      document.querySelector("[role='dialog'], [data-vaul-drawer]")
-    ) {
+    if (typeof document !== "undefined" && document.querySelector(OPEN_DIALOG_SELECTOR)) {
       return;
     }
     const dx = e.clientX - g.x;
