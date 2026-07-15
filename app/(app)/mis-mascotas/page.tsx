@@ -19,7 +19,7 @@
 // (inventory §8): a vet who also owns pets reaches their own pets only via
 // ?as=owner; dropping it would send every vet to the owner index.
 
-import { and, count, eq, ilike, isNull } from "drizzle-orm";
+import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -96,7 +96,13 @@ export default async function MisMascotasPage({
   // undefined when no query, so the unfiltered path is unchanged). The search is
   // server-side + bounded so it finds pets BEYOND the visible cap — the whole
   // point of the 200-cap notice's promised buscador.
-  const nameFilter = query ? ilike(pets.name, likeContains(query)) : undefined;
+  // Server-side name filter with an explicit ESCAPE clause — parity with
+  // lib/infra/omnibox-search.ts. likeContains() backslash-escapes %/_ in the
+  // user input; ESCAPE '\' tells Postgres to treat that backslash as the escape
+  // char. drizzle's ilike() helper can't carry an ESCAPE clause, so this is a
+  // raw sql predicate. and() drops it when the query is empty, so the unfiltered
+  // path is unchanged.
+  const nameFilter = query ? sql`${pets.name} ILIKE ${likeContains(query)} ESCAPE '\\'` : undefined;
   const ownedWhere = and(
     eq(ownerships.ownerUserId, user.id),
     isNull(ownerships.endedAt),
@@ -122,6 +128,10 @@ export default async function MisMascotasPage({
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
       .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
       .where(ownedWhere)
+      // Deterministic order so WHICH rows survive the cap isn't DB-order luck —
+      // newest first, the same tiebreak fetchPetsForOwner uses. Final display
+      // order is re-derived by urgency (sortedActivePets) below.
+      .orderBy(desc(pets.createdAt))
       // Hard cap: prevents loading thousands of pet rows into JS for high-volume
       // owners. Full pagination is tracked as a follow-up improvement.
       .limit(MIS_MASCOTAS_LIMIT),
@@ -295,11 +305,22 @@ export default async function MisMascotasPage({
 
       {activePets.length === 0 ? (
         isSearching ? (
-          <LnEmptyState
-            variant="dashed"
-            title={`Sin resultados para "${query}".`}
-            description="Probá con otro nombre."
-          />
+          deceasedPets.length > 0 ? (
+            // The search matched ONLY deceased pets — the In memoriam section
+            // below shows them, so a bare "Sin resultados" would lie. Point the
+            // owner at the matches instead of contradicting them.
+            <LnEmptyState
+              variant="dashed"
+              title={`Sin resultados entre tus mascotas activas para "${query}".`}
+              description="Hay coincidencias en In memoriam, más abajo."
+            />
+          ) : (
+            <LnEmptyState
+              variant="dashed"
+              title={`Sin resultados para "${query}".`}
+              description="Probá con otro nombre."
+            />
+          )
         ) : hasAnyOwned ? // Owner has only deceased pets — the In memoriam section below carries
         // them; don't show a "no pets" box that contradicts it.
         null : (

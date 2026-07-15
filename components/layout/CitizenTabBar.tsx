@@ -127,11 +127,14 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
   // owner-ia-redesign P4: on a pet-profile route the pet is already known, so
   // "Asentar" retargets to THAT pet's capture sheet (?sheet=anotar) — no picker,
   // no cross-route hop. Everywhere else (P5: the /inicio home capture card is
-  // gone) it points at plain /inicio, which server-redirects to the most-urgent
-  // pet's credential — where this same tab bar then targets that pet's
-  // ?sheet=anotar.
+  // gone) it points at /inicio?sheet=anotar: /inicio server-redirects to the
+  // most-urgent pet's credential AND forwards the sheet param, so the anotar
+  // sheet opens on arrival in a SINGLE navigation. A bare /inicio would redirect
+  // to the profile WITHOUT opening anotar — breaking the one-tap capture flow.
   const currentPetToken = petTokenFromPathname(pathname);
-  const asentarHref = currentPetToken ? `/mis-mascotas/${currentPetToken}?sheet=anotar` : "/inicio";
+  const asentarHref = currentPetToken
+    ? `/mis-mascotas/${currentPetToken}?sheet=anotar`
+    : "/inicio?sheet=anotar";
   const asentar = (
     <li key="__asentar" className="min-w-0 flex-1">
       <Link

@@ -92,6 +92,7 @@ import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-fa
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
+import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
@@ -427,6 +428,7 @@ export default async function PetDetailPage({
     reservedRabiesTurnoRows,
     petUpcomingAppointments,
     petOpenWorkflows,
+    petHealthStatuses,
   ] = await Promise.all([
     // Vaccine reminders for owner path only.
     accessPath === "owner"
@@ -468,7 +470,18 @@ export default async function PetDetailPage({
     accessPath === "owner"
       ? fetchOpenWorkflows(user.id, pet.id)
       : Promise.resolve([] as Awaited<ReturnType<typeof fetchOpenWorkflows>>),
+    // owner-ia-redesign P5 — this pet's per-pet health nudges (chip_missing CTA,
+    // scan-activity signal). fetchPetHealthNudges returns the owner's whole
+    // owned-and-active set (bounded, role='owner' only); we filter to THIS pet
+    // below. Orphaned when the /inicio PetHealthStatusStrip was deleted; now
+    // rendered inside the profile via PetOwnerActivity.
+    accessPath === "owner"
+      ? fetchPetHealthNudges(user.id)
+      : Promise.resolve([] as Awaited<ReturnType<typeof fetchPetHealthNudges>>),
   ]);
+
+  // This pet's nudges only (fetchPetHealthNudges is owner-wide; scope by id).
+  const thisPetNudges = petHealthStatuses.find((s) => s.petId === pet.id)?.nudges ?? [];
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
@@ -821,6 +834,7 @@ export default async function PetDetailPage({
           pet-scoped. Renders nothing when the pet has none of the three. */}
       {isOwner && (
         <PetOwnerActivity
+          nudges={thisPetNudges}
           reminders={petActiveReminders}
           appointments={petUpcomingAppointments}
           workflows={petOpenWorkflows}

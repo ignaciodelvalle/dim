@@ -1,13 +1,15 @@
-// PetOwnerActivity — the pet's own reminders, turnos, and open cycles,
+// PetOwnerActivity — the pet's own nudges, reminders, turnos, and open cycles,
 // rendered INSIDE its profile (owner-ia-redesign P3, "the profile absorbs its
 // pet's content"). Owner-only: the pet profile page gates this on the owner
 // access path, so org/public/vet viewers of the same route never see it.
 //
-// Pet-scoped by construction — the RSC feeds it data from the SAME fetchers
-// /inicio uses (fetchActiveRemindersForPet / fetchUpcomingAppointments /
-// fetchOpenWorkflows), each filtered to this pet. `/inicio` still renders the
-// cross-pet versions this phase (transitional duplication is deliberate;
-// removal is P5's gate).
+// Pet-scoped by construction — the RSC feeds it data filtered to this pet:
+// fetchActiveRemindersForPet / fetchUpcomingAppointments / fetchOpenWorkflows,
+// plus this pet's slice of fetchPetHealthNudges. owner-ia-redesign P5 folded
+// /inicio away (it now server-redirects into the most-urgent pet), and the
+// deleted PetHealthStatusStrip was the ONLY consumer of the per-pet nudges — the
+// one-tap microchip CTA (chip_missing) and the scan-activity signal. They now
+// live here, scoped to this pet, so those actions are no longer orphaned.
 
 import { RemindersSection } from "@/app/(app)/inicio/_components/RemindersSection";
 import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
@@ -17,6 +19,7 @@ import type {
   UpcomingAppointment,
   WorkflowItem,
 } from "@/lib/analytics/owner-dashboard";
+import type { Nudge } from "@/lib/infra/owner-nudges";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import Link from "next/link";
 
@@ -34,6 +37,32 @@ const MONTH_ABBR = [
   "NOV",
   "DIC",
 ];
+
+// A single owner-facing nudge row — salvaged visual language from the deleted
+// /inicio PetHealthStatusStrip (tone dot + supportive label + action arrow).
+// The dot color encodes tone only; the whole row links to the owner's own
+// action surface (never an authority view — owner-nudges.ts privacy contract).
+function NudgeRow({ nudge }: { nudge: Nudge }) {
+  const dotClass =
+    nudge.tone === "attention" ? "bg-[var(--color-ln-warn)]" : "bg-[var(--color-ln-celeste)]";
+  return (
+    <Link
+      href={nudge.actionHref}
+      className="-mx-1.5 flex items-center gap-2.5 rounded-[var(--radius-sm)] px-1.5 py-1 no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+    >
+      <span className={`h-2 w-2 flex-shrink-0 rounded-full ${dotClass}`} aria-hidden="true" />
+      <span className="min-w-0 flex-1 text-[var(--text-sm)] text-[var(--color-ln-ink)]">
+        {nudge.label}
+      </span>
+      <span
+        aria-hidden="true"
+        className="flex-shrink-0 font-[var(--font-ln-mono)] text-[var(--text-xs)] text-[var(--color-ln-azul)]"
+      >
+        →
+      </span>
+    </Link>
+  );
+}
 
 function ApptRow({
   date,
@@ -65,18 +94,36 @@ function ApptRow({
 }
 
 type Props = {
+  nudges: Nudge[];
   reminders: ActiveReminderRow[];
   appointments: UpcomingAppointment[];
   workflows: WorkflowItem[];
 };
 
-export function PetOwnerActivity({ reminders, appointments, workflows }: Props) {
-  const hasAny = reminders.length > 0 || appointments.length > 0 || workflows.length > 0;
+export function PetOwnerActivity({ nudges, reminders, appointments, workflows }: Props) {
+  const hasAny =
+    nudges.length > 0 || reminders.length > 0 || appointments.length > 0 || workflows.length > 0;
   // Nothing to show → render nothing (no empty cards cluttering a healthy pet).
   if (!hasAny) return null;
 
   return (
     <div data-section="pet-owner-activity" className="mt-6 flex flex-col gap-5">
+      {/* Pendientes de esta mascota — the pet's own owner-action nudges
+          (chip_missing CTA, scan-activity signal). Only when there is at least
+          one; supportive, never alarming (owner-nudges.ts D4). */}
+      {nudges.length > 0 && (
+        <LnCard>
+          <LnCardHead title="Pendientes de esta mascota" label="acciones" />
+          <LnCardBody>
+            <div className="flex flex-col gap-0.5">
+              {nudges.map((n) => (
+                <NudgeRow key={n.kind} nudge={n} />
+              ))}
+            </div>
+          </LnCardBody>
+        </LnCard>
+      )}
+
       {/* Recordatorios — reuses /inicio's section (null when empty). */}
       <RemindersSection reminders={reminders} />
 

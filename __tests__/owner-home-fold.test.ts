@@ -33,8 +33,18 @@ describe("/inicio folds into the profile (decision 7)", () => {
     expect(inicioSrc).toContain("rankOwnerCarousel");
   });
 
-  it("redirects a zero-live-pet owner to the index+inbox", () => {
+  it("redirects a zero-live-pet owner to the index+inbox (no query forwarded)", () => {
     expect(inicioSrc).toContain('redirect("/mis-mascotas")');
+  });
+
+  it("forwards its searchParams (e.g. ?sheet=anotar) onto the target profile redirect", () => {
+    // The tab-bar capture deep-link is /inicio?sheet=anotar; the redirect must
+    // carry the query onto the profile so the anotar sheet opens in ONE hop
+    // (a bare redirect would land on the pet WITHOUT opening capture).
+    expect(inicioSrc).toContain("searchParams");
+    expect(inicioSrc).toContain("URLSearchParams");
+    // The profile redirect appends the forwarded query string.
+    expect(inicioSrc).toMatch(/redirect\(`\/mis-mascotas\/\$\{ranked\[0\]\.token\}\$\{query/);
   });
 });
 
@@ -66,12 +76,25 @@ describe("/mis-mascotas is the index + inbox (decisions 3, 4, 6)", () => {
 
   it("has a REAL server-side name search (the 200-cap buscador that never existed)", () => {
     expect(indexSrc).toContain("<PetSearchInput");
-    expect(indexSrc).toContain("ilike(pets.name");
+    // Raw sql ILIKE predicate with an explicit ESCAPE clause (omnibox parity).
+    expect(indexSrc).toContain("pets.name} ILIKE");
+    expect(indexSrc).toContain("ESCAPE");
+  });
+
+  it("orders the pet-list query deterministically so the cap isn't DB-order luck", () => {
+    expect(indexSrc).toContain("orderBy(desc(pets.createdAt))");
   });
 
   it("keeps deceased pets in In memoriam ONLY (decision 6)", () => {
     expect(indexSrc).toContain("In memoriam");
     expect(indexSrc).toContain('pet.status === "deceased"');
+  });
+
+  it("points memorial-only search matches at In memoriam, not a bare 'Sin resultados'", () => {
+    // When a search matches only deceased pets, the empty state must not claim
+    // 'Sin resultados' while the In memoriam section below shows matches (FIX 3).
+    expect(indexSrc).toContain("Sin resultados entre tus mascotas activas");
+    expect(indexSrc).toContain("Hay coincidencias en In memoriam");
   });
 
   it("preserves the reclamar entry (index keeps it)", () => {

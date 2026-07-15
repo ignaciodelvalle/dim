@@ -35,6 +35,14 @@ export const PUBLIC_NAV: NavItem[] = [
 // single, disjoint matchPrefix — no matchPrefixes array needed since the
 // two owner destinations no longer share a highlight zone.
 export const OWNER_NAV: NavItem[] = [
+  // owner-ia-redesign P5: /inicio is a server redirect into the most-urgent
+  // pet's profile (/mis-mascotas/DIM-…), so this "Inicio" jump lands on a route
+  // that "Mis mascotas" (matchPrefix /mis-mascotas) highlights, not "/inicio".
+  // We deliberately KEEP the matchPrefix at "/inicio" and do NOT also match the
+  // profile prefix here: matching /mis-mascotas/DIM- from BOTH entries would
+  // light two tabs at once (more surprising than one). On a profile route "Mis
+  // mascotas" is the sensible active section; Inicio's highlight is transient by
+  // design — the /inicio route redirects away before it can stick.
   { href: "/inicio", label: "Inicio", matchPrefix: "/inicio" },
   { href: "/mis-mascotas", label: "Mis mascotas", matchPrefix: "/mis-mascotas" },
   // "Denuncias", not "Denunciar" (flow audit 2026-07-03, PO decision): an

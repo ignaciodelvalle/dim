@@ -12,11 +12,14 @@
 // postulaciones, foster proposals — none of which have a credential to live on;
 // inventory §9.2).
 //
-// URL fragments never reach the server, so /inicio cannot branch on
-// #asentar / #casos. The former tab-bar #asentar deep-link now points at plain
-// /inicio (CitizenTabBar) — it lands on the most-urgent pet, where the tab bar
-// then targets that pet's ?sheet=anotar. The former /cuenta/casos #casos anchor
-// now points at /mis-mascotas#inbox directly.
+// URL fragments never reach the server, but QUERY params do — so the tab-bar
+// capture deep-link points at /inicio?sheet=anotar (CitizenTabBar) and this
+// redirect FORWARDS its query string onto the resolved profile URL. The result
+// is a single server redirect (/inicio?sheet=anotar → /mis-mascotas/DIM-XXXX?
+// sheet=anotar) where the profile's SheetMounter opens the anotar sheet on
+// arrival — no second hop, no capture-flow break. The zero-pet path redirects to
+// /mis-mascotas with NO query (there is no pet to capture against). The former
+// /cuenta/casos #casos anchor now points at /mis-mascotas#inbox directly.
 
 import { redirect } from "next/navigation";
 
@@ -28,8 +31,13 @@ import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 
 export const dynamic = "force-dynamic";
 
-export default async function InicioPage() {
+export default async function InicioPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { user } = await requireUserOrRedirect();
+  const sp = await searchParams;
 
   // The carousel source: every LIVE pet the owner can move between (foster/
   // transit included — fetchPetsForOwner has no role filter). Deceased pets
@@ -67,6 +75,14 @@ export default async function InicioPage() {
 
   const ranked = rankOwnerCarousel(carouselInput);
   // rankOwnerCarousel returns at least one entry (livePets is non-empty and the
-  // cap is > 0); the first is the most-urgent pet.
-  redirect(`/mis-mascotas/${ranked[0].token}`);
+  // cap is > 0); the first is the most-urgent pet. Forward the original query
+  // string (e.g. ?sheet=anotar from the tab bar) onto the profile so a capture
+  // deep-link opens the sheet in this SAME redirect — no second hop.
+  const forwarded = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (typeof value === "string") forwarded.set(key, value);
+    else if (Array.isArray(value)) for (const v of value) forwarded.append(key, v);
+  }
+  const query = forwarded.toString();
+  redirect(`/mis-mascotas/${ranked[0].token}${query ? `?${query}` : ""}`);
 }

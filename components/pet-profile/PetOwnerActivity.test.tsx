@@ -11,7 +11,18 @@ import type {
   UpcomingAppointment,
   WorkflowItem,
 } from "@/lib/analytics/owner-dashboard";
+import type { Nudge } from "@/lib/infra/owner-nudges";
 import { PetOwnerActivity } from "./PetOwnerActivity";
+
+function nudge(overrides: Partial<Nudge> = {}): Nudge {
+  return {
+    kind: "chip_missing",
+    label: "Sin microchip registrado — registralo cuando lo tengas",
+    actionHref: "/mis-mascotas/DIM-AAAA-BBBB/eventos/nuevo/microchip",
+    tone: "attention",
+    ...overrides,
+  };
+}
 
 function reminder(overrides: Partial<ActiveReminderRow> = {}): ActiveReminderRow {
   return {
@@ -59,16 +70,42 @@ function workflow(overrides: Partial<WorkflowItem> = {}): WorkflowItem {
 }
 
 describe("PetOwnerActivity", () => {
-  it("renders nothing when the pet has no reminders, turnos, or open cycles", () => {
+  it("renders nothing when the pet has no nudges, reminders, turnos, or open cycles", () => {
     const html = renderToStaticMarkup(
-      <PetOwnerActivity reminders={[]} appointments={[]} workflows={[]} />,
+      <PetOwnerActivity nudges={[]} reminders={[]} appointments={[]} workflows={[]} />,
     );
     expect(html).toBe("");
+  });
+
+  it("renders this pet's nudges with their action link (chip_missing CTA salvaged)", () => {
+    const html = renderToStaticMarkup(
+      <PetOwnerActivity
+        nudges={[
+          nudge(),
+          nudge({
+            kind: "scan_activity",
+            label: "Tu credencial fue escaneada 1 vez",
+            actionHref: "/mis-mascotas/DIM-AAAA-BBBB",
+            tone: "neutral",
+          }),
+        ]}
+        reminders={[]}
+        appointments={[]}
+        workflows={[]}
+      />,
+    );
+    expect(html).toContain('data-section="pet-owner-activity"');
+    expect(html).toContain("Pendientes de esta mascota");
+    // The one-tap microchip CTA points at the owner's own capture surface.
+    expect(html).toContain("/mis-mascotas/DIM-AAAA-BBBB/eventos/nuevo/microchip");
+    // The scan-activity signal renders too.
+    expect(html).toContain("Tu credencial fue escaneada 1 vez");
   });
 
   it("renders the section wrapper plus all three sub-surfaces when data is present", () => {
     const html = renderToStaticMarkup(
       <PetOwnerActivity
+        nudges={[]}
         reminders={[reminder(), reminder({ reminderId: "r2", title: "Quíntuple" })]}
         appointments={[appointment()]}
         workflows={[workflow()]}
@@ -88,10 +125,11 @@ describe("PetOwnerActivity", () => {
 
   it("shows only the turnos card when that is the pet's only activity", () => {
     const html = renderToStaticMarkup(
-      <PetOwnerActivity reminders={[]} appointments={[appointment()]} workflows={[]} />,
+      <PetOwnerActivity nudges={[]} reminders={[]} appointments={[appointment()]} workflows={[]} />,
     );
     expect(html).toContain('data-section="pet-owner-activity"');
     expect(html).toContain("Próximos turnos");
     expect(html).not.toContain("Ciclos abiertos");
+    expect(html).not.toContain("Pendientes de esta mascota");
   });
 });

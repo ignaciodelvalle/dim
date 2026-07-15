@@ -1,14 +1,16 @@
 // CitizenTabBar — "Asentar" retarget (owner-ia-redesign P4 + P5).
 //
 // On a pet-profile route the pet is already known, so the tab-bar capture
-// action points at THAT pet's ?sheet=anotar; everywhere else it points at plain
-// /inicio (P5: the /inicio home capture card is gone — /inicio now server-
-// redirects to the most-urgent pet's credential). usePathname is mocked so
+// action points at THAT pet's ?sheet=anotar; everywhere else it points at
+// /inicio?sheet=anotar (P5: the /inicio home capture card is gone — /inicio now
+// server-redirects to the most-urgent pet's credential AND forwards the sheet
+// param, so anotar opens in one hop). usePathname is mocked so
 // renderToStaticMarkup (repo convention — no jsdom) can drive each route.
 //
-// Note: the fallback href "/inicio" collides with the "Inicio" nav tab's own
-// href, so we can't assert on the raw substring alone — asentarHref() isolates
-// the capture button by its unique "Asentar" label to read its true target.
+// Note: the fallback href starts with "/inicio", which is also the "Inicio" nav
+// tab's own href, so we can't assert on the raw substring alone — asentarHref()
+// isolates the capture button by its unique "Asentar" label to read its true
+// target.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -51,17 +53,17 @@ describe("CitizenTabBar — Asentar retarget on pet-profile routes", () => {
     expect(asentarHref(html)).toBe("/mis-mascotas/DIM-PAMP-0001?sheet=anotar");
   });
 
-  it("falls back to plain /inicio on the index route", () => {
-    expect(asentarHref(renderAt("/mis-mascotas"))).toBe("/inicio");
+  it("falls back to /inicio?sheet=anotar on the index route (one-hop capture)", () => {
+    expect(asentarHref(renderAt("/mis-mascotas"))).toBe("/inicio?sheet=anotar");
   });
 
-  it("falls back to plain /inicio on reserved index children (nueva, reclamar-dni)", () => {
-    expect(asentarHref(renderAt("/mis-mascotas/nueva"))).toBe("/inicio");
-    expect(asentarHref(renderAt("/mis-mascotas/reclamar-dni"))).toBe("/inicio");
+  it("falls back to /inicio?sheet=anotar on reserved index children (nueva, reclamar-dni)", () => {
+    expect(asentarHref(renderAt("/mis-mascotas/nueva"))).toBe("/inicio?sheet=anotar");
+    expect(asentarHref(renderAt("/mis-mascotas/reclamar-dni"))).toBe("/inicio?sheet=anotar");
   });
 
-  it("falls back to plain /inicio elsewhere and when the pathname is unavailable", () => {
-    expect(asentarHref(renderAt("/inicio"))).toBe("/inicio");
-    expect(asentarHref(renderAt(null))).toBe("/inicio");
+  it("falls back to /inicio?sheet=anotar elsewhere and when the pathname is unavailable", () => {
+    expect(asentarHref(renderAt("/inicio"))).toBe("/inicio?sheet=anotar");
+    expect(asentarHref(renderAt(null))).toBe("/inicio?sheet=anotar");
   });
 });
