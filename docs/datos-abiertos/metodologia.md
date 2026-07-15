@@ -70,6 +70,30 @@ perros vacunados); publicamos la población base y el porcentaje. En las filas q
 sí se muestran, ambos grupos tienen 5 o más individuos, así que ni siquiera
 recalculando `base × porcentaje` se llega a un número que individualice a alguien.
 
+### Por qué un 0 se publica en las tasas pero un conteo chico no
+
+El criterio para el número **cero** es deliberadamente distinto según el tipo de
+conjunto, porque un cero significa cosas distintas en cada uno:
+
+- En los conjuntos de **tasa** (antirrábica, esterilización, microchip, PPP), un
+  **numerador de 0** —por ejemplo, "0 de 8.000 perros con la declaración registrada"—
+  **se publica**. Un cero acá dice "ninguna mascota de este grupo tiene el evento":
+  no describe a ningún individuo, no reidentifica a nadie, y "todavía no hay ni un
+  caso" es información pública valiosa (mide una brecha real de cobertura). Lo que sí
+  se suprime es un numerador **chico pero positivo** (entre 1 y 4), porque ahí sí hay
+  un puñado de personas concretas detrás del número. La base y el complemento siguen
+  la misma regla: 0 no protege, 1–4 sí.
+- En el conjunto de **conteo** (mortalidad) se suprime cuando el total de la provincia
+  es **menor a 5**, incluidos los conteos chicos positivos. Acá el número publicado ES
+  el tamaño del grupo sensible (mascotas fallecidas), así que un conteo de 1 a 4
+  señalaría directamente a esas pocas mascotas. Un 0 —"ninguna mascota figura
+  fallecida"— tampoco individualiza a nadie; la diferencia de fondo es que en un
+  conteo el número publicado es el grupo en sí, mientras que en una tasa el número
+  publicado es la base (≥ 5) y el porcentaje, no el grupo chico.
+
+En resumen: publicar un 0 nunca reidentifica a nadie, así que un 0 se muestra; lo que
+se oculta es siempre un grupo de **entre 1 y 4** individuos concretos.
+
 ## Supresión complementaria: el ataque por diferencia
 
 Hay un riesgo más sutil. Supongamos que se conoce (o se publica en otra fuente) un
@@ -82,6 +106,37 @@ después de la supresión primaria, queda **exactamente una** provincia suprimid
 todo el país, suprimimos también la **siguiente provincia más chica**. Así nunca
 queda un único valor oculto aislable; siempre hay al menos dos, y de un total sólo
 se puede despejar su suma, no cada uno por separado.
+
+## Supresión conjunta de la base compartida
+
+Algunos conjuntos publican **la misma columna de población base** calculada del
+**mismo denominador**. Hoy es el caso de `mascotas_activas`, que aparece tanto en
+**cobertura de esterilización** como en **cobertura de microchip**: en ambos, la base
+es la cantidad de mascotas activas de la provincia.
+
+Si cada conjunto decidiera su supresión por separado, aparecería una grieta: una
+provincia podría quedar **suprimida en un archivo** (porque, por ejemplo, su grupo
+cubierto de microchip es chico) pero **visible en el otro** (porque su cobertura de
+esterilización no tiene ningún grupo chico). Como la base es la misma, alcanzaría con
+**cruzar los dos archivos por `codigo_iso`** para leer, en el archivo que sí la
+muestra, exactamente la base que el otro había ocultado.
+
+Para cerrar esa grieta, la base compartida se suprime de forma **conjunta**:
+
+- Primero se calcula, para cada conjunto que publica esa base, qué provincias
+  quedarían suprimidas por sus propias reglas.
+- Si una provincia queda suprimida en **cualquiera** de esos conjuntos, su columna
+  `mascotas_activas` se publica como `suprimido por privacidad` en **todos** ellos.
+- Las columnas propias de cada conjunto (el porcentaje de cobertura correspondiente)
+  conservan su supresión individual. Es seguro publicar un porcentaje sin su base:
+  una tasa sola —sin el total— no permite recuperar ningún conteo, y sólo mostramos
+  el porcentaje cuando el grupo cubierto y el no cubierto ya son ≥ 5.
+
+Esta regla se deriva automáticamente de la definición de los conjuntos: si en el
+futuro un tercer conjunto publica esa misma base, queda incluido en la supresión
+conjunta sin ningún cambio de criterio. El cálculo se hace sobre los conteos vigentes
+al generar cada archivo, no leyendo el archivo ya publicado del otro conjunto, así que
+ambos archivos son coherentes independientemente de cuál se genere o cachee primero.
 
 ## Autoevaluación de riesgo de reidentificación
 
@@ -122,8 +177,14 @@ persona o mascota a partir de estos datos, y cómo los mitigamos:
     mitigación no esté implementada, el riesgo residual descripto arriba se
     mantiene.
 - **Cruce entre conjuntos** → los conjuntos de esterilización y microchip comparten
-  la misma población base (mascotas activas). Cruzarlos sólo revela dos totales, cada
-  uno de un grupo ≥ 5; no expone a ningún individuo.
+  **la misma población base** (`mascotas_activas`, calculada del mismo denominador).
+  Si cada conjunto se suprimiera por separado, una provincia podría quedar oculta en
+  uno pero visible en el otro, y bastaría **cruzar los dos archivos por `codigo_iso`**
+  para recuperar la base que uno de ellos había ocultado. Por eso la supresión de la
+  base compartida es **conjunta** (ver "Supresión conjunta de la base compartida"): si
+  una provincia se suprime en **cualquiera** de los conjuntos que publican esa base,
+  su columna `mascotas_activas` se suprime en **todos** ellos. Así, cruzar los archivos
+  nunca recupera una base que fue ocultada en alguno.
 - **Localidad no informada** → algunas mascotas tienen provincia pero no localidad.
   Como estos conjuntos son provinciales, esas mascotas están correctamente contadas
   y no generan discrepancia geográfica.
