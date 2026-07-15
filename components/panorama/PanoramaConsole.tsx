@@ -63,6 +63,7 @@ import type {
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { ViewCaption } from "@/components/panorama/ViewCaption";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
@@ -4775,14 +4776,11 @@ export function PanoramaConsole({
               description (explainViewState — the same sentence "Copiar vista" and
               the print informe use), always visible above the legend so the
               operator never has to open a popover to know the scope + período +
-              capas of the frame. Subtle (muted, clamped to 2 lines, full text on
-              hover); the legend pill still owns the encoding detail below it. */}
-          <p
-            className="mb-1.5 line-clamp-2 max-w-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/90 px-2.5 py-1 text-[var(--text-xs)] leading-snug text-ln-op-mute shadow-sm"
-            title={viewExplanation}
-          >
-            {viewExplanation}
-          </p>
+              capas of the frame. ViewCaption clamps to 2 lines but exposes a
+              "Ver más" toggle when the text overflows, so a long caption (Brotes
+              Activos) is never silently clipped; the legend pill still owns the
+              encoding detail below it. */}
+          <ViewCaption text={viewExplanation} />
           <LegendPill
             baseLabel={
               bivariateActive ? "Riesgo combinado" : (captionLayer?.label ?? "Eventos por unidad")
