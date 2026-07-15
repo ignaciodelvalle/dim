@@ -56,6 +56,7 @@ export default async function OrganizacionesPage({
           type="text"
           name="q"
           defaultValue={query}
+          aria-label="Buscar organizaciones por nombre, razón social o CUIT"
           placeholder="Buscar por nombre, razón social o CUIT"
           className="flex-1 text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
