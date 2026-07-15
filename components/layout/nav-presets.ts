@@ -22,28 +22,17 @@ export const PUBLIC_NAV: NavItem[] = [
 // Owner portal
 // ---------------------------------------------------------------------------
 
-// Owner nav — 3 items (wave-3 P6, PO decision #645 point 5, 2026-07-02).
-// This SUPERSEDES the four-actor lean IA critique §2 "two duties + identity
-// + a bell" 2-item redesign (2026-07-01, decision #559): that version
-// collapsed "Mis mascotas" into "Inicio" (one item, matchPrefixes covering
-// both /inicio and /mis-mascotas) on the reasoning that dropping the tab
-// orphaned nothing (/inicio already links to /mis-mascotas). The PO
-// reviewed with fresh eyes and decided the two destinations are distinct
-// enough to deserve separate nav items: **Inicio** (the compliance-register
-// home — capture, vencimientos, reminders) and **Mis mascotas** (the pet
-// list/management surface). Each item now owns a
-// single, disjoint matchPrefix — no matchPrefixes array needed since the
-// two owner destinations no longer share a highlight zone.
+// Owner nav — 2 items (PO ronda 4, 2026-07-15). The former "Inicio" tab is
+// GONE. /inicio is now only a server redirect INTO the most-urgent pet's
+// credential (the carousel lives under /mis-mascotas/[token]), so the tab never
+// lit up — the carousel marks "Mis mascotas" active (matchPrefix /mis-mascotas),
+// leaving "Inicio" perpetually dark — and it created a vet-gating asymmetry
+// (/inicio bypassed the vet-landing gate). Removing the tab (SUPERSEDING the
+// 2026-07-02 three-item split, decision #645) leaves the two REAL owner
+// destinations. The /inicio ROUTE stays (post-login landing + old bookmarks +
+// the Asentar fallback target); only its nav entry dies. Identity (Cuenta) is
+// the account pill and notifications are the bell — neither is a nav peer.
 export const OWNER_NAV: NavItem[] = [
-  // owner-ia-redesign P5: /inicio is a server redirect into the most-urgent
-  // pet's profile (/mis-mascotas/DIM-…), so this "Inicio" jump lands on a route
-  // that "Mis mascotas" (matchPrefix /mis-mascotas) highlights, not "/inicio".
-  // We deliberately KEEP the matchPrefix at "/inicio" and do NOT also match the
-  // profile prefix here: matching /mis-mascotas/DIM- from BOTH entries would
-  // light two tabs at once (more surprising than one). On a profile route "Mis
-  // mascotas" is the sensible active section; Inicio's highlight is transient by
-  // design — the /inicio route redirects away before it can stick.
-  { href: "/inicio", label: "Inicio", matchPrefix: "/inicio" },
   { href: "/mis-mascotas", label: "Mis mascotas", matchPrefix: "/mis-mascotas" },
   // "Denuncias", not "Denunciar" (flow audit 2026-07-03, PO decision): an
   // action verb pointing at a LIST promised the create flow and delivered

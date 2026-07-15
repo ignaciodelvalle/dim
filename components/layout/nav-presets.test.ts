@@ -371,27 +371,23 @@ describe("buildOrgNavFlat", () => {
 });
 
 describe("OWNER_NAV", () => {
-  // wave-3 P6 (PO decision #645 point 5, 2026-07-02): 3 items. This
-  // SUPERSEDES the 2026-07-01 "two duties + identity + a bell" 2-item
-  // redesign (decision #559) — the PO decided Inicio and Mis mascotas are
-  // distinct enough destinations to both be nav peers. Identity (Cuenta) is
-  // still the account pill and notifications are still the bell — neither
-  // is a nav peer.
-  it("has exactly 3 items", () => {
-    expect(OWNER_NAV).toHaveLength(3);
+  // PO ronda 4 (2026-07-15): 2 items. The former "Inicio" tab was removed —
+  // /inicio is only a server redirect into the most-urgent pet's credential
+  // (the carousel under /mis-mascotas/[token]), so the tab never lit up and it
+  // bypassed the vet-landing gate. This SUPERSEDES the 2026-07-02 three-item
+  // split (decision #645). Identity (Cuenta) is still the account pill and
+  // notifications are still the bell — neither is a nav peer.
+  it("has exactly 2 items", () => {
+    expect(OWNER_NAV).toHaveLength(2);
   });
 
-  it("leads with 'Inicio' → /inicio, matchPrefix scoped to /inicio only", () => {
+  it("no longer surfaces an 'Inicio' tab (the /inicio route stays; only the nav entry died)", () => {
     const inicio = OWNER_NAV.find((i) => i.label === "Inicio");
-    expect(inicio).toBeDefined();
-    expect(inicio?.href).toBe("/inicio");
-    expect(inicio?.matchPrefix).toBe("/inicio");
-    // No longer shares a highlight zone with /mis-mascotas — that's now its
-    // own nav item (see below).
-    expect(inicio?.matchPrefixes).toBeUndefined();
+    expect(inicio).toBeUndefined();
+    expect(OWNER_NAV.map((i) => i.href)).not.toContain("/inicio");
   });
 
-  it("has 'Mis mascotas' → /mis-mascotas, active on pet pages via matchPrefix", () => {
+  it("leads with 'Mis mascotas' → /mis-mascotas, active on pet pages via matchPrefix", () => {
     const misMascotas = OWNER_NAV.find((i) => i.label === "Mis mascotas");
     expect(misMascotas).toBeDefined();
     expect(misMascotas?.href).toBe("/mis-mascotas");
@@ -407,16 +403,8 @@ describe("OWNER_NAV", () => {
     expect(denuncias?.href).toBe("/denuncias/mias");
   });
 
-  it("Inicio and Mis mascotas have disjoint matchPrefixes (no double-highlight)", () => {
-    const inicio = OWNER_NAV.find((i) => i.label === "Inicio");
-    const misMascotas = OWNER_NAV.find((i) => i.label === "Mis mascotas");
-    expect(inicio?.matchPrefix).not.toBe(misMascotas?.matchPrefix);
-    expect("/mis-mascotas/abc123".startsWith(inicio?.matchPrefix ?? "")).toBe(false);
-    expect("/inicio".startsWith(misMascotas?.matchPrefix ?? "")).toBe(false);
-  });
-
-  it("still in order Inicio → Mis mascotas → Denuncias", () => {
-    expect(OWNER_NAV.map((i) => i.label)).toEqual(["Inicio", "Mis mascotas", "Denuncias"]);
+  it("is in order Mis mascotas → Denuncias", () => {
+    expect(OWNER_NAV.map((i) => i.label)).toEqual(["Mis mascotas", "Denuncias"]);
   });
 
   it("no longer surfaces Notificaciones, Adopciones or Turnos as nav peers", () => {
