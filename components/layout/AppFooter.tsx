@@ -45,6 +45,7 @@ const DEFAULT_COLUMNS: Column[] = [
       { href: "/privacidad", label: "Política de privacidad" },
       { href: "/cookies", label: "Cookies" },
       { href: "/leyes", label: "Marco legal" },
+      { href: "/transparencia", label: "Transparencia activa" },
     ],
   },
 ];
