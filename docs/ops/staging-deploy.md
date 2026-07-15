@@ -16,7 +16,7 @@ the migration step fails — or `DATABASE_URL` is unset — the deploy never run
 ```powershell
 # 1. Point DATABASE_URL at the staging Session pooler (port 5432, supports DDL).
 #    Tell it apart: host = ...pooler.supabase.com, user = postgres.<ref>, port 5432.
-$env:DATABASE_URL = "postgresql://postgres.mardurkdicugnzmpirjd:<DB_PASSWORD>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
+$env:DATABASE_URL = "postgresql://postgres.<project-ref>:<DB_PASSWORD>@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
 
 # 2. One command: applies pending migrations, then deploys. Aborts if migrate fails.
 pnpm deploy:staging

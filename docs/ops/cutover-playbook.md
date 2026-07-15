@@ -12,8 +12,8 @@ Both platforms are already provisioned from the May–June preview deploys. We a
 
 | Platform | What exists | State |
 |---|---|---|
-| **Vercel** | Project `ignacio-dim/dim`, git-integration auto-deploys Preview per push, prod URL `dim-ten-tau.vercel.app`, **no custom domain** | CLI authenticated (`ignaciodelvalle2014-4372`), repo linked |
-| **Supabase** | One project `DIM` (`mardurkdicugnzmpirjd`, region `sa-east-1`, Postgres 17, healthy) | **STAGING** — 15 users, 2069 seed pets. NOT production data |
+| **Vercel** | Project `<vercel-scope>/<project>`, git-integration auto-deploys Preview per push, prod URL `<prod-url>.vercel.app`, **no custom domain** | CLI authenticated (`<vercel-account>`), repo linked |
+| **Supabase** | One project `DIM` (`<project-ref>`, region `sa-east-1`, Postgres 17, healthy) | **STAGING** — 15 users, 2069 seed pets. NOT production data |
 | **Migrations** | Remote applied 106, latest `0107`; local repo at `0117` | **Remote is 10 behind** (`0108`–`0117`), incl. the security-advisor fixes `0113`/`0114` |
 | **DS** | Light-only (dark mode disabled in `globals.css`) | — |
 
