@@ -422,9 +422,11 @@ export const profiles = pgTable(
     matriculaNumber: text("matricula_number"),
     matriculaJurisdiccion: text("matricula_jurisdiccion"),
     matriculaVerified: boolean("matricula_verified").notNull().default(false),
-    // Emergency contact + preferred vet — surfaced on <PetEmergencyCard> in
-    // the v2 pet detail (Chunk J) and in the lost-mode public credential.
-    // Added by migration 0042.
+    // Emergency contact + preferred vet — the ACCOUNT-LEVEL default, rendered
+    // by LibretaFace's EmergenciaBlock only as the fallback when the pet has
+    // no per-pet override (pets.preferred_vet_* / emergency_contact_*, P2).
+    // NOT shown on the public credential — /p exposes at most the owner phone
+    // behind pets.disclosePhoneWhenLost. Added by migration 0042.
     preferredVetName: text("preferred_vet_name"),
     preferredVetPhone: text("preferred_vet_phone"),
     emergencyContactName: text("emergency_contact_name"),

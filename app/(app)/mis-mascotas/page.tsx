@@ -104,14 +104,21 @@ export default async function MisMascotasPage({
 
   // Single status mapper shared with the carousel + pet profile
   // (lnPetStatusFromCompliance) so a pet's chip never disagrees across surfaces.
+  // The no-compliance fallback mirrors /inicio's carouselStatusOf exactly
+  // (lost -> lost, pregnant -> pregnant, else registered) — a flat "registered"
+  // fallback ranked a lost pet WITHOUT compliance data differently here than on
+  // the home carousel (M2 fresh-review minor 6).
   const statusForPet = (pet: (typeof activePets)[number]["pet"]): LnPetStatus => {
     const compliance = complianceByPet.get(pet.id);
-    return compliance
-      ? lnPetStatusFromCompliance(
-          { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
-          compliance,
-        )
-      : "registered";
+    if (compliance) {
+      return lnPetStatusFromCompliance(
+        { status: pet.status, pregnancyStatus: pet.pregnancyStatus ?? null },
+        compliance,
+      );
+    }
+    if (pet.status === "lost") return "lost";
+    if (pet.pregnancyStatus === "in_progress") return "pregnant";
+    return "registered";
   };
 
   // Urgency ordering (handoff 2b.2): Perdido → En tratamiento → Preñada →

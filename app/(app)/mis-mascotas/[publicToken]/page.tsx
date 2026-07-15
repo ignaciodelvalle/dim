@@ -672,8 +672,10 @@ export default async function PetDetailPage({
             // owner-ia-redesign P2: pet-level override with account fallback.
             // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
             // own columns win per row, else the owner's profile default shows
-            // (tagged "de tu cuenta" in the block). Non-owners get null (no block).
-            isOwner
+            // (tagged "de tu cuenta" in the block). Non-owners get null (no
+            // block), and so do foster/transit holders — legal owners only
+            // (M2 fresh-review required fix 2).
+            isOwner && ownershipRole === "owner"
               ? resolveEmergencyContacts(
                   {
                     preferredVetName: pet.preferredVetName,
@@ -787,7 +789,17 @@ export default async function PetDetailPage({
             : null
         }
         editPetData={{
-          existingPet: pet,
+          // Client props reach EVERY viewer of this route (org included) —
+          // never ship the pet-level emergency-contact columns here. PetForm
+          // does not read them; nulling keeps the Pet shape without the PII
+          // (M2 fresh-review required fix 1).
+          existingPet: {
+            ...pet,
+            preferredVetName: null,
+            preferredVetPhone: null,
+            emergencyContactName: null,
+            emergencyContactPhone: null,
+          },
           existingPhotoUrl: editPhotoUrl,
           pppBreedList: pppBreedRule.payload.breeds,
         }}
@@ -797,7 +809,11 @@ export default async function PetDetailPage({
           // The edit sheet writes the PET-LEVEL override (owner-ia-redesign P2),
           // so its initial values are this pet's own columns (empty when unset),
           // NOT the account default. Clearing a field falls back to the account.
-          isOwner
+          // Gated on the LEGAL ownership role, not just accessPath: a foster /
+          // transit holder is accessPath "owner" but must not see or edit the
+          // legal owner's emergency contacts (M2 fresh-review required fix 2 —
+          // matches the write path, which enforces ownerships.role = 'owner').
+          isOwner && ownershipRole === "owner"
             ? {
                 preferredVetName: pet.preferredVetName ?? "",
                 preferredVetPhone: pet.preferredVetPhone ?? "",
