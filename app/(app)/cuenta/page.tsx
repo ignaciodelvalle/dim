@@ -15,14 +15,14 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { logoutAction } from "@/app/actions/auth";
-import { db, organizationMemberships, ownerships, profiles } from "@/db";
+import { db, organizationMemberships, profiles } from "@/db";
 import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   countActiveFosterOwnerships,
   countPendingFosterProposals,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { Icon } from "@/components/Icon";
 import { LnBadge } from "@/components/ui/Badge";
@@ -63,7 +63,7 @@ const CUENTA_LOAD_TIMEOUT_MS = 8_000;
  * fragile (and it violated admin.ts's "only import from admin-institutional").
  */
 async function loadCuentaData(userId: string) {
-  const [rows, petCount, pendingProposals, activeFosters] = await Promise.all([
+  const [rows, pendingProposals, activeFosters] = await Promise.all([
     db
       .select({
         role: profiles.role,
@@ -85,13 +85,6 @@ async function loadCuentaData(userId: string) {
       .from(profiles)
       .where(eq(profiles.id, userId))
       .limit(1),
-    // SQL COUNT — bounded by definition; safe for owners with thousands of pets.
-    db
-      .select({ n: count() })
-      .from(ownerships)
-      .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)))
-      .then((r) => Number(r[0]?.n ?? 0))
-      .catch(() => 0),
     // Foster badges (owner-ia-redesign P1 item 5) — the /cuenta/transitos hub
     // page that used to fetch these was removed; its 4 links folded into the
     // "Rol y organizaciones" group below, badges included.
@@ -117,7 +110,7 @@ async function loadCuentaData(userId: string) {
     vetNeedsClinic = !adminRow;
   }
 
-  return { profile, petCount, vetNeedsClinic, pendingProposals, activeFosters };
+  return { profile, vetNeedsClinic, pendingProposals, activeFosters };
 }
 
 export default async function CuentaPage() {
@@ -154,7 +147,7 @@ export default async function CuentaPage() {
     );
   }
 
-  const { profile, petCount, vetNeedsClinic, pendingProposals, activeFosters } = load.value;
+  const { profile, vetNeedsClinic, pendingProposals, activeFosters } = load.value;
 
   if (!profile) {
     return (
@@ -224,11 +217,9 @@ export default async function CuentaPage() {
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <LnBadge variant="info">{roleLabel}</LnBadge>
                 <LnBadge variant="neutral">{accountTypeLabel}</LnBadge>
-                {isPersonal && petCount > 0 && (
-                  <LnBadge variant="neutral">
-                    {petCount} mascota{petCount !== 1 ? "s" : ""}
-                  </LnBadge>
-                )}
+                {/* Pet-count badge removed (owner-ia-redesign P5, decision 9):
+                    the pet count is the /mis-mascotas index's own header now;
+                    the account view slims to identity/role/rights for owners. */}
               </div>
             </div>
           </div>
