@@ -71,6 +71,20 @@ describe("rankOwnerCarousel — urgent-first, capped, stable ties", () => {
     const ranked = rankOwnerCarousel([input({ token: "a", status: "lost" })]);
     expect(ranked[0]).toEqual({ token: "a", status: "lost" });
   });
+
+  it("drops deceased pets structurally — never in the swipe (decision 6)", () => {
+    // The filter lives in rankOwnerCarousel itself, not only in the caller, so a
+    // future caller that forgets to pre-filter cannot reintroduce a deceased pet
+    // into the swipe (owner-carousel.ts M3 fresh-review minor 6).
+    const ranked = rankOwnerCarousel([
+      input({ token: "alive", complianceStatus: "ok" }),
+      input({ token: "gone", status: "deceased" }),
+      input({ token: "lost", status: "lost" }),
+    ]);
+    const tokens = ranked.map((p) => p.token);
+    expect(tokens).not.toContain("gone");
+    expect(tokens).toEqual(["lost", "alive"]);
+  });
 });
 
 describe("computeCarouselNeighbors — clamp at ends, NO WRAP", () => {
