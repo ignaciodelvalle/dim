@@ -47,6 +47,12 @@ type Props = {
   until: string;
   /** Section title. Default "Eventos por día". */
   title?: string;
+  /**
+   * C3: suppress the internal `<h3>` title when a parent (PanoramaStatSection)
+   * already supplies a bounded header for this widget — avoids a double heading.
+   * The methodNote/capped context lines still render. Default false (standalone).
+   */
+  hideHeading?: boolean;
   /** Honesty line under the title (scope + basis), following the methodNote idiom. */
   methodNote?: string;
   /** es-AR reason shown when `data` is empty (non-temporal layer, no events, …). */
@@ -105,6 +111,7 @@ export function CalendarHeatmap({
   since,
   until,
   title = "Eventos por día",
+  hideHeading = false,
   methodNote,
   emptyMessage,
   weekStartsOn = 1,
@@ -126,14 +133,20 @@ export function CalendarHeatmap({
   const isEmpty = tableData.length === 0 || grid.columns.length === 0;
 
   return (
-    <section aria-labelledby={titleId} className="space-y-2">
+    <section
+      aria-labelledby={hideHeading ? undefined : titleId}
+      aria-label={hideHeading ? title : undefined}
+      className="space-y-2"
+    >
       <div className="space-y-0.5">
-        <h3
-          id={titleId}
-          className="text-[var(--text-xs)] font-bold uppercase tracking-[0.12em] text-ln-op-mute"
-        >
-          {title}
-        </h3>
+        {!hideHeading && (
+          <h3
+            id={titleId}
+            className="text-[var(--text-xs)] font-bold uppercase tracking-[0.12em] text-ln-op-mute"
+          >
+            {title}
+          </h3>
+        )}
         {methodNote && (
           <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">{methodNote}</p>
         )}

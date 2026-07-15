@@ -49,6 +49,7 @@ import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { PanoramaRail, type RailItem } from "@/components/panorama/PanoramaRail";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
+import { PanoramaStatSection } from "@/components/panorama/PanoramaStatSection";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PeriodPanel } from "@/components/panorama/PeriodPanel";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
@@ -3748,6 +3749,13 @@ export function PanoramaConsole({
   // active preset) → PanoramaMetricsColumn shows every KPI, nothing hidden.
   const metricIds = activePreset?.metrics ?? null;
 
+  // C2a: the active layer ids, for the manual-mode KPI relevance partition
+  // (KpiChips hides indicators whose subject layer is not on the map).
+  const activeLayerIdList = useMemo<LayerId[]>(
+    () => activeLayers.map((l) => l.id as LayerId),
+    [activeLayers],
+  );
+
   // QA fix (finding 5): feed PanoramaReading the SAME preset-subset the
   // metrics column shows — previously the reading headlined off the FULL
   // kpis.kpis array while the column right below it only showed the active
@@ -4032,21 +4040,28 @@ export function PanoramaConsole({
   // state narrates why when there is nothing to show. Day-cell click filters the
   // map to that single day through the EXISTING period-change path (commitPeriod
   // custom window), never a new state axis.
+  // C3: each Estadísticas widget lives in its own bounded, collapsible section
+  // (LnCard-like) with a clear header — instead of the old space-only stack where
+  // one widget's edge blurred into the next. Collapse is component-local
+  // (PanoramaStatSection); the dock's URL/view state has no per-widget slot.
   const dockStats = (
-    <div className="space-y-4">
-      <CalendarHeatmap
-        data={scopeDailyCounts}
-        since={captionPeriod.from}
-        until={captionPeriod.to}
-        methodNote={calendarMethodNote}
-        emptyMessage={
-          activeTemporalKey === ""
-            ? "Activá una capa con dimensión temporal (denuncias, mordeduras, pérdidas, síntomas o zoonosis) para ver la actividad por día."
-            : "Sin eventos registrados en este período y alcance."
-        }
-        onDayClick={(date) => commitPeriod("custom", date, date)}
-      />
-      {dockRanking}
+    <div className="space-y-3">
+      <PanoramaStatSection title="Actividad por día">
+        <CalendarHeatmap
+          data={scopeDailyCounts}
+          since={captionPeriod.from}
+          until={captionPeriod.to}
+          methodNote={calendarMethodNote}
+          hideHeading
+          emptyMessage={
+            activeTemporalKey === ""
+              ? "Activá una capa con dimensión temporal (denuncias, mordeduras, pérdidas, síntomas o zoonosis) para ver la actividad por día."
+              : "Sin eventos registrados en este período y alcance."
+          }
+          onDayClick={(date) => commitPeriod("custom", date, date)}
+        />
+      </PanoramaStatSection>
+      <PanoramaStatSection title="Ranking de unidades">{dockRanking}</PanoramaStatSection>
     </div>
   );
 
@@ -4393,6 +4408,35 @@ export function PanoramaConsole({
               Recuerda tableros con nombre para volver a ellos rápido.
             </p>
           </div>
+          {/* C5: the three data/capture exports consolidated here (was: CSV in the
+              dock bar, PNG + informe here) — one place, each with an honest note
+              of exactly what it captures. The dock bar no longer carries its own
+              scattered "Exportar CSV". */}
+          <div className="space-y-0.5 border-t border-ln-op-line-2 pt-2">
+            <p className="px-2.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.08em] text-ln-op-faint">
+              Descargas
+            </p>
+          </div>
+          <div className="space-y-1">
+            {dockCsvHref !== null ? (
+              <a
+                href={dockCsvHref}
+                download="panorama-mapa.csv"
+                className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+              >
+                <Icon name="descargar" size="sm" decorative /> Exportar CSV
+              </a>
+            ) : (
+              <span className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-faint">
+                <Icon name="descargar" size="sm" decorative /> Exportar CSV
+              </span>
+            )}
+            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+              {dockCsvHref !== null
+                ? "Descarga la tabla de datos por unidad (la misma de Registros) en CSV."
+                : "No hay datos por unidad para exportar en esta vista."}
+            </p>
+          </div>
           <div className="space-y-1">
             <button
               type="button"
@@ -4402,7 +4446,7 @@ export function PanoramaConsole({
               <Icon name="exportar-imagen" size="sm" decorative /> Exportar PNG
             </button>
             <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
-              Descarga el mapa con una nota de método al pie.
+              Captura el mapa como imagen, con una nota de método al pie.
             </p>
           </div>
           <div className="space-y-1">
@@ -4576,17 +4620,8 @@ export function PanoramaConsole({
             onTabChange={setDockTab}
             recordCount={dockBadgeCount}
             meta={dockMeta}
-            csvAction={
-              dockCsvHref !== null ? (
-                <a
-                  href={dockCsvHref}
-                  download="panorama-mapa.csv"
-                  className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-0.5 text-xs font-medium text-ln-op-ink-2 hover:border-ln-op-azul/40"
-                >
-                  Exportar CSV
-                </a>
-              ) : undefined
-            }
+            // C5: CSV export moved into the consolidated "Exportar" rail section
+            // (with PNG + informe) — the dock bar no longer carries its own button.
             registros={dockRegistros}
             stats={dockStats}
             timeline={scrubberDock}
@@ -4694,6 +4729,10 @@ export function PanoramaConsole({
                 kpis={kpis}
                 metricIds={metricIds}
                 presetId={activePresetId}
+                // C2a: manual mode (no preset) shows only KPIs whose subject
+                // layer is painted; the rest hide behind "Ver todos". Preset
+                // mode ignores this (metricIds drives the curated set).
+                activeLayerIds={activeLayerIdList}
                 pending={kpisPending}
                 degraded={kpisDegraded}
                 // P2.4 (C2): while the scrubber is off the live edge, emphasize the
@@ -4731,6 +4770,19 @@ export function PanoramaConsole({
             presentationMode ? "bottom-3.5" : "bottom-16"
           }`}
         >
+          {/* C1 — the perennial "¿qué estoy viendo y de dónde son estos datos?"
+              answered PERSISTENTLY on the map surface: the honest one-line view
+              description (explainViewState — the same sentence "Copiar vista" and
+              the print informe use), always visible above the legend so the
+              operator never has to open a popover to know the scope + período +
+              capas of the frame. Subtle (muted, clamped to 2 lines, full text on
+              hover); the legend pill still owns the encoding detail below it. */}
+          <p
+            className="mb-1.5 line-clamp-2 max-w-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/90 px-2.5 py-1 text-[var(--text-xs)] leading-snug text-ln-op-mute shadow-sm"
+            title={viewExplanation}
+          >
+            {viewExplanation}
+          </p>
           <LegendPill
             baseLabel={
               bivariateActive ? "Riesgo combinado" : (captionLayer?.label ?? "Eventos por unidad")
