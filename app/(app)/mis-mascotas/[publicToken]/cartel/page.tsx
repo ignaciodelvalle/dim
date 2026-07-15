@@ -11,6 +11,7 @@ import QRCode from "qrcode";
 import { attachments, db, ownerships, profiles } from "@/db";
 import { fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
 import { requirePetAccess } from "@/lib/infra/pet-access";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
 
@@ -85,7 +86,7 @@ export default async function CartelPage({
   }
 
   // Generate QR SVG server-side pointing at the public credential page.
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  const baseUrl = resolveSiteUrl();
   const qrTargetUrl = `${baseUrl}/p/${publicToken}`;
   const qrSvg = await QRCode.toString(qrTargetUrl, {
     type: "svg",

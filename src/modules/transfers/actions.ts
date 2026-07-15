@@ -23,6 +23,7 @@
 
 import { auditLog, db, notifications } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -137,7 +138,7 @@ export async function initiatePetTransferAction(
   if (result.value.recipientNeedsInvite) {
     try {
       const admin = createAdminClient();
-      const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
+      const origin = resolveSiteUrl();
       await admin.auth.admin.inviteUserByEmail(input.toEmail.trim().toLowerCase(), {
         redirectTo: `${origin}/transferencias/${result.value.transferToken}`,
         data: {

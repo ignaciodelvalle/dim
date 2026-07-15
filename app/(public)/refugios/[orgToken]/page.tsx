@@ -18,6 +18,7 @@ import { notFound } from "next/navigation";
 import { db, organizationMemberships } from "@/db";
 import { queryPublicOfferings } from "@/lib/infra/org-public-offerings";
 import { queryOrgPublicProfile } from "@/lib/infra/org-public-profile";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { orgLogoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
@@ -46,7 +47,7 @@ const PROVINCE_BY_NAME = new Map<string, (typeof PROVINCES)[number]>(
   PROVINCES.map((p) => [p.name as string, p]),
 );
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
+const SITE_URL = resolveSiteUrl();
 
 export async function generateMetadata({
   params,

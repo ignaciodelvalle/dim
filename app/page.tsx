@@ -22,6 +22,7 @@ import {
   pathForRole,
   resolveVetLanding,
 } from "@/lib/infra/role-landing";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createClient } from "@/lib/supabase/server";
 
 // Public landing — "una mascota, muchas manos" (design handoff
@@ -80,10 +81,9 @@ export default async function Home() {
 
   // Real, scannable QR → seeded demo pet credential. Same absolute-URL +
   // inline-SVG pattern as /mis-mascotas/[publicToken] (no image route).
-  // `||` (not `??`): an env var set to an EMPTY string (a known `vercel env`
-  // pitfall) must fall back, or the QR encodes a host-less relative URL that no
-  // phone camera can resolve. Trim guards whitespace-only values too.
-  const siteBaseUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://mimar.ar";
+  // resolveSiteUrl handles the set-but-empty env pitfall that would otherwise
+  // encode a host-less relative URL no phone camera can resolve.
+  const siteBaseUrl = resolveSiteUrl();
   const publicHref = `/p/${DEMO_PUBLIC_TOKEN}`;
   // width 160 (up from 64) + errorCorrectionLevel "Q": the hero QR must scan
   // comfortably from a phone against the on-screen credential. The SVG is vector

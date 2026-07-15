@@ -13,6 +13,7 @@ import QRCode from "qrcode";
 
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 
 import "./chapita-print.css";
 import { ChapitaSheet } from "./ChapitaSheet";
@@ -54,7 +55,7 @@ export default async function ChapitaPage({
   }
 
   // Same QR target + generation settings as the cartel and the credential.
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  const baseUrl = resolveSiteUrl();
   const qrSvg = await QRCode.toString(`${baseUrl}/p/${publicToken}`, {
     type: "svg",
     margin: 0,

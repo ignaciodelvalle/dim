@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import {
   type PermanentCondition,
@@ -22,7 +23,7 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { AdoptionShareRow } from "./AdoptionShareRow";
 import { ApplyButton } from "./ApplyButton";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
+const SITE_URL = resolveSiteUrl();
 
 // Individual adoption ficha — mirrors the listing-visibility guards so a
 // pet that's gone unlisted, paused, fell into a custody dispute, etc.,

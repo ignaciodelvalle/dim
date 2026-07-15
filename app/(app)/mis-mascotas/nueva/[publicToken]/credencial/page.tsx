@@ -16,6 +16,7 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 
 import { requirePetAccess } from "@/lib/infra/pet-access";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { PetCreatedAha } from "./PetCreatedAha";
 
 export default async function PetCreatedCredentialPage({
@@ -32,7 +33,7 @@ export default async function PetCreatedCredentialPage({
   // Guard: only the pet owner should reach this onboarding page.
   if (accessPath !== "owner") notFound();
 
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  const baseUrl = resolveSiteUrl();
   const credentialUrl = `${baseUrl}/p/${publicToken}`;
 
   // Generate QR as inline SVG — avoids needing a separate image route.

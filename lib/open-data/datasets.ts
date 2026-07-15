@@ -30,6 +30,7 @@ import {
 } from "@/lib/analytics/compliance-metrics";
 import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
 import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { buildProjectionContext } from "@/lib/metrics/context";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import {
@@ -203,18 +204,12 @@ export const DATASET_DESCRIPTORS: Record<DatasetId, DatasetDescriptor> = {
   },
 };
 
-/** Absolute site base URL (production-safe; trims an empty env per the QR gotcha). */
-function siteBaseUrl(): string {
-  const raw = (process.env.NEXT_PUBLIC_SITE_URL || "").trim();
-  return raw.replace(/\/+$/, "") || "https://www.mimar.gob.ar";
-}
-
 /** The public methodology + dictionary URLs embedded in every dataset's metadata. */
 export function methodologyUrl(): string {
-  return `${siteBaseUrl()}/transparencia#metodologia`;
+  return `${resolveSiteUrl()}/transparencia#metodologia`;
 }
 export function dictionaryUrl(): string {
-  return `${siteBaseUrl()}/transparencia#diccionario`;
+  return `${resolveSiteUrl()}/transparencia#diccionario`;
 }
 
 /** The metadata block that travels with every download (headers + JSON `meta`). */

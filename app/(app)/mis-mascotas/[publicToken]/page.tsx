@@ -98,6 +98,7 @@ import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
 import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog-labels";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
 import {
   deriveComplianceState,
@@ -560,7 +561,7 @@ export default async function PetDetailPage({
   // QR for the credential's Face 1 — same absolute-URL + inline-SVG pattern
   // as /mis-mascotas/nueva/[publicToken]/credencial and /cartel (no separate
   // image route; the previous `/p/{token}.png` route never existed).
-  const siteBaseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  const siteBaseUrl = resolveSiteUrl();
   const credentialQrSvg = await QRCode.toString(`${siteBaseUrl}/p/${pet.publicToken}`, {
     type: "svg",
     margin: 1,

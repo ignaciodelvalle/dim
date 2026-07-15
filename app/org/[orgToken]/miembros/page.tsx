@@ -16,6 +16,7 @@ import {
 } from "@/db";
 import type { OrganizationMembership } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { formatDate } from "@/lib/utils/format";
 // Aliased — this file already has a local `capRows` (capability grant rows).
 import { capRows as capListRows } from "@/lib/utils/list-pagination";
@@ -152,7 +153,7 @@ export default async function MiembrosPage({
         )
     : [];
 
-  const appBase = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
+  const appBase = resolveSiteUrl();
 
   return (
     <div className="space-y-6">
