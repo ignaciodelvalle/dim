@@ -63,9 +63,12 @@ foreach ($route in $routes) {
 }
 
 # 5. Seed accounts present?
+# NOTE: refugio@dim.test is an organization CONTACT email (organizations table),
+# not an auth account — the shelter-admin login accounts are orgadmin@dim.test
+# (seed-test-users) and alejo@dim.test (seed-demo).
 $expected = @(
     "admin@dim.test", "govt@dim.test", "vet@dim.test", "owner@dim.test",
-    "refugio@dim.test", "carla@dim.test", "lilian@dim.test"
+    "orgadmin@dim.test", "alejo@dim.test", "carla@dim.test", "lilian@dim.test"
 )
 $emailsCsv = "'" + ($expected -join "','") + "'"
 $found = docker exec supabase_db_DIM psql -U postgres -d postgres -t -A -c "select email from auth.users where email in ($emailsCsv)" |
