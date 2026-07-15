@@ -9,9 +9,9 @@ The repo is private (PO decision 2026-07-15) to protect design IP, while being m
 These MUST all be resolved before the repo (or any mirror of it) is made public.
 
 1. **History rewrite or fresh-history public mirror required.** `docs/archive/mimar-go-to-market.md` exists in git history and MUST NOT ship publicly. Recommended approach: publish a **fresh-history mirror** (a new repo seeded from a clean tree snapshot, no ancestor history) rather than running a history-filtering tool (e.g. `git filter-repo`) on the working repo — rewriting the working repo's history is destructive to collaborators and CI. In addition to the GTM doc, scrub historical occurrences of the staging Supabase project ref and the Vercel account handle. Known commits carrying one or more of these values: `580133f6`, `3e673eef`, `ac04b4c3`, `2ef14b14`, `d1614c9d`, `23648108`, `6e4b9b87`. This list is a starting point, not a guarantee of completeness — re-scan full history before any publication.
-2. **Open MED-2 security finding.** `docs/reviews/2026-07-10-security-pre-national.md` documents MED-2 (authenticated Panorama fan-out has no aggregate request-rate cap), currently open. Fix it before that doc — or any doc referencing it — is ever made public. Rule: never publish security reviews with open findings.
-3. **Rights/consent for `public/landing/portada.jpg`.** This asset shows a real, identifiable face. Confirm rights/consent are on file before publication; if not, replace the asset.
-4. **Seed demo persona names.** `scripts/seed-demo.ts` uses display names (Noelí Assandri, Graciela Saavedra, Dra. Lilian Marrone, Alejo Caride, Lucas Etcheverry). Confirm these are pseudonyms or that consent is on file; otherwise replace with fictional names before publication.
+2. ~~**Open MED-2 security finding.**~~ **Resolved 2026-07-15.** MED-2 (authenticated Panorama fan-out with no aggregate request-rate cap) was fixed in `e351fd9b`: per-operator `panorama_api` rate limit (120/min, keyed on profile id) inside the shared guard `app/api/panorama/_guard.ts`, covering all panorama API routes, pinned by `app/api/panorama/__tests__/institutional-gate.test.ts`. The standing rule remains: never publish security reviews with open findings.
+3. ~~**Rights/consent for `public/landing/portada.jpg`.**~~ **Resolved 2026-07-15.** PO confirmed the photo is his own; rights are not an issue.
+4. ~~**Seed demo persona names.**~~ **Resolved 2026-07-15.** PO confirmed the display names in `scripts/seed-demo.ts` are fictional, not real people.
 
 ## Exclusion manifest (never in a public export)
 

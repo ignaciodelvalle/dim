@@ -28,7 +28,7 @@ Everything else below is defense-in-depth or informational.
 - **Entropy note:** `generateReferenceCode` uses rejection-sampled Web Crypto over a 31-char unambiguous alphabet, 8 chars → ~8.5e11 combinations. Blind enumeration of a single target is not realistic; the real gap is defense-in-depth + amplification, not a confidentiality break.
 - **Fix applied:** Added `enforceRateLimit("denuncia_receipt", ip, { maxPerMinute: 30, maxPerHour: 200 })` before any data fetch, mirroring the `/p/[publicToken]` guard, with a soft `ReceiptThrottleNotice` (not a hard error) so a legitimate reporter is never locked out. Test: `__tests__/denuncia-receipt-rate-limit.test.ts`.
 
-### MED-2 — Authenticated Panorama fan-out has no aggregate request-rate cap *(report only)*
+### MED-2 — Authenticated Panorama fan-out has no aggregate request-rate cap *(report only — RESOLVED 2026-07-15 in `e351fd9b`: per-operator `panorama_api` cap in `app/api/panorama/_guard.ts`, tests in `institutional-gate.test.ts`)*
 
 - **Files:** `app/api/panorama/[layer]/route.ts`, `app/api/panorama/kpis/route.ts`, `app/api/panorama/unit-history/route.ts`; pool sizing in `src/modules/panorama/application/db-budget.ts` + analytics pool (max 2).
 - **Class:** Authenticated, param-driven DoS.
