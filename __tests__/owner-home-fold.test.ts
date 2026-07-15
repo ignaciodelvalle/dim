@@ -33,8 +33,12 @@ describe("/inicio folds into the profile (decision 7)", () => {
     expect(inicioSrc).toContain("rankOwnerCarousel");
   });
 
-  it("redirects a zero-live-pet owner to the index+inbox (no query forwarded)", () => {
-    expect(inicioSrc).toContain('redirect("/mis-mascotas")');
+  it("redirects a zero-live-pet owner to the index+inbox, forwarding the query", () => {
+    // QA ronda 4 CONFIRMED: the zero-pet branch used to be a bare
+    // redirect("/mis-mascotas") that discarded searchParams, so Asentar's
+    // ?sheet=anotar never opened the capture sheet for a pets-less owner. It now
+    // forwards the same query string the profile branch does.
+    expect(inicioSrc).toMatch(/redirect\(`\/mis-mascotas\$\{query \? `\?\$\{query\}` : ""\}`\)/);
   });
 
   it("forwards its searchParams (e.g. ?sheet=anotar) onto the target profile redirect", () => {
@@ -53,9 +57,13 @@ describe("/mis-mascotas is the index + inbox (decisions 3, 4, 6)", () => {
     expect(indexSrc).toContain("<OwnerRollupStrip");
   });
 
-  it("renders the per-pet CredCard credential rows (moved from the home carousel)", () => {
-    expect(indexSrc).toContain("<CredCard");
-    expect(indexSrc).toContain("./_components/CredCard");
+  it("renders the per-pet credential rows as a registry LIST (PO ronda 4 revert from cards)", () => {
+    // PO ronda 4 reverted the P5 card grid back to the original list rows. The
+    // live-pet entries render as LnRegRow inside an LnRegistry, each linking into
+    // its credential; the index+inbox structure around them is unchanged.
+    expect(indexSrc).toContain("<LnRegRow");
+    expect(indexSrc).toContain("<LnRegistry");
+    expect(indexSrc).toContain("/mis-mascotas/${pet.publicToken}");
   });
 
   it("has an inbox anchored at #inbox (the /cuenta/casos redirect target)", () => {

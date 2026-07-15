@@ -1,9 +1,10 @@
 // Regression test — exercises the REAL app/(app)/mis-mascotas/page.tsx (not a
 // re-implementation of its logic) to pin the canon-C2 parity at the page level
-// on the surface that now owns the credential cards (owner-ia-redesign P5:
-// /inicio folded away; the CredCard index rows live on /mis-mascotas): a
-// transit/foster-role pet's CredCard must show its REAL compliance status
-// ("ok"), not the "registered" placeholder fallback.
+// on the surface that owns the per-pet credential rows (owner-ia-redesign P5:
+// /inicio folded away; the index rows live on /mis-mascotas — reverted from
+// cards back to LnRegRow list rows in PO ronda 4): a transit/foster-role pet's
+// row must show its REAL compliance status ("ok"), not the "registered"
+// placeholder fallback.
 //
 // The old /inicio page had to fetch compliance over a UNION of health-nudge ids
 // and carousel ids because fetchPetHealthNudges filters ownerships.role="owner"
@@ -23,7 +24,7 @@ vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
-import { CredCard, type CredCardData } from "@/app/(app)/mis-mascotas/_components/CredCard";
+import { LnRegRow } from "@/components/ui/RegRow";
 import { db, ownerships, petEvents, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -109,8 +110,12 @@ afterAll(async () => {
   }
 });
 
-// Minimal React-element shape used by the DFS below.
-type ElementLike = { type?: unknown; props?: { children?: unknown; data?: CredCardData } };
+// Minimal React-element shape used by the DFS below. LnRegRow carries the pet's
+// resolved status + its credential href directly as props.
+type ElementLike = {
+  type?: unknown;
+  props?: { children?: unknown; status?: string; href?: string };
+};
 
 function isElementLike(node: unknown): node is ElementLike {
   return typeof node === "object" && node !== null && "type" in node;
@@ -128,18 +133,18 @@ function collectByType(node: unknown, type: unknown, out: ElementLike[]): void {
   collectByType(node.props?.children, type, out);
 }
 
-describe("/mis-mascotas index — credential card shows the transit pet's real status", () => {
-  it("CredCard receives the pet with status 'ok', not the 'registered' fallback", async () => {
+describe("/mis-mascotas index — credential row shows the transit pet's real status", () => {
+  it("LnRegRow receives the pet with status 'ok', not the 'registered' fallback", async () => {
     const { default: MisMascotasPage } = await import("@/app/(app)/mis-mascotas/page");
     const result = await MisMascotasPage({ searchParams: Promise.resolve({}) });
 
-    const cards: ElementLike[] = [];
-    collectByType(result, CredCard, cards);
-    const card = cards.find((c) => c.props?.data?.token === TOKEN)?.props?.data;
-    expect(card).toBeDefined();
+    const rows: ElementLike[] = [];
+    collectByType(result, LnRegRow, rows);
+    const row = rows.find((r) => r.props?.href === `/mis-mascotas/${TOKEN}`)?.props;
+    expect(row).toBeDefined();
     // Before the equivalent /inicio fix this pet had NO compliance entry and
     // fell back to "registered"; the index computes compliance over every
     // active pet, so it reads the real "ok".
-    expect(card?.status).toBe("ok");
+    expect(row?.status).toBe("ok");
   });
 });

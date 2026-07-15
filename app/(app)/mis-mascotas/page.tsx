@@ -33,6 +33,7 @@ import { LnButton } from "@/components/ui/Button";
 import type { LnPetStatus } from "@/components/ui/Chip";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { attachments, db, ownerships, pets } from "@/db";
 import {
   countPendingApplications,
@@ -41,9 +42,7 @@ import {
   fetchComplianceStatesForPets,
   fetchOpenWorkflows,
   fetchPreviousWorkflows,
-  fetchVaccinationSummariesForPets,
 } from "@/lib/analytics/owner-dashboard";
-import { hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
 import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
@@ -52,10 +51,9 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
+import { speciesLabel } from "@/lib/utils/format";
 import { likeContains } from "@/lib/utils/like-helpers";
 
-import type { CredCardData } from "./_components/CredCard";
-import { CredCard } from "./_components/CredCard";
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { OwnerRollupStrip } from "./_components/OwnerRollupStrip";
 import { PetSearchInput } from "./_components/PetSearchInput";
@@ -184,49 +182,6 @@ export default async function MisMascotasPage({
     (a, b) => petUrgencyRank(statusForPet(a.pet)) - petUrgencyRank(statusForPet(b.pet)),
   );
 
-  // Vaccine-vigencia summaries only for the non-lost cards that render them
-  // (lost cards show a reassurance line instead). One bounded query.
-  const vacByPet = await fetchVaccinationSummariesForPets(
-    sortedActivePets
-      .filter(({ pet }) => statusForPet(pet) !== "lost")
-      .map(({ pet }) => ({ petId: pet.id, species: pet.species })),
-  );
-
-  const credCards: CredCardData[] = sortedActivePets.map(({ pet, photo }) => {
-    const status = statusForPet(pet);
-    const photoUrl = petPhotoUrl(photo?.storagePath) ?? null;
-    if (status === "lost") {
-      return {
-        token: pet.publicToken,
-        name: pet.name,
-        photoUrl,
-        status,
-        credentialId: pet.publicToken,
-        vac: null,
-        lost: {
-          line: `${pet.name} está reportada como perdida. Su credencial pública está activa para quien la encuentre.`,
-        },
-      };
-    }
-    const summary = vacByPet.get(pet.id);
-    return {
-      token: pet.publicToken,
-      name: pet.name,
-      photoUrl,
-      status,
-      credentialId: pet.publicToken,
-      vac: summary
-        ? {
-            vigente: summary.active,
-            porVencer: summary.dueSoon,
-            vencida: summary.expired,
-            hasRecords: hasAnyVaccineRecord(summary),
-          }
-        : null,
-      lost: null,
-    };
-  });
-
   // Rollup (decision 3): próximos vencimientos + al día + casos. Vencimientos
   // and casos are household-wide (dedicated bounded fetchers); "al día" is over
   // the shown active pets — for the common 1-8 pet owner that IS the household,
@@ -338,18 +293,38 @@ export default async function MisMascotasPage({
           />
         )
       ) : (
-        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {sortedActivePets.map(({ pet, ownershipRole }, i) => (
-            <div key={pet.id} className="relative">
-              {isTransitRole(ownershipRole) && (
-                <div className="absolute right-2 top-2 z-10">
-                  <LnBadge variant="warning">En tránsito</LnBadge>
-                </div>
-              )}
-              <CredCard data={credCards[i]} />
-            </div>
-          ))}
-        </div>
+        // List rows (PO ronda 4): the pet index reverts from cards to the
+        // original registry list. Each live pet is one LnRegRow linking into its
+        // credential; the index+inbox structure, search, memorial and rollup
+        // (all P5 additions) stay — only the live-pet presentation reverts.
+        <LnRegistry className="mb-8">
+          {sortedActivePets.map(({ pet, photo, ownershipRole }) => {
+            const status = statusForPet(pet);
+            const breedLine = [
+              pet.breed,
+              pet.sex ? (pet.sex === "male" ? "Macho" : "Hembra") : null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+            return (
+              <LnRegRow
+                key={pet.id}
+                name={pet.name}
+                status={status}
+                breed={breedLine || undefined}
+                species={speciesLabel(pet.species)}
+                photoSrc={petPhotoUrl(photo?.storagePath) ?? undefined}
+                photoSize={72}
+                href={`/mis-mascotas/${pet.publicToken}`}
+                nextLine={
+                  isTransitRole(ownershipRole) ? (
+                    <LnBadge variant="warning">En tránsito</LnBadge>
+                  ) : undefined
+                }
+              />
+            );
+          })}
+        </LnRegistry>
       )}
 
       {/* ------------------------------------------------------------------ */}
