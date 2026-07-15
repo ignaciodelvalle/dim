@@ -86,16 +86,21 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       // `e.target` is the Window when the event is dispatched on window itself
       // (and has no `.closest`); only an Element can be inside a text field or
-      // the roving tablist, so guard on that.
+      // the roving tablist, so guard on that. Dialogs/sheets (Vaul drawers —
+      // the ?sheet= capture flows) trap focus on Links/buttons that are none
+      // of those tags, so the arrow keys navigated to a NEIGHBOR mid-capture
+      // (M3 fresh-review MAJOR 1) — the carousel is inert while any dialog is
+      // open or a sheet param is active.
       const target = e.target;
       if (
         target instanceof Element &&
         target.closest(
-          "input, textarea, select, [contenteditable='true'], [role='tab'], [role='tablist']",
+          "input, textarea, select, [contenteditable='true'], [role='tab'], [role='tablist'], [role='dialog'], [data-vaul-drawer]",
         )
       ) {
         return;
       }
+      if (document.querySelector("[role='dialog'], [data-vaul-drawer]")) return;
       navigate(e.key === "ArrowLeft" ? prevToken : nextToken);
     }
     window.addEventListener("keydown", onKeyDown);
@@ -133,12 +138,24 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
     gestureRef.current = null;
   }
 
+  // A pointerup outside the wrapper never reaches onPointerUp — without this
+  // the stale gesture start survived until the next pointerdown (M3
+  // fresh-review minor 2).
+  function onPointerLeave() {
+    gestureRef.current = null;
+  }
+
   const total = pets.length;
 
   return (
     // Pointer handlers are the touch/mouse swipe surface (not click targets);
     // keyboard nav is the window ←/→ listener above.
-    <div onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
+    <div
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onPointerLeave={onPointerLeave}
+    >
       {/* Navigation chrome — arrows (desktop) flanking the position dots. The
           whole strip is a swipe zone so a drag across the dots navigates too. */}
       <nav

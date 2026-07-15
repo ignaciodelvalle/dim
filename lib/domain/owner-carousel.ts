@@ -56,9 +56,14 @@ export function resolveCarouselStatus(pet: CarouselPetInput): LnPetStatus {
  * Rank the owner's live pets most-urgent-first (pet-urgency-rank) and cap at
  * OWNER_CAROUSEL_CAP. Sort is stable (V8), so ties keep the caller's input
  * order (fetchPetsForOwner returns createdAt-desc — same tiebreak as /inicio).
+ *
+ * Deceased pets are dropped HERE, not only by the caller — PO decision 6
+ * ("deceased never enter the swipe") is structural, so a future caller that
+ * forgets to pre-filter cannot reintroduce them (M3 fresh-review minor 6).
  */
 export function rankOwnerCarousel(pets: CarouselPetInput[]): CarouselPet[] {
   return pets
+    .filter((p) => p.status !== "deceased")
     .map((p) => ({ token: p.token, status: resolveCarouselStatus(p) }))
     .sort((a, b) => petUrgencyRank(a.status) - petUrgencyRank(b.status))
     .slice(0, OWNER_CAROUSEL_CAP);
