@@ -52,7 +52,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
-import { fetchNovedadesFeed } from "@/lib/metrics/novedades-feed";
+import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { formatCount, formatDate, formatPercent, formatRate } from "@/lib/utils/format";
@@ -198,7 +198,7 @@ export default async function GobiernoDashboardPage({
       // (admin → universal; govt → its jurisdictions, narrowed by the active
       // switcher filter); the feed window is the per-user watermark, not the
       // ctx period. Bounded by the same loadWithTimeout deadline as the rest.
-      fetchNovedadesFeed(ctx12m, user.id),
+      fetchNovedadesGroupedFeed(ctx12m, user.id),
     ]),
   );
 

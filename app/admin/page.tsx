@@ -12,7 +12,7 @@ import {
 } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
-import { fetchNovedadesFeed } from "@/lib/metrics/novedades-feed";
+import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
 
@@ -31,8 +31,9 @@ export default async function AdminDashboardPage() {
     // for the cockpit — replaces the old lumped fetchQueueHealth number.
     fetchQueueCockpit(),
     fetchDecisionsMetrics(),
-    // Session-start orientation feed (universal scope for admin).
-    fetchNovedadesFeed(adminCtx, user.id),
+    // Session-start orientation feed (universal scope for admin), grouped by
+    // type + locality with a distinct-subject count (Cowork M2).
+    fetchNovedadesGroupedFeed(adminCtx, user.id),
   ]);
 
   // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
@@ -95,9 +96,19 @@ export default async function AdminDashboardPage() {
       </section>
 
       {/* (3) Site map — every admin route grouped by nav section, each with a
-          one-line purpose. Folds in the old account cards (Gobiernos /
-          Administradores) and analytics shortcuts as first-class destinations. */}
-      <AdminSiteMap />
+          one-line "what you DO here" + a live pending badge where the cockpit
+          above already fetched that queue's count (dispatch board, Cowork M1 +
+          PO). No new queries: the counts are the SAME cockpit numbers. */}
+      <AdminSiteMap
+        counts={{
+          "/admin/cola": cockpit.approvals.pendingTotal,
+          "/admin/moderacion": cockpit.moderationPending,
+          "/admin/alertas": cockpit.alertsOpen,
+          "/admin/outbox": cockpit.outboxBreaches,
+          "/admin/casos": cockpit.casesOpen,
+          "/admin/observaciones": cockpit.rabiesInProgress,
+        }}
+      />
 
       {/* (4) Novedades — session-start orientation feed, DEMOTED below the
           cockpit and collapsible so it no longer competes with the queues.

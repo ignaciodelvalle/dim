@@ -35,6 +35,7 @@ import {
   FEED_EVENT_TYPES,
   fetchNovedadesFeed,
   fetchNovedadesFeedRows,
+  fetchNovedadesGroups,
   getFeedWatermark,
 } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
@@ -348,6 +349,50 @@ describe("getFeedWatermark + fetchNovedadesFeed", () => {
     // so no FK insert is attempted; it must simply return null.
     const stored = await getFeedWatermark("00000000-0000-0000-0000-000000000000");
     expect(stored).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Grouped feed — dedup + grouping (Cowork M2)
+// ---------------------------------------------------------------------------
+
+describe("fetchNovedadesGroups — dedup + grouping", () => {
+  const LOC_DUP = "NVD-Dup-Loc"; // suite-unique locality, isolated from other cases
+  // Runs after the earlier describes' tests, so these extra rows never leak into
+  // their assertions; the top-level afterAll cleans them by PREFIX.
+  beforeAll(async () => {
+    const p1 = await insertPet(`${PREFIX}DUP-1`, { province: PROV_A, locality: LOC_DUP });
+    const p2 = await insertPet(`${PREFIX}DUP-2`, { province: PROV_A, locality: LOC_DUP });
+    // p1 has TWO incident_reported events (a same-subject duplicate).
+    await insertEvent({
+      petId: p1,
+      eventType: "incident_reported",
+      recordedAt: new Date(WM.getTime() + 6 * HOUR),
+    });
+    await insertEvent({
+      petId: p1,
+      eventType: "incident_reported",
+      recordedAt: new Date(WM.getTime() + 7 * HOUR),
+    });
+    // p2 has one incident_reported in the SAME locality.
+    await insertEvent({
+      petId: p2,
+      eventType: "incident_reported",
+      recordedAt: new Date(WM.getTime() + 8 * HOUR),
+    });
+  });
+
+  it("collapses same-type + same-locality rows into one group with a DISTINCT-subject count", async () => {
+    const feed = await fetchNovedadesGroups(adminCtx(), { watermark: WM, limit: 500 });
+    const group = feed.groups.find(
+      (g) => g.eventType === "incident_reported" && g.locality === LOC_DUP,
+    );
+    expect(group).toBeDefined();
+    // 2 distinct pets — NOT 3 raw events. The duplicate incident on p1 is deduped
+    // by COUNT(DISTINCT pet_id), so the tally is honest.
+    expect(group?.count).toBe(2);
+    expect(group?.province).toBe(PROV_A);
+    expect(feed.sinceWatermark).toBe(true);
   });
 });
 

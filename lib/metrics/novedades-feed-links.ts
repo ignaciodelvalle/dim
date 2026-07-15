@@ -38,3 +38,22 @@ const FEED_QUEUE_HREF: Record<FeedEventType, string> = {
 export function feedQueueHref(eventType: FeedEventType): string {
   return FEED_QUEUE_HREF[eventType];
 }
+
+/**
+ * Plural, category-style es-AR label for a GROUPED feed row (Cowork M2). The
+ * per-event `eventTypeLabel` is singular ("Incidente reportado"); a grouped row
+ * counts many of them ("Incidentes reportados · Tucumán · 18"), so it needs the
+ * category noun. Only the five feed types need an entry.
+ */
+export const FEED_EVENT_GROUP_LABEL: Record<FeedEventType, string> = {
+  outbreak_signal: "Señales de brote",
+  disease_reported: "Enfermedades reportadas",
+  rabies_observation_started: "Observaciones antirrábicas iniciadas",
+  incident_reported: "Incidentes reportados",
+  custody_dispute_raised: "Disputas de custodia",
+};
+
+/** Category label for a grouped feed row. */
+export function feedGroupLabel(eventType: FeedEventType): string {
+  return FEED_EVENT_GROUP_LABEL[eventType];
+}

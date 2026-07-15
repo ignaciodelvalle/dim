@@ -1,48 +1,79 @@
-// AdminSiteMap — a compact map of every admin route grouped by the existing
-// nav sections (Epic D).
+// AdminSiteMap — the admin home's dispatch board (Cowork M1 + PO "más amor").
 //
-// WHY: the admin surface spans ~24 routes across five nav sections, but the
-// home offered only a handful of ad-hoc account cards + analytics callouts. A
-// single grouped site map turns the home into an orientation hub: every
-// destination, grouped exactly as the rail groups it, each with a one-line
-// purpose so an operator can jump straight to the right tool.
+// WHY: the admin surface spans ~24 routes across the nav sections. W1 made the
+// map clickable; this makes it EARN its place: structure IS the information.
+// Each destination is a quiet card row with (a) its Icon-registry icon, (b) the
+// name, (c) ONE plain-es-AR line saying what you DO there, and (d) a live count
+// badge where the page already fetched that queue's pending number. The badges
+// turn the map into a status board — everything else stays quiet (existing ln-*
+// card, hairline dividers, no new colours, no animation).
 //
 // PRESENTATIONAL / server component. The route list is derived from the SAME
 // ADMIN_NAV_SECTIONS the rail renders, so the map can never drift from the nav.
-// Purposes live in a local es-AR dictionary keyed by href.
+// Counts are passed in by the page (reusing fetchQueueCockpit) — this component
+// adds NO queries of its own.
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
+import type { IconName } from "@/components/Icon";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 
-// One-line purpose per route (es-AR). Keyed by href so it stays in lockstep
-// with ADMIN_NAV_SECTIONS — a new nav item simply renders with no subtitle
-// until a purpose is added here.
-const ROUTE_PURPOSE: Record<string, string> = {
-  "/admin": "Este panel: cockpit de colas y mapa del sitio.",
-  "/admin/panorama": "Consola geoespacial de eventos y capas.",
-  "/admin/programa": "Resumen ejecutivo del programa a nivel nacional.",
-  "/admin/censo": "Censo de mascotas registradas por jurisdicción.",
-  "/admin/adopciones": "Métricas del embudo de adopciones.",
-  "/admin/poblacion": "Estimaciones y cobertura poblacional.",
-  "/admin/inteligencia": "Inteligencia territorial: índice compuesto y calidad de datos.",
-  "/admin/cola": "Cola de aprobaciones: matrículas, organizaciones y RUPGA.",
-  "/admin/alertas": "Alertas de vigilancia disparadas por reglas.",
-  "/admin/casos": "Expedientes abiertos en todo el sistema.",
-  "/admin/moderacion": "Denuncias anónimas marcadas para revisión previa.",
-  "/admin/observaciones": "Observaciones antirrábicas de 10 días en curso.",
-  "/admin/sistema": "Salud operativa: usuarios, decisiones, SLA y crons.",
-  "/admin/outbox": "Bandeja de salida ENO y breaches de SLA.",
-  "/admin/auditoria": "Registro de auditoría de acciones sensibles.",
-  "/admin/usuarios": "Búsqueda y gestión de cuentas de usuario.",
-  "/admin/govts": "Cuentas de gobierno: alta, localidades y revocación.",
-  "/admin/admins": "Cuentas de administrador con acceso universal.",
-  "/admin/organizaciones": "Organizaciones registradas y su verificación.",
-  "/admin/reglas": "Reglas y parámetros por jurisdicción.",
-  "/admin/historial": "Historial de mi actividad como operador.",
-  "/admin/libro": "Libro de eventos (event-sourcing, solo lectura).",
-  "/admin/servicios": "Catálogo de servicios ofrecidos.",
+// One active-voice es-AR line per route: what the operator DOES there (what they
+// control), not how it's built. Keyed by href so it stays in lockstep with
+// ADMIN_NAV_SECTIONS — a new nav item renders with no line until one is added.
+const ROUTE_ACTION: Record<string, string> = {
+  "/admin": "Volvés a este panel: las colas del día y el mapa del portal.",
+  "/admin/panorama": "Explorás eventos y capas sobre el mapa nacional.",
+  "/admin/programa": "Leés el resumen ejecutivo del programa a nivel país.",
+  "/admin/censo": "Consultás cuántas mascotas hay registradas por jurisdicción.",
+  "/admin/adopciones": "Seguís el embudo de adopciones y sus métricas.",
+  "/admin/poblacion": "Revisás las estimaciones y la cobertura poblacional.",
+  "/admin/inteligencia": "Comparás jurisdicciones por índice y calidad de datos.",
+  "/admin/cola": "Aprobás o rechazás matrículas, organizaciones y RUPGA.",
+  "/admin/alertas": "Revisás las alertas de vigilancia que dispararon las reglas.",
+  "/admin/casos": "Seguís los expedientes abiertos en todo el sistema.",
+  "/admin/moderacion": "Moderás las denuncias anónimas antes de derivarlas.",
+  "/admin/observaciones": "Controlás las observaciones antirrábicas de 10 días.",
+  "/admin/sistema": "Vigilás usuarios, decisiones, SLA y procesos automáticos.",
+  "/admin/outbox": "Reintentás notificaciones ENO y ves los vencimientos de SLA.",
+  "/admin/auditoria": "Auditás quién hizo qué sobre las acciones sensibles.",
+  "/admin/usuarios": "Buscás y gestionás las cuentas de usuario.",
+  "/admin/govts": "Das de alta gobiernos, asignás localidades y revocás accesos.",
+  "/admin/admins": "Gestionás las cuentas de administrador con acceso universal.",
+  "/admin/organizaciones": "Verificás y gestionás las organizaciones registradas.",
+  "/admin/reglas": "Configurás las reglas y parámetros por jurisdicción.",
+  "/admin/historial": "Revisás tu propia actividad como operador.",
+  "/admin/libro": "Recorrés el libro de eventos (solo lectura).",
+  "/admin/servicios": "Gestionás el catálogo de servicios ofrecidos.",
+};
+
+// Icon-registry glyph per route (components/Icon.tsx ICON_MAP names only).
+const ROUTE_ICON: Record<string, IconName> = {
+  "/admin": "dashboard",
+  "/admin/panorama": "capas",
+  "/admin/programa": "chart-line",
+  "/admin/censo": "huella",
+  "/admin/adopciones": "corazon",
+  "/admin/poblacion": "usuarios",
+  "/admin/inteligencia": "microscopio",
+  "/admin/cola": "check-circle",
+  "/admin/alertas": "alerta",
+  "/admin/casos": "solicitud",
+  "/admin/moderacion": "shield-alert",
+  "/admin/observaciones": "vet",
+  "/admin/sistema": "laptop",
+  "/admin/outbox": "mail",
+  "/admin/auditoria": "ojo",
+  "/admin/usuarios": "usuarios",
+  "/admin/govts": "edificio",
+  "/admin/admins": "shield-check",
+  "/admin/organizaciones": "edificio",
+  "/admin/reglas": "settings",
+  "/admin/historial": "linea-tiempo",
+  "/admin/libro": "libreta",
+  "/admin/servicios": "tag",
 };
 
 // The root nav section has an empty label (Dashboard + Panorama sit above the
@@ -51,45 +82,71 @@ function sectionHeading(label: string): string {
   return label === "" ? "General" : label;
 }
 
-export function AdminSiteMap() {
+export function AdminSiteMap({
+  /**
+   * Live pending counts keyed by route href, reused from the page's
+   * `fetchQueueCockpit` — NOT fetched here. A route with a count > 0 shows a
+   * warn badge; zero (or an unlisted route) renders nothing (no noise).
+   */
+  counts = {},
+}: {
+  counts?: Record<string, number>;
+}) {
   return (
     <OpCard>
       <OpCardHead title="Mapa del sitio" />
       <OpCardBody>
         <p className="mb-4 text-[var(--text-md)] text-ln-op-ink-2">
-          Todas las secciones del portal admin, agrupadas como en el menú lateral. Cada destino
-          incluye para qué sirve.
+          Todas las secciones del portal admin, agrupadas como en el menú lateral. Cada destino te
+          dice qué podés hacer ahí; el número marca lo que está pendiente ahora.
         </p>
         <div className="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
           {ADMIN_NAV_SECTIONS.map((section) => (
-            <section key={section.label || "general"} className="space-y-2">
-              <h4 className="text-[var(--text-sm)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            <section key={section.label || "general"} className="space-y-1">
+              <h4 className="mb-1 text-[var(--text-sm)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
                 {sectionHeading(section.label)}
               </h4>
-              <ul className="space-y-2">
-                {section.items.map((item) => (
-                  <li key={item.href}>
-                    {/* flex column + padding: the anchor now sizes to and
-                        contains its own content with a real hit area. It
-                        previously collapsed to a 0x0 box (text overflowing a
-                        zero-sized link), so nothing was clickable (Cowork M1).
-                        Negative margin keeps the label flush with the heading. */}
-                    <Link
-                      href={item.href}
-                      className="group -mx-2 flex flex-col gap-0.5 rounded-[var(--radius-sm)] px-2 py-1.5 no-underline transition-colors hover:bg-ln-op-card"
-                      aria-label={item.label}
-                    >
-                      <span className="text-[var(--text-md)] font-semibold text-ln-op-ink group-hover:text-ln-op-azul">
-                        {item.label}
-                      </span>
-                      {ROUTE_PURPOSE[item.href] ? (
-                        <span className="text-[var(--text-sm)] leading-snug text-ln-op-mute">
-                          {ROUTE_PURPOSE[item.href]}
+              <ul className="divide-y divide-ln-op-line-2">
+                {section.items.map((item) => {
+                  const count = counts[item.href] ?? 0;
+                  const action = ROUTE_ACTION[item.href];
+                  const icon = ROUTE_ICON[item.href];
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className="group -mx-2 flex items-start gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 no-underline transition-colors hover:bg-ln-op-card"
+                        aria-label={item.label}
+                      >
+                        {icon ? (
+                          <span className="mt-0.5 shrink-0 text-ln-op-mute group-hover:text-ln-op-azul">
+                            <Icon name={icon} size={16} decorative />
+                          </span>
+                        ) : null}
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[var(--text-md)] font-semibold text-ln-op-ink group-hover:text-ln-op-azul">
+                              {item.label}
+                            </span>
+                            {count > 0 ? (
+                              <span
+                                className="shrink-0 rounded-full bg-ln-op-warn-bg px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-ln-op-warn"
+                                aria-label={`${count} pendientes`}
+                              >
+                                {count}
+                              </span>
+                            ) : null}
+                          </span>
+                          {action ? (
+                            <span className="mt-0.5 block text-[var(--text-sm)] leading-snug text-ln-op-mute">
+                              {action}
+                            </span>
+                          ) : null}
                         </span>
-                      ) : null}
-                    </Link>
-                  </li>
-                ))}
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}

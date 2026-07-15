@@ -72,7 +72,12 @@ import { petsScopeClause } from "./scope";
  *   - custody_transfer_proposed is an owner-facing return handshake with no
  *     dedicated gob operator queue to route to.
  */
-export { FEED_EVENT_TYPES, type FeedEventType, feedQueueHref } from "./novedades-feed-links";
+export {
+  FEED_EVENT_TYPES,
+  type FeedEventType,
+  feedQueueHref,
+  feedGroupLabel,
+} from "./novedades-feed-links";
 
 import { FEED_EVENT_TYPES, type FeedEventType } from "./novedades-feed-links";
 
@@ -80,6 +85,12 @@ import { FEED_EVENT_TYPES, type FeedEventType } from "./novedades-feed-links";
 export const FIRST_VISIT_WINDOW_DAYS = 7;
 /** Compact feed — a session-start glance, not a browsable list. */
 export const DEFAULT_NOVEDADES_LIMIT = 20;
+/**
+ * Grouped feed (home): distinct (type, locality) buckets. A session-start
+ * glance, so a small cap — a jurisdiction rarely has more than a handful of
+ * active type/locality combinations at once.
+ */
+export const DEFAULT_NOVEDADES_GROUP_LIMIT = 12;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -168,6 +179,110 @@ export async function fetchNovedadesFeedRows(
   }));
 
   return { rows, sinceWatermark, windowStart };
+}
+
+// ---------------------------------------------------------------------------
+// Grouped feed (home) — Cowork M2
+// ---------------------------------------------------------------------------
+//
+// The row-level feed showed 20 indistinguishable rows ("Incidente reportado /
+// Tucumán / hace 5 días" x20) plus a visible duplicate. The home HOMEs render
+// this GROUPED projection instead: one row per (event_type, province, locality)
+// with a distinct-subject count. Two fixes in one query:
+//   (a) dedup identical entries — COUNT(DISTINCT pet_id) counts each affected
+//       pet once, so a re-inserted duplicate event does not inflate the tally.
+//   (b) group same-type + same-locality items — GROUP BY (type, province,
+//       locality) collapses the 20 rows into one countable row.
+// The row-level fetcher above is UNCHANGED (its watermark/order/limit semantics
+// are pinned by novedades-feed.test.ts and consumed elsewhere).
+
+export type NovedadesFeedGroup = {
+  /** Stable React key — composed from type + province + locality. */
+  key: string;
+  eventType: FeedEventType;
+  province: string | null;
+  locality: string | null;
+  /** Distinct affected subjects (pets) in this type/locality bucket. */
+  count: number;
+  /** Newest recorded_at across the group — drives ordering + relative time. */
+  latestRecordedAt: Date;
+};
+
+export type NovedadesGroupedFeed = {
+  groups: NovedadesFeedGroup[];
+  /** true when filtered by an explicit watermark; false on the first-visit fallback. */
+  sinceWatermark: boolean;
+  /** The lower bound actually applied (the watermark, or now − 7d on first visit). */
+  windowStart: Date;
+};
+
+function toDate(value: unknown): Date {
+  return value instanceof Date ? value : new Date(value as string);
+}
+
+/**
+ * Grouped feed for an EXPLICIT watermark (null = first visit → last 7 days).
+ * Groups by (event_type, province, locality); counts DISTINCT pets; orders by
+ * the group's newest recorded_at DESC; caps the number of groups.
+ */
+export async function fetchNovedadesGroups(
+  ctx: ProjectionContext,
+  opts: { watermark: Date | null; limit?: number } = { watermark: null },
+): Promise<NovedadesGroupedFeed> {
+  const limit = opts.limit ?? DEFAULT_NOVEDADES_GROUP_LIMIT;
+  const sinceWatermark = opts.watermark !== null;
+  const windowStart =
+    opts.watermark ?? new Date(Date.now() - FIRST_VISIT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { groups: [], sinceWatermark, windowStart };
+  }
+
+  const conditions = [
+    inArray(petEvents.eventType, FEED_EVENT_TYPES as unknown as EventType[]),
+    sinceWatermark ? gt(petEvents.recordedAt, windowStart) : gte(petEvents.recordedAt, windowStart),
+  ];
+  const scope = petsScopeClause(ctx);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const raw = await db
+    .select({
+      eventType: petEvents.eventType,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+      count: sql<number>`count(distinct ${petEvents.petId})`,
+      latestRecordedAt: sql<Date>`max(${petEvents.recordedAt})`,
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...conditions))
+    .groupBy(petEvents.eventType, pets.jurisdictionProvince, pets.jurisdictionLocality)
+    .orderBy(desc(sql`max(${petEvents.recordedAt})`))
+    .limit(limit);
+
+  const groups: NovedadesFeedGroup[] = raw.map((r) => ({
+    key: `${r.eventType}|${r.province ?? ""}|${r.locality ?? ""}`,
+    eventType: r.eventType as FeedEventType,
+    province: r.province,
+    locality: r.locality,
+    count: Number(r.count),
+    latestRecordedAt: toDate(r.latestRecordedAt),
+  }));
+
+  return { groups, sinceWatermark, windowStart };
+}
+
+/**
+ * Page convenience: resolve the operator's watermark, then fetch the grouped
+ * feed. Used by the /gob and /admin homes.
+ */
+export async function fetchNovedadesGroupedFeed(
+  ctx: ProjectionContext,
+  userId: string,
+  limit: number = DEFAULT_NOVEDADES_GROUP_LIMIT,
+): Promise<NovedadesGroupedFeed> {
+  const watermark = await getFeedWatermark(userId);
+  return fetchNovedadesGroups(ctx, { watermark, limit });
 }
 
 /**

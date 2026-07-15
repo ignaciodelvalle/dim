@@ -25,9 +25,9 @@ import { useState } from "react";
 import { markNovedadesSeenAction } from "@/app/actions/novedades";
 import { Icon } from "@/components/Icon";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import type { NovedadesFeed } from "@/lib/metrics/novedades-feed";
-import { feedQueueHref } from "@/lib/metrics/novedades-feed-links";
-import { eventTypeLabel, relativeTime } from "@/lib/utils/format";
+import type { NovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
+import { feedGroupLabel, feedQueueHref } from "@/lib/metrics/novedades-feed-links";
+import { relativeTime } from "@/lib/utils/format";
 
 function formatJurisdiction(province: string | null, locality: string | null): string {
   if (province && locality) return `${locality}, ${province}`;
@@ -40,14 +40,14 @@ export function NovedadesCard({
   collapsible = false,
   defaultCollapsed = false,
 }: {
-  feed: NovedadesFeed;
+  feed: NovedadesGroupedFeed;
   /** When true, render a Mostrar/Ocultar toggle so the feed can be demoted. */
   collapsible?: boolean;
   /** Initial collapsed state (only meaningful when `collapsible`). */
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
-  const { rows, sinceWatermark } = feed;
+  const { groups, sinceWatermark } = feed;
 
   // First visit (no watermark) shows the last 7 days and says so; otherwise the
   // window is "desde tu última visita".
@@ -58,7 +58,7 @@ export function NovedadesCard({
 
   const actions = (
     <div className="flex items-center gap-3">
-      {rows.length > 0 ? (
+      {groups.length > 0 ? (
         <form action={markNovedadesSeenAction}>
           <button type="submit" className="text-sm text-ln-op-azul hover:underline">
             Marcar como visto
@@ -92,26 +92,36 @@ export function NovedadesCard({
       />
       {collapsed ? null : (
         <OpCardBody className="p-0">
-          {rows.length === 0 ? (
+          {groups.length === 0 ? (
             <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">{emptyCopy}</p>
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
-              {rows.map((row) => (
+              {groups.map((group) => (
                 <li
-                  key={row.id}
+                  key={group.key}
                   className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                 >
-                  <div className="min-w-0">
-                    <p className="text-[var(--text-md)] text-ln-op-ink">
-                      {eventTypeLabel(row.eventType)}
-                    </p>
-                    <p className="truncate text-sm text-ln-op-mute">
-                      {formatJurisdiction(row.province, row.locality)} ·{" "}
-                      {relativeTime(row.recordedAt)}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {/* Count badge: the map doubles as a status board. Groups
+                        with >1 subject get the count so 18 incidents no longer
+                        read as one row (Cowork M2). */}
+                    {group.count > 1 ? (
+                      <span className="shrink-0 rounded-full bg-ln-op-warn-bg px-2 py-0.5 text-xs font-semibold tabular-nums text-ln-op-warn">
+                        {group.count}
+                      </span>
+                    ) : null}
+                    <div className="min-w-0">
+                      <p className="text-[var(--text-md)] text-ln-op-ink">
+                        {feedGroupLabel(group.eventType)}
+                      </p>
+                      <p className="truncate text-sm text-ln-op-mute">
+                        {formatJurisdiction(group.province, group.locality)} ·{" "}
+                        {relativeTime(group.latestRecordedAt)}
+                      </p>
+                    </div>
                   </div>
                   <Link
-                    href={feedQueueHref(row.eventType)}
+                    href={feedQueueHref(group.eventType)}
                     className="shrink-0 text-sm text-ln-op-azul hover:underline no-underline"
                   >
                     Ver en su cola {"->"}
