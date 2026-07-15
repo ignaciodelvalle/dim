@@ -17,16 +17,27 @@
 // redirect FORWARDS its query string onto the resolved profile URL. The result
 // is a single server redirect (/inicio?sheet=anotar → /mis-mascotas/DIM-XXXX?
 // sheet=anotar) where the profile's SheetMounter opens the anotar sheet on
-// arrival — no second hop, no capture-flow break. The zero-pet path redirects to
-// /mis-mascotas with NO query (there is no pet to capture against). The former
-// /cuenta/casos #casos anchor now points at /mis-mascotas#inbox directly.
+// arrival — no second hop, no capture-flow break. The zero-pet path forwards the
+// SAME query onto /mis-mascotas (QA ronda 4 CONFIRMED: dropping it meant an
+// owner with no live pets could never open the capture sheet from Asentar). The
+// former /cuenta/casos #casos anchor now points at /mis-mascotas#inbox directly.
+//
+// Vet gate: /inicio is also a post-login landing target, so a dual-role vet can
+// arrive here. It honours the SAME vet-landing gate /mis-mascotas uses
+// (resolveVetLanding unless ?as=owner) so the two owner entry points behave
+// identically — otherwise /inicio was a back-door around the vet gate (Cursor).
 
 import { redirect } from "next/navigation";
 
-import { fetchComplianceStatesForPets, fetchPetsForOwner } from "@/lib/analytics/owner-dashboard";
+import {
+  fetchComplianceStatesForPets,
+  fetchLivePetsForCarouselRanking,
+} from "@/lib/analytics/owner-dashboard";
 import type { CarouselPetInput } from "@/lib/domain/owner-carousel";
 import { rankOwnerCarousel } from "@/lib/domain/owner-carousel";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 
 export const dynamic = "force-dynamic";
@@ -39,15 +50,34 @@ export default async function InicioPage({
   const { user } = await requireUserOrRedirect();
   const sp = await searchParams;
 
-  // The carousel source: every LIVE pet the owner can move between (foster/
-  // transit included — fetchPetsForOwner has no role filter). Deceased pets
-  // never enter the swipe (decision 6); they live in the index's "En memoria".
-  const { pets } = await fetchPetsForOwner(user.id);
-  const livePets = pets.filter((p) => p.status !== "deceased");
+  // Vet gate — mirror of /mis-mascotas (page.tsx): a vet who also owns pets
+  // reaches the owner surfaces only via ?as=owner; otherwise they land at their
+  // org portal. Keeping this here closes the /inicio back-door around the gate.
+  const profile = await getProfileCached(user.id);
+  if (profile?.role === "vet" && sp.as !== "owner") {
+    redirect(await resolveVetLanding(user.id));
+  }
 
-  // No live pet → the index+inbox is the home.
+  // Forward the original query string (e.g. ?sheet=anotar from the tab bar) onto
+  // whichever destination we redirect to — the profile OR the zero-pet index.
+  const forwarded = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (typeof value === "string") forwarded.set(key, value);
+    else if (Array.isArray(value)) for (const v of value) forwarded.append(key, v);
+  }
+  const query = forwarded.toString();
+
+  // The carousel source: EVERY live pet the owner can move between (foster/
+  // transit included — no role filter, no cap). Ranking must see the whole
+  // household or a most-urgent pet beyond the newest 50 would never surface
+  // (QA ronda 4 CONFIRMED). Deceased pets never enter the swipe (decision 6);
+  // they live in the index's "En memoria".
+  const livePets = await fetchLivePetsForCarouselRanking(user.id);
+
+  // No live pet → the index+inbox is the home. Forward the query so Asentar's
+  // ?sheet=anotar still opens the capture sheet for a pets-less owner.
   if (livePets.length === 0) {
-    redirect("/mis-mascotas");
+    redirect(`/mis-mascotas${query ? `?${query}` : ""}`);
   }
 
   // Compliance over the live set — the SAME projection the index and the
@@ -75,14 +105,8 @@ export default async function InicioPage({
 
   const ranked = rankOwnerCarousel(carouselInput);
   // rankOwnerCarousel returns at least one entry (livePets is non-empty and the
-  // cap is > 0); the first is the most-urgent pet. Forward the original query
-  // string (e.g. ?sheet=anotar from the tab bar) onto the profile so a capture
-  // deep-link opens the sheet in this SAME redirect — no second hop.
-  const forwarded = new URLSearchParams();
-  for (const [key, value] of Object.entries(sp)) {
-    if (typeof value === "string") forwarded.set(key, value);
-    else if (Array.isArray(value)) for (const v of value) forwarded.append(key, v);
-  }
-  const query = forwarded.toString();
+  // cap is > 0); the first is the most-urgent pet. The forwarded query (built
+  // above) rides onto the profile so a capture deep-link opens the sheet in this
+  // SAME redirect — no second hop.
   redirect(`/mis-mascotas/${ranked[0].token}${query ? `?${query}` : ""}`);
 }

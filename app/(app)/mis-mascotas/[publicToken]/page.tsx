@@ -77,9 +77,9 @@ import type { Pet } from "@/db";
 import {
   fetchActiveRemindersForPet,
   fetchComplianceStatesForPets,
+  fetchLivePetsForCarouselRanking,
   fetchOpenWorkflows,
   fetchPetEventsForProfileV2,
-  fetchPetsForOwner,
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
@@ -658,8 +658,10 @@ export default async function PetDetailPage({
   // path only — the same price /inicio already pays for its rail.
   let carouselPets: CarouselPet[] = [];
   if (isOwner) {
-    const { pets: ownerPets } = await fetchPetsForOwner(user.id);
-    const livePets = ownerPets.filter((p) => p.status !== "deceased");
+    // Rank over EVERY live ownership (uncapped), not the newest 50 — otherwise a
+    // most-urgent pet beyond the cap would be absent from the swipe (QA ronda 4
+    // CONFIRMED). fetchLivePetsForCarouselRanking already excludes deceased.
+    const livePets = await fetchLivePetsForCarouselRanking(user.id);
     const complianceStates = await fetchComplianceStatesForPets(
       user.id,
       livePets.map((p) => p.id),

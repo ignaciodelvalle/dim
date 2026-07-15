@@ -149,6 +149,71 @@ export async function fetchPetsForOwner(
   };
 }
 
+/**
+ * Minimal per-pet fields the owner credential carousel RANKING needs.
+ * Deliberately narrow (no photo, no jurisdiction) so this can load EVERY live
+ * ownership without the row-materialisation cost DASHBOARD_PETS_LIMIT guards.
+ */
+export type CarouselRankingPet = {
+  id: string;
+  publicToken: string;
+  status: string;
+  pregnancyStatus: string | null;
+};
+
+/**
+ * Every LIVE ownership for the owner-carousel ranking — minimal fields, NO cap.
+ *
+ * The carousel (on /inicio and the pet profile) ranks the owner's live pets by
+ * urgency and shows the most urgent first. Sourcing that ranking from
+ * fetchPetsForOwner (capped at DASHBOARD_PETS_LIMIT = 50, newest-first) meant an
+ * owner with >50 live pets whose most-urgent pet (e.g. a lost one) was older
+ * than the newest 50 would NEVER surface it — /inicio landed on the wrong pet
+ * and the swipe never reached it (QA ronda 4, CONFIRMED). Ranking must consider
+ * the WHOLE household, so this fetch is uncapped.
+ *
+ * Only the fields resolveCarouselStatus / rankOwnerCarousel read are selected:
+ * id (compliance-batch join), publicToken (swipe target), status +
+ * pregnancyStatus (the raw-status fallback). rankOwnerCarousel still caps the
+ * DISPLAYED swipe at OWNER_CAROUSEL_CAP — only the ranking INPUT is complete.
+ * Deceased pets are excluded in SQL so they never enter the swipe (decision 6).
+ *
+ * Cost note (perf watchpoint): the caller derives compliance over the returned
+ * set (fetchComplianceStatesForPets), so for a high-volume owner this widens
+ * that batch to every live pet — the price of an honest urgency ranking. Rows
+ * here carry no heavy columns, so the pet fetch itself stays light.
+ */
+export async function fetchLivePetsForCarouselRanking(
+  userId: string,
+): Promise<CarouselRankingPet[]> {
+  const rows = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      status: pets.status,
+      pregnancyStatus: pets.pregnancyStatus,
+    })
+    .from(ownerships)
+    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        isNull(ownerships.endedAt),
+        ne(pets.status, "deceased"),
+      ),
+    )
+    // Deterministic tiebreak — newest first, same as fetchPetsForOwner, so equal
+    // urgency keeps a stable order for the stable-sort rank.
+    .orderBy(desc(pets.createdAt));
+
+  return rows.map((r) => ({
+    id: r.id,
+    publicToken: r.publicToken,
+    status: r.status,
+    pregnancyStatus: r.pregnancyStatus,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Appointments
 // ---------------------------------------------------------------------------
