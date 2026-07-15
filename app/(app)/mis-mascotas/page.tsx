@@ -1,54 +1,79 @@
-// Mis Mascotas — Libreta Nacional redesign.
+// Mis Mascotas — the owner index + inbox (owner-ia-redesign P5).
 //
-// Layout: header (serif h1 + "Inscribir mascota" primary button) →
-//   registry rows (LnRegRow, larger variant 72px) → In memoriam section (†)
-//   with deceased pet rows in sepia.
+// /inicio folded away (it now redirects into the most-urgent pet's credential),
+// so this page carries the surfaces a per-pet swipe structurally cannot:
+//   1. the cross-pet ROLLUP (decision 3 / inventory §9.1) — "is anything on
+//      fire across all my pets?" — próximos vencimientos, al día, casos.
+//   2. the INBOX (decision 4 / §9.2) — everything that is NOT (yet) your pet and
+//      so has no credential to live on: open workflows (foster proposals,
+//      denuncias, custody, approvals) AND their closed history, inbound
+//      transfers, adoption postulaciones, plus the resume-application banner.
+//   3. the per-pet INDEX — the CredCard credential rows (moved here from the
+//      old home carousel), with a real name search (§9.3) so the 200-cap notice
+//      stops promising a buscador that never existed.
+//   4. "En memoria" — deceased pets live HERE ONLY (decision 6), never in the
+//      swipe.
+//   5. reclamar — the claim-code entry.
 //
-// Existing data fetching, ownership query, vet redirect, and action cards
-// (reclamar, postulaciones, transferencias) are all preserved unchanged.
+// The vet role redirect and its ?as=owner escape hatch are preserved verbatim
+// (inventory §8): a vet who also owns pets reaches their own pets only via
+// ?as=owner; dropping it would send every vet to the owner index.
+
+import { and, count, eq, ilike, isNull } from "drizzle-orm";
+import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { ActionLinkCard } from "@/components/ActionLinkCard";
+import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { isTransitRole } from "@/components/PetCard.helpers";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnButton } from "@/components/ui/Button";
 import type { LnPetStatus } from "@/components/ui/Chip";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnPetPhoto, LnRegRow, LnRegistry } from "@/components/ui/RegRow";
-import { LnStatusFlag } from "@/components/ui/StatusFlag";
 import { attachments, db, ownerships, pets } from "@/db";
 import {
   countPendingApplications,
   countPendingTransfers,
+  fetchActiveReminders,
   fetchComplianceStatesForPets,
+  fetchOpenWorkflows,
+  fetchPreviousWorkflows,
+  fetchVaccinationSummariesForPets,
 } from "@/lib/analytics/owner-dashboard";
+import { hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { petUrgencyRank } from "@/lib/domain/pet-urgency-rank";
+import { countProximosReminders } from "@/lib/domain/vaccine-reminder-state";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_CARD_PHOTO_SELECT, PET_CARD_SELECT } from "@/lib/infra/pet-projections";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
-import { speciesLabel } from "@/lib/utils/format";
-import { and, count, eq, isNull } from "drizzle-orm";
-import Image from "next/image";
-import Link from "next/link";
+import { likeContains } from "@/lib/utils/like-helpers";
+
+import type { CredCardData } from "./_components/CredCard";
+import { CredCard } from "./_components/CredCard";
+import { IntentApplyBanner } from "./_components/IntentApplyBanner";
+import { OwnerRollupStrip } from "./_components/OwnerRollupStrip";
+import { PetSearchInput } from "./_components/PetSearchInput";
 
 /**
  * Maximum pet rows rendered on this page.
  *
  * Owners with thousands of pets (high-volume rescue networks / shelters) would
- * produce an enormous DOM and exhaust server memory otherwise. For now we cap
- * the listing and show a "showing N of M" notice. Full pagination is tracked
- * as a follow-up improvement.
+ * produce an enormous DOM and exhaust server memory otherwise. The cap bounds
+ * the listing; the name search (server-side ILIKE, same cap) is how an owner
+ * narrows past it. Full pagination is tracked as a follow-up improvement.
  */
 const MIS_MASCOTAS_LIMIT = 200;
-import { redirect } from "next/navigation";
 
 export default async function MisMascotasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reclamado?: string; as?: string }>;
+  searchParams: Promise<{ reclamado?: string; as?: string; q?: string }>;
 }) {
   const { supabase, user } = await requireUserOrRedirect();
 
@@ -56,6 +81,7 @@ export default async function MisMascotasPage({
   const profile = await getProfileCached(user.id);
   const params = await searchParams;
   const claimedCount = params.reclamado ? Number.parseInt(params.reclamado, 10) : null;
+  const query = (params.q ?? "").trim();
 
   // Vets land at their org portal (or /cuenta if they have no org yet).
   // They can still access their pet list via direct sub-paths or `?as=owner`.
@@ -66,48 +92,68 @@ export default async function MisMascotasPage({
   const { data: authData } = await supabase.auth.getUser();
   const userEmail = (authData?.user?.email ?? "").toLowerCase();
 
-  const [ownedPets, totalPetsCount, pendingApplicationsCount, pendingTransfersCount] =
-    await Promise.all([
-      db
-        .select({
-          pet: PET_CARD_SELECT,
-          photo: PET_CARD_PHOTO_SELECT,
-          ownershipRole: ownerships.role,
-        })
-        .from(pets)
-        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
-        // Hard cap: prevents loading thousands of pet rows into JS for high-volume
-        // owners. Full pagination is tracked as a follow-up improvement.
-        .limit(MIS_MASCOTAS_LIMIT),
-      db
-        .select({ n: count() })
-        .from(ownerships)
-        .where(and(eq(ownerships.ownerUserId, user.id), isNull(ownerships.endedAt)))
-        .then((r) => Number(r[0]?.n ?? 0)),
-      countPendingApplications(user.id),
-      countPendingTransfers(user.id, userEmail),
-    ]);
+  // Ownership scope + optional server-side name filter (drizzle `and` drops the
+  // undefined when no query, so the unfiltered path is unchanged). The search is
+  // server-side + bounded so it finds pets BEYOND the visible cap — the whole
+  // point of the 200-cap notice's promised buscador.
+  const nameFilter = query ? ilike(pets.name, likeContains(query)) : undefined;
+  const ownedWhere = and(
+    eq(ownerships.ownerUserId, user.id),
+    isNull(ownerships.endedAt),
+    nameFilter,
+  );
 
-  // Split into active (ok/registered/lost/pregnant) and deceased
+  const [
+    ownedPets,
+    matchingTotal,
+    pendingApplicationsCount,
+    pendingTransfersCount,
+    openWorkflows,
+    previousWorkflows,
+    reminders,
+  ] = await Promise.all([
+    db
+      .select({
+        pet: PET_CARD_SELECT,
+        photo: PET_CARD_PHOTO_SELECT,
+        ownershipRole: ownerships.role,
+      })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+      .where(ownedWhere)
+      // Hard cap: prevents loading thousands of pet rows into JS for high-volume
+      // owners. Full pagination is tracked as a follow-up improvement.
+      .limit(MIS_MASCOTAS_LIMIT),
+    // Count matching the SAME filter — so the cap notice reads honestly whether
+    // or not a search is active ("showing N of M matching").
+    db
+      .select({ n: count() })
+      .from(ownerships)
+      .innerJoin(pets, eq(pets.id, ownerships.petId))
+      .where(ownedWhere)
+      .then((r) => Number(r[0]?.n ?? 0)),
+    countPendingApplications(user.id),
+    countPendingTransfers(user.id, userEmail),
+    fetchOpenWorkflows(user.id),
+    fetchPreviousWorkflows(user.id),
+    fetchActiveReminders(user.id),
+  ]);
+
+  // Split into active (ok/registered/lost/pregnant) and deceased.
   const activePets = ownedPets.filter(({ pet }) => pet.status !== "deceased");
   const deceasedPets = ownedPets.filter(({ pet }) => pet.status === "deceased");
 
-  // Same compliance projection the pet-profile header derives — the list chip
-  // must agree with the detail header (QA round 2 2026-07-03 #4: one pet,
-  // three status truths). AL DÍA only when every obligation is verified-ok.
+  // Same compliance projection the pet-profile header + carousel derive — the
+  // card chip must agree with the detail header (one pet, one status truth).
   const complianceByPet = await fetchComplianceStatesForPets(
     user.id,
     activePets.map(({ pet }) => pet.id),
   );
 
   // Single status mapper shared with the carousel + pet profile
-  // (lnPetStatusFromCompliance) so a pet's chip never disagrees across surfaces.
-  // The no-compliance fallback mirrors /inicio's carouselStatusOf exactly
-  // (lost -> lost, pregnant -> pregnant, else registered) — a flat "registered"
-  // fallback ranked a lost pet WITHOUT compliance data differently here than on
-  // the home carousel (M2 fresh-review minor 6).
+  // (lnPetStatusFromCompliance). The no-compliance fallback mirrors the
+  // carousel exactly (lost -> lost, pregnant -> pregnant, else registered).
   const statusForPet = (pet: (typeof activePets)[number]["pet"]): LnPetStatus => {
     const compliance = complianceByPet.get(pet.id);
     if (compliance) {
@@ -121,13 +167,67 @@ export default async function MisMascotasPage({
     return "registered";
   };
 
-  // Urgency ordering (handoff 2b.2): Perdido → En tratamiento → Preñada →
-  // Por vencer (registered/pending) → Al día → Registrada. The SAME rank the
-  // credential carousel uses on /inicio and the profile carousel will use
-  // (owner-ia-redesign P4) — shared in lib/domain/pet-urgency-rank.ts.
+  // Urgency ordering — the SAME rank the credential carousel and the profile
+  // swipe use (lib/domain/pet-urgency-rank.ts): Perdido → En tratamiento →
+  // Preñada → Por vencer → Al día.
   const sortedActivePets = [...activePets].sort(
     (a, b) => petUrgencyRank(statusForPet(a.pet)) - petUrgencyRank(statusForPet(b.pet)),
   );
+
+  // Vaccine-vigencia summaries only for the non-lost cards that render them
+  // (lost cards show a reassurance line instead). One bounded query.
+  const vacByPet = await fetchVaccinationSummariesForPets(
+    sortedActivePets
+      .filter(({ pet }) => statusForPet(pet) !== "lost")
+      .map(({ pet }) => ({ petId: pet.id, species: pet.species })),
+  );
+
+  const credCards: CredCardData[] = sortedActivePets.map(({ pet, photo }) => {
+    const status = statusForPet(pet);
+    const photoUrl = petPhotoUrl(photo?.storagePath) ?? null;
+    if (status === "lost") {
+      return {
+        token: pet.publicToken,
+        name: pet.name,
+        photoUrl,
+        status,
+        credentialId: pet.publicToken,
+        vac: null,
+        lost: {
+          line: `${pet.name} está reportada como perdida. Su credencial pública está activa para quien la encuentre.`,
+        },
+      };
+    }
+    const summary = vacByPet.get(pet.id);
+    return {
+      token: pet.publicToken,
+      name: pet.name,
+      photoUrl,
+      status,
+      credentialId: pet.publicToken,
+      vac: summary
+        ? {
+            vigente: summary.active,
+            porVencer: summary.dueSoon,
+            vencida: summary.expired,
+            hasRecords: hasAnyVaccineRecord(summary),
+          }
+        : null,
+      lost: null,
+    };
+  });
+
+  // Rollup (decision 3): próximos vencimientos + al día + casos. Vencimientos
+  // and casos are household-wide (dedicated bounded fetchers); "al día" is over
+  // the shown active pets — for the common 1-8 pet owner that IS the household,
+  // and under a search it honestly reflects the matched subset.
+  const proximosVencimientos = countProximosReminders(reminders);
+  const alDia = sortedActivePets.filter(({ pet }) => statusForPet(pet) === "ok").length;
+  const openCases = openWorkflows.map(adaptWorkflow);
+  const previousCases = previousWorkflows.map(adaptWorkflow);
+
+  const isSearching = query.length > 0;
+  const hasAnyOwned = matchingTotal > 0 || (!isSearching && ownedPets.length > 0);
 
   return (
     <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
@@ -139,7 +239,7 @@ export default async function MisMascotasPage({
           <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis mascotas
           </h1>
-          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+          <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
             {activePets.length} activa{activePets.length === 1 ? "" : "s"}
             {deceasedPets.length > 0 && ` · ${deceasedPets.length} en memoria`}
           </p>
@@ -153,68 +253,86 @@ export default async function MisMascotasPage({
 
       {/* Claimed pets banner */}
       {claimedCount !== null && (
-        <p className="mb-[18px] rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3.5 py-2.5 text-[13px] text-[var(--color-ln-ok)]">
+        <p className="mb-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3.5 py-2.5 text-sm text-[var(--color-ln-ok)]">
           {claimedCount > 0
             ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
             : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
         </p>
       )}
 
-      {/* Scale guard notice — shown only when the list is capped */}
-      {ownedPets.length < totalPetsCount && (
-        <p className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3.5 py-2.5 text-[12.5px] text-[var(--color-ln-azul)]">
-          Mostrando {ownedPets.length} de {totalPetsCount} mascotas. Para ver más usá el buscador o
+      {/* Resume-application banner — for a pet you don't own yet (§9.2). */}
+      <IntentApplyBanner />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Cross-pet rollup (decision 3, §9.1) — the "is anything on fire?"     */}
+      {/* glance the swipe cannot give. Only when the owner has active pets.   */}
+      {/* ------------------------------------------------------------------ */}
+      {activePets.length > 0 && (
+        <OwnerRollupStrip
+          proximosVencimientos={proximosVencimientos}
+          alDia={alDia}
+          totalPets={activePets.length}
+          casosAbiertos={openWorkflows.length}
+        />
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Index — search + per-pet credential cards                            */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="mb-4">
+        <Suspense fallback={null}>
+          <PetSearchInput initialQuery={query} />
+        </Suspense>
+      </div>
+
+      {/* Scale guard notice — shown only when the (matching) list is capped. */}
+      {ownedPets.length < matchingTotal && (
+        <p className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3.5 py-2.5 text-sm text-[var(--color-ln-azul)]">
+          Mostrando {ownedPets.length} de {matchingTotal} mascotas. Afiná la búsqueda por nombre o
           accedé directamente desde la chapita o QR de cada mascota.
         </p>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Active pets registry                                                */}
-      {/* ------------------------------------------------------------------ */}
       {activePets.length === 0 ? (
-        <LnEmptyState
-          variant="dashed"
-          title="No tenés mascotas registradas."
-          description="Cargá una mascota para verla acá."
-          action={
-            <Link href="/mis-mascotas/nueva">
-              <LnButton variant="primary" size="sm">
-                Cargar una mascota
-              </LnButton>
-            </Link>
-          }
-        />
+        isSearching ? (
+          <LnEmptyState
+            variant="dashed"
+            title={`Sin resultados para "${query}".`}
+            description="Probá con otro nombre."
+          />
+        ) : hasAnyOwned ? // Owner has only deceased pets — the In memoriam section below carries
+        // them; don't show a "no pets" box that contradicts it.
+        null : (
+          <LnEmptyState
+            variant="dashed"
+            title="No tenés mascotas registradas."
+            description="Cargá una mascota para verla acá."
+            action={
+              <Link href="/mis-mascotas/nueva">
+                <LnButton variant="primary" size="sm">
+                  Cargar una mascota
+                </LnButton>
+              </Link>
+            }
+          />
+        )
       ) : (
-        <LnRegistry className="mb-8">
-          {sortedActivePets.map(({ pet, photo, ownershipRole }) => {
-            const st = statusForPet(pet);
-            const isTransit = isTransitRole(ownershipRole);
-            const breedLine = [
-              pet.breed,
-              pet.sex ? (pet.sex === "male" ? "Macho" : "Hembra") : null,
-            ]
-              .filter(Boolean)
-              .join(" · ");
-
-            return (
-              <LnRegRow
-                key={pet.id}
-                name={pet.name}
-                status={st}
-                breed={breedLine || undefined}
-                species={speciesLabelShort(pet.species)}
-                photoSrc={petPhotoUrl(photo?.storagePath) ?? undefined}
-                photoSize={72}
-                href={`/mis-mascotas/${pet.publicToken}`}
-                nextLine={isTransit ? <LnBadge variant="warning">En tránsito</LnBadge> : undefined}
-              />
-            );
-          })}
-        </LnRegistry>
+        <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {sortedActivePets.map(({ pet, ownershipRole }, i) => (
+            <div key={pet.id} className="relative">
+              {isTransitRole(ownershipRole) && (
+                <div className="absolute right-2 top-2 z-10">
+                  <LnBadge variant="warning">En tránsito</LnBadge>
+                </div>
+              )}
+              <CredCard data={credCards[i]} />
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ------------------------------------------------------------------ */}
-      {/* In memoriam                                                          */}
+      {/* In memoriam (decision 6) — deceased pets live HERE ONLY.             */}
       {/* ------------------------------------------------------------------ */}
       {deceasedPets.length > 0 && (
         <div className="mb-8">
@@ -237,17 +355,70 @@ export default async function MisMascotasPage({
         </div>
       )}
 
+      {/* ================================================================== */}
+      {/* Bandeja — the inbox for everything that isn't (yet) your pet (§9.2). */}
+      {/* Anchor target for /cuenta/casos' redirect (/mis-mascotas#inbox).    */}
+      {/* ================================================================== */}
+      <section id="inbox" className="mt-8 scroll-mt-24">
+        <LnSectionHead num="01" title="Bandeja" className="mb-4" />
+
+        <div className="flex flex-col gap-5">
+          {/* Open workflows — foster proposals, denuncias, custody, approvals.
+              Self-empties with an explanatory line. */}
+          <CasesWidget cases={openCases} title="Casos abiertos" />
+
+          {/* Inbound transfers + adoption postulaciones — both about pets you
+              do not own yet. hideWhenZero keeps transfers quiet at zero. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ActionLinkCard
+              href="/mis-mascotas/postulaciones"
+              icon="corazon"
+              title="Mis postulaciones"
+              description="Adopciones a las que te postulaste"
+              badge={pendingApplicationsCount > 0 ? pendingApplicationsCount : null}
+            />
+            <ActionLinkCard
+              href="/transferencias"
+              icon="transferencia"
+              title="Transferencias pendientes"
+              description="Mascotas que alguien quiere transferirte"
+              badge={pendingTransfersCount > 0 ? pendingTransfersCount : null}
+              hideWhenZero
+            />
+          </div>
+
+          {/* Closed-cases history — restored here (it lived on the removed
+              /cuenta/casos via fetchPreviousWorkflows; P1 knowingly orphaned
+              it until this inbox landed). Only when there is history. */}
+          {previousCases.length > 0 && (
+            <CasesWidget
+              cases={previousCases}
+              title="Historial"
+              emptyText="Sin casos anteriores."
+            />
+          )}
+
+          {/* Denunciar maltrato — about someone else's animal, so it can never
+              live on your own credential (§9.2). The /inicio entry point lands
+              here. */}
+          <Link
+            href="/denuncias/nueva"
+            className="text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            + Denunciar maltrato animal
+          </Link>
+        </div>
+      </section>
+
       {/* ------------------------------------------------------------------ */}
-      {/* Reclamar una mascota — promoted card (handoff 2b.4). PO Q3: a richer */}
-      {/* inline card that ROUTES to the existing ClaimWizard, rather than     */}
-      {/* duplicating the claim-code validation here.                          */}
+      {/* Reclamar una mascota — routes to the existing ClaimWizard.           */}
       {/* ------------------------------------------------------------------ */}
       <section className="mt-8">
         <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
-          <h2 className="m-0 font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-tight text-[var(--color-ln-ink)]">
+          <h2 className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
             Reclamar una mascota
           </h2>
-          <p className="mt-1 text-[var(--text-md)] text-[var(--color-ln-mute)]">
+          <p className="mt-1 text-md text-[var(--color-ln-mute)]">
             Tu mascota ya tiene chapita o microchip registrado. Ingresá el código de transferencia
             para reclamarla a tu cuenta.
           </p>
@@ -258,35 +429,9 @@ export default async function MisMascotasPage({
               </LnButton>
             </Link>
           </div>
-          <p className="mt-2 text-[var(--text-sm)] text-[var(--color-ln-faint)]">
+          <p className="mt-2 text-sm text-[var(--color-ln-faint)]">
             El titular actual debe confirmar la transferencia.
           </p>
-        </div>
-      </section>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* More actions                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      <section className="mt-8 border-t border-[var(--color-ln-line)] pt-6">
-        <p className="mb-3.5 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.12em] text-[var(--color-ln-mute)]">
-          Más acciones
-        </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ActionLinkCard
-            href="/mis-mascotas/postulaciones"
-            icon="corazon"
-            title="Mis postulaciones"
-            description="Adopciones a las que te postulaste"
-            badge={pendingApplicationsCount > 0 ? pendingApplicationsCount : null}
-          />
-          <ActionLinkCard
-            href="/transferencias"
-            icon="transferencia"
-            title="Transferencias pendientes"
-            description="Mascotas que alguien quiere transferirte"
-            badge={pendingTransfersCount > 0 ? pendingTransfersCount : null}
-            hideWhenZero
-          />
         </div>
       </section>
     </div>
@@ -335,31 +480,14 @@ function MemorialRow({
         <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
           {name}
         </span>
-        {breed && <p className="mt-0.5 text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
+        {breed && <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{breed}</p>}
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-1.5 font-[var(--font-ln-mono)] text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
+      <div className="flex items-center gap-1.5 font-[var(--font-ln-mono)] text-sm whitespace-nowrap text-[var(--color-ln-mute)]">
         <span>Ver memorial</span>
         <span aria-hidden="true">›</span>
       </div>
     </a>
   );
-}
-
-/**
- * Short species display name for the right column of each row. Dog/cat keep the
- * adjectival "especie" form (Canina/Felina) used on the libreta; every other
- * species falls through to the shared es-AR label map so the raw English enum
- * (rabbit, guinea_pig, ferret) never leaks into the UI.
- */
-function speciesLabelShort(species: string): string {
-  switch (species) {
-    case "dog":
-      return "Canina";
-    case "cat":
-      return "Felina";
-    default:
-      return speciesLabel(species);
-  }
 }

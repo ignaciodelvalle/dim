@@ -141,9 +141,12 @@ describe("CitizenTabBar — 44px tab targets", () => {
     }
   });
 
-  it("includes the Asentar capture action deep-linking to the home capture card", () => {
+  it("includes the Asentar capture action pointing at /inicio (P5: the home redirect)", () => {
     const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
-    expect(html).toContain('href="/inicio#asentar"');
-    expect(html).toContain("Asentar");
+    // Off any pet-profile route (usePathname is unmocked → null here), the
+    // capture action falls back to plain /inicio, which server-redirects to the
+    // most-urgent pet. Isolate the Asentar anchor by its unique label.
+    const asentarSeg = html.split(/<a /).find((s) => />Asentar</.test(s));
+    expect(asentarSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/inicio");
   });
 });

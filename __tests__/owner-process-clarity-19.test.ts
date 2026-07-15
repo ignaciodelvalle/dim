@@ -1,47 +1,47 @@
-// Structure guards for owner process-clarity (task #19).
+// Structure guards for owner process-clarity (task #19) — updated for the P5
+// fold (owner-ia-redesign).
 //
-// Source-scan style (same as inicio-structure.test.ts): cheap, no render, no DB.
-// Pins the three plan fixes so a later refactor can't silently drop them:
-//   Lens 1 — first-run empty state replaces "Todo en orden" for a 0-pet owner.
-//   Lens 3 — open cycles (applications + transfers) surfaced on /inicio.
-//   Lens 3 — the lost credential card offers "Compartir cartel".
+// Task #19's three fixes still ship, but two of them moved off the deleted
+// /inicio dashboard onto the /mis-mascotas index (where a pets-less / first-run
+// owner and the not-yet-yours cycles now live). This test follows them there:
+//   Lens 1 — first-run empty state (was FirstRunEmptyState on /inicio) → the
+//            index's own empty state + reclamar entry.
+//   Lens 3 — open cycles (applications + transfers) (was OpenCyclesSection on
+//            /inicio) → the index's ActionLinkCards.
+//   Lens 3 — the lost credential card still offers "Compartir cartel" (CredCard,
+//            moved to the index component folder).
+//
+// Source-scan style (same as owner-home-fold.test.ts): cheap, no render, no DB.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const INICIO = join(process.cwd(), "app", "(app)", "inicio", "page.tsx");
-const CRED_CARD = join(process.cwd(), "app", "(app)", "inicio", "_components", "CredCard.tsx");
+const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), "utf8");
 
-const inicioSrc = readFileSync(INICIO, "utf8");
-const credCardSrc = readFileSync(CRED_CARD, "utf8");
+const indexSrc = read("app", "(app)", "mis-mascotas", "page.tsx");
+const credCardSrc = read("app", "(app)", "mis-mascotas", "_components", "CredCard.tsx");
 
-describe("/inicio — first-run empty state (task #19, Lens 1)", () => {
-  it("renders the FirstRunEmptyState surface", () => {
-    expect(inicioSrc).toContain("FirstRunEmptyState");
+describe("index — first-run empty state (task #19, Lens 1)", () => {
+  it("leads a zero-pet owner with the real first action, not a reassurance", () => {
+    expect(indexSrc).toContain("No tenés mascotas registradas");
+    expect(indexSrc).toContain("Cargar una mascota");
   });
 
-  it("derives first-run state instead of always greeting 'Todo en orden'", () => {
-    expect(inicioSrc).toContain("deriveOwnerFirstRunState");
-    expect(inicioSrc).toContain("hasManageablePets");
-  });
-
-  it("hides the capture card pre-first-pet (gated by hasManageablePets)", () => {
-    // The EventCatcher capture block must sit behind the manageable-pets gate.
-    expect(inicioSrc).toContain("hasManageablePets && (");
+  it("keeps the reclamar path reachable for a first-run owner", () => {
+    expect(indexSrc).toContain("/mis-mascotas/reclamar");
   });
 });
 
-describe("/inicio — open cycles surfaced (task #19, Lens 3)", () => {
+describe("index — open cycles surfaced (task #19, Lens 3)", () => {
   it("fetches both open-cycle counts", () => {
-    expect(inicioSrc).toContain("countPendingApplications");
-    expect(inicioSrc).toContain("countPendingTransfers");
+    expect(indexSrc).toContain("countPendingApplications");
+    expect(indexSrc).toContain("countPendingTransfers");
   });
 
-  it("renders the OpenCyclesSection with both counts", () => {
-    expect(inicioSrc).toContain("<OpenCyclesSection");
-    expect(inicioSrc).toContain("pendingApplications={pendingApplications}");
-    expect(inicioSrc).toContain("pendingTransfers={pendingTransfers}");
+  it("renders both as inbox action cards", () => {
+    expect(indexSrc).toContain("Mis postulaciones");
+    expect(indexSrc).toContain("Transferencias pendientes");
   });
 });
 

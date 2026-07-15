@@ -1,6 +1,13 @@
-// Regression test — /inicio credential carousel vs /mis-mascotas status
-// parity for TRANSIT/FOSTER-role pets (pre-push review, task #9 follow-up,
-// canon-C2 coherence gap).
+// Regression test — credential-card vs list status parity for TRANSIT/FOSTER-
+// role pets (pre-push review, task #9 follow-up, canon-C2 coherence gap).
+//
+// P5 note (owner-ia-redesign): /inicio folded away and its carousel cards now
+// live on the /mis-mascotas index. This test is fetcher-level (it never
+// imported the page), so it stays valid unchanged — it pins the invariant both
+// the index and the profile rely on: fetchComplianceStatesForPets over a
+// foster-inclusive pet set resolves the pet's REAL lnPetStatusFromCompliance
+// status ("ok"), never the "registered" fallback. The historical /inicio
+// narrative below is kept for context on why the union mattered there.
 //
 // Bug: app/(app)/inicio/page.tsx built `complianceByPet` only over the
 // petIds returned by fetchPetHealthNudges (lib/infra/owner-nudges.ts),
@@ -119,7 +126,7 @@ afterAll(async () => {
   }
 });
 
-describe("/inicio carousel — transit-pet compliance coverage (canon-C2 fix)", () => {
+describe("index cards — transit-pet compliance coverage (canon-C2 fix)", () => {
   it("fetchPetHealthNudges excludes the transit pet (owner-role filter — the root cause)", async () => {
     const nudges = await fetchPetHealthNudges(userId);
     expect(nudges.some((n) => n.petId === petId)).toBe(false);

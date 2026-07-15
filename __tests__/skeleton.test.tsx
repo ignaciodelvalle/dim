@@ -23,7 +23,8 @@ import { OpCardSkeleton } from "@/components/ui/dashboard/OpCardSkeleton";
 import { OpKpiSkeleton } from "@/components/ui/dashboard/OpKpiSkeleton";
 
 import CuentaLoading from "@/app/(app)/cuenta/loading";
-import InicioLoading from "@/app/(app)/inicio/loading";
+// InicioLoading removed (owner-ia-redesign P5): /inicio is now a server redirect
+// into the most-urgent pet, not a dashboard — it has no loading skeleton.
 import EventCaptureFormLoading from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/loading";
 import PetProfileLoading from "@/app/(app)/mis-mascotas/[publicToken]/loading";
 import MisMascotasLoading from "@/app/(app)/mis-mascotas/loading";
@@ -147,7 +148,6 @@ const loadingPages: [string, () => React.ReactElement][] = [
   ["AdminLoading", () => <AdminLoading />],
   ["OrgLoading", () => <OrgLoading />],
   ["VigilanciaLoading", () => <VigilanciaLoading />],
-  ["InicioLoading", () => <InicioLoading />],
   ["PetProfileLoading", () => <PetProfileLoading />],
   ["PublicPetLoading", () => <PublicPetLoading />],
   ["AdoptarLoading", () => <AdoptarLoading />],

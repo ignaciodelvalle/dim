@@ -1,9 +1,14 @@
-// CitizenTabBar — "Asentar" retarget (owner-ia-redesign P4).
+// CitizenTabBar — "Asentar" retarget (owner-ia-redesign P4 + P5).
 //
 // On a pet-profile route the pet is already known, so the tab-bar capture
-// action points at THAT pet's ?sheet=anotar; everywhere else it keeps deep-
-// linking to the home capture card (/inicio#asentar). usePathname is mocked so
+// action points at THAT pet's ?sheet=anotar; everywhere else it points at plain
+// /inicio (P5: the /inicio home capture card is gone — /inicio now server-
+// redirects to the most-urgent pet's credential). usePathname is mocked so
 // renderToStaticMarkup (repo convention — no jsdom) can drive each route.
+//
+// Note: the fallback href "/inicio" collides with the "Inicio" nav tab's own
+// href, so we can't assert on the raw substring alone — asentarHref() isolates
+// the capture button by its unique "Asentar" label to read its true target.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -21,29 +26,42 @@ function renderAt(pathname: string | null): string {
   return renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
 }
 
+/** The href of the capture button — the anchor whose label text is "Asentar".
+ * Attribute order in the rendered markup is not stable (an active nav item gets
+ * an extra aria-current, which shifts class ahead of href), so href is matched
+ * anywhere inside the anchor's own segment rather than at its start. */
+function asentarHref(html: string): string | null {
+  for (const seg of html.split(/<a /).slice(1)) {
+    if (/>Asentar</.test(seg)) {
+      const m = seg.match(/href="([^"]*)"/);
+      return m ? m[1] : null;
+    }
+  }
+  return null;
+}
+
 describe("CitizenTabBar — Asentar retarget on pet-profile routes", () => {
   it("retargets to the current pet's ?sheet=anotar on a profile route", () => {
     const html = renderAt("/mis-mascotas/DIM-PAMP-0001");
-    expect(html).toContain('href="/mis-mascotas/DIM-PAMP-0001?sheet=anotar"');
-    expect(html).not.toContain('href="/inicio#asentar"');
+    expect(asentarHref(html)).toBe("/mis-mascotas/DIM-PAMP-0001?sheet=anotar");
   });
 
   it("retargets from a profile SUB-route too (same pet's anotar)", () => {
     const html = renderAt("/mis-mascotas/DIM-PAMP-0001/libreta");
-    expect(html).toContain('href="/mis-mascotas/DIM-PAMP-0001?sheet=anotar"');
+    expect(asentarHref(html)).toBe("/mis-mascotas/DIM-PAMP-0001?sheet=anotar");
   });
 
-  it("keeps /inicio#asentar on the index route", () => {
-    expect(renderAt("/mis-mascotas")).toContain('href="/inicio#asentar"');
+  it("falls back to plain /inicio on the index route", () => {
+    expect(asentarHref(renderAt("/mis-mascotas"))).toBe("/inicio");
   });
 
-  it("keeps /inicio#asentar on reserved index children (nueva, reclamar-dni)", () => {
-    expect(renderAt("/mis-mascotas/nueva")).toContain('href="/inicio#asentar"');
-    expect(renderAt("/mis-mascotas/reclamar-dni")).toContain('href="/inicio#asentar"');
+  it("falls back to plain /inicio on reserved index children (nueva, reclamar-dni)", () => {
+    expect(asentarHref(renderAt("/mis-mascotas/nueva"))).toBe("/inicio");
+    expect(asentarHref(renderAt("/mis-mascotas/reclamar-dni"))).toBe("/inicio");
   });
 
-  it("keeps /inicio#asentar elsewhere and when the pathname is unavailable", () => {
-    expect(renderAt("/inicio")).toContain('href="/inicio#asentar"');
-    expect(renderAt(null)).toContain('href="/inicio#asentar"');
+  it("falls back to plain /inicio elsewhere and when the pathname is unavailable", () => {
+    expect(asentarHref(renderAt("/inicio"))).toBe("/inicio");
+    expect(asentarHref(renderAt(null))).toBe("/inicio");
   });
 });
