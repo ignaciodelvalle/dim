@@ -1,12 +1,13 @@
 import Link from "next/link";
 
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
+import { AdminSiteMap } from "@/components/admin/AdminSiteMap";
+import { QueueHealthCockpit } from "@/components/admin/QueueHealthCockpit";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
-import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import {
   fetchDecisionsMetrics,
-  fetchQueueHealth,
+  fetchQueueCockpit,
   fetchUserMetrics,
 } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
@@ -24,9 +25,11 @@ export default async function AdminDashboardPage() {
   // per-user watermark, not the ctx period.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
-  const [users, queue, decisions, novedades] = await Promise.all([
+  const [users, cockpit, decisions, novedades] = await Promise.all([
     fetchUserMetrics(),
-    fetchQueueHealth(),
+    // Epic D: every operational queue counted (approvals broken out per type)
+    // for the cockpit — replaces the old lumped fetchQueueHealth number.
+    fetchQueueCockpit(),
     fetchDecisionsMetrics(),
     // Session-start orientation feed (universal scope for admin).
     fetchNovedadesFeed(adminCtx, user.id),
@@ -47,24 +50,37 @@ export default async function AdminDashboardPage() {
         </p>
         <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de administración</h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Operás con alcance universal: la cola de aprobaciones, la búsqueda de usuarios y la
-          verificación de organizaciones son tuyas y abarcan todas las jurisdicciones. Estas colas
-          se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
+          Operás con alcance universal sobre todas las jurisdicciones. Abajo: el estado de cada cola
+          operativa, las métricas del sistema y el mapa completo del portal. Estas colas se
+          comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
         </p>
       </header>
 
-      {/* Novedades — session-start orientation feed ("esto cambió desde tu
-          última visita"). Orientation content leads, below the header. */}
-      <NovedadesCard feed={novedades} />
+      {/* (1) Queue-health cockpit — every operational queue as a compact tile
+          with its live count and a jump-off. Approvals broken out per type.
+          Leads the page: it is what an admin comes here to triage. */}
+      <QueueHealthCockpit cockpit={cockpit} />
 
-      {/* Live system metrics — shared operational strip (C26). Leads the landing
-          so the North-Star numbers come before the account cards. */}
-      <section aria-label="Estado del sistema">
+      {/* (2) System metrics — the shared operational KPI strip (C26). Pending
+          approvals + oldest come from the same cockpit query so this strip and
+          the cockpit above can't disagree. Links to the richer /admin/sistema. */}
+      <section aria-label="Métricas del sistema" className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Métricas del sistema
+          </h2>
+          <Link
+            href="/admin/sistema"
+            className="text-sm font-semibold text-ln-op-azul no-underline hover:underline"
+          >
+            Ver Sistema completo {"->"}
+          </Link>
+        </div>
         <AdminKpiStrip
           data={{
             totalPersonal: users.totalPersonal,
-            pendingTotal: queue.pendingTotal,
-            oldestPendingDaysAgo: queue.oldestPendingDaysAgo,
+            pendingTotal: cockpit.approvals.pendingTotal,
+            oldestPendingDaysAgo: cockpit.approvals.oldestPendingDaysAgo,
             decisionsTotal7d: total7d,
             approved7d: decisions.approved7d,
             rejected7d: decisions.rejected7d,
@@ -74,81 +90,17 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
-      {/* Govt / Admin account cards */}
-      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <AccountCard
-          label="Gobiernos"
-          description="Listado de gobiernos activos. Crea cuentas, asigna localidades y revoca accesos."
-          cta={{ href: "/admin/govts", label: "Ir a Gobiernos" }}
-        />
-        <AccountCard
-          label="Administradores"
-          description="Listado de administradores activos. Crea cuentas y administra el acceso universal."
-          cta={{ href: "/admin/admins", label: "Ir a Administradores" }}
-        />
-      </section>
+      {/* (3) Site map — every admin route grouped by nav section, each with a
+          one-line purpose. Folds in the old account cards (Gobiernos /
+          Administradores) and analytics shortcuts as first-class destinations. */}
+      <AdminSiteMap />
 
-      {/* National analytics shortcut (Item 22) — admin sees all provinces */}
-      <OpCard>
-        <OpCardHead title="Analítica nacional" />
-        <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink-2">
-            Vista de analítica con cobertura de todas las provincias. Ranking entre regiones,
-            tendencias y métricas agregadas del sistema.
-          </p>
-          <Link
-            href="/gob/analytics"
-            className="mt-2 inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-          >
-            Ir a Analítica nacional {"→"}
-          </Link>
-        </OpCardBody>
-      </OpCard>
-
-      {/* Callout: context switch to the govt portal (not "the queue lives there"). */}
-      <OpCallout
-        icon={<span>&#127970;</span>}
-        title="¿Necesitás la vista de una jurisdicción?"
-        body={
-          <>
-            Tu cola, usuarios y organizaciones acá abarcan todo el país. Para ver cómo trabaja una
-            jurisdicción acotada, cambiá de contexto al portal de Gobierno.{" "}
-            <Link
-              href="/gob"
-              className="font-semibold text-ln-op-azul underline underline-offset-4 hover:text-ln-op-azul-700"
-            >
-              Ver el portal de Gobierno {"→"}&nbsp;
-            </Link>
-          </>
-        }
-      />
+      {/* (4) Novedades — session-start orientation feed, DEMOTED below the
+          cockpit and collapsible so it no longer competes with the queues.
+          Starts collapsed on the admin home; "Marcar como visto" is intact. */}
+      <NovedadesCard feed={novedades} collapsible defaultCollapsed />
 
       <DashboardFreshnessFooter ctx={adminCtx} />
     </div>
-  );
-}
-
-function AccountCard({
-  label,
-  description,
-  cta,
-}: {
-  label: string;
-  description: string;
-  cta: { href: string; label: string };
-}) {
-  return (
-    <OpCard>
-      <OpCardHead title={label} />
-      <OpCardBody>
-        <p className="text-[13px] text-ln-op-ink-2">{description}</p>
-        <Link
-          href={cta.href}
-          className="mt-2 inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-        >
-          {cta.label} {"→"}
-        </Link>
-      </OpCardBody>
-    </OpCard>
   );
 }

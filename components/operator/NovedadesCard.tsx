@@ -1,22 +1,32 @@
 // NovedadesCard — session-start "Novedades" orientation feed, shared by the
 // /gob and /admin operator HOMEs (viz-suite Wave 1, plan docs/plans/viz-suite.md).
 //
-// Pure server component: the page fetches the feed (fetchNovedadesFeed) and
-// passes it in, so this stays render-only and inherits the page's data-load
-// budget. Ledger-style rows — es-AR event label + jurisdiction + relative time +
-// a per-item "Ver en su cola →" link to the queue that handles that event type.
+// The page fetches the feed (fetchNovedadesFeed) and passes it in, so this
+// stays render-only and inherits the page's data-load budget. Ledger-style
+// rows — es-AR event label + jurisdiction + relative time + a per-item
+// "Ver en su cola ->" link to the queue that handles that event type.
+//
+// Client component (Epic D): a `collapsible` variant adds a Mostrar/Ocultar
+// toggle so the /admin home can DEMOTE the feed below the operational cockpit
+// without removing it. The feed serialises cleanly across the RSC boundary
+// (plain rows + a Date), and the watermark server action is referenced, not
+// invoked, so making this a client island costs only the toggle's state.
 //
 // The watermark advances ONLY via the explicit "Marcar como visto" button (a
 // form posting markNovedadesSeenAction) — never on render, so a refresh cannot
-// clear the feed. The button lives here (components/operator/, outside the
-// operator raw-<button> ratchet glob) and is a pure text-link control, matching
-// the documented text-link exception to the OpButton chrome primitive.
+// clear the feed. The button is a pure text-link control, matching the
+// documented text-link exception to the OpButton chrome primitive.
+
+"use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { markNovedadesSeenAction } from "@/app/actions/novedades";
+import { Icon } from "@/components/Icon";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { type NovedadesFeed, feedQueueHref } from "@/lib/metrics/novedades-feed";
+import type { NovedadesFeed } from "@/lib/metrics/novedades-feed";
+import { feedQueueHref } from "@/lib/metrics/novedades-feed-links";
 import { eventTypeLabel, relativeTime } from "@/lib/utils/format";
 
 function formatJurisdiction(province: string | null, locality: string | null): string {
@@ -25,7 +35,18 @@ function formatJurisdiction(province: string | null, locality: string | null): s
   return "Sin localidad";
 }
 
-export function NovedadesCard({ feed }: { feed: NovedadesFeed }) {
+export function NovedadesCard({
+  feed,
+  collapsible = false,
+  defaultCollapsed = false,
+}: {
+  feed: NovedadesFeed;
+  /** When true, render a Mostrar/Ocultar toggle so the feed can be demoted. */
+  collapsible?: boolean;
+  /** Initial collapsed state (only meaningful when `collapsible`). */
+  defaultCollapsed?: boolean;
+}) {
+  const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
   const { rows, sinceWatermark } = feed;
 
   // First visit (no watermark) shows the last 7 days and says so; otherwise the
@@ -34,6 +55,29 @@ export function NovedadesCard({ feed }: { feed: NovedadesFeed }) {
   const emptyCopy = sinceWatermark
     ? "Sin novedades desde tu última visita."
     : "Sin novedades en los últimos 7 días.";
+
+  const actions = (
+    <div className="flex items-center gap-3">
+      {rows.length > 0 ? (
+        <form action={markNovedadesSeenAction}>
+          <button type="submit" className="text-sm text-ln-op-azul hover:underline">
+            Marcar como visto
+          </button>
+        </form>
+      ) : null}
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          aria-expanded={!collapsed}
+          className="inline-flex items-center gap-1 text-sm text-ln-op-azul hover:underline"
+        >
+          {collapsed ? "Mostrar" : "Ocultar"}
+          <Icon name={collapsed ? "chevron-down" : "chevron-up"} size={14} decorative />
+        </button>
+      ) : null}
+    </div>
+  );
 
   return (
     <OpCard>
@@ -44,46 +88,40 @@ export function NovedadesCard({ feed }: { feed: NovedadesFeed }) {
             <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">{subtitle}</span>
           </>
         }
-        actions={
-          rows.length > 0 ? (
-            <form action={markNovedadesSeenAction}>
-              <button type="submit" className="text-sm text-ln-op-azul hover:underline">
-                Marcar como visto
-              </button>
-            </form>
-          ) : null
-        }
+        actions={actions}
       />
-      <OpCardBody className="p-0">
-        {rows.length === 0 ? (
-          <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">{emptyCopy}</p>
-        ) : (
-          <ul className="divide-y divide-ln-op-line-2">
-            {rows.map((row) => (
-              <li
-                key={row.id}
-                className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
-              >
-                <div className="min-w-0">
-                  <p className="text-[var(--text-md)] text-ln-op-ink">
-                    {eventTypeLabel(row.eventType)}
-                  </p>
-                  <p className="truncate text-sm text-ln-op-mute">
-                    {formatJurisdiction(row.province, row.locality)} ·{" "}
-                    {relativeTime(row.recordedAt)}
-                  </p>
-                </div>
-                <Link
-                  href={feedQueueHref(row.eventType)}
-                  className="shrink-0 text-sm text-ln-op-azul hover:underline no-underline"
+      {collapsed ? null : (
+        <OpCardBody className="p-0">
+          {rows.length === 0 ? (
+            <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">{emptyCopy}</p>
+          ) : (
+            <ul className="divide-y divide-ln-op-line-2">
+              {rows.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                 >
-                  Ver en su cola →
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </OpCardBody>
+                  <div className="min-w-0">
+                    <p className="text-[var(--text-md)] text-ln-op-ink">
+                      {eventTypeLabel(row.eventType)}
+                    </p>
+                    <p className="truncate text-sm text-ln-op-mute">
+                      {formatJurisdiction(row.province, row.locality)} ·{" "}
+                      {relativeTime(row.recordedAt)}
+                    </p>
+                  </div>
+                  <Link
+                    href={feedQueueHref(row.eventType)}
+                    className="shrink-0 text-sm text-ln-op-azul hover:underline no-underline"
+                  >
+                    Ver en su cola {"->"}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </OpCardBody>
+      )}
     </OpCard>
   );
 }

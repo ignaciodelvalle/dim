@@ -2,9 +2,21 @@
 // All metrics are computed live from the existing tables — no projections,
 // no caching. The dashboard is admin-only so the query volume is bounded.
 
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
-import { approvalRequests, auditLog, cronRuns, db, govtAssignments, profiles } from "@/db";
+import {
+  approvalRequests,
+  auditLog,
+  cases,
+  cronRuns,
+  db,
+  govtAssignments,
+  pets,
+  profiles,
+  welfareReports,
+} from "@/db";
+import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
+import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -159,6 +171,140 @@ export async function fetchQueueHealthScoped(
     pending14dPlus: Number(row.pending14dPlus),
     pending30dPlus: Number(row.pending30dPlus),
     pending60dPlus: Number(row.pending60dPlus),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Queue-health cockpit (Epic D)
+// ---------------------------------------------------------------------------
+//
+// The /admin home used to surface a SINGLE lumped "Cola pendiente" number
+// (fetchQueueHealth → count of pending approval_requests), which implied "one
+// queue" while the Novedades feed pointed at a different source (pet_events) and
+// several genuinely-distinct operational queues stayed invisible. This cockpit
+// breaks the approval queue out per type AND counts every other operational
+// queue so the home reflects reality. All counts are read-only, bounded, and
+// reuse the SAME single-source-of-truth helpers the nav badges / detail pages
+// use (countOpenAlertFirings, countOutboxBreaches) so the home can never drift
+// from those surfaces.
+
+/** Per-type pending breakdown of the approval queue (approval_requests). */
+export type ApprovalQueueByType = {
+  /** Total pending approval requests (all three types). */
+  pendingTotal: number;
+  /** Age in days of the oldest pending request (null when none pending). */
+  oldestPendingDaysAgo: number | null;
+  /** Pending vet-matrícula upgrades. */
+  roleUpgradeVet: number;
+  /** Pending organization-verification requests. */
+  organizationVerification: number;
+  /** Pending RUPGA service-dog credential verifications. */
+  serviceDogCredentialVerification: number;
+};
+
+/** Every operational queue an admin owns, counted for the home cockpit. */
+export type QueueCockpit = {
+  /** Approval queue, broken out per type. */
+  approvals: ApprovalQueueByType;
+  /** welfare_reports flagged for moderation and not yet resolved (/admin/moderacion). */
+  moderationPending: number;
+  /** Open (non-terminal) alert firings (/admin/alertas). */
+  alertsOpen: number;
+  /** Outbox rows in SLA breach: pending AND past their SLA deadline (/admin/outbox). */
+  outboxBreaches: number;
+  /** Cases not yet closed — closedAt IS NULL (/admin/casos). */
+  casesOpen: number;
+  /** Pets under an in-progress 10-day rabies observation (/admin/observaciones). */
+  rabiesInProgress: number;
+};
+
+/**
+ * Per-type pending breakdown of the approval queue in a single aggregate query.
+ * Mirrors the total/oldest math of `fetchQueueHealth` (same partial index on
+ * status='pending') but also splits the three request types out via filtered
+ * counts so the home can show one tile per queue instead of one lumped number.
+ */
+export async function fetchApprovalQueueByType(): Promise<ApprovalQueueByType> {
+  const [row] = await db
+    .select({
+      pendingTotal: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending')`,
+      oldestPendingMs: sql<
+        number | null
+      >`extract(epoch from (now() - min(${approvalRequests.createdAt}) filter (where ${approvalRequests.status} = 'pending'))) * 1000`,
+      roleUpgradeVet: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.type} = 'role_upgrade_vet')`,
+      organizationVerification: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.type} = 'organization_verification')`,
+      serviceDogCredentialVerification: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.type} = 'service_dog_credential_verification')`,
+    })
+    .from(approvalRequests);
+  return {
+    pendingTotal: Number(row.pendingTotal),
+    oldestPendingDaysAgo:
+      row.oldestPendingMs != null ? Math.floor(Number(row.oldestPendingMs) / DAY_MS) : null,
+    roleUpgradeVet: Number(row.roleUpgradeVet),
+    organizationVerification: Number(row.organizationVerification),
+    serviceDogCredentialVerification: Number(row.serviceDogCredentialVerification),
+  };
+}
+
+/**
+ * welfare_reports awaiting moderation. Predicate is identical to the
+ * /admin/moderacion "Pendientes" filter (flagged by the heuristics AND not yet
+ * resolved) so the home tile and that page can never disagree.
+ */
+async function countModerationPending(): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(welfareReports)
+    .where(and(isNotNull(welfareReports.flaggedAt), isNull(welfareReports.moderationResolvedAt)));
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Cases not yet closed. Same predicate as /admin/casos's default "Abiertos"
+ * view (buildAdminCaseFilterClauses: closedAt IS NULL) so the home tile and
+ * the page agree by construction, not by coincidence — a status-list mirror
+ * would silently drift if a new non-terminal status (e.g. "merged") is wired.
+ */
+async function countOpenCases(): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(cases)
+    .where(isNull(cases.closedAt));
+  return Number(row?.n ?? 0);
+}
+
+/** Pets currently under an in-progress rabies observation (/admin/observaciones). */
+async function countRabiesInProgress(): Promise<number> {
+  const [row] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(pets)
+    .where(eq(pets.rabiesObservationStatus, "in_progress"));
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * Fan out every operational-queue count in parallel for the /admin home
+ * cockpit. Reuses the shared alert / outbox helpers rather than duplicating
+ * their predicates, so all three surfaces (nav badge, detail page, home tile)
+ * stay in lockstep.
+ */
+export async function fetchQueueCockpit(): Promise<QueueCockpit> {
+  const [approvals, moderationPending, alertsOpen, outboxBreaches, casesOpen, rabiesInProgress] =
+    await Promise.all([
+      fetchApprovalQueueByType(),
+      countModerationPending(),
+      countOpenAlertFirings(),
+      countOutboxBreaches(),
+      countOpenCases(),
+      countRabiesInProgress(),
+    ]);
+  return {
+    approvals,
+    moderationPending,
+    alertsOpen,
+    outboxBreaches,
+    casesOpen,
+    rabiesInProgress,
   };
 }
 

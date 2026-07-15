@@ -54,11 +54,11 @@ import { petsScopeClause } from "./scope";
 // ---------------------------------------------------------------------------
 
 /**
- * The bounded set of pet_event types the feed surfaces — the queue-feeding,
- * operator-actionable types, each grounded in an existing gob queue that
- * consumes it and scoped to a real route below. Kept small so the composite
- * (event_type, recorded_at) index (migration 0142) serves the scan.
+ * The event-type set + queue routing live in novedades-feed-links.ts (client-
+ * safe — NovedadesCard needs feedQueueHref and this module is server-only).
+ * Re-exported here so server callers keep their existing import path.
  *
+ * Inclusion/exclusion rationale for FEED_EVENT_TYPES:
  *   - Surveillance / zoonosis → /gob/vigilancia
  *       outbreak_signal, disease_reported, rabies_observation_started
  *       (the three signals the /gob/vigilancia KPIs already read), plus
@@ -72,29 +72,9 @@ import { petsScopeClause } from "./scope";
  *   - custody_transfer_proposed is an owner-facing return handshake with no
  *     dedicated gob operator queue to route to.
  */
-export const FEED_EVENT_TYPES = [
-  "outbreak_signal",
-  "disease_reported",
-  "rabies_observation_started",
-  "incident_reported",
-  "custody_dispute_raised",
-] as const satisfies readonly EventType[];
+export { FEED_EVENT_TYPES, type FeedEventType, feedQueueHref } from "./novedades-feed-links";
 
-export type FeedEventType = (typeof FEED_EVENT_TYPES)[number];
-
-/** The gob queue page that handles each feed event type (admin+govt guarded). */
-const FEED_QUEUE_HREF: Record<FeedEventType, string> = {
-  outbreak_signal: "/gob/vigilancia",
-  disease_reported: "/gob/vigilancia",
-  rabies_observation_started: "/gob/vigilancia",
-  incident_reported: "/gob/vigilancia",
-  custody_dispute_raised: "/gob/disputas",
-};
-
-/** Route to the queue page that handles a feed event type ("Ver en su cola →"). */
-export function feedQueueHref(eventType: FeedEventType): string {
-  return FEED_QUEUE_HREF[eventType];
-}
+import { FEED_EVENT_TYPES, type FeedEventType } from "./novedades-feed-links";
 
 /** First-visit fallback: with no watermark, show the last 7 days. */
 export const FIRST_VISIT_WINDOW_DAYS = 7;
