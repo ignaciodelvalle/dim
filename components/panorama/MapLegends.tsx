@@ -33,6 +33,7 @@ import {
   computeClassScale,
 } from "@/components/panorama/class-scale";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
+import { HATCH_SWATCH_CSS } from "@/components/panorama/hatch-pattern";
 import {
   type ScaleBounds,
   provinceValueBounds,
@@ -209,13 +210,12 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
             <div className="mt-1.5 flex items-center gap-1.5 text-ln-op-mute">
               <span
                 className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
-                style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
-                }}
+                // Shared hatch color (hatch-pattern.ts) so the legend key matches
+                // the on-map mark exactly — no light-skin drift.
+                style={{ backgroundImage: HATCH_SWATCH_CSS }}
                 aria-hidden="true"
               />
-              Protegido (k-anonimato)
+              Protegido por privacidad (k&lt;5)
             </div>
           </div>
         )}
@@ -256,13 +256,11 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
               <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
-                  style={{
-                    backgroundImage:
-                      "repeating-linear-gradient(45deg, rgba(203,213,225,0.85) 0, rgba(203,213,225,0.85) 1px, transparent 1px, transparent 3px)",
-                  }}
+                  // Shared hatch color (hatch-pattern.ts): legend key == on-map mark.
+                  style={{ backgroundImage: HATCH_SWATCH_CSS }}
                   aria-hidden="true"
                 />
-                Suprimido (k-anonimato)
+                Protegido por privacidad (k&lt;5)
               </div>
             )}
             <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">

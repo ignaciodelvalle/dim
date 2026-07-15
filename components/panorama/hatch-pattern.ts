@@ -13,9 +13,34 @@
 export const HATCH_IMAGE_ID = "pano-hatch-suppressed";
 
 /**
- * Build the diagonal-hatch tile as ImageData. Transparent background + light
- * slate 45° strokes. Returns null when no canvas is available (SSR / no DOM), in
- * which case the suppressed cells fall back to outline-only (still never zero).
+ * The 45° hatch stroke color — the SINGLE source of truth shared by the canvas
+ * tile (below) AND the off-canvas legend swatches (MapLegends), so the map mark
+ * and its legend key can never drift apart.
+ *
+ * LIGHT-SKIN REGRESSION FIX (2026-07-15): the original slate-300 (`#cbd5e1`)
+ * stroke was tuned for the RETIRED dark-navy canvas — light lines popped on navy.
+ * After the v2C light-skin migration (2026-07-11) the canvas is near-white
+ * (#eef1f4 land / #e7eaed no-data), and a slate-300 hatch on near-white is
+ * effectively INVISIBLE, so a k-anon-suppressed cell read as blank "sin datos"
+ * (the Córdoba/PBA antirrábica "looks broken" report). A mid-slate (slate-500)
+ * stroke reads clearly on the light canvas while staying obviously "muted /
+ * protected", not a data color. Same class of leftover-from-a-previous-skin bug
+ * as the CVD teal near-regression.
+ */
+export const HATCH_STROKE_RGBA = "rgba(71,85,105,0.85)"; // slate-600, reads on the light canvas
+
+/**
+ * The legend swatch's CSS `background-image` — the exact same 45° stroke color as
+ * the canvas tile, as a repeating-linear-gradient. Kept here so the legend and the
+ * map hatch are defined ONCE, together.
+ */
+export const HATCH_SWATCH_CSS = `repeating-linear-gradient(45deg, ${HATCH_STROKE_RGBA} 0, ${HATCH_STROKE_RGBA} 1px, transparent 1px, transparent 3px)`;
+
+/**
+ * Build the diagonal-hatch tile as ImageData. Transparent background + mid-slate
+ * 45° strokes (readable on the light canvas). Returns null when no canvas is
+ * available (SSR / no DOM), in which case the suppressed cells fall back to
+ * outline-only (still never zero).
  */
 export function buildHatchImageData(): ImageData | null {
   if (typeof document === "undefined") return null;
@@ -29,7 +54,7 @@ export function buildHatchImageData(): ImageData | null {
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
   ctx.clearRect(0, 0, w, h);
-  ctx.strokeStyle = "rgba(203,213,225,0.8)"; // slate-300
+  ctx.strokeStyle = HATCH_STROKE_RGBA; // slate-600 — reads on the light canvas
   ctx.lineWidth = 1.25 * scale;
   ctx.lineCap = "square";
   ctx.beginPath();
