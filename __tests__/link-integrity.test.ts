@@ -292,7 +292,9 @@ describe("link-integrity: every static internal link resolves to a real route", 
   it("each nav-preset export contributes known hrefs (source-coverage guard)", () => {
     // If a nav export is renamed, this catches it before the main assertion.
     expect(navPresetsHrefs).toContain("/adoptar"); // PUBLIC_NAV
-    expect(navPresetsHrefs).toContain("/inicio"); // OWNER_NAV
+    // OWNER_NAV no longer contains /inicio (PO ronda 4 removed the Inicio tab;
+    // the route itself survives as a redirect) — Mis mascotas is its anchor.
+    expect(navPresetsHrefs).toContain("/mis-mascotas"); // OWNER_NAV
     expect(navPresetsHrefs).toContain("/gob"); // GOB_NAV
     expect(navPresetsHrefs).toContain("/admin"); // ADMIN_NAV
   });

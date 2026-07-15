@@ -257,14 +257,17 @@ export function resolveShellNav(input: ShellNavInput): ShellNavResult {
   // The separate "Volver a mi app" RETURN affordance used to also render
   // here whenever `offHome` (D4's original guarantee). Wave-3 P6 (PO
   // decision #645 point 5) removed it for THIS branch only: `citizenNavFor`
-  // (OWNER_NAV) always renders and, since P6, carries its own always-visible
-  // "Inicio" item pointing at this exact same `roleHome(role)` href — the
-  // return chip was a literal duplicate on every citizen page. The OTHER
-  // `showReturn` call sites above are untouched and stay true: token-landing
-  // (D13) renders NO nav at all, and the operator branches (govt/admin
-  // stranded on a public surface, or a personal role inside an org context)
-  // use ADMIN_NAV/GOB_NAV/org nav, none of which link back to /mis-mascotas
-  // — for those, the return affordance is still the only way back.
+  // (OWNER_NAV) always renders and carries "Mis mascotas" → /mis-mascotas,
+  // the owner surface index — a guaranteed 1-click way back into the owner
+  // app that made the chip a near-duplicate on every citizen page. (PO ronda
+  // 4 later removed OWNER_NAV's "Inicio" item entirely; `roleHome(role)`
+  // stays "/inicio" — a courtesy redirect into the most-urgent credential —
+  // for the OTHER `showReturn` call sites that still use it.) Those call
+  // sites above are untouched and stay true: token-landing (D13) renders NO
+  // nav at all, and the operator branches (govt/admin stranded on a public
+  // surface, or a personal role inside an org context) use ADMIN_NAV/GOB_NAV/
+  // org nav, none of which link back to /mis-mascotas — for those, the
+  // return affordance is still the only way back.
   return {
     variant: "citizen",
     nav: citizenNavFor(role),
