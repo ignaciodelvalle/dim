@@ -71,8 +71,17 @@ describe("datasetToCsv", () => {
   it("emits the header row and data with the suppression marker verbatim (never 0)", () => {
     expect(csv).toContain("provincia,codigo_iso,perros_registrados,cobertura_antirrabica_pct");
     expect(csv).toContain("Córdoba,AR-X,9000,71.2");
-    // The suppressed row keeps the province identity but hides every numeric cell.
+  });
+
+  it("always quotes the suppression-marker cell, even though it contains no comma/quote/newline", () => {
+    // The marker is a privacy signal, not ordinary data — it must stay
+    // mechanically distinct from a real value in the exported CSV. Both
+    // numeric columns of the suppressed row carry the marker, both quoted.
     expect(csv).toContain(
+      'Tierra del Fuego,AR-V,"suprimido por privacidad","suprimido por privacidad"',
+    );
+    // And NOT the unquoted form.
+    expect(csv).not.toContain(
       "Tierra del Fuego,AR-V,suprimido por privacidad,suprimido por privacidad",
     );
   });

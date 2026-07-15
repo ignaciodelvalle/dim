@@ -6,8 +6,8 @@
 //
 // Pure (no DB, no Next.js) so the framing is unit-testable directly.
 
-import { rowsToCsv } from "@/lib/analytics/govt-exports";
 import type { BuiltDataset } from "@/lib/open-data/datasets";
+import { SUPPRESSED_MARKER } from "@/lib/open-data/province-suppression";
 
 export type DatasetFormat = "csv" | "json";
 
@@ -16,10 +16,40 @@ export function parseFormat(value: string | null | undefined): DatasetFormat {
   return value === "csv" ? "csv" : "json";
 }
 
+/** Quote one CSV cell per RFC 4180 (comma / newline / embedded double quote),
+ *  AND always quote the exact suppression-marker value even though it
+ *  contains none of those triggers. A suppressed cell is a privacy signal,
+ *  not ordinary data; quoting it unconditionally keeps it visually and
+ *  mechanically distinct from a real value for any downstream CSV consumer.
+ *  Mirrors lib/analytics/govt-exports.ts's rowsToCsv escaping otherwise — kept
+ *  as a local variant (not a shared-function option) so this stricter rule
+ *  never changes behavior for the unrelated authenticated exports that reuse
+ *  rowsToCsv. */
+function csvCell(value: unknown): string {
+  const str = value === null || value === undefined ? "" : String(value);
+  if (str === SUPPRESSED_MARKER || str.includes(",") || str.includes("\n") || str.includes('"')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+/** RFC 4180 table for the dataset rows, with the suppression marker always
+ *  quoted (see csvCell). */
+function rowsToCsvWithQuotedMarker(rows: Record<string, unknown>[]): string {
+  if (rows.length === 0) return "";
+  const headers = Object.keys(rows[0]);
+  const lines = [headers.map(csvCell).join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((h) => csvCell(row[h])).join(","));
+  }
+  return lines.join("\r\n");
+}
+
 /**
  * CSV document: UTF-8 BOM (Excel), then a metadata preamble as `#` comment
- * lines, a blank line, then the RFC 4180 table (rowsToCsv). Suppressed cells are
- * already the literal marker string in `rows`, so they export verbatim.
+ * lines, a blank line, then the RFC 4180 table. Suppressed cells are already
+ * the literal marker string in `rows`; the marker is always quoted in the
+ * exported table (see rowsToCsvWithQuotedMarker).
  */
 export function datasetToCsv(built: BuiltDataset): string {
   const { meta, rows } = built;
@@ -38,7 +68,7 @@ export function datasetToCsv(built: BuiltDataset): string {
     `# supresion: k=${meta.suppression.k}; ${meta.suppression.rule}`,
     `# filas: ${meta.rowCount} (suprimidas: ${meta.suppressedCount})`,
   ].join("\r\n");
-  const table = rowsToCsv(rows);
+  const table = rowsToCsvWithQuotedMarker(rows);
   return `﻿${preamble}\r\n\r\n${table}\r\n`;
 }
 

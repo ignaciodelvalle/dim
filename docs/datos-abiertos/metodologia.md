@@ -95,16 +95,32 @@ persona o mascota a partir de estos datos, y cómo los mitigamos:
   numerador crudo.
 - **Ataque por diferencia contra un total nacional** → mitigado por la supresión
   complementaria a nivel nacional.
-- **Ataque por diferencia entre ventanas de tiempo (temporal)** → **no aplica hoy.**
-  Estos conjuntos son **fotografías del estado actual** (o de una ventana móvil de
-  12 meses en el caso antirrábico); **no publicamos series temporales ni variaciones
-  período contra período**. Restar dos fotos tomadas en momentos distintos podría,
-  en teoría, revelar cambios chicos en un grupo. Por eso, si en el futuro se
-  publicaran deltas o series históricas, cada delta deberá pasar por la regla de
-  supresión de diferencias (suprimir el delta cuando cualquiera de las dos ventanas
-  tenga un conteo protegido, entre 1 y 4), del mismo modo que ya se hace en los
-  paneles internos. Mientras se publiquen sólo instantáneas, este riesgo no está
-  presente.
+- **Ataque por diferencia entre ventanas de tiempo (temporal)** → **riesgo real,
+  mitigado pero no eliminado.** Este endpoint es público y puede descargarse
+  automáticamente ("scrapearse") todos los días, así que **sí es posible**
+  guardar publicaciones sucesivas y compararlas para intentar aislar cambios
+  entre un día y otro. No afirmamos que esto sea imposible. Lo que sí sostenemos:
+  - La cadencia es **diaria, no continua**: la ventana mínima entre dos
+    fotografías es de un día, lo que reduce (aunque no anula) la granularidad
+    de cualquier diferencia observable frente a un scraping más frecuente.
+  - Cada fotografía, tomada individualmente, ya pasó por k-anonimato (k = 5) y
+    supresión complementaria a nivel nacional. Restar dos fotografías donde la
+    misma celda está visible en ambas sólo puede exponer una diferencia entre
+    dos grupos que YA eran ≥ 5 cada uno — la resta nunca expone directamente un
+    grupo menor a 5, porque ninguno de los dos términos de la resta lo era.
+  - Reconocemos un **riesgo residual de inferencia** sobre las celdas
+    suprimidas: si una celda aparece suprimida en una fotografía y visible en
+    la siguiente (o viceversa), comparar ambas puede acotar el rango del valor
+    que estuvo oculto (por ejemplo, saber que pasó de "suprimido" a un valor
+    visible acota su crecimiento mínimo). Esto no revela el valor exacto que
+    estuvo suprimido, pero es un vector de inferencia real que no
+    minimizamos.
+  - **Trabajo futuro (NO implementado todavía)**: estamos evaluando una
+    supresión "delta-aware" — que trate cada par de publicaciones sucesivas
+    como una unidad a proteger, no sólo cada fotografía por separado — y/o
+    publicaciones congeladas en períodos fijos más espaciados. Mientras esa
+    mitigación no esté implementada, el riesgo residual descripto arriba se
+    mantiene.
 - **Cruce entre conjuntos** → los conjuntos de esterilización y microchip comparten
   la misma población base (mascotas activas). Cruzarlos sólo revela dos totales, cada
   uno de un grupo ≥ 5; no expone a ningún individuo.

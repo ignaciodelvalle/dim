@@ -169,4 +169,23 @@ describe("suppressRateProvinces", () => {
     ]);
     expect(suppressedCodes(tagged)).toEqual(["AR-A", "AR-B"]);
   });
+
+  it("applies complementary suppression when the primary trigger is the COMPLEMENT (denominator − numerator ∈ [1,5))", () => {
+    // AR-A: denominator 9000, numerator 8998 → complement = 2 (in [1,5)) is
+    // the ONLY protected quantity here (base and numerator both clear k) — the
+    // primary suppression fires via isRateCellProtected's complement branch,
+    // not the numerator or base branch. It is the lone national suppression,
+    // so a published national vaccinated total would still isolate its
+    // numerator (8998) by subtracting the visible provinces → complementary
+    // suppression must pull in the smallest-numerator visible sibling
+    // (AR-B, numerator 60), exactly as it would for a numerator-triggered
+    // primary suppression.
+    const tagged = suppressRateProvinces([
+      rate("AR-A", 8998, 9000),
+      rate("AR-B", 60, 9000),
+      rate("AR-C", 4000, 9000),
+      rate("AR-D", 5000, 9000),
+    ]);
+    expect(suppressedCodes(tagged)).toEqual(["AR-A", "AR-B"]);
+  });
 });

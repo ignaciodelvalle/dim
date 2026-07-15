@@ -14,6 +14,7 @@
 import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import {
   DATASET_IDS,
   type DatasetId,
@@ -28,8 +29,17 @@ import {
   parseFormat,
 } from "@/lib/open-data/serialize";
 
-/** The underlying figures change at most daily; refresh the snapshot every 6h. */
-const REVALIDATE_SECONDS = 21_600;
+/** The underlying figures change at most daily; refresh the snapshot every 24h
+ *  (daily) — matches the cadence promised on the transparency page and in
+ *  docs/datos-abiertos (audit fix, 2026-07). */
+const REVALIDATE_SECONDS = 86_400;
+
+/** Per-IP budget for the public download endpoint. Mirrors the closest public
+ *  read-route pattern in the repo (denuncia_receipt, case_detail_public):
+ *  30/min is generous for a real citizen/journalist download session, tight
+ *  enough to blunt a scrape burst against the public, unauthenticated
+ *  endpoint. */
+const OPEN_DATA_RATE_LIMIT = { maxPerMinute: 30, maxPerHour: 200 } as const;
 
 /** Cache the DB-backed dataset build per id. unstable_cache folds the argument
  *  into the cache key, so each dataset gets its own cached snapshot; the tags
@@ -59,29 +69,52 @@ export async function GET(
   request: Request,
   ctx: { params: Promise<{ dataset: string }> },
 ): Promise<Response> {
-  const { dataset } = await ctx.params;
+  try {
+    const { dataset } = await ctx.params;
 
-  if (!isDatasetId(dataset)) {
-    return NextResponse.json({ error: "unknown_dataset", datasets: DATASET_IDS }, { status: 404 });
-  }
+    if (!isDatasetId(dataset)) {
+      return NextResponse.json(
+        { error: "unknown_dataset", datasets: DATASET_IDS },
+        { status: 404 },
+      );
+    }
 
-  const format: DatasetFormat = parseFormat(new URL(request.url).searchParams.get("format"));
-  const built = await getDatasetCached(dataset);
-  const headers = metadataHeaders(built.meta);
+    try {
+      await enforceRateLimit("open_data_dataset", callerIp(request.headers), OPEN_DATA_RATE_LIMIT);
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return NextResponse.json(
+          { error: "rate_limited" },
+          { status: 429, headers: { "Retry-After": "60" } },
+        );
+      }
+      throw err;
+    }
 
-  if (format === "csv") {
-    return new Response(datasetToCsv(built), {
+    const format: DatasetFormat = parseFormat(new URL(request.url).searchParams.get("format"));
+    const built = await getDatasetCached(dataset);
+    const headers = metadataHeaders(built.meta);
+
+    if (format === "csv") {
+      return new Response(datasetToCsv(built), {
+        status: 200,
+        headers: {
+          ...headers,
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${dataset}.csv"`,
+        },
+      });
+    }
+
+    return new Response(datasetToJson(built), {
       status: 200,
-      headers: {
-        ...headers,
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${dataset}.csv"`,
-      },
+      headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
     });
+  } catch {
+    // Any unexpected failure (DB down, buildDataset throw, rate-limit write
+    // error, etc.) → a generic 500 with no internal detail leaked to an
+    // anonymous public caller. Specific handled paths (404, 429) return above
+    // and never reach here.
+    return NextResponse.json({ error: "unavailable" }, { status: 500 });
   }
-
-  return new Response(datasetToJson(built), {
-    status: 200,
-    headers: { ...headers, "Content-Type": "application/json; charset=utf-8" },
-  });
 }

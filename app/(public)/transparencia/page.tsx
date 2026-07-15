@@ -140,12 +140,15 @@ export default function TransparenciaPage() {
               className="mt-0.5 shrink-0 text-[var(--color-ln-azul)]"
             />
             <p className="text-sm leading-relaxed text-[var(--color-ln-ink-2)]">
-              <strong>Riesgo de reidentificación:</strong> estos conjuntos son fotografías del
-              estado actual (o de una ventana móvil de 12 meses en el caso antirrábico); no
-              publicamos series temporales ni variaciones período contra período, por lo que no es
-              posible restar dos fotos para aislar cambios en grupos pequeños. Si en el futuro se
-              publicaran series o deltas, cada variación deberá pasar por la regla de supresión de
-              diferencias.
+              <strong>Riesgo de reidentificación (comparación entre publicaciones):</strong> este
+              endpoint es público y puede descargarse automáticamente todos los días, así que es
+              posible guardar publicaciones sucesivas y compararlas. La cadencia diaria (no
+              continua) limita la granularidad de esa comparación, y como cada fotografía ya pasó
+              por k-anonimato (k = 5) y supresión complementaria, restar dos fotografías nunca
+              expone directamente un grupo menor a 5. Sí reconocemos un riesgo residual de
+              inferencia sobre celdas que cambian entre «suprimido por privacidad» y un valor
+              visible. Estamos evaluando supresión sensible a estas diferencias y/o publicaciones en
+              períodos fijos más espaciados como trabajo futuro (no implementado todavía).
             </p>
           </div>
         </section>

@@ -2,7 +2,9 @@
 //
 // The DB-backed dataset build is mocked (targeted vitest — no DB). We assert the
 // route's contract: 404 for an unknown slug, format negotiation (json default /
-// csv), download filename, and the self-describing metadata headers.
+// csv), download filename, the self-describing metadata headers, the per-IP
+// rate limit (429 shape, limiter mocked), and the generic-500 error path (no
+// internal detail leaked to an anonymous caller).
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,6 +23,16 @@ vi.mock("@/lib/open-data/datasets", async (importOriginal) => {
   return { ...actual, buildDataset };
 });
 
+// Mock the rate limiter so tests control its outcome without touching the DB.
+// callerIp is stubbed to a fixed value; RateLimitError is the REAL class (so
+// `instanceof` checks in the route still work against instances we throw).
+const { enforceRateLimit } = vi.hoisted(() => ({ enforceRateLimit: vi.fn() }));
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return { ...actual, enforceRateLimit, callerIp: () => "203.0.113.1" };
+});
+
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { GET } from "../route";
 
 const fakeBuilt: BuiltDataset = {
@@ -53,6 +65,8 @@ function params(dataset: string) {
 beforeEach(() => {
   buildDataset.mockReset();
   buildDataset.mockResolvedValue(fakeBuilt);
+  enforceRateLimit.mockReset();
+  enforceRateLimit.mockResolvedValue(undefined);
 });
 
 describe("GET /transparencia/datos/[dataset]", () => {
@@ -71,7 +85,8 @@ describe("GET /transparencia/datos/[dataset]", () => {
     expect(res.headers.get("Content-Type")).toContain("application/json");
     expect(res.headers.get("X-License")).toBe("CC-BY-4.0");
     expect(res.headers.get("X-Methodology-Url")).toContain("/transparencia#metodologia");
-    expect(res.headers.get("Cache-Control")).toContain("s-maxage=21600");
+    // Daily cache (24h) — audit fix, was 6h (21600).
+    expect(res.headers.get("Cache-Control")).toContain("s-maxage=86400");
     const body = await res.json();
     expect(body.meta.id).toBe("mortalidad");
     expect(body.data[0].fallecimientos_registrados).toBe(42);
@@ -88,5 +103,27 @@ describe("GET /transparencia/datos/[dataset]", () => {
     const text = await res.text();
     expect(text).toContain("# licencia:");
     expect(text).toContain("Córdoba,AR-X,42");
+  });
+
+  it("429s with a generic body when the per-IP rate limit is exceeded", async () => {
+    enforceRateLimit.mockRejectedValueOnce(new RateLimitError(new Date(), "test"));
+    const res = await GET(req("https://x/transparencia/datos/mortalidad"), params("mortalidad"));
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body).toEqual({ error: "rate_limited" });
+    expect(res.headers.get("Retry-After")).toBe("60");
+    // Rate limit is checked before the (cached) DB build runs.
+    expect(buildDataset).not.toHaveBeenCalled();
+  });
+
+  it("500s with a generic body and no internal detail when the build fails", async () => {
+    buildDataset.mockRejectedValueOnce(new Error("db exploded: connection refused at 10.0.0.5"));
+    const res = await GET(req("https://x/transparencia/datos/mortalidad"), params("mortalidad"));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ error: "unavailable" });
+    const text = JSON.stringify(body);
+    expect(text).not.toContain("db exploded");
+    expect(text).not.toContain("10.0.0.5");
   });
 });
