@@ -1,12 +1,15 @@
 // IntentApplyBanner — surfaces a "continue your adoption application" prompt
-// on /inicio when the signed-in user has an unresolved apply-intent cookie.
+// on the /mis-mascotas index when the signed-in user has an unresolved
+// apply-intent cookie (owner-ia-redesign P5: an application is about a pet you
+// do NOT own yet, so it belongs on the index/inbox, not on any credential —
+// inventory §9.2).
 //
 // The cookie is set by startApplyIntentAction (app/actions/apply-intent.ts)
 // when an anonymous visitor clicks "Postularme" on /adoptar/[petToken].
 // After signup, the user is sent back to /adoptar/[petToken]/postular which
-// clears the cookie. If the user navigates to /inicio without completing
-// the application, the cookie is still alive and we surface this banner
-// so they can resume in one tap.
+// clears the cookie. If the user reaches the index without completing the
+// application, the cookie is still alive and we surface this banner so they
+// can resume in one tap.
 //
 // Trilogy unification handoff §3 PR-024.
 
@@ -104,7 +107,7 @@ export async function IntentApplyBanner() {
       </div>
       <Link
         href={`/adoptar/${pet.publicToken}/postular`}
-        className="flex-shrink-0 px-3 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-xs font-semibold hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+        className="flex-shrink-0 px-3 py-2 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-xs font-semibold hover:bg-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
       >
         Continuar →
       </Link>

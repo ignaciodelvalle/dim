@@ -1,4 +1,5 @@
-// CredCard — per-pet credential card for the owner-home carousel (task #9).
+// CredCard — per-pet credential card, the /mis-mascotas index row
+// (owner-ia-redesign P5; originally the owner-home carousel card, task #9).
 //
 // "La mascota es la credencial." One card = photo + name + status flag + a 4px
 // status-accent left border, then a body that switches by situation:
@@ -15,10 +16,11 @@
 //                    LostCaseBlock's "¡Apareció!" opens).
 //
 // Glance-and-go (PO 2026-07-12 #1): the identity header is a Link to the pet
-// profile; the card never drives anything below the rail. Desktop healthy cards
-// gain a quiet footer (Asentar · Ver perfil). Presentational — all data arrives
-// resolved from the server page. No color alone: status is icon+shape+text via
-// LnStatusFlag, and the vaccine tiles carry text labels.
+// profile. Desktop healthy cards gain a quiet footer (Asentar · Ver perfil).
+// Presentational — all data arrives resolved from the server page. No color
+// alone: status is icon+shape+text via LnStatusFlag, and the vaccine tiles
+// carry text labels. Full-width so the index can lay the cards out in a
+// responsive grid (the fixed rail width was carousel-only, now removed).
 
 import Link from "next/link";
 
@@ -102,7 +104,7 @@ export function CredCard({ data }: { data: CredCardData }) {
     <article
       aria-label={`Credencial de ${name}`}
       className={[
-        "relative flex w-[280px] shrink-0 snap-start flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-ln-line)]",
+        "relative flex w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-ln-line)]",
         // Left status accent (::before) — 4px, colored by status.
         "before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-[4px] before:content-['']",
         accentByStatus[status],
