@@ -33,9 +33,15 @@ export function coalescedGet(url: string, signal: AbortSignal): Promise<Response
     // coalesced callers are awaiting.
     shared = fetch(url, { headers: { accept: "application/json" } });
     const created = shared;
-    void created.finally(() => {
-      if (inFlightGets.get(url) === created) inFlightGets.delete(url);
-    });
+    // Clean the map entry when the shared fetch settles. The trailing .catch
+    // swallows the finally-chain's re-raise (the shared fetch has no signal, but
+    // a network error still rejects) so this cleanup branch never surfaces an
+    // unhandledrejection — each CALLER handles the rejection on its own `base`.
+    void created
+      .finally(() => {
+        if (inFlightGets.get(url) === created) inFlightGets.delete(url);
+      })
+      .catch(() => {});
     inFlightGets.set(url, created);
   }
   const base = shared;

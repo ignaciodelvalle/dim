@@ -964,6 +964,18 @@ export function PanoramaConsole({
     };
   }, [scopePeriodQs, signalFor]);
 
+  // Q13 safety net: the scope/period effect blanks the strip and clears the flag
+  // on its OWN settle — but the as-of KPI effect below shares the "kpis" abort
+  // key and can supersede the scope fetch (drill, then scrub). That aborts the
+  // scope fetch, whose catch leaves the flag set assuming the winner manages it,
+  // yet the as-of effect only tracks kpisPending. So clear the blank whenever
+  // FRESH kpis actually land, from whichever effect — the numbers are current,
+  // the strip must never stay stuck on "Actualizando…".
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on the kpis value only — the "fresh data arrived" signal, not read in the body.
+  useEffect(() => {
+    setKpisScopeChanging(false);
+  }, [kpis]);
+
   // Coherence hybrid (cowork QA H1) — a DEDICATED as-of KPI refetch, kept SEPARATE
   // from the scope/period effect above so the scrubber's rapid asOf changes never
   // re-run the scope-takeover bookkeeping (seededQsRef/clientKpiTookOverRef). When
