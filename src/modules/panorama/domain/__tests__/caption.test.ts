@@ -70,6 +70,42 @@ describe("captionFor", () => {
     );
   });
 
+  it("rate layer at locality → labels the fill as a COUNT, not a % / Meta (Finding #2)", () => {
+    // At province grain the fill IS a real ratePct → % + Meta copy (honest there).
+    expect(captionFor(layer("cobertura"), "province", period90d)).toBe(
+      "Cada área es una provincia. Relleno = cobertura antirrábica, estado actual. Meta 80%.",
+    );
+    // At locality/department grain the v1 loader paints a COUNT per unit, so the
+    // caption must say "conteo por unidad (no porcentaje)" and drop the Meta.
+    const local = captionFor(layer("cobertura"), "locality", period90d);
+    expect(local).toBe(
+      "Cada área es una división (departamento/partido, o barrio en CABA). Relleno = cobertura antirrábica — conteo por unidad (no porcentaje), estado actual.",
+    );
+    expect(local).not.toContain("Meta");
+  });
+
+  it("every rate layer drops the % / Meta claim at locality grain", () => {
+    for (const id of [
+      "cobertura",
+      "esterilizacion",
+      "microchip",
+      "ppp",
+      "antiparasitario",
+    ] as const) {
+      const c = captionFor(layer(id), "locality", period90d);
+      expect(c).toContain("conteo por unidad (no porcentaje)");
+      expect(c).not.toContain("Meta");
+    }
+  });
+
+  it("a NON-rate layer at locality is unaffected (keeps its per-unit copy)", () => {
+    // mordeduras is a density layer — no rate fallback, so its locality caption is
+    // unchanged (Tamaño = eventos…, no "conteo por unidad" honesty clause).
+    expect(captionFor(layer("mordeduras"), "locality", period90d)).not.toContain(
+      "conteo por unidad (no porcentaje)",
+    );
+  });
+
   it("reference (clustered-points) layers produce a non-empty caption without a Meta clause", () => {
     const c = captionFor(layer("refugios"), "province", period90d);
     expect(c.length).toBeGreaterThan(0);

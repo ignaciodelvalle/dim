@@ -64,6 +64,21 @@ export function captionFor(
   }
 
   const unit = layer.caption.unit[level];
+
+  // Honesty branch (v1 rate limitation — repository.ts rate-layer note): a `rate`
+  // layer paints its true ratePct ONLY at province grain. At any FINER grain
+  // (locality/department) the v1 loader falls back to a COUNT per unit
+  // (count-density), not a percentage. So the caption must NOT promise a "%"
+  // measure or a "Meta X%" target there — it names the fill as a per-unit count,
+  // matching the division-fill legend ("conteos por …") and the dock. This keeps
+  // the panorama canon (label = number = map): the words never claim a % the fill
+  // is not painting. v2 follow-up: compute a real per-department % (needs the
+  // numerator/denominator per department); then this branch collapses back into
+  // the % + Meta copy below.
+  if (layer.dataType === "rate" && level !== "province") {
+    return `Cada ${subject} es una ${unit}. ${encoding} = ${layer.caption.measure} — conteo por unidad (no porcentaje), ${when}.`;
+  }
+
   const base = `Cada ${subject} es una ${unit}. ${encoding} = ${layer.caption.measure}, ${when}.`;
   return layer.complianceTarget !== undefined ? `${base} Meta ${layer.complianceTarget}%.` : base;
 }
