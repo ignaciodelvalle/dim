@@ -13,8 +13,6 @@
 // Counts are passed in by the page (reusing fetchQueueCockpit) — this component
 // adds NO queries of its own.
 
-import Link from "next/link";
-
 import { Icon } from "@/components/Icon";
 import type { IconName } from "@/components/Icon";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
@@ -113,7 +111,13 @@ export function AdminSiteMap({
                   const icon = ROUTE_ICON[item.href];
                   return (
                     <li key={item.href}>
-                      <Link
+                      {/* Plain <a> (not next/link) — operator-trust T2. On these
+                          dense operator lists a soft <Link> navigation could
+                          silently drop under the Next 15.5 client-router defect
+                          (see lib/ui/sheet-nav.ts): the row focused but the page
+                          never changed. A real anchor hard-navigates, so the
+                          click always lands. */}
+                      <a
                         href={item.href}
                         className="group -mx-2 flex items-start gap-2.5 rounded-[var(--radius-sm)] px-2 py-2 no-underline transition-colors hover:bg-ln-op-card"
                         aria-label={item.label}
@@ -143,7 +147,7 @@ export function AdminSiteMap({
                             </span>
                           ) : null}
                         </span>
-                      </Link>
+                      </a>
                     </li>
                   );
                 })}

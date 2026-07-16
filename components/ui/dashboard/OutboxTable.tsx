@@ -181,12 +181,17 @@ export function OutboxTable({
                 </td>
                 <td className="py-2 px-3">
                   {detailHref ? (
-                    <Link
+                    // Plain <a> (not next/link) — operator-trust T2. The row →
+                    // detail click soft-nav-dropped on this dense list (Next 15.5
+                    // client-router defect, see lib/ui/sheet-nav.ts): the link
+                    // focused but the page stayed. A real anchor hard-navigates,
+                    // so the click always lands on the detail page.
+                    <a
                       href={detailHref}
                       className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
                     >
                       {"Detalle ->"}
-                    </Link>
+                    </a>
                   ) : (
                     <span className="text-[11px] text-ln-op-mute">—</span>
                   )}
