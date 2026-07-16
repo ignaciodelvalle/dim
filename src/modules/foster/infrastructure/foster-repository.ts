@@ -795,9 +795,15 @@ export const FosterRepository = {
         jurisdictionLocality: args.petJurisdictionLocality,
         openedByUserId: args.actorUserId,
         openedByOrganizationId: args.actorOrgId,
-        openedReason: `Foster placement assigned by ${args.actorOrgDisplayName}${
-          args.expectedWeeks ? ` — expected ${args.expectedWeeks} weeks` : ""
-        }`,
+        openedReason: {
+          code: "foster_placement_assigned",
+          actorOrgDisplayName: args.actorOrgDisplayName,
+          // `|| null`, not `?? null`: the prose template this replaces tested
+          // truthiness, so 0 meant "no duration". Keeping that exact semantic
+          // means params and prose agree instead of storing a 0 that the
+          // positive-int schema would reject on read.
+          expectedWeeks: args.expectedWeeks || null,
+        },
       },
       tx,
     );
@@ -919,7 +925,11 @@ export const FosterRepository = {
         openedByOrganizationId: args.orgId,
         jurisdictionProvince: args.petJurisdictionProvince,
         jurisdictionLocality: args.petJurisdictionLocality,
-        openedReason: `Foster proposal to volunteer ${args.volunteerUserId} by org ${args.orgId}`,
+        // The volunteer + org ids are AUDIT-only: they belong in the prose
+        // (as they always have) but never in params, so the renderer cannot
+        // reach them. Hence no params on this code.
+        openedReason: { code: "foster_proposal_sent" },
+        openedReasonAudit: { volunteerUserId: args.volunteerUserId, orgId: args.orgId },
       },
       tx,
     );
