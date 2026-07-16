@@ -340,10 +340,29 @@ describe("searchOmnibox — case scoping (govt)", () => {
     expect(ids).toContain(mendozaCaseId);
   });
 
-  it("an admin case result links to the canonical /casos/[publicCode] detail page", async () => {
+  it("an admin case result links INTO the /admin operator shell, not the public citizen route", async () => {
+    // Shell-loss fix (task #47 class), admin half. This test used to assert the
+    // bug: it pinned the admin href to the public /casos/[publicCode], calling
+    // it "canonical". QA ronda 5 (2026-07-16) showed what that meant in
+    // practice — a national operator opening a denuncia lost the rail/topbar,
+    // got the citizen nav ("Adoptar · Refugios · ← Volver a mi app"), and had
+    // no way back into their work. Admin now has an in-shell detail route, same
+    // as govt.
     const r = await searchOmnibox(`CASO-${TAG}`, ADMIN_SCOPE);
     const cabaResult = r.cases.find((c) => c.id === cabaCaseId);
-    expect(cabaResult?.href).toBe(`/casos/${CABA_CASE_CODE}`);
+    expect(cabaResult?.href).toBe(`/admin/casos/${CABA_CASE_CODE}`);
+  });
+
+  it("no operator case result ever points at the public citizen case route", async () => {
+    // Fence: the public /casos/[publicCode] renders under the citizen layout.
+    // Neither operator role may be routed there from the omnibox, whatever the
+    // scope. Guards both halves of the shell-loss class at once.
+    for (const scope of [ADMIN_SCOPE, GOVT_CABA]) {
+      const r = await searchOmnibox(`CASO-${TAG}`, scope);
+      for (const c of r.cases) {
+        expect(c.href).not.toMatch(/^\/casos\//);
+      }
+    }
   });
 
   it("a govt case result links INTO the /gob operator shell, not the public citizen route", async () => {

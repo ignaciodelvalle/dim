@@ -96,7 +96,11 @@ export default async function AdminCasosPage({
   // Map CaseListItem → CaseQueueRow for the shared queue table. The rich
   // status/kind/province filter form above owns filtering, so the queue's
   // built-in status chips are suppressed (showStatusChips={false}) to avoid a
-  // duplicate status control. Cases are reachable via /casos/[publicCode].
+  // duplicate status control. Cases are reachable via the in-shell operator
+  // detail /admin/casos/[publicCode] — NOT the public /casos/[publicCode],
+  // which renders under the citizen layout and strips the operator rail/topbar
+  // (the shell-loss class fixed for /gob in task #47; the admin half landed
+  // 2026-07-16 after QA ronda 5 caught it).
   const queueRows: CaseQueueRow[] = items.map((c) => ({
     id: c.id,
     publicCode: c.publicCode,
@@ -108,7 +112,7 @@ export default async function AdminCasosPage({
     jurisdictionLocality: c.jurisdictionLocality,
     openedAt: c.openedAt,
     closedAt: c.closedAt,
-    detailHref: `/casos/${c.publicCode}`,
+    detailHref: `/admin/casos/${c.publicCode}`,
   }));
 
   return (

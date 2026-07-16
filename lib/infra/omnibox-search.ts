@@ -218,14 +218,19 @@ async function searchCases(
     publicCode: r.publicCode,
     caseKind: r.caseKind,
     status: r.status,
-    // A govt operator must land on the case detail INSIDE the /gob shell, not
+    // An operator must land on the case detail INSIDE their own shell, not on
     // the public citizen route (app/(public)/casos/[publicCode]) which renders
-    // under the citizen layout and strips the operator rail/topbar — the same
-    // shell-loss class fixed for the /gob CaseQueue in task #47. /gob/casos/
-    // [publicCode] renders the identical CaseDetailView and re-gates via
-    // canReadCase, so nothing is widened. Admin keeps the canonical
-    // /casos/[publicCode] (mirrors the admin CaseQueue detailHref).
-    href: scope.role === "govt" ? `/gob/casos/${r.publicCode}` : `/casos/${r.publicCode}`,
+    // under the citizen layout and strips the operator rail/topbar — the
+    // shell-loss class fixed for the /gob CaseQueue in task #47. Both
+    // /gob/casos/[publicCode] and /admin/casos/[publicCode] render the
+    // identical CaseDetailView and re-gate via canReadCase, so nothing is
+    // widened.
+    //
+    // Admin used to keep "the canonical /casos/[publicCode]" here. That was the
+    // unfixed admin half of the same bug: QA ronda 5 (2026-07-16) opened a
+    // denuncia as a national operator and landed in the citizen chrome. The
+    // admin in-shell route now exists, so both roles route to their own shell.
+    href: scope.role === "govt" ? `/gob/casos/${r.publicCode}` : `/admin/casos/${r.publicCode}`,
   }));
 }
 
