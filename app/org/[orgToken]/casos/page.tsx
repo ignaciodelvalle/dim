@@ -108,7 +108,7 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
       {/* Breadcrumbs (audit #18 — casos had only an H1, no breadcrumb). */}
       <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Casos" }]} />
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Casos</h1>
         <p className="text-[13px] text-ln-op-mute">
           Expedientes donde {organization.displayName} es la organización que abrió el caso o
           actualmente tiene custodia activa.

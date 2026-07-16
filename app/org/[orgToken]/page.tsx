@@ -391,7 +391,9 @@ export default async function OrgDashboardPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{organization.displayName}</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          {organization.displayName}
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           Actuando como{" "}
           <strong className="text-ln-op-ink-2">

@@ -28,7 +28,7 @@ export default async function TransferCustodyPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Sin acceso</h1>
           <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
           <Link
             href={`/org/${orgToken}/mascotas`}
@@ -62,7 +62,9 @@ export default async function TransferCustodyPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">No se puede transferir</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            No se puede transferir
+          </h1>
           <p className="text-[13px] text-ln-op-ink-2">
             {petRow.pet.name} no está en un rol transferible (custodia o dueño). Solo se pueden
             transferir esos dos roles.
@@ -100,7 +102,9 @@ export default async function TransferCustodyPage({
           <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferir {petRow.pet.name}</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Transferir {petRow.pet.name}
+          </h1>
           <p className="text-[13px] text-ln-op-ink-2">
             Pasá la custodia a otra organización verificada. La acción es atómica: cierra el
             registro actual y abre uno nuevo en el destino con el evento{" "}

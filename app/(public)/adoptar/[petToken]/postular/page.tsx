@@ -180,7 +180,7 @@ export default async function PostularPage({
               />
             ) : (
               <div
-                className="w-full h-full grid place-items-center font-[var(--font-ln-serif)] text-[22px] font-semibold"
+                className="w-full h-full grid place-items-center font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 {pet.name.charAt(0).toUpperCase()}
@@ -195,7 +195,7 @@ export default async function PostularPage({
               Postulación de adopción
             </p>
             <p
-              className="m-0 font-[var(--font-ln-serif)] font-semibold text-[22px] tracking-[-0.015em]"
+              className="m-0 font-[var(--font-ln-serif)] font-semibold text-[var(--text-title)] tracking-[-0.015em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Adoptar a {pet.name}

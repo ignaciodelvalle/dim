@@ -66,7 +66,7 @@ export default async function OrgCensoPage({
     <div className="space-y-6">
       <div className="space-y-1">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo de animales</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Censo de animales</h1>
         <p className="text-[13px] text-ln-op-mute">
           Animales actualmente en custodia de{" "}
           <strong className="text-ln-op-ink-2">{organization.displayName}</strong>.

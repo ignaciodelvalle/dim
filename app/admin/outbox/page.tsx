@@ -155,7 +155,7 @@ export default async function AdminOutboxPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin {"·"} Bandeja de salida
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Bandeja de salida de notificaciones
         </h1>
         <p className="text-[13px] text-ln-op-ink-2">

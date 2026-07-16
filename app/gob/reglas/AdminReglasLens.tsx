@@ -86,7 +86,7 @@ export async function AdminReglasLens({ base }: Props) {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin {"·"} Jurisdicciones
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Jurisdicciones</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Jurisdicciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">
           Configurá reglas según la jurisdicción — país, provincia o localidad. Sin excepciones
           {" → "}se usan los valores nacionales por defecto.

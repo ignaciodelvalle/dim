@@ -65,7 +65,9 @@ export default async function OrgIndexPage() {
           <MiMarBrandHeader subtitle="Portal de organizaciones" />
         </div>
         <div className="max-w-md text-center space-y-3">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin organizaciones</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Sin organizaciones
+          </h1>
           <p className="text-[13px] text-ln-op-mute">
             No sos miembro activo de ninguna organización. Si tu organización te invitó, revisá tu
             email para aceptar la invitación. Si querés registrar una nueva, andá a{" "}
@@ -96,7 +98,9 @@ export default async function OrgIndexPage() {
       <div className="max-w-2xl mx-auto pt-8 space-y-6">
         <MiMarBrandHeader subtitle="Portal de organizaciones" />
         <header className="space-y-2">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Seleccionar organización</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Seleccionar organización
+          </h1>
           <p className="text-[13px] text-ln-op-mute">
             Pertenecés a {myOrgs.length} organizaciones. Elegí con cuál querés trabajar.
           </p>

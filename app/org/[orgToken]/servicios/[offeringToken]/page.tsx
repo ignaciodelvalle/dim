@@ -128,7 +128,9 @@ export default async function OfferingDetailPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName} · Servicios
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          {offering.displayName}
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           {kind?.label ?? offering.serviceKind} · Enviado el {formatDate(offering.submittedAt)}
         </p>

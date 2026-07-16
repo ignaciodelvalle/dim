@@ -43,7 +43,9 @@ export default async function OrgPetDetailPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Permiso requerido
+          </h1>
           <p className="text-[13px] text-ln-op-ink-2">
             Para ver la ficha del animal necesitás el permiso{" "}
             <code className="text-[11px]">pet.read_held</code>.
@@ -203,7 +205,7 @@ export default async function OrgPetDetailPage({
               <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
                 {organization.displayName}
               </p>
-              <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>
+              <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">{pet.name}</h1>
               <p className="text-[13px] text-ln-op-ink-2">
                 {petSpeciesLabel}
                 {pet.breed ? ` · ${pet.breed}` : ""}

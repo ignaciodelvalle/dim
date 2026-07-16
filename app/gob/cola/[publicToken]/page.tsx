@@ -124,7 +124,7 @@ export default async function ReviewRequestPage({
               {STATUS_LABELS[request.status] ?? request.status}
             </OpPill>
           </div>
-          <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
             {TYPE_LABELS[request.type] ?? request.type}
           </h1>
           <p className="text-sm text-ln-op-mute flex flex-wrap gap-x-2 gap-y-1 items-center">

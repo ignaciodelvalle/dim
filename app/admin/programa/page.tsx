@@ -120,7 +120,7 @@ export default async function AdminProgramaPage({
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Admin · Resumen ejecutivo
       </p>
-      <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del programa</h1>
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Salud del programa</h1>
       <p className="text-[13px] text-ln-op-mute">
         KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII.
       </p>

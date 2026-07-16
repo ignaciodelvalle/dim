@@ -79,7 +79,7 @@ export default async function NewRulePage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Nueva regla</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Nueva regla</h1>
         <p className="text-[13px] text-ln-op-ink-2">{jurisdictionLabel}</p>
       </header>
 

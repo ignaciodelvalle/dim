@@ -83,7 +83,7 @@ export default async function AdminAdopcionesPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Pipeline de custodia & adopción
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Adopciones</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Adopciones</h1>
         <p className="text-[13px] text-ln-op-mute">
           Vista nacional: embudo de colocación, tiempos de custodia, ocupación de refugios y pool de
           tránsitos.
@@ -365,7 +365,7 @@ export default async function AdminAdopcionesPage({
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-4">
-                <div className="text-[22px] font-semibold text-ln-op-ink tabular-nums">
+                <div className="text-[var(--text-title)] font-semibold text-ln-op-ink tabular-nums">
                   {shelterOccupancy.occupied.toLocaleString("es-AR")}
                 </div>
                 <div className="text-[13px] text-ln-op-mute">

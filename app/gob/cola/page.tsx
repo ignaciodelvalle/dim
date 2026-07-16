@@ -84,7 +84,9 @@ export default async function ColaPage({
     <main className="px-6 py-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <header className="space-y-2">
-          <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">{pageTitle}</h1>
+          <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
+            {pageTitle}
+          </h1>
           <p className="text-[13px] text-ln-op-mute">{subtitle}</p>
         </header>
 

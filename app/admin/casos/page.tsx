@@ -114,7 +114,7 @@ export default async function AdminCasosPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Casos</h1>
         <p className="text-[13px] text-ln-op-mute">
           Expedientes abiertos en el sistema. Vista universal admin.{" "}
           {!statusExplicitlyOverridden && (

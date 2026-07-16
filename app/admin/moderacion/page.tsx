@@ -121,7 +121,9 @@ export default async function ModeracionListPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Moderación"}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{"Moderación de denuncias"}</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          {"Moderación de denuncias"}
+        </h1>
         <p className="text-[13px] text-ln-op-ink-2">
           Denuncias anónimas que las heurísticas marcaron para revisión antes de entrar a la cola de
           triage. Solo admin las ve. Resolvé pasándolas a triage normal o cerrándolas como spam.

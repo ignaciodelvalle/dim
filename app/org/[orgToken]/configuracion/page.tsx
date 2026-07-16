@@ -26,7 +26,7 @@ export default async function OrgConfigPage({
         <OpCrumbs
           items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Configuración" }]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Configuración de la organización
         </h1>
         <p className="text-[13px] text-ln-op-mute">

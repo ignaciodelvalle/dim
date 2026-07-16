@@ -161,7 +161,7 @@ export default async function AdminSistemaPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin {"·"} Sistema
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Salud del sistema</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Salud del sistema</h1>
         <p className="text-[13px] text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
         {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
             métricas agregadas). El admin no tiene charts propios todavía; el

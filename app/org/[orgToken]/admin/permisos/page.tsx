@@ -160,7 +160,9 @@ export default async function PermisosPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Solicitudes de permisos
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
         </p>

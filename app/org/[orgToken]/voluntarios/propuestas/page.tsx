@@ -74,7 +74,7 @@ export default async function OrgPropuestasPage({
     <div className="space-y-6">
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Voluntarios</p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Propuestas de tránsito emitidas
         </h1>
         <p className="mt-1 text-[13px] text-ln-op-mute">

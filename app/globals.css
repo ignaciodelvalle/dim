@@ -158,6 +158,10 @@
   --text-base: 16px;
   --text-lg: 18px;
   --text-xl: 20px;
+  /* Semantic page-title size: the de-facto h1 size across every admin/gob page.
+     Sits between --text-xl (20) and --text-2xl (24); named semantically because
+     it doesn't fall on the numeric scale. Use for page <h1> titles. */
+  --text-title: 22px;
   --text-2xl: 24px;
 
   /* Leading (line-height) scale — paired with text-* steps */

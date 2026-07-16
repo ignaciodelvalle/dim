@@ -200,7 +200,7 @@ export default async function CuentaPage() {
                 className="h-[64px] w-[64px] flex-shrink-0 rounded-full border border-[var(--color-ln-line-strong)] object-cover"
               />
             ) : (
-              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink-2)]">
+              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold text-[var(--color-ln-ink-2)]">
                 {initials}
               </div>
             )}

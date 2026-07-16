@@ -41,7 +41,7 @@ export default async function ReplaceMicrochipAdminPage({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {"Admin · Microchip"}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             {"Reemplazar microchip — "}
             {pet.name}
           </h1>
@@ -68,7 +68,7 @@ export default async function ReplaceMicrochipAdminPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Microchip"}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           {"Reemplazar microchip — "}
           {pet.name}
         </h1>

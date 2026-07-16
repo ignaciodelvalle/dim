@@ -181,7 +181,9 @@ export default async function OrgTransferenciasEntrantesPage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferencias entrantes</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Transferencias entrantes
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           Propuestas dirigidas a {organization.displayName}.
         </p>

@@ -89,7 +89,7 @@ export default async function JurisdictionReglasPage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Reglas para {jurisdictionLabel(country, province, locality)}
         </h1>
       </header>

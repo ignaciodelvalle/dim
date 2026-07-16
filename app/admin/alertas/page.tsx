@@ -116,7 +116,9 @@ export default async function AdminAlertasPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Operaciones
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Bandeja de alertas</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Bandeja de alertas
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           Alertas disparadas al cruzar un umbral suscripto. Reconocé, investigá, contactá a la
           autoridad de la jurisdicción y cerrá cada alerta. El SLA de atención (antigüedad) refuerza

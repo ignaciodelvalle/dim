@@ -23,7 +23,9 @@ export default async function AdoptarOrgPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Permiso requerido
+          </h1>
           <p className="text-[13px] text-ln-op-ink-2">
             Para publicar adopciones necesitás el permiso{" "}
             <code className="text-[11px]">adoption.listing.manage</code>.
@@ -96,7 +98,7 @@ export default async function AdoptarOrgPage({
           <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Publicar en adopción · {pet.name}
           </h1>
           <p className="text-[13px] text-ln-op-ink-2">

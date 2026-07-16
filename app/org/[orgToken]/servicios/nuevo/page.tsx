@@ -50,7 +50,7 @@ export default async function NuevoServicioPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Nuevo servicio</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Nuevo servicio</h1>
         <p className="text-[13px] text-ln-op-mute">
           Completá los datos del servicio. Una vez enviado, la autoridad competente lo revisa y
           aprueba antes de que puedas armar la agenda.

@@ -59,7 +59,9 @@ export default async function IntakeMatchPage({
     return (
       <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Mascota ya no esta perdida</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Mascota ya no esta perdida
+          </h1>
           <p className="text-[13px] text-ln-op-mute">
             {pet.name} ya fue encontrada o su estado cambio. Podes continuar el ingreso normalmente.
           </p>
@@ -122,7 +124,9 @@ export default async function IntakeMatchPage({
         <p className="text-sm uppercase tracking-wider text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Coincidencia de microchip</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Coincidencia de microchip
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           Este chip ya esta registrado en MiMAR. Confirma si es el mismo animal.
         </p>

@@ -319,7 +319,9 @@ export default async function GobHistorialPage({
     <div className="space-y-6">
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Historial</p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Historial de auditoría</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Historial de auditoría
+        </h1>
         <p className="text-[13px] text-ln-op-mute">{scopeCopy}</p>
       </header>
 

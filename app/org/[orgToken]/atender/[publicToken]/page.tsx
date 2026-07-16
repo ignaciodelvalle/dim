@@ -75,7 +75,7 @@ export default async function AtenderSignPage({
               { label: pet.name },
             ]}
           />
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Atendiendo a {pet.name} · {speciesLabel(pet.species)}
           </h1>
           <p className="text-[13px] text-ln-op-ink-2">

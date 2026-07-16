@@ -15,6 +15,7 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { QueueCockpit } from "@/lib/analytics/admin-metrics";
 
@@ -92,8 +93,9 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
         actions={
           // The single GLOBAL unfiltered jump-off. Each tile below deep-links to
           // its OWN filtered queue, so this is the only link to the full cola.
-          <Link href="/admin/cola" className="hover:underline">
-            Ver cola completa {"->"}
+          <Link href="/admin/cola" className="inline-flex items-center gap-1 hover:underline">
+            Ver cola completa
+            <Icon name="chevron-right" size="sm" decorative />
           </Link>
         }
       />

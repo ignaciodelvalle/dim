@@ -41,7 +41,7 @@ export default async function CheckinsPage({
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl space-y-4 py-8">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Sin acceso</h1>
         <p className="text-[13px] text-ln-op-mute">{auth.error}</p>
         <Link
           href={`/org/${orgToken}`}
@@ -294,7 +294,9 @@ function PageHeader({ orgName }: { orgName: string }) {
   return (
     <header className="space-y-2">
       <p className="text-sm uppercase tracking-wider text-ln-op-mute">Seguimiento · {orgName}</p>
-      <h1 className="text-[22px] font-semibold text-ln-op-ink">Check-ins post-adopción</h1>
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        Check-ins post-adopción
+      </h1>
       <p className="text-[13px] text-ln-op-mute">
         Los adoptantes se autoreportan en las ventanas pactadas. Acá ves lo que llegó, lo que está
         por venir y lo que no llegó a tiempo.

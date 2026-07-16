@@ -183,7 +183,7 @@ export default async function GobMaltratoPage({
       <div className="space-y-6 lg:flex-shrink-0">
         {/* Page header */}
         <header className="space-y-1">
-          <h1 className="text-[22px] font-semibold tracking-tight text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
             Denuncias de maltrato
           </h1>
           <p className="text-sm text-ln-op-mute">

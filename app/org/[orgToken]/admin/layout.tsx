@@ -21,7 +21,9 @@ export default async function OrgAdminLayout({
     return (
       <main className="min-h-screen bg-ln-op-page flex items-center justify-center p-6">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Acceso restringido</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Acceso restringido
+          </h1>
           <p className="text-[13px] text-ln-op-mute">
             Esta sección es para administradores. Necesitás el permiso{" "}
             <code className="text-[11px] font-bold text-ln-op-ink-2 bg-ln-op-stripe px-1 rounded">

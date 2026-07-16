@@ -69,7 +69,7 @@ export function SignupForm({
         </p>
 
         <div className="space-y-2">
-          <h2 className="font-[var(--font-ln-serif)] text-[22px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h2 className="font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
             Contanos quién sos
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)]">

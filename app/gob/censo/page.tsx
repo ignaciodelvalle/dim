@@ -94,7 +94,9 @@ export default async function GobCensoPage({
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Registro · Censo poblacional
       </p>
-      <h1 className="text-[22px] font-semibold text-ln-op-ink">Censo y salud del registro</h1>
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        Censo y salud del registro
+      </h1>
       <p className="text-[13px] text-ln-op-mute">
         {profile.role === "admin"
           ? "Vista universal — todas las jurisdicciones."

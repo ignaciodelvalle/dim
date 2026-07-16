@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
 import { AdminSiteMap } from "@/components/admin/AdminSiteMap";
 import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
@@ -54,11 +55,12 @@ export default async function AdminDashboardPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           MiMAR Plataforma {"·"} ADMIN {"·"} Universal
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Panel de administración</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Panel de administración
+        </h1>
         <p className="text-[13px] text-ln-op-ink-2">
-          Operás con alcance universal sobre todas las jurisdicciones. Abajo: el estado de cada cola
-          operativa, las métricas del sistema y el mapa completo del portal. Estas colas se
-          comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
+          Alcance universal sobre todas las jurisdicciones. Estas colas se comparten con Gobierno,
+          que las trabaja acotadas a la suya.
         </p>
       </header>
 
@@ -84,9 +86,10 @@ export default async function AdminDashboardPage() {
           </h2>
           <Link
             href="/admin/sistema"
-            className="text-sm font-semibold text-ln-op-azul no-underline hover:underline"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-ln-op-azul no-underline hover:underline"
           >
-            Ver Sistema completo {"->"}
+            Ver Sistema completo
+            <Icon name="chevron-right" size="sm" decorative />
           </Link>
         </div>
         <AdminKpiStrip

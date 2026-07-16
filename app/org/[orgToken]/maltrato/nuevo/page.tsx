@@ -50,7 +50,7 @@ export default async function OrgNuevaDenunciaPage({
         <OpCrumbs
           items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Nueva denuncia" }]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Reporte de maltrato — solo para roles institucionales
         </h1>
         <OpBreach
@@ -95,7 +95,7 @@ export default async function OrgNuevaDenunciaPage({
       />
 
       <header className="space-y-2">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Nueva investigación de maltrato
         </h1>
         <p className="text-[13px] text-ln-op-mute">

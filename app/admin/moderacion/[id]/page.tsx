@@ -136,7 +136,7 @@ export default async function ModeracionDetailPage({
           {"Admin · Moderación"}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             {welfareReportKindLabel(report.kind)}
           </h1>
           <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>

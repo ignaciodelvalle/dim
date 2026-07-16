@@ -67,7 +67,9 @@ export default async function ObservacionesPage() {
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
               {eyebrow}
             </p>
-            <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
+            <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+              Observaciones antirrábicas
+            </h1>
           </header>
           <OpBreach
             title="Sin localidades asignadas"
@@ -109,7 +111,9 @@ export default async function ObservacionesPage() {
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {"Admin · Vigilancia"}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Observaciones antirrábicas
+          </h1>
         </header>
         <OpCallout
           title="Sin observaciones activas"
@@ -165,7 +169,9 @@ export default async function ObservacionesPage() {
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Vigilancia"}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Observaciones antirrábicas</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Observaciones antirrábicas
+        </h1>
         <p className="text-[13px] text-ln-op-ink-2">
           Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas
           requieren cierre profesional cuando hubo síntomas escalables; las completadas se muestran

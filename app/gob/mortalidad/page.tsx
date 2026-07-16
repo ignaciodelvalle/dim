@@ -124,7 +124,9 @@ export default async function GobMortalidadPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Vigilancia sanitaria · Mortalidad y disposición
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mortalidad y disposición</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Mortalidad y disposición
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."

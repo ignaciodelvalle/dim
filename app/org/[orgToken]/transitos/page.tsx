@@ -127,7 +127,7 @@ export default async function OrgTransitosPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Tránsitos</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Tránsitos</h1>
         <p className="text-[13px] text-ln-op-mute">
           Mascotas bajo cuidado de voluntarios, miembros o vecinos de la organización.
         </p>

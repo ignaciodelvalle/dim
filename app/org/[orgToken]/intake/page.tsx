@@ -41,7 +41,9 @@ export default async function IntakePage({
     return (
       <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Permiso requerido
+          </h1>
           <p className="text-[13px] text-ln-op-mute">
             Para registrar ingresos necesitás el permiso{" "}
             <code className="text-sm font-mono">intake.create</code>. Pedíselo a un administrador
@@ -95,7 +97,7 @@ export default async function IntakePage({
           <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Ingresos</h1>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Ingresos</h1>
         </div>
         {activeTab === "cola" && (
           <Link

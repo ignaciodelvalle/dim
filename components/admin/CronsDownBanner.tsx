@@ -15,6 +15,8 @@
 // PRESENTATIONAL / server component. It renders nothing when the fleet is
 // healthy, so callers can mount it unconditionally.
 
+import { Icon } from "@/components/Icon";
+
 export function CronsDownBanner({
   failedCronNames,
   /** When false, the "Ver detalle" link to /admin/sistema is hidden (already there). */
@@ -44,9 +46,10 @@ export function CronsDownBanner({
           // defect. A real anchor hard-navigates so the click always lands.
           <a
             href="/admin/sistema"
-            className="text-[var(--text-sm)] font-semibold text-ln-op-danger underline underline-offset-2"
+            className="inline-flex items-center gap-1 text-[var(--text-sm)] font-semibold text-ln-op-danger underline underline-offset-2"
           >
-            Ver detalle {"->"}
+            Ver detalle
+            <Icon name="chevron-right" size="sm" decorative />
           </a>
         )}
       </div>

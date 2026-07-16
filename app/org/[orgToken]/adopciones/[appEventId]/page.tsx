@@ -33,7 +33,7 @@ export default async function AdoptionReviewDetailPage({
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Sin acceso</h1>
         <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
         <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
@@ -152,7 +152,9 @@ export default async function AdoptionReviewDetailPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          Postulación para {pet.name}
+        </h1>
         <p className="text-[13px] text-ln-op-mute">
           {/* AR-pinned via formatDateTime (bug 4): the bare toLocaleString
               rendered the server's UTC clock ("Recibida 07:59:41") with no

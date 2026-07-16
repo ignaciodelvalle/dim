@@ -169,7 +169,7 @@ export default async function AdminLibroPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Gobernanza
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Libro de eventos</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Libro de eventos</h1>
         <p className="text-[13px] text-ln-op-mute">
           Registro append-only — nada se edita, todo se anexa. Las correcciones son eventos nuevos
           que referencian al original; el original se conserva.

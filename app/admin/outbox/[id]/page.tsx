@@ -129,7 +129,7 @@ export default async function AdminOutboxDetailPage({
             {buildStatusLabel(row.status)}
           </OpPill>
         </div>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
         </h1>
         <p className="text-[var(--text-sm)] text-ln-op-ink-2">

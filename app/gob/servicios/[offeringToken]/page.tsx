@@ -102,7 +102,9 @@ export default async function GobServicioDetailPage({
             {STATUS_LABELS[offering.status] ?? offering.status}
           </OpPill>
         </div>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          {offering.displayName}
+        </h1>
         <p className="text-sm text-ln-op-mute">
           <OpCodeBadge tone="neutral">{offering.publicToken}</OpCodeBadge>
           {location ? ` · ${location}` : ""}
