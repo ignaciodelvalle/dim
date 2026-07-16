@@ -33,6 +33,32 @@ export type PresetFraming =
   | { kind: "national" }
   | { kind: "bbox"; bounds: [[number, number], [number, number]] };
 
+/**
+ * Decide whether activating a preset should EMIT its map frame (camera move).
+ *
+ * A preset's `national` framing is a DEFAULT overview that must only fire from a
+ * neutral/national context — it must NEVER override an explicit drill or a
+ * jurisdiction-scoped operator's own extent. Switching a nationally-framed vista
+ * while drilled/scoped used to yank the camera out to the whole country ("me
+ * saca de la vista"). So a national frame is suppressed whenever the operator has
+ * an active scope; the caller then clears the frame and the camera stays put.
+ *
+ * An explicit `bbox` frame is a deliberate intent (not a default) and always
+ * emits. A framing-less preset emits nothing.
+ *
+ * @param framing        the preset's framing field, if any.
+ * @param hasActiveScope true when the operator has an active scope — a drilled
+ *   province/locality OR a jurisdiction-scoped session.
+ */
+export function shouldEmitPresetFrame(
+  framing: PresetFraming | null | undefined,
+  hasActiveScope: boolean,
+): boolean {
+  if (!framing) return false;
+  if (framing.kind === "national") return !hasActiveScope;
+  return true;
+}
+
 export type PanoramaPreset = {
   id: PresetId;
   /** es-AR short label (shown on the preset button). */

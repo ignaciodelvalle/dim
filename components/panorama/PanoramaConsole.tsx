@@ -126,6 +126,7 @@ import {
   type PresetId,
   getPreset,
   presetLayerIds,
+  shouldEmitPresetFrame,
 } from "@/src/modules/panorama/domain/presets";
 import {
   type RankedUnit,
@@ -561,6 +562,11 @@ export function PanoramaConsole({
   // change — it decides whether a reverted URL needs a fresh scope bundle.
   const effectiveScopeProvinceRef = useRef(effectiveScopeProvince);
   effectiveScopeProvinceRef.current = effectiveScopeProvince;
+  // Ref mirror of the effective locality — read by applyPreset (a stable
+  // useCallback) so the vista-switch frame decision sees the CURRENT scope
+  // without re-creating the callback on every locality change.
+  const effectiveScopeLocalityRef = useRef(effectiveScopeLocality);
+  effectiveScopeLocalityRef.current = effectiveScopeLocality;
   // MAP-2: the popstate handler (declared below, before applyPreset) re-derives the
   // board (preset/layers) from the popped URL through this ref, so it can reach the
   // re-derivation defined AFTER applyPreset without a forward reference. Assigned
@@ -2802,7 +2808,16 @@ export function PanoramaConsole({
 
       // panorama-redesign Fase 1: apply the preset's optional map framing
       // (camera-only — data scope untouched). Framing-less presets clear it.
-      if (preset.framing) {
+      // BUG FIX (vista-switch camera yank): a preset's `national` framing is a
+      // DEFAULT overview — it must NOT teleport an operator who has an active
+      // scope (a drilled province/locality OR a jurisdiction-scoped session) out
+      // to the whole country. When suppressed, CLEAR the frame so the camera
+      // stays where the user is; the vista still switches its layers/metrics.
+      const hasActiveScope =
+        effectiveScopeProvinceRef.current != null ||
+        effectiveScopeLocalityRef.current != null ||
+        initialDivisionProvince != null;
+      if (preset.framing && shouldEmitPresetFrame(preset.framing, hasActiveScope)) {
         frameTokenRef.current += 1;
         setPresetFrame({ framing: preset.framing, token: frameTokenRef.current });
       } else {
@@ -2853,7 +2868,7 @@ export function PanoramaConsole({
         void fetchLayersInto(toFetch, lvl, nextParams);
       }, PRESET_FETCH_DEBOUNCE_MS);
     },
-    [fetchLayersInto, missingFromCache],
+    [fetchLayersInto, missingFromCache, initialDivisionProvince],
   );
 
   /** F3: explicit preset click — a back-button-undoable board commit. */
@@ -3186,7 +3201,13 @@ export function PanoramaConsole({
       // z+lat+lng, so z-null ⇒ no pinned camera).
       if (hasSeed && seededPresetId != null && current.get("z") === null) {
         const seededPreset = getPreset(seededPresetId);
-        if (seededPreset?.framing) {
+        // Same yank-guard as applyPreset: a national frame must NOT override a
+        // scoped operator's own extent on a `?preset=` deep-link mount either.
+        const hasActiveScope =
+          effectiveScopeProvinceRef.current != null ||
+          effectiveScopeLocalityRef.current != null ||
+          initialDivisionProvince != null;
+        if (seededPreset?.framing && shouldEmitPresetFrame(seededPreset.framing, hasActiveScope)) {
           frameTokenRef.current += 1;
           setPresetFrame({ framing: seededPreset.framing, token: frameTokenRef.current });
         }
@@ -3270,7 +3291,15 @@ export function PanoramaConsole({
     if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
     // hasSeed/seededPresetId are mount-stable props; the effect is mount-only
     // (mountInitDoneRef guard), so their inclusion never re-runs it.
-  }, [fetchLayersInto, applyPreset, defaultPresetId, missingFromCache, hasSeed, seededPresetId]);
+  }, [
+    fetchLayersInto,
+    applyPreset,
+    defaultPresetId,
+    missingFromCache,
+    hasSeed,
+    seededPresetId,
+    initialDivisionProvince,
+  ]);
 
   const mapLabel = useMemo(() => {
     const names = activeLayers.map((l) => l.label);

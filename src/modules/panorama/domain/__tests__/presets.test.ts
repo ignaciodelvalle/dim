@@ -16,8 +16,10 @@ import {
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
   type PanoramaPreset,
+  type PresetFraming,
   getPreset,
   presetLayerIds,
+  shouldEmitPresetFrame,
 } from "@/src/modules/panorama/domain/presets";
 import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 
@@ -278,6 +280,52 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
       expect(p.framing.bounds).toHaveLength(2);
       expect(p.framing.bounds[0]).toHaveLength(2);
       expect(p.framing.bounds[1]).toHaveLength(2);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shouldEmitPresetFrame — vista-switch camera-yank fix
+// ---------------------------------------------------------------------------
+
+describe("shouldEmitPresetFrame", () => {
+  const national: PresetFraming = { kind: "national" };
+  const bbox: PresetFraming = {
+    kind: "bbox",
+    bounds: [
+      [-60, -35],
+      [-58, -34],
+    ],
+  };
+
+  it("suppresses a national frame when the operator has an active scope", () => {
+    // The core bug: switching a nationally-framed vista while drilled/scoped
+    // must NOT teleport the camera to the whole country.
+    expect(shouldEmitPresetFrame(national, true)).toBe(false);
+  });
+
+  it("emits a national frame only from a neutral (national) context", () => {
+    expect(shouldEmitPresetFrame(national, false)).toBe(true);
+  });
+
+  it("always emits an explicit bbox frame — a deliberate intent, not a default", () => {
+    expect(shouldEmitPresetFrame(bbox, true)).toBe(true);
+    expect(shouldEmitPresetFrame(bbox, false)).toBe(true);
+  });
+
+  it("emits nothing for a framing-less preset (caller clears the frame)", () => {
+    expect(shouldEmitPresetFrame(undefined, true)).toBe(false);
+    expect(shouldEmitPresetFrame(null, false)).toBe(false);
+  });
+
+  it("every shipped national-framed preset is suppressed under an active scope", () => {
+    // Guards the three national vistas (brotes-activos, cumplimiento,
+    // control-poblacional) against re-introducing the yank.
+    for (const p of PANORAMA_PRESETS) {
+      if (p.framing?.kind === "national") {
+        expect(shouldEmitPresetFrame(p.framing, true)).toBe(false);
+        expect(shouldEmitPresetFrame(p.framing, false)).toBe(true);
+      }
     }
   });
 });
