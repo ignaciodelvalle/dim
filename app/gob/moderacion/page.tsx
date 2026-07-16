@@ -127,7 +127,7 @@ export default async function GobModeracionPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Moderación</p>
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Moderación de denuncias
         </h1>
         <p className="text-[var(--text-md)] text-ln-op-ink-2">

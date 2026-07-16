@@ -180,11 +180,11 @@ export default async function GobServicioDetailPage({
       </DetailSection>
 
       {offering.status === "pending_approval" ? (
-        <DetailSection title="Decision">
+        <DetailSection title="Decisión">
           <OfferingReviewActions publicToken={offering.publicToken} />
         </DetailSection>
       ) : (
-        <DetailSection title="Decision">
+        <DetailSection title="Decisión">
           <p className="text-[13px] text-ln-op-ink">
             {STATUS_LABELS[offering.status] ?? offering.status}
             {offering.reviewedAt &&

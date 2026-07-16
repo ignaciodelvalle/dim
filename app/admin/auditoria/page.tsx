@@ -233,7 +233,7 @@ export default async function AdminAuditoriaPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Auditoría global</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Auditoría global</h1>
         <p className="text-[var(--text-md)] text-ln-op-ink-2">
           {hasFilters
             ? `${entries.length} ${entries.length === 1 ? "entrada" : "entradas"} del registro de auditoría que coinciden con los filtros.`

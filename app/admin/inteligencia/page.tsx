@@ -125,7 +125,7 @@ export default async function AdminInteligenciaPage({
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Admin · Inteligencia territorial
       </p>
-      <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
         Inteligencia operativa
       </h1>
       <p className="text-[var(--text-md)] text-ln-op-mute">

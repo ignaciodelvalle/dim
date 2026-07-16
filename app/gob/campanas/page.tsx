@@ -55,7 +55,7 @@ export default async function GobCampanasPage({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             MiMAR Gobierno · Campañas
           </p>
-          <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Performance de campañas
           </h1>
         </header>
@@ -122,7 +122,7 @@ export default async function GobCampanasPage({
       {/* Page header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Campañas</p>
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Performance de campañas
         </h1>
         <p className="text-[var(--text-md)] text-ln-op-mute">
@@ -345,7 +345,7 @@ export default async function GobCampanasPage({
                           {offering.noShow > 0 && (
                             <p className="text-[var(--text-xs)] text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
                               <Icon name="alerta" size={12} decorative />
-                              <span>No-show</span>
+                              <span>Ausente</span>
                             </p>
                           )}
                         </div>

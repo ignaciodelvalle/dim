@@ -161,7 +161,7 @@ export default async function GobModeracionDetailPage({
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Moderación</p>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             {welfareReportKindLabel(report.kind)}
           </h1>
           <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>

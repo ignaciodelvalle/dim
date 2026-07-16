@@ -131,7 +131,7 @@ export default async function GobAdopcionesPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Custodia & adopción
         </p>
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Adopciones</h1>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Adopciones</h1>
         <p className="text-[var(--text-md)] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."

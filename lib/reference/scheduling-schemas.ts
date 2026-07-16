@@ -36,7 +36,7 @@ export const CreateScheduleRuleInput = z
       .nullable(),
   })
   .refine((d) => d.endTimeLocal > d.startTimeLocal, {
-    message: "endTimeLocal must be after startTimeLocal",
+    message: "La hora de fin debe ser posterior a la hora de inicio",
   });
 
 export type CreateScheduleRuleInputType = z.infer<typeof CreateScheduleRuleInput>;
@@ -69,7 +69,7 @@ export const UpdateScheduleRuleInput = z
       if (d.startTimeLocal && d.endTimeLocal) return d.endTimeLocal > d.startTimeLocal;
       return true;
     },
-    { message: "endTimeLocal must be after startTimeLocal" },
+    { message: "La hora de fin debe ser posterior a la hora de inicio" },
   );
 
 export type UpdateScheduleRuleInputType = z.infer<typeof UpdateScheduleRuleInput>;

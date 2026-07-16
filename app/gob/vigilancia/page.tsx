@@ -89,7 +89,7 @@ export default async function GobVigilanciaPage({
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Vigilancia epidemiológica
       </p>
-      <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
       <p className="text-[var(--text-md)] text-ln-op-mute">
         {profile.role === "admin"
           ? "Vista universal — todas las jurisdicciones."

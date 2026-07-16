@@ -125,7 +125,9 @@ export default async function GobiernoDashboardPage({
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         MiMAR Gobierno · {roleLabel} · {scopeLabel}
       </p>
-      <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Panel de jurisdicción</h1>
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        Panel de jurisdicción
+      </h1>
 
       {/* Header actions */}
       <div className="flex flex-wrap items-center gap-2 pt-1">
