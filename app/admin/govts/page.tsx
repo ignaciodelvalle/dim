@@ -11,6 +11,7 @@ import {
   matchEmailIds,
   normalizeGovtStatus,
 } from "@/lib/infra/govt-roster";
+import { isTestAccount } from "@/lib/infra/test-accounts";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 import { likeContains } from "@/lib/utils/like-helpers";
 
@@ -28,13 +29,14 @@ const STATUS_CHIPS: { value: GovtStatusFilter; label: string }[] = [
 export default async function GovtsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string; test?: string }>;
 }) {
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const status = normalizeGovtStatus(sp.status);
+  const showTestAccounts = sp.test === "1";
 
   const supabase = createAdminClient();
 
@@ -113,14 +115,37 @@ export default async function GovtsPage({
     activeLocalityCount: localityCountMap.get(g.id) ?? 0,
   }));
 
-  // Build hrefs that preserve the sibling filter when switching chips.
+  // I3: default the ephemeral genesis/smoke accounts OUT of the primary view so a
+  // real operator is not buried under dozens of `uc-cd-*` / `*-gen-*` rows. This
+  // is a UI-level filter only (production carries no such rows); the toggle below
+  // reveals them. Filtering happens after the DB page, so the "primeros N" note
+  // still describes the DB slice — the visible count can be smaller.
+  const hiddenTestCount = showTestAccounts
+    ? 0
+    : govts.filter((g) => isTestAccount(g.displayName, g.email)).length;
+  const visibleGovts = showTestAccounts
+    ? govts
+    : govts.filter((g) => !isTestAccount(g.displayName, g.email));
+
+  // Build hrefs that preserve the sibling filters when switching chips.
   const chipHref = (s: GovtStatusFilter) => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (s !== "all") params.set("status", s);
+    if (showTestAccounts) params.set("test", "1");
     const qs = params.toString();
     return qs ? `/admin/govts?${qs}` : "/admin/govts";
   };
+
+  // Toggle for the test-account filter — preserves the active query + status.
+  const testToggleHref = (() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (status !== "all") params.set("status", status);
+    if (!showTestAccounts) params.set("test", "1");
+    const qs = params.toString();
+    return qs ? `/admin/govts?${qs}` : "/admin/govts";
+  })();
 
   return (
     <main className="px-6 py-8">
@@ -146,10 +171,12 @@ export default async function GovtsPage({
             type="text"
             name="q"
             defaultValue={query}
+            aria-label="Buscar gobiernos por nombre o email"
             placeholder="Buscar por nombre o email"
             className="flex-1 text-[var(--text-md)] rounded-[var(--radius-op-btn)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
           {status !== "all" && <input type="hidden" name="status" value={status} />}
+          {showTestAccounts && <input type="hidden" name="test" value="1" />}
           <OpButton type="submit" variant="primary" size="sm">
             Buscar
           </OpButton>
@@ -175,26 +202,38 @@ export default async function GovtsPage({
           })}
         </nav>
 
-        {govts.length === 0 ? (
+        {visibleGovts.length === 0 ? (
           <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
             <p className="text-sm text-ln-op-mute">
-              {query || status !== "all"
-                ? "Ningún gobierno coincide con la búsqueda."
-                : "Aún no hay gobiernos."}
+              {hiddenTestCount > 0
+                ? "Solo hay cuentas de prueba en esta vista."
+                : query || status !== "all"
+                  ? "Ningún gobierno coincide con la búsqueda."
+                  : "Aún no hay gobiernos."}
             </p>
-            {!query && status === "all" && (
+            {hiddenTestCount > 0 ? (
               <Link
-                href="/admin/govts/new"
+                href={testToggleHref}
                 className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
               >
-                Crear el primer gobierno
+                Mostrar {hiddenTestCount} cuenta{hiddenTestCount === 1 ? "" : "s"} de prueba
               </Link>
+            ) : (
+              !query &&
+              status === "all" && (
+                <Link
+                  href="/admin/govts/new"
+                  className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
+                >
+                  Crear el primer gobierno
+                </Link>
+              )
             )}
           </div>
         ) : (
           <>
             <ul className="space-y-2">
-              {govts.map((g) => (
+              {visibleGovts.map((g) => (
                 <GovtRow key={g.id} govt={g} />
               ))}
             </ul>
@@ -205,6 +244,19 @@ export default async function GovtsPage({
               </p>
             )}
           </>
+        )}
+
+        {/* I3: test-account filter toggle. Only relevant when there is something
+            to reveal (hidden test rows) or to re-hide (currently showing them). */}
+        {(hiddenTestCount > 0 || showTestAccounts) && (
+          <Link
+            href={testToggleHref}
+            className="text-sm underline underline-offset-4 text-ln-op-mute hover:text-ln-op-ink-2"
+          >
+            {showTestAccounts
+              ? "Ocultar cuentas de prueba"
+              : `Mostrar cuentas de prueba (${hiddenTestCount})`}
+          </Link>
         )}
 
         <p className="text-sm text-ln-op-mute">

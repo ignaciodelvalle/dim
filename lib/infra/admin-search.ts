@@ -30,6 +30,10 @@ export type UserSearchResult = {
   // RevokeUserActions (Fase 4+) for client-side canRevoke scope check.
   // Null for non-vet users.
   matriculaJurisdiccion: string | null;
+  // Account activation state — null when active, a timestamp when deactivated.
+  // Drives the "estado" line on the usuarios roster (I1). Selected so the row is
+  // useful at a glance without a per-user detail trip.
+  deactivatedAt: Date | null;
 };
 
 export type UserSearchScope =
@@ -125,6 +129,7 @@ export async function searchUsers(
         displayName: profiles.displayName,
         role: profiles.role,
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
+        deactivatedAt: profiles.deactivatedAt,
       })
       .from(profiles)
       .where(whereClause)
@@ -148,6 +153,7 @@ export async function searchUsers(
       displayName: profiles.displayName,
       role: profiles.role,
       matriculaJurisdiccion: profiles.matriculaJurisdiccion,
+      deactivatedAt: profiles.deactivatedAt,
     })
     .from(profiles)
     .where(whereClause)

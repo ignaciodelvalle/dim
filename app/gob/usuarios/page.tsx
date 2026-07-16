@@ -14,8 +14,10 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
 import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { isTestAccount } from "@/lib/infra/test-accounts";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
 import { formatPercent } from "@/lib/utils/format";
@@ -42,13 +44,39 @@ const ROLE_TONES: Record<string, RoleTone> = {
 export default async function UsuariosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; test?: string }>;
 }) {
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
+  const showTestAccounts = sp.test === "1";
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
-  const results = await searchUsers(query, { role: profile.role, jurisdictions });
+  const allResults = await searchUsers(query, { role: profile.role, jurisdictions });
+
+  // I1: emails live in auth.users (no email column on profiles) — resolve them so
+  // each row shows a human email + estado instead of an opaque UUID. Same
+  // service-role map the /admin/govts roster uses; the PII read is audited below.
+  const supabase = createAdminClient();
+  const emailMap = await buildAuthEmailMap(supabase);
+
+  // I3: default ephemeral genesis/smoke accounts OUT of the roster so real users
+  // aren't buried under `uc-cd-*` / `*-gen-*` rows. UI-level only (production has
+  // none); the toggle reveals them. Match on both display name and resolved email.
+  const hiddenTestCount = showTestAccounts
+    ? 0
+    : allResults.filter((u) => isTestAccount(u.displayName, emailMap.get(u.id))).length;
+  const results = showTestAccounts
+    ? allResults
+    : allResults.filter((u) => !isTestAccount(u.displayName, emailMap.get(u.id)));
+
+  // Toggle for the test-account filter — preserves the active query.
+  const testToggleHref = (() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (!showTestAccounts) params.set("test", "1");
+    const qs = params.toString();
+    return qs ? `${base}/usuarios?${qs}` : `${base}/usuarios`;
+  })();
 
   // Registro & cumplimiento (Item 4): C2 ISO-validity (population-state) and C5
   // chip-fraud signal (microchip_replaced flagged fraud/duplicate, last 12m).
@@ -155,11 +183,16 @@ export default async function UsuariosPage({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
                       <p className="text-[13px] font-medium text-ln-op-ink">{u.displayName}</p>
-                      <p className="text-xs font-mono text-ln-op-mute">{u.id}</p>
+                      {/* I1: email (rol is the pill, estado is the marker below) —
+                          the opaque UUID that used to sit here told a human nothing. */}
+                      <p className="text-xs text-ln-op-mute">{emailMap.get(u.id) || "Sin email"}</p>
                     </div>
-                    <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>
-                      {ROLE_LABELS[u.role] ?? u.role}
-                    </OpPill>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <OpPill tone={ROLE_TONES[u.role] ?? "neutral"}>
+                        {ROLE_LABELS[u.role] ?? u.role}
+                      </OpPill>
+                      {u.deactivatedAt && <OpPill tone="neutral">Desactivada</OpPill>}
+                    </div>
                   </div>
                   <ProposeUserActions
                     target={{ id: u.id, displayName: u.displayName, role: u.role }}
@@ -191,6 +224,21 @@ export default async function UsuariosPage({
         }))}
         targetKind="vet"
       />
+
+      {/* I3: test-account filter toggle — only when there is something to reveal
+          or to re-hide. */}
+      {(hiddenTestCount > 0 || showTestAccounts) && (
+        <p>
+          <Link
+            href={testToggleHref}
+            className="text-sm underline underline-offset-4 text-ln-op-mute hover:text-ln-op-ink-2"
+          >
+            {showTestAccounts
+              ? "Ocultar cuentas de prueba"
+              : `Mostrar cuentas de prueba (${hiddenTestCount})`}
+          </Link>
+        </p>
+      )}
 
       <p className="text-sm text-ln-op-mute">
         <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
