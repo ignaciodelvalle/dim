@@ -149,6 +149,36 @@ describe("computeJurisdictionViewport — province selected", () => {
   });
 });
 
+describe("computeJurisdictionViewport — mount-load frame decision (SituationalMap load branch, widest-jurisdiction default d4ccdb2)", () => {
+  // Pins the exact decision SituationalMap's load branch makes (~line 1305):
+  // computeJurisdictionViewport(selectedProvinceRef, selectedLocalityCenterRef,
+  // basemapFeaturesRef, bbox ?? AR_BBOX). Fresh-review follow-up: the load
+  // branch started passing selectedLocalityCenterRef (previously always null),
+  // so an admin `?province&locality` deep-link (or a single-locality govt
+  // operator) now flies to the locality on load instead of framing the
+  // province polygon. This test makes that INTENTIONAL and regression-proof.
+
+  it("frames the province polygon on load when ONLY a province is selected (no locality center)", () => {
+    const result = computeJurisdictionViewport("AR-X", null, PROVINCE_FEATURES, NATIONAL_BBOX);
+    expect(result.kind).toBe("fitBounds");
+  });
+
+  it("flies to the locality centroid on load when a locality center IS present, even with a province also selected", () => {
+    const localityCenter: [number, number] = [-64.18, -31.41]; // Córdoba city
+    const result = computeJurisdictionViewport(
+      "AR-X",
+      localityCenter,
+      PROVINCE_FEATURES,
+      NATIONAL_BBOX,
+    );
+    expect(result).toEqual<ViewportDescriptor>({
+      kind: "flyTo",
+      center: localityCenter,
+      zoom: 9.5,
+    });
+  });
+});
+
 describe("computeJurisdictionViewport — locality selected", () => {
   it("returns flyTo with the locality centroid and zoom ~9.5 when localityCenter is provided", () => {
     const center: [number, number] = [-64.18, -31.41]; // Córdoba city

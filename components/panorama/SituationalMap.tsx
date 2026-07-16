@@ -1279,9 +1279,15 @@ export function SituationalMap({
           });
         } else {
           // Click-to-drill (task #55): when the operator drilled into a province
-          // (explicit `?province`, no server jurisdiction bbox), FRAME that province
-          // polygon on load — the drill committed via navigation, so the reloaded
-          // map must land fitted to the province, not the national data extent.
+          // (explicit `?province`, no server jurisdiction bbox), FRAME that
+          // province polygon on load — the drill committed via navigation, so the
+          // reloaded map must land fitted to the province, not the national data
+          // extent. LOCALITY-AWARE (widest-jurisdiction default, d4ccdb2): when a
+          // locality center is ALSO selected, computeJurisdictionViewport below
+          // returns a `flyTo` to the locality centroid instead — captured as
+          // `localityFly` and applied in preference to this province fitBounds, so
+          // an admin `?province&locality` deep-link (or a single-locality govt
+          // operator) lands on the named locality, not just the province polygon.
           let frameBbox = bbox;
           // A single-locality scoped operator flies to their locality centroid
           // (computeJurisdictionViewport returns a `flyTo` for a locality center);

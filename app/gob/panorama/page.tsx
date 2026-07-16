@@ -1,11 +1,15 @@
 import { Suspense } from "react";
 
+import {
+  deriveWidestJurisdiction,
+  resolveSeedLocalitySlug,
+} from "@/app/gob/panorama/derive-widest-jurisdiction";
 import { PanoramaBoardSkeleton } from "@/components/panorama/PanoramaBoardSkeleton";
 import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
-import { isWholeProvinceLocality, narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
+import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   listLocalitiesByProvince,
   listLocalityCentroids,
@@ -53,51 +57,12 @@ function scopeLabel(role: string, jurisdictions: AdminOrGovtJurisdiction[]): str
   return provinces.length <= 3 ? provinces.join(", ") : `${provinces.length} provincias`;
 }
 
-/**
- * BUG FIX (widest-jurisdiction default): derive the operator's WIDEST jurisdiction
- * so the initial view defaults to it instead of the whole country.
- *
- * Robust by construction: province names are resolved with the ALIAS-TOLERANT
- * `provinceByName` (NOT the alias-fragile PROVINCE_ISO_MAP, which lacks the CABA
- * long-form key and would silently empty the set — dropping even a single-province
- * operator to national). Whole-province markers subsume their localities, so a
- * whole-CABA assignment seeds the province, never a spurious locality.
- *
- * Returns:
- *  - `{ provinceCode: null }` — 0 jurisdictions (admin/universal) OR the scope
- *    genuinely spans >1 province → national default.
- *  - `{ provinceCode, localityName: null }` — exactly 1 province, but a
- *    whole-province marker or multiple distinct localities → seed the province.
- *  - `{ provinceCode, localityName }` — exactly 1 province and exactly 1 specific
- *    locality → seed province + locality.
- */
-function deriveWidestJurisdiction(jurisdictions: AdminOrGovtJurisdiction[]): {
-  provinceCode: string | null;
-  localityName: string | null;
-} {
-  const provinceCodes = new Set<string>();
-  for (const j of jurisdictions) {
-    const code = provinceByName(j.province)?.code;
-    if (code) provinceCodes.add(code);
-  }
-  if (provinceCodes.size !== 1) return { provinceCode: null, localityName: null };
-  const [provinceCode] = [...provinceCodes];
-
-  // A whole-province assignment governs the entire province → seed the province,
-  // never a locality (it subsumes every locality/barrio within it).
-  const hasWholeProvince = jurisdictions.some((j) =>
-    isWholeProvinceLocality(j.province, j.locality),
-  );
-  const specificLocalities = new Set(
-    jurisdictions
-      .filter((j) => j.locality && !isWholeProvinceLocality(j.province, j.locality))
-      .map((j) => j.locality),
-  );
-  if (!hasWholeProvince && specificLocalities.size === 1) {
-    return { provinceCode, localityName: [...specificLocalities][0] };
-  }
-  return { provinceCode, localityName: null };
-}
+// BUG FIX (widest-jurisdiction default): deriveWidestJurisdiction /
+// resolveSeedLocalitySlug live in ./derive-widest-jurisdiction.ts, not here —
+// a page.tsx may only export the framework's reserved names (`default`,
+// `metadata`, `dynamic`, ...); the generated route type-check hard-fails on
+// any other named export. See that module for the full contract + doc
+// comments; unit-tested in __tests__/derive-widest-jurisdiction.test.ts.
 
 type PanoramaSearchParams = Promise<{
   period?: string;
@@ -193,7 +158,7 @@ async function GobPanoramaBoard({
     !provinceObj && widest.localityName && scopeProvinceCode
       ? await localityByName(scopeProvinceCode, widest.localityName)
       : null;
-  const initialDivisionLocality = seedLocalityRow?.localitySlug ?? undefined;
+  const initialDivisionLocality = resolveSeedLocalitySlug(seedLocalityRow);
 
   // Intersect the selected province/locality with the user's actual assignments
   // so a govt user cannot widen scope by crafting ?province=&locality= params.
