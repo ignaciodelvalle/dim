@@ -127,7 +127,7 @@ export default async function ModeracionDetailPage({
       <OpCrumbs
         items={[
           { label: "Moderación", href: "/admin/moderacion" },
-          { label: report.referenceCode ?? id, mono: true },
+          { label: report.referenceCode ?? "Sin código", mono: true },
         ]}
       />
 

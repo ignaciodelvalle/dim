@@ -149,6 +149,10 @@ async function GobPanoramaBoard({
     if (!isProvinceInGovtScope(jurisdictions, provinceObj.code)) {
       const params = new URLSearchParams();
       if (widest.provinceCode) params.set("province", widest.provinceCode);
+      // Preserve the operator's grain: a barrio-scoped govt operator must bounce
+      // back to their barrio, not widen to the whole province/city. The locality
+      // is seeded into initialDivisionLocality below via the sp.locality path.
+      if (widest.localityName) params.set("locality", widest.localityName);
       params.set("notice", "fuera-de-alcance");
       redirect(`/gob/panorama?${params.toString()}`);
     }
@@ -179,7 +183,13 @@ async function GobPanoramaBoard({
     !provinceObj && widest.localityName && scopeProvinceCode
       ? await localityByName(scopeProvinceCode, widest.localityName)
       : null;
-  const initialDivisionLocality = resolveSeedLocalitySlug(seedLocalityRow);
+  // Seed the barrio/locality view whenever the URL names one — the implicit
+  // widest-jurisdiction path above (no ?province) OR an explicit ?locality
+  // (a manual drill, or the fuera-de-alcance bounce that now preserves the
+  // operator's barrio). Without the localityRow fallback, a barrio-scoped govt
+  // operator bounced back to scope widened to province/city grain.
+  const initialDivisionLocality =
+    resolveSeedLocalitySlug(seedLocalityRow) ?? resolveSeedLocalitySlug(localityRow);
 
   // Intersect the selected province/locality with the user's actual assignments
   // so a govt user cannot widen scope by crafting ?province=&locality= params.

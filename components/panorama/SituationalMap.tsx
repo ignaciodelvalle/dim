@@ -91,6 +91,7 @@ import {
   provinceSeqClassScale,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -2535,6 +2536,10 @@ export function SituationalMap({
             // instead and leave locality null (no single locality to drill).
             locality: isBarrio ? (props.name ?? null) : null,
             departmentName: props.name ?? null,
+            // Province context for the drawer header. Available when the map is
+            // drilled into one province (the barrio/department case); null at
+            // national LOD scope, where no single province owns the click.
+            province: provinceByCode(selectedProvinceRef.current)?.name ?? null,
             value,
             level: "locality",
             suppressed: isSuppressed,

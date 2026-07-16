@@ -73,6 +73,8 @@ type SubjectMode = "registered_pet" | "unowned_animal";
 type DecomisoFormProps = {
   receiverOrgs: ReceiverOrg[];
   prefillWelfareReportId: string | null;
+  /** Public DEN-XXXX-XXXX code of the linked denuncia, shown instead of the raw id. */
+  prefillWelfareReportRef: string | null;
   prefillPetToken: string | null;
 };
 
@@ -112,6 +114,7 @@ const ALLOWED_MIME = new Set([
 export function DecomisoForm({
   receiverOrgs,
   prefillWelfareReportId,
+  prefillWelfareReportRef,
   prefillPetToken,
 }: DecomisoFormProps) {
   const router = useRouter();
@@ -138,7 +141,9 @@ export function DecomisoForm({
   const [seizureMotive, setSeizureMotive] = useState<SeizureMotive | "">("");
   const [seizureMotiveOtherDetail, setSeizureMotiveOtherDetail] = useState("");
   const [judicialRef, setJudicialRef] = useState("");
-  const [welfareReportId, setWelfareReportId] = useState(prefillWelfareReportId ?? "");
+  // Linkage is prefill-only (resolved server-side); the operator never types the
+  // raw id, so this is a plain value, not editable state.
+  const welfareReportId = prefillWelfareReportId ?? "";
   const [intakeCondition, setIntakeCondition] = useState("");
   const [receiverOrgId, setReceiverOrgId] = useState("");
   const [receiverSearch, setReceiverSearch] = useState("");
@@ -627,23 +632,20 @@ export function DecomisoForm({
           </div>
 
           <div>
-            <label
-              htmlFor="welfareReportId"
-              className="block text-sm font-medium text-ln-op-ink mb-1"
-            >
-              ID de denuncia de maltrato vinculada (opcional)
-            </label>
-            <input
-              id="welfareReportId"
-              type="text"
-              value={welfareReportId}
-              onChange={(e) => setWelfareReportId(e.target.value)}
-              placeholder="UUID de la denuncia que origino este decomiso"
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-            />
-            {prefillWelfareReportId && (
-              <p className="text-sm text-ln-op-mute mt-1">
-                Prefilled desde la denuncia de maltrato.
+            <span className="block text-sm font-medium text-ln-op-ink mb-1">
+              Denuncia de maltrato vinculada
+            </span>
+            {prefillWelfareReportRef ? (
+              <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe/40 px-3 py-2">
+                <p className="text-[13px] font-mono text-ln-op-ink">{prefillWelfareReportRef}</p>
+                <p className="text-sm text-ln-op-mute mt-1">
+                  Vinculada desde la denuncia de maltrato.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-ln-op-mute">
+                Para vincular una denuncia, iniciá el decomiso desde la denuncia de maltrato con el
+                botón “Ejecutar decomiso”.
               </p>
             )}
           </div>

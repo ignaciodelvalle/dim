@@ -513,6 +513,7 @@ export function FeatureBody({
     }
 
     case "cobertura":
+    case "esterilizacion":
     case "mortalidad":
     case "microchip":
     case "ppp": {
@@ -521,11 +522,16 @@ export function FeatureBody({
       const isProvince = str(properties, "level") === "province";
       const suppressed = properties.suppressed === true;
       const value = properties.value;
+      // A department fill carries its name in `departmentName` (no single
+      // locality to drill); a barrio carries `locality`. Fall back so a
+      // department click still shows its name + province, not "—".
+      const unitName = str(properties, "locality") ?? str(properties, "departmentName");
       const place = isProvince
         ? (str(properties, "province") ?? "—")
-        : [str(properties, "locality"), str(properties, "province")].filter(Boolean).join(", ");
+        : [unitName, str(properties, "province")].filter(Boolean).join(", ");
       const valueLabel = {
         cobertura: "Perros vacunados",
+        esterilizacion: "Mascotas esterilizadas",
         mortalidad: "Mascotas fallecidas",
         microchip: "Mascotas con microchip activo",
         ppp: "Mascotas PPP registradas",

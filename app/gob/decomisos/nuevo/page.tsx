@@ -9,7 +9,8 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 import Link from "next/link";
 
-import { db, organizations } from "@/db";
+import { db, organizations, welfareReports } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 
 import { DecomisoForm } from "./_components/DecomisoForm";
@@ -18,10 +19,51 @@ interface PageProps {
   searchParams: Promise<{ welfareReportId?: string; pet?: string }>;
 }
 
+// The raw welfareReports UUID must never surface to the operator (PO1: DB
+// identifier leak). We keep the id as the FK the backend needs, but resolve its
+// public DEN-XXXX-XXXX reference code here so the form can show that instead.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
   const { welfareReportId, pet } = await searchParams;
 
   const { profile, jurisdictions } = await requireDecomisoPrincipal();
+
+  // Resolve the linked denuncia's public reference code from its id, so the
+  // form displays DEN-XXXX-XXXX (never the raw UUID). Guard the UUID shape first
+  // so a hand-crafted query param can't throw on the uuid-typed column.
+  //
+  // CRITICAL — jurisdiction scope: enforce the SAME predicate the maltrato detail
+  // page uses (jurisdictionScopeContains). Without it, a bounded govt operator
+  // could pass ANY nationwide UUID and read back that report's DEN-XXXX-XXXX
+  // code — which is the lookup key for the PUBLIC receipt route — enumerating
+  // reports outside their jurisdiction. An out-of-scope report, a bogus id, and
+  // a missing id all resolve to null: identical output, so existence is never
+  // disclosed (the notFound()-not-403 anti-enumeration invariant).
+  const linkedWelfareReport =
+    welfareReportId && UUID_RE.test(welfareReportId)
+      ? ((
+          await db
+            .select({
+              referenceCode: welfareReports.referenceCode,
+              jurisdictionProvince: welfareReports.jurisdictionProvince,
+              jurisdictionLocality: welfareReports.jurisdictionLocality,
+            })
+            .from(welfareReports)
+            .where(eq(welfareReports.id, welfareReportId))
+            .limit(1)
+        )[0] ?? null)
+      : null;
+  const linkedWelfareReportRef =
+    linkedWelfareReport &&
+    (profile.role === "admin" ||
+      jurisdictionScopeContains(
+        jurisdictions,
+        linkedWelfareReport.jurisdictionProvince,
+        linkedWelfareReport.jurisdictionLocality,
+      ))
+      ? linkedWelfareReport.referenceCode
+      : null;
 
   // Receiver combobox scope (DC6): a govt agent only sees verified shelters /
   // rescue_networks inside their assigned (province, locality) jurisdiction
@@ -84,7 +126,8 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
 
       <DecomisoForm
         receiverOrgs={receiverOrgs}
-        prefillWelfareReportId={welfareReportId ?? null}
+        prefillWelfareReportId={linkedWelfareReportRef ? (welfareReportId ?? null) : null}
+        prefillWelfareReportRef={linkedWelfareReportRef}
         prefillPetToken={pet ?? null}
       />
     </div>
