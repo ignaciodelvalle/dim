@@ -14,6 +14,7 @@ import {
 } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import type { DashboardJurisdiction } from "@/lib/metrics";
+import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
@@ -278,7 +279,7 @@ async function AdminPanoramaBoard({
     }));
     return (
       <PanoramaShell
-        scopeLabel="Nacional · todas las provincias"
+        scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
         boundedJurisdiction={boundedJurisdiction}
         layer={layer}
         // perdidas is NOT seeded on the first-visit path — the preset owns the
@@ -351,7 +352,7 @@ async function AdminPanoramaBoard({
 
   return (
     <PanoramaShell
-      scopeLabel="Nacional · todas las provincias"
+      scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
       boundedJurisdiction={boundedJurisdiction}
       layer={layer}
       features={result.features}

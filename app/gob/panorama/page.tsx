@@ -18,12 +18,10 @@ import {
   listLocalityCentroids,
   localityByName,
 } from "@/lib/infra/ar-localidades";
-import {
-  type AdminOrGovtJurisdiction,
-  requireAdminOrGovtOrRedirect,
-} from "@/lib/infra/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
+import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
@@ -49,16 +47,8 @@ export const dynamic = "force-dynamic";
 // instead of hanging the RSC stream forever (the staging incident).
 const PAGE_BUDGET_MS = 9000;
 
-/** Concise es-AR scope label from the govt's assigned jurisdictions. */
-function scopeLabel(role: string, jurisdictions: AdminOrGovtJurisdiction[]): string {
-  if (role === "admin" || jurisdictions.length === 0) return "Nacional · todas las provincias";
-  const provinces = [...new Set(jurisdictions.map((j) => j.province))];
-  if (provinces.length === 1) {
-    const localities = jurisdictions.map((j) => j.locality);
-    return localities.length <= 2 ? `${provinces[0]} · ${localities.join(", ")}` : provinces[0];
-  }
-  return provinces.length <= 3 ? provinces.join(", ") : `${provinces.length} provincias`;
-}
+// scopeLabel now lives in lib/panorama/scope-label.ts (shared with /admin/panorama
+// so both routes render the same honest scope string for a bounded operator).
 
 // BUG FIX (widest-jurisdiction default): deriveWidestJurisdiction /
 // resolveSeedLocalitySlug live in ./derive-widest-jurisdiction.ts, not here —
@@ -359,7 +349,7 @@ async function GobPanoramaBoard({
     }));
     return (
       <PanoramaShell
-        scopeLabel={scopeLabel(profile.role, jurisdictions)}
+        scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
         boundedJurisdiction={boundedJurisdiction}
         layer={layer}
         // perdidas is NOT seeded on the first-visit path — the preset owns the
@@ -434,7 +424,7 @@ async function GobPanoramaBoard({
 
   return (
     <PanoramaShell
-      scopeLabel={scopeLabel(profile.role, jurisdictions)}
+      scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
       boundedJurisdiction={boundedJurisdiction}
       layer={layer}
       features={result.features}
