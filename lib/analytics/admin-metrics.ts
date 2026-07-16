@@ -466,6 +466,28 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
   return results;
 }
 
+// Cron names whose MOST RECENT run failed — the signal behind the crons-down
+// banner (operator-trust T3) on /admin and /admin/sistema. One DISTINCT ON
+// query (cheaper than fetchCronRuns' per-name loop) so the dashboard can afford
+// it. Honest in both envs: locally the "failure" is usually vitest polluting
+// the shared cron_runs table (cron route tests write real rows), while in prod
+// cron_runs only ever gets rows from real Vercel executions, so a failed latest
+// status there is a genuine incident. Do NOT suppress by env — the banner just
+// mirrors telemetry.
+export async function fetchFailedCronNames(): Promise<string[]> {
+  const rows = (await db.execute(sql`
+    SELECT cron_name
+    FROM (
+      SELECT DISTINCT ON (cron_name) cron_name, status
+      FROM cron_runs
+      ORDER BY cron_name, started_at DESC
+    ) latest
+    WHERE latest.status = 'failed'
+    ORDER BY cron_name
+  `)) as { cron_name: string }[];
+  return rows.map((r) => r.cron_name);
+}
+
 // ---------------------------------------------------------------------------
 // Pet-status cache drift (projection-cron audit 2026-07-03 B3)
 // ---------------------------------------------------------------------------

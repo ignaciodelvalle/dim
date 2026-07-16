@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
+import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
 import { PetStatusDriftCard } from "@/components/admin/PetStatusDriftCard";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -150,6 +151,10 @@ export default async function AdminSistemaPage() {
   const total7d = decisions.approved7d + decisions.rejected7d;
   const decisionsDelta = decisionsDeltaPct(decisions);
 
+  // Crons-down banner (operator-trust T3) — derived from the crons already
+  // fetched for the Crons card (no extra query). FALLO = the latest run failed.
+  const failedCronNames = crons.filter((c) => c.lastStatus === "failed").map((c) => c.cronName);
+
   return (
     <div className="space-y-8">
       <header className="space-y-1">
@@ -177,6 +182,11 @@ export default async function AdminSistemaPage() {
           </Link>
         </div>
       </header>
+
+      {/* Crons-down banner (operator-trust T3) — mirrors the Crons card below
+          but leads the page so the operator sees the impact first. No
+          "Ver detalle" link: this IS the detail surface. */}
+      <CronsDownBanner failedCronNames={failedCronNames} showSistemaLink={false} />
 
       {/* Top KPIs — shared operational strip (C26). Paquete H ENO SLA (A7)
           measures the notification pipeline health. */}

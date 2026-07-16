@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import {
   fetchCronRuns,
   fetchDecisionsMetrics,
+  fetchFailedCronNames,
   fetchGovtActivity,
   fetchQueueHealth,
   fetchUserMetrics,
@@ -58,5 +59,20 @@ describe("/admin/sistema data path", () => {
     }
     // The exact call that crashed the page — must not throw.
     expect(() => sortGovtActivityByActivity(rows)).not.toThrow();
+  });
+
+  // Crons-down banner data path (operator-trust T3). The DISTINCT ON query runs
+  // against the shared local DB; pin that it resolves to a string[] whose
+  // members are a subset of the cron names fetchCronRuns reports as failed.
+  it("fetchFailedCronNames returns the latest-failed cron names", async () => {
+    const [failed, all] = await Promise.all([fetchFailedCronNames(), fetchCronRuns()]);
+    expect(Array.isArray(failed)).toBe(true);
+    for (const name of failed) {
+      expect(typeof name).toBe("string");
+    }
+    const failedFromRuns = new Set(
+      all.filter((c) => c.lastStatus === "failed").map((c) => c.cronName),
+    );
+    expect(new Set(failed)).toEqual(failedFromRuns);
   });
 });

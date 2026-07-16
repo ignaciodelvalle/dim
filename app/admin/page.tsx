@@ -2,11 +2,13 @@ import Link from "next/link";
 
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
 import { AdminSiteMap } from "@/components/admin/AdminSiteMap";
+import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
 import { QueueHealthCockpit } from "@/components/admin/QueueHealthCockpit";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import {
   fetchDecisionsMetrics,
+  fetchFailedCronNames,
   fetchQueueCockpit,
   fetchUserMetrics,
 } from "@/lib/analytics/admin-metrics";
@@ -25,7 +27,7 @@ export default async function AdminDashboardPage() {
   // per-user watermark, not the ctx period.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
-  const [users, cockpit, decisions, novedades] = await Promise.all([
+  const [users, cockpit, decisions, novedades, failedCronNames] = await Promise.all([
     fetchUserMetrics(),
     // Epic D: every operational queue counted (approvals broken out per type)
     // for the cockpit — replaces the old lumped fetchQueueHealth number.
@@ -34,6 +36,9 @@ export default async function AdminDashboardPage() {
     // Session-start orientation feed (universal scope for admin), grouped by
     // type + locality with a distinct-subject count (Cowork M2).
     fetchNovedadesGroupedFeed(adminCtx, user.id),
+    // Crons-down banner (operator-trust T3): any background job whose latest run
+    // failed. One DISTINCT ON query — cheap enough for the dashboard hot path.
+    fetchFailedCronNames(),
   ]);
 
   // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
@@ -56,6 +61,11 @@ export default async function AdminDashboardPage() {
           comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
         </p>
       </header>
+
+      {/* Crons-down banner (operator-trust T3) — leads the page when any
+          background job's latest run failed, so the operator sees the impact
+          before triaging queues. Renders nothing when the fleet is healthy. */}
+      <CronsDownBanner failedCronNames={failedCronNames} />
 
       {/* (1) Queue-health cockpit — every operational queue as a compact tile
           with its live count and a jump-off. Approvals broken out per type.
