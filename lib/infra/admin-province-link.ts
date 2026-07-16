@@ -24,6 +24,19 @@ export function adminProvinceHref(provinceName: string | null | undefined): stri
 }
 
 /**
+ * Govt-portal twin of {@link adminProvinceHref}: resolves a province display
+ * name to the /gob/panorama drill URL. /gob/panorama accepts the same ?province=
+ * <code> param and applies its own govt-scope guard, so the link is safe for a
+ * bounded operator. Returns null when the name is unresolvable (plain-text fallback).
+ */
+export function govtProvinceHref(provinceName: string | null | undefined): string | null {
+  if (!provinceName) return null;
+  const province = provinceByName(provinceName);
+  if (!province) return null;
+  return `/gob/panorama?province=${encodeURIComponent(province.code)}`;
+}
+
+/**
  * All known province names from the static registry, sorted alphabetically.
  * Useful for building options lists.
  */

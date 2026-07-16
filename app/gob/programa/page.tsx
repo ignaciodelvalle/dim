@@ -19,6 +19,8 @@
 // Privacy invariant: all fetchers receive a scoped ctx or filteredJurisdictions —
 // a govt can never see data outside their assigned localities.
 
+import { inArray } from "drizzle-orm";
+
 import {
   deleteAlertSubscriptionAction,
   toggleAlertSubscriptionAction,
@@ -30,11 +32,13 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { db, profiles } from "@/db";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
+import { govtProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -75,6 +79,15 @@ const METRIC_LABEL: Record<string, string> = {
   rabies: "Antirrábica",
   sterilization: "Esterilización",
   microchip: "Microchip",
+};
+
+// es-AR labels for the PII-oversight "surface" dimension (operator search origin).
+// Mirrors SURFACE_LABEL in app/admin/programa — the gob twin previously leaked the
+// raw enum code into the operator UI.
+const SURFACE_LABEL: Record<string, string> = {
+  users: "Usuarios",
+  organizations: "Organizaciones",
+  omnibox: "Buscador",
 };
 
 export default async function GobProgramaPage({
@@ -193,6 +206,22 @@ export default async function GobProgramaPage({
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
+
+  // Batch-resolve actor UUIDs in the PII oversight table to display names — the
+  // panel asks "¿quién consultó qué?", so an opaque UUID fragment defeats it.
+  // Mirrors the admin twin. Scope is already enforced upstream: fetchPiiOversight
+  // only returns actors acting within this operator's jurisdiction.
+  const uniqueActorIds = [
+    ...new Set(piiOversight.map((r) => r.actorUserId).filter((id): id is string => Boolean(id))),
+  ];
+  const actorNameMap = new Map<string, string>();
+  if (uniqueActorIds.length > 0) {
+    const actorRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, uniqueActorIds));
+    for (const row of actorRows) actorNameMap.set(row.id, row.displayName);
+  }
 
   const panelOutliersId = "gob-programa-outliers-titulo";
   const panelPiiId = "gob-programa-pii-titulo";
@@ -326,47 +355,61 @@ export default async function GobProgramaPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {outliers.map((row, i) => (
-                    <tr
-                      key={`${row.province}-${row.metric}-${i}`}
-                      className={[
-                        "border-b border-ln-op-line last:border-0",
-                        row.isOutlier
-                          ? "bg-ln-op-danger-bg/30"
-                          : "hover:bg-ln-op-stripe/50 transition-colors",
-                      ].join(" ")}
-                      aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${formatPercent(row.rate)} (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
-                    >
-                      <td className="py-2 pr-4">{row.province}</td>
-                      <td className="py-2 pr-4 text-ln-op-ink-2">
-                        {METRIC_LABEL[row.metric] ?? row.metric}
-                      </td>
-                      <td
+                  {outliers.map((row, i) => {
+                    const drillHref = govtProvinceHref(row.province);
+                    return (
+                      <tr
+                        key={`${row.province}-${row.metric}-${i}`}
                         className={[
-                          "py-2 pr-4 text-right tabular-nums font-medium",
-                          row.isOutlier ? "text-ln-op-danger" : "text-ln-op-ok",
+                          "border-b border-ln-op-line last:border-0",
+                          row.isOutlier
+                            ? "bg-ln-op-danger-bg/30"
+                            : "hover:bg-ln-op-stripe/50 transition-colors",
                         ].join(" ")}
-                        aria-label={`Cobertura: ${formatPercent(row.rate)}`}
+                        aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${formatPercent(row.rate)} (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
                       >
-                        {formatPercent(row.rate)}
-                      </td>
-                      <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
-                        {row.target}%
-                      </td>
-                      <td
-                        className={[
-                          "py-2 text-right tabular-nums",
-                          row.isOutlier ? "text-ln-op-danger" : "text-ln-op-mute",
-                        ].join(" ")}
-                      >
-                        {row.gap > 0
-                          ? `−${formatPercent(row.gap)}`
-                          : row.gap < 0
-                            ? `+${formatPercent(Math.abs(row.gap))}`
-                            : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="py-2 pr-4">
+                          {drillHref ? (
+                            <a
+                              href={drillHref}
+                              className="text-ln-op-azul underline-offset-2 hover:underline"
+                            >
+                              {row.province}
+                            </a>
+                          ) : (
+                            row.province
+                          )}
+                        </td>
+                        <td className="py-2 pr-4 text-ln-op-ink-2">
+                          {METRIC_LABEL[row.metric] ?? row.metric}
+                        </td>
+                        <td
+                          className={[
+                            "py-2 pr-4 text-right tabular-nums font-medium",
+                            row.isOutlier ? "text-ln-op-danger" : "text-ln-op-ok",
+                          ].join(" ")}
+                          aria-label={`Cobertura: ${formatPercent(row.rate)}`}
+                        >
+                          {formatPercent(row.rate)}
+                        </td>
+                        <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
+                          {row.target}%
+                        </td>
+                        <td
+                          className={[
+                            "py-2 text-right tabular-nums",
+                            row.isOutlier ? "text-ln-op-danger" : "text-ln-op-mute",
+                          ].join(" ")}
+                        >
+                          {row.gap > 0
+                            ? `−${formatPercent(row.gap)}`
+                            : row.gap < 0
+                              ? `+${formatPercent(Math.abs(row.gap))}`
+                              : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -414,11 +457,17 @@ export default async function GobProgramaPage({
                       key={`${row.actorUserId ?? "deleted"}-${row.action}-${row.surface ?? ""}`}
                       className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
                     >
-                      <td className="py-2 pr-4 font-mono text-[11px] text-ln-op-ink-2">
-                        {row.actorUserId ? `${row.actorUserId.slice(0, 8)}…` : "Usuario eliminado"}
+                      <td className="py-2 pr-4 text-[13px] text-ln-op-ink-2">
+                        {row.actorUserId
+                          ? (actorNameMap.get(row.actorUserId) ?? "Operador desconocido")
+                          : "Usuario eliminado"}
                       </td>
-                      <td className="py-2 pr-4 text-ln-op-ink-2">{auditActionLabel(row.action)}</td>
-                      <td className="py-2 pr-4 text-ln-op-mute">{row.surface ?? "—"}</td>
+                      <td className="py-2 pr-4 text-ln-op-ink-2" title={row.action}>
+                        {auditActionLabel(row.action)}
+                      </td>
+                      <td className="py-2 pr-4 text-ln-op-mute">
+                        {row.surface ? (SURFACE_LABEL[row.surface] ?? row.surface) : "—"}
+                      </td>
                       <td className="py-2 pr-4 text-right tabular-nums font-medium">
                         {row.count.toLocaleString("es-AR")}
                       </td>
@@ -511,7 +560,7 @@ export default async function GobProgramaPage({
                 </ul>
                 <p className="text-xs text-ln-op-mute">
                   Completitud = mascotas sin ningún campo faltante (localidad + sexo + chip) ÷
-                  total.
+                  total. Huérfanas: sin ninguna fila en ownerships.
                 </p>
               </div>
             )}

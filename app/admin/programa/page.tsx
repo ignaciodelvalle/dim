@@ -237,7 +237,7 @@ export default async function AdminProgramaPage({
         />
         <OpKpi
           label="Esterilización"
-          value={sterilRatePct > 0 ? `${sterilRatePct}%` : "—"}
+          value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
           tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
           href="/admin/poblacion"
@@ -245,7 +245,7 @@ export default async function AdminProgramaPage({
         />
         <OpKpi
           label="Microchip"
-          value={chipRatePct > 0 ? `${chipRatePct}%` : "—"}
+          value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
           tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
           href="/admin/censo"
@@ -253,7 +253,7 @@ export default async function AdminProgramaPage({
         />
         <OpKpi
           label="SLA ENO (resueltos)"
-          value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
+          value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
           tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
@@ -276,7 +276,7 @@ export default async function AdminProgramaPage({
               : undefined
           }
           sub={`${queue.pendingTotal} pendientes`}
-          href="/gob/cola"
+          href="/admin/cola"
           info={{
             definition: "Días de antigüedad de la solicitud pendiente más antigua.",
             formula: "now() - min(created_at) WHERE status='pending'",
