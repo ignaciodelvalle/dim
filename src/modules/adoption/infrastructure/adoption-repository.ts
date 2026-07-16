@@ -294,7 +294,7 @@ export const AdoptionRepository = {
             primaryPetId: args.petId,
             openedByUserId: args.userId,
             openedByOrganizationId: args.orgId,
-            openedReason: "auto: adoption listing opened — pet marked eligible for adoption",
+            openedReason: { code: "adoption_listing_opened" },
           },
           tx,
         );
@@ -562,7 +562,7 @@ export const AdoptionRepository = {
               primaryPetId: args.petId,
               applicantUserId: args.userId,
               openedByUserId: args.userId,
-              openedReason: "auto: adoption application submitted",
+              openedReason: { code: "adoption_application_submitted" },
             },
             tx,
           )
