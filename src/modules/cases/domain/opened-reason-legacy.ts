@@ -22,6 +22,20 @@
 // invariant forbids. So these regexes stay load-bearing for the lifetime of
 // the column. Lint/coverage/cleanup tooling MUST NOT flag them as dead.
 //
+// ON THE `file.ts:NNN` CITATIONS BELOW
+// ------------------------------------
+// They name the writer that PRODUCED each grammar, as of the 2026-07-16
+// cutover — and they are the last generation of them that can be trusted.
+// Those writers no longer emit these strings from those lines; they name a
+// code, and opened-reason-prose.ts renders the prose. Read the citations as
+// provenance ("this shape came from there"), not as a live cross-reference.
+//
+// The drift was already here before the freeze: the intake rule cited
+// create-intake.ts:426 while the writer sat at :439. A regex table keeping its
+// own map of 16 other files up to date by hand is exactly the coupling the
+// structured path removes — this file only had to be right about the past, and
+// it was not even that.
+//
 // Contract (unchanged from the pre-freeze module):
 //   - Recognized machine grammars render as natural es-AR.
 //   - Internal UUIDs (volunteer/org/pet ids) are NEVER displayed.
@@ -153,7 +167,8 @@ const RULES: Rule[] = [
       `Transferencia entre organizaciones propuesta — motivo: ${label(TRANSFER_REASON_LABEL, m[1])}`,
   },
   {
-    // pets/application/intake/create-intake.ts:426
+    // pets/application/intake/create-intake.ts (was cited as :426; the writer
+    // was actually at :439 — see the header note on stale citations)
     pattern: /^auto: org intake reason=(\S+)$/,
     render: (m) =>
       `Ingreso registrado por la organización — motivo: ${label(INTAKE_REASON_LABEL, m[1])}`,

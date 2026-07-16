@@ -200,7 +200,6 @@ export async function replaceMicrochipForUser(
       let caseId: string | null = null;
       let casePublicCode: string | null = null;
       if (parsed.reason === "fraud_detected" || parsed.reason === "duplicate_detected") {
-        const secondaryNote = secondaryPetId ? ` secondaryPetId=${secondaryPetId}` : "";
         const caseRow = await openCase(
           {
             kind: "microchip_remediation",
@@ -209,7 +208,15 @@ export async function replaceMicrochipForUser(
             jurisdictionProvince: pet.jurisdictionProvince,
             jurisdictionLocality: pet.jurisdictionLocality,
             openedByUserId: userId,
-            openedReason: `auto: microchip_replaced reason=${parsed.reason}${secondaryNote}`,
+            openedReason: {
+              code: "microchip_replaced",
+              reason: parsed.reason,
+              // The FACT a duplicate was found. The secondary pet's UUID is
+              // audit-only — it stays in the prose (as always) and cannot
+              // reach the renderer.
+              duplicateDetected: Boolean(secondaryPetId),
+            },
+            openedReasonAudit: { secondaryPetId },
           },
           tx,
         );

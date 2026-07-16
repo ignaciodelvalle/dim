@@ -436,7 +436,7 @@ export async function createIntake(
           localityId: jurisdictionLocalityId,
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
-          openedReason: `auto: org intake reason=${parsed.intakeReason}`,
+          openedReason: { code: "org_intake", intakeReason: parsed.intakeReason },
         },
         tx,
       );

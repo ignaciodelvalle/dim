@@ -102,7 +102,10 @@ export async function submitClaimDisputeForUser(
           jurisdictionLocality: pet.jurisdictionLocality ?? "",
           openedByUserId: userId,
           openedByOrganizationId: null,
-          openedReason: "Custody dispute raised on pet — raised_by_role=owner",
+          // This writer only ever raises `owner`. The union carries the role
+          // so the other three roles the custody_disputes CHECK allows read
+          // correctly if a writer ever raises one.
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );
