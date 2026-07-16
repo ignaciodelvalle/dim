@@ -104,7 +104,11 @@ export default async function OfferingDetailPage({
         and(
           eq(timeSlots.serviceOfferingId, offering.id),
           gt(timeSlots.startsAt, now),
-          sql`${timeSlots.startsAt} <= ${next7d}`,
+          // Serialize the Date before interpolating into a raw sql`` template:
+          // a bare JS Date param makes the pg driver throw "Received an instance
+          // of Date", 500ing every approved/paused offering (digest 3955119939;
+          // same class as the /turnos search-page fix e1ed4559).
+          sql`${timeSlots.startsAt} <= ${next7d.toISOString()}`,
         ),
       );
 
