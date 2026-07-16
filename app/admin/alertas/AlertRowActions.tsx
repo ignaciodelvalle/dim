@@ -29,6 +29,7 @@ import {
 } from "@/app/actions/alert-firings";
 import { OpButton } from "@/components/ui/dashboard";
 import type { AlertFiringStatus, AlertMetricKey } from "@/db/schema";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   firingId: string;
@@ -61,6 +62,16 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
       } else {
         setPrompt(null);
         setNoteValue("");
+        // Full document reload so the SSR inbox reflects the new status
+        // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+        // The actions already revalidatePath("/admin/alertas"), but that only
+        // marks the cache entry stale: nothing consumes it while this tree
+        // stays mounted, so without this call the row keeps showing the old
+        // status and the counter never moves. QA ronda 5 (2026-07-16): the
+        // operator acknowledged and resolved a firing, saw the row unchanged,
+        // and assumed the action had failed — only a manual reload revealed
+        // "0 alertas". Mirrors app/gob/cola/[publicToken]/ReviewActions.tsx.
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }

@@ -93,7 +93,10 @@ export type ReportBiteFromOrgFormState = {
   /** CAS-XXXX-XXXX code of the opened bite-incident case (receipt reference). */
   casePublicCode?: string;
 };
-export type ProfessionalCloseResult = { error: string | null };
+// `redirectTo` carries the post-success destination back to the client instead
+// of the action calling redirect() itself — the App Router drops a server
+// action's own redirect in production (see lib/ui/full-page-action-nav.ts).
+export type ProfessionalCloseResult = { error: string | null; redirectTo?: string };
 
 // ---------------------------------------------------------------------------
 // reportBiteAction — owner path (spec §A)
@@ -441,7 +444,16 @@ export async function professionalCloseRabiesObservationAction(
 
   await flushNotifications(result.notifications as (typeof notifications.$inferInsert)[]);
 
-  redirect("/admin/observaciones");
+  // Mark the list stale, then hand the destination back to the client instead
+  // of calling redirect() here. The action's own redirect() rides the App
+  // Router transition machinery that Next 15.5.x silently drops in production:
+  // the close COMMITS but the operator stays on the form, so it reads as a
+  // no-op. QA ronda 5 (2026-07-16) hit exactly this — closed an observation,
+  // saw the form still sitting there, and only found "CERRADA NEGATIVA" after
+  // a manual reload. See lib/ui/full-page-action-nav.ts.
+  revalidatePath("/admin/observaciones");
+  revalidatePath(`/admin/observaciones/${petPublicToken}`);
+  return { error: null, redirectTo: "/admin/observaciones" };
 }
 
 // ---------------------------------------------------------------------------

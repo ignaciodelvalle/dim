@@ -9,6 +9,7 @@ import {
   RABIES_CONFIRMATION_WORD,
   canSubmitObservationClose,
 } from "@/lib/domain/destructive-confirmation";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import type { ProfessionalCloseResult } from "@/src/modules/surveillance/actions";
 
 type FormAction = (formData: FormData) => Promise<ProfessionalCloseResult>;
@@ -30,9 +31,23 @@ export function CloseObservationForm({ action }: { action: FormAction }) {
         setIsPending(true);
         try {
           const result = await action(formData);
-          if (result.error) setError(result.error);
-        } finally {
+          if (result.error) {
+            setError(result.error);
+            setIsPending(false);
+            return;
+          }
+          // The action no longer redirects on its own (the App Router drops a
+          // server action's redirect in production — lib/ui/full-page-action-nav
+          // .ts); it hands the destination back and the client navigates here.
+          // isPending deliberately stays true across the navigation so the form
+          // never flips back to idle after a close that already committed. QA
+          // ronda 5 (2026-07-16): the close worked, the form stayed put, and
+          // the operator had no way to tell it had worked.
+          if (result.redirectTo) navigateAfterActionSuccess(result.redirectTo);
+          else setIsPending(false);
+        } catch (e) {
           setIsPending(false);
+          throw e;
         }
       }}
       className="space-y-4"
