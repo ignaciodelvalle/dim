@@ -14,104 +14,21 @@
 //     people) pass through unchanged.
 //   - Never throws; unknown input degrades to the raw string.
 
+import {
+  BITE_SEVERITY_LABEL,
+  BITE_VICTIM_LABEL,
+  CHIP_REASON_LABEL,
+  CUSTODY_HANDOFF_ROLE_LABEL,
+  INTAKE_REASON_LABEL,
+  label,
+  REPORTER_ROLE_LABEL,
+  SEIZURE_MOTIVE_LABEL,
+  TRANSFER_REASON_LABEL,
+  WELFARE_KIND_LABEL,
+  WELFARE_SEVERITY_LABEL,
+} from "./opened-reason-labels";
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// ---------------------------------------------------------------------------
-// Value vocabularies (raw enum → es-AR)
-// ---------------------------------------------------------------------------
-
-// WELFARE_KINDS in src/modules/welfare/actions.ts
-const WELFARE_KIND_LABEL: Record<string, string> = {
-  abandonment: "abandono",
-  neglect: "negligencia",
-  physical_abuse: "maltrato físico",
-  chained: "animal encadenado",
-  no_shelter: "sin refugio",
-  hoarding: "acumulación de animales",
-  dog_fighting: "peleas de perros",
-  trafficking: "tráfico de animales",
-  other: "otro",
-};
-
-// WELFARE_SEVERITIES in src/modules/welfare/actions.ts
-const WELFARE_SEVERITY_LABEL: Record<string, string> = {
-  low: "baja",
-  medium: "media",
-  high: "alta",
-  critical: "crítica",
-};
-
-// victimKind / severity in src/modules/surveillance/application/report-bite.ts
-const BITE_VICTIM_LABEL: Record<string, string> = {
-  human: "persona",
-  animal: "animal",
-  unknown: "sin determinar",
-};
-
-const BITE_SEVERITY_LABEL: Record<string, string> = {
-  minor: "leve",
-  moderate: "moderada",
-  severe: "grave",
-};
-
-// orgTypeToReporterRole in src/modules/surveillance/domain/bite.ts
-const REPORTER_ROLE_LABEL: Record<string, string> = {
-  vet: "veterinaria",
-  shelter: "refugio",
-  govt: "autoridad sanitaria",
-};
-
-// SeizureMotive in src/modules/decomiso/domain/types.ts
-const SEIZURE_MOTIVE_LABEL: Record<string, string> = {
-  maltrato_fisico: "maltrato físico",
-  abandono_extremo: "abandono extremo",
-  acumulacion: "acumulación",
-  trafico: "tráfico",
-  sin_refugio_critico: "sin refugio (crítico)",
-  pelea_de_perros: "pelea de perros",
-  otro: "otro",
-};
-
-// CROSS_ORG_ALLOWED_REASONS in src/modules/transfers/domain/types.ts
-const TRANSFER_REASON_LABEL: Record<string, string> = {
-  space_constraint: "falta de espacio",
-  specialization_needed: "se requiere especialización",
-  network_redistribution: "redistribución en la red",
-  shelter_closing: "cierre del refugio",
-  post_adoption_failed_return: "devolución posterior a una adopción",
-  other: "otro",
-};
-
-// resolveNewRole in src/modules/transfers/application/transfer-custody.ts.
-// Same wording that file's own notification copy uses (transfer-custody.ts:202)
-// so the case reason and the notification tell the handoff the same way.
-const CUSTODY_HANDOFF_ROLE_LABEL: Record<string, string> = {
-  shelter_custody: "custodia temporal",
-  owner: "dueño permanente",
-};
-
-// INTAKE_REASONS in src/modules/pets/application/intake/create-intake.ts
-const INTAKE_REASON_LABEL: Record<string, string> = {
-  rescue: "rescate",
-  surrender: "entrega voluntaria",
-  stray_found: "animal callejero encontrado",
-  other: "otro",
-};
-
-// ADMIN_REASONS in src/modules/pets/application/microchip/replace-microchip.ts
-const CHIP_REASON_LABEL: Record<string, string> = {
-  damaged: "chip dañado",
-  unreadable: "chip ilegible",
-  owner_request: "pedido del dueño",
-  device_failure: "falla del dispositivo",
-  duplicate_detected: "duplicado detectado",
-  fraud_detected: "fraude detectado",
-  other: "otro",
-};
-
-function label(map: Record<string, string>, key: string): string {
-  return map[key] ?? key;
-}
 
 // ---------------------------------------------------------------------------
 // Writer grammars — one rule per known production openedReason template.
