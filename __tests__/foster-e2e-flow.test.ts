@@ -331,6 +331,7 @@ describe("foster-e2e: propose → accept → adopt", () => {
     // ----- Step 4: org marks the pet adoption-eligible -----
     mockSessionAs(coordUserId);
     const setEligible = await setAdoptionEligibilityAction({
+      orgToken,
       petPublicToken: petToken,
       eligible: true,
     });

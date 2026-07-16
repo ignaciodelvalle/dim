@@ -64,6 +64,8 @@ async function flushNotifications(pending: NewNotification[]): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export type SetAdoptionEligibilityInput = {
+  /** publicToken of the org in the URL — the org this action acts AS. */
+  orgToken: string;
   petPublicToken: string;
   eligible: boolean;
   ineligibleReason?: IneligibleReason | null;
@@ -76,7 +78,21 @@ export type SetAdoptionEligibilityResult = { ok: true } | { error: string };
 export async function setAdoptionEligibilityAction(
   input: SetAdoptionEligibilityInput,
 ): Promise<SetAdoptionEligibilityResult> {
-  const auth = await requireCapability("intake.create");
+  // Authorize against the org in the URL, exactly like finalizeAdoptionAction.
+  //
+  // This used to be a bare `requireCapability("intake.create")`, which falls
+  // back to the session-default (most-recently-joined) membership and ignores
+  // the URL entirely. For a single-org member the two agree, so it looked fine.
+  // For a multi-org member they diverge, and the divergence is total: the read
+  // paths (custody list, pet detail) resolve the org from the URL token, so the
+  // screen says "Custodia del refugio" while findShelterPet(petPublicToken,
+  // organization.id) queries a DIFFERENT org and answers "no está bajo custodia
+  // de tu organización" — about a pet that genuinely is.
+  //
+  // QA ronda 6 (2026-07-16) reproduced it three ways with alejo@dim.test, who
+  // administers four orgs. The pet token alone cannot disambiguate: the org id
+  // must be pinned from the URL, never inferred from join order.
+  const auth = await requireCapabilityForOrgToken("intake.create", input.orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 

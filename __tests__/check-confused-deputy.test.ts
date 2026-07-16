@@ -128,10 +128,28 @@ describe("isConfusedDeputyOffender", () => {
     expect(isConfusedDeputyOffender(only(src))).toBe(false);
   });
 
-  it("does NOT flag a bare requireCapability with no org-token param", () => {
-    // adoption pattern: session-default org, scoped by petPublicToken in the use-case.
+  // KNOWN BLIND SPOT — not a safe pattern, a limit of the heuristic.
+  //
+  // The check can only flag an action that RECEIVES an org token and then fails
+  // to pin to it. An action that never takes one is invisible here, so this
+  // returning false says nothing about whether the action is correct — only
+  // that this static check cannot see it.
+  //
+  // This case used to be written with setAdoptionEligibilityAction as its
+  // example, under the comment "adoption pattern: session-default org, scoped by
+  // petPublicToken in the use-case". That justification was itself the bug:
+  // findShelterPet(petPublicToken, organizationId) still needs the RIGHT
+  // organizationId, and a pet token cannot disambiguate among a multi-org
+  // member's orgs. 21-authz-scoping-audit.md:9 had already filed the missing pin
+  // as MED; instead of the pin landing, the shape got enshrined here as
+  // acceptable. QA ronda 6 (2026-07-16) then hit it for real: the eligibility
+  // write resolved a different org than the URL, and a shelter could not put its
+  // own pet up for adoption. The action now takes an orgToken and pins to it, so
+  // it is covered by the heuristic above — this example is deliberately
+  // synthetic and must never name a real action again.
+  it("cannot see a bare requireCapability when the action takes no org token", () => {
     const src = [
-      "export async function setAdoptionEligibilityAction(input: { petPublicToken: string }) {",
+      "export async function someAction(input: { petPublicToken: string }) {",
       '  const auth = await requireCapability("intake.create");',
       "  return run();",
       "}",

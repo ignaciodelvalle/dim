@@ -107,13 +107,22 @@ vi.mock("../infrastructure/adoption-repository", () => ({
 // Lazy imports (AFTER vi.mock calls)
 // ---------------------------------------------------------------------------
 
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const mockRequireCapability = requireCapability as ReturnType<typeof vi.fn>;
+// The org-pinned guard delegates to the same resolved value, but it is its own
+// spy — so WHICH guard an action reached, and with WHICH token, is assertable.
+// That distinction is the whole point: the two guards differ only in where the
+// org id comes from (URL token vs session-default membership), and a mock that
+// cannot tell them apart cannot catch an action reaching for the wrong org.
+const mockRequireCapabilityForOrgToken = requireCapabilityForOrgToken as ReturnType<typeof vi.fn>;
 
 function makeAuth(overrides: Record<string, unknown> = {}) {
   return {
@@ -152,6 +161,7 @@ describe("thin actions parity — setAdoptionEligibilityAction", () => {
   it("returns capability error when auth fails", async () => {
     mockRequireCapability.mockResolvedValue({ error: "No tenés permiso." });
     const result = await setAdoptionEligibilityAction({
+      orgToken: "org-tok",
       petPublicToken: "tok-1",
       eligible: true,
     });
@@ -159,10 +169,33 @@ describe("thin actions parity — setAdoptionEligibilityAction", () => {
     expect(setAdoptionEligibilityUc).not.toHaveBeenCalled();
   });
 
+  // The bug this action shipped with: it authorized via the BARE guard, which
+  // resolves the session-default (most-recently-joined) org and ignores the URL.
+  // For a member of one org the two agree and everything looks fine; for a
+  // multi-org member the write lands on the wrong org, and the screen — which
+  // reads the org from the URL — contradicts it. Pin the guard, or a shelter
+  // cannot mark its own pet eligible (QA ronda 6, 2026-07-16).
+  it("authorizes against the URL org token, never the session-default org", async () => {
+    mockRequireCapability.mockResolvedValue(makeAuth());
+    setAdoptionEligibilityUc.mockResolvedValue({ ok: true, notifications: [] });
+    await setAdoptionEligibilityAction({
+      orgToken: "refugio-patitas-tok",
+      petPublicToken: "tok-1",
+      eligible: true,
+    });
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith(
+      "intake.create",
+      "refugio-patitas-tok",
+    );
+    // The bare guard is the one that reaches for the session-default org.
+    expect(mockRequireCapability).not.toHaveBeenCalledWith("intake.create");
+  });
+
   it("returns use-case error on ok:false", async () => {
     mockRequireCapability.mockResolvedValue(makeAuth());
     setAdoptionEligibilityUc.mockResolvedValue({ ok: false, error: "Razón requerida." });
     const result = await setAdoptionEligibilityAction({
+      orgToken: "org-tok",
       petPublicToken: "tok-1",
       eligible: false,
     });
@@ -173,6 +206,7 @@ describe("thin actions parity — setAdoptionEligibilityAction", () => {
     mockRequireCapability.mockResolvedValue(makeAuth());
     setAdoptionEligibilityUc.mockResolvedValue({ ok: true, notifications: [] });
     const result = await setAdoptionEligibilityAction({
+      orgToken: "org-tok",
       petPublicToken: "tok-1",
       eligible: true,
     });
@@ -183,6 +217,7 @@ describe("thin actions parity — setAdoptionEligibilityAction", () => {
     mockRequireCapability.mockResolvedValue(makeAuth());
     setAdoptionEligibilityUc.mockResolvedValue({ ok: true, notifications: [] });
     await setAdoptionEligibilityAction({
+      orgToken: "org-tok",
       petPublicToken: "tok-1",
       eligible: false,
       ineligibleReason: "recovery",

@@ -59,6 +59,10 @@ export function EligibilityForm({
     const eligible = decision === "eligible";
     startTransition(async () => {
       const result = await setAdoptionEligibilityAction({
+        // Pin the action to the org in the URL. Without this the action falls
+        // back to the session-default membership and, for a multi-org member,
+        // writes against the wrong org — see setAdoptionEligibilityAction.
+        orgToken,
         petPublicToken,
         eligible,
         ineligibleReason: eligible ? null : reason,
