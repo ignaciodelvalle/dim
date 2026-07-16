@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { shouldRedactPetName } from "@/components/casos/pet-name-redaction";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
@@ -117,14 +118,22 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
     parties.push({ role: "closer", name: detail.closedByUser.displayName });
   }
 
+  // BITE-NAME-HIDE (PO decision): on the ANONYMOUS public view of a cruelty/bite
+  // case (Ley 14.346) the pet's proper NAME is redacted — species/sex/photo/
+  // timeline/org stay. Lost-pet and adoption cases are unaffected (there the name
+  // helps recovery/matching). An authed in-scope viewer always sees the name.
+  const redactPetName = shouldRedactPetName(detail.caseKind, isPublic);
+
   // Build subject descriptor for CaseDetailShell.
   let subject: CaseSubjectDescriptor | null = null;
   if (detail.pet) {
     subject = {
       kind: "pet",
-      petName: detail.pet.name,
+      petName: redactPetName ? null : detail.pet.name,
       petSpecies: `${speciesLabel(detail.pet.species)} · ${sexLabel(detail.pet.sex)}`,
-      petHref: petLink,
+      // When the name is redacted, also drop the deep link to the pet's public
+      // credential page (which shows the name) so the redaction isn't one click away.
+      petHref: redactPetName ? null : petLink,
       petPhotoUrl: photoUrl,
     };
   } else {

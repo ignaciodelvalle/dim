@@ -271,8 +271,16 @@ export function CaseDetailShell({
 // SubjectCard
 // ---------------------------------------------------------------------------
 
-function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
-  if (subject.kind === "pet" && subject.petName) {
+// Exported for unit testing (BITE-NAME-HIDE render contract). Internal to the shell.
+export function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
+  // BITE-NAME-HIDE: a pet subject renders its card even when the NAME is redacted
+  // (anonymous cruelty/bite view) — the photo + species/sex stay. With a name the
+  // heading is the name and the species rides as a subline; without one the
+  // species descriptor ("Perro · macho") becomes the heading, and no proper name
+  // is emitted anywhere in the markup.
+  if (subject.kind === "pet") {
+    const heading = subject.petName ?? subject.petSpecies ?? "Mascota";
+    const showSpeciesSubline = subject.petName != null && subject.petSpecies != null;
     return (
       <section
         aria-label="Mascota sujeto del caso"
@@ -282,7 +290,7 @@ function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={subject.petPhotoUrl}
-            alt={subject.petName}
+            alt={subject.petName ?? "Mascota"}
             className="h-16 w-16 flex-shrink-0 rounded-full object-cover ring-2 ring-ln-op-line"
           />
         ) : (
@@ -294,10 +302,8 @@ function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="font-ln-serif text-lg font-semibold text-ln-op-ink truncate">
-            {subject.petName}
-          </p>
-          {subject.petSpecies ? (
+          <p className="font-ln-serif text-lg font-semibold text-ln-op-ink truncate">{heading}</p>
+          {showSpeciesSubline ? (
             <p className="text-sm text-ln-op-mute">{subject.petSpecies}</p>
           ) : null}
         </div>
