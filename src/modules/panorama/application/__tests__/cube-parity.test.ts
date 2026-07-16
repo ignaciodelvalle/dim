@@ -124,11 +124,15 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     expect(cube, "cube must serve national+department").not.toBeNull();
     const cubeResult = (cube as NonNullable<typeof cube>).result;
 
-    // Level + non-truncated envelope: the cube union is not subject to the live
-    // global cap (it is built PER PROVINCE, complete). The live path IS truncated
-    // here — that truncation is exactly the defect the cube supersedes.
+    // The cube national+department envelope is a SUPERSET over the live global
+    // cap (built per province, so it ADDS the departments the live path dropped).
+    // Its `truncated` is DERIVED from the per-province build flags (den=1), NOT
+    // hardcoded — on this seed no province's own rollup hit PER_LAYER_CAP, so it
+    // is honestly false; a real BA-scale build that capped a province would flip
+    // it true (the honest signal an operator needs). The live path IS truncated
+    // here — that global-cap truncation is exactly the defect the cube supersedes.
     expect(cubeResult.level).toBe("locality");
-    expect(cubeResult.truncated).toBe(false);
+    expect(cubeResult.truncated).toBe(false); // seed: no province build was capped
     expect(live.truncated).toBe(true);
 
     // Key each department cell (CABA barrios carry no departmentCode → key by name).

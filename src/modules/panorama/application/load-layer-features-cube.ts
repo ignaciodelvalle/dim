@@ -173,14 +173,15 @@ export function assembleCubeLayerResult(
   // noLocalityCount: sum the province-grain residual over the in-scope provinces
   // (national = all rows; a province drill already filtered to that province).
   const noLocalityCount = provinceRows.reduce((n, r) => n + (r.noLocality ?? 0), 0);
-  // Truncated flag:
-  //  - Whole-province drill (adminProvince defined): thread the province's own
-  //    build-time truncation (den = 1 on its province row) for live parity.
-  //  - National department view (adminProvince undefined): a deliberate cube
-  //    SUPERSET over the truncated live set — declares false (not subject to the
-  //    live global cap; see header). It only ever ADDS the departments the live
-  //    cap dropped, so it never overclaims completeness by reporting false.
-  const truncated = adminProvince ? provinceRows.some((r) => (r.den ?? 0) !== 0) : false;
+  // Truncated flag: honest in BOTH scopes. The cube is built per province, and a
+  // single province's own LOCALITY rollup can hit PER_LAYER_CAP at scale (Buenos
+  // Aires ~2000 INDEC localities) — captured as den=1 on that province's row,
+  // meaning ITS department cells are undercounts (localities dropped before the
+  // fold). That incompleteness is real regardless of scope, so national must
+  // union the per-province den flags too — reporting false here would hide a
+  // silently-incomplete BA department view (the cube being a superset OVER the
+  // live cap does not make an internally-capped province complete).
+  const truncated = provinceRows.some((r) => (r.den ?? 0) !== 0);
 
   return {
     features: buildChoroplethFeatures(cells),

@@ -131,11 +131,19 @@ describe("assembleCubeLayerResult — truncation threads through to the envelope
     ).toBe(false);
   });
 
-  it("NATIONAL department (no drill): truncated=false even when a province row has den=1 (cube superset)", () => {
-    // National+department is a deliberate superset over the truncated live set; it is
-    // not subject to the live global cap, so it declares truncated=false regardless of
-    // any single province's build-time truncation.
+  it("NATIONAL department (no drill): truncated=true when ANY province build hit the cap (den=1)", () => {
+    // The cube national+department view is a superset over the LIVE global cap,
+    // but the cube itself is built per province — a province whose OWN locality
+    // rollup hit PER_LAYER_CAP (den=1) carries undercount department cells. That
+    // incompleteness is real at national scope too, so the envelope must report
+    // it honestly (union of the per-province den flags), never hardcode false.
     const result = assembleCubeLayerResult([provinceRow({ den: 1 }), deptRow()], "locality");
+    expect(result.truncated).toBe(true);
+    expect(result.level).toBe("locality");
+  });
+
+  it("NATIONAL department (no drill): truncated=false when no province build was capped", () => {
+    const result = assembleCubeLayerResult([provinceRow({ den: 0 }), deptRow()], "locality");
     expect(result.truncated).toBe(false);
     expect(result.level).toBe("locality");
   });

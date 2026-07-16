@@ -123,10 +123,10 @@ describe("normalizeLocationForWrite", () => {
   });
 
   describe('locality:"strict"', () => {
-    it("returns canonical locality on successful resolution", async () => {
+    it("returns canonical locality + the resolved locality id on successful resolution", async () => {
       mockResolveCanonicalJurisdiction.mockResolvedValue({
         province: { name: "Buenos Aires" },
-        locality: { localityName: "La Plata" },
+        locality: { localityName: "La Plata", id: "loc-la-plata-uuid" },
       });
 
       const result = await normalizeLocationForWrite(
@@ -137,6 +137,16 @@ describe("normalizeLocationForWrite", () => {
       expect(result.province).toBe("Buenos Aires");
       expect(result.locality).toBe("La Plata");
       expect(result.localityCanonical).toBe(true);
+      // Thread-B: the resolved catalog id (the new FK value every write site
+      // persists) is returned, not discarded.
+      expect(result.localityId).toBe("loc-la-plata-uuid");
+    });
+
+    it("returns a null locality id when the locality does not resolve to the catalog", async () => {
+      const result = await normalizeLocationForWrite(makeLocationValue({ provinceCode: "AR-B" }), {
+        locality: "strict",
+      });
+      expect(result.localityId).toBeNull();
     });
 
     it("throws JurisdictionValidationError on unknown locality", async () => {
