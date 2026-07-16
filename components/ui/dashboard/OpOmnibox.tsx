@@ -276,7 +276,7 @@ export function OpOmnibox({
             // one.
             <div className="px-4 py-3 text-sm text-ln-op-mute">
               <p>{universalScope ? "Sin coincidencias" : "Sin coincidencias en tu jurisdicción"}</p>
-              <p className="mt-1 text-[11px] text-ln-op-mute">
+              <p className="mt-1 text-[var(--text-xs)] text-ln-op-mute">
                 {orgToken
                   ? "Probá con el nombre de la mascota o su código (DIM-…)."
                   : "Probá con un código (DIM-…, CAS-…) o nombre y apellido."}

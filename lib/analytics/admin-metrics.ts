@@ -453,7 +453,10 @@ export async function fetchCronRuns(): Promise<CronRunRow[]> {
       })
       .from(cronRuns)
       .where(eq(cronRuns.cronName, n.cronName))
-      .orderBy(desc(cronRuns.startedAt))
+      // Secondary key on id so a started_at tie resolves IDENTICALLY here and in
+      // fetchFailedCronNames (else the dashboard banner could disagree with the
+      // /admin/sistema Crons card about which job is down).
+      .orderBy(desc(cronRuns.startedAt), desc(cronRuns.id))
       .limit(1);
     results.push({
       cronName: n.cronName,
@@ -480,7 +483,7 @@ export async function fetchFailedCronNames(): Promise<string[]> {
     FROM (
       SELECT DISTINCT ON (cron_name) cron_name, status
       FROM cron_runs
-      ORDER BY cron_name, started_at DESC
+      ORDER BY cron_name, started_at DESC, id DESC
     ) latest
     WHERE latest.status = 'failed'
     ORDER BY cron_name

@@ -15,8 +15,6 @@
 // PRESENTATIONAL / server component. It renders nothing when the fleet is
 // healthy, so callers can mount it unconditionally.
 
-import Link from "next/link";
-
 export function CronsDownBanner({
   failedCronNames,
   /** When false, the "Ver detalle" link to /admin/sistema is hidden (already there). */
@@ -37,16 +35,19 @@ export function CronsDownBanner({
       ].join(" ")}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <b className="text-[13px] font-bold text-ln-op-danger">
+        <b className="text-[var(--text-sm)] font-bold text-ln-op-danger">
           Procesos automáticos caídos {"·"} avisá a soporte
         </b>
         {showSistemaLink && (
-          <Link
+          // Plain <a> (not next/link) — operator-trust T2: a soft <Link> on this
+          // dense dashboard can silently drop under the Next 15.5 client-router
+          // defect. A real anchor hard-navigates so the click always lands.
+          <a
             href="/admin/sistema"
             className="text-[var(--text-sm)] font-semibold text-ln-op-danger underline underline-offset-2"
           >
             Ver detalle {"->"}
-          </Link>
+          </a>
         )}
       </div>
       <p className="text-[var(--text-sm)] text-ln-op-danger opacity-85">
