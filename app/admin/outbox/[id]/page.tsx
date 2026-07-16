@@ -132,7 +132,9 @@ export default async function AdminOutboxDetailPage({
         <h1 className="text-[22px] font-semibold text-ln-op-ink">
           {TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
         </h1>
-        <p className="text-[13px] text-ln-op-ink-2">{jurisdiction || "Sin jurisdicción"}</p>
+        <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+          {jurisdiction || "Sin jurisdicción"}
+        </p>
         <OpCodeBadge tone="neutral">{row.id}</OpCodeBadge>
       </header>
 
@@ -142,28 +144,28 @@ export default async function AdminOutboxDetailPage({
         <OpCardBody>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
             <dt className="text-sm text-ln-op-mute">Estado</dt>
-            <dd className="text-[13px] text-ln-op-ink">{buildStatusLabel(row.status)}</dd>
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">{buildStatusLabel(row.status)}</dd>
 
             <dt className="text-sm text-ln-op-mute">Intentos</dt>
-            <dd className="text-[13px] text-ln-op-ink">{row.attempts}</dd>
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">{row.attempts}</dd>
 
             <dt className="text-sm text-ln-op-mute">Ultimo intento</dt>
-            <dd className="text-[13px] text-ln-op-ink">{fmt(row.lastAttemptAt)}</dd>
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">{fmt(row.lastAttemptAt)}</dd>
 
             <dt className="text-sm text-ln-op-mute">Proximo reintento</dt>
-            <dd className="text-[13px] text-ln-op-ink">{fmt(row.nextRetryAt)}</dd>
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">{fmt(row.nextRetryAt)}</dd>
 
             <dt className="text-sm text-ln-op-mute">Entregado</dt>
-            <dd className="text-[13px] text-ln-op-ink">{fmt(row.deliveredAt)}</dd>
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">{fmt(row.deliveredAt)}</dd>
 
             <dt className="text-sm text-ln-op-mute">Creado</dt>
-            <dd className="text-[13px] text-ln-op-ink">{fmt(row.createdAt)}</dd>
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">{fmt(row.createdAt)}</dd>
 
             <dt className="text-sm text-ln-op-mute">SLA vence</dt>
-            <dd className="text-[13px] text-ln-op-ink">
+            <dd className="text-[var(--text-sm)] text-ln-op-ink">
               {fmt(row.slaDueAt)}
               {cue === "breach" && (
-                <span className="ml-2 text-ln-op-danger font-semibold text-[11px]">
+                <span className="ml-2 text-ln-op-danger font-semibold text-[var(--text-xs)]">
                   (INCUMPLIDO)
                 </span>
               )}
@@ -175,7 +177,7 @@ export default async function AdminOutboxDetailPage({
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                 Ultimo error
               </p>
-              <pre className="rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-[11px] text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
+              <pre className="rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-[var(--text-xs)] text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
                 {row.lastError}
               </pre>
             </div>
@@ -187,7 +189,7 @@ export default async function AdminOutboxDetailPage({
       <OpCard>
         <OpCardHead title="Payload snapshot" />
         <OpCardBody>
-          <pre className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
+          <pre className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[var(--text-xs)] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
             {JSON.stringify(row.payloadSnapshot, null, 2)}
           </pre>
         </OpCardBody>
@@ -203,7 +205,7 @@ export default async function AdminOutboxDetailPage({
                 {petRow && (
                   <>
                     <dt className="text-sm text-ln-op-mute">Mascota</dt>
-                    <dd className="text-[13px]">
+                    <dd className="text-[var(--text-sm)]">
                       <Link
                         href={`/p/${petRow.publicToken}`}
                         className="text-ln-op-azul underline underline-offset-2 hover:opacity-80"
@@ -220,11 +222,15 @@ export default async function AdminOutboxDetailPage({
                   </OpCodeBadge>
                 </dd>
                 <dt className="text-sm text-ln-op-mute">Ocurrido</dt>
-                <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.occurredAt)}</dd>
+                <dd className="text-[var(--text-sm)] text-ln-op-ink">
+                  {fmt(sourceEvent.occurredAt)}
+                </dd>
                 <dt className="text-sm text-ln-op-mute">Registrado</dt>
-                <dd className="text-[13px] text-ln-op-ink">{fmt(sourceEvent.recordedAt)}</dd>
+                <dd className="text-[var(--text-sm)] text-ln-op-ink">
+                  {fmt(sourceEvent.recordedAt)}
+                </dd>
                 <dt className="text-sm text-ln-op-mute">Rol del autor</dt>
-                <dd className="text-[13px] text-ln-op-ink flex items-center gap-1.5">
+                <dd className="text-[var(--text-sm)] text-ln-op-ink flex items-center gap-1.5">
                   {sourceEvent.authorRole}
                   {sourceEvent.authorVerified && <OpPill tone="ok">verificado</OpPill>}
                 </dd>
@@ -242,7 +248,7 @@ export default async function AdminOutboxDetailPage({
                   {sourceEvent.authorOrganizationId && (
                     <>
                       <dt className="text-sm text-ln-op-mute">Organización</dt>
-                      <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                      <dd className="font-mono text-[var(--text-xs)] text-ln-op-mute break-all">
                         {sourceEvent.authorOrganizationId}
                       </dd>
                     </>
@@ -250,17 +256,17 @@ export default async function AdminOutboxDetailPage({
                   {sourceEvent.recordedByUserId && (
                     <>
                       <dt className="text-sm text-ln-op-mute">Usuario</dt>
-                      <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                      <dd className="font-mono text-[var(--text-xs)] text-ln-op-mute break-all">
                         {sourceEvent.recordedByUserId}
                       </dd>
                     </>
                   )}
                   <dt className="text-sm text-ln-op-mute">Pet ID</dt>
-                  <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                  <dd className="font-mono text-[var(--text-xs)] text-ln-op-mute break-all">
                     {sourceEvent.petId}
                   </dd>
                   <dt className="text-sm text-ln-op-mute">Event ID</dt>
-                  <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                  <dd className="font-mono text-[var(--text-xs)] text-ln-op-mute break-all">
                     {sourceEvent.id}
                   </dd>
                 </dl>
@@ -271,13 +277,13 @@ export default async function AdminOutboxDetailPage({
                 <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
                   Payload del evento
                 </p>
-                <pre className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
+                <pre className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[var(--text-xs)] text-ln-op-ink-2 overflow-auto whitespace-pre-wrap break-words">
                   {JSON.stringify(sourceEvent.payload, null, 2)}
                 </pre>
               </div>
             </>
           ) : (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-[var(--text-sm)] text-ln-op-mute">
               Evento origen no encontrado (puede haber sido eliminado).
             </p>
           )}
@@ -302,7 +308,7 @@ export default async function AdminOutboxDetailPage({
       )}
 
       {row.status === "delivered" && (
-        <p className="text-[13px] text-ln-op-ok font-semibold">
+        <p className="text-[var(--text-sm)] text-ln-op-ok font-semibold">
           Esta fila ya fue entregada exitosamente. No se requiere acción.
         </p>
       )}

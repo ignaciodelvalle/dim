@@ -156,7 +156,7 @@ async function GobPanoramaBoard({
     if (!isProvinceInGovtScope(jurisdictions, provinceObj.code)) {
       const params = new URLSearchParams();
       if (widest.provinceCode) params.set("province", widest.provinceCode);
-      params.set("notice", "jurisdiccion-fuera-de-alcance");
+      params.set("notice", "fuera-de-alcance");
       redirect(`/gob/panorama?${params.toString()}`);
     }
   }

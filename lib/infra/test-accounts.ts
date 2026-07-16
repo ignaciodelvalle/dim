@@ -16,6 +16,11 @@
 //   - `-gen-`               genesis cold-start churn (govt-gen-*, lucia-gen-*, …)
 //   - `uc-cd-` prefix       cursor-driven smoke accounts (uc-cd-admin, …)
 //   - `govt-dashboard-export` the dashboard-export e2e fixture
+//
+// The `-gen-` match is intentionally broad: for this filter's purpose a false
+// NEGATIVE (a test account left in the roster) defeats the goal, while a false
+// positive (a rare real handle hidden) is fully recoverable via the "mostrar
+// cuentas de prueba" toggle. No real operator handle carries `-gen-` today.
 
 const TEST_ACCOUNT_PATTERNS: readonly RegExp[] = [/-gen-/i, /^uc-cd-/i, /govt-dashboard-export/i];
 

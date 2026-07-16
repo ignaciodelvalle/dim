@@ -282,7 +282,18 @@ export default async function GobPerdidasPage({
                         {tab.value === "lost" && "Mascotas perdidas"}
                         {tab.value === "active" && "Mascotas recuperadas"}
                         {tab.value === "deceased" && "Mascotas fallecidas"}
-                        {tab.value === "all" && "Todas las mascotas"} ({lostPets.length})
+                        {tab.value === "all" && "Todas las mascotas"} (
+                        {/* When the list hits its 500 cap and the stock KPI is
+                            larger, say "primeros 500 de N" so the header never
+                            contradicts the "Perdidas activas" count above. */}
+                        {tab.value === "lost" &&
+                        !q &&
+                        listSince === undefined &&
+                        lostPets.length >= 500 &&
+                        metrics.activeCount > lostPets.length
+                          ? `primeros ${lostPets.length} de ${metrics.activeCount}`
+                          : lostPets.length}
+                        )
                         {q && (
                           <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
                             {"—"} búsqueda: &ldquo;{q}&rdquo;
