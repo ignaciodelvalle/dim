@@ -13,6 +13,8 @@ import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { type Case, type NewCase, cases, db } from "@/db";
 import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
+import type { OpenedReason, OpenedReasonAudit } from "@/src/modules/cases/domain/opened-reason";
+import { openedReasonProse } from "@/src/modules/cases/domain/opened-reason-prose";
 
 // ---------------------------------------------------------------------------
 // Type aliases (matching lib/case-helpers.ts exactly)
@@ -42,12 +44,61 @@ export interface OpenCaseInput {
   openedByOrganizationId?: string | null;
   /** custody_transfer_handshake only: canonical receiver org id. */
   receiverOrganizationId?: string | null;
-  /** Required ≥ 10 chars when manual; auto-open events pass an "auto: ..." string. */
-  openedReason: string;
+  /**
+   * Why this case is being opened.
+   *
+   * TRANSITIONAL TYPE (ADR-8 step 1): `string` is accepted only while the 18
+   * writers migrate to `OpenedReason`, one module per commit, so `pnpm test`
+   * stays green at every step. The `string` branch is deleted in the final
+   * commit of this change and never ships. New code MUST pass an
+   * `OpenedReason` — a bare string is exactly the hole this work closes.
+   *
+   * Structured input dual-writes: byte-identical legacy prose into
+   * `opened_reason` (>= 10 chars, satisfying the CHECK) PLUS the code and
+   * params. See resolveOpenedReasonColumns.
+   */
+  openedReason: string | OpenedReason;
+  /**
+   * Internal ids that belong in the AUDIT prose but must never reach
+   * `opened_reason_params`. Only the three writers whose prose embeds a UUID
+   * need this (foster_proposal_sent, pet_marked_lost, microchip_replaced).
+   */
+  openedReasonAudit?: OpenedReasonAudit;
   welfareReportId?: string | null;
   adoptionApplicationId?: string | null;
   custodyDisputeId?: string | null;
   parentListingCaseId?: string | null;
+}
+
+/**
+ * Decide the three `opened_reason*` columns for a case-open.
+ *
+ * Pure and exported so the dual-write contract is testable without a DB — it
+ * is the single most consequential decision in the case-open path.
+ *
+ * A structured reason writes BOTH representations, and the prose it writes is
+ * byte-identical to what the writer emitted before the cutover. That is
+ * load-bearing: `opened_reason` is still a live SQL query key (outbreak dedupe
+ * runs `LIKE 'manual [code]:%'` against it), and identical prose means both
+ * cohorts match one query and a rollback renders every row correctly.
+ */
+export function resolveOpenedReasonColumns(
+  openedReason: string | OpenedReason,
+  audit: OpenedReasonAudit = {},
+): { openedReason: string; openedReasonCode: string | null; openedReasonParams: unknown } {
+  // TRANSITIONAL (ADR-8 step 1) — deleted once all 18 writers are migrated.
+  if (typeof openedReason === "string") {
+    return { openedReason, openedReasonCode: null, openedReasonParams: null };
+  }
+  const { code, ...params } = openedReason;
+  return {
+    openedReason: openedReasonProse(openedReason, audit),
+    openedReasonCode: code,
+    // `{}` rather than null for param-less codes: the pair CHECK
+    // (cases_opened_reason_structured_pair) makes "code without params"
+    // unrepresentable at rest.
+    openedReasonParams: params,
+  };
 }
 
 export interface CloseCaseInput {
@@ -119,7 +170,7 @@ export class CasesRepository {
       openedByUserId: input.openedByUserId ?? null,
       openedByOrganizationId: input.openedByOrganizationId ?? null,
       receiverOrganizationId: input.receiverOrganizationId ?? null,
-      openedReason: input.openedReason,
+      ...resolveOpenedReasonColumns(input.openedReason, input.openedReasonAudit),
       welfareReportId: input.welfareReportId ?? null,
       adoptionApplicationId: input.adoptionApplicationId ?? null,
       custodyDisputeId: input.custodyDisputeId ?? null,
