@@ -57,6 +57,7 @@ import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import {
+  welfareAssignmentLabel,
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
@@ -307,7 +308,7 @@ export default async function GobMaltratoDetailPage({
           <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Asignado a</p>
             <p className="text-[13px] font-semibold text-ln-op-ink truncate">
-              {assignedToName ?? "Sin asignar"}
+              {welfareAssignmentLabel(assignedToName, derivedOrgInfo?.orgDisplayName)}
             </p>
           </div>
         </div>

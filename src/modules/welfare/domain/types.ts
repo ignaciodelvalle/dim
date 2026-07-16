@@ -106,6 +106,30 @@ export function welfareReportStatusLabel(status: WelfareReportStatus | string): 
 }
 
 // ---------------------------------------------------------------------------
+// Assignment display
+// ---------------------------------------------------------------------------
+
+/**
+ * es-AR label for a denuncia's "Asignado a" chip.
+ *
+ * G0b (govt/public honesty): a denuncia DERIVED to an org but not assigned to a
+ * named operator must NOT read as "Sin asignar" — that made a derived case look
+ * unowned (the DEN-9KSC-MRMZ ambiguity). When there is no personal assignee but
+ * the case has been derived, the holding ORG is the owner of record → show
+ * "Derivada a {org}". Precedence: a named operator assignment always wins (an
+ * operator can pick up a derived case); only when there is no assignee does the
+ * derivation surface. No derivation and no assignee → the honest "Sin asignar".
+ */
+export function welfareAssignmentLabel(
+  assignedToName: string | null | undefined,
+  derivedOrgName: string | null | undefined,
+): string {
+  if (assignedToName) return assignedToName;
+  if (derivedOrgName) return `Derivada a ${derivedOrgName}`;
+  return "Sin asignar";
+}
+
+// ---------------------------------------------------------------------------
 // Subject kind
 // ---------------------------------------------------------------------------
 

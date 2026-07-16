@@ -16,6 +16,7 @@ import type { WelfareInspectorDetail } from "@/lib/infra/welfare-inspector-detai
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import {
   type WelfareReportStatus,
+  welfareAssignmentLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
@@ -111,7 +112,13 @@ function ResumenTab({
         <Chip label="Edad del caso" value={ageLabel(detail.ageInDays)} />
         <Chip label="Gravedad" value={welfareReportSeverityLabel(detail.severity)} />
         <Chip label="Estado" value={welfareReportStatusLabel(detail.status)} />
-        <Chip label="Asignado a" value={detail.assignedToName ?? "Sin asignar"} />
+        <Chip
+          label="Asignado a"
+          value={welfareAssignmentLabel(
+            detail.assignedToName,
+            detail.derivedOrgInfo?.orgDisplayName,
+          )}
+        />
       </div>
 
       <OpCard>
