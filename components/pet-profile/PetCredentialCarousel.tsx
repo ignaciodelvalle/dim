@@ -59,11 +59,19 @@ type Props = {
   pets: CarouselPet[];
   /** The pet whose profile is currently rendered. */
   currentToken: string;
+  /**
+   * Total live pets in the household (D2). The swipe/dots are capped at
+   * OWNER_CAROUSEL_CAP, so when the owner has MORE live pets than dots this drives
+   * an honest "Mostrando N de M" line — the /mis-mascotas index lists all M, and
+   * the carousel must not silently show a smaller set. Defaults to `pets.length`
+   * (no cap reached → nothing to disclose).
+   */
+  liveTotal?: number;
   /** The server-rendered credential document for the current route. */
   children: ReactNode;
 };
 
-export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
+export function PetCredentialCarousel({ pets, currentToken, liveTotal, children }: Props) {
   const router = useRouter();
 
   const tokens = pets.map((p) => p.token);
@@ -162,6 +170,11 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
   }
 
   const total = pets.length;
+  // D2: disclose the cap honestly. When the household has more live pets than the
+  // swipe shows (OWNER_CAROUSEL_CAP), the dots would otherwise imply the owner has
+  // only `total` pets — contradicting the /mis-mascotas index that lists them all.
+  const householdTotal = liveTotal ?? total;
+  const isCapped = householdTotal > total;
 
   return (
     // Pointer handlers are the touch/mouse swipe surface (not click targets);
@@ -225,6 +238,19 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
           <Icon name="chevron-right" size="sm" decorative />
         </button>
       </nav>
+
+      {/* D2: honest cap disclosure — only when the household exceeds the dots. */}
+      {isCapped && (
+        <p className="mb-3 text-center text-sm text-[var(--color-ln-mute)]">
+          Mostrando {total} de {householdTotal} mascotas.{" "}
+          <a
+            href="/mis-mascotas"
+            className="text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
+            Ver todas
+          </a>
+        </p>
+      )}
 
       {children}
     </div>

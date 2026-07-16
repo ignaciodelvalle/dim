@@ -30,9 +30,9 @@ const PETS: CarouselPet[] = [
   { token: "DIM-OKAY-0003", status: "ok" },
 ];
 
-function renderCarousel(currentToken: string, pets: CarouselPet[] = PETS) {
+function renderCarousel(currentToken: string, pets: CarouselPet[] = PETS, liveTotal?: number) {
   return render(
-    <PetCredentialCarousel pets={pets} currentToken={currentToken}>
+    <PetCredentialCarousel pets={pets} currentToken={currentToken} liveTotal={liveTotal}>
       <div data-testid="document">documento</div>
     </PetCredentialCarousel>,
   );
@@ -200,6 +200,26 @@ describe("PetCredentialCarousel — prefetch exactly one neighbor each side", ()
     renderCarousel("DIM-LOST-0001");
     expect(prefetch).toHaveBeenCalledTimes(1);
     expect(prefetch).toHaveBeenCalledWith("/mis-mascotas/DIM-PREG-0002");
+  });
+});
+
+describe("PetCredentialCarousel — cap disclosure (D2)", () => {
+  it("shows an honest 'Mostrando N de M' when the household exceeds the dots", () => {
+    // 3 dots shown, 14 live pets in the household → the swipe must not imply
+    // the owner has only 3 pets (it silently disagreed with /mis-mascotas).
+    const { getByText } = renderCarousel("DIM-PREG-0002", PETS, 14);
+    expect(getByText(/Mostrando 3 de 14 mascotas/)).toBeInTheDocument();
+    expect(getByText("Ver todas")).toHaveAttribute("href", "/mis-mascotas");
+  });
+
+  it("shows no disclosure when the dots already cover the whole household", () => {
+    const { queryByText } = renderCarousel("DIM-PREG-0002", PETS, 3);
+    expect(queryByText(/Mostrando/)).toBeNull();
+  });
+
+  it("shows no disclosure when liveTotal is omitted (defaults to the dot count)", () => {
+    const { queryByText } = renderCarousel("DIM-PREG-0002");
+    expect(queryByText(/Mostrando/)).toBeNull();
   });
 });
 

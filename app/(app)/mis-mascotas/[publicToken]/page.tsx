@@ -658,11 +658,17 @@ export default async function PetDetailPage({
   // watchpoint): this adds the pet-list + batch-compliance queries on the owner
   // path only — the same price /inicio already pays for its rail.
   let carouselPets: CarouselPet[] = [];
+  // D2: the TRUE number of live pets across the household. The swipe is capped at
+  // OWNER_CAROUSEL_CAP (glanceable dots), but /mis-mascotas lists every live pet,
+  // so the two silently disagreed (e.g. 8 dots vs 14 in the index). The carousel
+  // uses this to show an honest "Mostrando N de M" instead of differing silently.
+  let liveTotal = 0;
   if (isOwner) {
     // Rank over EVERY live ownership (uncapped), not the newest 50 — otherwise a
     // most-urgent pet beyond the cap would be absent from the swipe (QA ronda 4
     // CONFIRMED). fetchLivePetsForCarouselRanking already excludes deceased.
     const livePets = await fetchLivePetsForCarouselRanking(user.id);
+    liveTotal = livePets.length;
     const complianceStates = await fetchComplianceStatesForPets(
       user.id,
       livePets.map((p) => p.id),
@@ -824,7 +830,11 @@ export default async function PetDetailPage({
       {/* owners with a single live pet, get the bare document (no chrome).  */}
       {/* ------------------------------------------------------------------ */}
       {showCarousel ? (
-        <PetCredentialCarousel pets={carouselPets} currentToken={pet.publicToken}>
+        <PetCredentialCarousel
+          pets={carouselPets}
+          currentToken={pet.publicToken}
+          liveTotal={liveTotal}
+        >
           {documentNode}
         </PetCredentialCarousel>
       ) : (
