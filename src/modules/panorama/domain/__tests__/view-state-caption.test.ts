@@ -23,6 +23,47 @@ describe("explainViewState", () => {
     );
   });
 
+  // QA ronda 5 (Cowork, 2026-07-16), filed CRÍTICO. The footer read "CABA ·
+  // últimos 3 años (1095 días)" over "Cobertura antirrábica (perros, 12m) ·
+  // ESTADO ACTUAL". The picker said 3 años, the number was a snapshot, and the
+  // caption sided with the picker — by documented choice (embed-view.ts). It now
+  // sides with the data: a view whose layers ALL ignore the period must not
+  // declare one.
+  it("says estado actual when every active layer is a current-state snapshot", () => {
+    const v = makeViewState({
+      layers: ["cobertura"],
+      period: { kind: "preset", preset: "3y" },
+    });
+    expect(explainViewState(v)).toBe(
+      "Vista personalizada — Argentina (todas las provincias), estado actual. Capas: Cobertura antirrábica (perros, 12m).",
+    );
+  });
+
+  it("still says estado actual for several current-state layers", () => {
+    const v = makeViewState({
+      layers: ["cobertura", "esterilizacion"],
+      period: { kind: "preset", preset: "90d" },
+    });
+    expect(explainViewState(v)).toContain("estado actual");
+    expect(explainViewState(v)).not.toContain("últimos 90 días");
+  });
+
+  // A mixed view keeps the period: it is true of the event-windowed layer, and
+  // hiding it would misdescribe a filter that IS doing something.
+  it("keeps the period when the view mixes current-state and event-windowed layers", () => {
+    const v = makeViewState({
+      layers: ["cobertura", "zoonosis"],
+      period: { kind: "preset", preset: "90d" },
+    });
+    expect(explainViewState(v)).toContain("últimos 90 días");
+    expect(explainViewState(v)).not.toContain("estado actual");
+  });
+
+  // Nothing on screen for a period to misdescribe — leave the phrase alone.
+  it("keeps the period for a view with no active layers", () => {
+    expect(explainViewState(DEFAULT_VIEW_STATE)).toContain("últimos 3 años");
+  });
+
   it("uses the display-name resolvers for a locality scope", () => {
     const v = makeViewState({
       scope: { kind: "locality", province: "AR-C", locality: "palermo" },

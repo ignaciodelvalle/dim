@@ -110,6 +110,30 @@ function layerLabels(view: PanoramaViewState): string[] {
 }
 
 /**
+ * True when EVERY active layer is a current-state snapshot (`temporal: false`).
+ *
+ * Those layers ignore `view.period` outright — their window is fixed inside the
+ * metric (rabies coverage is always trailing-12m) and the picker's selection
+ * never reaches the query. Echoing "últimos 3 años" beside them declares a
+ * window that is not true of a single number on screen. This caption used to do
+ * exactly that, deliberately: embed-view.ts documented that the period is
+ * carried "so the caption states the same window the screen's PeriodPicker
+ * shows" — while admitting in the same breath that the choropleths ignore it.
+ * QA (Cowork, ronda 5, 2026-07-16) filed the contradiction as CRÍTICO: the
+ * footer read "CABA · últimos 3 años (1095 días)" over a metric labelled
+ * "(perros, 12m) · ESTADO ACTUAL". PO call: the caption tells the truth about
+ * the DATA; matching the picker is not a reason to misdescribe a number.
+ *
+ * A MIXED view keeps the period — it is true of at least one active layer, and
+ * dropping it would hide a filter that really is doing something. An empty view
+ * keeps it too: there is no number for it to misdescribe.
+ */
+function allLayersAreCurrentState(view: PanoramaViewState): boolean {
+  const layers = view.layers.map((id) => getLayer(id)).filter((l) => l !== undefined);
+  return layers.length > 0 && layers.every((l) => l.temporal === false);
+}
+
+/**
  * Build the one-line es-AR description of the whole view. Structure:
  *
  *   "{Preset label o 'Vista personalizada'} — {scope}, {período}[, al {fecha}
@@ -125,7 +149,10 @@ export function explainViewState(view: PanoramaViewState, names?: ExplainNames):
   const preset = view.preset ? getPreset(view.preset) : undefined;
   const head = preset?.label ?? "Vista personalizada";
 
-  const parts: string[] = [`${scopePhrase(view, names)}, ${periodPhrase(view)}`];
+  // "estado actual" is the same phrase captionFor already uses for a `current`
+  // window (caption.ts windowPhrase) — the two caption paths now agree.
+  const when = allLayersAreCurrentState(view) ? "estado actual" : periodPhrase(view);
+  const parts: string[] = [`${scopePhrase(view, names)}, ${when}`];
 
   if (view.asOf !== null) {
     const basisPhrase = view.basis === "transaction" ? "transacción" : "validez";
