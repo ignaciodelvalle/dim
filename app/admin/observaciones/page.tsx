@@ -95,6 +95,11 @@ export default async function ObservacionesPage() {
     })
     .from(pets)
     .where(and(...baseConditions))
+    // W1: the single "En curso" observation must LEAD — it is the only row that
+    // needs a professional cierre. Recently-completed rows are reference only, so
+    // they sort AFTER the active ones (the badge counts in_progress; the list
+    // must not bury it under ~20 "Cerrada negativa"). Name is a stable tiebreak.
+    .orderBy(sql`(${pets.rabiesObservationStatus} = 'in_progress') DESC`, pets.name)
     .limit(500);
 
   if (rows.length === 0) {
