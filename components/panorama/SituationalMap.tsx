@@ -1014,6 +1014,18 @@ export function SituationalMap({
       // to the scope/period/actions cluster). Offset above the floating dock
       // bar via the [data-pano-map] CSS rule in globals.css.
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+      // map-QOL read-only controls — a metric distance scale + a fullscreen
+      // toggle, both alongside the zoom column (bottom-right). These are pure
+      // camera/UI chrome: no scope, no data, no writes to our ViewState. The
+      // ScaleControl reads the camera; FullscreenControl fullscreens the map
+      // CONTAINER. exportPng captures map.getCanvas() (the GL canvas, unaffected by
+      // the container going fullscreen), so PNG export keeps targeting the right
+      // element in either mode.
+      map.addControl(
+        new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }),
+        "bottom-right",
+      );
+      map.addControl(new maplibregl.FullscreenControl(), "bottom-right");
       // a11y (review round 2): MapLibre stamps its own <canvas> with tabIndex=0,
       // so the map was TWO redundant Tab stops — the role="application" wrapper
       // (which owns the arrow-key pan via handleCanvasKeyDown) AND the inner
