@@ -14,6 +14,7 @@ import Link from "next/link";
 
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
+import { DateInputAr } from "@/components/ui/DateInputAr";
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
@@ -226,24 +227,22 @@ export default async function AdminLibroPage({
           selectClassName="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
         />
 
-        <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
+        <label htmlFor="libro-desde" className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
           Desde
-          <input
-            type="date"
-            lang="es-AR"
+          <DateInputAr
+            id="libro-desde"
             name="desde"
-            defaultValue={sp.desde ?? ""}
+            defaultValue={sp.desde}
             className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
+        <label htmlFor="libro-hasta" className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
           Hasta
-          <input
-            type="date"
-            lang="es-AR"
+          <DateInputAr
+            id="libro-hasta"
             name="hasta"
-            defaultValue={sp.hasta ?? ""}
+            defaultValue={sp.hasta}
             className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
           />
         </label>

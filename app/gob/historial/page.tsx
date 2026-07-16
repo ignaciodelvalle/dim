@@ -29,6 +29,7 @@
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { DateInputAr } from "@/components/ui/DateInputAr";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { type AuditLogAction, approvalRequests, auditLog, db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -374,12 +375,10 @@ export default async function GobHistorialPage({
           >
             Desde
           </label>
-          <input
+          <DateInputAr
             id="historial-from"
-            type="date"
-            lang="es-AR"
             name="from"
-            defaultValue={sp.from ?? ""}
+            defaultValue={sp.from}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
@@ -391,12 +390,10 @@ export default async function GobHistorialPage({
           >
             Hasta
           </label>
-          <input
+          <DateInputAr
             id="historial-to"
-            type="date"
-            lang="es-AR"
             name="to"
-            defaultValue={sp.to ?? ""}
+            defaultValue={sp.to}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>

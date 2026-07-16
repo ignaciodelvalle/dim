@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import Link from "next/link";
 
+import { DateInputAr } from "@/components/ui/DateInputAr";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
@@ -283,12 +284,10 @@ export default async function AdminAuditoriaPage({
           <label htmlFor="audit-from" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
             Desde
           </label>
-          <input
+          <DateInputAr
             id="audit-from"
             name="from"
-            type="date"
-            lang="es-AR"
-            defaultValue={fromValid ?? ""}
+            defaultValue={fromValid}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
@@ -296,12 +295,10 @@ export default async function AdminAuditoriaPage({
           <label htmlFor="audit-to" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
             Hasta
           </label>
-          <input
+          <DateInputAr
             id="audit-to"
             name="to"
-            type="date"
-            lang="es-AR"
-            defaultValue={toValid ?? ""}
+            defaultValue={toValid}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>

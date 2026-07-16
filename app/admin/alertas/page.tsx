@@ -10,6 +10,7 @@
 // Auth: requireAdminOrRedirect (admin-only; govt + everyone else → /).
 
 import { AlertInboxTable } from "@/components/admin/AlertInboxTable";
+import { DateInputAr } from "@/components/ui/DateInputAr";
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import {
   ALERT_FIRING_STATUSES,
@@ -162,28 +163,31 @@ export default async function AdminAlertasPage({
               </select>
             </label>
 
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute">
+            <label
+              htmlFor="alertas-from"
+              className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute"
+            >
               Desde
-              {/* L1: native date inputs render per the element locale in
-                  Chromium — `lang="es-AR"` forces dd/mm/aaaa instead of the
-                  browser-default mm/dd/yyyy that produced wrong ranges. The
-                  submitted value is ISO regardless, so only the display changes. */}
-              <input
-                type="date"
+              {/* Browser-independent dd/mm/aaaa entry (DateInputAr): native
+                  date inputs render mm/dd/yyyy outside Chromium, which produced
+                  wrong ranges. The submitted value stays ISO. */}
+              <DateInputAr
+                id="alertas-from"
                 name="from"
-                lang="es-AR"
-                defaultValue={filters.from ?? ""}
+                defaultValue={filters.from}
                 className={inputCls}
               />
             </label>
 
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute">
+            <label
+              htmlFor="alertas-to"
+              className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute"
+            >
               Hasta
-              <input
-                type="date"
+              <DateInputAr
+                id="alertas-to"
                 name="to"
-                lang="es-AR"
-                defaultValue={filters.to ?? ""}
+                defaultValue={filters.to}
                 className={inputCls}
               />
             </label>
