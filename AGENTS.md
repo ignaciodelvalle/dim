@@ -421,6 +421,35 @@ None of these are blockers for v1. The data model accepts them without rework; t
   - `co_owner` — shared permanent ownership. Schema-ready; UI deferred.
   - `caretaker` — lower-stakes helper (petsitter, daycare). Schema-ready; UI deferred.
 
+### `cases.opened_reason*` — why a case was opened (structured, migration 0149)
+
+**Opening a case? Pass an `OpenedReason` code, never a string.** `tsc` enforces it — this is the short version of a fence you cannot go around.
+
+- `opened_reason` (text) — **audit prose. Never render this to a user.**
+- `opened_reason_code` (text, nullable) — the structured cause. `GROUP BY` this for "casos abiertos por causa".
+- `opened_reason_params` (jsonb, nullable) — the code's params. `{}` when it has none; a CHECK makes "code without params" unrepresentable.
+
+**Where things are:**
+
+| Need | File |
+|---|---|
+| Add/see the closed set of reasons | `src/modules/cases/domain/opened-reason.ts` (Zod discriminated union) |
+| The es-AR label a funcionario reads | `src/modules/cases/domain/opened-reason-render.ts` |
+| The audit prose that gets stored | `src/modules/cases/domain/opened-reason-prose.ts` |
+| Render any case row | `caseOpenedReasonDisplay()` in `opened-reason-display.ts` |
+| The bypass guard | `scripts/check-opened-reason-coverage.ts` (`pnpm lint:opened-reason`) |
+
+**Adding writer #19**: add a union member. `tsc` then *requires* a renderer and a prose template — the mapped `Record`s make a missing one a compile error. Do not hand-write the string.
+
+**Why the prose column still exists** (three reasons, all load-bearing):
+1. **It is a live SQL query key.** `surveillance-repository.ts` dedupes open outbreak investigations with `opened_reason LIKE 'manual [{code}]:%'`. The dual-write keeps prose **byte-identical** to the pre-cutover templates, so that query matches both cohorts with no `OR`. Changing a prose template breaks this **silently** — no compile error, no failing test. `opened-reason-prose.test.ts` is the gate.
+2. **Pre-cutover rows render from it, forever.** They are `(null, null)` permanently — there is **no backfill**, because retro-translating audit prose into a guessed code is a retro-edit of append-only data. `opened-reason-legacy.ts` is FROZEN (16 rules, pinned) and is **not dead code**.
+3. **Rollback is free.** Revert the structured path and every row, new ones included, still renders.
+
+**Privacy**: internal UUIDs (foster volunteer/org, the pet fallback in `pet_marked_lost`, microchip's secondary pet) travel as `OpenedReasonAudit` — they reach the prose and are structurally unreachable from any renderer. Never put an id in params.
+
+**Origin**: `transfer-custody.ts` — the change of legal responsible — passed a bare template string for months, rendering "Apertura automática — direct custody handoff to_role=owner" to funcionarios. English plus a raw enum key in a Spanish wrapper, so it read like a translation.
+
 ### `PetTransfer` — owner→owner handshake (P3-2)
 - `id`, `public_token` (`PTR-XXXX-XXXX`), `pet_id` (fk → pets)
 - `from_owner_id` (fk → profiles), `to_owner_id?` (fk → profiles, null until the receiver signs up + accepts)
@@ -688,7 +717,7 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `custody_transferred`             | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, from_role, to_role, reason?, matched_against_pet_id?, foster_ended_event_id?, notes? }` — handoffs that are not adoption |
 | `custody_transfer_proposed`       | later | `{ from_user_id?, from_organization_id?, to_user_id?, to_organization_id?, reason, matched_against_pet_id?, proposed_at, notes? }` — Phase 1 of the return-to-owner / cross-org two-phase handshake |
 | `custody_transfer_cancelled`      | later | `{ proposal_event_id, cancelled_by: sender\|receiver\|system, reason? }` — structured cancellation of a `custody_transfer_proposed`. Replaces the fragile `note_added` marker approach (ARCH-B). The `cancelled_by` discriminator records who terminated the proposal |
-| `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt\|owner, raised_by_user_id, external_proceeding_reference?, reason }` — flags the pet as subject to an ownership dispute and sets `pets.in_custody_dispute = true`. Admin/govt use it for external legal proceedings; `owner` is the self-raised path via the chip/tatuaje claim wizard (`/mis-mascotas/reclamar`, P3-1) — adjudication still flows through govt/admin via `custody_dispute_resolved` |
+| `custody_dispute_raised`          | later | `{ raised_by_role: admin\|govt\|owner, raised_by_user_id, external_proceeding_reference?, reason }` — flags the pet as subject to an ownership dispute and sets `pets.in_custody_dispute = true`. Admin/govt use it for external legal proceedings; `owner` is the self-raised path via the chip/tatuaje claim wizard (`/mis-mascotas/reclamar`, P3-1) — adjudication still flows through govt/admin via `custody_dispute_resolved`. **⚠ Known drift (flagged 2026-07-16, deliberately NOT reconciled): this EVENT PAYLOAD lists 3 roles, but the `custody_disputes` TABLE's CHECK allows 4 — `owner\|org\|govt\|admin`.** Two different surfaces; each is authoritative for itself. `OpenedReason.custody_dispute_raised.raisedByRole` follows the table's 4. Reconciling them is a decision, not a typo fix — whoever makes it should decide whether an `org` can raise a dispute, then change one side to match |
 | `custody_dispute_resolved`        | later | `{ raised_event_id, resolved_by_role: admin\|govt, resolved_by_user_id, outcome: ownership_confirmed\|ownership_transferred\|case_dismissed\|other, notes? }` — closes a prior `custody_dispute_raised`. Sets `pets.in_custody_dispute = false` |
 | `foster_proposed`                 | later | `{ volunteer_user_id, expected_weeks?, notes? }` — org proposes a foster assignment to a volunteer (Phase 1 of foster lifecycle per spec 2026-05-18-foster-volunteers-pool-design v1.4) |
 | `foster_proposal_resolved`        | later | `{ proposal_event_id, outcome: accepted\|rejected\|cancelled\|expired, resolved_by_user_id? }` — umbrella terminal event for the foster proposal lifecycle (replaces 4 dedicated event_types per catalog cleanup 2026-05-19) |
