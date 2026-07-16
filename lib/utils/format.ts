@@ -117,7 +117,17 @@ const AR_ISO_DATE_FORMAT = new Intl.DateTimeFormat("en-CA", {
  * `now` is injectable so tests can pin a UTC-tomorrow / AR-today instant.
  */
 export function todayIsoInAr(now: Date = new Date()): string {
-  return AR_ISO_DATE_FORMAT.format(now);
+  return isoDateInAr(now);
+}
+
+/**
+ * The Argentine calendar day ("YYYY-MM-DD") of an arbitrary instant. Same
+ * AR_TIME_ZONE pinning as `todayIsoInAr` (which delegates here) — use it to
+ * bucket historical timestamps by their Argentine day (e.g. grouping an activity
+ * feed), where "today" semantics would be wrong.
+ */
+export function isoDateInAr(date: Date): string {
+  return AR_ISO_DATE_FORMAT.format(date);
 }
 
 // "YYYY-MM-DDTHH:mm" of the CURRENT wall-clock instant in Argentina — the

@@ -54,8 +54,17 @@ import {
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
+import { type ActivityFeedRow, collapseActivityFeed } from "@/lib/ui/activity-feed";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { formatCount, formatDate, formatPercent, formatRate } from "@/lib/utils/format";
+import {
+  AR_TIME_ZONE,
+  formatCount,
+  formatDate,
+  formatPercent,
+  formatRate,
+  isoDateInAr,
+  todayIsoInAr,
+} from "@/lib/utils/format";
 
 export default async function GobiernoDashboardPage({
   searchParams,
@@ -238,6 +247,24 @@ export default async function GobiernoDashboardPage({
     openCasesPreview,
     novedades,
   ] = load.value;
+
+  // G3: collapse the recent-activity feed's repeated PII-search rows into a
+  // single per-day counted row so real decisions aren't buried. Display-only —
+  // the audit_log is unchanged (append-only). `dayChip` renders the group's AR
+  // day as "hoy" / "ayer" / a compact "d/M".
+  const activityRows = collapseActivityFeed(recentDecisions);
+  const todayAr = todayIsoInAr();
+  const yesterdayAr = isoDateInAr(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const dayChip = (day: string): string => {
+    if (day === todayAr) return "hoy";
+    if (day === yesterdayAr) return "ayer";
+    const [, m, d] = day.split("-");
+    return `${Number(d)}/${Number(m)}`;
+  };
+  const activityRowLabel = (row: ActivityFeedRow): string =>
+    row.count > 1 && row.day
+      ? `${row.count} búsquedas de información personal · ${dayChip(row.day)}`
+      : auditActionLabel(row.action);
 
   // Shape the bites trend for TimeSeriesChart (x/y points).
   const bitesTrendPoints = bitesTrend.points.map((p) => ({ x: p.x, y: p.y }));
@@ -531,24 +558,25 @@ export default async function GobiernoDashboardPage({
               }
             />
             <OpCardBody className="p-0">
-              {recentDecisions.length === 0 ? (
+              {activityRows.length === 0 ? (
                 <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">
                   No tenés acciones registradas en los últimos 7 días.
                 </p>
               ) : (
                 <ul className="divide-y divide-ln-op-line-2">
-                  {recentDecisions.map((entry) => (
+                  {activityRows.map((row) => (
                     <li
-                      key={entry.id}
+                      key={row.id}
                       className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                     >
                       <p className="text-[var(--text-md)] text-ln-op-ink">
-                        {auditActionLabel(entry.action)}
+                        {activityRowLabel(row)}
                       </p>
                       <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
-                        {new Date(entry.performedAt).toLocaleString("es-AR", {
+                        {new Date(row.performedAt).toLocaleString("es-AR", {
                           dateStyle: "short",
                           timeStyle: "short",
+                          timeZone: AR_TIME_ZONE,
                         })}
                       </time>
                     </li>
