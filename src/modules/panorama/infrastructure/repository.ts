@@ -56,6 +56,7 @@ import {
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { fetchVetAccessByLocality, perThousand } from "@/lib/metrics/vet-access";
 import { findDisease } from "@/lib/reference/diseases";
 import { PROVINCE_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
 
@@ -849,7 +850,8 @@ export type ChoroplethMetric =
   | "sterilization-coverage"
   | "microchip-penetration"
   | "ppp-compliance"
-  | "mortality";
+  | "mortality"
+  | "vet-access";
 
 /** Build the metric-specific pets predicate for LOCALITY-level loaders.
  * Defined ONCE so province and locality rollups can NEVER drift apart on the
@@ -904,6 +906,23 @@ function metricPredicate(metric: ChoroplethMetric, signedOnly = false): SQL {
       SELECT 1 FROM ${petEvents} pe_ppp
       WHERE pe_ppp.pet_id = ${pets.id}
         AND pe_ppp.event_type = 'dangerous_breed_attested'
+    )`;
+  }
+  if (metric === "vet-access") {
+    // LOCALITY count-density numerator: active pets in scope with ≥1
+    // vet_visit_logged event in the trailing-12m window. This is the count-density
+    // interim for the locality tier (the divergent/rate view is province-only via
+    // loadVetAccessByProvince), mirroring the rabies/sterilization v1 asymmetry.
+    // The province per-1.000 RATE reuses fetchVetAccessByLocality directly (parity
+    // with /gob/analytics); this predicate is the count fallback the map paints
+    // when drilled into a division.
+    const win = windows.trailing12m();
+    return sql`EXISTS (
+      SELECT 1 FROM ${petEvents} pe_vet
+      WHERE pe_vet.pet_id = ${pets.id}
+        AND pe_vet.event_type = 'vet_visit_logged'
+        AND pe_vet.occurred_at >= ${win.since.toISOString()}
+        AND pe_vet.occurred_at <= ${win.until.toISOString()}
     )`;
   }
   // mortality — pets currently in status='deceased'.
@@ -1210,6 +1229,26 @@ export async function loadMortality(
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
+// metrics:vet-access (acceso-veterinario) — count of active pets with a vet visit
+// in the trailing-12m window, at the LOCALITY level (centroid graduated symbols,
+// k-anon), folded to the department (PO "Option A"). This is the count-density
+// interim for the locality tier; the per-1.000 RATE is province-only (see
+// loadVetAccessByProvince), the same asymmetry rabies/sterilization document.
+export async function loadVetAccess(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("vet-access")], scope),
+    countPetsNoLocality([metricPredicate("vet-access")], scope),
+  ]);
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
 // U5: PROVINCE-level loaders. Used when the aggregation toggle is on "Provincia".
 //
 // RATE METRICS (rabies-coverage, sterilization-coverage): delegate to the canonical
@@ -1339,6 +1378,47 @@ export async function loadMortalityByProvince(
   return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
 }
 
+// metrics:vet-access (acceso-veterinario) — per-PROVINCE visits-per-1.000-active-pets
+// RATE via the canonical fetcher. Delegates to fetchVetAccessByLocality
+// (lib/metrics/vet-access) and folds its k-anon survivors up to the province:
+// sum visits + active pets, then recompute per1k with the SAME perThousand helper
+// (parity with /gob/analytics by reuse). value = per1k (a magnitude, not a %; the
+// layer renders on a sequential scale — there is no legal access target to anchor
+// a divergent one). NOTE: k-anon-suppressed localities (<5 active pets) are dropped
+// upstream, so a province rate is computed over its NON-suppressed localities only —
+// a negligible bias at province grain (suppressed cells are, by construction, tiny),
+// documented here so the number is never mistaken for a full-population rate.
+export async function loadVetAccessByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
+  const { localities } = await fetchVetAccessByLocality(ctx);
+  const byProvince = new Map<string, { visits: number; activePets: number }>();
+  for (const r of localities) {
+    const acc = byProvince.get(r.province) ?? { visits: 0, activePets: 0 };
+    acc.visits += r.visits;
+    acc.activePets += r.activePets;
+    byProvince.set(r.province, acc);
+  }
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const [province, agg] of byProvince) {
+    const code = PROVINCE_ISO[province];
+    if (!code) continue;
+    cells.push({
+      provinceCode: code,
+      label: province,
+      value: perThousand(agg.visits, agg.activePets),
+    });
+  }
+  return { cells, truncated: false };
+}
+
 /**
  * U5 single entry point: rollup a choropleth metric at the requested LEVEL.
  * Reused by the Panorama use-case AND available to the dashboard distribution
@@ -1404,6 +1484,8 @@ export function loadChoroplethByLevel(
       return loadMicrochipCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
     if (metric === "ppp-compliance")
       return loadPppComplianceByProvince(actor, jurisdictions, adminProvince, adminLocality);
+    if (metric === "vet-access")
+      return loadVetAccessByProvince(actor, jurisdictions, adminProvince, adminLocality);
     return loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality);
   }
   // Locality level.
@@ -1415,6 +1497,8 @@ export function loadChoroplethByLevel(
     return loadMicrochipCoverage(actor, jurisdictions, adminProvince, adminLocality);
   if (metric === "ppp-compliance")
     return loadPppCompliance(actor, jurisdictions, adminProvince, adminLocality);
+  if (metric === "vet-access")
+    return loadVetAccess(actor, jurisdictions, adminProvince, adminLocality);
   return loadMortality(actor, jurisdictions, adminProvince, adminLocality);
 }
 

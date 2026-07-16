@@ -953,6 +953,81 @@ describe("getLayerFeatures — ppp (PROVINCE choropleth, C7)", () => {
   });
 });
 
+describe("getLayerFeatures — acceso-veterinario (vet-access choropleth)", () => {
+  it("routes to the vet-access metric at province level (per-1.000 rate magnitude)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 320 },
+        { provinceCode: "AR-C", label: "CABA", value: 540 },
+      ],
+      truncated: false,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "acceso-veterinario",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "vet-access",
+      "province",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.features).toHaveLength(2);
+    expect(result.features.features[0].properties).toMatchObject({
+      provinceCode: "AR-B",
+      value: 320,
+    });
+  });
+
+  it("routes to vet-access at locality level (count-density, v1) and echoes k-anon", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        {
+          key: "Buenos Aires|La Plata",
+          province: "Buenos Aires",
+          locality: "La Plata",
+          centroidLat: "-34.92",
+          centroidLng: "-57.95",
+          value: 8,
+          suppressed: false,
+        },
+      ],
+      suppressedCount: 3,
+      noLocalityCount: 0,
+      truncated: false,
+    } as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "acceso-veterinario",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "vet-access",
+      "locality",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("locality");
+    expect(result.suppressedCount).toBe(3);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // task #77 bitemporal — replay basis threading (valid=occurred_at vs
 // transaction=recorded_at). The pet_events-backed loaders receive `period.basis`

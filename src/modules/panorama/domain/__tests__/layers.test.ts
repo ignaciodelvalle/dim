@@ -20,10 +20,10 @@ import {
 import type { LayerDataType, LayerPrivacy } from "@/src/modules/panorama/domain/types";
 
 describe("PANORAMA_LAYERS registry", () => {
-  it("has the 14 v2 layers with unique ids", () => {
-    expect(PANORAMA_LAYERS).toHaveLength(14);
+  it("has the 15 v2 layers with unique ids", () => {
+    expect(PANORAMA_LAYERS).toHaveLength(15);
     const ids = PANORAMA_LAYERS.map((l) => l.id);
-    expect(new Set(ids).size).toBe(14);
+    expect(new Set(ids).size).toBe(15);
   });
 
   it("every layer declares a unique color (legend swatch collisions confuse the map)", () => {
@@ -46,9 +46,9 @@ describe("PANORAMA_LAYERS registry", () => {
     }
   });
 
-  it("partitions cleanly into point (9) and choropleth (5) layers", () => {
+  it("partitions cleanly into point (9) and choropleth (6) layers", () => {
     expect(POINT_LAYERS).toHaveLength(9);
-    expect(CHOROPLETH_LAYERS).toHaveLength(5);
+    expect(CHOROPLETH_LAYERS).toHaveLength(6);
     expect(POINT_LAYERS.length + CHOROPLETH_LAYERS.length).toBe(PANORAMA_LAYERS.length);
   });
 

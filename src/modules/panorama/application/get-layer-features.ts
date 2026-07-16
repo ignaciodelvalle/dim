@@ -543,6 +543,20 @@ export async function getLayerFeatures(
         adminLocality,
       );
     }
+    case "acceso-veterinario": {
+      // Trailing-12m access signal — not event-windowed in v1, so `asOf` is
+      // ignored; the console dims it under a scrub. Province: visits per 1.000
+      // active pets (rate magnitude, sequential fill). Locality: count-density of
+      // pets with a visit (v1 interim; k-anon'd num/den per department deferred).
+      return choroplethResult(
+        "vet-access",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
+    }
     default:
       return empty();
   }

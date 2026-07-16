@@ -23,7 +23,8 @@ export type LayerId =
   | "esterilizacion"
   | "microchip"
   | "ppp"
-  | "mortalidad";
+  | "mortalidad"
+  | "acceso-veterinario";
 
 /** Point/cluster layers plot individual features; choropleth layers shade
  * locality rollups (computed via lib/metrics with k-anon suppression). */

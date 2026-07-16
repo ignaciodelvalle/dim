@@ -380,6 +380,37 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     suppressionStyle: "hatched",
     caption: { unit: UNIT_DIVISION, measure: "mortalidad registrada", window: "current" },
   },
+  {
+    id: "acceso-veterinario",
+    label: "Acceso veterinario (visitas/1.000)",
+    description:
+      "Visitas veterinarias por cada 1.000 mascotas activas, por unidad — señal de acceso a la atención (los 'desiertos' de atención son las zonas con menos visitas). Ventana móvil de 12 meses.",
+    geomType: "choropleth",
+    source: "metrics:vet-access",
+    color: "#b6992d",
+    scopeFilterable: true,
+    privacy: "none",
+    // Trailing-12m access signal (fixed window, like the antirrábica proxy) —
+    // rendered as a current-state choropleth, not event-windowed in v1.
+    temporal: false,
+    // per1k is a magnitude with NO legal/compliance target, so it is a "density"-
+    // style layer (sequential fill, no divergent anchor) — like mortalidad. Province
+    // paints the per-1.000 rate; locality paints the count of pets with a visit
+    // (v1 count-density — the same rate/count asymmetry the sibling rate layers
+    // document, since a k-anon'd num/den per department is deferred).
+    dataType: "density",
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: {
+      unit: UNIT_DIVISION,
+      measure: "acceso veterinario (visitas/1.000)",
+      window: "current",
+    },
+  },
 ] as const;
 
 const LAYER_BY_ID: ReadonlyMap<LayerId, PanoramaLayer> = new Map(
