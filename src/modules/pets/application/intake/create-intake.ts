@@ -179,6 +179,10 @@ export async function createIntake(
   const { parsed, error: parseError } = parseIntakeForm(formData);
   if (parseError || !parsed) return { error: parseError ?? "Datos inválidos." };
 
+  // Structural locality-attribution FK (migration 0147). Resolved from the
+  // strict canonicalization below; stays null when there's no locality to resolve.
+  let jurisdictionLocalityId: string | null = null;
+
   // Canonicalize the pet's jurisdiction strictly against the INDEC catalog.
   // The intake form uses LocationFields (forces a catalog selection); this
   // validates crafted/bypassed requests and ensures org-side intakes converge
@@ -200,6 +204,7 @@ export async function createIntake(
       );
       parsed.jurisdictionProvince = normalizedLoc.province;
       parsed.jurisdictionLocality = normalizedLoc.locality;
+      jurisdictionLocalityId = normalizedLoc.localityId;
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
         return { error: err.message };
@@ -361,6 +366,7 @@ export async function createIntake(
           // from pets — canonical rows written to pet_identifications below.
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
+          localityId: jurisdictionLocalityId,
           potentiallyDangerousBreed: potentiallyDangerousBreed,
         })
         .returning();
@@ -427,6 +433,7 @@ export async function createIntake(
           primaryPetId: newPet.id,
           jurisdictionProvince: parsed.jurisdictionProvince,
           jurisdictionLocality: parsed.jurisdictionLocality,
+          localityId: jurisdictionLocalityId,
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
           openedReason: `auto: org intake reason=${parsed.intakeReason}`,

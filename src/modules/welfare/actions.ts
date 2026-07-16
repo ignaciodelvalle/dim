@@ -962,6 +962,8 @@ export async function createWelfareReportAction(
   const locationAddress = normalizedLoc.address;
   const jurisdictionProvince: string | null = normalizedLoc.province;
   const jurisdictionLocality: string | null = normalizedLoc.locality;
+  // Structural locality-attribution FK (migration 0147) for the welfare_reports row.
+  const jurisdictionLocalityId: string | null = normalizedLoc.localityId;
   const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
   const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -1087,6 +1089,7 @@ export async function createWelfareReportAction(
         locationAddress,
         jurisdictionProvince,
         jurisdictionLocality,
+        localityId: jurisdictionLocalityId,
         locationLat,
         locationLng,
         occurredAt,
@@ -1263,6 +1266,8 @@ export async function createOrgWelfareReportAction(
   const locationAddress = normalizedLoc.address;
   const jurisdictionProvince: string | null = normalizedLoc.province;
   const jurisdictionLocality: string | null = normalizedLoc.locality;
+  // Structural locality-attribution FK (migration 0147) for the welfare_reports row.
+  const jurisdictionLocalityId: string | null = normalizedLoc.localityId;
   const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
   const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -1326,6 +1331,7 @@ export async function createOrgWelfareReportAction(
         locationAddress,
         jurisdictionProvince,
         jurisdictionLocality,
+        localityId: jurisdictionLocalityId,
         locationLat,
         locationLng,
         occurredAt,

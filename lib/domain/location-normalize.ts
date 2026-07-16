@@ -58,6 +58,13 @@ export type NormalizedLocation = {
    * always false for "none".
    */
   localityCanonical: boolean;
+  /**
+   * ar_localities uuid PK when the locality resolved, else null. This is the
+   * structural locality-attribution FK value (migration 0147) — write sites set
+   * their pets/welfare/cases.localityId column from it. Null under "none" mode,
+   * on a passthrough (province or locality absent), and on a "soft" miss.
+   */
+  localityId: string | null;
   lat: number | null;
   lng: number | null;
   address: string | null;
@@ -126,6 +133,7 @@ export async function normalizeLocationForWrite(
         province: canonical.province.name,
         locality: canonical.locality.localityName,
         localityCanonical: true,
+        localityId: canonical.locality.id,
         lat,
         lng,
         address: loc.address,
@@ -136,6 +144,7 @@ export async function normalizeLocationForWrite(
       province,
       locality: rawLocality || null,
       localityCanonical: false,
+      localityId: null,
       lat,
       lng,
       address: loc.address,
@@ -152,6 +161,7 @@ export async function normalizeLocationForWrite(
         province: resolved.province || province,
         locality: resolved.locality || rawLocality || null,
         localityCanonical: resolved.canonical,
+        localityId: resolved.localityId,
         lat,
         lng,
         address: loc.address,
@@ -161,6 +171,7 @@ export async function normalizeLocationForWrite(
       province,
       locality: rawLocality || null,
       localityCanonical: false,
+      localityId: null,
       lat,
       lng,
       address: loc.address,
@@ -172,6 +183,7 @@ export async function normalizeLocationForWrite(
     province,
     locality: rawLocality || null,
     localityCanonical: false,
+    localityId: null,
     lat,
     lng,
     address: loc.address,

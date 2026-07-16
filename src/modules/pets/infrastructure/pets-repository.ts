@@ -174,6 +174,7 @@ export const PetsRepository = {
         insurancePolicyNumber: parsed.insurancePolicyNumber,
         jurisdictionProvince: parsed.jurisdictionProvince,
         jurisdictionLocality: parsed.jurisdictionLocality,
+        localityId: parsed.localityId ?? null,
         acquisitionMethod: parsed.acquisitionMethod,
         emergencyInfoVisible: parsed.emergencyInfoVisible,
         permanentConditions: parsed.permanentConditions,

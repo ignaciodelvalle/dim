@@ -132,6 +132,9 @@ export async function createPetAction(
       );
       parsed.jurisdictionProvince = normalizedLoc.province;
       parsed.jurisdictionLocality = normalizedLoc.locality;
+      // Structural locality-attribution FK (migration 0147) — threaded into the
+      // pets insert via the RegisterPet use-case.
+      parsed.localityId = normalizedLoc.localityId;
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
         return { error: err.message };

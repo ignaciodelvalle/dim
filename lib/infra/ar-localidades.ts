@@ -19,9 +19,14 @@ export { isWholeProvinceAggregate } from "@/lib/reference/locality-integrity";
 import { isWholeProvinceAggregate } from "@/lib/reference/locality-integrity";
 
 export type Locality = {
+  /** ar_localities primary key (uuid). The structural locality-attribution FK
+   * target (pets/welfare/cases.locality_id). Present on every catalog row,
+   * including CABA barrios whose indecId is null. */
+  id: string;
   indecId: string | null;
   provinceCode: ProvinceCode;
   departmentName: string | null;
+  departmentCode: string | null;
   localityName: string;
   localitySlug: string;
   category: ArgentineLocality["category"];
@@ -61,9 +66,11 @@ function normalize(s: string): string {
 
 function rowToLocality(row: ArgentineLocality): Locality {
   return {
+    id: row.id,
     indecId: row.indecId,
     provinceCode: row.provinceCode as ProvinceCode,
     departmentName: row.departmentName,
+    departmentCode: row.departmentCode,
     localityName: row.localityName,
     localitySlug: row.localitySlug,
     category: row.category as ArgentineLocality["category"],
@@ -245,9 +252,11 @@ export async function searchLocalities(input: {
 
   const rows = await db
     .select({
+      id: arLocalities.id,
       indecId: arLocalities.indecId,
       provinceCode: arLocalities.provinceCode,
       departmentName: arLocalities.departmentName,
+      departmentCode: arLocalities.departmentCode,
       localityName: arLocalities.localityName,
       localitySlug: arLocalities.localitySlug,
       category: arLocalities.category,
@@ -260,10 +269,12 @@ export async function searchLocalities(input: {
 
   return rows.map(
     (r): LocalitySearchResult => ({
+      id: r.id,
       indecId: r.indecId,
       provinceCode: r.provinceCode as ProvinceCode,
       provinceName: provinceByCode(r.provinceCode)?.name ?? r.provinceCode,
       departmentName: r.departmentName,
+      departmentCode: r.departmentCode,
       localityName: r.localityName,
       localitySlug: r.localitySlug,
       category: r.category as Locality["category"],

@@ -91,11 +91,18 @@ export async function resolveCanonicalJurisdictionById(input: {
 export async function tryResolveCanonicalJurisdiction(input: {
   rawProvince: string;
   rawLocality: string;
-}): Promise<{ province: string; locality: string; canonical: boolean }> {
+}): Promise<{
+  province: string;
+  locality: string;
+  canonical: boolean;
+  /** ar_localities uuid PK when the pair resolved, else null. Structural
+   * locality-attribution FK value (migration 0147). */
+  localityId: string | null;
+}> {
   const rawProvince = input.rawProvince.trim();
   const rawLocality = input.rawLocality.trim();
   if (!rawProvince || !rawLocality) {
-    return { province: rawProvince, locality: rawLocality, canonical: false };
+    return { province: rawProvince, locality: rawLocality, canonical: false, localityId: null };
   }
   try {
     const resolved = await resolveCanonicalJurisdiction({ rawProvince, rawLocality });
@@ -103,8 +110,9 @@ export async function tryResolveCanonicalJurisdiction(input: {
       province: resolved.province.name,
       locality: resolved.locality.localityName,
       canonical: true,
+      localityId: resolved.locality.id,
     };
   } catch {
-    return { province: rawProvince, locality: rawLocality, canonical: false };
+    return { province: rawProvince, locality: rawLocality, canonical: false, localityId: null };
   }
 }

@@ -29,9 +29,11 @@ import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localid
 
 function mkLoc(provinceCode: string, localityName: string, localitySlug: string): Locality {
   return {
+    id: `id-${provinceCode}-${localitySlug}`,
     indecId: `${provinceCode}-${localitySlug}`,
     provinceCode: provinceCode as Locality["provinceCode"],
     departmentName: null,
+    departmentCode: null,
     localityName,
     localitySlug,
     category: "localidad" as Locality["category"],

@@ -46,9 +46,11 @@ function makeResult(
   indecId: string,
 ): LocalitySearchResult {
   return {
+    id: `id-${indecId}`,
     indecId,
     provinceCode: provinceCode as LocalitySearchResult["provinceCode"],
     departmentName: null,
+    departmentCode: null,
     localityName,
     localitySlug: localityName.toLowerCase().replace(/\s+/g, "-"),
     category: "localidad",

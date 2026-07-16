@@ -40,6 +40,10 @@ export type ParsedPet = {
   insurancePolicyNumber: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
+  /** Structural locality-attribution FK (migration 0147): ar_localities uuid PK.
+   * Resolved at the action edge by normalizeLocationForWrite; undefined until then.
+   * Optional so parsePetForm (which has no DB access) need not set it. */
+  localityId?: string | null;
   acquisitionMethod: AcquisitionMethod | null;
   emergencyInfoVisible: boolean;
   permanentConditions: PermanentCondition[];

@@ -138,6 +138,10 @@ async function refreshJurisdiction(
 
   let province = toProvince;
   let locality = toLocality;
+  // Structural locality-attribution FK (migration 0147): re-derived here so the
+  // denormalized pets.locality_id tracks the amended jurisdiction alongside the
+  // free-text columns. Null when the destination does not resolve.
+  let localityId: string | null = null;
   // Mirror recordMovementWriter.canonicalizeMovement: only AR destinations with
   // both fields present are resolved; "soft" mode never throws (an off-catalog
   // pair falls through as-is).
@@ -156,6 +160,7 @@ async function refreshJurisdiction(
     );
     province = normalized.province;
     locality = normalized.locality;
+    localityId = normalized.localityId;
   }
 
   await tx
@@ -164,6 +169,7 @@ async function refreshJurisdiction(
       jurisdictionCountry: toCountry,
       jurisdictionProvince: province,
       jurisdictionLocality: locality,
+      localityId,
     })
     .where(eq(pets.id, petId));
 }

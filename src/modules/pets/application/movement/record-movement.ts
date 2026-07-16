@@ -38,14 +38,16 @@ import type { MovementInput, RecordMovementParams, RecordMovementResult } from "
  * an off-catalog pair falls through as-is, exactly as before this hardening.
  * The action edge (recordMoveAction) applies the strict, user-facing rejection.
  */
-async function canonicalizeMovement(movement: MovementInput): Promise<MovementInput> {
+async function canonicalizeMovement(
+  movement: MovementInput,
+): Promise<{ movement: MovementInput; localityId: string | null }> {
   if (
     movement.sub_kind !== "jurisdiction_changed" ||
     movement.to_country !== "AR" ||
     !movement.to_province ||
     !movement.to_locality
   ) {
-    return movement;
+    return { movement, localityId: null };
   }
 
   const normalized = await normalizeLocationForWrite(
@@ -62,9 +64,15 @@ async function canonicalizeMovement(movement: MovementInput): Promise<MovementIn
   );
 
   return {
-    ...movement,
-    to_province: normalized.province,
-    to_locality: normalized.locality,
+    movement: {
+      ...movement,
+      to_province: normalized.province,
+      to_locality: normalized.locality,
+    },
+    // Structural locality-attribution FK (migration 0147) for the denormalized
+    // pets.locality_id — resolved from the same soft canonicalization. Null on a
+    // soft miss, keeping the denormalization additive.
+    localityId: normalized.localityId,
   };
 }
 
@@ -77,7 +85,7 @@ export async function recordMovementWriter(
   try {
     // Canonicalize the destination jurisdiction before both the event payload
     // and the denormalization so they never diverge (review 14 item 11).
-    const movement = await canonicalizeMovement(params.movement);
+    const { movement, localityId } = await canonicalizeMovement(params.movement);
 
     // Validate BEFORE opening the transaction: an invalid payload (e.g. the
     // S2 no-op move) writes nothing at all.
@@ -109,6 +117,7 @@ export async function recordMovementWriter(
             jurisdictionCountry: movement.to_country,
             jurisdictionProvince: movement.to_province,
             jurisdictionLocality: movement.to_locality,
+            localityId,
           })
           .where(eq(pets.id, params.pet.id));
       }
