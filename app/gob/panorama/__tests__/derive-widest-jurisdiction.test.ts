@@ -16,7 +16,11 @@ import { describe, expect, it } from "vitest";
 
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 
-import { deriveWidestJurisdiction, resolveSeedLocalitySlug } from "../derive-widest-jurisdiction";
+import {
+  deriveWidestJurisdiction,
+  isProvinceInGovtScope,
+  resolveSeedLocalitySlug,
+} from "../derive-widest-jurisdiction";
 
 function j(province: string, locality: string): AdminOrGovtJurisdiction {
   return { province, locality };
@@ -84,6 +88,36 @@ describe("deriveWidestJurisdiction", () => {
     // excluded from the province-code set, not treated as a crash.
     const result = deriveWidestJurisdiction([j("Patagonia", "Algún Lugar")]);
     expect(result).toEqual({ provinceCode: null, localityName: null });
+  });
+});
+
+describe("isProvinceInGovtScope (G1 out-of-scope bounce)", () => {
+  // Seed reality: govt@dim.test holds Ushuaia (Tierra del Fuego), El Calafate
+  // (Santa Cruz) and Palermo (CABA) — a genuinely multi-province operator.
+  const multiProvinceScope: AdminOrGovtJurisdiction[] = [
+    j("Tierra del Fuego", "Ushuaia"),
+    j("Santa Cruz", "El Calafate"),
+    j("CABA", "Palermo"),
+  ];
+
+  it("returns true for a province the operator holds", () => {
+    expect(isProvinceInGovtScope(multiProvinceScope, "AR-C")).toBe(true); // CABA
+    expect(isProvinceInGovtScope(multiProvinceScope, "AR-V")).toBe(true); // Tierra del Fuego
+    expect(isProvinceInGovtScope(multiProvinceScope, "AR-Z")).toBe(true); // Santa Cruz
+  });
+
+  it("returns false for a province OUTSIDE the operator's jurisdiction (must bounce)", () => {
+    expect(isProvinceInGovtScope(multiProvinceScope, "AR-X")).toBe(false); // Córdoba
+  });
+
+  it("ALIAS-tolerant: a scope stored under the CABA long form still matches AR-C", () => {
+    const aliasScope = [j("Ciudad Autónoma de Buenos Aires", "Palermo")];
+    expect(isProvinceInGovtScope(aliasScope, "AR-C")).toBe(true);
+    expect(isProvinceInGovtScope(aliasScope, "AR-X")).toBe(false);
+  });
+
+  it("empty scope is in nobody's scope (every province bounces)", () => {
+    expect(isProvinceInGovtScope([], "AR-C")).toBe(false);
   });
 });
 

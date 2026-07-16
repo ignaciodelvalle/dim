@@ -1,9 +1,12 @@
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import {
   deriveWidestJurisdiction,
+  isProvinceInGovtScope,
   resolveSeedLocalitySlug,
 } from "@/app/gob/panorama/derive-widest-jurisdiction";
+import { NoticeToast } from "@/components/gob/NoticeToast";
 import { PanoramaBoardSkeleton } from "@/components/panorama/PanoramaBoardSkeleton";
 import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
@@ -92,9 +95,13 @@ export default function GobPanoramaPage({
   searchParams: PanoramaSearchParams;
 }) {
   return (
-    <Suspense fallback={<PanoramaBoardSkeleton />}>
-      <GobPanoramaBoard searchParams={searchParams} />
-    </Suspense>
+    <>
+      {/* G1: fires the "fuera de alcance" toast after an out-of-scope bounce. */}
+      <NoticeToast />
+      <Suspense fallback={<PanoramaBoardSkeleton />}>
+        <GobPanoramaBoard searchParams={searchParams} />
+      </Suspense>
+    </>
   );
 }
 
@@ -132,6 +139,27 @@ async function GobPanoramaBoard({
     profile.role !== "admin"
       ? deriveWidestJurisdiction(jurisdictions)
       : { provinceCode: null as string | null, localityName: null as string | null };
+
+  // G1 (govt/public honesty): a GOVT operator who requests a ?province OUTSIDE
+  // their jurisdiction must NOT be shown a hollow foreign-province shell (map +
+  // caption naming a province they cannot act on, KPIs "—", a 500-locality
+  // dropdown). Hard-refuse and BOUNCE to their widest in-scope jurisdiction with
+  // an honest notice. ADMIN is universal → exempt (any province is valid).
+  //
+  // Loop-safety: the bounce target is derived from the operator's OWN assignments
+  // (deriveWidestJurisdiction), so the re-entered request is always in scope and
+  // re-passes this guard. A multi-province / no-scope operator (provinceCode null)
+  // bounces to the bare panorama (implicit scope, no ?province) — which likewise
+  // never re-triggers the guard. It is a presentation redirect, never a narrowing
+  // loop with narrowGovtScope.
+  if (profile.role !== "admin" && provinceObj) {
+    if (!isProvinceInGovtScope(jurisdictions, provinceObj.code)) {
+      const params = new URLSearchParams();
+      if (widest.provinceCode) params.set("province", widest.provinceCode);
+      params.set("notice", "jurisdiccion-fuera-de-alcance");
+      redirect(`/gob/panorama?${params.toString()}`);
+    }
+  }
 
   // The province whose localities/centroids the console needs: an explicit URL
   // drill wins; otherwise the operator's implicit single-province jurisdiction so

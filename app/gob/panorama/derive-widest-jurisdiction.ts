@@ -61,6 +61,22 @@ export function deriveWidestJurisdiction(jurisdictions: AdminOrGovtJurisdiction[
 }
 
 /**
+ * G1 (out-of-scope bounce): is the requested province within a GOVT operator's
+ * jurisdiction? Compares by ISO code via the ALIAS-TOLERANT `provinceByName` so a
+ * stored alias-form province name can never spuriously read as out-of-scope.
+ *
+ * GOVT-ONLY: admin scope is universal (every province valid) and MUST be checked
+ * by the caller before calling this. PURE — in-memory lookups only, unit-tested
+ * in `__tests__/derive-widest-jurisdiction.test.ts`.
+ */
+export function isProvinceInGovtScope(
+  jurisdictions: AdminOrGovtJurisdiction[],
+  provinceCode: string,
+): boolean {
+  return jurisdictions.some((j) => provinceByName(j.province)?.code === provinceCode);
+}
+
+/**
  * Resolve the `initialDivisionLocality` seed slug from the DB lookup of
  * `widest.localityName` (see `localityByName` at the page's call site) — kept
  * as a thin, pure wrapper so the GRACEFUL fallback is unit-testable without a DB.
