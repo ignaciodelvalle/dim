@@ -92,11 +92,13 @@ export const PER_LAYER_CAP = 2000;
  * intake time) and decomisos (cases) have no distinct recorded_at, so they ignore
  * the basis and replay by their single timestamp in both modes.
  *
- * PERF: recorded_at is NOT indexed (only occurred_at is —
- * pet_events_pet_id_occurred_at_idx + pet_events_event_type_occurred_at_idx), so a
- * transaction-basis replay is an unindexed range scan. Acceptable at pilot scale;
- * a future migration should add a recorded_at index if this path gets hot. No
- * migration is added in this lane by design.
+ * PERF: recorded_at IS indexed — migration 0142 added the composite
+ * pet_events_event_type_recorded_at_idx (event_type, recorded_at). Every
+ * transaction-basis query filters by a specific event_type (or a BitmapOr over a
+ * small set of them, e.g. perdidas/mordeduras) and THEN windows on recorded_at,
+ * so this composite (event_type leading) serves the replay range scan directly.
+ * A standalone recorded_at index would be redundant: no transaction-basis query
+ * windows recorded_at without an event_type predicate.
  */
 function eventWindowCol(basis: TimeBasis) {
   return basis === "transaction" ? petEvents.recordedAt : petEvents.occurredAt;
