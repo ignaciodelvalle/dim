@@ -450,10 +450,13 @@ export function DenunciaWizard() {
           consumers still rely on; keeping this form mounted just keeps that
           fallback available, it is not what submit actually reads for location.
           It's visually hidden when not the active step via aria-hidden + hidden class.
-          B-3: inert is added when step > 3 so keyboard focus cannot reach offscreen inputs. */}
+          Q14: inert is applied whenever this kept-mounted step is INACTIVE — in
+          BOTH directions (step < 3 as well as step > 3), not only when offscreen
+          past it — so a snapshot/AT reader never reaches the hidden step content
+          and aria-hidden never wraps a focusable descendant. */}
       <div
         aria-hidden={step !== 3}
-        inert={step > 3 ? true : undefined}
+        inert={step !== 3 ? true : undefined}
         className={step < 3 ? "hidden" : undefined}
         style={
           step > 3

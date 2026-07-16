@@ -97,6 +97,19 @@ describe("DenunciaWizard — step gating (single step visible)", () => {
     expect(screen.queryByText("¿Qué tan grave es?")).toBeNull();
   });
 
+  it("Q14: marks the kept-mounted step 3 inert BEFORE it is reached (step < 3), not only after", () => {
+    render(<DenunciaWizard />);
+
+    // On step 1 — step 3 is mounted (its uncontrolled inputs must persist) but is
+    // display:none AND must be inert + aria-hidden so a snapshot/AT reader never
+    // reaches the not-yet-visited step content (regression: inert applied only for
+    // step > 3, leaving step < 3 hidden-but-reachable).
+    const whereHeading = screen.getByText("¿Dónde y cuándo?");
+    const hiddenWrapper = whereHeading.closest('[aria-hidden="true"]');
+    expect(hiddenWrapper).not.toBeNull();
+    expect(hiddenWrapper).toHaveAttribute("inert");
+  });
+
   it("blocks advancing past step 3 until an exact map point is marked (FIX #3A)", () => {
     render(<DenunciaWizard />);
 
