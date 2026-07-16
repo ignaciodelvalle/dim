@@ -3557,6 +3557,23 @@ export const cases = pgTable(
       onDelete: "set null",
     }),
     openedReason: text("opened_reason"),
+    // Structured opened reason (migration 0149). Additive: `opened_reason`
+    // prose keeps being written byte-identical on every open — it is a live
+    // SQL query key (surveillance-repository.ts dedupes outbreak
+    // investigations with `LIKE 'manual [code]:%'`) and the render source for
+    // pre-cutover rows, which stay (null, null) forever (no backfill —
+    // retro-translating audit prose would be a retro-edit).
+    //
+    // `text`, not a PG enum, and NOT `$type`-narrowed — same call as case_kind
+    // above, for the same reason: this file imports nothing from src/, so
+    // narrowing here would either invert the layering (schema → domain) or
+    // duplicate the vocabulary and let it drift with no compile-time link.
+    // The closed set lives in src/modules/cases/domain/opened-reason.ts (Zod
+    // discriminated union); an unmapped code is a `tsc` error THERE, at the
+    // choke point, which is where the fence belongs. Writer #19 is a
+    // TypeScript edit, not a gated migration.
+    openedReasonCode: text("opened_reason_code"),
+    openedReasonParams: jsonb("opened_reason_params"),
 
     // For custody_transfer_handshake: canonical receiver org (mirrors the
     // proposal payload's to_organization_id). The accept-path authorizes
@@ -3625,6 +3642,12 @@ export const cases = pgTable(
       table.id.desc(),
     ),
     openedAtIdIdx: index("cases_opened_at_id_idx").on(table.openedAt.desc(), table.id.desc()),
+    // Structured opened-reason code (migration 0149). Partial: pre-cutover
+    // rows are all NULL and stay NULL (no backfill). Backs the
+    // "casos abiertos por causa" GROUP BY.
+    openedReasonCodeIdx: index("cases_opened_reason_code_idx")
+      .on(table.openedReasonCode)
+      .where(sql`${table.openedReasonCode} IS NOT NULL`),
     // Structural locality-attribution FK index (migration 0147).
     localityIdIdx: index("cases_locality_id_idx")
       .on(table.localityId)
@@ -3657,6 +3680,12 @@ export const cases = pgTable(
     casesOpenedReasonMinLength: check(
       "cases_opened_reason_min_length",
       sql`${table.openedReason} is null or length(${table.openedReason}) >= 10`,
+    ),
+    // Migration 0149. Makes "code without params" unrepresentable at rest;
+    // param-less codes store `{}`, not NULL. Legacy rows are (null, null).
+    casesOpenedReasonStructuredPair: check(
+      "cases_opened_reason_structured_pair",
+      sql`${table.openedReasonCode} is null or ${table.openedReasonParams} is not null`,
     ),
     casesJurisdictionProvinceCanonical: check(
       "cases_jurisdiction_province_canonical",
