@@ -1420,8 +1420,8 @@ describe("PanoramaConsole — implicit single-province division scope (PO valida
   });
 });
 
-describe("PanoramaConsole — derived aggregation level (P4c design §5.5: scope-only, camera never flips it)", () => {
-  it("KEEPS the province axis when the camera zooms past Z_LOCALITY at national scope (P4c)", async () => {
+describe("PanoramaConsole — derived aggregation level (A2: province by default, departments reveal past Z_DIVISIONS)", () => {
+  it("KEEPS the province axis when the camera zooms past Z_LOCALITY but BELOW Z_DIVISIONS at national scope", async () => {
     renderConsole();
     // Activate a province-baseline preset with a choropleth base (cobertura).
     openVista();
@@ -1431,18 +1431,47 @@ describe("PanoramaConsole — derived aggregation level (P4c design §5.5: scope
     });
     fetchMock.mockClear();
 
-    // Zoom past the old locality threshold — the map reports the new camera zoom.
+    // Zoom past Z_LOCALITY (5) but below the department-reveal threshold
+    // Z_DIVISIONS (6.5) — the map reports the new camera zoom.
     act(() => {
       (mapProps!.onZoom as (z: number) => void)(6);
     });
 
-    // P4c: free zoom is LOOKING, not drilling — the data axis stays province and
-    // NO nationwide locality refetch fires (the old hysteresis flip fetched every
-    // locality in the country here). Committing a jurisdiction is a CLICK.
+    // A2: below Z_DIVISIONS the clean province overview stays — free zoom is
+    // LOOKING, and departments only reveal PAST the threshold. NO nationwide
+    // locality refetch fires here (the department fill starts at 6.5).
     const coberturaCalls = fetchMock.mock.calls
       .map((c) => String(c[0]))
       .filter((u) => u.includes("/api/panorama/cobertura"));
     expect(coberturaCalls.length).toBe(0);
+  });
+
+  it("FLIPS to the locality (department) axis when the camera zooms PAST Z_DIVISIONS at national scope (A2)", async () => {
+    renderConsole();
+    // A choropleth base (cobertura) is active — the metric that fills the departments.
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    await waitFor(() => {
+      expect(mapProps?.onZoom).toBeInstanceOf(Function);
+    });
+    fetchMock.mockClear();
+
+    // Zoom PAST Z_DIVISIONS (6.5) — automatic department-grain LOD kicks in.
+    act(() => {
+      (mapProps!.onZoom as (z: number) => void)(7);
+    });
+
+    // A2: departments fill automatically with the active metric — the data axis
+    // flips to locality and a department-grain (cube-served) cobertura refetch
+    // fires. The request carries NO `level=province` flag (locality is the
+    // un-flagged default → the server's cube national+department path).
+    await waitFor(() => {
+      const coberturaCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/cobertura"));
+      expect(coberturaCalls.length).toBeGreaterThan(0);
+      expect(coberturaCalls.every((u) => !u.includes("level=province"))).toBe(true);
+    });
   });
 
   it("keeps PROVINCE at national scope while the camera stays below Z_LOCALITY", async () => {

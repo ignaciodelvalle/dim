@@ -402,6 +402,49 @@ export function resolveDivisionProvinces(params: {
   return provinceBboxes.filter((p) => bboxesIntersect(p.bbox, cameraBbox)).map((p) => p.code);
 }
 
+/**
+ * Resolve the DATA aggregation axis (province vs locality/department) from
+ * (scope, camera, active layers) — the automatic-by-view LOD decision.
+ *
+ * Precedence:
+ *  1. A committed jurisdiction scope (province OR locality) ALWAYS reads the
+ *     LOCALITY axis (department/barrio grain) — the existing drill behavior,
+ *     unchanged: a scoped operator or an explicit ?province/?locality drills.
+ *  2. National scope (no province, no locality): the PROVINCE axis is the default
+ *     (the clean 24-province overview at the country-wide view). It flips to the
+ *     LOCALITY axis ONLY once the camera zooms past `threshold` (Z_DIVISIONS) WITH
+ *     an active CHOROPLETH layer — so departments fill automatically with the
+ *     active metric as the operator looks closer, in the same color language.
+ *
+ * This reintroduces the camera half of the level derivation that P4c removed for
+ * COST (it fetched every locality in the country at once, live). That cost is gone
+ * now: national+department is cube-served (a precomputed superset), so the refetch
+ * this flip triggers is near-free. Below the threshold the view stays province;
+ * this is RENDER-detail-on-zoom only — it drives a data refetch + repaint, never a
+ * camera move. Pure — no map, no DOM.
+ */
+export function resolveDataLevel(params: {
+  hasProvinceScope: boolean;
+  hasLocalityScope: boolean;
+  zoom: number;
+  hasActiveChoropleth: boolean;
+  threshold?: number;
+}): AggregationLevel {
+  const {
+    hasProvinceScope,
+    hasLocalityScope,
+    zoom,
+    hasActiveChoropleth,
+    threshold = Z_DIVISIONS,
+  } = params;
+  // A committed scope drills to the locality axis at any zoom (unchanged).
+  if (hasProvinceScope || hasLocalityScope) return "locality";
+  // National: departments reveal automatically past the threshold, but only when a
+  // choropleth is active to fill them — otherwise keep the clean province overview.
+  if (hasActiveChoropleth && zoom >= threshold) return "locality";
+  return "province";
+}
+
 // ---------------------------------------------------------------------------
 // panorama-redesign Fase 1 — preset frame viewport helper
 // ---------------------------------------------------------------------------

@@ -74,7 +74,7 @@ import {
   binTimestamps,
   dailyCountsFromTimestamps,
 } from "@/components/panorama/signal-histogram";
-import { Z_LOCALITY } from "@/components/panorama/situational-map-utils";
+import { Z_LOCALITY, resolveDataLevel } from "@/components/panorama/situational-map-utils";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
@@ -3142,19 +3142,29 @@ export function PanoramaConsole({
     [viewState, scopeData.localities],
   );
 
+  // A2 (automatic department-grain LOD): a committed province/locality still reads
+  // the locality axis at any zoom. National scope defaults to the province axis but
+  // now flips to the LOCALITY (department) axis once the camera zooms past
+  // Z_DIVISIONS WITH an active choropleth — so departments fill automatically with
+  // the active metric as the operator looks closer, in the same color language.
+  // This reinstates the camera half of the derivation P4c removed for COST; the
+  // cost is gone because national+department is cube-served (a precomputed
+  // superset), so the refetch is near-free. RENDER-detail-on-zoom only: it drives a
+  // data refetch + repaint, NEVER a camera move (the vista-camera fix is untouched).
+  const hasActiveChoropleth = useMemo(
+    () => [...CHOROPLETH_IDS].some((id) => states[id]?.active),
+    [states],
+  );
   useEffect(() => {
-    // P4c (design §5.5): the DATA axis follows the SCOPE, never the camera. A
-    // committed province/locality (click-drill, switcher, URL) reads the
-    // locality axis; national scope stays on the province axis at ANY zoom —
-    // free-zooming is *looking*, committing is a *click*. This deletes the
-    // camera-driven half of the old derivedLevelWithHysteresis (and with it the
-    // only path that fetched every locality in the country at once); the camera
-    // now drives only the RENDER via the P4b LOD bands (markForZoom).
     const f = toScopeFilter(viewState);
-    const desired: AggregationLevel =
-      f.province != null || f.locality != null ? "locality" : "province";
+    const desired = resolveDataLevel({
+      hasProvinceScope: f.province != null,
+      hasLocalityScope: f.locality != null,
+      zoom: mapZoom,
+      hasActiveChoropleth,
+    });
     if (desired !== levelRef.current) onLevelChange(desired);
-  }, [viewState, onLevelChange]);
+  }, [viewState, onLevelChange, mapZoom, hasActiveChoropleth]);
 
   // map-QOL URL sync: mirror the board (active layers / level / preset) into
   // the URL via shallow replaceState whenever it changes — toggles are silent

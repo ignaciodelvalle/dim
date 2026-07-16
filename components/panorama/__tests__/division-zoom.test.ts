@@ -14,6 +14,7 @@ import {
   Z_DIVISIONS,
   bboxesIntersect,
   computeProvinceBboxes,
+  resolveDataLevel,
   resolveDivisionProvinces,
 } from "../situational-map-utils";
 
@@ -205,5 +206,73 @@ describe("resolveDivisionProvinces", () => {
       provinceBboxes: PROVINCES,
     });
     expect([...a].sort().join(",")).toBe([...b].sort().join(","));
+  });
+});
+
+describe("resolveDataLevel — automatic department-grain LOD (A2)", () => {
+  const NATIONAL = { hasProvinceScope: false, hasLocalityScope: false };
+
+  it("a committed province scope reads the locality axis at ANY zoom", () => {
+    expect(
+      resolveDataLevel({
+        hasProvinceScope: true,
+        hasLocalityScope: false,
+        zoom: 3,
+        hasActiveChoropleth: true,
+      }),
+    ).toBe("locality");
+    // Even below the division threshold and with no choropleth active — the drill wins.
+    expect(
+      resolveDataLevel({
+        hasProvinceScope: true,
+        hasLocalityScope: false,
+        zoom: 0,
+        hasActiveChoropleth: false,
+      }),
+    ).toBe("locality");
+  });
+
+  it("a committed locality scope reads the locality axis at any zoom", () => {
+    expect(
+      resolveDataLevel({
+        hasProvinceScope: false,
+        hasLocalityScope: true,
+        zoom: 2,
+        hasActiveChoropleth: false,
+      }),
+    ).toBe("locality");
+  });
+
+  it("national + choropleth active + zoom past Z_DIVISIONS → LOCALITY (departments fill)", () => {
+    expect(resolveDataLevel({ ...NATIONAL, zoom: Z_DIVISIONS, hasActiveChoropleth: true })).toBe(
+      "locality",
+    );
+    expect(
+      resolveDataLevel({ ...NATIONAL, zoom: Z_DIVISIONS + 2, hasActiveChoropleth: true }),
+    ).toBe("locality");
+  });
+
+  it("national + choropleth active + BELOW the threshold → province (clean overview stays)", () => {
+    expect(
+      resolveDataLevel({ ...NATIONAL, zoom: Z_DIVISIONS - 0.5, hasActiveChoropleth: true }),
+    ).toBe("province");
+  });
+
+  it("national past the threshold but NO choropleth active → province (nothing to fill)", () => {
+    // The camera flip is gated on an active choropleth (the metric that colors the
+    // polygons) — a signal-only national view stays on the province axis and never
+    // resurrects an uncubed national+locality fetch.
+    expect(
+      resolveDataLevel({ ...NATIONAL, zoom: Z_DIVISIONS + 3, hasActiveChoropleth: false }),
+    ).toBe("province");
+  });
+
+  it("honors a custom threshold", () => {
+    expect(
+      resolveDataLevel({ ...NATIONAL, zoom: 6, hasActiveChoropleth: true, threshold: 7 }),
+    ).toBe("province");
+    expect(
+      resolveDataLevel({ ...NATIONAL, zoom: 7, hasActiveChoropleth: true, threshold: 7 }),
+    ).toBe("locality");
   });
 });
