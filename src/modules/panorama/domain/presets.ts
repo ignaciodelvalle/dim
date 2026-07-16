@@ -17,8 +17,10 @@ export type PresetId =
   | "brotes-activos"
   | "sintomas"
   | "cumplimiento"
+  | "registro-ppp"
   | "bienestar"
   | "control-poblacional"
+  | "mortalidad"
   | "perdidas-reunificacion";
 
 /**
@@ -195,6 +197,23 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["cobertura", "esterilizacion", "microchip"],
   },
   {
+    id: "registro-ppp",
+    label: "Registro PPP",
+    description:
+      "¿Qué jurisdicciones tienen bajo registro de perros potencialmente peligrosos (PPP)?",
+    // base: ppp (rate choropleth) — the C7 registry-adoption rate (Ley Prov 14.107).
+    // A dedicated compliance vista so the orphaned PPP layer has an honest home;
+    // it can't share cumplimiento's map (one base per preset — F2), so it gets its own.
+    base: "ppp",
+    level: "province",
+    periodPreset: "90d",
+    // A province-level registry-adoption ranking is a national question — frame the
+    // whole country so under-registry jurisdictions are comparable (like cumplimiento).
+    framing: { kind: "national" },
+    // Same Ley Prov 14.107 compliance family as microchip — the two ride together.
+    metrics: ["ppp", "microchip"],
+  },
+  {
     id: "bienestar",
     label: "Bienestar y fiscalización",
     description: "¿Dónde se acumulan denuncias y decomisos por bienestar animal?",
@@ -219,6 +238,22 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // vs the 70% target only reads when the whole country is in frame.
     framing: { kind: "national" },
     metrics: ["esterilizacion", "perdidas"],
+  },
+  {
+    id: "mortalidad",
+    label: "Mortalidad",
+    description: "¿Dónde se concentra la mortalidad registrada de mascotas?",
+    // base: mortalidad (density choropleth) — pets currently in status='deceased',
+    // filled at province / graduated symbol at locality. Its own vista so the
+    // orphaned mortality layer has an honest home (density base, one per preset).
+    base: "mortalidad",
+    level: "province",
+    periodPreset: "90d",
+    // A province-level mortality overview is a national question — frame the country
+    // so cross-province concentration is visible at once (like control-poblacional).
+    framing: { kind: "national" },
+    // Population/health story: mortality alongside the esterilización control metric.
+    metrics: ["mortalidad", "esterilizacion"],
   },
   {
     id: "perdidas-reunificacion",

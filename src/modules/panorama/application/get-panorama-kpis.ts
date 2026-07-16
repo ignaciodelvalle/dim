@@ -48,6 +48,7 @@ import { formatCount, formatPercent, formatRate } from "@/lib/utils/format";
 // fetchers /gob/perdidas and /gob/programa already call. Adding them here
 // only ORCHESTRATES a call the dashboards already trust; no new SQL.
 import {
+  fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
   fetchReunificationRate,
 } from "@/lib/analytics/compliance-metrics";
@@ -59,7 +60,10 @@ import {
   fetchRabiesCoverage,
 } from "@/lib/analytics/govt-home-kpis";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
-import { loadZoonosisSignalScopeTotal } from "@/src/modules/panorama/infrastructure/repository";
+import {
+  loadMortalityByProvince,
+  loadZoonosisSignalScopeTotal,
+} from "@/src/modules/panorama/infrastructure/repository";
 
 /** Tone passthrough to the OpKpi tile (kept loose to avoid a UI import here). */
 export type KpiTone = "neutral" | "danger" | "warn" | "ok" | "blue";
@@ -487,6 +491,14 @@ export async function getPanoramaKpis(
       adminProvince,
       adminLocality,
     ),
+    // Orphaned-layer wiring — PPP registry adoption (C7) + mortality. Both are
+    // CURRENT-STATE (estado actual): PPP reuses the SAME scope fetcher /gob's C7
+    // KPI calls (fetchDangerousBreedCompliance); mortality sums the province
+    // choropleth loader the map already draws (loadMortalityByProvince) so the KPI
+    // total == Σ(map cells). No new SQL — both respect scope, neither varies with
+    // the scrubber (current-state, so no as-of). [18] PPP, [19] mortality.
+    fetchDangerousBreedCompliance(ctx),
+    loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality),
   ]);
 
   // Any fetcher rejected → the strip cannot be built with parity. Log every
@@ -524,6 +536,16 @@ export async function getPanoramaKpis(
   // PRIMARY zoonosis number (== Σ map cells) and its prior-window comparison.
   const zoonosisSignals = value(settled[16]);
   const priorZoonosisSignals = value(settled[17]);
+  // Orphaned-layer wiring: PPP registry adoption + mortality (both current-state).
+  const ppp = value(settled[18]);
+  const mortalityProv = value(settled[19]);
+  // Mortality KPI value = the scope total, i.e. Σ of the province choropleth cells
+  // (each cell value is a raw deceased count — density metric). Guarantees the
+  // headline number equals the sum of what the mortality map paints.
+  const mortalityTotal = mortalityProv.cells.reduce((sum, c) => sum + c.value, 0);
+  // PPP "sin PPP" state: no dangerous-breed-flagged pets in scope → a 0% rate would
+  // read as bad registry adoption when the honest reading is "there are no PPP here".
+  const pppNoData = ppp.flaggedCount === 0;
 
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica
@@ -597,6 +619,32 @@ export async function getPanoramaKpis(
       info: {
         definition: "% de mascotas activas con microchip ISO activo.",
         formula: "chipped / active * 100",
+      },
+    },
+    {
+      // Orphaned-layer wiring — C7 dangerous-breed (PPP) registry adoption, the
+      // SAME fetcher /gob's C7 KPI uses (fetchDangerousBreedCompliance) so the
+      // number matches the dashboard. Rides with microchip in the compliance
+      // family (Ley Prov 14.107). STOCK (estado actual): a point-in-time
+      // registry-adoption snapshot, so it does not vary with the scrubber.
+      id: "ppp",
+      label: "Registro PPP",
+      value: pppNoData ? "—" : formatPercent(ppp.ratePct),
+      sub: pppNoData
+        ? "sin PPP en alcance"
+        : `${formatCount(ppp.attested)} de ${formatCount(ppp.flaggedCount)} atestados · benchmark 80%`,
+      bar: pppNoData ? undefined : ppp.ratePct,
+      currentState: true,
+      tone: pppNoData ? "neutral" : toneForTarget(ppp.ratePct, 80),
+      href: "/gob/censo",
+      source: "compliance-metrics.fetchDangerousBreedCompliance",
+      info: {
+        definition:
+          "Porcentaje de perros potencialmente peligrosos (PPP) del alcance con una atestación de raza peligrosa (dangerous_breed_attested) registrada — la adopción del registro obligatorio (Ley Prov 14.107 / Ley CABA 4078). Benchmark programático: 80%.",
+        formula:
+          "COUNT DISTINCT(PPP con dangerous_breed_attested) / COUNT DISTINCT(PPP activos en alcance) × 100",
+        caveat:
+          "Solo cuenta atestaciones registradas en MiMAR. Si no hay PPP en el alcance (denominador 0) se muestra «sin PPP» en lugar de 0%. Es un estado actual (no depende del período).",
       },
     },
     {
@@ -708,6 +756,30 @@ export async function getPanoramaKpis(
           "primario = COUNT(welfare_reports donde created_at ∈ [desde, hasta], visibles) en alcance · backlog = COUNT(welfare_reports donde status NOT IN ('closed','invalid','duplicate')) en alcance",
         caveat:
           "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible. El backlog no depende del período (es un stock); el primario sí se mueve con la línea de tiempo.",
+      },
+    },
+    {
+      // Orphaned-layer wiring — mortality (pets.status='deceased'), summed from the
+      // SAME province choropleth loader the map draws (loadMortalityByProvince) so
+      // the headline equals Σ(map cells). STOCK (estado actual): a current-state
+      // count that does NOT vary with the scrubber.
+      id: "mortalidad",
+      label: "Mortalidad registrada",
+      value: formatCount(mortalityTotal),
+      sub:
+        mortalityTotal === 1
+          ? "mascota fallecida (estado actual)"
+          : "mascotas fallecidas (estado actual)",
+      currentState: true,
+      tone: mortalityTotal > 0 ? "warn" : "neutral",
+      href: "/gob/mortalidad",
+      source: "repository.loadMortalityByProvince",
+      info: {
+        definition:
+          "Mascotas actualmente en estado «fallecida» registradas en MiMAR, en el alcance seleccionado. Es un estado actual (no depende del período).",
+        formula: "COUNT(mascotas con status='deceased') en alcance",
+        caveat:
+          "Solo cuenta fallecimientos registrados en MiMAR; la mortalidad real puede ser mayor. No depende de la línea de tiempo (estado actual).",
       },
     },
   ];

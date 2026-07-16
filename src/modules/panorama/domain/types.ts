@@ -261,9 +261,11 @@ export type PanoramaKpiId =
   | "cobertura"
   | "esterilizacion"
   | "microchip"
+  | "ppp"
   | "perdidas"
   | "reunificacion"
   | "mordeduras"
   | "zoonosis"
   | "denuncias"
+  | "mortalidad"
   | "mascotas";

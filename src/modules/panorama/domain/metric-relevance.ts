@@ -32,11 +32,13 @@ export const KPI_RELATED_LAYERS: Record<PanoramaKpiId, readonly LayerId[]> = {
   cobertura: ["cobertura"],
   esterilizacion: ["esterilizacion"],
   microchip: ["microchip"],
+  ppp: ["ppp"],
   perdidas: ["perdidas", "reunificacion"],
   reunificacion: ["reunificacion", "perdidas"],
   mordeduras: ["mordeduras"],
   zoonosis: ["zoonosis"],
   denuncias: ["denuncias"],
+  mortalidad: ["mortalidad"],
   // Context denominator (footer caption), never a headline KPI → no map subject.
   mascotas: [],
 };

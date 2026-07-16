@@ -17,11 +17,13 @@ const CANONICAL_KPI: Record<PanoramaKpiId, string> = {
   cobertura: "Cobertura antirrábica (perros, 12m)",
   esterilizacion: "Cobertura de esterilización",
   microchip: "Microchip",
+  ppp: "Registro PPP",
   perdidas: "Pérdidas activas",
   reunificacion: "Tasa de reunificación",
   mordeduras: "Mordeduras / 10k hab.",
   zoonosis: "Zoonosis activas",
   denuncias: "Denuncias activas",
+  mortalidad: "Mortalidad registrada",
   mascotas: "Mascotas en cobertura",
 };
 
@@ -65,8 +67,8 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
     );
   });
 
-  // The QA-requested snapshot: the 6 vistas' displayed KPI + layer label sets.
-  it("snapshots the de-dup output across all 6 vistas", () => {
+  // The QA-requested snapshot: the 8 vistas' displayed KPI + layer label sets.
+  it("snapshots the de-dup output across all 8 vistas", () => {
     const snapshot = PANORAMA_PRESETS.map((p) => ({
       vista: p.label,
       kpis: p.metrics.map((id) => shortKpiLabel(p.id, id, CANONICAL_KPI[id])),
@@ -111,6 +113,16 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
         },
         {
           "kpis": [
+            "Registro PPP",
+            "Microchip",
+          ],
+          "layers": [
+            "Registro PPP (C7)",
+          ],
+          "vista": "Registro PPP",
+        },
+        {
+          "kpis": [
             "Denuncias activas",
             "Mordeduras / 10k hab.",
           ],
@@ -129,6 +141,16 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Cobertura de esterilización",
           ],
           "vista": "Control poblacional",
+        },
+        {
+          "kpis": [
+            "Mortalidad registrada",
+            "Cobertura de esterilización",
+          ],
+          "layers": [
+            "Mortalidad / disposición",
+          ],
+          "vista": "Mortalidad",
         },
         {
           "kpis": [

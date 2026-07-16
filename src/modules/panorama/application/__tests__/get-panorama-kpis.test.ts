@@ -26,10 +26,11 @@ vi.mock("@/lib/metrics/population-control", () => ({
 vi.mock("@/lib/metrics/freshness", () => ({
   lastIngestAt: vi.fn(),
 }));
-// v+1 rail — meta-progress meters (D4 reunification + C1 microchip).
+// v+1 rail — meta-progress meters (D4 reunification + C1 microchip) + C7 PPP.
 vi.mock("@/lib/analytics/compliance-metrics", () => ({
   fetchReunificationRate: vi.fn(),
   fetchMicrochipPenetration: vi.fn(),
+  fetchDangerousBreedCompliance: vi.fn(),
 }));
 // v+1 rail — KPI sparklines (same trend fetchers /gob home uses).
 vi.mock("@/lib/metrics/trends", () => ({
@@ -38,11 +39,14 @@ vi.mock("@/lib/metrics/trends", () => ({
   fetchKpiTrend: vi.fn(),
 }));
 // Coherence hybrid (round 2, H1): the zoonosis PRIMARY signal total (== map).
+// Orphaned-layer wiring: mortality province aggregate (KPI == Σ map cells).
 vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadZoonosisSignalScopeTotal: vi.fn(),
+  loadMortalityByProvince: vi.fn(),
 }));
 
 import {
+  fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
   fetchReunificationRate,
 } from "@/lib/analytics/compliance-metrics";
@@ -57,7 +61,10 @@ import type { AnalyticsPeriod } from "@/lib/metrics";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
-import { loadZoonosisSignalScopeTotal } from "@/src/modules/panorama/infrastructure/repository";
+import {
+  loadMortalityByProvince,
+  loadZoonosisSignalScopeTotal,
+} from "@/src/modules/panorama/infrastructure/repository";
 
 import {
   PanoramaKpisUnavailableError,
@@ -122,6 +129,20 @@ function seedDefaults() {
     active: 1000,
     byLocality: { value: [] as never, suppressedCount: 0 },
   });
+  // Orphaned-layer wiring — C7 PPP registry adoption (has PPP in scope by default).
+  vi.mocked(fetchDangerousBreedCompliance).mockResolvedValue({
+    ratePct: 30,
+    attested: 6,
+    flaggedCount: 20,
+  });
+  // Orphaned-layer wiring — mortality province aggregate (KPI == Σ cell counts).
+  vi.mocked(loadMortalityByProvince).mockResolvedValue({
+    cells: [
+      { provinceCode: "AR-B", label: "Buenos Aires", value: 8 },
+      { provinceCode: "AR-C", label: "CABA", value: 4 },
+    ],
+    truncated: false,
+  });
   vi.mocked(fetchRabiesVaccinationTrend).mockResolvedValue({
     granularity: "month",
     points: [
@@ -154,33 +175,38 @@ beforeEach(() => {
 });
 
 describe("getPanoramaKpis", () => {
-  it("returns 8 headline KPIs in display order, each backed by a named dashboard fetcher", async () => {
+  it("returns 10 headline KPIs in display order, each backed by a named dashboard fetcher", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     // Legal-analysis reorientation (2026-07-03): the two legally-grounded
     // compliance coverages lead. v+1 rail: "microchip" joins the compliance
     // trio; "reunificacion" (D4) sits next to "perdidas". metric-honesty
     // 2026-07-09: "mascotas" (the coverage DENOMINATOR) is no longer a headline
-    // tile — it moved to the `coverageDenominator` footer field.
+    // tile — it moved to the `coverageDenominator` footer field. Orphaned-layer
+    // wiring: "ppp" joins the compliance family; "mortalidad" closes the strip.
     expect(kpis.map((k) => k.id)).toEqual([
       "cobertura",
       "esterilizacion",
       "microchip",
+      "ppp",
       "perdidas",
       "reunificacion",
       "mordeduras",
       "zoonosis",
       "denuncias",
+      "mortalidad",
     ]);
     // Parity proof: every KPI names the fetcher that produced it.
     expect(kpis.map((k) => k.source)).toEqual([
       "govt-home-kpis.fetchRabiesCoverage",
       "metrics.fetchSterilizationCoverage",
       "compliance-metrics.fetchMicrochipPenetration",
+      "compliance-metrics.fetchDangerousBreedCompliance",
       "govt-dashboards.fetchPerdidasMetrics",
       "compliance-metrics.fetchReunificationRate",
       "govt-home-kpis.fetchBitesPer10k",
       "repository.loadZoonosisSignalScopeTotal",
       "govt-home-kpis.fetchOpenWelfareReportsCount",
+      "repository.loadMortalityByProvince",
     ]);
     // The coverage denominator is NOT a headline tile anymore.
     expect(kpis.some((k) => k.id === "mascotas")).toBe(false);
@@ -236,6 +262,43 @@ describe("getPanoramaKpis", () => {
     const kpi = kpis.find((k) => k.id === "esterilizacion")!;
     expect(kpi.tone).toBe("ok");
     expect(kpi.value).toBe("75,3%");
+  });
+
+  it("PPP KPI reflects the C7 registry-adoption rate (estado actual, benchmark 80%)", async () => {
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "ppp")!;
+    // 30% adoption over 20 flagged pets → warn (below the 80% benchmark).
+    expect(kpi.value).toBe("30,0%");
+    expect(kpi.bar).toBe(30);
+    expect(kpi.currentState).toBe(true);
+    expect(kpi.sub).toContain("6 de 20");
+    // 30% is far below the 80% benchmark → toneForTarget returns danger.
+    expect(kpi.tone).toBe("danger");
+  });
+
+  it("PPP KPI reads 'sin PPP' (blank value, neutral) when no PPP pets are in scope", async () => {
+    vi.mocked(fetchDangerousBreedCompliance).mockResolvedValue({
+      ratePct: 0,
+      attested: 0,
+      flaggedCount: 0,
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "ppp")!;
+    // A 0% rate over an empty denominator must NOT read as bad adoption.
+    expect(kpi.value).toBe("—");
+    expect(kpi.sub).toContain("sin PPP");
+    expect(kpi.bar).toBeUndefined();
+    expect(kpi.tone).toBe("neutral");
+  });
+
+  it("mortality KPI equals the SUM of the province choropleth cells (== Σ map cells)", async () => {
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "mortalidad")!;
+    // 8 (Buenos Aires) + 4 (CABA) = 12 deceased pets — the same total the map paints.
+    expect(kpi.value).toBe("12");
+    expect(kpi.currentState).toBe(true);
+    expect(kpi.tone).toBe("warn");
+    expect(kpi.source).toBe("repository.loadMortalityByProvince");
   });
 
   it("threads the SAME (actor, jurisdictions, period) to the dashboard fetchers (no scope widening)", async () => {

@@ -28,8 +28,8 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 6 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(6);
+  it("contains exactly 8 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(8);
   });
 
   it("all preset ids are unique", () => {
@@ -37,13 +37,16 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 6 expected preset ids are present", () => {
+  it("all 8 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
     expect(ids.has("cumplimiento")).toBe(true);
+    // Orphaned-layer wiring: dedicated PPP + mortality vistas.
+    expect(ids.has("registro-ppp")).toBe(true);
     expect(ids.has("bienestar")).toBe(true);
     expect(ids.has("control-poblacional")).toBe(true);
+    expect(ids.has("mortalidad")).toBe(true);
     expect(ids.has("perdidas-reunificacion")).toBe(true);
   });
 
@@ -254,9 +257,16 @@ describe("presetLayerIds()", () => {
 
 describe("PANORAMA_PRESETS — optional framing field", () => {
   it("national-overview presets carry the national framing (design-QA 2026-07-04 expansion)", () => {
-    // brotes-activos (Fase 1 demonstrator) + the two province-choropleth
-    // compliance presets — all three answer a cross-province question.
-    for (const id of ["brotes-activos", "cumplimiento", "control-poblacional"] as const) {
+    // brotes-activos (Fase 1 demonstrator) + the province-choropleth compliance /
+    // population presets — all answer a cross-province question. Orphaned-layer
+    // wiring adds two more national vistas: registro-ppp and mortalidad.
+    for (const id of [
+      "brotes-activos",
+      "cumplimiento",
+      "registro-ppp",
+      "control-poblacional",
+      "mortalidad",
+    ] as const) {
       expect(getPreset(id)!.framing).toEqual({ kind: "national" });
     }
   });
@@ -366,11 +376,13 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     "cobertura",
     "esterilizacion",
     "microchip",
+    "ppp",
     "perdidas",
     "reunificacion",
     "mordeduras",
     "zoonosis",
     "denuncias",
+    "mortalidad",
     "mascotas",
   ];
 
@@ -424,6 +436,19 @@ describe("PANORAMA_PRESETS — metrics field", () => {
       "reunificacion",
       "denuncias",
     ]);
+  });
+
+  // Orphaned-layer wiring: the PPP + mortality vistas headline their own layer's KPI.
+  it("registro-ppp surfaces the PPP layer as base and headlines ppp (Ley Prov 14.107 family)", () => {
+    const p = getPreset("registro-ppp")!;
+    expect(p.base).toBe("ppp");
+    expect(p.metrics).toEqual(["ppp", "microchip"]);
+  });
+
+  it("mortalidad surfaces the mortalidad layer as base and headlines mortalidad", () => {
+    const p = getPreset("mortalidad")!;
+    expect(p.base).toBe("mortalidad");
+    expect(p.metrics).toEqual(["mortalidad", "esterilizacion"]);
   });
 });
 
