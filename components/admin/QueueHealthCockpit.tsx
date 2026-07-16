@@ -162,7 +162,13 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
               href="/admin/casos"
               label="Casos abiertos"
               count={cockpit.casesOpen}
-              tone={warnIf(cockpit.casesOpen)}
+              // W2: open cases are ongoing INVENTORY, not a "decide now" alarm.
+              // Warm tones are reserved for tiles that need an operator decision
+              // this moment (pending approvals, moderación, alertas, SLA breaches,
+              // observaciones en curso). A large open-cases count competing in
+              // orange next to the pink SLA breach mis-ranks attention, so this
+              // tile stays NEUTRAL regardless of count.
+              tone="neutral"
             />
             <QueueTile
               href="/admin/observaciones"
