@@ -57,6 +57,12 @@ export default async function GobPerdidasPage({
   const sp = await searchParams;
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  // G0 (PO decision 2026-07): the LIST defaults to the full currently-lost STOCK
+  // (no window) so its count matches the same-page "Perdidas activas" KPI — both
+  // count status='lost'. The period is an OPTIONAL filter: only an explicit
+  // ?period windows the list by the lost-event date. `since` above stays the
+  // 30d-default window for the period-scoped reunification KPIs (unchanged).
+  const listSince = sp.period ? since : undefined;
   const species = sp.species || undefined;
   const statusFilter = parseStatusFilter(sp.status);
   const q = sp.q?.trim() || undefined;
@@ -71,9 +77,11 @@ export default async function GobPerdidasPage({
     params: { province: sp.province, locality: sp.locality },
   });
 
-  // Fetch the display list with all active display filters applied.
+  // Fetch the display list with all active display filters applied. `listSince`
+  // is undefined by default (full currently-lost stock) and only set when the
+  // operator explicitly picks a period.
   const lostPets = await fetchLostPets(actor, jurisdictions, {
-    since,
+    since: listSince,
     species,
     status: statusFilter,
     q,
@@ -83,19 +91,16 @@ export default async function GobPerdidasPage({
   // (the full set of currently-lost pets, not just the display slice). When
   // no display filters are active the fetched list already represents that
   // full set, so we can pass it to avoid a second DB round-trip. When any
-  // filter is active (q, since derived from a non-default period, species, or
-  // a non-"lost" status tab) the pre-fetched rows are a filtered subset —
-  // passing them would silently scope avgDaysActive to that subset instead of
-  // the whole population. In that case, omit opts.lostPets so
-  // fetchPerdidasMetrics fetches the unfiltered scope internally.
+  // filter is active (q, an explicit period window, species, or a non-"lost"
+  // status tab) the pre-fetched rows are a filtered subset — passing them would
+  // silently scope avgDaysActive to that subset instead of the whole
+  // population. In that case, omit opts.lostPets so fetchPerdidasMetrics
+  // fetches the unfiltered scope internally.
   //
-  // "No display filters" = q is absent, species is absent, statusFilter is
-  // the default "lost", and period is the default 30-day window. The period
-  // filter maps to the `since` option in fetchLostPets; fetchPerdidasMetrics
-  // without opts calls fetchLostPets() without a `since` bound, which matches
-  // the unfiltered set. When the user has selected a custom period the `since`
-  // filter narrows the lostPets result — avgDaysActive must NOT use that slice.
-  const noDisplayFilters = !q && !species && statusFilter === "lost" && days === 30;
+  // "No display filters" = q absent, species absent, statusFilter the default
+  // "lost", and NO period window (listSince undefined → the full stock). Only
+  // then are the fetched rows the unfiltered set fetchPerdidasMetrics needs.
+  const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
   const metrics = await fetchPerdidasMetrics(
     actor,
     jurisdictions,

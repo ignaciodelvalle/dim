@@ -806,6 +806,42 @@ describe("fetchLostPets", () => {
     expect(names).not.toContain("OldLost");
   });
 
+  // G0 (PO decision): the /gob/perdidas LIST defaults to the full currently-lost
+  // STOCK (no `since` window), so its count matches the same-page "Perdidas
+  // activas" KPI (fetchPerdidasMetrics.activeCount) — both count status='lost'.
+  // Without a `since`, an old lost episode (72h) is INCLUDED (unlike the windowed
+  // path above), and the unwindowed list length equals activeCount for the scope.
+  it("no `since` returns the full lost stock and matches the activeCount KPI", async () => {
+    const prov = "Catamarca";
+    const loc = "San Fernando del Valle de Catamarca";
+    const recent = await insertFixturePet({
+      name: "StockRecent",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const old = await insertFixturePet({
+      name: "StockOld",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(recent, 1);
+    await markLost(old, 72);
+
+    const scope = [{ province: prov, locality: loc }];
+    const list = await fetchLostPets({ role: "govt" }, scope);
+    const names = list.map((p) => p.petName);
+    // Both the recent AND the old lost pet appear — no default window drops the old one.
+    expect(names).toContain("StockRecent");
+    expect(names).toContain("StockOld");
+
+    // List count (unwindowed, status='lost') == the "Perdidas activas" KPI.
+    const metrics = await fetchPerdidasMetrics({ role: "govt" }, scope);
+    expect(metrics.activeCount).toBe(list.length);
+    expect(list.length).toBe(2);
+  });
+
   it("q containing % is escaped and does not act as a wildcard", async () => {
     const prov = "Misiones";
     const loc = "Posadas";
