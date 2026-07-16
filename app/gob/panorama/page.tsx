@@ -112,6 +112,9 @@ async function GobPanoramaBoard({
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
+  // Q12: only a bounded-jurisdiction govt operator returns to "mi jurisdicción";
+  // admin/universal (no assigned jurisdiction) returns to "Vista nacional".
+  const boundedJurisdiction = profile.role !== "admin" && jurisdictions.length > 0;
 
   const sp = await searchParams;
   // Panorama defaults to a multi-year window (system "started" ~3 years ago) so
@@ -357,6 +360,7 @@ async function GobPanoramaBoard({
     return (
       <PanoramaShell
         scopeLabel={scopeLabel(profile.role, jurisdictions)}
+        boundedJurisdiction={boundedJurisdiction}
         layer={layer}
         // perdidas is NOT seeded on the first-visit path — the preset owns the
         // board. Pass an empty envelope so the console has a default (unused).
@@ -431,6 +435,7 @@ async function GobPanoramaBoard({
   return (
     <PanoramaShell
       scopeLabel={scopeLabel(profile.role, jurisdictions)}
+      boundedJurisdiction={boundedJurisdiction}
       layer={layer}
       features={result.features}
       truncated={result.truncated}

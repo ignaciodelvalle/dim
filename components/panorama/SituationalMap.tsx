@@ -70,6 +70,7 @@ import {
   countRenderableFeatures,
   emptyOverlayMessage,
   hasProvinceChoroplethLayer,
+  resetViewLabel,
   resolveDivisionProvinces,
   shouldSnapFraming,
 } from "@/components/panorama/situational-map-utils";
@@ -267,6 +268,15 @@ type Props = {
    * national/data-extent fit.
    */
   initialBounds?: [[number, number], [number, number]];
+  /**
+   * Q12: TRUE only for an operator whose HOME is a bounded jurisdiction (a govt
+   * actor with assigned jurisdictions). Drives the reset-view control's copy so
+   * only a bounded operator reads "Volver a mi jurisdicción"; admin/universal
+   * reads "Vista nacional". NOT derivable from `initialBounds` alone — a DRILLED
+   * admin also receives `initialBounds` (the drilled province bbox) yet has no
+   * personal jurisdiction. Undefined/false → admin/universal.
+   */
+  boundedJurisdiction?: boolean;
   /**
    * H14 (cowork QA): frame the `selectedProvinceCode` polygon ONCE on load even
    * when a server `initialBounds` was supplied. Set by the console only for a
@@ -629,6 +639,7 @@ export function SituationalMap({
   onProvinceDrill,
   onReturnNational,
   initialBounds,
+  boundedJurisdiction = false,
   frameProvinceOnLoad = false,
   rateProvinceOnlyEmpty = false,
   layerDegraded = false,
@@ -3223,10 +3234,11 @@ export function SituationalMap({
     const bbox = initialBoundsRef.current ?? AR_BBOX;
     map.fitBounds(bbox, { padding: 56, animate: true, maxZoom: 11 });
   }
-  // Accessible label for the reset-view control. Named per operator type so the
-  // home icon's tooltip is honest: a scoped govt operator (initialBounds present)
-  // returns to their jurisdiction; admin/universal returns to the national view.
-  const resetViewLabel = initialBounds ? "Volver a mi jurisdicción" : "Vista nacional";
+  // Accessible label for the reset-view control (Q12). The pure helper keys the
+  // copy on `boundedJurisdiction` (a govt operator with an assigned jurisdiction),
+  // NOT on `initialBounds` — a DRILLED admin also has `initialBounds` (the drilled
+  // province bbox) but no personal jurisdiction, so it must read "Vista nacional".
+  const resetViewLabelText = resetViewLabel(boundedJurisdiction);
 
   // task #70 — audience-aware empty-state copy. "en tu cobertura" is GOVT copy;
   // showing it to a universal-scope admin/superadmin (no assigned jurisdiction)
@@ -3596,8 +3608,8 @@ export function SituationalMap({
           <button
             type="button"
             onClick={fitToScope}
-            title={resetViewLabel}
-            aria-label={resetViewLabel}
+            title={resetViewLabelText}
+            aria-label={resetViewLabelText}
             className="pointer-events-auto flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-md hover:bg-ln-op-stripe"
           >
             <svg

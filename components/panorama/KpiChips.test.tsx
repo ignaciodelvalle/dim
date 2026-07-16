@@ -138,9 +138,50 @@ describe("KpiChips — honesty states (unchanged from the interactive era)", () 
     expect(list.parentElement).toHaveAttribute("aria-busy", "true");
   });
 
+  it("Q13: scopeChanging BLANKS the strip (aria-busy) — never the previous scope's values", () => {
+    // A CABA drill must not flash the old national numbers while the refetch is
+    // in flight. Unlike `pending` (scrubber hold), scopeChanging blanks even with
+    // prior values on screen.
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} scopeChanging />);
+    expect(screen.getByText("Actualizando indicadores…")).toHaveAttribute("aria-busy", "true");
+    // The previous scope's headline values are GONE during the transition.
+    expect(screen.queryByText("64%")).not.toBeInTheDocument();
+    expect(screen.queryByText("38%")).not.toBeInTheDocument();
+  });
+
+  it("Q13: pending (scrubber hold) still keeps values — scopeChanging is the ONLY blank path", () => {
+    // Guard against a regression that conflates the two: pending must HOLD.
+    render(<KpiChips kpis={KPIS} metricIds={null} presetId={null} pending />);
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    expect(screen.queryByText("Actualizando indicadores…")).not.toBeInTheDocument();
+  });
+
   it("empty selection renders the no-metrics copy", () => {
     render(<KpiChips kpis={{ ...KPIS, kpis: [] }} metricIds={null} presetId={null} />);
     expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
+  });
+
+  it("Q8: a FLOW KPI (no currentState) carries the 'período' temporal-basis tag", () => {
+    // Every chip must state its basis in the primary body. Stock chips show
+    // "estado actual"; flow chips must show "período" so a stock number and a
+    // period flow never read on the same footing.
+    const flow: PanoramaKpis = {
+      ...KPIS,
+      kpis: [kpi("mordeduras", "Mordeduras", "12")],
+    };
+    render(<KpiChips kpis={flow} metricIds={null} presetId={null} />);
+    expect(screen.getByText("período")).toBeInTheDocument();
+    expect(screen.queryByText("estado actual")).not.toBeInTheDocument();
+  });
+
+  it("Q8: a STOCK KPI (currentState) does NOT carry the 'período' tag", () => {
+    const stock: PanoramaKpis = {
+      ...KPIS,
+      kpis: [kpi("perdidas", "Pérdidas activas", "8", { currentState: true })],
+    };
+    render(<KpiChips kpis={stock} metricIds={null} presetId={null} />);
+    expect(screen.getByText("estado actual")).toBeInTheDocument();
+    expect(screen.queryByText("período")).not.toBeInTheDocument();
   });
 
   it("a STOCK KPI shows the emphasized 'estado actual' tag while a temporal frame is active", () => {

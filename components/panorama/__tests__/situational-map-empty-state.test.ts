@@ -16,6 +16,7 @@ import {
   countRenderableFeatures,
   emptyOverlayMessage,
   hasProvinceChoroplethLayer,
+  resetViewLabel,
 } from "@/components/panorama/situational-map-utils";
 
 // Build an ActiveLayerLike stub with a given set of feature geometries.
@@ -181,5 +182,17 @@ describe("emptyOverlayMessage — degraded layer (panorama QA 2026-07-14)", () =
         emptyStateScope: "en Buenos Aires",
       }),
     ).toBe("Sin datos para esta capa en Buenos Aires.");
+  });
+});
+
+describe("resetViewLabel (Q12)", () => {
+  it("a bounded-jurisdiction govt operator returns to 'mi jurisdicción'", () => {
+    expect(resetViewLabel(true)).toBe("Volver a mi jurisdicción");
+  });
+
+  it("admin/universal (no personal jurisdiction) returns to 'Vista nacional'", () => {
+    // A drilled admin has initialBounds but boundedJurisdiction=false — the copy
+    // must NOT claim a jurisdiction the admin does not have.
+    expect(resetViewLabel(false)).toBe("Vista nacional");
   });
 });

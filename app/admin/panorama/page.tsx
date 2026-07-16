@@ -80,6 +80,11 @@ async function AdminPanoramaBoard({
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
+  // Q12: a govt operator reaching the admin route (requireAdminOrGovtOrRedirect
+  // admits both) with an assigned jurisdiction returns to "mi jurisdicción"; a
+  // true admin (universal, even when drilled into a province) returns to
+  // "Vista nacional".
+  const boundedJurisdiction = profile.role !== "admin" && jurisdictions.length > 0;
 
   const sp = await searchParams;
   // Panorama defaults to a multi-year window (system "started" ~3 years ago) so
@@ -274,6 +279,7 @@ async function AdminPanoramaBoard({
     return (
       <PanoramaShell
         scopeLabel="Nacional · todas las provincias"
+        boundedJurisdiction={boundedJurisdiction}
         layer={layer}
         // perdidas is NOT seeded on the first-visit path — the preset owns the
         // board. Pass an empty envelope so the console has a default (unused).
@@ -346,6 +352,7 @@ async function AdminPanoramaBoard({
   return (
     <PanoramaShell
       scopeLabel="Nacional · todas las provincias"
+      boundedJurisdiction={boundedJurisdiction}
       layer={layer}
       features={result.features}
       truncated={result.truncated}

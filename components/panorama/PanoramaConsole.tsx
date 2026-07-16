@@ -64,6 +64,7 @@ import type {
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { ViewCaption } from "@/components/panorama/ViewCaption";
+import { coalescedGet } from "@/components/panorama/coalesced-get";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
@@ -501,6 +502,16 @@ type Props = {
    * no demo notice (D3 suppression handled by the shell).
    */
   demoNotice?: ReactNode;
+  /**
+   * Q12: TRUE only for an operator whose HOME is a bounded jurisdiction (a govt
+   * actor with assigned jurisdictions). Drives the map's reset-view control:
+   * a bounded operator returns to "mi jurisdicción"; an admin/universal actor
+   * returns to "Vista nacional". Distinct from `initialBounds` because a DRILLED
+   * admin also receives `initialBounds` (the drilled province bbox) yet has no
+   * personal jurisdiction, so keying the label on `initialBounds` mislabels the
+   * control for admin. Undefined/false → admin/universal (national reset copy).
+   */
+  boundedJurisdiction?: boolean;
 };
 
 export function PanoramaConsole({
@@ -525,6 +536,7 @@ export function PanoramaConsole({
   localities: initialLocalities = [],
   aboutSlot,
   demoNotice,
+  boundedJurisdiction = false,
 }: Props) {
   // perf plan 1.2: a first-visit seed is present only when the server handed
   // down BOTH the preset id and at least one layer envelope. Everything below
@@ -846,6 +858,15 @@ export function PanoramaConsole({
   // they no longer reflect the active scope/period. kpisStale surfaces that
   // without touching the no-flash behavior (the last-known kpis stay put).
   const [kpisStale, setKpisStale] = useState(false);
+  // Q13 — flash of stale national KPIs on a scope drill. `kpisPending` means the
+  // scrubber's HOLD-while-revalidate (same scope, same numbers hold), so it must
+  // NOT be reused here: a SCOPE change makes the current numbers belong to the
+  // WRONG jurisdiction, and holding them is a "flash of lies". This distinct flag
+  // is TRUE only while a scope/period change's KPI refetch is in flight; KpiChips
+  // BLANKS (aria-busy placeholder) on it instead of holding the previous scope's
+  // values. Cleared on settle (success or failure), where the strip resolves to
+  // the fresh numbers (success) or the last-known + stale banner (failure).
+  const [kpisScopeChanging, setKpisScopeChanging] = useState(false);
   const qs = searchParams.toString();
   // map-QOL: KPI refetches key on the SCOPE+PERIOD subset only — the shallow
   // board params (layers/level/preset) don't change what the KPIs measure.
@@ -901,6 +922,11 @@ export function PanoramaConsole({
     // (computed for the previous scope) can no longer clobber these fresher
     // numbers when it settles.
     clientKpiTookOverRef.current = true;
+    // Q13: the scope/period changed → the current numbers now belong to the
+    // PREVIOUS scope. Blank the strip (aria-busy) for the in-flight refetch so a
+    // CABA drill never flashes the old national values before the fresh figures
+    // land. Cleared on settle below.
+    setKpisScopeChanging(true);
     let cancelled = false;
     fetch(`/api/panorama/kpis${scopePeriodQs ? `?${scopePeriodQs}` : ""}`, {
       headers: { accept: "application/json" },
@@ -916,12 +942,14 @@ export function PanoramaConsole({
           setKpisStale(true);
         }
         // The client refetch settled → drop the initial streaming pending state
-        // (a no-op once the seed already resolved).
+        // (a no-op once the seed already resolved) and the scope-transition blank.
         setKpisPending(false);
+        setKpisScopeChanging(false);
       })
       .catch((err) => {
         // Superseded fetch (keyed abort) — a newer KPI request is in flight:
-        // not a failure, the fresher response will land instead.
+        // not a failure, the fresher response will land instead (and it owns the
+        // scope-changing flag now, so leave it set).
         if (isAbortError(err)) return;
         // Leave the last-known KPIs in place on a transient failure (no
         // flash) but surface it — this used to be a silent no-op.
@@ -929,6 +957,7 @@ export function PanoramaConsole({
         console.error("[PanoramaConsole] KPI refresh failed", err);
         setKpisStale(true);
         setKpisPending(false);
+        setKpisScopeChanging(false);
       });
     return () => {
       cancelled = true;
@@ -1890,7 +1919,7 @@ export function PanoramaConsole({
       ids: LayerId[],
       lvl: AggregationLevel,
       baseParams: URLSearchParams,
-      opts?: { preserveOnError?: boolean },
+      opts?: { preserveOnError?: boolean; coalesce?: boolean },
     ) => {
       await Promise.all(
         ids.map(async (id) => {
@@ -1904,10 +1933,19 @@ export function PanoramaConsole({
           applyVerifiedParam(params, id);
           try {
             const qsStr = params.toString();
-            const res = await fetch(`/api/panorama/${id}${qsStr ? `?${qsStr}` : ""}`, {
-              headers: { accept: "application/json" },
-              signal: signalFor(id),
-            });
+            const url = `/api/panorama/${id}${qsStr ? `?${qsStr}` : ""}`;
+            const signal = signalFor(id);
+            // Q10: on the INITIAL-load paths (opts.coalesce) dedupe identical
+            // in-flight GETs — React StrictMode dev-remounts the console, and the
+            // second instance's fresh abort registry cannot supersede the first's
+            // in-flight cobertura/zoonosis fetch, so both hit the network. The
+            // module-level URL map coalesces them. The preset-commit path does NOT
+            // opt in: two DIFFERENT preset bursts requesting the same layer must
+            // keep their per-request last-wins abort (a superseded burst's fetch is
+            // observably aborted), which coalescing would collapse.
+            const res = opts?.coalesce
+              ? await coalescedGet(url, signal)
+              : await fetch(url, { headers: { accept: "application/json" }, signal });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = (await res.json()) as ApiResponse;
             if (levelSensitive && lvl === "province") {
@@ -3198,7 +3236,11 @@ export function PanoramaConsole({
 
     if (urlLayerIds !== null) {
       const missing = missingFromCache(urlLayerIds, levelRef.current);
-      if (missing.length > 0) void fetchLayersInto(missing, levelRef.current, current);
+      // Q10: initial-load path — coalesce identical in-flight GETs across a
+      // StrictMode dev-remount (the fresh instance's abort registry cannot
+      // supersede the first's in-flight fetch).
+      if (missing.length > 0)
+        void fetchLayersInto(missing, levelRef.current, current, { coalesce: true });
       return;
     }
 
@@ -3303,7 +3345,10 @@ export function PanoramaConsole({
       return next;
     });
     const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
-    if (toFetch.length > 0) void fetchLayersInto(toFetch, savedLevel, nextParams);
+    // Q10: initial board-restore path — coalesce identical in-flight GETs across
+    // a StrictMode dev-remount.
+    if (toFetch.length > 0)
+      void fetchLayersInto(toFetch, savedLevel, nextParams, { coalesce: true });
     // hasSeed/seededPresetId are mount-stable props; the effect is mount-only
     // (mountInitDoneRef guard), so their inclusion never re-runs it.
   }, [
@@ -4670,6 +4715,7 @@ export function PanoramaConsole({
             onProvinceDrill={canDrillProvince ? onProvinceDrill : undefined}
             onReturnNational={canReturnNational ? onReturnNational : undefined}
             initialBounds={initialBounds}
+            boundedJurisdiction={boundedJurisdiction}
             frameProvinceOnLoad={frameProvinceOnLoad}
             rateProvinceOnlyEmpty={rateProvinceOnlyEmpty}
             layerDegraded={degradedLayerLabels.length > 0}
@@ -4823,6 +4869,9 @@ export function PanoramaConsole({
                 // mode ignores this (metricIds drives the curated set).
                 activeLayerIds={activeLayerIdList}
                 pending={kpisPending}
+                // Q13: a scope/period drill makes the held numbers wrong for the
+                // new jurisdiction — blank (aria-busy) instead of holding them.
+                scopeChanging={kpisScopeChanging}
                 degraded={kpisDegraded}
                 // P2.4 (C2): while the scrubber is off the live edge, emphasize the
                 // "estado actual" tag on stock KPIs so their frozen big number reads

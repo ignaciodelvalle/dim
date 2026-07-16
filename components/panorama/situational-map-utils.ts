@@ -142,6 +142,18 @@ export function emptyOverlayMessage(opts: {
   return `Sin datos para esta capa ${opts.emptyStateScope}.`;
 }
 
+/**
+ * Q12 — copy for the map's reset-view control, named per operator type so the
+ * home-icon tooltip is honest. ONLY a bounded-jurisdiction govt operator returns
+ * to "mi jurisdicción"; admin/universal (including a DRILLED admin, who receives
+ * `initialBounds` but has no personal jurisdiction) returns to "Vista nacional".
+ * Keyed on `boundedJurisdiction`, never on `initialBounds` (a drilled admin has
+ * the latter but not the former).
+ */
+export function resetViewLabel(boundedJurisdiction: boolean): string {
+  return boundedJurisdiction ? "Volver a mi jurisdicción" : "Vista nacional";
+}
+
 // ---------------------------------------------------------------------------
 // A1 — Autozoom viewport helper (PR-7)
 // ---------------------------------------------------------------------------

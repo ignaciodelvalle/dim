@@ -60,6 +60,15 @@ type Props = {
    */
   activeLayerIds?: readonly LayerId[];
   pending?: boolean;
+  /**
+   * Q13: TRUE while a SCOPE/PERIOD drill's KPI refetch is in flight. Distinct
+   * from `pending` (the scrubber's hold-while-revalidate, which KEEPS the current
+   * values because the scope is unchanged): a scope change makes the held numbers
+   * belong to the PREVIOUS jurisdiction, so holding them is a flash of lies. On
+   * this flag the strip BLANKS to an aria-busy placeholder until the fresh figures
+   * for the new scope land — it never shows a value from the old scope.
+   */
+  scopeChanging?: boolean;
   degraded?: boolean;
   /**
    * Cowork QA ronda 3 §5 (C2, P2.4): true while a temporal frame is active
@@ -137,9 +146,14 @@ function KpiCard({
           no corresponde a las capas activas
         </span>
       )}
+      {/* Q8 — unified temporal-basis label: EVERY chip states its basis in the
+          primary card body (not just a hover/footer), so a STOCK number
+          ("8 pérdidas activas") never reads on the same footing as a PERIOD
+          flow ("310 eventos"). Stock → the "estado actual" tag below; flow →
+          the "período" tag here. Wording, not numbers — the value is unchanged. */}
       {/* Coherence hybrid (cowork QA H1 / P2.4): a STOCK KPI does not move with
           the scrubber — say so, emphasized while a temporal frame is active. */}
-      {kpi.currentState && (
+      {kpi.currentState ? (
         <span
           className={`text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] ${
             temporalFrameActive
@@ -149,6 +163,13 @@ function KpiCard({
           title="Valor de estado actual: no cambia con la línea de tiempo (la reproducción mueve el mapa y los indicadores temporales)."
         >
           {temporalFrameActive ? "estado actual · no varía con la fecha" : "estado actual"}
+        </span>
+      ) : (
+        <span
+          className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          title="Valor de flujo del período seleccionado: acumula los eventos dentro de la ventana temporal activa (a diferencia de un valor de estado actual)."
+        >
+          período
         </span>
       )}
       {/* Coherence hybrid (cowork QA H6): the clearly-labeled secondary figure. */}
@@ -167,6 +188,7 @@ export function KpiChips({
   presetId,
   activeLayerIds,
   pending = false,
+  scopeChanging = false,
   degraded = false,
   temporalFrameActive = false,
 }: Props) {
@@ -177,6 +199,22 @@ export function KpiChips({
     return (
       <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-warn">
         No pudimos cargar los indicadores en este momento.
+      </p>
+    );
+  }
+
+  // Q13: a scope/period drill is recomputing the strip — the current values
+  // belong to the PREVIOUS jurisdiction. Blank to an aria-busy placeholder so a
+  // CABA drill never flashes the old national numbers (unlike the scrubber's
+  // `pending`, which legitimately HOLDS same-scope values). Takes precedence over
+  // the hold path below.
+  if (scopeChanging) {
+    return (
+      <p
+        aria-busy="true"
+        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
+      >
+        Actualizando indicadores…
       </p>
     );
   }

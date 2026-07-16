@@ -104,6 +104,14 @@ type Props = {
    */
   seededPresetId?: PresetId;
   seededLayers?: SeededLayer[];
+  /**
+   * Q12: TRUE only for a bounded-jurisdiction govt operator. Forwarded to
+   * PanoramaConsole → SituationalMap so the reset-view control reads "Volver a
+   * mi jurisdicción" ONLY for that operator; admin/universal (including a drilled
+   * admin, who receives `initialBounds` but has no personal jurisdiction) reads
+   * "Vista nacional". Defaults to false.
+   */
+  boundedJurisdiction?: boolean;
 };
 
 export function PanoramaShell({
@@ -125,6 +133,7 @@ export function PanoramaShell({
   defaultPresetId,
   seededPresetId,
   seededLayers,
+  boundedJurisdiction = false,
 }: Props) {
   return (
     // v2C FIXED CONSOLE (PO decision 2026-07-11): LIGHT operator theme on BOTH
@@ -158,6 +167,7 @@ export function PanoramaShell({
         initialKpis={kpis}
         kpisPromise={kpisPromise}
         initialBounds={initialBounds}
+        boundedJurisdiction={boundedJurisdiction}
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}
         initialDivisionProvince={initialDivisionProvince}
