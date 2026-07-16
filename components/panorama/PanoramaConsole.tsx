@@ -432,6 +432,16 @@ type Props = {
    */
   initialDivisionProvince?: string | null;
   /**
+   * The locality SLUG the operator is IMPLICITLY scoped to (single-locality govt
+   * case — e.g. a CABA-barrio operator), when no locality is explicitly selected.
+   * Mirrors `initialDivisionProvince`: folded into the DERIVED scope so
+   * `selectedLocalityCenter` resolves and the map autozooms to the locality on
+   * load, and the level opens at "locality". PRESENTATION-ONLY — the data scope
+   * is unchanged (already enforced server-side by the scoped loaders). Undefined
+   * for whole-province, multi-locality, or admin/national scope.
+   */
+  initialDivisionLocality?: string | null;
+  /**
    * Preset auto-activated on a TRULY-FIRST visit (bare URL, no saved board, no
    * explicit ?preset/?period). Role-aware default: the server passes the vista
    * that matches the operator's urgent question — a jurisdiction (govt) operator
@@ -506,6 +516,7 @@ export function PanoramaConsole({
   initialLevel = "province",
   filtersSlot,
   initialDivisionProvince = null,
+  initialDivisionLocality = null,
   defaultPresetId = DEFAULT_PANORAMA_PRESET_ID,
   seededPresetId,
   seededLayers,
@@ -2816,7 +2827,8 @@ export function PanoramaConsole({
       const hasActiveScope =
         effectiveScopeProvinceRef.current != null ||
         effectiveScopeLocalityRef.current != null ||
-        initialDivisionProvince != null;
+        initialDivisionProvince != null ||
+        initialDivisionLocality != null;
       if (preset.framing && shouldEmitPresetFrame(preset.framing, hasActiveScope)) {
         frameTokenRef.current += 1;
         setPresetFrame({ framing: preset.framing, token: frameTokenRef.current });
@@ -2868,7 +2880,7 @@ export function PanoramaConsole({
         void fetchLayersInto(toFetch, lvl, nextParams);
       }, PRESET_FETCH_DEBOUNCE_MS);
     },
-    [fetchLayersInto, missingFromCache, initialDivisionProvince],
+    [fetchLayersInto, missingFromCache, initialDivisionProvince, initialDivisionLocality],
   );
 
   /** F3: explicit preset click — a back-button-undoable board commit. */
@@ -3017,8 +3029,10 @@ export function PanoramaConsole({
   const derivedProvince = effectiveScopeProvince ?? initialDivisionProvince;
   // effectiveScopeLocality is already orphan-normalized at its source (Fork A,
   // above) — a locality only survives when a province exists somewhere, so this
-  // inherits a coherent value.
-  const derivedLocality = effectiveScopeLocality;
+  // inherits a coherent value. Fall back to the operator's implicit single-
+  // locality scope (initialDivisionLocality) — mirroring derivedProvince — so a
+  // jurisdiction-scoped govt operator opens on their own locality.
+  const derivedLocality = effectiveScopeLocality ?? initialDivisionLocality;
 
   // task #50 P1b — the single canonical PanoramaViewState (read-model). The
   // console's scattered selection inputs are assembled here into ONE value; the
@@ -3206,7 +3220,8 @@ export function PanoramaConsole({
         const hasActiveScope =
           effectiveScopeProvinceRef.current != null ||
           effectiveScopeLocalityRef.current != null ||
-          initialDivisionProvince != null;
+          initialDivisionProvince != null ||
+          initialDivisionLocality != null;
         if (seededPreset?.framing && shouldEmitPresetFrame(seededPreset.framing, hasActiveScope)) {
           frameTokenRef.current += 1;
           setPresetFrame({ framing: seededPreset.framing, token: frameTokenRef.current });
@@ -3299,6 +3314,7 @@ export function PanoramaConsole({
     hasSeed,
     seededPresetId,
     initialDivisionProvince,
+    initialDivisionLocality,
   ]);
 
   const mapLabel = useMemo(() => {
@@ -3710,7 +3726,10 @@ export function PanoramaConsole({
   // (a shallow drill isn't visible to useSearchParams in production), falling
   // back to the operator's implicit single-province scope.
   const selectedProvinceCode = effectiveScopeProvince ?? initialDivisionProvince ?? null;
-  const selectedLocalitySlug = effectiveScopeLocality;
+  // Mirror selectedProvinceCode: an explicit locality drill wins; otherwise the
+  // operator's implicit single-locality scope, so its centroid drives the mount
+  // autozoom (selectedLocalityCenter below) for a jurisdiction-scoped operator.
+  const selectedLocalitySlug = effectiveScopeLocality ?? initialDivisionLocality ?? null;
   // Click-to-drill (task #55) gating:
   //  - a province drill is offered only to operators NOT pinned to a jurisdiction
   //    (admin/universal, initialDivisionProvince null) — a scoped govt operator

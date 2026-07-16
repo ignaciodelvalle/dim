@@ -79,6 +79,13 @@ type Props = {
    */
   initialDivisionProvince?: string | null;
   /**
+   * Locality SLUG the operator is IMPLICITLY scoped to (single-locality govt
+   * case). Forwarded to PanoramaConsole so the map autozooms to the locality on
+   * mount and the level opens at "locality". Presentation-only; undefined for
+   * whole-province / multi-locality / admin scope.
+   */
+  initialDivisionLocality?: string | null;
+  /**
    * Role-aware default vista auto-activated on a first visit (bare URL). The
    * page resolves it from the operator's role: a jurisdiction (govt) operator
    * opens on local syndromic surveillance; admin keeps the national default.
@@ -114,6 +121,7 @@ export function PanoramaShell({
   suppressDemoDisclosure = false,
   initialLevel = "province",
   initialDivisionProvince,
+  initialDivisionLocality,
   defaultPresetId,
   seededPresetId,
   seededLayers,
@@ -153,6 +161,7 @@ export function PanoramaShell({
         localityCentroids={localityCentroids}
         initialLevel={initialLevel}
         initialDivisionProvince={initialDivisionProvince}
+        initialDivisionLocality={initialDivisionLocality}
         defaultPresetId={defaultPresetId}
         seededPresetId={seededPresetId}
         seededLayers={seededLayers}

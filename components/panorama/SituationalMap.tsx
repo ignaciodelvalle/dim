@@ -766,6 +766,11 @@ export function SituationalMap({
   // divisions loaded (the provinces basemap is the only geometry).
   const selectedProvinceRef = useRef(selectedProvinceCode);
   selectedProvinceRef.current = selectedProvinceCode;
+  // Ref mirror of the selected locality centroid — read by the one-time load
+  // handler (below) so a jurisdiction-scoped operator's initial frame flies to
+  // their own locality, not just the province polygon.
+  const selectedLocalityCenterRef = useRef(selectedLocalityCenter);
+  selectedLocalityCenterRef.current = selectedLocalityCenter;
   // H14: whether to frame the selected province polygon on load (see the prop doc).
   const frameProvinceOnLoadRef = useRef(frameProvinceOnLoad);
   frameProvinceOnLoadRef.current = frameProvinceOnLoad;
@@ -1235,7 +1240,24 @@ export function SituationalMap({
         // Prefer the server-computed jurisdiction bbox (govt) over the
         // data-extent bbox (admin/national). Falls back to the data-extent
         // when no initialBounds was supplied (admin = national view).
-        const bbox = initialBoundsRef.current ?? layersBbox(layersRef.current);
+        let bbox = initialBoundsRef.current ?? layersBbox(layersRef.current);
+        // Widest-jurisdiction default: a jurisdiction-scoped operator whose
+        // server bbox is null (no initialBounds AND the active layer draws no
+        // data extent — e.g. a choropleth with null geometry) would otherwise
+        // leave nationalBboxRef null, so BOTH this initial frame AND any later
+        // national-vista (computePresetFrameViewport reads nationalBboxRef) fall
+        // back to the whole-country AR_BBOX — yanking a scoped operator out to
+        // the national view. Derive the operator's own extent from the loaded
+        // province polygon so nationalBboxRef holds THEIR extent, never AR_BBOX.
+        if (bbox == null && selectedProvinceRef.current && basemapFeaturesRef.current.length > 0) {
+          const vp = computeJurisdictionViewport(
+            selectedProvinceRef.current,
+            null,
+            basemapFeaturesRef.current,
+            AR_BBOX,
+          );
+          if (vp.kind === "fitBounds") bbox = vp.bbox;
+        }
         if (bbox) {
           // A1 PR-7: store as the national fallback for subsequent autozoom.
           nationalBboxRef.current = bbox;
@@ -1261,6 +1283,10 @@ export function SituationalMap({
           // polygon on load — the drill committed via navigation, so the reloaded
           // map must land fitted to the province, not the national data extent.
           let frameBbox = bbox;
+          // A single-locality scoped operator flies to their locality centroid
+          // (computeJurisdictionViewport returns a `flyTo` for a locality center);
+          // captured here so it wins over the province fitBounds below.
+          let localityFly: { center: [number, number]; zoom: number } | null = null;
           if (
             // H14: an explicit deep-linked province frames its polygon on load even
             // when a server initialBounds was supplied (admin ?province derives a
@@ -1272,11 +1298,12 @@ export function SituationalMap({
           ) {
             const vp = computeJurisdictionViewport(
               selectedProvinceRef.current,
-              null,
+              selectedLocalityCenterRef.current,
               basemapFeaturesRef.current,
               bbox ?? AR_BBOX,
             );
             if (vp.kind === "fitBounds") frameBbox = vp.bbox;
+            else localityFly = { center: vp.center, zoom: vp.zoom };
           } else if (pendingFrameRef.current != null) {
             // P4c (task_ccc31326): a pre-load preset frame (a `?preset=`
             // deep-link to a national-framed vista) buffered by the [frame]
@@ -1289,7 +1316,9 @@ export function SituationalMap({
             );
             if (vp?.kind === "fitBounds") frameBbox = vp.bbox;
           }
-          if (frameBbox) {
+          if (localityFly) {
+            map.flyTo({ center: localityFly.center, zoom: localityFly.zoom, animate: false });
+          } else if (frameBbox) {
             map.fitBounds(frameBbox, {
               padding: FRAME_PADDING,
               animate: false,

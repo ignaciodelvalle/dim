@@ -4,8 +4,8 @@ import { PanoramaBoardSkeleton } from "@/components/panorama/PanoramaBoardSkelet
 import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
-import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
+import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
+import { isWholeProvinceLocality, narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
 import {
   listLocalitiesByProvince,
   listLocalityCentroids,
@@ -18,7 +18,7 @@ import {
 import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
-import { provinceByCode } from "@/lib/reference/ar-provincias";
+import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -51,6 +51,52 @@ function scopeLabel(role: string, jurisdictions: AdminOrGovtJurisdiction[]): str
     return localities.length <= 2 ? `${provinces[0]} · ${localities.join(", ")}` : provinces[0];
   }
   return provinces.length <= 3 ? provinces.join(", ") : `${provinces.length} provincias`;
+}
+
+/**
+ * BUG FIX (widest-jurisdiction default): derive the operator's WIDEST jurisdiction
+ * so the initial view defaults to it instead of the whole country.
+ *
+ * Robust by construction: province names are resolved with the ALIAS-TOLERANT
+ * `provinceByName` (NOT the alias-fragile PROVINCE_ISO_MAP, which lacks the CABA
+ * long-form key and would silently empty the set — dropping even a single-province
+ * operator to national). Whole-province markers subsume their localities, so a
+ * whole-CABA assignment seeds the province, never a spurious locality.
+ *
+ * Returns:
+ *  - `{ provinceCode: null }` — 0 jurisdictions (admin/universal) OR the scope
+ *    genuinely spans >1 province → national default.
+ *  - `{ provinceCode, localityName: null }` — exactly 1 province, but a
+ *    whole-province marker or multiple distinct localities → seed the province.
+ *  - `{ provinceCode, localityName }` — exactly 1 province and exactly 1 specific
+ *    locality → seed province + locality.
+ */
+function deriveWidestJurisdiction(jurisdictions: AdminOrGovtJurisdiction[]): {
+  provinceCode: string | null;
+  localityName: string | null;
+} {
+  const provinceCodes = new Set<string>();
+  for (const j of jurisdictions) {
+    const code = provinceByName(j.province)?.code;
+    if (code) provinceCodes.add(code);
+  }
+  if (provinceCodes.size !== 1) return { provinceCode: null, localityName: null };
+  const [provinceCode] = [...provinceCodes];
+
+  // A whole-province assignment governs the entire province → seed the province,
+  // never a locality (it subsumes every locality/barrio within it).
+  const hasWholeProvince = jurisdictions.some((j) =>
+    isWholeProvinceLocality(j.province, j.locality),
+  );
+  const specificLocalities = new Set(
+    jurisdictions
+      .filter((j) => j.locality && !isWholeProvinceLocality(j.province, j.locality))
+      .map((j) => j.locality),
+  );
+  if (!hasWholeProvince && specificLocalities.size === 1) {
+    return { provinceCode, localityName: [...specificLocalities][0] };
+  }
+  return { provinceCode, localityName: null };
 }
 
 type PanoramaSearchParams = Promise<{
@@ -110,16 +156,44 @@ async function GobPanoramaBoard({
   })();
 
   const provinceObj = sp.province ? provinceByCode(sp.province) : null;
-  const [localities, localityCentroids] = provinceObj
+
+  // BUG FIX (widest-jurisdiction default): the operator's widest jurisdiction,
+  // derived robustly from their assignments (see helper). Admin (no assignments)
+  // and multi-province operators resolve to national. PRESENTATION-ONLY — this
+  // seeds the client `initialDivision*` props, NEVER a server redirect to
+  // ?province/?locality (that would re-enter narrowGovtScope and could loop with
+  // the client mount-seed). The DATA scope stays enforced by the scoped loaders.
+  const widest =
+    profile.role !== "admin"
+      ? deriveWidestJurisdiction(jurisdictions)
+      : { provinceCode: null as string | null, localityName: null as string | null };
+
+  // The province whose localities/centroids the console needs: an explicit URL
+  // drill wins; otherwise the operator's implicit single-province jurisdiction so
+  // a scoped operator's division outlines + locality autozoom resolve on mount.
+  const scopeProvinceCode: ProvinceCode | null =
+    (provinceObj?.code as ProvinceCode | undefined) ?? (widest.provinceCode as ProvinceCode | null);
+  const [localities, localityCentroids] = scopeProvinceCode
     ? await Promise.all([
-        listLocalitiesByProvince(provinceObj.code as ProvinceCode),
-        listLocalityCentroids(provinceObj.code as ProvinceCode),
+        listLocalitiesByProvince(scopeProvinceCode),
+        listLocalityCentroids(scopeProvinceCode),
       ])
     : [[], {}];
   const localityRow =
     provinceObj && sp.locality
       ? await localityByName(provinceObj.code as ProvinceCode, sp.locality)
       : null;
+
+  // BUG FIX: single-locality operator → resolve the locality NAME to its SLUG so
+  // the console can seed `selectedLocalityCenter` (the console keys centroids by
+  // slug) and autozoom to it on load. Only when the URL didn't already pin a
+  // province (an explicit drill owns the view). Reuses the alias-tolerant
+  // localityByName resolver, so the slug always matches the loaded centroid map.
+  const seedLocalityRow =
+    !provinceObj && widest.localityName && scopeProvinceCode
+      ? await localityByName(scopeProvinceCode, widest.localityName)
+      : null;
+  const initialDivisionLocality = seedLocalityRow?.localitySlug ?? undefined;
 
   // Intersect the selected province/locality with the user's actual assignments
   // so a govt user cannot widen scope by crafting ?province=&locality= params.
@@ -139,11 +213,15 @@ async function GobPanoramaBoard({
     profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
   // allowedProvinces: admin → all 24; govt → derive from assigned jurisdictions.
+  // Resolve each province code with the ALIAS-TOLERANT provinceByName (not the
+  // alias-fragile PROVINCE_ISO_MAP, which lacked the CABA long-form key and could
+  // empty the set — dropping a single-province operator to national). The display
+  // name stays the operator's stored name for switcher continuity.
   const allowedProvinces =
     profile.role === "admin"
       ? GOB_ALL_PROVINCES
       : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
+          .map((name) => ({ code: provinceByName(name)?.code ?? "", name }))
           .filter((p) => p.code !== "");
 
   // Single-province govt scope: the operator's assignments all fall within ONE
@@ -156,10 +234,9 @@ async function GobPanoramaBoard({
   // mount, exactly as an explicit ?province selection would. Multi-province or
   // admin/national scope → undefined (provinces basemap until an explicit pick).
   // PRESENTATION-ONLY: the data scope is unchanged (scoped loaders enforce it).
-  const initialDivisionProvince =
-    profile.role !== "admin" && allowedProvinces.length === 1
-      ? allowedProvinces[0].code
-      : undefined;
+  // Derived from the robust widest-jurisdiction resolution (provinceByName) so an
+  // alias-form province name can never empty it and drop the operator to national.
+  const initialDivisionProvince = widest.provinceCode ?? undefined;
 
   // Role-aware default vista (audit-ratified 2026-07-09): the first-visit preset
   // follows the operator's urgent question. A jurisdiction (govt) operator opens
@@ -300,6 +377,7 @@ async function GobPanoramaBoard({
         initialBounds={initialBounds ?? undefined}
         initialLevel={seedLevel}
         initialDivisionProvince={initialDivisionProvince}
+        initialDivisionLocality={initialDivisionLocality}
         defaultPresetId={defaultPresetId}
         seededPresetId={preset.id}
         seededLayers={seededLayers}
@@ -371,6 +449,7 @@ async function GobPanoramaBoard({
       initialBounds={initialBounds ?? undefined}
       initialLevel={initialLevel}
       initialDivisionProvince={initialDivisionProvince}
+      initialDivisionLocality={initialDivisionLocality}
       defaultPresetId={defaultPresetId}
     />
   );
