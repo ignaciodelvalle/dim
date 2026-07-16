@@ -8,8 +8,11 @@ import {
   formatDelta,
   formatPercent,
   formatRate,
+  isoToArDateDisplay,
+  maskArDateInput,
   notificationTypeLabel,
   nowLocalDatetimeInAr,
+  parseArDateToIso,
   rabiesObservationOutcomeLabel,
   relativeDaysShort,
   todayIsoInAr,
@@ -309,5 +312,76 @@ describe("nowLocalDatetimeInAr", () => {
     expect(arNow).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
     // 03:05Z - 3h = 00:05 AR, not "0:05" or "24:05".
     expect(arNow).toBe("2026-07-15T00:05");
+  });
+});
+
+// Browser-independent dd/mm/aaaa date entry (DateInputAr backing helpers).
+// The whole point of this control is that an es-AR operator's "03/07" is always
+// 3-July, never mm/dd 7-March, on every browser — so parsing must be strict and
+// leap-aware, and the round-trip ISO<->display must be lossless.
+describe("isoToArDateDisplay", () => {
+  it("renders ISO yyyy-mm-dd as dd/mm/aaaa", () => {
+    expect(isoToArDateDisplay("2026-07-03")).toBe("03/07/2026");
+    expect(isoToArDateDisplay("2024-02-29")).toBe("29/02/2024");
+  });
+
+  it("returns empty string for empty or non-ISO input", () => {
+    expect(isoToArDateDisplay(null)).toBe("");
+    expect(isoToArDateDisplay(undefined)).toBe("");
+    expect(isoToArDateDisplay("")).toBe("");
+    expect(isoToArDateDisplay("03/07/2026")).toBe("");
+    expect(isoToArDateDisplay("2026-7-3")).toBe("");
+  });
+});
+
+describe("parseArDateToIso", () => {
+  it("parses a valid dd/mm/aaaa to ISO — 03/07 is 3-July, not 7-March", () => {
+    expect(parseArDateToIso("03/07/2026")).toBe("2026-07-03");
+    expect(parseArDateToIso("31/12/2025")).toBe("2025-12-31");
+    expect(parseArDateToIso(" 01/01/2026 ")).toBe("2026-01-01");
+  });
+
+  it("accepts a real leap day but rejects a non-leap 29 Feb", () => {
+    expect(parseArDateToIso("29/02/2024")).toBe("2024-02-29");
+    expect(parseArDateToIso("29/02/2025")).toBeNull();
+  });
+
+  it("rejects impossible dates", () => {
+    expect(parseArDateToIso("32/01/2026")).toBeNull();
+    expect(parseArDateToIso("00/01/2026")).toBeNull();
+    expect(parseArDateToIso("15/13/2026")).toBeNull();
+    expect(parseArDateToIso("15/00/2026")).toBeNull();
+    expect(parseArDateToIso("31/04/2026")).toBeNull(); // April has 30 days
+  });
+
+  it("rejects malformed or empty input", () => {
+    expect(parseArDateToIso(null)).toBeNull();
+    expect(parseArDateToIso("")).toBeNull();
+    expect(parseArDateToIso("3/7/2026")).toBeNull(); // not zero-padded
+    expect(parseArDateToIso("2026-07-03")).toBeNull(); // ISO, not display
+    expect(parseArDateToIso("abc")).toBeNull();
+  });
+
+  it("round-trips ISO -> display -> ISO losslessly", () => {
+    for (const iso of ["2026-07-03", "2024-02-29", "2025-12-31", "2026-01-01"]) {
+      expect(parseArDateToIso(isoToArDateDisplay(iso))).toBe(iso);
+    }
+  });
+});
+
+describe("maskArDateInput", () => {
+  it("inserts slashes progressively as digits are typed", () => {
+    expect(maskArDateInput("0")).toBe("0");
+    expect(maskArDateInput("03")).toBe("03");
+    expect(maskArDateInput("037")).toBe("03/7");
+    expect(maskArDateInput("0307")).toBe("03/07");
+    expect(maskArDateInput("03072")).toBe("03/07/2");
+    expect(maskArDateInput("03072026")).toBe("03/07/2026");
+  });
+
+  it("strips non-digits and caps at 8 digits", () => {
+    expect(maskArDateInput("03/07/2026")).toBe("03/07/2026");
+    expect(maskArDateInput("ab03cd07")).toBe("03/07");
+    expect(maskArDateInput("030720261234")).toBe("03/07/2026");
   });
 });

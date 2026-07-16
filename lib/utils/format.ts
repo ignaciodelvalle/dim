@@ -165,6 +165,71 @@ export function nowLocalDatetimeInAr(now: Date = new Date()): string {
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
+// ---------------------------------------------------------------------------
+// Browser-independent dd/mm/aaaa date entry (operator filter surfaces)
+// ---------------------------------------------------------------------------
+//
+// Native `<input type="date">` renders its VISIBLE text per the browser's OS
+// locale, not per any attribute we control. `lang="es-AR"` only nudges
+// Chromium; Safari/Firefox ignore it and show mm/dd/yyyy on an en-US machine.
+// An es-AR operator then reads "03/07" as 7-March while the browser meant
+// 3-July → the submitted range is silently wrong. These helpers back a
+// hand-rolled dd/mm/aaaa text input (DateInputAr) that displays identically on
+// EVERY browser and still emits an ISO `yyyy-mm-dd` value for the query.
+//
+// All three are pure (no DOM) and unit-tested.
+
+const AR_DATE_DISPLAY_RE = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+const ISO_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * ISO `yyyy-mm-dd` → es-AR display `dd/mm/aaaa`. Returns "" for empty or
+ * non-ISO input (so a blank/garbage default renders as an empty field, never
+ * a broken string).
+ */
+export function isoToArDateDisplay(value: string | null | undefined): string {
+  if (!value) return "";
+  const m = value.match(ISO_DATE_RE);
+  if (!m) return "";
+  const [, yyyy, mm, dd] = m;
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/**
+ * es-AR display `dd/mm/aaaa` → ISO `yyyy-mm-dd`, or `null` when the string is
+ * empty, malformed, or an impossible calendar date (32/13/2026, 31/02/2026,
+ * 29/02/2025). Validates the day against the real length of the given month so
+ * a wrong range can be CLEARED instead of submitted.
+ */
+export function parseArDateToIso(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const m = value.trim().match(AR_DATE_DISPLAY_RE);
+  if (!m) return null;
+  const [, dd, mm, yyyy] = m;
+  const day = Number(dd);
+  const month = Number(mm);
+  const year = Number(yyyy);
+  if (month < 1 || month > 12) return null;
+  if (year < 1) return null;
+  // day 0 of the NEXT month (1-based `month` as the 0-based index of the month
+  // after) is the last day of the target month — the real length, leap-aware.
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day < 1 || day > daysInMonth) return null;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
+ * Progressive input mask for dd/mm/aaaa: keeps only digits (max 8) and inserts
+ * the slashes as the operator types, so the field always reads dd, dd/mm, or
+ * dd/mm/aaaa. Pure string transform — no validation (that is `parseArDateToIso`).
+ */
+export function maskArDateInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 export function speciesLabel(species: string): string {
   switch (species) {
     case "dog":
