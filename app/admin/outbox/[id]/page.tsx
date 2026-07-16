@@ -19,7 +19,7 @@ import {
   OpCrumbs,
   OpPill,
 } from "@/components/ui/dashboard";
-import { db, eventNotificationOutbox, petEvents } from "@/db";
+import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
@@ -86,6 +86,17 @@ export default async function AdminOutboxDetailPage({
     .from(petEvents)
     .where(eq(petEvents.id, row.sourceEventId))
     .limit(1);
+
+  // W3: resolve the source event's pet to a human label + public credential link
+  // so the "Evento origen" card leads with "Mascota: <nombre>" instead of a bare
+  // UUID. The raw ids stay available under the "Detalle técnico" disclosure below.
+  const [petRow] = sourceEvent
+    ? await db
+        .select({ publicToken: pets.publicToken, name: pets.name })
+        .from(pets)
+        .where(eq(pets.id, sourceEvent.petId))
+        .limit(1)
+    : [];
 
   const cue = buildBreachCue(row.status, row.slaDueAt);
   const jurisdiction = [row.targetJurisdictionLocality, row.targetJurisdictionProvince]
@@ -189,6 +200,19 @@ export default async function AdminOutboxDetailPage({
           {sourceEvent ? (
             <>
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {petRow && (
+                  <>
+                    <dt className="text-sm text-ln-op-mute">Mascota</dt>
+                    <dd className="text-[13px]">
+                      <Link
+                        href={`/p/${petRow.publicToken}`}
+                        className="text-ln-op-azul underline underline-offset-2 hover:opacity-80"
+                      >
+                        {petRow.name}
+                      </Link>
+                    </dd>
+                  </>
+                )}
                 <dt className="text-sm text-ln-op-mute">Tipo</dt>
                 <dd>
                   <OpCodeBadge tone="blue">
@@ -204,27 +228,43 @@ export default async function AdminOutboxDetailPage({
                   {sourceEvent.authorRole}
                   {sourceEvent.authorVerified && <OpPill tone="ok">verificado</OpPill>}
                 </dd>
-                {sourceEvent.authorOrganizationId && (
-                  <>
-                    <dt className="text-sm text-ln-op-mute">Organizacion</dt>
-                    <dd className="font-mono text-[11px] text-ln-op-mute">
-                      {sourceEvent.authorOrganizationId}
-                    </dd>
-                  </>
-                )}
-                {sourceEvent.recordedByUserId && (
-                  <>
-                    <dt className="text-sm text-ln-op-mute">Usuario</dt>
-                    <dd className="font-mono text-[11px] text-ln-op-mute">
-                      {sourceEvent.recordedByUserId}
-                    </dd>
-                  </>
-                )}
-                <dt className="text-sm text-ln-op-mute">Pet ID</dt>
-                <dd className="font-mono text-[11px] text-ln-op-mute">{sourceEvent.petId}</dd>
-                <dt className="text-sm text-ln-op-mute">Event ID</dt>
-                <dd className="font-mono text-[11px] text-ln-op-mute">{sourceEvent.id}</dd>
               </dl>
+
+              {/* W3: raw identifiers are UUID soup for a human triaging a breach.
+                  Keep them available (an operator sometimes needs the exact id for
+                  a support trace) but collapsed by default so the card leads with
+                  the human context above. */}
+              <details className="mt-3">
+                <summary className="cursor-pointer text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+                  Detalle técnico
+                </summary>
+                <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                  {sourceEvent.authorOrganizationId && (
+                    <>
+                      <dt className="text-sm text-ln-op-mute">Organización</dt>
+                      <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                        {sourceEvent.authorOrganizationId}
+                      </dd>
+                    </>
+                  )}
+                  {sourceEvent.recordedByUserId && (
+                    <>
+                      <dt className="text-sm text-ln-op-mute">Usuario</dt>
+                      <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                        {sourceEvent.recordedByUserId}
+                      </dd>
+                    </>
+                  )}
+                  <dt className="text-sm text-ln-op-mute">Pet ID</dt>
+                  <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                    {sourceEvent.petId}
+                  </dd>
+                  <dt className="text-sm text-ln-op-mute">Event ID</dt>
+                  <dd className="font-mono text-[11px] text-ln-op-mute break-all">
+                    {sourceEvent.id}
+                  </dd>
+                </dl>
+              </details>
 
               {/* Event payload — the canonical record of what actually happened */}
               <div className="space-y-1 pt-3">
@@ -252,10 +292,8 @@ export default async function AdminOutboxDetailPage({
           body={
             <span className="space-y-2 block">
               <span className="block">
-                Este botón no entrega la notificación de forma sincrónica. Resetea{" "}
-                <code className="font-mono text-xs">next_retry_at = now()</code> y{" "}
-                <code className="font-mono text-xs">status = pending</code> para que el cron de
-                drenaje lo procese en el próximo ciclo (máximo 5 min).
+                Este botón no entrega la notificación al instante. La vuelve a poner en cola para
+                que el sistema la reintente en el próximo ciclo de envío (máximo 5 minutos).
               </span>
               <RetryOutboxButton rowId={row.id} />
             </span>

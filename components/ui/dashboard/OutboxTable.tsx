@@ -172,7 +172,19 @@ export function OutboxTable({
                     </span>
                   )}
                 </td>
-                <td className="py-2 px-3 text-sm text-ln-op-ink-2 text-center">{row.attempts}</td>
+                <td className="py-2 px-3 text-sm text-ln-op-ink-2 text-center">
+                  {/* W3: attempts=0 means the drainer never touched this row yet.
+                      Rendering a bare "0" on a delivered/breached row read as a
+                      real (confusing) attempt count. Show an em dash for
+                      never-attempted; the number only once there is one. */}
+                  {row.attempts === 0 ? (
+                    <span className="text-ln-op-mute" title="Sin intentos de entrega todavía">
+                      —
+                    </span>
+                  ) : (
+                    row.attempts
+                  )}
+                </td>
                 <td className="py-2 px-3 text-[11px] text-ln-op-mute whitespace-nowrap">
                   {formatDateTime(row.createdAt)}
                 </td>

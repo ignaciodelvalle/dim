@@ -176,13 +176,17 @@ export function AdminKpiStrip({
           return (
             <OpKpi
               label="SLA ENO"
-              value={hasBreach ? `${eno.breachedOpen} en incumplimiento` : pctLabel}
+              // W3: when there is an open breach LEAD with the live, actionable
+              // "N vencidas ahora" — the historical % (which counts only delivered
+              // rows) reads as "todo bien" and must never be the headline while
+              // notifications sit past their SLA. Plain es-AR, no jargon.
+              value={hasBreach ? `${eno.breachedOpen} vencidas ahora` : pctLabel}
               tone={enoSlaTone(eno)}
               sub={
                 hasBreach
                   ? eno.onTimePct !== null
-                    ? `Cumplimiento histórico ${pctLabel} de las entregadas · ${eno.breachedOpen} vencidas AHORA`
-                    : `Sin entregas en el período · ${eno.breachedOpen} vencidas AHORA`
+                    ? `Cumplimiento histórico ${pctLabel} de las entregadas (referencia)`
+                    : "Sin entregas en el período"
                   : eno.total > 0
                     ? eno.onTimePct !== null
                       ? `${pctLabel} de las entregadas a tiempo · sin vencidas`
