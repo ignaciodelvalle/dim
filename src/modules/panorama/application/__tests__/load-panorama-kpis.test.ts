@@ -35,6 +35,7 @@ vi.mock("@/lib/metrics/freshness", () => ({
 vi.mock("@/lib/analytics/compliance-metrics", () => ({
   fetchReunificationRate: vi.fn(),
   fetchMicrochipPenetration: vi.fn(),
+  fetchDangerousBreedCompliance: vi.fn(),
 }));
 vi.mock("@/lib/metrics/trends", () => ({
   fetchRabiesVaccinationTrend: vi.fn(),
@@ -45,9 +46,11 @@ vi.mock("@/lib/metrics/trends", () => ({
 // call — mock it so the loader's real getPanoramaKpis never touches the DB here.
 vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadZoonosisSignalScopeTotal: vi.fn().mockResolvedValue(7),
+  loadMortalityByProvince: vi.fn().mockResolvedValue({ cells: [] }),
 }));
 
 import {
+  fetchDangerousBreedCompliance,
   fetchMicrochipPenetration,
   fetchReunificationRate,
 } from "@/lib/analytics/compliance-metrics";
@@ -119,6 +122,11 @@ function seedDefaults() {
     chipped: 551,
     active: 1000,
     byLocality: { value: [] as never, suppressedCount: 0 },
+  });
+  vi.mocked(fetchDangerousBreedCompliance).mockResolvedValue({
+    ratePct: 40,
+    attested: 8,
+    flaggedCount: 20,
   });
   const emptyTrend = { granularity: "month" as const, points: [], suppressedCount: 0 };
   vi.mocked(fetchRabiesVaccinationTrend).mockResolvedValue(emptyTrend);
