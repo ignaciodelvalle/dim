@@ -15,6 +15,7 @@
 //      collect receiver coordinator notifications + sender notification
 //   8. Return UseCaseResult<{ publicCode }> + notifications
 
+import type { OpenedReasonParams } from "@/src/modules/cases/domain/opened-reason";
 import {
   validateCrossOrgReason,
   validateOrgTokenMatch,
@@ -134,7 +135,12 @@ export async function proposeCrossOrgTransfer(
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
           receiverOrganizationId: receiver.id,
-          openedReason: `auto: cross-org transfer proposed reason=${input.reason}`,
+          openedReason: {
+            code: "cross_org_transfer_proposed",
+            // validateCrossOrgReason (line ~83) already checked this against
+            // CROSS_ORG_ALLOWED_REASONS; the input type is just still `string`.
+            reason: input.reason as OpenedReasonParams<"cross_org_transfer_proposed">["reason"],
+          },
         },
         tx as Parameters<typeof repo.openHandshakeCase>[1],
       );

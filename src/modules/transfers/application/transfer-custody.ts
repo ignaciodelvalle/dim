@@ -152,7 +152,10 @@ export async function transferCustody(
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
           receiverOrganizationId: destination.id,
-          openedReason: `auto: direct custody handoff to_role=${toRole}`,
+          // The writer that started all of this: it had no regex rule for
+          // months, so it rendered "Apertura automática — direct custody
+          // handoff to_role=owner" on the change of legal responsible.
+          openedReason: { code: "custody_handoff_direct", toRole },
         },
         tx as Parameters<typeof repo.openHandshakeCase>[1],
       );

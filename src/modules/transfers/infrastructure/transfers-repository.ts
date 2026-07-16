@@ -20,6 +20,7 @@ import {
 } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -80,7 +81,7 @@ type OpenHandshakeCaseArgs = {
   openedByUserId: string;
   openedByOrganizationId: string;
   receiverOrganizationId: string;
-  openedReason: string;
+  openedReason: OpenedReason;
 };
 
 // ---------------------------------------------------------------------------
