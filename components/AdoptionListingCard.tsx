@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { sterilizedLabel } from "@/lib/utils/format";
 import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // Single source of truth for the adoption-listing pet card. Consumed by:
@@ -45,7 +46,9 @@ export function AdoptionListingCard({
   if (item.adoptionSizeEstimate) facts.push(sizeLabel(item.adoptionSizeEstimate));
   if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel, item.sex));
 
-  const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
+  // Shared so all four surfaces agree, and so an unknown-sex pet reads
+  // "Castrado/a" instead of being silently called male.
+  const sterilizedText = sterilizedLabel(item.sex);
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   const isNew = Date.now() - new Date(item.adoptionListedAt).getTime() < SEVEN_DAYS_MS;
 
@@ -78,7 +81,7 @@ export function AdoptionListingCard({
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
-                  {sterilizedLabel}
+                  {sterilizedText}
                 </span>
               )}
               {item.microchipId && (

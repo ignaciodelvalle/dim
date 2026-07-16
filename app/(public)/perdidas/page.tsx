@@ -10,6 +10,7 @@ import {
 } from "@/lib/infra/lost-listing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { sterilizedLabel } from "@/lib/utils/format";
 import {
   countAllLost,
   countLostInWindow,
@@ -312,7 +313,9 @@ function LostListingCard({ item }: { item: LostListingItem }) {
   const timeLabel = lostTimeLabel(item.markedLostAt);
   const lostFemale = item.sex === "female";
   const lostWord = lostFemale ? "Perdida" : "Perdido";
-  const sterilizedLabel = lostFemale ? "Castrada" : "Castrado";
+  // Shared so all four surfaces agree, and so an unknown-sex pet reads
+  // "Castrado/a" instead of being silently called male.
+  const sterilizedText = sterilizedLabel(item.sex);
 
   // Urgency colour grading uses LN semantic tokens only:
   //   critical  → ln-err   (bright red)
@@ -393,7 +396,7 @@ function LostListingCard({ item }: { item: LostListingItem }) {
               <span className="text-[var(--color-ln-celeste)] font-medium">Con chip</span>
             )}
             {item.isSterilized && (
-              <span className="text-[var(--color-ln-ok)] font-medium">{sterilizedLabel}</span>
+              <span className="text-[var(--color-ln-ok)] font-medium">{sterilizedText}</span>
             )}
             <span className="flex-1" />
             <span className="text-[var(--color-ln-err)] font-semibold">Ver credencial →</span>

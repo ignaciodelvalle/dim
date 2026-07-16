@@ -292,6 +292,7 @@ describe("/p/[publicToken] — #16a streaming + next/image", () => {
     );
     const node = await CredentialTier2Medical({
       petId: "pet-strm-1",
+      sex: "female",
       species: "dog" as never,
       jurisdictionProvince: null,
       jurisdictionLocality: null,

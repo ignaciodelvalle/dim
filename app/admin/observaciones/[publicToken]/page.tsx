@@ -97,7 +97,7 @@ export default async function ObservationDetailPage({
         <p className="text-[13px] text-ln-op-ink-2">
           {"Como "}
           {profile.role === "admin" ? "administrador" : "autoridad sanitaria"}
-          {", podés cerrar con cualquier outcome."}
+          {", podés cerrar con cualquier resultado."}
         </p>
       </header>
 

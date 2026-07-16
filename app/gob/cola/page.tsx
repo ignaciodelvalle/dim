@@ -69,7 +69,7 @@ export default async function ColaPage({
 
   const subtitle =
     pending.length === 0
-      ? "No hay solicitudes pendientes en tu scope."
+      ? "No hay solicitudes pendientes en tu jurisdicción."
       : `${pending.length}${hasMore ? "+" : ""} solicitud${pending.length === 1 ? "" : "es"} pendiente${pending.length === 1 ? "" : "s"}.`;
 
   // Pagination links — filter params exclude cursor so changing a filter resets to page 1.

@@ -18,6 +18,7 @@ import {
   type PermanentCondition,
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
+import { sterilizedLabel } from "@/lib/utils/format";
 
 interface Props {
   /** When the bounded window closes. Null when permanent ("siempre" option). */
@@ -38,6 +39,8 @@ interface Props {
   hasVaccineRecords: boolean;
   /** Pet has at least one sterilization_performed event. */
   isSterilized: boolean;
+  /** Pet sex — the sterilization line agrees in gender rather than saying "Castrado/a". */
+  sex: string;
   /** Names of currently-active medications (started without a stop). */
   activeMedications: string[];
   /** From pet.permanent_conditions — already on the row, no extra query. */
@@ -51,6 +54,7 @@ export function Tier2MedicalView({
   vaccineSummary,
   hasVaccineRecords,
   isSterilized,
+  sex,
   activeMedications,
   permanentConditions,
   permanentConditionsOther,
@@ -132,7 +136,7 @@ export function Tier2MedicalView({
         <MedStat
           label="Esterilización"
           value={isSterilized ? "Sí" : "No"}
-          sub={isSterilized ? "Castrado/a" : "No registrada"}
+          sub={isSterilized ? sterilizedLabel(sex) : "No registrada"}
           tone={isSterilized ? "ok" : "neutral"}
         />
       </dl>

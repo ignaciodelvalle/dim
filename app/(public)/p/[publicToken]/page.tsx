@@ -773,6 +773,7 @@ export default async function PublicCredentialPage({
             <Suspense fallback={<CredentialTier2MedicalSkeleton />}>
               <CredentialTier2Medical
                 petId={pet.id}
+                sex={pet.sex}
                 species={pet.species}
                 jurisdictionProvince={pet.jurisdictionProvince}
                 jurisdictionLocality={pet.jurisdictionLocality}

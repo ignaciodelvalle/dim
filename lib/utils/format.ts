@@ -283,6 +283,27 @@ export function sexLabel(sex: string): string {
   }
 }
 
+/**
+ * "Castrada" / "Castrado" agreeing with the pet's sex.
+ *
+ * Three surfaces inlined this ternary and a fourth — the public credential —
+ * shipped "Castrado/a" instead, which is how a QA tester read it about Pampa, a
+ * female (ronda 5, 2026-07-16). A slashed both-genders label is the tell that a
+ * screen has the fact and is not using it: sex is always on the pet row.
+ *
+ * "unknown" keeps the slashed form — there it is honest rather than lazy.
+ */
+export function sterilizedLabel(sex: string): string {
+  switch (sex) {
+    case "male":
+      return "Castrado";
+    case "female":
+      return "Castrada";
+    default:
+      return "Castrado/a";
+  }
+}
+
 export function statusLabel(status: string): string {
   switch (status) {
     case "active":

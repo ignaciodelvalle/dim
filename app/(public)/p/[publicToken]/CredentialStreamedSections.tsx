@@ -45,6 +45,7 @@ import { deriveActiveMedications } from "./credential-badges";
 
 export async function CredentialTier2Medical({
   petId,
+  sex,
   species,
   jurisdictionProvince,
   jurisdictionLocality,
@@ -53,6 +54,8 @@ export async function CredentialTier2Medical({
   permanentConditionsOther,
 }: {
   petId: string;
+  /** Carried so the sterilization line can agree in gender (sterilizedLabel). */
+  sex: Pet["sex"];
   species: Pet["species"];
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
@@ -137,6 +140,7 @@ export async function CredentialTier2Medical({
         }}
         hasVaccineRecords={hasAnyVaccineRecord(summary)}
         isSterilized={sterilRows.length > 0}
+        sex={sex}
         activeMedications={deriveActiveMedications([...medRows, ...amendmentEvents])}
         permanentConditions={permanentConditions ?? []}
         permanentConditionsOther={permanentConditionsOther}
