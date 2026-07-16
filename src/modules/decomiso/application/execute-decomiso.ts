@@ -201,7 +201,11 @@ export async function executeDecomiso(
       openedByUserId: user.id,
       openedByOrganizationId: govtOrg.id,
       receiverOrganizationId: receiverOrg.id,
-      openedReason: `auto: decomiso motivo=${input.seizureMotive} judicial_ref=${input.judicialProceedingReference ?? "sin_ref"}`,
+      openedReason: {
+        code: "decomiso_executed",
+        motive: input.seizureMotive,
+        judicialRef: input.judicialProceedingReference ?? null,
+      },
     },
     tx,
   );

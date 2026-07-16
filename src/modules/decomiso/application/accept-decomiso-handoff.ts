@@ -250,7 +250,11 @@ export async function acceptDecomisoHandoffInTx(
       jurisdictionCountry: caseRow.jurisdictionCountry ?? "AR",
       openedByUserId: ctx.user.id,
       openedByOrganizationId: ctx.organization.id,
-      openedReason: `auto: decomiso handoff aceptado desde caso ${caseRow.publicCode}`,
+      openedReason: {
+        code: "decomiso_handoff_accepted",
+        // The PUBLIC code, never the internal case UUID.
+        sourceCasePublicCode: caseRow.publicCode,
+      },
     },
     tx,
   );
