@@ -45,11 +45,19 @@ export const BITE_SEVERITY_LABEL: Record<string, string> = {
   severe: "grave",
 };
 
-// orgTypeToReporterRole in src/modules/surveillance/domain/bite.ts
+// orgTypeToReporterRole in src/modules/surveillance/domain/bite.ts.
+//
+// `witness` was missing here until 2026-07-16 while being the FUNCTION'S
+// DEFAULT — every org type outside the clinic/shelter/sanitary buckets maps to
+// it — so an org-reported bite from, say, a municipality rendered
+// "Mordedura reportada por X (witness)". Same leak shape as the
+// custody-handoff bug, one map entry away. Kept in this shared file so the
+// legacy regex path is fixed by the same line.
 export const REPORTER_ROLE_LABEL: Record<string, string> = {
   vet: "veterinaria",
   shelter: "refugio",
   govt: "autoridad sanitaria",
+  witness: "testigo",
 };
 
 // SeizureMotive in src/modules/decomiso/domain/types.ts
