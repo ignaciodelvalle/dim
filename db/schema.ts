@@ -583,6 +583,14 @@ export const pets = pgTable(
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // Structural locality-attribution FK (migration 0147). Nullable + additive:
+    // the free-text jurisdiction_locality above stays the display/backfill source;
+    // this is the NEW join key into the ar_localities catalog (its uuid PK). Set on
+    // the write path via normalizeLocationForWrite and backfilled for historical
+    // rows; NULL when the locality does not resolve (centroid fallback keeps it
+    // visible). References the uuid PK — not indec_id — so CABA barrios (null
+    // indec_id) are attributable too.
+    localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
     // How the owner came to have this pet. Nullable so existing rows survive db:push
     // without a default. Collected at registration and included in pet_registered payload.
     acquisitionMethod: petAcquisitionMethodEnum("acquisition_method"),
@@ -699,6 +707,11 @@ export const pets = pgTable(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
     ),
+    // Structural locality-attribution FK index (migration 0147). Partial on
+    // IS NOT NULL — only resolved rows carry the key.
+    localityIdIdx: index("pets_locality_id_idx")
+      .on(table.localityId)
+      .where(sql`${table.localityId} IS NOT NULL`),
     statusIdx: index("pets_status_idx").on(table.status),
     // PII soft-delete partial (compliance PR 1).
     // Renamed from public_pets_deleted_idx → pets_deleted_idx (migration 0095).
@@ -1583,6 +1596,9 @@ export const welfareReports = pgTable(
     locationAddress: text("location_address"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // Structural locality-attribution FK (migration 0147). Nullable + additive —
+    // mirrors pets.localityId. References the ar_localities uuid PK.
+    localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
     // Coordinate pair. Numeric(10,7) matches pet_events.location_lat/lng so
     // both tables can flow through the same accessor (`lib/location.ts`).
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
@@ -1658,6 +1674,10 @@ export const welfareReports = pgTable(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
     ),
+    // Structural locality-attribution FK index (migration 0147).
+    localityIdIdx: index("welfare_reports_locality_id_idx")
+      .on(table.localityId)
+      .where(sql`${table.localityId} IS NOT NULL`),
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
     derivedToOrgIdx: index("welfare_reports_derived_to_org_idx").on(table.derivedToOrganizationId),
@@ -3525,6 +3545,9 @@ export const cases = pgTable(
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // Structural locality-attribution FK (migration 0147). Nullable + additive —
+    // mirrors pets.localityId. References the ar_localities uuid PK.
+    localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
 
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     openedByUserId: uuid("opened_by_user_id").references(() => profiles.id, {
@@ -3602,6 +3625,10 @@ export const cases = pgTable(
       table.id.desc(),
     ),
     openedAtIdIdx: index("cases_opened_at_id_idx").on(table.openedAt.desc(), table.id.desc()),
+    // Structural locality-attribution FK index (migration 0147).
+    localityIdIdx: index("cases_locality_id_idx")
+      .on(table.localityId)
+      .where(sql`${table.localityId} IS NOT NULL`),
     // Performance indexes added in migration 0096.
     applicantUserIdx: index("cases_applicant_user_idx").on(table.applicantUserId),
     welfareReportIdx: index("cases_welfare_report_idx")
