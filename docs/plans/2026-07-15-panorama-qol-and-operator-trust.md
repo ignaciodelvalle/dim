@@ -1,9 +1,11 @@
 # Plan: Panorama QOL nightly batch + operator-trust fixes
 
 **Date:** 2026-07-15 · **Branch base:** integration/all-20260703
-**Sources:** the "regaladas" inventory (Explore + Cursor cross-check, engram `panorama/qol-regaladas-inventory`) + Cursor's live admin & govt QA passes.
+**Sources:** the "regaladas" inventory (Explore + Cursor cross-check, engram `panorama/qol-regaladas-inventory`) + Cursor's live QA passes:
+`docs/reviews/2026-07-15-cursor-qa-admin-official-roles-fresh.md` (admin + govt emergency) and
+`docs/reviews/2026-07-15-cursor-qa-owner-vet-org-checklist.md` (owner / vet / org).
 
-Two independent bodies of work. Slice T (operator trust) is the priority for staging — it's what makes a funcionario believe the system works. Slice Q (QOL) is additive value once trust holds.
+Three bodies of work. **Slice P0 (owner/vet/org blockers) + Slice T (operator trust) are the staging priority** — real users and funcionarios hit these. Slice Q (QOL + map disaggregation) is additive value once trust holds.
 
 ---
 
@@ -14,9 +16,39 @@ Two independent bodies of work. Slice T (operator trust) is the priority for sta
 - Wave 4 (earlier today) already shipped: SLA honest headline, novedades grouping, cron help copy, gob jurisdictions chip, outbox retry feedback, decisiones-0 neutral, site-map clickable.
 
 **Cursor still reports these as broken — RECONCILE before re-implementing (regression or incomplete):**
-- **Outbox "Reintentar" lands on /login.** We shipped a Tier A `navigateAfterActionSuccess` reload. Cursor sees a redirect to /login mid-action. VERIFY: is the outbox detail route re-auth'ing on reload, or is the session genuinely dropping? This is the #1 trust bug — investigate first.
-- **Cron copy still points to Vercel/curl.** We rewrote the cron help copy (Wave 4). Cursor still sees curl/CRON_SECRET. VERIFY: did the copy change cover THIS path, or is there a second cron-error surface? Also: Cursor wants a BANNER (not just detail copy) — that part is genuinely new.
-- **Novedades still 20 identical rows.** We shipped grouping. VERIFY the grouped fetcher is actually the one rendering on the surface Cursor tested (admin home vs gob home).
+- **Crons in FALLO are the ROOT CAUSE of the outbox cluster.** The fresh admin review connects it: `process_eno_queue` down → ENO never drains → outbox `Intentos` stays 0 → "Reintentar" is a no-op that gives false control. So A1 (retry no-op) is DOWNSTREAM of A2 (crons down). **First question to settle: are the crons FALLO because local has no scheduler (a QA artifact) or a real bug?** That decides whether A1/A2 admin are prod bugs or local noise. Do NOT "fix" retry before answering this.
+- **Outbox "Reintentar" lands on /login** — NOT reproduced in the fresh pass (it shows "Programando…" → Intentos=0, no toast, no /login). Likely a transient session drop, not deterministic. The real issue is the missing feedback + the crons-down root cause above.
+- **Cron copy still points to Vercel/curl.** We rewrote the cron help copy (Wave 4). Cursor still sees curl/CRON_SECRET (M6). VERIFY: did the copy change cover THIS path, or is there a second cron-error surface? Also: Cursor wants a BANNER (not just detail copy) — that part is genuinely new (T3).
+- **Novedades still 20 identical rows.** We shipped grouping; the fresh pass did not re-test it. VERIFY the grouped fetcher is the one rendering on the surface Cursor tested (admin home vs gob home).
+- **Seed drift (not UI):** `govt-local@dim.test` has only Palermo in the DB (missing La Plata the seed documents); casos show seed names (`PANO-Seed-Owner`, `*-gen-*`). Re-seed / filter test rows — I3 territory.
+
+---
+
+## SLICE P0 — Owner / Vet / Org blockers · the top staging priority (real users)
+
+From `2026-07-15-cursor-qa-owner-vet-org-checklist.md`. These are bugs a real user hits, not polish.
+
+### P0-1 — Date default in UTC blocks forms in the AR evening (the worst one)
+After ~21h AR, a form's default date resolves to UTC "tomorrow" → the form rejects "la fecha no puede ser futura." Reproduced on owner `?sheet=peso`; same trap in intake / bite / vaccine. **Any real user loading anything at night is blocked.** Client-side default must use `America/Argentina/Buenos_Aires` (AR_TIME_ZONE), not UTC/`new Date()`. Sweep every form with a date default. This is the same timezone class we fenced server-side — extend it to client date-input defaults. **Do this first.**
+
+### P0-2 — Service detail page crashes
+`/org/[orgToken]/servicios/[serviceToken]` throws (error digest 3955119939) → generic error boundary; the list shows the service as "Aprobado" but you can't open it. Find the throw (likely a null/undefined in the service detail loader or a missing cupos/agenda relation) and fix; the page must render the service + a link to agenda/cupos.
+
+### P0-3 — Clinic signature doesn't project as "official" on the owner credential
+A clinic-signed rabies vaccine shows "DECLARADA · sin firma de matrícula" on the owner's credential, while `/org/.../atender` copy implies "firmado/verificado por profesional." Either the provenance projection is wrong, OR (per the H1 keystone) a clinic without a personal matrícula legitimately doesn't reach the "verificado" bar — in which case the ATENDER copy is the bug (it must not promise a stamp the projection won't grant). Decide which; make copy and stamp tell the same story. Do NOT re-litigate the H1 provenance policy — just close the copy↔stamp contradiction.
+
+### P0 re-test gate
+Cursor's matrix §3 (V1–V4 clinic, R1–R4 refugio, O1–O2 owner) must reach PASS after P0-1/2/3, with `pnpm verify` + `pnpm test` green in the closing PR.
+
+### Owner/vet/org P1–P2 (fold into a second PR)
+- Clinic nav shows refugio-only surfaces (Ingresos/Censo/custodia/adopción) that don't apply — trim to Panel·Agenda·Atender·Servicios·Mordeduras·Miembros·Cobertura·Config (B1).
+- Agenda empty state is a dead-end — add a CTA to materialize cupos / go to Servicios (B2).
+- Wizards show "Paso N de 4" with ALL fields in the DOM (intake, bite, publish) — one step visible at a time or drop the lying counter (B3/E2).
+- Dangerous-action ordering: "Finalizar adopción" heads the Acciones list on a just-ingested pet; a pet row shows 5 actions at once — primary 1–2 + a ⋯ menu, staged order (C1/C2).
+- Post-publish the listing form wipes to 0/5000 instead of rehydrating the saved listing (C3).
+- Owner welcome says "registrá tu primera mascota" with N pets present; brand MiMAR; "Asentar" vs "Anotar" verb split; anotar quick-chips duplicate the long list (D1/D4/D5).
+- **D2 — carousel shows 8 pets vs the index's 14 active: two surfaces use different "live" filters. A real projection inconsistency (label=number canon) — reconcile the filter.** (Elevate; not just polish.)
+- a11y "POR VENCER" on PPP when race/weight is simply missing — copy should read "faltan datos / completar," not "vencido" (D3).
 
 ---
 
@@ -77,7 +109,13 @@ Alertas filters show mm/dd/yyyy — wrong for es-AR and produces wrong ranges. S
 
 ---
 
-## SLICE G — Govt scope honesty
+## SLICE G — Govt scope honesty + emergency triage
+
+### G0 (ALTO — emergency blocker, from the fresh admin review) — Panel "N pérdidas" ≠ /gob/perdidas empty listing
+The panel KPI says "3 activas" but `/gob/perdidas` lists **(0) / Sin resultados** (default 30-day filter), while the regulatory-cases panel DOES show lost pets (Firulais, Luna…). In a real lost-pet emergency the operator believes there are cases and the queue is empty. Reconcile: the KPI count and the listing must use the SAME query/filter window, or the listing default must not hide what the KPI counts. **This is the #1 emergency-triage bug.**
+
+### G0b (ALTO) — Critical denuncia open 5 days, "Sin asignar," yet already derived to an org
+`DEN-9KSC-MRMZ` (crítica, peleas de perros): Estado Abierta, Asignado "Sin asignar", edad 5 días — and simultaneously "Ya derivada a Mascotas BA Centro." Ownership is ambiguous: who owns the case after derivation? Make the status reflect derivation (a derived case is not "sin asignar"), or show the holding org as the assignee.
 
 ### G1 (E16) — Panorama out-of-scope URL: refuse + bounce, don't render a hollow shell
 `?province=AR-X` for a govt without AR-X still "opens" Córdoba: map + caption say Córdoba, KPIs are —, the locality dropdown loads 526 Córdoba towns. The honest UX: a hard refuse + toast "No tenés acceso a esta jurisdicción" + redirect to an in-scope province — never render the foreign map/localities. (Server-side scope check on the panorama page for a govt actor; loop-safe — bounce to their widest jurisdiction, which the camera fix already computes.)
@@ -100,8 +138,15 @@ The feed is mostly "Búsqueda de información personal" (audit is correct, but n
 - **Q5 — Per-capita toggle for density layers** (M): denominator exists (`census.ts` / `activePetsCondition`). The map stops being "where pets live"; small towns with high per-capita risk appear.
 - **Q6 — Unit-history drill branches for sintomas/esterilización/microchip/ppp** (M): plumbing exists; these 4 layers drill empty today.
 
-### Q7 (idea, PO-floated) — Heatmap for zoonosis/sintomas
-Honest constraint: those events persist NO point coordinates (writers store none — deliberate), so a true kernel-density point-heatmap returns EMPTY. BUT a **locality-centroid-weighted heatmap** IS buildable: place a heat point at each `ar_localities` centroid weighted by the existing per-locality rollup. That's a new RENDER MODE (MapLibre heatmap layer over synthesized centroid points) — effort **M**, not free, but it reuses the rollup + centroids we already have. Worth a spike in the nightly batch: it answers "dónde se concentra" more legibly than graduated symbols for dense signals. Decision needed: is a centroid-weighted heatmap honest enough (it implies smooth spatial density we don't actually have at sub-locality resolution)? Recommend labeling it explicitly "densidad por localidad" so it never reads as GPS-precise.
+### Q7 (PO direction, reframed from "heatmap") — Disaggregate the giant province marks to the finest HONEST granularity
+The PO sees ~1 giant mark per province at wide zoom (the province LOD rollup band). Goal: show the maximum granularity we can, bounded by two hard limits — **performance** and **privacy**. Reframed away from a kernel-density heatmap (which would fake sub-locality smoothness we don't have) to **locality-centroid disaggregation**:
+
+- **The granularity we can honestly reach = LOCALITY** (via `ar_localities` centroids), for any layer whose rollup already computes per-locality. Province is today's coarse band; locality is the next honest step. Sub-locality (barrio/address) does NOT exist for most data and would break privacy — do not attempt.
+- **Performance limit:** a national locality rollup returns hundreds of cells (PBA alone ~135 partidos — the exact budget class we just fixed for cobertura). Rule: locality marks render only when AFFORDABLE — inside a drilled/scoped province (bounded), or served from the cube where it precomputes locality/department. National wide view stays province-aggregated. This is what the LOD "near band" already does for perdidas/mordeduras/denuncias; extend it to the layers that today only province-fill or have no points.
+- **Privacy limit:** finer cells → more cells below k=5 → more suppression. That is CORRECT and now honest (the "Protegido (k<5)" hatch we fixed). Disaggregation surfaces more "protegido" holes, not more leakage.
+- **Per-layer reach:** coord-bearing events (lost/bite/welfare) COULD show near-actual points at high zoom — but exact lost-pet / welfare-complaint locations are sensitive, so cap at locality-centroid or jittered-to-locality. Jurisdiction-only layers (rabies/steril/chip/ppp/mortality, zoonosis/sintomas — which persist NO coords) can only ever reach locality-centroid; province→locality is their full range.
+
+**Net:** the deliverable is locality-centroid graduated symbols driven by the existing per-locality rollups, gated by scope/zoom affordability and k-anon. Effort **M** (new render for province-fill-only and point-less layers). **PO design decision still open:** for the coord-bearing layers, how far to push — locality-centroid only (safest) vs jittered-to-locality actual points (more granular, needs a jitter/privacy review). See the live discussion.
 
 ### DEFERRED until needed (PO decision): movilidad, adopción, custodia, credential-scans map layers — each needs a NEW per-locality geo rollup (M+), scans also privacy-bounded.
 
