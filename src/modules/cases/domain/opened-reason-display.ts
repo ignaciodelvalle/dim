@@ -82,6 +82,14 @@ const TRANSFER_REASON_LABEL: Record<string, string> = {
   other: "otro",
 };
 
+// resolveNewRole in src/modules/transfers/application/transfer-custody.ts.
+// Same wording that file's own notification copy uses (transfer-custody.ts:202)
+// so the case reason and the notification tell the handoff the same way.
+const CUSTODY_HANDOFF_ROLE_LABEL: Record<string, string> = {
+  shelter_custody: "custodia temporal",
+  owner: "dueño permanente",
+};
+
 // INTAKE_REASONS in src/modules/pets/application/intake/create-intake.ts
 const INTAKE_REASON_LABEL: Record<string, string> = {
   rescue: "rescate",
@@ -186,6 +194,19 @@ const RULES: Rule[] = [
     pattern: /^Bite incident reported by (.+) \(([^)]+)\) — victim=(\S+), severity=(\S+)$/,
     render: (m) =>
       `Mordedura reportada por ${m[1]} (${label(REPORTER_ROLE_LABEL, m[2])}) — víctima: ${label(BITE_VICTIM_LABEL, m[3])}, gravedad: ${label(BITE_SEVERITY_LABEL, m[4])}`,
+  },
+  {
+    // transfers/application/transfer-custody.ts:155.
+    //
+    // This writer had NO rule until 2026-07-16, so a direct custody handoff —
+    // the change of legal responsible, the most consequential write in the
+    // system — fell through to the generic `auto:` branch and rendered as
+    // "Apertura automática — direct custody handoff to_role=owner": English
+    // plus a raw enum, dressed in a Spanish prefix so it read like a
+    // translation and nobody noticed.
+    pattern: /^auto: direct custody handoff to_role=(\S+)$/,
+    render: (m) =>
+      `Traspaso directo de custodia — pasa a: ${label(CUSTODY_HANDOFF_ROLE_LABEL, m[1])}`,
   },
   {
     // transfers/application/propose-cross-org-transfer.ts:137

@@ -124,6 +124,31 @@ describe("openedReasonDisplay", () => {
     );
   });
 
+  // This writer shipped with no rule and leaked to production: the generic
+  // `auto:` catch-all rendered it as "Apertura automática — direct custody
+  // handoff to_role=owner". The catch-all is why it survived — it wraps unknown
+  // English in a Spanish prefix, so the failure looks like a translation.
+  it("translates direct custody handoffs (transfer-custody:155)", () => {
+    expect(openedReasonDisplay("auto: direct custody handoff to_role=owner")).toBe(
+      "Traspaso directo de custodia — pasa a: dueño permanente",
+    );
+    expect(openedReasonDisplay("auto: direct custody handoff to_role=shelter_custody")).toBe(
+      "Traspaso directo de custodia — pasa a: custodia temporal",
+    );
+  });
+
+  it("never leaks the raw English of a known writer through the auto: catch-all", () => {
+    for (const raw of [
+      "auto: direct custody handoff to_role=owner",
+      "auto: cross-org transfer proposed reason=space_constraint",
+      "auto: org intake reason=stray_found",
+    ]) {
+      const out = openedReasonDisplay(raw);
+      expect(out).not.toContain("Apertura automática —");
+      expect(out).not.toMatch(/to_role=|reason=[a-z_]+$/);
+    }
+  });
+
   it("translates org intakes (create-intake:426)", () => {
     expect(openedReasonDisplay("auto: org intake reason=stray_found")).toBe(
       "Ingreso registrado por la organización — motivo: animal callejero encontrado",
