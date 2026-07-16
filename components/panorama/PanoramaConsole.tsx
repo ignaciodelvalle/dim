@@ -3843,6 +3843,17 @@ export function PanoramaConsole({
           : "Departamentos/partidos"
         : "Localidades";
 
+  // Finding #3 (honest disclosure): the map auto-disaggregates to a FINER grain
+  // (department/locality) than the KPI scope on plain zoom, while the KPI chips
+  // keep summarizing the SCOPE TOTAL (render-only disaggregation — the scope is
+  // unchanged by design). A national/province KPI over a department map READS as
+  // incoherent, so we surface a one-line clarifier. Excluded when the KPIs are
+  // already at the shown grain: an explicit locality drill (effectiveScopeLocality)
+  // or an operator bounded to a single locality (initialDivisionLocality) means the
+  // chips and the map are the same geography — no clarifier needed.
+  const kpiScopeCoarserThanMap =
+    level === "locality" && !effectiveScopeLocality && initialDivisionLocality == null;
+
   // Live-QA regression (2026-07-11): the masthead scope pill read the SERVER
   // `scopeLabel` prop, so a shallow client drill (which never re-renders the
   // server shell) left it stuck on "Nacional · todas las provincias". Derive the
@@ -4936,6 +4947,16 @@ export function PanoramaConsole({
                 // as intentional, not stuck. Temporal KPIs (no currentState) untouched.
                 temporalFrameActive={scrubbing}
               />
+              {/* Finding #3: the KPIs summarize the SCOPE TOTAL, but the map has
+                  disaggregated to a finer grain — say so, so a national/province
+                  number over a department map never reads as incoherent. Matches
+                  the on-map aggregation badge so label = number = map. */}
+              {kpiScopeCoarserThanMap && (
+                <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                  Indicadores: total del alcance ({liveScopeLabel || "Argentina"}). El mapa muestra
+                  el detalle por {aggregationLabel.toLowerCase()}.
+                </p>
+              )}
               {kpisStale && (
                 // error-path audit 2026-07-04 finding E5: the KPI refetch failed and
                 // the cards show the last-known numbers, not live ones — say so.
