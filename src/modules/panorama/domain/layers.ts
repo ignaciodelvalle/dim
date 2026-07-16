@@ -215,6 +215,27 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     caption: { unit: UNIT, measure: "refugios registrados", window: "current" },
   },
   {
+    id: "clinicas",
+    label: "Clínicas veterinarias",
+    description:
+      "Clínicas veterinarias verificadas y registradas — directorio actual (ubicación puntual), no es un conteo de eventos del período.",
+    geomType: "point",
+    source: "organizations:clinic",
+    // Distinct violet — must not read as refugios (#4e79a7 blue) or decomisos
+    // (#76b7b2 teal), the reference pins it can share the map with.
+    color: "#8b5fbf",
+    scopeFilterable: true,
+    privacy: "none",
+    // No time dimension — clinics are a current directory, not an event stream.
+    temporal: false,
+    // Individual clinic locations — NEVER aggregated (each is a distinct entity).
+    dataType: "reference",
+    // Reference: pins at every level, ignores autoLevel; suppression is a no-op.
+    renderPolicy: { province: "clustered-points", locality: "clustered-points" },
+    suppressionStyle: "muted",
+    caption: { unit: UNIT, measure: "clínicas veterinarias verificadas", window: "current" },
+  },
+  {
     id: "decomisos",
     label: "Decomisos",
     description:

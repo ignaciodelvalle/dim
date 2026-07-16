@@ -3814,6 +3814,11 @@ function pointPopupHtml(layer: ActiveLayer, props: Record<string, unknown>): str
     const v = props.verified ? " · verificado" : "";
     return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(name)}</strong><span style="color:#94a3b8">${v}</span></div>`;
   }
+  if (layer.id === "clinicas") {
+    const name = String(props.name ?? "Clínica veterinaria");
+    const v = props.verified ? " · verificada" : "";
+    return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(name)}</strong><span style="color:#94a3b8">${v}</span></div>`;
+  }
   // panorama-event-points Slice 1: a perdidas REAL sighting dot (LostPointProps
   // carries `token` + `lastSeenAt`). Popup: "Avistaje" + date + a subtle
   // capture-precision hint. Clicking the dot opens the DetailDrawer (D7).

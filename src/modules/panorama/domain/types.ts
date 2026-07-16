@@ -17,6 +17,7 @@ export type LayerId =
   | "sintomas"
   | "reunificacion"
   | "refugios"
+  | "clinicas"
   | "decomisos"
   | "cobertura"
   | "esterilizacion"

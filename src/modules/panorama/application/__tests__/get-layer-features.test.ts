@@ -17,6 +17,7 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadSintomasByUnit: vi.fn(),
   loadReunificacionByUnit: vi.fn(),
   loadShelters: vi.fn(),
+  loadClinics: vi.fn(),
   loadDecomisos: vi.fn(),
   loadChoroplethByLevel: vi.fn(),
 }));
@@ -29,6 +30,7 @@ import type {
 import {
   loadBiteEvents,
   loadChoroplethByLevel,
+  loadClinics,
   loadDecomisos,
   loadDenunciaCentroids,
   loadDenunciasByUnit,
@@ -78,6 +80,7 @@ const mockLoadZoonosis = vi.mocked(loadZoonosisByUnit);
 const mockLoadSintomas = vi.mocked(loadSintomasByUnit);
 const mockLoadReunificacion = vi.mocked(loadReunificacionByUnit);
 const mockLoadShelters = vi.mocked(loadShelters);
+const mockLoadClinics = vi.mocked(loadClinics);
 const mockLoadDecomisos = vi.mocked(loadDecomisos);
 const mockLoadChoropleth = vi.mocked(loadChoroplethByLevel);
 
@@ -637,6 +640,41 @@ describe("getLayerFeatures — refugios (reference layer)", () => {
     expect(result.suppressedCount).toBe(0);
     expect(result.features.features).toHaveLength(1);
     // Reference layers return level="locality" (envelope default — not driven by toggle).
+    expect(result.level).toBe("locality");
+  });
+});
+
+describe("getLayerFeatures — clinicas (reference layer)", () => {
+  it("calls loadClinics (not loadShelters) and returns point features", async () => {
+    mockLoadClinics.mockResolvedValue({
+      rows: [
+        {
+          id: "org-9",
+          publicToken: "CL-009",
+          displayName: "Clínica Veterinaria del Sur",
+          locationLat: "-34.60",
+          locationLng: "-58.38",
+          verified: true,
+        },
+      ],
+      truncated: false,
+    });
+
+    const result = await getLayerFeatures(
+      "clinicas",
+      { role: "govt" },
+      [{ province: "Buenos Aires", locality: "La Plata" }],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      // level is ignored by reference layers
+      "province",
+    );
+
+    expect(mockLoadClinics).toHaveBeenCalledOnce();
+    // Disjoint loaders — clinicas must NOT reuse the shelter loader.
+    expect(mockLoadShelters).not.toHaveBeenCalled();
+    expect(result.truncated).toBe(false);
+    expect(result.suppressedCount).toBe(0);
+    expect(result.features.features).toHaveLength(1);
     expect(result.level).toBe("locality");
   });
 });

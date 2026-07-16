@@ -20,10 +20,10 @@ import {
 import type { LayerDataType, LayerPrivacy } from "@/src/modules/panorama/domain/types";
 
 describe("PANORAMA_LAYERS registry", () => {
-  it("has the 13 v2 layers with unique ids", () => {
-    expect(PANORAMA_LAYERS).toHaveLength(13);
+  it("has the 14 v2 layers with unique ids", () => {
+    expect(PANORAMA_LAYERS).toHaveLength(14);
     const ids = PANORAMA_LAYERS.map((l) => l.id);
-    expect(new Set(ids).size).toBe(13);
+    expect(new Set(ids).size).toBe(14);
   });
 
   it("every layer declares a unique color (legend swatch collisions confuse the map)", () => {
@@ -46,8 +46,8 @@ describe("PANORAMA_LAYERS registry", () => {
     }
   });
 
-  it("partitions cleanly into point (8) and choropleth (5) layers", () => {
-    expect(POINT_LAYERS).toHaveLength(8);
+  it("partitions cleanly into point (9) and choropleth (5) layers", () => {
+    expect(POINT_LAYERS).toHaveLength(9);
     expect(CHOROPLETH_LAYERS).toHaveLength(5);
     expect(POINT_LAYERS.length + CHOROPLETH_LAYERS.length).toBe(PANORAMA_LAYERS.length);
   });
@@ -100,6 +100,7 @@ describe("PANORAMA_LAYERS registry", () => {
       "sintomas",
       "reunificacion",
       "refugios",
+      "clinicas",
       "decomisos",
     ] as const) {
       expect(getLayer(id)?.suppressionStyle).toBe("muted");
@@ -162,6 +163,7 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     expect(getLayer("zoonosis")?.dataType).toBe("signal");
     expect(getLayer("reunificacion")?.dataType).toBe("signal");
     expect(getLayer("refugios")?.dataType).toBe("reference");
+    expect(getLayer("clinicas")?.dataType).toBe("reference");
     expect(getLayer("decomisos")?.dataType).toBe("reference");
   });
 
@@ -239,9 +241,9 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     }
   });
 
-  it("REFERENCE_LAYERS contains only refugios and decomisos", () => {
+  it("REFERENCE_LAYERS contains refugios, clinicas and decomisos", () => {
     const ids = REFERENCE_LAYERS.map((l) => l.id).sort();
-    expect(ids).toEqual(["decomisos", "refugios"].sort());
+    expect(ids).toEqual(["clinicas", "decomisos", "refugios"].sort());
   });
 
   it("partition: AGGREGATED_POINT + REFERENCE covers all 8 point layers", () => {

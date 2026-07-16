@@ -508,6 +508,63 @@ export async function loadShelters(
 }
 
 // ---------------------------------------------------------------------------
+// organizations:clinic (clinicas) — verified veterinary clinics with coords.
+//
+// DISJOINT FROM refugios: loadShelters filters orgType='shelter', this filters
+// orgType='clinic', so a given org pins on at most one reference layer (no
+// double-pinning). Clinics additionally require verified=true — a funcionario-
+// facing directory of official veterinary clinics, not unverified self-listings.
+// ---------------------------------------------------------------------------
+
+export async function loadClinics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<LayerRows<ShelterRow>> {
+  const conditions = [
+    eq(organizations.orgType, "clinic"),
+    eq(organizations.status, "active"),
+    eq(organizations.verified, true),
+    isNotNull(organizations.locationLat),
+  ];
+  const scope = jurisdictionColumnsScope(
+    actor,
+    jurisdictions,
+    sql`${organizations.jurisdictionProvince}`,
+    sql`${organizations.jurisdictionLocality}`,
+    adminProvince,
+    adminLocality,
+  );
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      id: organizations.id,
+      publicToken: organizations.publicToken,
+      displayName: organizations.displayName,
+      locationLat: organizations.locationLat,
+      locationLng: organizations.locationLng,
+      verified: organizations.verified,
+    })
+    .from(organizations)
+    .where(and(...conditions))
+    .limit(PER_LAYER_CAP);
+
+  return {
+    rows: rows.map((r) => ({
+      id: r.id,
+      publicToken: r.publicToken,
+      displayName: r.displayName,
+      locationLat: r.locationLat,
+      locationLng: r.locationLng,
+      verified: r.verified,
+    })),
+    truncated: rows.length >= PER_LAYER_CAP,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // cases:decomiso (decomisos) — custody_episode cases at their locality centroid.
 //
 // The decomiso (Ley 14.346 seizure) case_kind is 'custody_episode' (see

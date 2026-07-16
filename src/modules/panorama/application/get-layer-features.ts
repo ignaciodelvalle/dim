@@ -20,6 +20,7 @@ import {
   type ProvinceChoroplethRows,
   loadBiteEvents,
   loadChoroplethByLevel,
+  loadClinics,
   loadDecomisos,
   loadDenunciaCentroids,
   loadDenunciasByUnit,
@@ -453,6 +454,13 @@ export async function getLayerFeatures(
       // Shelters have no time dimension — period/asOf are not applied. The
       // console dims this layer while a scrub is active (not reproducible in time).
       const r = await loadShelters(actor, jurisdictions, adminProvince, adminLocality);
+      return pointResult(r, buildRefugiosFeatures(r.rows));
+    }
+    case "clinicas": {
+      // Verified veterinary clinics — a current directory (no time dimension),
+      // disjoint from refugios (orgType='clinic'). Same reference-pin shape, so
+      // the shelter feature builder (token/name/verified props) is reused.
+      const r = await loadClinics(actor, jurisdictions, adminProvince, adminLocality);
       return pointResult(r, buildRefugiosFeatures(r.rows));
     }
     case "decomisos": {
