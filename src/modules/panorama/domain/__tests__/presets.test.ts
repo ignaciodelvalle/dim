@@ -329,8 +329,9 @@ describe("shouldEmitPresetFrame", () => {
   });
 
   it("every shipped national-framed preset is suppressed under an active scope", () => {
-    // Guards the three national vistas (brotes-activos, cumplimiento,
-    // control-poblacional) against re-introducing the yank.
+    // Guards every national-framed vista (brotes-activos, cumplimiento,
+    // control-poblacional, registro-ppp, mortalidad) against re-introducing
+    // the yank. The loop covers all presets, so new ones are guarded too.
     for (const p of PANORAMA_PRESETS) {
       if (p.framing?.kind === "national") {
         expect(shouldEmitPresetFrame(p.framing, true)).toBe(false);

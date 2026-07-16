@@ -41,6 +41,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 
 import { Sparkline } from "./Sparkline";
@@ -498,6 +499,19 @@ export function FeatureBody({
       );
     }
 
+    case "clinicas": {
+      const verified = properties.verified === true;
+      return (
+        <>
+          <dl>
+            <Row label="Clínica" value={str(properties, "name") ?? "—"} />
+            <Row label="Verificación" value={verified ? "Verificada" : "Sin verificar"} />
+          </dl>
+          <DrillLink href={`${portal}/organizaciones`}>Ver organizaciones →</DrillLink>
+        </>
+      );
+    }
+
     case "cobertura":
     case "mortalidad":
     case "microchip":
@@ -546,8 +560,10 @@ export function FeatureBody({
 // ---------------------------------------------------------------------------
 
 // Layers that carry individual-feature pins (NOT aggregated units). These never
-// trigger a unit-history fetch — they have their own FeatureBody only.
-const REFERENCE_LAYER_IDS = new Set<LayerId>(["refugios", "decomisos"]);
+// trigger a unit-history fetch — they have their own FeatureBody only. Derived
+// from the domain registry so a new reference layer (e.g. clinicas) is covered
+// automatically instead of silently falling through.
+const REFERENCE_LAYER_IDS = new Set<LayerId>(REFERENCE_LAYERS.map((l) => l.id));
 
 /** Determine whether the selected feature should trigger a unit-history fetch.
  * True for aggregated (density/signal/choropleth) units that carry a province. */
