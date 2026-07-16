@@ -111,8 +111,8 @@ Alertas filters show mm/dd/yyyy — wrong for es-AR and produces wrong ranges. S
 
 ## SLICE G — Govt scope honesty + emergency triage
 
-### G0 (ALTO — emergency blocker, from the fresh admin review) — Panel "N pérdidas" ≠ /gob/perdidas empty listing
-The panel KPI says "3 activas" but `/gob/perdidas` lists **(0) / Sin resultados** (default 30-day filter), while the regulatory-cases panel DOES show lost pets (Firulais, Luna…). In a real lost-pet emergency the operator believes there are cases and the queue is empty. Reconcile: the KPI count and the listing must use the SAME query/filter window, or the listing default must not hide what the KPI counts. **This is the #1 emergency-triage bug.**
+### G0 (ALTO — emergency blocker) — /gob/perdidas list defaults to a 30-day window → shows 0 while the KPI + public say 116 (PO DECISION RESOLVED)
+VERIFIED: the same-page KPI ("Perdidas activas") and public `/perdidas` both count `status='lost'` STOCK (unwindowed); the LIST uses a 30-day `since` default (`app/gob/perdidas/page.tsx:58-59` → `fetchLostPets` requires a `status_changed→lost` event within 30d, `govt-dashboards.ts:309-324`), which hides still-lost older cases → 0. **PO decision (2026-07-16): the govt list shows ALL currently-lost (stock), matching the KPI + public.** Fix: drop the 30-day default in `app/gob/perdidas/page.tsx:58-59` so the list defaults to all `status='lost'` in scope; keep the `PeriodPicker` as an optional filter (not the default). Panorama "pérdidas" stays event-flow (inherent to the map) — address via the semantic-label QOL item, not by changing what it measures.
 
 ### G0b (ALTO) — Critical denuncia open 5 days, "Sin asignar," yet already derived to an org
 `DEN-9KSC-MRMZ` (crítica, peleas de perros): Estado Abierta, Asignado "Sin asignar", edad 5 días — and simultaneously "Ya derivada a Mascotas BA Centro." Ownership is ambiguous: who owns the case after derivation? Make the status reflect derivation (a derived case is not "sin asignar"), or show the holding org as the assignee.
@@ -159,3 +159,36 @@ The PO sees ~1 giant mark per province at wide zoom (the province LOD rollup ban
 3. **Slice Q** — the nightly QOL run (Q1–Q6 are mechanical clones; Q7 heatmap is a spike with a design decision).
 
 Every slice ends with the standard discipline: adversarial fresh review + `pnpm verify` + full suite + live validation on :3000 before it ships.
+
+---
+
+## ROUND 3 — reconciliation of the deep panorama review + anon/cross-actor review (2026-07-16)
+
+Sources: `docs/reviews/2026-07-15-cursor-deep-review-panorama.md` and `docs/reviews/2026-07-15-cursor-qa-anon-cross-actor-critical.md`. Claims VERIFIED against code (not taken as truth).
+
+### PO decisions (both RESOLVED 2026-07-16 — nothing left to the PO; the whole batch is autonomous)
+- **Bite/maltrato public case — HIDE the pet name on the anonymous view.** `/casos/CAS-...` is public-by-design (Ley 14.346, explicit "¿Por qué es público?" copy) with a strong token (31^8, rate-limited 30/min·200/hr) — enumeration is fine. Decision: the anonymous viewer sees species/photo/timeline/org but NOT the pet's name. Fix in `components/casos/CaseDetailView.tsx` subject descriptor (`:122-129`) gated on `isPublic` (`:86`) — redact `petName` for anon, same pattern as the notes/location redactions already there. (Owner-name/contact/exact-location already redacted for anon — no change.)
+- **/gob/perdidas list = all currently-lost (stock).** See G0 above.
+
+### Verified NOT real (dropped — no work)
+- Anon "Avisar al dueño" CTA "unreachable" on an active credential: headless-viewport measurement artifact; the finder flow mounts correctly and notifies the owner PII-free by design.
+- Denuncia wizard "shows Step 1 + Step 3 / radios readonly": DOM/snapshot artifact of an intentionally kept-mounted Step 3 (`display:none`, avoids map re-geocode) + `sr-only` controlled radios that work. Same pattern as the intake wizard (Slice P0 B3/E2).
+
+### Already covered / done (no new work)
+- Welcome "primera mascota" with N pets + DIM brand → Slice P0 D1.
+- `/perdidas` recency "Nuevas 24h/7d=0" → already shipped (staging quick-wins, "Nuevas en 24h" relabel).
+- Panorama out-of-scope Córdoba for admin is valid (universal); the "fake Córdoba" bug was govt-only → Slice G1.
+
+### NEW items folded into Slice Q (all autonomous, near-free unless noted)
+- **Q8 — Unified semantic labels on KPI chips** ("stock hoy" vs "flujo 90d"): the top confusion from BOTH reviews (KPI 8 vs Registros 310 vs map caption). Label KPIs in primary type by their `dataType` (stock/flow/period), not just the footer. Near-free (copy + the layer registry's dataType). Also resolves the panorama "pérdidas" flow-vs-stock read from G0.
+- **Q9 — Don't fetch histograms for inactive layers**: a client `if (activeLayers)` guard — perf, near-free.
+- **Q10 — Dedupe in-flight layer requests**: request coalescing by layer URL (the cobertura+zoonosis double-GET on initial load) — perf, near-free.
+- **Q11 — Deep-link Registros → cola/caso**: the dock table rows carry tokens/codes; wire them to the operational queue (map→action). High value, small.
+- **Q12 — Hide "Volver a mi jurisdicción" for admin** (`role !== 'govt'`): trivial UX.
+- **Q13 — CABA drill "flash of stale national KPIs"**: on drill, KPIs show the old national values for an instant before refetch — apply the same stale-while-revalidate/hold pattern used for the scrubber, or blank+aria-busy. Small.
+- **Q14 — a11y hardening**: mark the denuncia wizard Step 3 (and any `readonly`-in-tree checkbox/radio patterns) `inert`/`aria-hidden` when inactive; audit the encontre/sighting forms' a11y tree. Small, autonomous.
+- **Q15 — `pet_events.recorded_at` index** (migration, recount next free integer): unblocks the transaction-basis scrub at scale. Local migration is autonomous; remote apply is Ignacio-gated.
+
+### Deferred (NOT in this batch — bigger or already-bucketed)
+- Escaneos (credential-scan) layer, embed/presentation polish (reopens KA1/KA2 privacy if public), "crear alerta desde la vista", severity/status dock filter (#44), rate-choropleth-by-locality (that's the separate LOD/department-fill plan) — all bigger than a nightly slice or gated on the paused LOD plan.
+- The verifier's test battery (§7 of the deep review) is good coverage to add opportunistically inside the relevant slices, not a standalone slice.
