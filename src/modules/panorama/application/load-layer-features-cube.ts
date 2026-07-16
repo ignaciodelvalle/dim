@@ -21,12 +21,18 @@
 //     department — filtering can't recover the single-locality count, so locality
 //     drills stay live. (This narrows the design's Decision 4, which listed locality
 //     drills as eligible; verified against the fold — they are not.)
-//   - NOT the national DEPARTMENT (locality-axis) view: the national locality rollup
-//     is capped at PER_LAYER_CAP (2000) and the seed exceeds it, so the live national
-//     department view is TRUNCATED (and non-deterministic). The cube is built per
-//     province (complete), so it CANNOT reproduce that truncated view byte-for-byte —
-//     national+department stays live. The cube serves national+PROVINCE (the national
-//     default grain) and BOTH grains for a whole-province drill (complete, untruncated).
+//   - national DEPARTMENT (locality-axis) view is served as a deliberate cube
+//     SUPERSET. The live national locality rollup is capped at PER_LAYER_CAP (2000)
+//     and the seed exceeds it, so the live national+department view is TRUNCATED and
+//     non-deterministic — that truncation was the DEFECT, not the contract. The cube
+//     is built PER PROVINCE (each province complete within its own budget); the
+//     national union is therefore a superset of the truncated live set (it only adds
+//     the departments truncation dropped) with matching values on the overlap. This
+//     envelope declares `truncated: false`: it is not subject to the global live cap,
+//     so it never claims a completeness it does not have. The cube thus serves
+//     national+PROVINCE, national+DEPARTMENT (superset), and BOTH grains for a
+//     whole-province drill (complete; a province whose own build hit the cap still
+//     reports `truncated` via its den flag, preserving live parity for that drill).
 //   - verifiedOnly === false (the cube stores the default numerator; the "solo
 //     firmado" narrowing is not precomputed).
 //   - cube fresh: status === 'ok' AND now − built_at ≤ STALE_MAX.
@@ -102,9 +108,9 @@ export async function loadLayerFeaturesFromCube(
   if (actor.role !== "admin") return null;
   if (adminLocality) return null; // locality drill → live (see header)
   if (verifiedOnly) return null;
-  // National DEPARTMENT view is the truncated live view — not cube-serviceable
-  // (see header). Only national+province and a whole-province drill are eligible.
-  if (level === "locality" && !adminProvince) return null;
+  // National + department IS now cube-eligible (served as a superset over the
+  // truncated live view — see header). No `!adminProvince` guard for the locality
+  // axis anymore; the only locality-axis exclusion left is the locality drill above.
   const metric = CUBE_LAYER_METRIC[layer];
   if (!metric) return null;
 
@@ -116,7 +122,7 @@ export async function loadLayerFeaturesFromCube(
 
   // --- read + rebuild the envelope ---
   const rows = await readCubeRows(metric, adminProvince);
-  return { builtAt, result: assembleCubeLayerResult(rows, level) };
+  return { builtAt, result: assembleCubeLayerResult(rows, level, adminProvince) };
 }
 
 /**
@@ -130,10 +136,17 @@ export async function loadLayerFeaturesFromCube(
  * threads it through here so a cube-served drill can never claim false
  * completeness (live parity: the live loader would say truncated too). The
  * province grain is structurally never truncated (≤24 rows from the loader).
+ *
+ * `adminProvince` distinguishes the two department-grain shapes: a whole-province
+ * drill (defined) threads the province's own build-time `den` truncation flag for
+ * live parity; the NATIONAL department view (undefined) is a deliberate cube
+ * SUPERSET over the truncated live set and declares `truncated: false` — it is not
+ * subject to the live global cap, so it never claims false completeness.
  */
 export function assembleCubeLayerResult(
   rows: PanoramaCubeRow[],
   level: AggregationLevel,
+  adminProvince?: string,
 ): LayerFeaturesResult {
   if (level === "province") {
     const cells: ProvinceChoroplethCell[] = rows
@@ -160,9 +173,14 @@ export function assembleCubeLayerResult(
   // noLocalityCount: sum the province-grain residual over the in-scope provinces
   // (national = all rows; a province drill already filtered to that province).
   const noLocalityCount = provinceRows.reduce((n, r) => n + (r.noLocality ?? 0), 0);
-  // Truncated iff ANY in-scope province's department rollup hit the cap at build
-  // (den = 1 on its province row; eligibility means "any" is a single province).
-  const truncated = provinceRows.some((r) => (r.den ?? 0) !== 0);
+  // Truncated flag:
+  //  - Whole-province drill (adminProvince defined): thread the province's own
+  //    build-time truncation (den = 1 on its province row) for live parity.
+  //  - National department view (adminProvince undefined): a deliberate cube
+  //    SUPERSET over the truncated live set — declares false (not subject to the
+  //    live global cap; see header). It only ever ADDS the departments the live
+  //    cap dropped, so it never overclaims completeness by reporting false.
+  const truncated = adminProvince ? provinceRows.some((r) => (r.den ?? 0) !== 0) : false;
 
   return {
     features: buildChoroplethFeatures(cells),

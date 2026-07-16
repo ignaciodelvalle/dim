@@ -113,19 +113,31 @@ describe("buildProvinceCubeRows — den carries the department-grain truncation 
 });
 
 describe("assembleCubeLayerResult — truncation threads through to the envelope", () => {
-  it("department grain: truncated=true when the in-scope province row carries den=1", () => {
-    const result = assembleCubeLayerResult([provinceRow({ den: 1 }), deptRow()], "locality");
+  // A whole-province drill threads the province's own build-time den flag.
+  const DRILL = "Buenos Aires";
+
+  it("department drill: truncated=true when the in-scope province row carries den=1", () => {
+    const result = assembleCubeLayerResult([provinceRow({ den: 1 }), deptRow()], "locality", DRILL);
     expect(result.truncated).toBe(true);
     expect(result.level).toBe("locality");
   });
 
-  it("department grain: truncated=false when den=0 and when den=null (pre-fix rows)", () => {
+  it("department drill: truncated=false when den=0 and when den=null (pre-fix rows)", () => {
     expect(
-      assembleCubeLayerResult([provinceRow({ den: 0 }), deptRow()], "locality").truncated,
+      assembleCubeLayerResult([provinceRow({ den: 0 }), deptRow()], "locality", DRILL).truncated,
     ).toBe(false);
     expect(
-      assembleCubeLayerResult([provinceRow({ den: null }), deptRow()], "locality").truncated,
+      assembleCubeLayerResult([provinceRow({ den: null }), deptRow()], "locality", DRILL).truncated,
     ).toBe(false);
+  });
+
+  it("NATIONAL department (no drill): truncated=false even when a province row has den=1 (cube superset)", () => {
+    // National+department is a deliberate superset over the truncated live set; it is
+    // not subject to the live global cap, so it declares truncated=false regardless of
+    // any single province's build-time truncation.
+    const result = assembleCubeLayerResult([provinceRow({ den: 1 }), deptRow()], "locality");
+    expect(result.truncated).toBe(false);
+    expect(result.level).toBe("locality");
   });
 
   it("department grain: still computes suppressedCount and noLocalityCount", () => {
@@ -136,6 +148,7 @@ describe("assembleCubeLayerResult — truncation threads through to the envelope
         deptRow({ unitCode: "Buenos Aires|dept:06014", suppressed: true, value: null }),
       ],
       "locality",
+      DRILL,
     );
     expect(result.suppressedCount).toBe(1);
     expect(result.noLocalityCount).toBe(3);

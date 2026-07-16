@@ -72,8 +72,9 @@ afterAll(() => {
 });
 
 // Cube-eligible combos (set-equal, order-independent, to live): national+province, and
-// BOTH grains for a whole-province drill. National+department is the truncated live view (capped
-// at PER_LAYER_CAP) — NOT cube-served — and is asserted to fall back below.
+// BOTH grains for a whole-province drill. National+department is ALSO cube-served now,
+// but as a deliberate SUPERSET over the truncated live view (capped at PER_LAYER_CAP) —
+// asserted separately below (superset containment, not set-equality).
 const ELIGIBLE: { level: AggregationLevel; drill?: string }[] = [
   { level: "province", drill: undefined },
   { level: "province", drill: DRILL_PROVINCE },
@@ -115,10 +116,68 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     }
   }
 
-  it("national + department view is NOT cube-served (truncated live) → falls back", async () => {
-    const cube = await loadLayerFeaturesFromCube("microchip", ADMIN, "locality");
-    expect(cube).toBeNull();
-  });
+  it("national + department view IS cube-served as a SUPERSET over the truncated live set", async () => {
+    const [live, cube] = await Promise.all([
+      getLayerFeatures("microchip", ADMIN, [], PERIOD, "locality"),
+      loadLayerFeaturesFromCube("microchip", ADMIN, "locality"),
+    ]);
+    expect(cube, "cube must serve national+department").not.toBeNull();
+    const cubeResult = (cube as NonNullable<typeof cube>).result;
+
+    // Level + non-truncated envelope: the cube union is not subject to the live
+    // global cap (it is built PER PROVINCE, complete). The live path IS truncated
+    // here — that truncation is exactly the defect the cube supersedes.
+    expect(cubeResult.level).toBe("locality");
+    expect(cubeResult.truncated).toBe(false);
+    expect(live.truncated).toBe(true);
+
+    // Key each department cell (CABA barrios carry no departmentCode → key by name).
+    type CellProps = {
+      departmentCode?: string | null;
+      province?: string;
+      locality?: string;
+      value?: number | null;
+      suppressed?: boolean;
+    };
+    const keyOf = (p: CellProps) =>
+      p.departmentCode ? `d:${p.departmentCode}` : `b:${p.province ?? ""}:${p.locality ?? ""}`;
+    const index = (r: LayerFeaturesResult) => {
+      const m = new Map<string, CellProps>();
+      for (const f of r.features.features) {
+        const p = (f.properties ?? {}) as CellProps;
+        m.set(keyOf(p), p);
+      }
+      return m;
+    };
+    const liveByKey = index(live);
+    const cubeByKey = index(cubeResult);
+
+    // (1) COVERAGE SUPERSET: every department visible live is present in the cube
+    // (the cube only ever ADDS the departments the live PER_LAYER_CAP truncation
+    // dropped — it never loses one).
+    for (const key of liveByKey.keys()) {
+      expect(cubeByKey.has(key), `live department ${key} must exist in the cube superset`).toBe(
+        true,
+      );
+    }
+    // The cube covers at least as many departments as the truncated live set.
+    expect(cubeByKey.size).toBeGreaterThanOrEqual(liveByKey.size);
+
+    // (2) VALUES COMPLETE THE PARTIAL SUM: live truncates localities BEFORE folding
+    // to departments, so a partially-truncated department's live value is an
+    // undercount. The cube (complete per-province) is therefore ≥ the live value on
+    // every overlapping VISIBLE department — the cube never undercounts the live set.
+    for (const [key, lp] of liveByKey) {
+      const cp = cubeByKey.get(key);
+      if (!cp) continue;
+      if (typeof lp.value === "number" && typeof cp.value === "number") {
+        expect(
+          cp.value,
+          `cube must not undercount live for ${key} (cube ${cp.value} < live ${lp.value})`,
+        ).toBeGreaterThanOrEqual(lp.value);
+      }
+    }
+  }, 180_000);
 });
 
 describe("sub-k invariant (privacy floor baked into the readable surface)", () => {
