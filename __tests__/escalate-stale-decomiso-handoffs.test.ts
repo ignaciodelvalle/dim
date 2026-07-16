@@ -186,7 +186,7 @@ describe("escalate-stale-decomiso-handoffs use-case — scan clock invariant", (
       primaryPetId: ucPetStaleId,
       openedByOrganizationId: ucSanitaryOrgId,
       receiverOrganizationId: ucShelterOrgId,
-      openedReason: "auto: decomiso UCT stale unit test",
+      openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
     });
     staleCaseId = stale.id;
     await db.execute(
@@ -201,7 +201,7 @@ describe("escalate-stale-decomiso-handoffs use-case — scan clock invariant", (
       primaryPetId: ucPetFreshId,
       openedByOrganizationId: ucSanitaryOrgId,
       receiverOrganizationId: ucShelterOrgId,
-      openedReason: "auto: decomiso UCT fresh unit test",
+      openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
     });
     freshCaseId = fresh.id;
     await db.execute(

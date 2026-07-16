@@ -116,7 +116,7 @@ beforeAll(async () => {
     kind: "bite_incident",
     primarySubjectKind: "general",
     openedByOrganizationId: orgId,
-    openedReason: "ARCH-M fixture: bite incident (general subject)",
+    openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
   });
   insertedCaseIds.push(biteCase.id);
 
@@ -125,7 +125,7 @@ beforeAll(async () => {
     primarySubjectKind: "registered_pet",
     primaryPetId: petAId,
     openedByOrganizationId: orgId,
-    openedReason: "ARCH-M fixture: lost pet episode",
+    openedReason: { code: "pet_marked_lost", petPublicToken: null, ownerNote: "episodio ARCH-M" },
   });
   insertedCaseIds.push(lostCase.id);
 
@@ -134,7 +134,7 @@ beforeAll(async () => {
     primarySubjectKind: "registered_pet",
     primaryPetId: petBId,
     openedByOrganizationId: orgId,
-    openedReason: "ARCH-M fixture: adoption listing",
+    openedReason: { code: "adoption_listing_opened" },
   });
   insertedCaseIds.push(adoptionCase.id);
 
@@ -276,13 +276,13 @@ describe("listCasesForOrg — filter beyond cap (_limitOverride)", () => {
       kind: "bite_incident",
       primarySubjectKind: "general",
       openedByOrganizationId: orgId,
-      openedReason: "ARCH-M extra 1 general fixture for truncation test",
+      openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
     });
     const extra2 = await openCase({
       kind: "bite_incident",
       primarySubjectKind: "general",
       openedByOrganizationId: orgId,
-      openedReason: "ARCH-M extra 2 general fixture for truncation test",
+      openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
     });
 
     try {
@@ -312,7 +312,7 @@ describe("listOpenCasesForAdminPreview — LIMIT pushed into SQL", () => {
         kind: "bite_incident",
         primarySubjectKind: "general",
         openedByOrganizationId: orgId,
-        openedReason: `ARCH-M admin-preview limit fixture ${i}`,
+        openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
       });
       extras.push(c.id);
     }
@@ -343,7 +343,7 @@ describe("listOpenCasesForAdminPreview — LIMIT pushed into SQL", () => {
         kind: "bite_incident",
         primarySubjectKind: "general",
         openedByOrganizationId: orgId,
-        openedReason: `ARCH-M admin-preview small-limit fixture ${i}`,
+        openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
       });
       extras.push(c.id);
     }

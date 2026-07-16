@@ -66,7 +66,7 @@ describe("D2: bite_incident case opens with incident + observation events", () =
           kind: "bite_incident",
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
-          openedReason: "Bite incident reported by owner — victim=human, severity=moderate",
+          openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
         },
         tx,
       );
@@ -160,7 +160,7 @@ describe("D2: per-pet partial index allows opening a new case after close", () =
       kind: "bite_incident",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Second incident for the same pet — closed-then-reopen scenario",
+      openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
     });
     secondCaseId = second.id;
     expect(second.status).toBe("open");

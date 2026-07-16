@@ -265,7 +265,11 @@ describe("executeDecomisoAction — happy path (unowned_animal)", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           receiverOrganizationId: receiverOrgId,
-          openedReason: "auto: decomiso motivo=abandono_extremo judicial_ref=sin_ref",
+          openedReason: {
+            code: "decomiso_executed",
+            motive: "abandono_extremo",
+            judicialRef: null,
+          },
         },
         tx,
       );

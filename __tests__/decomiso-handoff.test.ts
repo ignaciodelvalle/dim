@@ -279,7 +279,7 @@ async function buildDecomisoState(opts?: { receiverOrgId?: string; openerOrgId?:
         openedByUserId: govtUserId,
         openedByOrganizationId: opener,
         receiverOrganizationId: receiver,
-        openedReason: "auto: decomiso motivo=maltrato_fisico judicial_ref=sin_ref",
+        openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
       },
       tx,
     );
@@ -419,7 +419,7 @@ describe("acceptDecomisoHandoffAction — happy path", () => {
           jurisdictionLocality: "Buenos Aires",
           openedByUserId: receiverUserId,
           openedByOrganizationId: receiverOrgId,
-          openedReason: `auto: decomiso handoff aceptado desde caso ${casePublicCode}`,
+          openedReason: { code: "decomiso_handoff_accepted", sourceCasePublicCode: casePublicCode },
         },
         tx,
       );

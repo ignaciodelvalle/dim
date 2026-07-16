@@ -49,7 +49,7 @@ beforeAll(async () => {
     kind: "bite_incident",
     primarySubjectKind: "registered_pet",
     primaryPetId: petId,
-    openedReason: "PDR S1 fixture: bite incident (visible kind, positive control)",
+    openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
   });
   insertedCaseIds.push(biteCase.id);
 
@@ -57,7 +57,12 @@ beforeAll(async () => {
     kind: "welfare_denuncia",
     primarySubjectKind: "registered_pet",
     primaryPetId: petId,
-    openedReason: "PDR S1 fixture: welfare denuncia — must never surface to the subject owner",
+    openedReason: {
+      code: "welfare_report_citizen",
+      referenceCode: "DEN-PDR-S1",
+      kind: "neglect",
+      severity: "medium",
+    },
   });
   insertedCaseIds.push(welfareCase.id);
 
@@ -65,7 +70,11 @@ beforeAll(async () => {
     kind: "lost_pet_episode",
     primarySubjectKind: "registered_pet",
     primaryPetId: petId,
-    openedReason: "PDR S1 fixture: lost episode — owned exclusively by LostCaseBlock",
+    openedReason: {
+      code: "pet_marked_lost",
+      petPublicToken: null,
+      ownerNote: "episodio de prueba",
+    },
   });
   insertedCaseIds.push(lostCase.id);
 });

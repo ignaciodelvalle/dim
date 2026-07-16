@@ -43,7 +43,7 @@ describe("cases canonical write (openCase) — Phase C", () => {
       primarySubjectKind: "location",
       locationLat: "-34.6083000",
       locationLng: "-58.3712000",
-      openedReason: "P3 Phase C canonical-write test -- bite incident at location",
+      openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
       jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
     });
@@ -63,7 +63,12 @@ describe("cases canonical write (openCase) — Phase C", () => {
     const row = await repo.openCase({
       kind: "welfare_denuncia",
       primarySubjectKind: "unowned_animal",
-      openedReason: "P3 Phase C canonical-write test -- no coordinates",
+      openedReason: {
+        code: "welfare_report_citizen",
+        referenceCode: "DEN-P3-0001",
+        kind: "neglect",
+        severity: "medium",
+      },
     });
     insertedCaseIds.push(row.id);
 

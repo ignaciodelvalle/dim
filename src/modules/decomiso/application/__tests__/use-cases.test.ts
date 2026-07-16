@@ -528,7 +528,11 @@ describe("acceptDecomisoHandoffInTx — happy path", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           receiverOrganizationId: receiverOrgId,
-          openedReason: "auto: test accept",
+          openedReason: {
+            code: "decomiso_executed",
+            motive: "maltrato_fisico",
+            judicialRef: "IPP-TEST-ACC",
+          },
         },
         tx,
       );
@@ -703,7 +707,11 @@ describe("rejectDecomisoHandoffInTx — happy path", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           receiverOrganizationId: receiverOrgId,
-          openedReason: "auto: test reject",
+          openedReason: {
+            code: "decomiso_executed",
+            motive: "maltrato_fisico",
+            judicialRef: "IPP-TEST-REJ",
+          },
         },
         tx,
       );
@@ -794,7 +802,11 @@ describe("reassignDecomisoInTx — happy path", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           receiverOrganizationId: receiverOrgId,
-          openedReason: "auto: test reassign",
+          openedReason: {
+            code: "decomiso_executed",
+            motive: "maltrato_fisico",
+            judicialRef: "IPP-TEST-REA",
+          },
         },
         tx,
       );
@@ -915,7 +927,7 @@ describe("validateAcceptDecomisoHandoff — guards", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: receiverOrgId, // shelter, not sanitary_authority
           receiverOrganizationId: receiver2OrgId,
-          openedReason: "test: non-govt opener",
+          openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
         },
         tx,
       );
@@ -971,7 +983,7 @@ describe("validateAcceptDecomisoHandoff — guards", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           receiverOrganizationId: receiverOrgId,
-          openedReason: "test: wrong receiver",
+          openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
         },
         tx,
       );
@@ -1027,7 +1039,7 @@ describe("validateRejectDecomisoHandoff — guards", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           // No receiverOrganizationId — simulates already-cleared state.
-          openedReason: "test: no receiver",
+          openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
         },
         tx,
       );

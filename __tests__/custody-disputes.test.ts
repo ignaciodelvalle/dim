@@ -149,7 +149,7 @@ async function seedOpenDispute(
         jurisdictionLocality: LOCALITY,
         openedByUserId: claimantUserId,
         openedByOrganizationId: null,
-        openedReason: "test dispute",
+        openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
       },
       tx,
     );
@@ -325,7 +325,7 @@ describe("addDisputePartyAction", () => {
           jurisdictionLocality: "Córdoba Capital",
           openedByUserId: claimantUserId,
           openedByOrganizationId: null,
-          openedReason: "Custody dispute raised out of jurisdiction (test fixture).",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );

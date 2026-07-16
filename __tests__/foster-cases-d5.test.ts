@@ -57,7 +57,11 @@ describe("D5: foster_placement opens on assign", () => {
       kind: "foster_placement",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Foster placement assigned by Test Refugio",
+      openedReason: {
+        code: "foster_placement_assigned",
+        actorOrgDisplayName: "Test Refugio",
+        expectedWeeks: null,
+      },
     });
     firstCaseId = caseRow.id;
     insertedCaseIds.push(caseRow.id);
@@ -78,7 +82,11 @@ describe("D5: endFosterAction reason → closed_reason mapping", () => {
       kind: "foster_placement",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Foster placement fixture for early-return reason",
+      openedReason: {
+        code: "foster_placement_assigned",
+        actorOrgDisplayName: "Test Refugio",
+        expectedWeeks: 4,
+      },
     });
     insertedCaseIds.push(caseRow.id);
     const result = await closeCase({ caseId: caseRow.id, reason: "cancelled" });

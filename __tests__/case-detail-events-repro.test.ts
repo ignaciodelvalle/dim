@@ -63,7 +63,7 @@ beforeAll(async () => {
     kind: "bite_incident",
     primarySubjectKind: "general",
     openedByOrganizationId: org.id,
-    openedReason: "PR-2 repro: case_events merge",
+    openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
   });
   caseId = created.id;
   casePublicCode = created.publicCode;

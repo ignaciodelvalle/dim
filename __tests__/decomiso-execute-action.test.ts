@@ -299,7 +299,7 @@ describe("executeDecomisoAction — happy path (registered_pet)", () => {
           openedByUserId: govtUserId,
           openedByOrganizationId: govtOrgId,
           receiverOrganizationId: receiverOrgId,
-          openedReason: "auto: decomiso motivo=maltrato_fisico judicial_ref=sin_ref",
+          openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
         },
         tx,
       );

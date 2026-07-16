@@ -75,7 +75,7 @@ describe("custody_episode opens on org intake (shelter_intake_recorded)", () => 
           primaryPetId: newPet.id,
           jurisdictionProvince: "Buenos Aires",
           jurisdictionLocality: "La Plata",
-          openedReason: "auto: org intake reason=rescue",
+          openedReason: { code: "org_intake", intakeReason: "rescue" },
         },
         tx,
       );

@@ -195,7 +195,7 @@ async function seedOpenDispute(
         jurisdictionLocality: LOCALITY,
         openedByUserId: claimantUserId,
         openedByOrganizationId: null,
-        openedReason: "UC test dispute",
+        openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
       },
       tx,
     );
@@ -332,7 +332,7 @@ describe("openDisputeFromEvent", () => {
           jurisdictionLocality: LOCALITY,
           openedByUserId: claimantUserId,
           openedByOrganizationId: null,
-          openedReason: "UC open happy fixture",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );
@@ -411,7 +411,7 @@ describe("openDisputeFromEvent", () => {
           jurisdictionLocality: LOCALITY,
           openedByUserId: claimantUserId,
           openedByOrganizationId: null,
-          openedReason: "first dispute for dup test",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );
@@ -462,7 +462,7 @@ describe("openDisputeFromEvent", () => {
             jurisdictionLocality: LOCALITY,
             openedByUserId: claimantUserId,
             openedByOrganizationId: null,
-            openedReason: "second dispute for dup test",
+            openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
           },
           tx,
         );
@@ -610,7 +610,7 @@ describe("addDisputePartyUseCase", () => {
           jurisdictionLocality: "Córdoba Capital",
           openedByUserId: claimantUserId,
           openedByOrganizationId: null,
-          openedReason: "OOJ dispute fixture",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );
@@ -1111,7 +1111,7 @@ describe("escalateDisputeUseCase", () => {
           jurisdictionLocality: "Córdoba Capital",
           openedByUserId: claimantUserId,
           openedByOrganizationId: null,
-          openedReason: "OOJ escalate fixture",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );

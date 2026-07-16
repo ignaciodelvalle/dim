@@ -96,7 +96,12 @@ beforeAll(async () => {
     kind: "welfare_denuncia",
     primarySubjectKind: "registered_pet",
     primaryPetId: petId,
-    openedReason: "PDR S1 fixture: welfare denuncia — bridge-event leak regression",
+    openedReason: {
+      code: "welfare_report_citizen",
+      referenceCode: "DEN-PDR-LIB",
+      kind: "neglect",
+      severity: "medium",
+    },
   });
   welfareCaseId = welfareCase.id;
 

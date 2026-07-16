@@ -60,7 +60,7 @@ describe("D3: lost_pet_episode opens with status_changed(to=lost)", () => {
           kind: "lost_pet_episode",
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
-          openedReason: "Pet DIM-D3-PA1 marked as lost by owner",
+          openedReason: { code: "pet_marked_lost", petPublicToken: "DIM-D3-PA1", ownerNote: null },
         },
         tx,
       );

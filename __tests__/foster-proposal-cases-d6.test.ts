@@ -459,7 +459,7 @@ describe("D6.6: fallback path — pre-migration proposal (caseId=null) still clo
       kind: "foster_proposal",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "D6.6 fallback test — manual case open",
+      openedReason: { code: "foster_proposal_sent" },
       openedByOrganizationId: orgId,
     });
 

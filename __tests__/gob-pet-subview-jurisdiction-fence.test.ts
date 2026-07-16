@@ -84,7 +84,7 @@ beforeAll(async () => {
     primaryPetId: petId,
     jurisdictionProvince: "CABA",
     jurisdictionLocality: "Palermo",
-    openedReason: "fence #59 fixture: in-scope CABA/Palermo case (must remain visible)",
+    openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
   });
   insertedCaseIds.push(inScopeCase.id);
 
@@ -95,8 +95,11 @@ beforeAll(async () => {
     primaryPetId: petId,
     jurisdictionProvince: "Salta",
     jurisdictionLocality: "Salta",
-    openedReason:
-      "fence #59 fixture: out-of-province Salta case (cross-fence leak — must be excluded)",
+    openedReason: {
+      code: "microchip_replaced",
+      reason: "duplicate_detected",
+      duplicateDetected: false,
+    },
   });
   insertedCaseIds.push(outOfProvinceCase.id);
 
@@ -108,8 +111,11 @@ beforeAll(async () => {
     primaryPetId: petId,
     jurisdictionProvince: "CABA",
     jurisdictionLocality: "Almagro",
-    openedReason:
-      "fence #59 fixture: sibling-barrio CABA/Almagro case (out of scope — must be excluded)",
+    openedReason: {
+      code: "outbreak_investigation_manual",
+      diseaseCode: "rabia",
+      note: "fixture fence #59",
+    },
   });
   insertedCaseIds.push(siblingBarrioCase.id);
 });

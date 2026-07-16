@@ -45,19 +45,18 @@ export interface OpenCaseInput {
   /** custody_transfer_handshake only: canonical receiver org id. */
   receiverOrganizationId?: string | null;
   /**
-   * Why this case is being opened.
+   * Why this case is being opened. THE FENCE.
    *
-   * TRANSITIONAL TYPE (ADR-8 step 1): `string` is accepted only while the 18
-   * writers migrate to `OpenedReason`, one module per commit, so `pnpm test`
-   * stays green at every step. The `string` branch is deleted in the final
-   * commit of this change and never ships. New code MUST pass an
-   * `OpenedReason` — a bare string is exactly the hole this work closes.
+   * A closed union, so a writer cannot invent a reason or pass a bare string:
+   * both are `tsc` errors here, at the write boundary, before any row exists.
+   * That is the whole point of this type — transfer-custody.ts passed a
+   * template string for months and nothing caught it.
    *
-   * Structured input dual-writes: byte-identical legacy prose into
-   * `opened_reason` (>= 10 chars, satisfying the CHECK) PLUS the code and
-   * params. See resolveOpenedReasonColumns.
+   * Writing dual-writes: byte-identical legacy prose into `opened_reason`
+   * (>= 10 chars, satisfying the CHECK) PLUS the code and params. See
+   * resolveOpenedReasonColumns.
    */
-  openedReason: string | OpenedReason;
+  openedReason: OpenedReason;
   /**
    * Internal ids that belong in the AUDIT prose but must never reach
    * `opened_reason_params`. Only the three writers whose prose embeds a UUID
@@ -83,13 +82,9 @@ export interface OpenCaseInput {
  * cohorts match one query and a rollback renders every row correctly.
  */
 export function resolveOpenedReasonColumns(
-  openedReason: string | OpenedReason,
+  openedReason: OpenedReason,
   audit: OpenedReasonAudit = {},
-): { openedReason: string; openedReasonCode: string | null; openedReasonParams: unknown } {
-  // TRANSITIONAL (ADR-8 step 1) — deleted once all 18 writers are migrated.
-  if (typeof openedReason === "string") {
-    return { openedReason, openedReasonCode: null, openedReasonParams: null };
-  }
+): { openedReason: string; openedReasonCode: string; openedReasonParams: unknown } {
   const { code, ...params } = openedReason;
   return {
     openedReason: openedReasonProse(openedReason, audit),

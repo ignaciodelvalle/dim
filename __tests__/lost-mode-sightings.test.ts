@@ -62,7 +62,11 @@ beforeAll(async () => {
         kind: "lost_pet_episode",
         primarySubjectKind: "registered_pet",
         primaryPetId: petId,
-        openedReason: "P0c sighting test fixture",
+        openedReason: {
+          code: "pet_marked_lost",
+          petPublicToken: null,
+          ownerNote: "fixture de avistamiento",
+        },
       },
       tx,
     );

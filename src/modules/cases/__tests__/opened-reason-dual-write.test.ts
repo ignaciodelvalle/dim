@@ -4,28 +4,14 @@
 // is the pure function that decides what the three opened_reason columns get,
 // extracted so the contract is testable without a DB.
 //
-// TRANSITIONAL (ADR-8 step 1): the `string` branch exists only so the 18
-// writers can migrate one module per commit with `pnpm test` green at every
-// step. It is deleted in the final commit of this change and is never shipped.
+// The `string` branch that existed here during the writer migration (ADR-8
+// step 1) is GONE, along with its tests — the input type is the closed union
+// now, so "what happens with a raw string" is not a question the type system
+// permits anyone to ask.
 
 import { describe, expect, it } from "vitest";
 import type { OpenedReason } from "../domain/opened-reason";
 import { resolveOpenedReasonColumns } from "../infrastructure/cases-repository";
-
-describe("resolveOpenedReasonColumns — legacy string input (transitional)", () => {
-  it("writes the string as prose and leaves the structured pair null", () => {
-    expect(resolveOpenedReasonColumns("auto: something not yet migrated")).toEqual({
-      openedReason: "auto: something not yet migrated",
-      openedReasonCode: null,
-      openedReasonParams: null,
-    });
-  });
-
-  it("does not alter the string in any way", () => {
-    const raw = "manual [rabia]: cluster en zona sur";
-    expect(resolveOpenedReasonColumns(raw).openedReason).toBe(raw);
-  });
-});
 
 describe("resolveOpenedReasonColumns — structured input dual-writes", () => {
   it("writes byte-identical prose AND the code AND the params", () => {

@@ -132,7 +132,7 @@ describe("cross-org transfer — propose + accept happy path", () => {
           primaryPetId: petId,
           openedByOrganizationId: senderId,
           receiverOrganizationId: receiverId,
-          openedReason: "auto: cross-org transfer proposed reason=space_constraint",
+          openedReason: { code: "cross_org_transfer_proposed", reason: "space_constraint" },
         },
         tx,
       );
@@ -266,7 +266,7 @@ describe("cross-org transfer — expire cron", () => {
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
           openedByOrganizationId: senderId,
-          openedReason: "auto: cross-org transfer for expiry test",
+          openedReason: { code: "cross_org_transfer_proposed", reason: "other" },
         },
         tx,
       );
