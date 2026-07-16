@@ -230,6 +230,7 @@ export default async function AdminLibroPage({
           Desde
           <input
             type="date"
+            lang="es-AR"
             name="desde"
             defaultValue={sp.desde ?? ""}
             className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
@@ -240,6 +241,7 @@ export default async function AdminLibroPage({
           Hasta
           <input
             type="date"
+            lang="es-AR"
             name="hasta"
             defaultValue={sp.hasta ?? ""}
             className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"

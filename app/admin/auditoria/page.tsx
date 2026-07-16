@@ -287,6 +287,7 @@ export default async function AdminAuditoriaPage({
             id="audit-from"
             name="from"
             type="date"
+            lang="es-AR"
             defaultValue={fromValid ?? ""}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
@@ -299,6 +300,7 @@ export default async function AdminAuditoriaPage({
             id="audit-to"
             name="to"
             type="date"
+            lang="es-AR"
             defaultValue={toValid ?? ""}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />

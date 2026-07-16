@@ -377,6 +377,7 @@ export default async function GobHistorialPage({
           <input
             id="historial-from"
             type="date"
+            lang="es-AR"
             name="from"
             defaultValue={sp.from ?? ""}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
@@ -393,6 +394,7 @@ export default async function GobHistorialPage({
           <input
             id="historial-to"
             type="date"
+            lang="es-AR"
             name="to"
             defaultValue={sp.to ?? ""}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
