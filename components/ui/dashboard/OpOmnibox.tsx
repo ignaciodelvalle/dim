@@ -41,6 +41,10 @@ import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
 
+// Mirrors DIM_TOKEN_PATTERN in lib/infra/omnibox-search.ts. Used only to tailor
+// the empty-state hint — the server owns the actual matching.
+const DIM_TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
+
 // Person-result role labels (same values as profiles.role across the app).
 const ROLE_LABELS: Record<string, string> = {
   owner: "Dueño/a",
@@ -203,6 +207,7 @@ export function OpOmnibox({
 
   const showDropdown = open && query.trim().length >= MIN_QUERY_LENGTH;
   const noResults = searched && !loading && results.total === 0;
+  const queriedDimToken = DIM_TOKEN_PATTERN.test(query.trim());
   const activeDescendant =
     activeIndex >= 0 && flatItems[activeIndex] ? `${optionBaseId}-${activeIndex}` : undefined;
 
@@ -277,12 +282,24 @@ export function OpOmnibox({
             // "en tu jurisdicción" qualifier is dropped for universal scope
             // (admin) — it has no territorial limit and the copy must not imply
             // one.
+            //
+            // The suggestion is scope-specific because the searchable entities
+            // are: searchOmnibox returns pets ONLY for the org variant. For
+            // admin/govt it returns `pets: []` by fence invariant (operators
+            // have no pet directory — see lib/infra/gob-pet-subview.ts), so
+            // offering "DIM-…" here advertises the one format that can never
+            // resolve. QA 2026-07-16: two independent testers pasted a valid
+            // DIM token, got this hint, retried, and both concluded the search
+            // was broken. When the query IS a DIM token, name the fence rather
+            // than let "Sin coincidencias" imply the pet does not exist.
             <div className="px-4 py-3 text-sm text-ln-op-mute">
               <p>{universalScope ? "Sin coincidencias" : "Sin coincidencias en tu jurisdicción"}</p>
               <p className="mt-1 text-[var(--text-xs)] text-ln-op-mute">
                 {orgToken
                   ? "Probá con el nombre de la mascota o su código (DIM-…)."
-                  : "Probá con un código (DIM-…, CAS-…) o nombre y apellido."}
+                  : queriedDimToken
+                    ? "El buscador de operadores no accede al padrón de mascotas. Una mascota aparece acá solo si tiene un caso (CAS-…) o una denuncia (DEN-…) asociada: buscá por ese código."
+                    : "Probá con un código de caso (CAS-…), de denuncia (DEN-…), o nombre y apellido."}
               </p>
             </div>
           )}
