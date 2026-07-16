@@ -54,6 +54,31 @@ describe("DateInputAr", () => {
     expect(hidden(container, "from").value).toBe("2026-07-03");
   });
 
+  it("syncs the submitted ISO on CHANGE, before blur (implicit Enter submit)", () => {
+    // A GET-form Enter submit does not blur the field first, so the hidden ISO
+    // must already be current when the date is complete — else the typed value
+    // is silently dropped (the Cursor-review HIGH regression).
+    const { container } = render(<DateInputAr name="from" />);
+    const input = textbox(container);
+    fireEvent.change(input, { target: { value: "15072026" } });
+    // No blur fired — the hidden ISO is already the typed date.
+    expect(hidden(container, "from").value).toBe("2026-07-15");
+  });
+
+  it("re-editing an existing date updates the ISO on change, not a stale value", () => {
+    const { container } = render(<DateInputAr name="from" defaultValue="2026-07-01" />);
+    const input = textbox(container);
+    expect(hidden(container, "from").value).toBe("2026-07-01");
+    fireEvent.change(input, { target: { value: "15072026" } });
+    expect(hidden(container, "from").value).toBe("2026-07-15");
+  });
+
+  it("ignores a calendar-invalid ISO default (tampered URL) — renders blank", () => {
+    const { container } = render(<DateInputAr name="from" defaultValue="2026-99-99" />);
+    expect(textbox(container).value).toBe("");
+    expect(hidden(container, "from").value).toBe("");
+  });
+
   it("clears the submitted ISO and shows an inline hint for an impossible date", () => {
     const { container } = render(<DateInputAr name="from" defaultValue="2026-07-03" />);
     const input = textbox(container);

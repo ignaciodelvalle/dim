@@ -34,6 +34,7 @@ import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnib
 import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
 import type { CaseStatus } from "@/db/schema";
 import type { OmniboxResult, OmniboxResults } from "@/lib/infra/omnibox-search";
+import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 import { speciesLabel } from "@/lib/utils/format";
 import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
@@ -220,6 +221,8 @@ export function OpOmnibox({
         aria-autocomplete="list"
         aria-activedescendant={activeDescendant}
         aria-label="Búsqueda global"
+        // System search only — no browser autofill/history overlay.
+        {...NO_BROWSER_AUTOFILL}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);

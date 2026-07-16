@@ -25,6 +25,7 @@ import { searchLocalitiesAction } from "@/app/actions/localities";
 import type { SearchLocalitiesResult } from "@/app/actions/localities";
 import { LnInput } from "@/components/ui/Field";
 import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
+import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
@@ -194,6 +195,10 @@ export function LocalityPickerAcross({
         aria-required={required || undefined}
         aria-autocomplete="list"
         aria-expanded={open}
+        // Only system-catalog localities are valid here — suppress the browser's
+        // own autofill/history/password-manager dropdown so it can't overlay or
+        // pollute the results (see lib/ui/no-browser-autofill.ts).
+        {...NO_BROWSER_AUTOFILL}
       />
       {/* Wire contract:
             provinceCode        — ISO 3166-2:AR. Empty when user typed free text and there's no defaultValue.

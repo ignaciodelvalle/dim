@@ -21,9 +21,12 @@ import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/uti
  * Drop-in for a `<input type="date" name=… defaultValue={iso}>` inside any GET
  * filter form.
  *
- * VALIDATION: on blur the text is parsed; an impossible date (32/13/2026) is
- * cleared (hidden ISO → "") and an inline es-AR hint is shown, so a wrong range
- * is never submitted. A valid date is normalized back to dd/mm/aaaa.
+ * VALIDATION: the hidden ISO is kept in sync ON EVERY CHANGE — as soon as the
+ * text forms a complete valid date it becomes the submitted value, so pressing
+ * Enter (implicit GET-form submit, which does NOT blur first) submits the typed
+ * date, not a stale/empty one. Blur normalizes the display and, for an
+ * impossible/incomplete date (32/13/2026), clears the hidden ISO and shows an
+ * inline es-AR hint so a wrong range is never submitted.
  *
  * A11Y: real text input with `inputMode="numeric"`, associated error via
  * `aria-describedby`/`aria-invalid`, fully keyboard-operable (no calendar
@@ -52,17 +55,32 @@ export function DateInputAr({ name, defaultValue, id, ariaLabel, className }: Da
   const inputId = id ?? `${reactId}-date`;
   const errorId = `${reactId}-error`;
 
-  const initialDisplay = isoToArDateDisplay(defaultValue);
-  const [display, setDisplay] = useState(initialDisplay);
-  const [iso, setIso] = useState(initialDisplay ? (defaultValue ?? "") : "");
+  // Only accept a CALENDAR-valid ISO default (round-trip through the parser), so a
+  // tampered URL like ?from=2026-99-99 renders blank, not a nonsense "99/99/2026"
+  // that would silently re-submit garbage on an unedited form.
+  const initialIso = (() => {
+    const display = isoToArDateDisplay(defaultValue);
+    return display && parseArDateToIso(display) ? (defaultValue ?? "") : "";
+  })();
+  const [display, setDisplay] = useState(isoToArDateDisplay(initialIso));
+  const [iso, setIso] = useState(initialIso);
   const [invalid, setInvalid] = useState(false);
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const masked = maskArDateInput(event.target.value);
     setDisplay(masked);
     if (invalid) setInvalid(false);
-    // Keep the submitted ISO in sync with an emptied field immediately.
-    if (masked === "") setIso("");
+    // Keep the submitted ISO in sync on EVERY keystroke, not just on blur: an
+    // implicit Enter submit does not fire blur, so the hidden field must already
+    // hold the typed date. Empty → clear; a complete valid date → its ISO; an
+    // incomplete/partial date → clear (blur will flag it invalid if the operator
+    // leaves it that way).
+    if (masked === "") {
+      setIso("");
+      return;
+    }
+    const parsed = parseArDateToIso(masked);
+    setIso(parsed ?? "");
   }
 
   function handleBlur() {
