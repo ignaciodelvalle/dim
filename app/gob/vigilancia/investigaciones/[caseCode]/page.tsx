@@ -9,7 +9,7 @@ import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
 import { formatDateTime } from "@/lib/utils/format";
 import {
   caseClosedReasonLabel,
-  openedReasonDisplay,
+  caseOpenedReasonDisplay,
 } from "@/src/modules/cases/domain/opened-reason-display";
 
 import { InvestigationActions } from "./InvestigationActions";
@@ -160,7 +160,7 @@ export default async function InvestigacionDetailPage({
         <OpCardHead title="Motivo de apertura" />
         <OpCardBody>
           <p className="text-[13px] text-ln-op-ink whitespace-pre-wrap">
-            {openedReasonDisplay(detail.openedReason)}
+            {caseOpenedReasonDisplay(detail)}
           </p>
         </OpCardBody>
       </OpCard>

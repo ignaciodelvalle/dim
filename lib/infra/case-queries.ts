@@ -90,6 +90,8 @@ const CASE_DETAIL_SELECT = {
   jurisdictionLocality: cases.jurisdictionLocality,
   openedAt: cases.openedAt,
   openedReason: cases.openedReason,
+  openedReasonCode: cases.openedReasonCode,
+  openedReasonParams: cases.openedReasonParams,
   closedAt: cases.closedAt,
   primaryPetId: cases.primaryPetId,
   welfareReportId: cases.welfareReportId,
@@ -111,6 +113,8 @@ const CASE_OUTBREAK_DETAIL_SELECT = {
   jurisdictionLocality: cases.jurisdictionLocality,
   openedAt: cases.openedAt,
   openedReason: cases.openedReason,
+  openedReasonCode: cases.openedReasonCode,
+  openedReasonParams: cases.openedReasonParams,
   closedAt: cases.closedAt,
   closedByUserId: cases.closedByUserId,
   openedByUserId: cases.openedByUserId,
@@ -127,6 +131,8 @@ const CASE_OUTBREAK_LIST_SELECT = {
   openedAt: cases.openedAt,
   closedAt: cases.closedAt,
   openedReason: cases.openedReason,
+  openedReasonCode: cases.openedReasonCode,
+  openedReasonParams: cases.openedReasonParams,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -147,6 +153,8 @@ export interface CaseDetail {
   jurisdictionLocality: string | null;
   openedAt: Date;
   openedReason: string | null;
+  openedReasonCode: string | null;
+  openedReasonParams: unknown;
   closedAt: Date | null;
   // Subject pet (when primaryPetId is set)
   pet: {
@@ -323,6 +331,8 @@ export async function getCaseDetailByPublicCode(publicCode: string): Promise<Cas
     jurisdictionLocality: row.c.jurisdictionLocality,
     openedAt: row.c.openedAt,
     openedReason: row.c.openedReason,
+    openedReasonCode: row.c.openedReasonCode,
+    openedReasonParams: row.c.openedReasonParams,
     closedAt: row.c.closedAt,
     pet: row.pet?.id
       ? {
@@ -775,6 +785,8 @@ export type OutbreakInvestigationListItem = {
   openedAt: Date;
   closedAt: Date | null;
   openedReason: string | null;
+  openedReasonCode: string | null;
+  openedReasonParams: unknown;
 };
 
 export type OutbreakInvestigationDetail = {
@@ -788,6 +800,8 @@ export type OutbreakInvestigationDetail = {
   jurisdictionLocality: string | null;
   openedAt: Date;
   openedReason: string | null;
+  openedReasonCode: string | null;
+  openedReasonParams: unknown;
   closedAt: Date | null;
   openedByUser: { id: string; displayName: string } | null;
   closedByUser: { id: string; displayName: string } | null;
@@ -849,6 +863,8 @@ export async function listOutbreakInvestigationsForGovt(
     openedAt: r.c.openedAt,
     closedAt: r.c.closedAt ?? null,
     openedReason: r.c.openedReason ?? null,
+    openedReasonCode: r.c.openedReasonCode ?? null,
+    openedReasonParams: r.c.openedReasonParams ?? null,
   }));
 }
 
@@ -926,6 +942,8 @@ export async function getOutbreakInvestigationDetail(
     jurisdictionLocality: row.c.jurisdictionLocality ?? null,
     openedAt: row.c.openedAt,
     openedReason: row.c.openedReason ?? null,
+    openedReasonCode: row.c.openedReasonCode ?? null,
+    openedReasonParams: row.c.openedReasonParams ?? null,
     closedAt: row.c.closedAt ?? null,
     openedByUser: row.openedByUser?.id ? row.openedByUser : null,
     closedByUser: closedByUserRow,

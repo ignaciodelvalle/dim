@@ -201,6 +201,8 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
         openedAt={detail.openedAt}
         closedAt={detail.closedAt}
         openedReason={detail.openedReason}
+        openedReasonCode={detail.openedReasonCode}
+        openedReasonParams={detail.openedReasonParams}
         jurisdictionCountry={detail.jurisdictionCountry}
         jurisdictionProvince={detail.jurisdictionProvince}
         jurisdictionLocality={detail.jurisdictionLocality}
