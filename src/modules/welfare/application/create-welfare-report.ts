@@ -25,6 +25,7 @@
 // (Verified against original — no insertAudit call here.)
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import type { OpenedReason, OpenedReasonParams } from "@/src/modules/cases/domain/opened-reason";
 import {
   MALTREATMENT_KINDS,
   deriveAuthorRole,
@@ -53,7 +54,7 @@ type OpenCaseInput = {
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string | null;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 };
 
@@ -194,7 +195,17 @@ export async function createWelfareReport(
         jurisdictionProvince,
         jurisdictionLocality,
         openedByUserId: reporterUserId ?? null,
-        openedReason: `Welfare denuncia ${referenceCode} — kind=${kind}, severity=${severity}`,
+        openedReason: {
+          code: "welfare_report_citizen",
+          referenceCode,
+          // `kind`/`severity` arrive as bare `string` on this use-case's input;
+          // welfare/actions.ts validates both against WELFARE_KINDS /
+          // WELFARE_SEVERITIES before calling. Narrowing the port itself is a
+          // separate change. A value that somehow escaped validation fails the
+          // read-side parse and renders from prose, so it degrades, not breaks.
+          kind: kind as OpenedReasonParams<"welfare_report_citizen">["kind"],
+          severity: severity as OpenedReasonParams<"welfare_report_citizen">["severity"],
+        },
         welfareReportId: reportId,
       });
 

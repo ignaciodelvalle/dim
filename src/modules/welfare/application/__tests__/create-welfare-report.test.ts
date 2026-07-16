@@ -7,6 +7,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";
 import { createWelfareReport } from "../create-welfare-report";
 
@@ -23,7 +24,7 @@ type OpenCaseFn = (input: {
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string | null;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 }) => Promise<{ id: string; publicCode: string }>;
 

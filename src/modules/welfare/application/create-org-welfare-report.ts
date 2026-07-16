@@ -31,6 +31,7 @@
 //   6. Return redirect target.
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import { MALTREATMENT_KINDS, derivePrimarySubjectKind } from "../domain/report-classification";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
 import type { NewNotification } from "./types";
@@ -64,7 +65,7 @@ type OpenCaseInput = {
   jurisdictionLocality: string | null;
   openedByUserId: string;
   openedByOrganizationId: string;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 };
 
@@ -196,7 +197,11 @@ export async function createOrgWelfareReport(
         jurisdictionLocality,
         openedByUserId: orgMember.userId,
         openedByOrganizationId: orgMember.orgId,
-        openedReason: `auto: org-side welfare report by ${orgMember.orgDisplayName} (${referenceCode})`,
+        openedReason: {
+          code: "welfare_report_org",
+          referenceCode,
+          orgDisplayName: orgMember.orgDisplayName,
+        },
         welfareReportId: reportId,
       });
 
