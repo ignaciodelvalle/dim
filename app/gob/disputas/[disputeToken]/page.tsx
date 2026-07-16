@@ -14,7 +14,7 @@ import {
 import type { EventType } from "@/db/schema";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { eventTypeLabel, speciesLabel } from "@/lib/utils/format";
+import { eventTypeLabel, formatDateShort, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";
@@ -176,12 +176,7 @@ export default async function DisputeDetailPage({
                       <p className="text-sm text-ln-op-mute mt-1">{party.partyPositionSummary}</p>
                     )}
                     <p className="text-xs text-ln-op-faint mt-1">
-                      Sumada el{" "}
-                      {new Date(party.addedAt).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      Sumada el {formatDateShort(party.addedAt)}
                     </p>
                   </OpCardBody>
                 </OpCard>
@@ -207,11 +202,7 @@ export default async function DisputeDetailPage({
                   {eventTypeLabel(e.eventType as EventType)}
                 </span>
                 <span className="text-sm text-ln-op-mute whitespace-nowrap">
-                  {new Date(e.occurredAt).toLocaleDateString("es-AR", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatDateShort(e.occurredAt)}
                   {e.authorRole && <span className="ml-2 text-ln-op-faint">· {e.authorRole}</span>}
                 </span>
               </li>

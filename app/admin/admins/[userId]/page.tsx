@@ -10,7 +10,7 @@ import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
-import { accountTypeLabel } from "@/lib/utils/format";
+import { accountTypeLabel, formatDateShort } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
@@ -137,13 +137,11 @@ export default async function AdminDetailPage({
               <dt className="text-ln-op-mute">Rol</dt>
               <dd className="text-ln-op-ink">Administrador</dd>
               <dt className="text-ln-op-mute">Creado</dt>
-              <dd className="text-ln-op-ink">{target.createdAt.toLocaleDateString("es-AR")}</dd>
+              <dd className="text-ln-op-ink">{formatDateShort(target.createdAt)}</dd>
               {!isActive && target.deactivatedAt && (
                 <>
                   <dt className="text-ln-op-mute">Desactivado</dt>
-                  <dd className="text-ln-op-danger">
-                    {target.deactivatedAt.toLocaleDateString("es-AR")}
-                  </dd>
+                  <dd className="text-ln-op-danger">{formatDateShort(target.deactivatedAt)}</dd>
                 </>
               )}
             </dl>

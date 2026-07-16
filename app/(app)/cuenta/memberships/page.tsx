@@ -7,6 +7,7 @@ import Link from "next/link";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizationMemberships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { formatDate } from "@/lib/utils/format";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { LeaveMembershipButton } from "./LeaveMembershipButton";
@@ -119,12 +120,7 @@ export default async function MembershipsPage() {
                     <RoleBadge role={membership.role} />
                   </div>
                   <p className="mt-[5px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                    Desde{" "}
-                    {membership.joinedAt.toLocaleDateString("es-AR", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
+                    Desde {formatDate(membership.joinedAt)}
                   </p>
                 </Link>
                 <div className="flex-shrink-0">

@@ -40,6 +40,7 @@ import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, fetchCrossJurisdictionOutliers } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { formatDateShort } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -89,8 +90,6 @@ function DeltaCell({ row }: { row: PolicyOutcomeRow }) {
     </span>
   );
 }
-
-const dateFmt = new Intl.DateTimeFormat("es-AR", { dateStyle: "medium" });
 
 function ruleScopeLabel(row: PolicyOutcomeRow): string {
   if (!row.province) return "Nacional";
@@ -379,7 +378,7 @@ export default async function AdminInteligenciaPage({
                   {policyRows.map((row) => (
                     <tr key={row.auditId} className="border-b border-ln-op-line last:border-0">
                       <td className="py-2 pr-4 whitespace-nowrap tabular-nums">
-                        {dateFmt.format(row.changedAt)}
+                        {formatDateShort(row.changedAt)}
                       </td>
                       <td className="py-2 pr-4">
                         {RULE_TYPE_REGISTRY[row.ruleType].label}{" "}

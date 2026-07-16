@@ -7,6 +7,8 @@ import { db, fosterProposals, organizations, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
 
+import { formatDateShort } from "@/lib/utils/format";
+
 const STATUS_LABELS = {
   pending: "Pendiente",
   accepted: "Aceptada",
@@ -88,19 +90,8 @@ export default async function TransitosHistorialPage() {
                       {pet.name}
                     </Link>
                     <p className="mt-px font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                      {ownership.startedAt
-                        ? new Date(ownership.startedAt).toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : ""}
-                      {ownership.endedAt &&
-                        ` → ${new Date(ownership.endedAt).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}`}
+                      {ownership.startedAt ? formatDateShort(ownership.startedAt) : ""}
+                      {ownership.endedAt && ` → ${formatDateShort(ownership.endedAt)}`}
                     </p>
                   </div>
                 </div>

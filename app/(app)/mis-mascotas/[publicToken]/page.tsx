@@ -106,7 +106,7 @@ import {
   microchipHeroTag,
 } from "@/lib/projections/pet-compliance";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
-import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { ageFromDateOfBirth, formatDateShort, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
@@ -959,10 +959,10 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
       </p>
       <p className="text-[13px] text-[var(--color-ln-warn)]">
         {biteDate
-          ? `Por la mordedura del ${biteDate.toLocaleDateString("es-AR")}, `
+          ? `Por la mordedura del ${formatDateShort(biteDate)}, `
           : "Por una mordedura reportada recientemente, "}
         {pet.name} está en observación obligatoria de 10 días.
-        {observationUntil && ` Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}.`}
+        {observationUntil && ` Cierre estimado: ${formatDateShort(observationUntil)}.`}
       </p>
       <p className="text-sm text-[var(--color-ln-warn)]">
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos

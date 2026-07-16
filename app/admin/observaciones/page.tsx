@@ -5,7 +5,7 @@ import { OpBreach, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, speciesLabel } from "@/lib/utils/format";
 import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -209,7 +209,7 @@ export default async function ObservacionesPage() {
                         {"Inicio: "}
                         {formatRelative(started?.occurredAt ?? null)}
                         {started?.observationUntil
-                          ? ` · Cierre estimado: ${started.observationUntil.toLocaleDateString("es-AR")}`
+                          ? ` · Cierre estimado: ${formatDateShort(started.observationUntil)}`
                           : null}
                       </p>
                       <p className="font-mono text-xs text-ln-op-faint">{r.petPublicToken}</p>

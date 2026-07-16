@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   eventTypeLabel,
   formatCount,
+  formatDateShort,
   formatDateTime,
   formatDateTimeLegal,
   formatDelta,
@@ -231,6 +232,28 @@ describe("formatDateTimeLegal", () => {
   it("returns the empty marker for null/invalid input", () => {
     expect(formatDateTimeLegal(null)).toBe("—");
     expect(formatDateTimeLegal("not-a-date")).toBe("—");
+  });
+});
+
+describe("formatDateShort", () => {
+  it("renders the compact abbreviated-month shape (es-AR: '7 de jul de 2026')", () => {
+    const out = formatDateShort(new Date("2026-07-07T15:00:00Z"));
+    expect(out).toMatch(/7 de jul\.? de 2026/);
+  });
+
+  it("pins to Argentina — a late-night AR timestamp keeps the AR calendar day", () => {
+    // 2026-07-04T02:30:00Z is 2026-07-03 23:30 in ART (UTC-3): the AR day is the
+    // 3rd, not the 4th. A bare (unpinned) formatter on a UTC server would show
+    // the 4th — the off-by-one this helper exists to prevent.
+    const out = formatDateShort(new Date("2026-07-04T02:30:00Z"));
+    expect(out).toContain("3 de jul");
+    expect(out).not.toContain("4 de jul");
+  });
+
+  it("returns the empty marker for null/invalid input", () => {
+    expect(formatDateShort(null)).toBe("—");
+    expect(formatDateShort(undefined)).toBe("—");
+    expect(formatDateShort("not-a-date")).toBe("—");
   });
 });
 

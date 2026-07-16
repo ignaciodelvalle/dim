@@ -86,7 +86,7 @@ import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
-import { foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
+import { formatDateShort, foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
 
 export type LostCaseBlockPet = {
   id: string;
@@ -244,8 +244,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               </span>
               <span style={{ color: "var(--color-ln-mute)" }}>
                 {" "}
-                · {episode.jurisdictionLocality ?? "—"} ·{" "}
-                {episode.openedAt.toLocaleDateString("es-AR")}
+                · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.openedAt)}
               </span>
             </p>
             <Link
@@ -345,8 +344,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
                 </span>
                 <span style={{ color: "var(--color-ln-mute)" }}>
                   {" "}
-                  · {episode.jurisdictionLocality ?? "—"} ·{" "}
-                  {episode.openedAt.toLocaleDateString("es-AR")}
+                  · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.openedAt)}
                 </span>
               </p>
               {episode.ownerNote && (

@@ -16,6 +16,7 @@ import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboar
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatDateShort } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { AttendanceFormDispatcher } from "./AttendanceFormDispatcher";
 
@@ -138,7 +139,7 @@ export default async function OrgAppointmentDetailPage({
             </p>
             {appointment.attendedAt && (
               <p className="text-sm text-ln-op-mute mt-1">
-                Asistencia registrada el {appointment.attendedAt.toLocaleDateString("es-AR")}.
+                Asistencia registrada el {formatDateShort(appointment.attendedAt)}.
               </p>
             )}
           </OpCardBody>

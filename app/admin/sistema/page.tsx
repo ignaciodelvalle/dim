@@ -19,6 +19,7 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
+import { formatDateShort } from "@/lib/utils/format";
 
 type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {
@@ -417,13 +418,7 @@ export default async function AdminSistemaPage() {
                           {g.decisions30d}
                         </td>
                         <td className="px-3 py-2 text-[var(--text-sm)] text-ln-op-mute">
-                          {g.lastActionAt
-                            ? new Date(g.lastActionAt).toLocaleDateString("es-AR", {
-                                day: "numeric",
-                                month: "short",
-                                year: "numeric",
-                              })
-                            : "—"}
+                          {g.lastActionAt ? formatDateShort(g.lastActionAt) : "—"}
                         </td>
                       </tr>
                     ))}

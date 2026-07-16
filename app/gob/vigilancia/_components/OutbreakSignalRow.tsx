@@ -4,7 +4,7 @@ import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { OpCodeBadge } from "@/components/ui/dashboard";
 import type { SurveillanceSignal } from "@/lib/analytics/govt-dashboards";
 import { computeConfidence } from "@/lib/events/event-confidence";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, speciesLabel } from "@/lib/utils/format";
 
 type OutbreakSignalRowProps = {
   signal: SurveillanceSignal;
@@ -25,7 +25,7 @@ function timeAgo(date: Date): string {
   const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
   if (Number.isNaN(diffMs)) return "—";
   if (diffMs < 0 || diffMs > ONE_YEAR_MS) {
-    return date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    return formatDateShort(date);
   }
   const diffMin = Math.floor(diffMs / 60_000);
   if (diffMin < 60) return `hace ${diffMin} min`;

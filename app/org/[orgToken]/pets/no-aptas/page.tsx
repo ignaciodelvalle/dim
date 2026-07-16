@@ -3,7 +3,7 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, speciesLabel } from "@/lib/utils/format";
 import { and, eq, isNull } from "drizzle-orm";
 
 const REASON_LABELS: Record<string, string> = {
@@ -105,14 +105,7 @@ export default async function PetsNoAptasPage({
                           {until && (
                             <>
                               {" · "}
-                              <span>
-                                vence{" "}
-                                {until.toLocaleDateString("es-AR", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                })}
-                              </span>
+                              <span>vence {formatDateShort(until)}</span>
                             </>
                           )}
                         </p>

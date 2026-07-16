@@ -14,6 +14,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
+import { formatDateShort } from "@/lib/utils/format";
 
 export default async function GobServiciosPage() {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -124,8 +125,7 @@ export default async function GobServiciosPage() {
                           {` · Capacidad: ${offering.slotCapacity}`}
                         </p>
                         <p className="text-xs text-ln-op-mute font-mono">
-                          {offering.publicToken} ·{" "}
-                          {new Date(offering.submittedAt).toLocaleDateString("es-AR")}
+                          {offering.publicToken} · {formatDateShort(offering.submittedAt)}
                         </p>
                       </div>
                       <OpPill tone="open">Pendiente</OpPill>

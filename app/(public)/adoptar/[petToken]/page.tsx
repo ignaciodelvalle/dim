@@ -16,7 +16,7 @@ import {
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
 import { createClient } from "@/lib/supabase/server";
-import { sexLabel, speciesLabel } from "@/lib/utils/format";
+import { formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { serializeJsonLd } from "@/lib/utils/json-ld";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
@@ -614,12 +614,7 @@ export default async function AdoptarFichaPage({
                 className="mt-1.5 font-[var(--font-ln-mono)] text-[11px]"
                 style={{ color: "var(--color-ln-mute)" }}
               >
-                En custodia desde{" "}
-                {new Date(row.ownerStartedAt).toLocaleDateString("es-AR", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
+                En custodia desde {formatDate(row.ownerStartedAt)}
               </p>
               <Link
                 href={`/refugios/${org.publicToken}`}

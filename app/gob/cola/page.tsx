@@ -13,6 +13,7 @@ import {
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
+import { formatDateShort } from "@/lib/utils/format";
 
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
@@ -127,7 +128,7 @@ export default async function ColaPage({
             typeLabel: TYPE_LABELS[req.type] ?? req.type,
             applicantName: namesById.get(req.applicantUserId) ?? "Usuario",
             jurisdiction: `${req.jurisdictionLocality}, ${req.jurisdictionProvince}`,
-            createdAt: new Date(req.createdAt).toLocaleDateString("es-AR"),
+            createdAt: formatDateShort(req.createdAt),
           }))}
         />
 

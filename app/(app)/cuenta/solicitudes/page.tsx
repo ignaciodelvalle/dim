@@ -10,6 +10,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { approvalRequests, db, organizationInvitations, organizations } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatDate } from "@/lib/utils/format";
 import { WithdrawButton } from "./WithdrawButton";
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -171,11 +172,7 @@ export default async function SolicitudesPage({
                           {INVITED_ROLE_LABELS[inv.invitedRole] ?? inv.invitedRole}
                         </span>
                         <span className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                          Expira{" "}
-                          {inv.expiresAt.toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "long",
-                          })}
+                          Expira {formatDate(inv.expiresAt)}
                         </span>
                       </div>
                     </div>
@@ -264,24 +261,8 @@ export default async function SolicitudesPage({
 
                   {/* Dates */}
                   <div className="mb-2.5 flex flex-col gap-0.5 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-                    <span>
-                      Enviada el{" "}
-                      {req.createdAt.toLocaleDateString("es-AR", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </span>
-                    {req.decidedAt && (
-                      <span>
-                        Decidida el{" "}
-                        {req.decidedAt.toLocaleDateString("es-AR", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </span>
-                    )}
+                    <span>Enviada el {formatDate(req.createdAt)}</span>
+                    {req.decidedAt && <span>Decidida el {formatDate(req.decidedAt)}</span>}
                   </div>
 
                   {/* Rejection reason */}

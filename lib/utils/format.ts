@@ -52,6 +52,27 @@ export function formatDateTime(value: Date | string | null | undefined): string 
   return SPANISH_DATETIME_FORMAT.format(date);
 }
 
+// Compact date — "7 de jul de 2026". AR-pinned like every formatter here: without an
+// explicit timeZone, Intl uses the RUNTIME zone (UTC on the production server),
+// so a timestamp near AR midnight renders the wrong calendar day and, worse,
+// mismatches between SSR (UTC) and browser hydration (bug #418). This is the
+// canonical short form — dozens of call sites previously hand-rolled the same
+// { day, month:"short", year } shape, many WITHOUT the timeZone (the off-by-one
+// bug this centralises away).
+const SPANISH_DATE_SHORT_FORMAT = new Intl.DateTimeFormat("es-AR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: AR_TIME_ZONE,
+});
+
+export function formatDateShort(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return SPANISH_DATE_SHORT_FORMAT.format(date);
+}
+
 // Legal-document timestamp (MPF/PPP PDF exports — staging validation
 // 2026-07-04, bug 4): seconds precision + an EXPLICIT timezone label. A legal
 // PDF printing a bare clock ("generado 06:27:41" for a 17:47 ART generation,

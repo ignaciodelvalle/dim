@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 
 import { db, organizationInvitations, organizations } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate } from "@/lib/utils/format";
 
 import { AcceptButton } from "./AcceptButton";
 import { maskEmail } from "./helpers";
@@ -190,13 +191,7 @@ export default async function InviteAcceptPage({
             Crear cuenta
           </a>
           <p className="text-center text-xs text-[var(--color-ln-mute)]">
-            Este link vence el{" "}
-            {invite.expiresAt.toLocaleDateString("es-AR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-            .
+            Este link vence el {formatDate(invite.expiresAt)}.
           </p>
         </div>
       </div>

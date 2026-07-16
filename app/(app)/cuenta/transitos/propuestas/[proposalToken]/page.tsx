@@ -8,7 +8,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { sexLabel, speciesLabel } from "@/lib/utils/format";
+import { formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
 
 import { STATUS_LABELS } from "../status-labels";
@@ -74,13 +74,7 @@ export default async function ProposalDetailPage({
                 ? `${proposal.proposedDurationWeeks} semanas`
                 : "Sin definir"}
             </DetailRow>
-            <DetailRow label="Expira">
-              {expires.toLocaleDateString("es-AR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </DetailRow>
+            <DetailRow label="Expira">{formatDate(expires)}</DetailRow>
             {proposal.proposedNotes && (
               <DetailRow label="Notas del refugio">
                 <span className="whitespace-pre-wrap">{proposal.proposedNotes}</span>

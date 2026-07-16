@@ -10,6 +10,7 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { formatDateShort } from "@/lib/utils/format";
 
 export type AmendedBadgeProps = {
   /** ISO date string or Date of when the amendment occurred. */
@@ -18,19 +19,14 @@ export type AmendedBadgeProps = {
   originalHref: string;
 };
 
-function formatAmendedAt(date: Date | string): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  return d.toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" });
-}
-
 export function AmendedBadge({ amendedAt, originalHref }: AmendedBadgeProps) {
   return (
     <output
       className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-bg,var(--color-ln-stripe))] px-2 py-0.5 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ink-2)]"
-      aria-label={`Registro corregido el ${formatAmendedAt(amendedAt)}`}
+      aria-label={`Registro corregido el ${formatDateShort(amendedAt)}`}
     >
       <Icon name="editar" size={14} decorative />
-      Corregido el {formatAmendedAt(amendedAt)}
+      Corregido el {formatDateShort(amendedAt)}
       {" · "}
       <Link
         href={originalHref}

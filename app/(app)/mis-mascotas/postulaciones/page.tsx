@@ -9,6 +9,7 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { formatDateShort } from "@/lib/utils/format";
 
 import { WithdrawApplicationButton } from "./WithdrawApplicationButton";
 
@@ -303,10 +304,10 @@ export default async function MisPostulacionesPage({
                   Refugio: {app.orgDisplayName}
                 </p>
                 <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                  Enviada el {app.submittedAt.toLocaleDateString("es-AR")}
+                  Enviada el {formatDateShort(app.submittedAt)}
                   {app.decisionAt && (
                     <>
-                      {" · "}Última actualización: {app.decisionAt.toLocaleDateString("es-AR")}
+                      {" · "}Última actualización: {formatDateShort(app.decisionAt)}
                     </>
                   )}
                 </p>

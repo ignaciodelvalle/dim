@@ -12,7 +12,7 @@ import { auditLog, db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
-import { accountTypeLabel } from "@/lib/utils/format";
+import { accountTypeLabel, formatDateShort } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
@@ -116,13 +116,11 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
               <dt className="text-ln-op-mute">Rol</dt>
               <dd className="text-ln-op-ink">Gobierno</dd>
               <dt className="text-ln-op-mute">Creado</dt>
-              <dd className="text-ln-op-ink">{govt.createdAt.toLocaleDateString("es-AR")}</dd>
+              <dd className="text-ln-op-ink">{formatDateShort(govt.createdAt)}</dd>
               {!isActive && govt.deactivatedAt && (
                 <>
                   <dt className="text-ln-op-mute">Desactivado</dt>
-                  <dd className="text-ln-op-danger">
-                    {govt.deactivatedAt.toLocaleDateString("es-AR")}
-                  </dd>
+                  <dd className="text-ln-op-danger">{formatDateShort(govt.deactivatedAt)}</dd>
                 </>
               )}
             </dl>
@@ -179,7 +177,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                   </span>
                   {a.revokedAt && (
                     <span className="ml-2 text-ln-op-faint">
-                      (revocada {a.revokedAt.toLocaleDateString("es-AR")})
+                      (revocada {formatDateShort(a.revokedAt)})
                     </span>
                   )}
                   {a.revocationReason && (

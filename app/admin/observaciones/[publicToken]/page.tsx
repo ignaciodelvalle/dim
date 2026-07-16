@@ -13,7 +13,7 @@ import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
-import { speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, speciesLabel } from "@/lib/utils/format";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
@@ -135,7 +135,7 @@ export default async function ObservationDetailPage({
         title="Observación activa"
         body={
           observationUntil
-            ? `Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}`
+            ? `Cierre estimado: ${formatDateShort(observationUntil)}`
             : "Sin fecha de cierre."
         }
       />

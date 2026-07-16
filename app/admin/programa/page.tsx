@@ -51,7 +51,7 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { formatPercent } from "@/lib/utils/format";
+import { formatDateShort, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -483,11 +483,7 @@ export default async function AdminProgramaPage({
                         {row.count.toLocaleString("es-AR")}
                       </td>
                       <td className="py-2 text-right text-[11px] text-ln-op-mute">
-                        {new Date(row.lastAt).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        {formatDateShort(row.lastAt)}
                       </td>
                     </tr>
                   ))}

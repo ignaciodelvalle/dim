@@ -1,6 +1,7 @@
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDateShort } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
 import { and, desc, eq } from "drizzle-orm";
 
@@ -128,11 +129,7 @@ export default async function OrgPropuestasPage({
                       <span className="font-normal text-ln-op-mute">→ {pet.name}</span>
                     </p>
                     <p className="text-sm text-ln-op-mute">
-                      {new Date(proposal.proposedAt).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "short",
-                      })}{" "}
-                      ·{" "}
+                      {formatDateShort(proposal.proposedAt)} ·{" "}
                       <span className={STATUS_TONE[proposal.status] ?? ""}>
                         {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
                           proposal.status}
