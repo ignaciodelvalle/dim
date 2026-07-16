@@ -202,7 +202,15 @@ export async function setPetLostWriter(
           jurisdictionProvince: petJurisdictionProvince,
           jurisdictionLocality: petJurisdictionLocality,
           openedByUserId: recordedByUserId,
-          openedReason: `Pet ${petPublicToken || petId} marked as lost by owner${reason ? ` — ${reason}` : ""}`,
+          openedReason: {
+            code: "pet_marked_lost",
+            // Public token only. The prose falls back to the internal pet UUID
+            // when there is no token (audit channel, byte-identical as ever);
+            // the LABEL omits the id entirely instead of showing a UUID.
+            petPublicToken: petPublicToken || null,
+            ownerNote: reason || null,
+          },
+          openedReasonAudit: { petId },
         },
         tx as CaseExecutor,
       );

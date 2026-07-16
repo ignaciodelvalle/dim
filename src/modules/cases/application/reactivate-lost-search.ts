@@ -70,7 +70,10 @@ export async function reactivateLostSearch(
     jurisdictionProvince,
     jurisdictionLocality,
     openedByUserId,
-    openedReason: `Búsqueda reactivada por el dueño tras cierre automático por inactividad (pet ${petPublicToken})`,
+    // The one writer that already spoke es-AR — it rendered correctly BY
+    // ACCIDENT, via the free-text passthrough, with no rule at all. Naming a
+    // code makes that deliberate and drops the English "pet" its prose carries.
+    openedReason: { code: "lost_search_reactivated", petPublicToken },
   });
 
   return { ok: true, caseId: caseRow.id, alreadyOpen: false };
