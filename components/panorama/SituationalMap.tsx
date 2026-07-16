@@ -38,6 +38,7 @@ import {
   type LayerReadout,
   buildLayerReadout,
   buildPinnedPopupHtml,
+  divisionReadoutDataType,
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
@@ -2324,8 +2325,13 @@ export function SituationalMap({
           label: l.label,
           value,
           suppressed,
-          dataType: l.dataType,
-          complianceTarget: l.complianceTarget,
+          // Division-level values of a "rate" layer are raw counts, not rates —
+          // see divisionReadoutDataType. Passing l.dataType straight through
+          // formatted a count as a percentage.
+          dataType: divisionReadoutDataType(l.dataType),
+          // ...and a rate's compliance target ("meta 80%") means nothing against
+          // a raw count, so it must not ride along either.
+          complianceTarget: l.dataType === "rate" ? undefined : l.complianceTarget,
         }),
       );
     }

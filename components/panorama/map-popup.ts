@@ -29,6 +29,28 @@ export type LayerReadout = {
 
 const UNICODE_MINUS = "−";
 
+/**
+ * The readout dataType for a value read at DIVISION level (department/barrio).
+ *
+ * A "rate" layer is only a rate at PROVINCE level. Drilled to a division, the
+ * repository swaps the metric to raw count-density — a per-division rate would
+ * expose both k-anonymised arms (numerator AND denominator) and leak the cells
+ * suppression is protecting (the "V1 LIMITATION" in
+ * src/modules/panorama/infrastructure/repository.ts). The legend and the caption
+ * already state that swap ("conteos por departamento" / "conteo por unidad (no
+ * porcentaje)") — this is the same rule as
+ * src/modules/panorama/domain/caption.ts, which reads
+ * `dataType === "rate" && level !== "province"`.
+ *
+ * The pinned popup used to pass the layer's STATIC dataType straight through, so
+ * a drilled count rendered as "11.205%" and got measured against the rate's
+ * "meta 80%". QA ronda 5 (2026-07-16) read that as the map contradicting the
+ * side panel — the panel was right and the popup was inventing a unit.
+ */
+export function divisionReadoutDataType(dataType: ReadoutDataType): ReadoutDataType {
+  return dataType === "rate" ? "density" : dataType;
+}
+
 /** Format a value with its unit. Rate layers read as a percentage ("64,4%");
  * every other type is a plain es-AR-grouped count ("1.234"). */
 export function formatValueWithUnit(value: number, dataType: ReadoutDataType): string {
