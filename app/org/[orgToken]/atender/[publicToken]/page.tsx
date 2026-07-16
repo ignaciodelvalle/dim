@@ -80,10 +80,14 @@ export default async function AtenderSignPage({
           </h1>
           <p className="text-[13px] text-ln-op-ink-2">
             Firmás como <strong>{signer.label}</strong>
-            {signer.matriculaVerified
-              ? " · verificado por profesional"
-              : " · registro institucional"}
+            {signer.matriculaVerified ? " · verificado por profesional" : "."}
           </p>
+          {!signer.matriculaVerified && (
+            <p className="text-[13px] text-ln-op-mute">
+              Queda registrado a nombre de la organización: es un registro válido, pero el sello
+              “verificado por profesional” requiere un firmante con matrícula validada.
+            </p>
+          )}
           <div className="pt-1">
             <OpCodeBadge tone="neutral">{pet.publicToken}</OpCodeBadge>
           </div>
