@@ -30,6 +30,7 @@ import {
   loadReunificacionByUnit,
   loadShelters,
   loadSintomasByUnit,
+  loadTerritorialIndexByProvince,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
@@ -568,6 +569,17 @@ export async function getLayerFeatures(
         jurisdictions,
         adminProvince,
         adminLocality,
+      );
+    }
+    case "indice-territorial": {
+      // PROVINCE-ONLY composite index (0-100). Province-grain by design: the
+      // underlying computeJurisdictionIndex scores ≤24 provinces and has no
+      // locality/department grain, so `level` is IGNORED — the loader always
+      // returns province cells (filled province polygons at every zoom). No
+      // k-anon hatch: <5-pet provinces are dropped upstream (no cell). Not
+      // event-windowed → `asOf` ignored, dimmed under a scrub.
+      return provinceChoroplethResult(
+        await loadTerritorialIndexByProvince(actor, jurisdictions, adminProvince, adminLocality),
       );
     }
     default:

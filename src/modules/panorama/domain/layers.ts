@@ -444,6 +444,43 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       window: "current",
     },
   },
+  {
+    id: "indice-territorial",
+    label: "Índice territorial (0-100)",
+    description:
+      "Índice compuesto por provincia (0-100): media del cumplimiento de metas de antirrábica, esterilización y microchip. Puntúa territorios, nunca personas.",
+    geomType: "choropleth",
+    source: "metrics:territorial-index",
+    color: "#d7b5a6",
+    scopeFilterable: true,
+    privacy: "none",
+    temporal: false,
+    // A 0-100 attainment index (unweighted mean of three target-attainments) —
+    // rendered on a SEQUENTIAL scale, not divergent: it is already an attainment
+    // score, so there is no external compliance target to anchor a divergent scale.
+    // Classified "density" (a no-target magnitude) rather than "rate" for exactly
+    // that reason.
+    dataType: "density",
+    // PROVINCE-ONLY by design: computeJurisdictionIndex scores ≤24 provinces and
+    // has no locality/department grain, so BOTH render levels fill the province
+    // polygon (the loader always returns province cells regardless of `level`).
+    // No k-anon hatch is possible or needed here — fetchCrossJurisdictionOutliers
+    // already drops <5-pet provinces entirely upstream, so a suppressed province
+    // simply has no cell (reads as no-data), never a hatch.
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "muted",
+    // Province-grain at every level → the unit reads "provincia" in both bands
+    // (the layer never aggregates to a locality), so the caption stays honest.
+    caption: {
+      unit: { province: "provincia", locality: "provincia" },
+      measure: "índice territorial (0-100)",
+      window: "current",
+    },
+  },
 ] as const;
 
 const LAYER_BY_ID: ReadonlyMap<LayerId, PanoramaLayer> = new Map(

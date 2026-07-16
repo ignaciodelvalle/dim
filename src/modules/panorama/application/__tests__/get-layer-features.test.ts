@@ -20,12 +20,14 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadClinics: vi.fn(),
   loadDecomisos: vi.fn(),
   loadChoroplethByLevel: vi.fn(),
+  loadTerritorialIndexByProvince: vi.fn(),
 }));
 
 import type {
   AggregatedPointRows,
   ChoroplethRows,
   PointEventsRows,
+  ProvinceChoroplethRows,
 } from "@/src/modules/panorama/infrastructure/repository";
 import {
   loadBiteEvents,
@@ -40,6 +42,7 @@ import {
   loadReunificacionByUnit,
   loadShelters,
   loadSintomasByUnit,
+  loadTerritorialIndexByProvince,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
@@ -83,6 +86,7 @@ const mockLoadShelters = vi.mocked(loadShelters);
 const mockLoadClinics = vi.mocked(loadClinics);
 const mockLoadDecomisos = vi.mocked(loadDecomisos);
 const mockLoadChoropleth = vi.mocked(loadChoroplethByLevel);
+const mockLoadTerritorialIndex = vi.mocked(loadTerritorialIndexByProvince);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -1089,6 +1093,59 @@ describe("getLayerFeatures — antiparasitario (deworming coverage choropleth)",
       false,
     );
     expect(result.level).toBe("locality");
+  });
+});
+
+describe("getLayerFeatures — indice-territorial (province-only composite index)", () => {
+  it("delegates to loadTerritorialIndexByProvince and returns filled province polygons", async () => {
+    mockLoadTerritorialIndex.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 78 },
+        { provinceCode: "AR-C", label: "CABA", value: 91 },
+      ],
+      truncated: false,
+    } as ProvinceChoroplethRows);
+
+    const result = await getLayerFeatures("indice-territorial", { role: "admin" }, [], {
+      since: new Date("2026-06-01T00:00:00.000Z"),
+    });
+
+    expect(mockLoadTerritorialIndex).toHaveBeenCalledWith(
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+    );
+    expect(mockLoadChoropleth).not.toHaveBeenCalled();
+    expect(result.level).toBe("province");
+    expect(result.suppressedCount).toBe(0);
+    expect(result.features.features).toHaveLength(2);
+    expect(result.features.features[0].geometry).toBeNull();
+    expect(result.features.features[0].properties).toMatchObject({
+      provinceCode: "AR-B",
+      value: 78,
+      suppressed: false,
+    });
+  });
+
+  it("ignores the aggregation level — always province-grain (locality returns province cells)", async () => {
+    mockLoadTerritorialIndex.mockResolvedValue({
+      cells: [{ provinceCode: "AR-X", label: "Córdoba", value: 64 }],
+      truncated: false,
+    } as ProvinceChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "indice-territorial",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    // level=locality is ignored — the loader always returns province cells.
+    expect(mockLoadTerritorialIndex).toHaveBeenCalledOnce();
+    expect(result.level).toBe("province");
+    expect(result.features.features).toHaveLength(1);
   });
 });
 

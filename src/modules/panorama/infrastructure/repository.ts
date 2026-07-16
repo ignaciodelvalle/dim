@@ -40,6 +40,7 @@ import {
   fetchPppComplianceByProvince,
 } from "@/lib/analytics/compliance-metrics";
 import { fetchRabiesCoverageByProvince } from "@/lib/analytics/govt-home-kpis";
+import { computeJurisdictionIndex } from "@/lib/analytics/territorial-index";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
@@ -47,6 +48,7 @@ import {
   type DashboardJurisdiction,
   buildProjectionContext,
   complementarySuppress,
+  fetchCrossJurisdictionOutliers,
   fetchReunificationByUnit,
   jurisdictionPairClause,
   petEventsScopeClause as metricsPetEventsScopeClause,
@@ -1480,6 +1482,35 @@ export async function loadDewormingCoverageByProvince(
     cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
   }
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+}
+
+// metrics:territorial-index (indice-territorial) — per-PROVINCE composite index
+// (0-100). PROVINCE-ONLY by design and NOT a ChoroplethMetric: it is not a pets
+// predicate but the unweighted mean of the rabies/sterilization/microchip
+// target-attainments computed by computeJurisdictionIndex over ≤24 provinces.
+// Delegates to the SAME two functions /admin/inteligencia composes
+// (fetchCrossJurisdictionOutliers → computeJurisdictionIndex), so the map and that
+// table paint one number. No k-anon hatch: fetchCrossJurisdictionOutliers already
+// drops <5-pet provinces upstream (a suppressed province has no row → no cell).
+// value = score (0-100, sequential fill; not a compliance rate).
+export async function loadTerritorialIndexByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
+  const indexRows = computeJurisdictionIndex(await fetchCrossJurisdictionOutliers(ctx));
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of indexRows) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.score });
+  }
+  return { cells, truncated: indexRows.length >= PER_LAYER_CAP };
 }
 
 /**
