@@ -36,6 +36,9 @@ import { globSync, readFileSync } from "node:fs";
 //   events    ──▶  surveillance    (trigger enqueue side-effect)
 //   events    ──▶  pets            (chipImplantSiteFromLocation domain helper)
 //   pets      ──▶  adoption        (NewNotification type from eligibility use-case)
+//   welfare      ──▶ cases         (shared kernel — the OpenedReason union)
+//   transfers    ──▶ cases         (shared kernel)
+//   surveillance ──▶ cases         (shared kernel)
 //
 // NOTE — pets→adoption is a grandfathered edge where a lower-tier module
 // reaches into an upper-tier feature module. It is baselined to keep the guard
@@ -56,6 +59,27 @@ export const ALLOWED_EDGES = new Set<string>([
   "alerts:surveillance", // alert-firings triage opens an outbreak investigation (openOutbreakInvestigationAction)
   "pets:custody", // pet-claim dispute flow opens a custody dispute (openDisputeFromEvent)
   "search:organizations", // omnibox logs a PII read (logPiiQueryForAuthority) + checks org capabilities (getGrantedCapabilities)
+
+  // Edges surfaced by the structured-open-reason change (2026-07-16). `cases`
+  // is a shared kernel in the same sense `organizations` is: many modules open
+  // cases, and `cases` imports from none of them — the graph stays acyclic.
+  //
+  // These are NOT new dependencies. Every one of these modules already called
+  // CasesRepository.openCase; the coupling was simply invisible, because each
+  // declared its own port with `openedReason: string` and a primitive hides
+  // where it came from. `openedReason` is now the closed OpenedReason union, so
+  // the port has to name the type and the edge became visible to this guard.
+  //
+  // That visibility is the point of the change, not a side effect of it: a
+  // `string` that anyone could construct is exactly how transfer-custody.ts
+  // shipped "direct custody handoff to_role=owner" to funcionarios for months.
+  //
+  // Only these three appear because only they declare their own openCase port
+  // types. adoption/foster/decomiso/pets/events reach the repository directly
+  // and infer the type, so they need no import.
+  "welfare:cases", // create-welfare-report + create-org-welfare-report port types
+  "transfers:cases", // openHandshakeCase port (transfer-custody, propose-cross-org-transfer)
+  "surveillance:cases", // report-bite, report-bite-from-org, outbreak-investigation ports
 ]);
 
 // All module names (directory names under src/modules/).

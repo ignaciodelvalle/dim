@@ -80,7 +80,7 @@ describe("rule 2 — only the repository writes the opened_reason columns", () =
   it("flags a direct insert that skips the dual-write", () => {
     const hits = scanRule2(
       "src/modules/rogue/rogue-repository.ts",
-      `const [row] = await db\n  .insert(cases)\n  .values({\n    publicCode,\n    openedReason: someProse,\n  })\n  .returning();`,
+      "const [row] = await db\n  .insert(cases)\n  .values({\n    publicCode,\n    openedReason: someProse,\n  })\n  .returning();",
     );
     expect(hits).toHaveLength(1);
     expect(hits[0].rule).toBe(2);

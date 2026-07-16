@@ -128,11 +128,11 @@ export function scanRule3(relPath: string, content: string): Violation[] {
       file: relPath,
       line: 1,
       rule: 3,
-      detail:
-        `the FROZEN legacy path has ${actual} regex rules, expected ${FROZEN_LEGACY_RULE_COUNT}. ` +
-        (actual > FROZEN_LEGACY_RULE_COUNT
+      detail: `the FROZEN legacy path has ${actual} regex rules, expected ${FROZEN_LEGACY_RULE_COUNT}. ${
+        actual > FROZEN_LEGACY_RULE_COUNT
           ? "A rule was ADDED: that path renders PRE-cutover prose only and is closed to new writers."
-          : "A rule was REMOVED: pre-cutover rows still need it and can never be backfilled."),
+          : "A rule was REMOVED: pre-cutover rows still need it and can never be backfilled."
+      }`,
     },
   ];
 }
