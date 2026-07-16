@@ -269,8 +269,18 @@ export function OpOmnibox({
           )}
 
           {!loading && noResults && (
+            // Empty state (operator-trust T4): state the miss, then SUGGEST the
+            // formats that work so the operator knows what to type. The
+            // "en tu jurisdicción" qualifier is dropped for universal scope
+            // (admin) — it has no territorial limit and the copy must not imply
+            // one.
             <div className="px-4 py-3 text-sm text-ln-op-mute">
-              {universalScope ? "Sin coincidencias" : "Sin coincidencias en tu jurisdicción"}
+              <p>{universalScope ? "Sin coincidencias" : "Sin coincidencias en tu jurisdicción"}</p>
+              <p className="mt-1 text-[11px] text-ln-op-mute">
+                {orgToken
+                  ? "Probá con el nombre de la mascota o su código (DIM-…)."
+                  : "Probá con un código (DIM-…, CAS-…) o nombre y apellido."}
+              </p>
             </div>
           )}
 
