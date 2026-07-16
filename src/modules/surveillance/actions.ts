@@ -38,6 +38,7 @@ import { checkboxOn } from "@/lib/ui/form-checkbox";
 import { parseDateInput } from "@/lib/utils/format";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import {
   type InvestigationNoteEntryType,
   addInvestigationNote,
@@ -490,7 +491,7 @@ function makeOutbreakDeps(revalidateFn: (path: string) => void) {
         jurisdictionProvince: string | null;
         jurisdictionLocality: string | null;
         openedByUserId: string;
-        openedReason: string;
+        openedReason: OpenedReason;
       },
       tx: unknown,
     ) => openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),

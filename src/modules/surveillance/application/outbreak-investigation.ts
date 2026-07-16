@@ -15,6 +15,7 @@
 
 import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import { isEnoCode } from "../domain/eno-catalog";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { UseCaseResult } from "./types";
@@ -64,7 +65,7 @@ export type OutbreakInvestigationDeps = {
       jurisdictionProvince: string | null;
       jurisdictionLocality: string | null;
       openedByUserId: string;
-      openedReason: string;
+      openedReason: OpenedReason;
     },
     tx: unknown,
   ) => Promise<{ id: string; publicCode: string }>;
@@ -174,7 +175,14 @@ export async function openOutbreakInvestigation(
     };
   }
 
-  const openedReason = `${openedReasonPrefix} ${input.reason.trim()}`;
+  // The prose this produces is byte-identical to the pre-cutover template —
+  // `openedReasonPrefix` above and surveillance-repository's LIKE both depend
+  // on it. See opened-reason-prose.ts.
+  const openedReason: OpenedReason = {
+    code: "outbreak_investigation_manual",
+    diseaseCode,
+    note: input.reason.trim(),
+  };
   let createdPublicCode = "";
 
   try {

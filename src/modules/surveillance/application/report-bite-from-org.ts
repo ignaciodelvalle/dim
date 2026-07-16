@@ -13,6 +13,7 @@
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import { orgTypeToReporterRole } from "../domain/bite";
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
@@ -82,7 +83,7 @@ type Deps = {
       jurisdictionLocality: string | null;
       openedByUserId: string;
       openedByOrganizationId: string;
-      openedReason: string;
+      openedReason: OpenedReason;
     },
     tx: unknown,
   ) => Promise<{ id: string; publicCode: string }>;
@@ -144,7 +145,13 @@ export async function reportBiteFromOrg(
           jurisdictionLocality: caseLocality,
           openedByUserId: user.id,
           openedByOrganizationId: organization.id,
-          openedReason: `Bite incident reported by ${organization.displayName} (${reporterRole}) — victim=${input.victimKind}, severity=${input.severity}`,
+          openedReason: {
+            code: "bite_reported_org",
+            orgDisplayName: organization.displayName,
+            reporterRole,
+            victimKind: input.victimKind,
+            severity: input.severity,
+          },
         },
         tx,
       );
