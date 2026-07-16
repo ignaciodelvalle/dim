@@ -8,6 +8,7 @@ import type { EventType } from "@/db/schema";
 import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { goToCaptureUrl } from "@/lib/ui/capture-nav";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
 
 // Re-exports keep existing callers (tests, EventCatcher) working without churn.
@@ -125,7 +126,7 @@ export function CaptureBox({
   // For the quick-action cards we prefill `occurredAt=today` so the
   // form lands ready-to-submit on the most common case (an event that
   // just happened). Date formatting is local.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   return (
     <div className="space-y-6">

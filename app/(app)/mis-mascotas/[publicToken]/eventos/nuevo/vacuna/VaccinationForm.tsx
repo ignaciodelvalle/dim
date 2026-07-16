@@ -12,6 +12,7 @@ import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useActionState } from "react";
@@ -44,7 +45,7 @@ export function VaccinationForm({
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const vaccines = vaccinesForSpecies(species);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   const formRef = useRef<HTMLFormElement>(null);
 

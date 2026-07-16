@@ -94,6 +94,32 @@ export function parseDateInput(value: string | null | undefined): Date | null {
   return d;
 }
 
+// "YYYY-MM-DD" of the CURRENT calendar day in Argentina. en-CA emits the
+// ISO-ordered YYYY-MM-DD form; pinning AR_TIME_ZONE makes it the Argentine day.
+const AR_ISO_DATE_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: AR_TIME_ZONE,
+});
+
+/**
+ * Today's calendar day in Argentina as "YYYY-MM-DD" — the correct DEFAULT for a
+ * `<input type="date">`.
+ *
+ * WHY (not `new Date().toISOString().slice(0, 10)`): `toISOString()` yields the
+ * UTC calendar day. On the server (UTC) or late in the AR evening (UTC-3), that
+ * is TOMORROW relative to Argentina — so a "today" default silently becomes a
+ * FUTURE date and any form with a "no future date" rule rejects it ("la fecha no
+ * puede ser futura"). Formatting through AR_TIME_ZONE returns the real Argentine
+ * calendar day, so the default is never spuriously future.
+ *
+ * `now` is injectable so tests can pin a UTC-tomorrow / AR-today instant.
+ */
+export function todayIsoInAr(now: Date = new Date()): string {
+  return AR_ISO_DATE_FORMAT.format(now);
+}
+
 export function speciesLabel(species: string): string {
   switch (species) {
     case "dog":

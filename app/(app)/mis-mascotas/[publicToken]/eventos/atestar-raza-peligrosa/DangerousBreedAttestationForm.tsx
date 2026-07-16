@@ -4,6 +4,7 @@ import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetHeader } from "@/components/ui/Sheet";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../nuevo/AttachmentField";
@@ -172,7 +173,7 @@ function Step2({
   // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
   useActionRedirect(state.redirectTo);
   const [registry, setRegistry] = useState("");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   // Controlled field state — preserves typed input on validation error.
   const [registryId, setRegistryId] = useState("");

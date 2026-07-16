@@ -16,6 +16,7 @@
  *   4. ClinicalInfoForm   — occurredAt + notes
  */
 
+import { todayIsoInAr } from "@/lib/utils/format";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -97,7 +98,7 @@ describe("MedicationEndForm — captura-rápida prefill (A11)", () => {
       "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/medicacion-fin/MedicationEndForm"
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIsoInAr();
     const action = async (_: unknown, __: FormData) => ({ error: null });
     const openMeds = [{ id: "med-1", drugName: "Amoxicilina", startedDate: "01/06/2026" }];
 
@@ -141,7 +142,7 @@ describe("BiteForm — captura-rápida prefill (A11)", () => {
       "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/mordedura/BiteForm"
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIsoInAr();
     const action = async (_: unknown, __: FormData) => ({ error: null });
 
     const html = renderToStaticMarkup(
@@ -262,7 +263,7 @@ describe("ClinicalInfoForm — captura-rápida prefill (A11)", () => {
       "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/clinico/ClinicalInfoForm"
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIsoInAr();
     const action = async (_: unknown, __: FormData) => ({ error: null });
 
     const html = renderToStaticMarkup(

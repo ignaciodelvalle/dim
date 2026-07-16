@@ -27,7 +27,7 @@ import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
-import { formatDate, speciesLabel } from "@/lib/utils/format";
+import { formatDate, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
 // not something a refugio self-records through this form. Seizures go
@@ -59,7 +59,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
   // Controlled state for every field. Strings throughout; the action
   // does its own parsing and coercion.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<"unknown" | "male" | "female">("unknown");

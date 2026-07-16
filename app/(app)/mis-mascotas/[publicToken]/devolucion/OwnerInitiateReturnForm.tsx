@@ -16,6 +16,7 @@ import {
   type OwnerProposeReturnToOrgFormState,
   ownerProposeReturnToOrgFormAction,
 } from "@/app/actions/return-to-owner-form";
+import { todayIsoInAr } from "@/lib/utils/format";
 import Link from "next/link";
 import { useActionState, useState } from "react";
 
@@ -29,7 +30,7 @@ const RETURN_REASONS: Array<{ value: string; label: string }> = [
 const initialState: OwnerProposeReturnToOrgFormState = { error: null };
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayIsoInAr();
 }
 
 export function OwnerInitiateReturnForm({

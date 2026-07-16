@@ -12,10 +12,11 @@
 import Link from "next/link";
 
 import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { ALL_CAPTURE_OPTIONS } from "./handoff";
 
 export function CaptureOptionsList({ petPublicToken }: { petPublicToken: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   const optionsWithHref = ALL_CAPTURE_OPTIONS.map((opt) => {
     let href: string;

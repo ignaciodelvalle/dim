@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/Sheet";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { BiteFormState } from "@/src/modules/surveillance/actions";
 
 const initialState: BiteFormState = { error: null };
@@ -33,7 +34,7 @@ export function BiteForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [victimKind, setVictimKind] = useState<"human" | "animal" | "unknown">("human");
   const [confirmObservation, setConfirmObservation] = useState(false);
 

@@ -6,6 +6,7 @@ import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -36,7 +37,7 @@ export function MedicationEndForm({
   useActionRedirect(state.redirectTo);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [selectedMedicationId, setSelectedMedicationId] = useState("");
   const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
   const [reason, setReason] = useState("");

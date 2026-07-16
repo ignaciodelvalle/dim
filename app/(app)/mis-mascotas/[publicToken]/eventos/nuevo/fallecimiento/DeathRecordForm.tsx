@@ -14,6 +14,7 @@ import { diseasesForSpecies, findDisease } from "@/lib/reference/diseases";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -81,7 +82,7 @@ export function DeathRecordForm({
   useActionRedirect(state.redirectTo);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [cause, setCause] = useState("");
   const [selectedDiseaseCode, setSelectedDiseaseCode] = useState("");
   const [confirmedByLab, setConfirmedByLab] = useState(false);

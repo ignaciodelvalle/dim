@@ -9,6 +9,7 @@ import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/c
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
 
@@ -49,7 +50,7 @@ export function ClinicalInfoForm({
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const [subKind, setSubKind] = useState<SubKind>("lab_work");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   // Controlled field state
   const [title, setTitle] = useState("");

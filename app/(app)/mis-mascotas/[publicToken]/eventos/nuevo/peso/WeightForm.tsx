@@ -10,6 +10,7 @@ import { LnField, LnInput, LnRow, LnSuffixWrap, LnTextarea } from "@/components/
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -36,7 +37,7 @@ export function WeightForm({
   // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
   useActionRedirect(state.redirectTo);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   return (
     <>

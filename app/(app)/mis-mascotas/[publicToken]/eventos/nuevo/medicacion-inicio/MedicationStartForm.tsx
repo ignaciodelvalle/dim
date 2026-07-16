@@ -13,6 +13,7 @@ import { FREQUENCY_LABELS } from "@/lib/reference/medication-schedule";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -43,7 +44,7 @@ export function MedicationStartForm({
 
   const now = new Date();
   const localDatetime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  const today = now.toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   const catalogDrugs = drugsForSpecies(species);
   const [matchedDrug, setMatchedDrug] = useState<DrugDef | null>(null);

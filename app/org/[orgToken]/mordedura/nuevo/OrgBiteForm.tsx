@@ -23,7 +23,7 @@ import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import { OpField } from "@/components/ui/dashboard/OpField";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, todayIsoInAr } from "@/lib/utils/format";
 import {
   type ReportBiteFromOrgFormState,
   reportBiteFromOrgAction,
@@ -57,7 +57,7 @@ function computeObservationEndIso(occurredAtIso: string): string | null {
 }
 
 export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [step, setStep] = useState(1);
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<ReportBiteFromOrgFormState>({ error: null });

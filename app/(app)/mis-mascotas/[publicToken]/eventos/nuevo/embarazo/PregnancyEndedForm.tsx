@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { todayIsoInAr } from "@/lib/utils/format";
 
 const initialState: PregnancyFormState = { error: null };
 type FormAction = (prev: PregnancyFormState, formData: FormData) => Promise<PregnancyFormState>;
@@ -26,7 +27,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const [outcome, setOutcome] = useState<Outcome>("live_birth");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   return (
     <>

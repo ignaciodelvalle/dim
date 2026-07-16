@@ -6,6 +6,7 @@
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { useActionState, useState } from "react";
 
 const WEEKDAYS = [
@@ -35,7 +36,7 @@ export function AgendaRuleForm({
 }) {
   const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   // Controlled field state — preserves typed input on validation error.
   const [startTimeLocal, setStartTimeLocal] = useState("08:00");

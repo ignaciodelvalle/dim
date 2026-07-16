@@ -11,6 +11,7 @@ import {
   notificationTypeLabel,
   rabiesObservationOutcomeLabel,
   relativeDaysShort,
+  todayIsoInAr,
 } from "./format";
 
 // Regression coverage for the outreach "hace 20624d" bug: never-vaccinated pets
@@ -258,5 +259,26 @@ describe("formatDateTime", () => {
     const out = formatDateTime(new Date("2026-07-15T06:13:00.000Z"));
     expect(out).toContain("03:13");
     expect(out).not.toContain("06:13");
+  });
+});
+
+// Regression guard for the night-time future-date block (cursor QA 2026-07-15
+// A2): form date DEFAULTS computed as `new Date().toISOString().slice(0, 10)`
+// resolve in UTC, so late in the AR evening (UTC-3) "today" becomes TOMORROW and
+// the "no future date" rule rejects the untouched default. todayIsoInAr must
+// return the Argentine calendar day for that instant.
+describe("todayIsoInAr", () => {
+  it("returns the AR calendar day when UTC has already rolled to the next day", () => {
+    // 2026-07-16T01:30:00Z is the 16th in UTC but still 22:30 on the 15th in AR.
+    const arToday = todayIsoInAr(new Date("2026-07-16T01:30:00.000Z"));
+    expect(arToday).toBe("2026-07-15");
+    // The UTC computation the app previously used would wrongly say "tomorrow".
+    expect(new Date("2026-07-16T01:30:00.000Z").toISOString().slice(0, 10)).toBe("2026-07-16");
+  });
+
+  it("returns YYYY-MM-DD and agrees with UTC when both zones are on the same day", () => {
+    const arToday = todayIsoInAr(new Date("2026-07-15T15:00:00.000Z"));
+    expect(arToday).toBe("2026-07-15");
+    expect(arToday).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

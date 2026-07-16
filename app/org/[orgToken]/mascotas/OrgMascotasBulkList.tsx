@@ -31,7 +31,7 @@ import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton, OpStateBadge } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
-import { speciesLabel } from "@/lib/utils/format";
+import { speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -618,7 +618,7 @@ function BulkVaccinationForm({
   onCancel: () => void;
   onSubmit: (fields: VaccinationFields) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [vaccineName, setVaccineName] = useState("");
   const [occurredAt, setOccurredAt] = useState(today);
   const [brand, setBrand] = useState("");
