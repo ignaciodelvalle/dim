@@ -562,3 +562,20 @@ export const POINTS_LAYER_IDS: ReadonlySet<LayerId> = new Set(
 export function isPointsLayer(id: LayerId): boolean {
   return POINTS_LAYER_IDS.has(id);
 }
+
+/**
+ * Choropleth layers whose loader is PROVINCE-GRAIN and ignores `level` — they
+ * always paint province polygons regardless of zoom (their metric has no
+ * locality/department grain). indice-territorial is one: computeJurisdictionIndex
+ * scores ≤24 provinces. These must NOT drive the zoom→department LOD flip, or the
+ * aggregation badge/caption would claim "Departamentos" while the map still paints
+ * provinces (a label≠map lie). Add any future province-only choropleth here.
+ */
+export const PROVINCE_ONLY_CHOROPLETH_IDS: ReadonlySet<LayerId> = new Set<LayerId>([
+  "indice-territorial",
+]);
+
+/** True when the choropleth is province-grain only (never disaggregates to departments). */
+export function isProvinceOnlyChoropleth(id: LayerId): boolean {
+  return PROVINCE_ONLY_CHOROPLETH_IDS.has(id);
+}

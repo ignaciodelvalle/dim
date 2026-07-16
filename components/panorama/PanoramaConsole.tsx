@@ -117,6 +117,7 @@ import {
   PANORAMA_LAYERS,
   getLayer,
   isAggregatedPointLayer,
+  isProvinceOnlyChoropleth,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
@@ -3151,8 +3152,13 @@ export function PanoramaConsole({
   // cost is gone because national+department is cube-served (a precomputed
   // superset), so the refetch is near-free. RENDER-detail-on-zoom only: it drives a
   // data refetch + repaint, NEVER a camera move (the vista-camera fix is untouched).
+  // A province-ONLY choropleth (indice-territorial) must NOT trigger the
+  // zoom→department LOD flip: its loader ignores `level` and always paints
+  // provinces, so flipping to "locality" would make the badge/caption claim
+  // "Departamentos" over province polygons (Cursor review, label≠map). Only a
+  // department-capable choropleth counts here.
   const hasActiveChoropleth = useMemo(
-    () => [...CHOROPLETH_IDS].some((id) => states[id]?.active),
+    () => [...CHOROPLETH_IDS].some((id) => states[id]?.active && !isProvinceOnlyChoropleth(id)),
     [states],
   );
   useEffect(() => {
@@ -3641,10 +3647,16 @@ export function PanoramaConsole({
     let suppressed = 0;
     let unitsWithEvents = 0;
     let hasCountLayer = false;
+    // Cursor review: the summary copy hardcoded "Eventos en el período", wrong for
+    // current-state count layers (mortalidad, acceso-veterinario — temporal:false).
+    // Track whether ANY contributing count layer is period-flow; if none are, the
+    // total is a current-state stock and the copy must say so (label=number canon).
+    let anyPeriodLayer = false;
     for (const layer of activeLayers) {
       const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
       if (!isAggregate || layer.dataType === "rate" || layer.dataType === "reference") continue;
       hasCountLayer = true;
+      if (isTemporalLayer(layer.id as LayerId)) anyPeriodLayer = true;
       for (const f of layer.features.features) {
         const p = f.properties as Record<string, unknown>;
         if (p.suppressed === true) {
@@ -3660,7 +3672,7 @@ export function PanoramaConsole({
         if (v > 0) unitsWithEvents += 1;
       }
     }
-    return { hasCountLayer, total, suppressed, unitsWithEvents };
+    return { hasCountLayer, total, suppressed, unitsWithEvents, anyPeriodLayer };
   }, [activeLayers]);
   // The dock badge: the event total for count layers (== the primary KPI), else the
   // unit-row count for rate-only presets (coverage has no summable population).
@@ -4084,7 +4096,13 @@ export function PanoramaConsole({
           unit count is units-WITH-events (never the rate count-density rows). */}
       {dockRecordSummary.hasCountLayer && (
         <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] tabular-nums text-ln-op-ink-2">
-          Eventos en el período: {dockRecordSummary.total.toLocaleString("es-AR")} en{" "}
+          {/* Period-flow layers say "Eventos en el período"; a current-state stock
+              (mortalidad, acceso-veterinario) says "Registros (estado actual)" so
+              the label matches what the number is (Cursor review). */}
+          {dockRecordSummary.anyPeriodLayer
+            ? "Eventos en el período: "
+            : "Registros (estado actual): "}
+          {dockRecordSummary.total.toLocaleString("es-AR")} en{" "}
           {dockRecordSummary.unitsWithEvents.toLocaleString("es-AR")}{" "}
           {dockRecordSummary.unitsWithEvents === 1 ? "unidad" : "unidades"}
           {dockRecordSummary.suppressed > 0 &&
