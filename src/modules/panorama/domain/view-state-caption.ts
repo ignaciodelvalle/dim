@@ -15,6 +15,7 @@
 
 import { getLayer } from "./layers";
 import { getPreset } from "./presets";
+import type { AggregationLevel } from "./types";
 import type { PanoramaViewState } from "./view-state";
 
 /** Optional display-name resolvers — the console has the human province/locality
@@ -22,6 +23,23 @@ import type { PanoramaViewState } from "./view-state";
 export type ExplainNames = {
   provinceLabel?: (code: string) => string | undefined;
   localityLabel?: (province: string, locality: string) => string | undefined;
+  /**
+   * Honesty override for a BOUNDED operator. A govt operator with no explicit
+   * drill still carries a `national` ViewState scope — but their DATA is scoped
+   * to their assigned jurisdiction(s) by the loaders. Naming the nation
+   * ("Argentina (todas las provincias)") would lie about the projection
+   * geography. Pass the honest jurisdiction label (e.g. "Tierra del Fuego, Santa
+   * Cruz, CABA") and it replaces the national phrase.
+   */
+  boundedScopeLabel?: string;
+  /**
+   * The administrative grain the MAP is currently rendering. When the scope is
+   * national but the map has auto-disaggregated to department grain, the national
+   * phrase is qualified ("Argentina · nivel departamento") so the footer never
+   * implies a province-level "todas las provincias" over a department choropleth.
+   * Ignored once `boundedScopeLabel` applies or the scope is province/locality.
+   */
+  renderLevel?: AggregationLevel;
 };
 
 const MONTHS_ES = [
@@ -59,6 +77,12 @@ function formatSpanishDate(iso: string): string {
 function scopePhrase(view: PanoramaViewState, names?: ExplainNames): string {
   switch (view.scope.kind) {
     case "national":
+      // A bounded operator's data is narrower than the nation — name their real
+      // jurisdiction instead of claiming "todas las provincias" (Finding #1).
+      if (names?.boundedScopeLabel) return names.boundedScopeLabel;
+      // National scope but the map disaggregated to department grain — qualify the
+      // phrase so it never contradicts the on-screen grain (Finding #1, admin).
+      if (names?.renderLevel === "locality") return "Argentina · nivel departamento";
       return "Argentina (todas las provincias)";
     case "province": {
       const label = names?.provinceLabel?.(view.scope.province) ?? view.scope.province;

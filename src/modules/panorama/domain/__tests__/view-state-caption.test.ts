@@ -65,6 +65,38 @@ describe("explainViewState", () => {
     expect(explainViewState(v)).toContain("del 1 de enero de 2026 al 31 de marzo de 2026");
   });
 
+  it("names the bounded operator's jurisdiction instead of the nation (Finding #1)", () => {
+    // A govt operator carries a `national` ViewState scope (no explicit drill) but
+    // their data is scoped — the footer must NOT say "todas las provincias".
+    const v = makeViewState({ layers: ["perdidas"] });
+    expect(
+      explainViewState(v, { boundedScopeLabel: "Tierra del Fuego, Santa Cruz, CABA" }),
+    ).toContain("Tierra del Fuego, Santa Cruz, CABA");
+    expect(
+      explainViewState(v, { boundedScopeLabel: "Tierra del Fuego, Santa Cruz, CABA" }),
+    ).not.toContain("todas las provincias");
+  });
+
+  it("qualifies the national phrase with the department grain the map shows (Finding #1)", () => {
+    // Admin at national scope but the map auto-disaggregated to department grain —
+    // the footer must reflect the grain, not imply province-level coverage.
+    const v = makeViewState({ layers: ["perdidas"] });
+    expect(explainViewState(v, { renderLevel: "locality" })).toContain(
+      "Argentina · nivel departamento",
+    );
+    // Province grain keeps the full-coverage phrase (honest there).
+    expect(explainViewState(v, { renderLevel: "province" })).toContain(
+      "Argentina (todas las provincias)",
+    );
+  });
+
+  it("boundedScopeLabel wins over the renderLevel qualifier", () => {
+    const v = makeViewState({ layers: ["perdidas"] });
+    expect(explainViewState(v, { boundedScopeLabel: "Salta", renderLevel: "locality" })).toContain(
+      "Salta",
+    );
+  });
+
   it("skips unknown layer ids without throwing", () => {
     const v = makeViewState({ layers: ["cobertura"] });
     // A well-formed value only ever holds valid ids (the URL boundary filters),

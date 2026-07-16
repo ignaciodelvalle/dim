@@ -3139,8 +3139,13 @@ export function PanoramaConsole({
       explainViewState(viewState, {
         provinceLabel: (code) => provinceByCode(code)?.name,
         localityLabel: (_prov, loc) => scopeData.localities.find((l) => l.slug === loc)?.name,
+        // Finding #1: a bounded (govt) operator's data is scoped — name their real
+        // jurisdiction instead of "todas las provincias"; an admin at department
+        // grain gets the grain-qualified national phrase.
+        boundedScopeLabel: boundedJurisdiction ? (scopeLabel ?? undefined) : undefined,
+        renderLevel: level,
       }),
-    [viewState, scopeData.localities],
+    [viewState, scopeData.localities, boundedJurisdiction, scopeLabel, level],
   );
 
   // A2 (automatic department-grain LOD): a committed province/locality still reads
@@ -4398,6 +4403,10 @@ export function PanoramaConsole({
             code,
           localityLabel: (_province, locality) =>
             scopeData.localities.find((l) => l.slug === locality)?.name ?? locality,
+          // Finding #1: the printed informe scope line stays honest too — the govt
+          // jurisdiction override / the admin department-grain qualifier.
+          boundedScopeLabel: boundedJurisdiction ? (scopeLabel ?? undefined) : undefined,
+          renderLevel: level,
         }),
         kpis: readingKpis,
         kpisDegraded,
@@ -4438,6 +4447,9 @@ export function PanoramaConsole({
       rankingDataUnavailable,
       informeCaption,
       activeLayers,
+      boundedJurisdiction,
+      scopeLabel,
+      level,
     ],
   );
 
@@ -4687,8 +4699,14 @@ export function PanoramaConsole({
           masthead). */}
       {!presentationMode && scopeLabel !== undefined && (
         <header className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-ln-op-line bg-ln-op-card px-4 py-1.5">
+          {/* Finding #1: the title must reflect the REAL projection geography. A
+              bounded (govt) operator is NOT national — name their jurisdiction
+              (the honest server scopeLabel) instead of "Nacional". Admin/universal
+              keeps "Nacional". Display-only; the data scope is server-enforced. */}
           <h2 className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-ink-2">
-            Centro de Situación Nacional
+            {boundedJurisdiction
+              ? `Centro de Situación · ${scopeLabel}`
+              : "Centro de Situación Nacional"}
           </h2>
           {/* task #38 v3: "Acerca de esta vista" (methodology + demo + KPI footer)
               and "Actualizar" moved into the floating rail (Acerca / Actualizar
