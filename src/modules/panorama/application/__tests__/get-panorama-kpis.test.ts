@@ -251,6 +251,23 @@ describe("getPanoramaKpis", () => {
     }
   });
 
+  it("G2: mordeduras rate that rounds to 0,0 with reports>0 shows '<0,1' (not '0,0')", async () => {
+    // 5 reports over a large population → a tiny rate that rounds to "0,0" at 1
+    // decimal. Displaying "0,0" next to "5 reportes" reads as zero bites.
+    vi.mocked(fetchBitesPer10k).mockResolvedValue({ rate: 0.02, delta: 0, reports: 5 });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "mordeduras")!;
+    expect(kpi.value).toBe("<0,1");
+    expect(kpi.sub).toContain("5 reportes");
+  });
+
+  it("G2: a genuine zero (0 reports) keeps the plain '0,0' rate", async () => {
+    vi.mocked(fetchBitesPer10k).mockResolvedValue({ rate: 0, delta: 0, reports: 0 });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "mordeduras")!;
+    expect(kpi.value).toBe("0,0");
+  });
+
   it("esterilizacion KPI is tone ok when rate >= 70", async () => {
     vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
       rate: 75.3,

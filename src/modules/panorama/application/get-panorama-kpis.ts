@@ -692,7 +692,14 @@ export async function getPanoramaKpis(
     {
       id: "mordeduras",
       label: "Mordeduras / 10k hab.",
-      value: formatRate(bites.rate),
+      // G2: a rate that rounds to "0,0" at 1 decimal while there ARE reports
+      // (n>0) reads as "cero mordeduras" — the headline number contradicts the
+      // "N reportes" sub-line. Show "<0,1" so a nonzero numerator never displays
+      // as a flat zero. A genuine zero (0 reports) keeps the plain "0,0".
+      value:
+        bites.reports > 0 && formatRate(bites.rate) === formatRate(0)
+          ? "<0,1"
+          : formatRate(bites.rate),
       sub: `${formatCount(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`,
       tone: "warn",
       href: "/gob/vigilancia",
