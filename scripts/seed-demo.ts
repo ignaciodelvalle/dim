@@ -205,7 +205,7 @@ export const USERS = {
   },
   admin: {
     email: "admin@dim.test",
-    displayName: "DIM Admin",
+    displayName: "Administración MiMAR",
     role: "admin" as const,
     phone: null,
   },

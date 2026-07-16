@@ -110,7 +110,7 @@ export default async function GobOutreachPage() {
           info={{
             definition:
               "Mascotas activas en tu jurisdicción cuya última vacuna antirrábica registrada supera los 365 días o que nunca vacunaron.",
-            caveat: "Solo considera mascotas con eventos registrados en DIM.",
+            caveat: "Solo considera mascotas con eventos registrados en MiMAR.",
           }}
         />
         <OpKpi
@@ -294,7 +294,7 @@ export default async function GobOutreachPage() {
             <LnEmptyState
               icon="award"
               title="Sin esterilizaciones registradas en tu jurisdicción"
-              description="No hay esterilizaciones registradas en DIM en los últimos 30 días para tu cobertura."
+              description="No hay esterilizaciones registradas en MiMAR en los últimos 30 días para tu cobertura."
             />
           ) : (
             <table className="w-full text-sm border-collapse">

@@ -12,7 +12,7 @@ import type { Metadata } from "next";
 import { OpButton } from "@/components/ui/dashboard";
 
 export const metadata: Metadata = {
-  title: "Integración Mi Argentina — DIM",
+  title: "Integración Mi Argentina — MiMAR",
 };
 
 export default function IntegracionMiArgPage() {

@@ -140,7 +140,9 @@ const EMAILS = {
 } as const;
 
 const DISPLAY = {
-  admin: "Admin DIM",
+  // Brand: MiMAR is the user-facing name; the "DIM" codename must never surface
+  // in operator UI (it leaked into Auditoría/Historial actor labels as "Admin DIM").
+  admin: "Administración MiMAR",
   owner: "Lucía Tester",
   ownerB: "Bruno Segundo",
   vet: "Dr. Juan Veterinario",
@@ -1060,7 +1062,7 @@ async function main() {
   console.log(`  ${EMAILS.govt.padEnd(24)}  role=govt    → /gob (Ushuaia + El Calafate)`);
   console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA/Palermo)`);
   console.log(`\n  Refugio portal:   /org/${orgToken}`);
-  console.log("  Admin DIM:        /admin");
+  console.log("  Administración MiMAR:  /admin");
   console.log("  Gobierno:         /gob");
   console.log("  Mis mascotas:     /mis-mascotas");
 }
