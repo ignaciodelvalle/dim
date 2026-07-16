@@ -54,6 +54,7 @@ import {
   rabiesVaccinatedExists,
   suppressSmallCells,
 } from "@/lib/metrics";
+import { fetchDewormingCoverage } from "@/lib/metrics/deworming";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { fetchVetAccessByLocality, perThousand } from "@/lib/metrics/vet-access";
@@ -851,7 +852,8 @@ export type ChoroplethMetric =
   | "microchip-penetration"
   | "ppp-compliance"
   | "mortality"
-  | "vet-access";
+  | "vet-access"
+  | "deworming";
 
 /** Build the metric-specific pets predicate for LOCALITY-level loaders.
  * Defined ONCE so province and locality rollups can NEVER drift apart on the
@@ -923,6 +925,22 @@ function metricPredicate(metric: ChoroplethMetric, signedOnly = false): SQL {
         AND pe_vet.event_type = 'vet_visit_logged'
         AND pe_vet.occurred_at >= ${win.since.toISOString()}
         AND pe_vet.occurred_at <= ${win.until.toISOString()}
+    )`;
+  }
+  if (metric === "deworming") {
+    // LOCALITY count-density numerator: active pets in scope with ≥1
+    // deworming_administered event in the trailing-12m window. Mirrors
+    // fetchDewormingCoverage (lib/metrics/deworming) EXACTLY (same event_type +
+    // fixed 12m window) so the locality count and the province rate share one
+    // numerator definition. The province RATE is delegated to that fetcher; this
+    // predicate is the count-density interim for the drilled-in division.
+    const win = windows.trailing12m();
+    return sql`EXISTS (
+      SELECT 1 FROM ${petEvents} pe_deworm
+      WHERE pe_deworm.pet_id = ${pets.id}
+        AND pe_deworm.event_type = 'deworming_administered'
+        AND pe_deworm.occurred_at >= ${win.since.toISOString()}
+        AND pe_deworm.occurred_at <= ${win.until.toISOString()}
     )`;
   }
   // mortality — pets currently in status='deceased'.
@@ -1249,6 +1267,26 @@ export async function loadVetAccess(
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
+// metrics:deworming (antiparasitario) — count of active pets with a deworming in
+// the trailing-12m window, at the LOCALITY level (centroid graduated symbols,
+// k-anon), folded to the department. Count-density interim; the coverage RATE is
+// province-only (see loadDewormingCoverageByProvince), same asymmetry as the
+// sterilization tier this clones.
+export async function loadDewormingCoverage(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ChoroplethRows> {
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const [rollup, noLocalityCount] = await Promise.all([
+    rollupPetsPerLocality([metricPredicate("deworming")], scope),
+    countPetsNoLocality([metricPredicate("deworming")], scope),
+  ]);
+  const { cells, suppressedCount } = toChoroplethCells(aggregateCellsToDepartment(rollup));
+  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
+}
+
 // U5: PROVINCE-level loaders. Used when the aggregation toggle is on "Provincia".
 //
 // RATE METRICS (rabies-coverage, sterilization-coverage): delegate to the canonical
@@ -1419,6 +1457,31 @@ export async function loadVetAccessByProvince(
   return { cells, truncated: false };
 }
 
+// metrics:deworming (antiparasitario) — per-PROVINCE deworming coverage RATE via
+// the canonical fetcher. Delegates to fetchDewormingCoverage (lib/metrics/deworming),
+// whose byProvince breakdown shares the active-pets denominator with /gob/poblacion.
+// value = ratePct (0-100). Parity guaranteed by reuse — clones
+// loadSterilizationCoverageByProvince with the deworming fetcher swapped in.
+export async function loadDewormingCoverageByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
+  const { byProvince } = await fetchDewormingCoverage(ctx);
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of byProvince) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+  }
+  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+}
+
 /**
  * U5 single entry point: rollup a choropleth metric at the requested LEVEL.
  * Reused by the Panorama use-case AND available to the dashboard distribution
@@ -1486,6 +1549,8 @@ export function loadChoroplethByLevel(
       return loadPppComplianceByProvince(actor, jurisdictions, adminProvince, adminLocality);
     if (metric === "vet-access")
       return loadVetAccessByProvince(actor, jurisdictions, adminProvince, adminLocality);
+    if (metric === "deworming")
+      return loadDewormingCoverageByProvince(actor, jurisdictions, adminProvince, adminLocality);
     return loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality);
   }
   // Locality level.
@@ -1499,6 +1564,8 @@ export function loadChoroplethByLevel(
     return loadPppCompliance(actor, jurisdictions, adminProvince, adminLocality);
   if (metric === "vet-access")
     return loadVetAccess(actor, jurisdictions, adminProvince, adminLocality);
+  if (metric === "deworming")
+    return loadDewormingCoverage(actor, jurisdictions, adminProvince, adminLocality);
   return loadMortality(actor, jurisdictions, adminProvince, adminLocality);
 }
 

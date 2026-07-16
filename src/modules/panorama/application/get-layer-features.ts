@@ -557,6 +557,19 @@ export async function getLayerFeatures(
         adminLocality,
       );
     }
+    case "antiparasitario": {
+      // Trailing-12m coverage rollup (EXISTS deworming_administered) — not
+      // event-windowed in v1; `asOf` ignored, dimmed under a scrub. Province:
+      // ratePct (divergent at complianceTarget:80). Locality: count-density (v1).
+      return choroplethResult(
+        "deworming",
+        level,
+        actor,
+        jurisdictions,
+        adminProvince,
+        adminLocality,
+      );
+    }
     default:
       return empty();
   }

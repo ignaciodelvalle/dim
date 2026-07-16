@@ -411,6 +411,39 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       window: "current",
     },
   },
+  {
+    id: "antiparasitario",
+    label: "Cobertura antiparasitaria (12m)",
+    description:
+      "Mascotas activas con desparasitación registrada en los últimos 12 meses sobre el total de la unidad — protección periódica (no un hito único).",
+    geomType: "choropleth",
+    source: "metrics:deworming",
+    color: "#499894",
+    scopeFilterable: true,
+    privacy: "none",
+    // Trailing-12m coverage (periodic protection, fixed window) — rendered as a
+    // current-state choropleth, not event-windowed in v1.
+    temporal: false,
+    // Coverage rate — same shape as esterilización (divergent choropleth anchored
+    // at the benchmark). Province paints ratePct (fetchDewormingCoverage.byProvince);
+    // locality paints count-density (v1 interim).
+    dataType: "rate",
+    // No legal % mandate exists for antiparasitic deworming; 80 is a program
+    // benchmark mirroring the sanitary-coverage peers (rabies/microchip), NOT a
+    // legal target — same convention as the ppp layer's benchmark.
+    complianceTarget: 80,
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    caption: {
+      unit: UNIT_DIVISION,
+      measure: "cobertura antiparasitaria",
+      window: "current",
+    },
+  },
 ] as const;
 
 const LAYER_BY_ID: ReadonlyMap<LayerId, PanoramaLayer> = new Map(

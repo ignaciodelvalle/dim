@@ -1028,6 +1028,70 @@ describe("getLayerFeatures — acceso-veterinario (vet-access choropleth)", () =
   });
 });
 
+describe("getLayerFeatures — antiparasitario (deworming coverage choropleth)", () => {
+  it("routes to the deworming metric at province level (ratePct, divergent at 80)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 64 },
+        { provinceCode: "AR-X", label: "Córdoba", value: 51 },
+      ],
+      truncated: false,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "antiparasitario",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "deworming",
+      "province",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("province");
+    expect(result.features.features).toHaveLength(2);
+    expect(result.features.features[0].properties).toMatchObject({
+      provinceCode: "AR-B",
+      value: 64,
+    });
+  });
+
+  it("routes to deworming at locality level (count-density, v1)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [],
+      suppressedCount: 0,
+      noLocalityCount: 0,
+      truncated: false,
+    } as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "antiparasitario",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(mockLoadChoropleth).toHaveBeenCalledWith(
+      "deworming",
+      "locality",
+      { role: "admin" },
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(result.level).toBe("locality");
+  });
+});
+
 // ---------------------------------------------------------------------------
 // task #77 bitemporal — replay basis threading (valid=occurred_at vs
 // transaction=recorded_at). The pet_events-backed loaders receive `period.basis`
