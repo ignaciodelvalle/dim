@@ -1,6 +1,8 @@
+import { db, profiles } from "@/db";
 import { getIntentCopy } from "@/lib/domain/auth-intent-copy";
 import { safeReturnTo } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
+import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SignupForm } from "./SignupForm";
@@ -31,7 +33,33 @@ export default async function SignupPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect(returnTo ?? "/mis-mascotas");
+
+  // An authenticated visitor is USUALLY someone who already signed up and has no
+  // business here — bounce them. But signup step 1 authenticates, and step 2
+  // (identity) runs client-side on this same page. So between the two steps this
+  // guard sees a logged-in user and, on any server re-render — a reload, a back,
+  // any navigation — throws them into the app mid-signup.
+  //
+  // What that costs (confirmed in a real browser run, docs/reviews/results/
+  // genesis.md:81): display_name is left as the provisional value the
+  // handle_new_user trigger derives from the email local-part, permanently and
+  // with nothing forcing completion — which is why operators saw owners named
+  // "lucia-gen-mrau2dv1" (QA ronda 5). Worse, complete-identity is the ONLY
+  // writer of tos_accepted_at: the visitor ticked the TOS box in step 1, but the
+  // acceptance is recorded in step 2, so a skipped step 2 leaves the account with
+  // NO provable consent record (Ley 25.326 art. 5) despite consent being given.
+  //
+  // tos_accepted_at is therefore the exact "identity finished" marker: NULL means
+  // step 2 never ran. Resume those visitors at step 2 instead of bouncing them.
+  if (user) {
+    const [profile] = await db
+      .select({ tosAcceptedAt: profiles.tosAcceptedAt })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
+    if (profile?.tosAcceptedAt) redirect(returnTo ?? "/mis-mascotas");
+    // Identity unfinished (or no profile row yet) → fall through to step 2.
+  }
 
   const intentCopy = getIntentCopy(rawIntent);
 
@@ -71,7 +99,13 @@ export default async function SignupPage({
             {intentCopy ? intentCopy.subcopy : "Creá la libreta digital de tu mascota"}
           </p>
         </div>
-        <SignupForm intent={intent} returnTo={returnTo} />
+        {/* Authenticated + unfinished identity → resume at step 2, never restart
+            the account form (the account already exists; it could only fail). */}
+        <SignupForm
+          intent={intent}
+          returnTo={returnTo}
+          initialStep={user ? "identity" : "account"}
+        />
         <p className="text-center text-sm text-[var(--color-ln-ink-2)]">
           ¿Ya tenés cuenta?{" "}
           <Link
