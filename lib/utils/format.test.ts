@@ -9,6 +9,7 @@ import {
   formatPercent,
   formatRate,
   notificationTypeLabel,
+  nowLocalDatetimeInAr,
   rabiesObservationOutcomeLabel,
   relativeDaysShort,
   todayIsoInAr,
@@ -280,5 +281,33 @@ describe("todayIsoInAr", () => {
     const arToday = todayIsoInAr(new Date("2026-07-15T15:00:00.000Z"));
     expect(arToday).toBe("2026-07-15");
     expect(arToday).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+// Regression guard for the same class of bug as todayIsoInAr, but for
+// `<input type="datetime-local">` defaults (PetSightingForm "¿Cuándo la
+// viste?"): `new Date().toISOString().slice(0, 16)` is UTC wall-clock, 3h
+// ahead of Argentina, and rolls to the next AR calendar day near AR midnight.
+describe("nowLocalDatetimeInAr", () => {
+  it("subtracts the 3h AR offset from a UTC instant", () => {
+    // 2026-07-15T18:00:00Z is 15:00 in Argentina (UTC-3).
+    expect(nowLocalDatetimeInAr(new Date("2026-07-15T18:00:00.000Z"))).toBe("2026-07-15T15:00");
+  });
+
+  it("rolls back to the PREVIOUS calendar day when UTC has already advanced", () => {
+    // 2026-07-16T01:30:00Z is the 16th in UTC but still 22:30 on the 15th in AR.
+    const arNow = nowLocalDatetimeInAr(new Date("2026-07-16T01:30:00.000Z"));
+    expect(arNow).toBe("2026-07-15T22:30");
+    // The UTC computation the app previously used would wrongly say "tomorrow".
+    expect(new Date("2026-07-16T01:30:00.000Z").toISOString().slice(0, 16)).toBe(
+      "2026-07-16T01:30",
+    );
+  });
+
+  it("returns YYYY-MM-DDTHH:mm, zero-padded, 24h clock", () => {
+    const arNow = nowLocalDatetimeInAr(new Date("2026-07-15T03:05:00.000Z"));
+    expect(arNow).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    // 03:05Z - 3h = 00:05 AR, not "0:05" or "24:05".
+    expect(arNow).toBe("2026-07-15T00:05");
   });
 });

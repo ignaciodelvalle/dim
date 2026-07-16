@@ -3,6 +3,7 @@
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 
@@ -44,7 +45,7 @@ export function ReplaceMicrochipForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [selectedReason, setSelectedReason] = useState<string>("");
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const isFraud = selectedReason === "fraud_detected";
 
   return (

@@ -14,6 +14,7 @@ import { useActionState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { nowLocalDatetimeInAr } from "@/lib/utils/format";
 
 import { type SightingActionState, reportPetSightingAction } from "@/app/actions/pet-sighting";
 
@@ -56,7 +57,9 @@ export function PetSightingForm({
     );
   }
 
-  const todayLocalIso = new Date().toISOString().slice(0, 16);
+  // AR wall-clock "now" — see lib/utils/format.ts for why toISOString() (UTC)
+  // would silently misdate this near midnight in Argentina.
+  const todayLocalIso = nowLocalDatetimeInAr();
 
   // B-2: stable id for the error paragraph so inputs can reference it via aria-describedby
   const errorId = "sighting-form-error";

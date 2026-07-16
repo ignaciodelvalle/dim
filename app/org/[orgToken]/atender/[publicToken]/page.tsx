@@ -83,7 +83,7 @@ export default async function AtenderSignPage({
             {signer.matriculaVerified ? " · verificado por profesional" : "."}
           </p>
           {!signer.matriculaVerified && (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-[var(--text-sm)] text-ln-op-mute">
               Queda registrado a nombre de la organización: es un registro válido, pero el sello
               “verificado por profesional” requiere un firmante con matrícula validada.
             </p>

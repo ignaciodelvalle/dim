@@ -9,23 +9,31 @@ import { useState } from "react";
 
 import { LocationFields, type LocationFieldsChange } from "@/components/LocationFields";
 import { LnTextarea } from "@/components/ui/Field";
+import { parseDateInput, todayIsoInAr } from "@/lib/utils/format";
 
 export type WhenOption = "now" | "today_yesterday" | "several_days_ago";
 
+// Anchors on the Argentine calendar day, not the UTC day (a UTC anchor is
+// silently off by one near midnight in Argentina — see todayIsoInAr in
+// lib/utils/format.ts). todayAr is parsed back into a Date pinned at noon
+// UTC of that AR calendar day (parseDateInput), so the day-arithmetic below
+// stays correct in any timezone the code happens to run in.
 function resolveOccurredAt(when: WhenOption): string {
-  const now = new Date();
+  if (when === "now") return todayIsoInAr();
+
+  const todayAr = parseDateInput(todayIsoInAr());
+  if (!todayAr) return todayIsoInAr(); // unreachable: todayIsoInAr() is always well-formed
+
   switch (when) {
-    case "now":
-      return now.toISOString().split("T")[0];
     case "today_yesterday": {
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return yesterday.toISOString().split("T")[0];
+      const yesterday = new Date(todayAr);
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      return yesterday.toISOString().slice(0, 10);
     }
     case "several_days_ago": {
-      const fiveDaysAgo = new Date(now);
-      fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-      return fiveDaysAgo.toISOString().split("T")[0];
+      const fiveDaysAgo = new Date(todayAr);
+      fiveDaysAgo.setUTCDate(fiveDaysAgo.getUTCDate() - 5);
+      return fiveDaysAgo.toISOString().slice(0, 10);
     }
   }
 }

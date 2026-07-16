@@ -120,6 +120,41 @@ export function todayIsoInAr(now: Date = new Date()): string {
   return AR_ISO_DATE_FORMAT.format(now);
 }
 
+// "YYYY-MM-DDTHH:mm" of the CURRENT wall-clock instant in Argentina — the
+// correct DEFAULT for a `<input type="datetime-local">`. hourCycle "h23"
+// keeps a 24-hour, zero-padded hour (midnight = "00", never "24") matching
+// the datetime-local input format exactly.
+const AR_ISO_DATETIME_PARTS_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: AR_TIME_ZONE,
+});
+
+/**
+ * Argentina's current wall-clock instant as "YYYY-MM-DDTHH:mm" — the correct
+ * DEFAULT for a `<input type="datetime-local">`.
+ *
+ * WHY (not `new Date().toISOString().slice(0, 16)`): `toISOString()` yields
+ * UTC wall-clock, 3 hours ahead of Argentina. A "right now" default computed
+ * that way is off by 3 hours always, and off by a full CALENDAR DAY near
+ * midnight (e.g. 00:30 AR is still 03:30Z the same UTC day, but 22:30 AR is
+ * already 01:30Z the NEXT UTC day). Building the string from
+ * `Intl.DateTimeFormat` parts (rather than string-slicing a formatted
+ * output) sidesteps locale punctuation entirely.
+ *
+ * `now` is injectable so tests can pin a UTC instant and assert the AR
+ * wall-clock result, including the 3h offset.
+ */
+export function nowLocalDatetimeInAr(now: Date = new Date()): string {
+  const parts = AR_ISO_DATETIME_PARTS_FORMAT.formatToParts(now);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
+}
+
 export function speciesLabel(species: string): string {
   switch (species) {
     case "dog":
