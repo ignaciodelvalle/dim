@@ -1,6 +1,16 @@
 // Read-only aggregations for the /admin/sistema dashboard (Admin Fase 12).
 // All metrics are computed live from the existing tables — no projections,
 // no caching. The dashboard is admin-only so the query volume is bounded.
+//
+// POOL: analyticsDb (session pooler), NOT the OLTP transaction pooler. The
+// /admin home + /admin/sistema loaders fan out into many aggregate statements
+// per request (cockpit counts, the per-cron-name loop, decision windows), and
+// supavisor transaction mode has a measured >100x pathology for exactly that
+// shape (db/index.ts — the same >180s stall that hit the panorama fan-out).
+// Staging 2026-07-17: both pages hung to the 300s function timeout through the
+// transaction pooler while every individual query ran in <500ms. Session mode
+// serves the burst normally; locally analyticsDb falls back to DATABASE_URL,
+// so dev/test behavior is identical.
 
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
@@ -9,7 +19,7 @@ import {
   auditLog,
   cases,
   cronRuns,
-  db,
+  analyticsDb as db,
   govtAssignments,
   pets,
   profiles,
