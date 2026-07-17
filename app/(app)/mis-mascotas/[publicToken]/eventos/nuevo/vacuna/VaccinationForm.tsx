@@ -161,7 +161,7 @@ export function VaccinationForm({
                         >
                           <span>{v.name}</span>
                           {v.isCore && (
-                            <span className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-wide text-[var(--color-ln-mute)]">
+                            <span className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-wide text-[var(--color-ln-mute)]">
                               Núcleo
                             </span>
                           )}
