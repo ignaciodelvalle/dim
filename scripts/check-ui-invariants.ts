@@ -230,6 +230,11 @@ export const ACCENT_ALLOWLIST = new Set<string>([
   // "acciones" is the plural with correct accent already. "todavia" → "todavía"
   // but that word is NOT in the accent wordlist, so no false positive.
   // "accion" singular does not appear here. No entry needed.
+  // app/org/[orgToken]/mascotas/[publicToken]/page.tsx — `accion:` is a
+  // PetSituationTone key in the OP_TONE_CLASSES lookup (design-token class
+  // map), not user-visible copy. The rendered label comes from PET_SITUATIONS
+  // ("En adopción" / "En tránsito"), correctly accented.
+  "app/org/[orgToken]/mascotas/[publicToken]/page.tsx:accion",
 ]);
 
 // ---------------------------------------------------------------------------

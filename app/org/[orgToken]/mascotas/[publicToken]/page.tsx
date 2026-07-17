@@ -10,10 +10,11 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { Icon } from "@/components/Icon";
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { cases, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
-import { speciesLabel } from "@/lib/utils/format";
+import { type PetSituationTone, derivePetSituation } from "@/lib/ui/pet-situation";
+import { situationLabelForSex, speciesLabel } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
@@ -124,6 +125,28 @@ export default async function OrgPetDetailPage({
     .limit(1);
   const fosterName = fosterRow?.displayName ?? null;
 
+  // Open custody_episode opened by a sanitary_authority org — the same DC13
+  // canonical discriminator /p and the owner profile use. Feeds the
+  // custodia-oficial situation on the ficha (pet-state-header R6).
+  const openCustodyRows = await db
+    .select({ caseId: cases.id })
+    .from(cases)
+    .innerJoin(
+      organizations,
+      and(
+        eq(organizations.id, cases.openedByOrganizationId),
+        eq(organizations.orgType, "sanitary_authority"),
+      ),
+    )
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "custody_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
+
   // Pending return proposal check (for devolver-al-dueno sheet).
   let canProposeReturn = false;
   if (
@@ -226,9 +249,54 @@ export default async function OrgPetDetailPage({
   }
   const adState = adoptionState();
 
+  // Pet SITUATION (pet-state-header R6) — the same single derivation every
+  // other surface uses, FULL set: org viewers are custodians, not the public,
+  // so no privacy filtering applies here. Renders as an Op-toned strip at the
+  // top of the ficha + a badge replacing the plain-text Estado value. Default
+  // al-dia → no strip (quiet ficha). Note: en-tratamiento is not derivable
+  // here (no medication projection is loaded on this page); all other
+  // situations are wired.
+  const petSituation = derivePetSituation({
+    status: pet.status,
+    rabiesObservationStatus: pet.rabiesObservationStatus,
+    pregnancyStatus: pet.pregnancyStatus,
+    inAdoption: Boolean(pet.adoptionListedAt) && !pet.adoptionListingPausedAt,
+    inTransit: !!fosterName,
+    underOfficialCustody: openCustodyRows.length > 0,
+  });
+  const orgSituation = petSituation.isDefault ? null : petSituation;
+  const orgSituationLabel = orgSituation ? situationLabelForSex(orgSituation.label, pet.sex) : null;
+
+  // Situation tone → Op design-language classes (the org console does not use
+  // the ln-* document palette). WCAG: tone never travels alone — the strip and
+  // badge both pair it with the situation icon + label. `ok` is unreachable
+  // (isDefault → no strip); rosa has no Op family, viol is its Op analog.
+  const OP_TONE_CLASSES: Record<PetSituationTone, string> = {
+    ok: "bg-ln-op-ok-bg border-ln-op-ok-bd text-ln-op-ok",
+    alerta: "bg-ln-op-danger-bg border-ln-op-danger-bd text-ln-op-danger",
+    vigilancia: "bg-ln-op-blue-bg border-ln-op-blue-bd text-ln-op-azul",
+    tratamiento: "bg-ln-op-warn-bg border-ln-op-warn-bd text-ln-op-warn",
+    gestacion: "bg-ln-op-viol-bg border-ln-op-viol-bd text-ln-op-viol",
+    accion: "bg-ln-op-stripe border-ln-op-line text-ln-op-ink-2",
+    memoria: "bg-ln-op-stripe border-ln-op-line text-ln-op-mute",
+  };
+
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
+        {/* Situation strip (pet-state-header R6) — the ficha's state carrier,
+            same tone families as the credential masthead, Op design language. */}
+        {orgSituation && (
+          <div
+            data-section="org-situation-strip"
+            role="status"
+            className={`flex items-center gap-2 rounded-[var(--radius-sm)] border border-l-[3px] px-4 py-2.5 text-md font-semibold ${OP_TONE_CLASSES[orgSituation.tone]}`}
+          >
+            <Icon name={orgSituation.icon} size="sm" decorative />
+            {orgSituationLabel}
+          </div>
+        )}
+
         {/* Header */}
         <header className="space-y-1">
           <OpCrumbs
@@ -260,12 +328,20 @@ export default async function OrgPetDetailPage({
                 <OpCodeBadge tone="neutral">{pet.publicToken}</OpCodeBadge>
               </dd>
               <dt className="text-ln-op-mute">Estado</dt>
-              <dd className="text-ln-op-ink capitalize">
-                {pet.status === "lost"
-                  ? "Perdida"
-                  : pet.status === "active"
-                    ? "Activa"
-                    : "Fallecida"}
+              <dd>
+                {orgSituation ? (
+                  // Badge with icon + gendered label — replaces the old
+                  // plain-text value whenever a situation is active.
+                  <span
+                    data-section="org-situation-badge"
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-sm font-semibold ${OP_TONE_CLASSES[orgSituation.tone]}`}
+                  >
+                    <Icon name={orgSituation.icon} size={13} decorative />
+                    {orgSituationLabel}
+                  </span>
+                ) : (
+                  <span className="text-ln-op-ink">Activa</span>
+                )}
               </dd>
               <dt className="text-ln-op-mute">Rol de custodia</dt>
               <dd className="text-ln-op-ink">
