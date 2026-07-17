@@ -26,6 +26,7 @@
 export type PetSituationKey =
   | "al-dia"
   | "perdida"
+  | "custodia-oficial"
   | "observacion-antirrabica"
   | "en-tratamiento"
   | "prenada"
@@ -71,6 +72,15 @@ export const PET_SITUATIONS: Record<PetSituationKey, PetSituation> = {
     tone: "alerta",
     label: "Perdida",
     icon: "perdida",
+    isDefault: false,
+  },
+  "custodia-oficial": {
+    key: "custodia-oficial",
+    // PO direction: reuse the warn/amber family — custody is an official
+    // intervention, not a medical emergency. No new tone token.
+    tone: "tratamiento",
+    label: "Bajo custodia oficial",
+    icon: "shield",
     isDefault: false,
   },
   "observacion-antirrabica": {
@@ -127,6 +137,8 @@ export type PetSituationInput = {
   rabiesObservationStatus?: string | null;
   /** pets.pregnancyStatus — "in_progress" while pregnant. */
   pregnancyStatus?: string | null;
+  /** Held under an open official custody episode (org/state custodian). */
+  underOfficialCustody?: boolean;
   /** An open medical treatment (medication course / recovery). */
   inTreatment?: boolean;
   /** Listed for adoption. */
@@ -141,6 +153,7 @@ export type PetSituationInput = {
 export function derivePetSituation(input: PetSituationInput): PetSituation {
   if (input.status === "deceased") return PET_SITUATIONS.fallecida;
   if (input.status === "lost") return PET_SITUATIONS.perdida;
+  if (input.underOfficialCustody) return PET_SITUATIONS["custodia-oficial"];
   if (input.rabiesObservationStatus === "in_progress")
     return PET_SITUATIONS["observacion-antirrabica"];
   if (input.inTreatment) return PET_SITUATIONS["en-tratamiento"];

@@ -28,6 +28,34 @@ describe("derivePetSituation", () => {
     expect(derivePetSituation({ status: "active", inTransit: true }).key).toBe("en-transito");
   });
 
+  it("formalizes custodia-oficial: warn-family tone, shield icon, es-AR label", () => {
+    const sit = derivePetSituation({ status: "active", underOfficialCustody: true });
+    expect(sit.key).toBe("custodia-oficial");
+    expect(sit.label).toBe("Bajo custodia oficial");
+    // PO direction: reuse the warn/amber family — no new tone token.
+    expect(sit.tone).toBe("tratamiento");
+    expect(sit.icon).toBe("shield");
+    expect(sit.isDefault).toBe(false);
+  });
+
+  it("ranks custodia-oficial below perdida and above observación", () => {
+    // Lost + custody → the more urgent PERDIDA wins the single skin (R1.3).
+    expect(derivePetSituation({ status: "lost", underOfficialCustody: true }).key).toBe("perdida");
+    // Custody outranks the medical-surveillance states.
+    expect(
+      derivePetSituation({
+        status: "active",
+        underOfficialCustody: true,
+        rabiesObservationStatus: "in_progress",
+        inTreatment: true,
+      }).key,
+    ).toBe("custodia-oficial");
+    // Deceased is terminal — outranks custody too.
+    expect(derivePetSituation({ status: "deceased", underOfficialCustody: true }).key).toBe(
+      "fallecida",
+    );
+  });
+
   it("applies precedence: deceased > lost > observación > tratamiento > preñada", () => {
     // Terminal wins over everything.
     expect(
