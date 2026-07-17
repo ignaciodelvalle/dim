@@ -243,8 +243,13 @@ async function GobPanoramaBoard({
   // contract (applied only on a bare first visit; never overrides an explicit
   // board). The server-seeded default LAYER (perdidas) is unchanged; this only
   // steers the client's first-visit preset auto-activation.
-  const defaultPresetId: PresetId =
-    profile.role === "admin" ? DEFAULT_PANORAMA_PRESET_ID : "sintomas";
+  // Both roles now open on the same vista (PO 2026-07-16): `brotes-activos` in
+  // its bivariate encoding. The govt-only "sintomas" default existed to keep a
+  // barrio-scoped operator inside their own jurisdiction — but the map's framing
+  // was always PRESENTATION-ONLY (the scoped loaders enforce the data), and the
+  // operators this matters for are now regional, not barrio-bound. One default
+  // also means the demo path and the operator path are the same screen.
+  const defaultPresetId: PresetId = DEFAULT_PANORAMA_PRESET_ID;
 
   // biome-ignore lint/style/noNonNullAssertion: "perdidas" is a static registry id.
   const layer = getLayer("perdidas")!;

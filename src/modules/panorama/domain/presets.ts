@@ -279,17 +279,27 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
  * board params, no saved board) — the landing must answer "¿dónde estamos mal?"
  * instead of showing an orphan default layer with a generic reading.
  *
- * `bienestar` is the pick: QA histórico 2026-07-08 found the previous default
- * `cumplimiento` (base cobertura, the antirrábica RATE) paints an EMPTY map
- * ("Sin datos para esta capa en tu cobertura") — the rabies-coverage rate needs
- * a population of vaccinated pets that this build's cobertura data doesn't yet
- * supply, so the operator's very first panorama load was a blank choropleth
- * (reported 3× across QA rounds). `bienestar` (base denuncias, welfare-report
- * density) is the proven-populated layer that reliably draws with divisions, so
- * the first paint shows data. When cobertura data is backfilled, `cumplimiento`
- * can be reinstated as the flagship default.
+ * `brotes-activos` is the pick (PO 2026-07-16), and it opens in its declared
+ * `bivariate` encoding — the combined cobertura × zoonosis risk read that is the
+ * whole point of that vista.
+ *
+ * HISTORY, and why this is now safe. The default was `bienestar` because the
+ * previous flagship `cumplimiento` (base cobertura, the antirrábica RATE) painted
+ * an EMPTY map — "the rabies-coverage rate needs a population of vaccinated pets
+ * that this build's cobertura data doesn't yet supply", a blank first paint
+ * reported 3× across QA rounds (QA histórico 2026-07-08). That docblock named its
+ * own exit condition: *"When cobertura data is backfilled, cumplimiento can be
+ * reinstated as the flagship default."*
+ *
+ * That condition is MET, and was measured before this change rather than assumed:
+ *   - cobertura: 24 420 of 36 626 dogs (67%) carry a vaccination event
+ *   - zoonosis:  2 620 outbreak_signal events
+ *   - BOTH arms populated in ALL 24 provinces — so the bivariate paints the whole
+ *     country, not a one-dimensional map wearing a two-dimensional legend
+ * A bivariate on a sparse second axis would be worse than no bivariate: it would
+ * look like a risk read while encoding noise. Re-measure before moving this again.
  */
-export const DEFAULT_PANORAMA_PRESET_ID: PresetId = "bienestar";
+export const DEFAULT_PANORAMA_PRESET_ID: PresetId = "brotes-activos";
 
 // ---------------------------------------------------------------------------
 // Helpers

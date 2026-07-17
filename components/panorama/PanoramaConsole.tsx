@@ -1593,9 +1593,19 @@ export function PanoramaConsole({
   // mount and shallow-synced back (the URL-sync effect), so "Copiar vista"
   // reproduces the operator's favorite view. Offered ONLY while eligible
   // (cobertura × zoonosis at province framing); default OFF otherwise.
-  const [bivariateMode, setBivariateMode] = useState(
-    () => searchParams.get("encoding") === "bivariate",
-  );
+  //
+  // The DEFAULT is the vista's own declaration, not a hardcoded OFF: a preset
+  // that lists `bivariate` in `encodings` opens in it. `brotes-activos` does —
+  // the combined-risk read (cobertura × zoonosis) IS the point of that vista, and
+  // making the operator find a toggle to get there buried it. An explicit
+  // `?encoding=` always wins, in BOTH directions, so a shared link that chose
+  // the plain fill still reproduces the plain fill.
+  const [bivariateMode, setBivariateMode] = useState(() => {
+    const explicit = searchParams.get("encoding");
+    if (explicit !== null) return explicit === "bivariate";
+    const openingPreset = getPreset((seededPresetId ?? defaultPresetId) as PresetId);
+    return openingPreset?.encodings?.includes("bivariate") === true;
+  });
 
   // P5 gift (#32): presentation mode — `?presentation=1` hides the chrome
   // projections (masthead, top-left cluster, rail, dock) and keeps the map +
