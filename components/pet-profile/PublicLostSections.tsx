@@ -15,6 +15,7 @@
 // passes only what's actually disclosable.
 
 import { Icon } from "@/components/Icon";
+import { lostTimeLabel } from "@/lib/infra/lost-listing";
 import { tattooLocationLabel } from "@/lib/reference/lookups";
 import {
   foundPossessivePhrase,
@@ -347,10 +348,9 @@ export function PublicLostSections({
 // of (d, now) and unit-testable for determinism. This renders inside a Server
 // Component today (single server evaluation, no hydration re-run), but keeping
 // it pure guards the relative-`now` class against a future SSR-eager refactor.
+// Delegates to lostTimeLabel — the /perdidas list and this credential detail now
+// speak ONE relative-time vocabulary (Cowork B2 / consistency: the same pet no
+// longer reads "hace 3 semanas" on the card and "hace 27 días" here).
 export function formatLostSince(d: Date, now: number = Date.now()): string {
-  const ms = now - d.getTime();
-  const h = Math.floor(ms / 3600000);
-  if (h < 1) return "hace minutos";
-  if (h < 24) return `hace ${h} h`;
-  return `hace ${Math.floor(h / 24)} días`;
+  return lostTimeLabel(d, new Date(now));
 }

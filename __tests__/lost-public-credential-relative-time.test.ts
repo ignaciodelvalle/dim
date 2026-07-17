@@ -17,8 +17,8 @@ describe("formatLostSince — pure given a fixed now", () => {
     expect(formatLostSince(d, NOW)).toBe(formatLostSince(d, NOW));
   });
 
-  it("buckets elapsed time correctly against a frozen now", () => {
-    expect(formatLostSince(new Date("2026-07-04T11:40:00Z"), NOW)).toBe("hace minutos");
+  it("buckets elapsed time correctly against a frozen now (shared lostTimeLabel vocabulary)", () => {
+    expect(formatLostSince(new Date("2026-07-04T11:40:00Z"), NOW)).toBe("hace 20 min");
     expect(formatLostSince(new Date("2026-07-04T09:00:00Z"), NOW)).toBe("hace 3 h");
     expect(formatLostSince(new Date("2026-07-01T12:00:00Z"), NOW)).toBe("hace 3 días");
   });

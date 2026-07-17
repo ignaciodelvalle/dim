@@ -151,25 +151,33 @@ describe("lib/lost-listing — lostTimeLabel", () => {
     expect(lostTimeLabel(null, now)).toBe("—");
   });
 
-  it("renders the minute window", () => {
-    expect(lostTimeLabel(new Date(now.getTime() - 30 * 1000), now)).toBe("Ahora");
-    expect(lostTimeLabel(new Date(now.getTime() - 12 * 60 * 1000), now)).toBe("Hace 12 min");
+  it("renders the minute window (lowercase; card CSS uppercases)", () => {
+    expect(lostTimeLabel(new Date(now.getTime() - 30 * 1000), now)).toBe("recién");
+    expect(lostTimeLabel(new Date(now.getTime() - 12 * 60 * 1000), now)).toBe("hace 12 min");
   });
 
   it("renders the hour window", () => {
-    expect(lostTimeLabel(new Date(now.getTime() - 5 * 60 * 60 * 1000), now)).toBe("Hace 5 h");
-    expect(lostTimeLabel(new Date(now.getTime() - 23 * 60 * 60 * 1000), now)).toBe("Hace 23 h");
+    expect(lostTimeLabel(new Date(now.getTime() - 5 * 60 * 60 * 1000), now)).toBe("hace 5 h");
+    expect(lostTimeLabel(new Date(now.getTime() - 23 * 60 * 60 * 1000), now)).toBe("hace 23 h");
   });
 
-  it("renders day/week/month/year ranges with proper singular/plural", () => {
+  it("uses DAY granularity below one month — no weeks, so never 'hace 0 meses'", () => {
     const dayMs = 24 * 60 * 60 * 1000;
-    expect(lostTimeLabel(new Date(now.getTime() - dayMs), now)).toBe("Hace 1 día");
-    expect(lostTimeLabel(new Date(now.getTime() - 3 * dayMs), now)).toBe("Hace 3 días");
-    expect(lostTimeLabel(new Date(now.getTime() - 7 * dayMs), now)).toBe("Hace 1 semana");
-    expect(lostTimeLabel(new Date(now.getTime() - 21 * dayMs), now)).toBe("Hace 3 semanas");
-    expect(lostTimeLabel(new Date(now.getTime() - 35 * dayMs), now)).toBe("Hace 1 mes");
-    expect(lostTimeLabel(new Date(now.getTime() - 120 * dayMs), now)).toBe("Hace 4 meses");
-    expect(lostTimeLabel(new Date(now.getTime() - 400 * dayMs), now)).toBe("Hace 1 año");
-    expect(lostTimeLabel(new Date(now.getTime() - 800 * dayMs), now)).toBe("Hace 2 años");
+    expect(lostTimeLabel(new Date(now.getTime() - dayMs), now)).toBe("hace 1 día");
+    expect(lostTimeLabel(new Date(now.getTime() - 3 * dayMs), now)).toBe("hace 3 días");
+    // Where the old week-bucketing said "Hace 1 semana" / "Hace 3 semanas":
+    expect(lostTimeLabel(new Date(now.getTime() - 7 * dayMs), now)).toBe("hace 7 días");
+    expect(lostTimeLabel(new Date(now.getTime() - 21 * dayMs), now)).toBe("hace 21 días");
+    // The exact regression: 28 days used to render "Hace 0 meses".
+    expect(lostTimeLabel(new Date(now.getTime() - 28 * dayMs), now)).toBe("hace 28 días");
+  });
+
+  it("renders month/year ranges with proper singular/plural", () => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    expect(lostTimeLabel(new Date(now.getTime() - 30 * dayMs), now)).toBe("hace 1 mes");
+    expect(lostTimeLabel(new Date(now.getTime() - 35 * dayMs), now)).toBe("hace 1 mes");
+    expect(lostTimeLabel(new Date(now.getTime() - 120 * dayMs), now)).toBe("hace 4 meses");
+    expect(lostTimeLabel(new Date(now.getTime() - 400 * dayMs), now)).toBe("hace 1 año");
+    expect(lostTimeLabel(new Date(now.getTime() - 800 * dayMs), now)).toBe("hace 2 años");
   });
 });

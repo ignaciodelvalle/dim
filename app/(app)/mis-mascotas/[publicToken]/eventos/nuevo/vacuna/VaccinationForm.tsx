@@ -72,6 +72,17 @@ export function VaccinationForm({
   const sameDayPrompt = !overrideSameDay ? state.sameDayPrompt : undefined;
 
   const [vaccineName, setVaccineName] = useState(initialVaccineName ?? "");
+  // Controlled suggestion list. The field WAS a native <input list>+<datalist>,
+  // whose popup never opened reliably for a human tester (Cowork B10 — and some
+  // browsers/devices, e.g. iOS Safari, never render datalist suggestions at all).
+  // A real app-controlled combobox opens on focus and filters as you type; free
+  // text stays allowed (the input value is untouched).
+  const [vaccineOpen, setVaccineOpen] = useState(false);
+  const vaccineMatches = useMemo(() => {
+    const q = vaccineName.trim().toLowerCase();
+    if (!q) return vaccines;
+    return vaccines.filter((v) => v.name.toLowerCase().includes(q));
+  }, [vaccineName, vaccines]);
   const [nextDueAt, setNextDueAt] = useState("");
   const [nextDueOverridden, setNextDueOverridden] = useState(false);
   const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
@@ -108,26 +119,60 @@ export function VaccinationForm({
 
           <LnField label="Vacuna" required>
             {({ id, describedBy, invalid }) => (
-              <LnInput
-                id={id}
-                name="vaccineName"
-                type="text"
-                required
-                list="vaccine-options"
-                placeholder="Empezá a tipear o elegí…"
-                autoComplete="off"
-                value={vaccineName}
-                onChange={(e) => setVaccineName(e.target.value)}
-                aria-describedby={describedBy}
-                invalid={invalid}
-              />
+              <div className="relative">
+                <LnInput
+                  id={id}
+                  name="vaccineName"
+                  type="text"
+                  required
+                  // Mirrors the LocalityPickerAcross combobox pattern (a11y-lint
+                  // clean): aria-autocomplete + aria-expanded on the input, a plain
+                  // ul/li/button menu below (no listbox/option roles).
+                  aria-autocomplete="list"
+                  aria-expanded={vaccineOpen && vaccineMatches.length > 0}
+                  placeholder="Empezá a tipear o elegí…"
+                  autoComplete="off"
+                  value={vaccineName}
+                  onFocus={() => setVaccineOpen(true)}
+                  // Delay close so a click/tap on an option registers before the
+                  // list unmounts (the option uses onMouseDown, which fires first).
+                  onBlur={() => window.setTimeout(() => setVaccineOpen(false), 120)}
+                  onChange={(e) => {
+                    setVaccineName(e.target.value);
+                    setVaccineOpen(true);
+                  }}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                />
+                {vaccineOpen && vaccineMatches.length > 0 && (
+                  <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] py-1 shadow-lg">
+                    {vaccineMatches.map((v) => (
+                      <li key={v.name}>
+                        <button
+                          type="button"
+                          // onMouseDown (not onClick) so selection fires BEFORE the
+                          // input's onBlur closes the list; preventDefault keeps focus.
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setVaccineName(v.name);
+                            setVaccineOpen(false);
+                          }}
+                          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-sm)] text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+                        >
+                          <span>{v.name}</span>
+                          {v.isCore && (
+                            <span className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-wide text-[var(--color-ln-mute)]">
+                              Núcleo
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </LnField>
-          <datalist id="vaccine-options">
-            {vaccines.map((v) => (
-              <option key={v.name} value={v.name} />
-            ))}
-          </datalist>
 
           <LnRow>
             <LnField label="Fecha de aplicación" required>

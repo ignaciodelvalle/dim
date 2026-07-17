@@ -94,6 +94,22 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
     expect(screen.queryByRole("button", { name: /crear mascota/i })).not.toBeInTheDocument();
   });
 
+  it("blocks advancing when a locality is TYPED but no suggestion is picked (Cowork B9)", async () => {
+    render(<MinimalNewPetForm action={noopAction} />);
+    fireEvent.change(screen.getByLabelText(/^nombre/i), { target: { value: "Pampa" } });
+    fireEvent.click(screen.getByRole("button", { name: /perro\/a/i }));
+    fireEvent.change(screen.getByLabelText(/Provincia/), { target: { value: "AR-C" } });
+    // Type a locality but NEVER pick a suggestion → provinceCode stays empty, the
+    // same "unresolved" signal the server rejects on. Step 1 must not advance.
+    fireEvent.change(screen.getByLabelText(/Localidad o barrio/), { target: { value: "Palermo" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/localidad/i);
+    // Still on paso 1 — the final submit never appeared.
+    expect(screen.queryByRole("button", { name: /crear mascota/i })).not.toBeInTheDocument();
+  });
+
   it("advances to paso 2 once nombre + especie + localidad are set", async () => {
     render(<MinimalNewPetForm action={noopAction} />);
     await completeStep1();

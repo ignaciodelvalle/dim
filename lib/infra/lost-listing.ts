@@ -33,23 +33,30 @@ export function lostUrgencyFor(markedLostAt: Date | null, now: Date = new Date()
   return "older";
 }
 
-// Compact label for the urgency chip on a card. Short form fits the
-// 40-50px corner pill in the mockup.
+// Canonical "how long ago was it lost" label — the SINGLE source of truth for
+// both the /perdidas card urgency chip AND the public credential's lost-recency
+// chip (formatLostSince delegates here). Two divergences motivated the merge
+// (Cowork B2 / consistency):
+//   1. the old card bucketed by WEEKS, which produced "Hace 0 meses" at 28-29
+//      days (weeks=4 skipped the <4 branch, months=floor(28/30)=0);
+//   2. the card said "Hace 3 semanas" while the detail said "hace 27 días" for
+//      the same pet — same instant, two vocabularies.
+// Fix: DAY granularity below one month (no weeks, so no "0 meses"), one shared
+// helper. Returns lowercase; the card chip uppercases via CSS (`uppercase`).
 export function lostTimeLabel(markedLostAt: Date | null, now: Date = new Date()): string {
   if (!markedLostAt) return "—";
   const ms = now.getTime() - markedLostAt.getTime();
   const minutes = Math.floor(ms / 60000);
-  if (minutes < 60) return minutes <= 1 ? "Ahora" : `Hace ${minutes} min`;
+  if (minutes < 60) return minutes <= 1 ? "recién" : `hace ${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `Hace ${hours} h`;
+  if (hours < 24) return `hace ${hours} h`;
   const days = Math.floor(hours / 24);
-  if (days < 7) return days === 1 ? "Hace 1 día" : `Hace ${days} días`;
-  const weeks = Math.floor(days / 7);
-  if (weeks < 4) return weeks === 1 ? "Hace 1 semana" : `Hace ${weeks} semanas`;
+  // Below one month: always days (never "0 meses"). days >= 1 here (hours >= 24).
+  if (days < 30) return days === 1 ? "hace 1 día" : `hace ${days} días`;
   const months = Math.floor(days / 30);
-  if (months < 12) return months === 1 ? "Hace 1 mes" : `Hace ${months} meses`;
+  if (months < 12) return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
   const years = Math.floor(days / 365);
-  return years === 1 ? "Hace 1 año" : `Hace ${years} años`;
+  return years === 1 ? "hace 1 año" : `hace ${years} años`;
 }
 
 // ---------------------------------------------------------------------------

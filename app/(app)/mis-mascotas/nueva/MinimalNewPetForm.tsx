@@ -133,13 +133,20 @@ export function MinimalNewPetForm({
   // jurisdiction-aware classification at submit time stays authoritative.
   const breedIsDangerous = isPotentiallyDangerousBreed(species, breed);
 
-  function resolvedLocality(): string {
+  function localityResolved(): boolean {
     const form = formRef.current;
-    if (!form) return "";
-    // Read via FormData exactly as the server does. LocationFields renders both
-    // an input id="localityName" AND a hidden input name="localityName", so
-    // form.elements.namedItem would return a RadioNodeList with an empty value.
-    return String(new FormData(form).get("localityName") ?? "").trim();
+    if (!form) return false;
+    // Read via FormData exactly as the server does. A genuinely picked
+    // ar_localities row (LocalityPickerAcross) writes BOTH the localityName AND
+    // its provinceCode into hidden inputs; free-typed text writes only the raw
+    // localityName and leaves provinceCode empty. provinceCode is therefore the
+    // SAME "was it resolved?" signal the server uses to reject with
+    // LOCALITY_UNRESOLVED — gating step 1 on localityName alone let a hand-typed
+    // "Palermo" advance past paso 1 and only fail at submit (Cowork B9).
+    const data = new FormData(form);
+    const localityName = String(data.get("localityName") ?? "").trim();
+    const provinceCode = String(data.get("provinceCode") ?? "").trim();
+    return localityName.length > 0 && provinceCode.length > 0;
   }
 
   // Paso 1 required-field guard. Advancing is blocked until nombre + especie +
@@ -154,7 +161,7 @@ export function MinimalNewPetForm({
       setClientError("Elegí la especie antes de continuar.");
       return;
     }
-    if (!resolvedLocality()) {
+    if (!localityResolved()) {
       setClientError("Elegí la localidad/barrio de la lista de sugerencias.");
       return;
     }
@@ -165,7 +172,7 @@ export function MinimalNewPetForm({
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     // Defensive: the paso-1 fields live in a hidden block on paso 2, so revalidate
     // and bounce back to paso 1 if anything required is missing.
-    if (!name.trim() || !species || !resolvedLocality()) {
+    if (!name.trim() || !species || !localityResolved()) {
       e.preventDefault();
       setStep(1);
       setClientError("Completá los datos de identidad antes de crear la mascota.");
