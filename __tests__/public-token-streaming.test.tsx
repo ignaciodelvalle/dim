@@ -200,6 +200,9 @@ const BASE_PET = {
 
 // Chain whose first .limit resolves the pet row; every later query resolves []
 // (shell path only needs cheap Stage-1 lookups, all of which use .limit).
+// The chain is also THENABLE (resolving []) because the amendments query
+// (getAmendmentEvents, now on the always-run semaphore path) awaits the chain
+// directly after .where() with no .limit().
 function buildSelectChain(firstResult: unknown[]) {
   let callCount = 0;
   const chain = {
@@ -212,6 +215,10 @@ function buildSelectChain(firstResult: unknown[]) {
       callCount++;
       return callCount === 1 ? firstResult : [];
     }),
+    then: (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([] as unknown[]).then(onFulfilled, onRejected),
   };
   return chain;
 }

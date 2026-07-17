@@ -17,6 +17,7 @@ import { Icon } from "@/components/Icon";
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { PublicLostSections, formatLostSince } from "@/components/pet-profile/PublicLostSections";
+import { LnVstamp } from "@/components/ui/StatusFlag";
 import {
   attachments,
   cases,
@@ -55,7 +56,7 @@ import {
 } from "./CredentialStreamedSections";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
-import { type CredentialEvent, isRabiesAtRisk } from "./credential-badges";
+import { type CredentialEvent, deriveRabiesSemaphore, isRabiesAtRisk } from "./credential-badges";
 
 // The page calls headers() at runtime — mark it dynamic explicitly so Next.js
 // does not attempt to statically render it (matches the sibling encontre /
@@ -209,56 +210,81 @@ export default async function PublicCredentialPage({
   // -dog reads stay in later conditional stages because they gate on derived
   // flags (isLost, tier2Active, species).
   // ---------------------------------------------------------------------------
-  const [canonicalIds, vaccinationExists, latestVaccinationRows, openCustodyEpisodeRows] =
-    await Promise.all([
-      // Canonical identifier rows — boolean indicators + lost-branch display.
-      fetchActiveIdentifications(pet.id),
-      // Tier 0 vaccination rollup — only a boolean is needed, so LIMIT 1 instead
-      // of fetching the pet's entire vaccination history just to test existence.
-      db
-        .select({ id: petEvents.id })
-        .from(petEvents)
-        .where(
-          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
-        )
-        .limit(1),
-      // A.4: most recent vaccination's provenance to compute the confidence tier.
-      db
-        .select({
-          authorRole: petEvents.authorRole,
-          authorVerified: petEvents.authorVerified,
-          authorOrganizationId: petEvents.authorOrganizationId,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(
-          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
-        )
-        .orderBy(desc(petEvents.occurredAt))
-        .limit(1),
-      // DC13: open custody_episode opened by a sanitary_authority org.
-      db
-        .select({
-          caseId: cases.id,
-          authorityName: organizations.displayName,
-        })
-        .from(cases)
-        .innerJoin(
-          organizations,
-          and(
-            eq(organizations.id, cases.openedByOrganizationId),
-            eq(organizations.orgType, "sanitary_authority"),
-          ),
-        )
-        .where(
-          and(
-            eq(cases.primaryPetId, pet.id),
-            eq(cases.caseKind, "custody_episode"),
-            eq(cases.status, "open"),
-          ),
-        )
-        .limit(1),
-    ]);
+  const [
+    canonicalIds,
+    vaccinationExists,
+    latestVaccinationRows,
+    openCustodyEpisodeRows,
+    rabiesVaccinationRows,
+  ] = await Promise.all([
+    // Canonical identifier rows — boolean indicators + lost-branch display.
+    fetchActiveIdentifications(pet.id),
+    // Tier 0 vaccination rollup — only a boolean is needed, so LIMIT 1 instead
+    // of fetching the pet's entire vaccination history just to test existence.
+    db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .limit(1),
+    // A.4: most recent vaccination's provenance to compute the confidence tier.
+    db
+      .select({
+        authorRole: petEvents.authorRole,
+        authorVerified: petEvents.authorVerified,
+        authorOrganizationId: petEvents.authorOrganizationId,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1),
+    // DC13: open custody_episode opened by a sanitary_authority org.
+    db
+      .select({
+        caseId: cases.id,
+        authorityName: organizations.displayName,
+      })
+      .from(cases)
+      .innerJoin(
+        organizations,
+        and(
+          eq(organizations.id, cases.openedByOrganizationId),
+          eq(organizations.orgType, "sanitary_authority"),
+        ),
+      )
+      .where(
+        and(
+          eq(cases.primaryPetId, pet.id),
+          eq(cases.caseKind, "custody_episode"),
+          eq(cases.status, "open"),
+        ),
+      )
+      .limit(1),
+    // pet-state-header R4: vaccination rows for the rabies semaphore —
+    // HOISTED out of the showServiceDogBanner guard so one bounded fetch
+    // serves BOTH the semaphore and the service-dog rabies warning (net zero
+    // extra vaccination queries when the banner already fired).
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(50),
+  ]);
+
+  // Corrections fold into the semaphore + banner (WAVE D1) — one fetch, cached
+  // for any later consumer (the streamed Tier-2 section fetches its own copy).
+  const rabiesEvents = [...rabiesVaccinationRows, ...(await getAmendmentEvents())];
+
+  // Tri-state antirrábica vigencia for the identity grid (R4). One boolean of
+  // the single legally-mandated vaccine — no dates, no vet, no other vaccine
+  // (privacy proportionality argued in the spec).
+  const rabiesSemaphore = deriveRabiesSemaphore(rabiesEvents, new Date());
 
   const hasVaccinations = vaccinationExists.length > 0;
   const hasMicrochip = canonicalIds.microchip !== null;
@@ -337,30 +363,12 @@ export default async function PublicCredentialPage({
   // Art. 8 risk: rabies vaccination must be up to date for the credential
   // to remain compliant. We surface this as a sub-warning on the banner
   // without auto-revoking (revocation belongs to ANDIS).
-  let rabiesAtRisk = false;
-  if (showServiceDogBanner) {
-    const [rabiesVaccinations, rabiesAmendments] = await Promise.all([
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(
-          and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")),
-        )
-        .orderBy(desc(petEvents.occurredAt))
-        .limit(50),
-      getAmendmentEvents(),
-    ]);
-    // Heuristic: the most recent rabies vaccine with a past `next_due_at` flags
-    // risk. The CORRECTED name/due date is read (WAVE D1) so amending a mistyped
-    // rabies dose flips the public warning. Conservative — false negatives OK,
-    // false positives only show a soft warning.
-    rabiesAtRisk = isRabiesAtRisk([...rabiesVaccinations, ...rabiesAmendments], new Date());
-  }
+  // Heuristic: the most recent vaccine with a past `next_due_at`, IF it is a
+  // rabies dose, flags risk. The CORRECTED name/due date is read (WAVE D1) so
+  // amending a mistyped rabies dose flips the public warning. Conservative —
+  // false negatives OK, false positives only show a soft warning. Reuses the
+  // hoisted rabiesEvents fetch (pet-state-header R4) — no extra query.
+  const rabiesAtRisk = showServiceDogBanner ? isRabiesAtRisk(rabiesEvents, new Date()) : false;
 
   // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
   // the owner's disclosure preference (disclose_*_when_lost columns on pets).
@@ -843,6 +851,27 @@ export default async function PublicCredentialPage({
                 value={hasVaccinations ? "Con registros" : "Sin registros"}
                 mono={false}
               />
+              {/* Rabies semaphore (pet-state-header R4) — tri-state vigencia of
+                  the single legally-mandated vaccine (Ley 22.953 framework).
+                  LnVstamp for vigente/vencida (icon-free stamp + text label —
+                  never color alone); plain honest text otherwise. No dates on
+                  Tier 0. */}
+              <div data-section="rabies-semaphore">
+                <p className="m-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-ln-faint">
+                  Antirrábica
+                </p>
+                <p className="mt-px text-md font-medium text-ln-ink">
+                  {rabiesSemaphore === "vigente" ? (
+                    <LnVstamp variant="ok" />
+                  ) : rabiesSemaphore === "vencida" ? (
+                    <LnVstamp variant="over" />
+                  ) : rabiesSemaphore === "sin-vencimiento" ? (
+                    "Con registro"
+                  ) : (
+                    "Sin registro"
+                  )}
+                </p>
+              </div>
               <CredField label="Microchip" value={hasMicrochip ? "Sí" : "No"} mono={false} />
               <CredField label="Tatuaje" value={hasTattoo ? "Sí" : "No"} mono={false} />
               <CredField label="Libreta" value={`LIB-AR-${pet.publicToken.toUpperCase()}`} mono />

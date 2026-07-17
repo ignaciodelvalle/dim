@@ -74,6 +74,56 @@ export function deriveActiveMedications(events: CredentialEvent[]): string[] {
  *
  * Pass the pet's `vaccination_administered` rows (any recency) + `event_amended`.
  */
+/**
+ * Public rabies semaphore (pet-state-header R4) — the tri-state vigencia of
+ * the single legally-mandated vaccine (Ley 22.953 framework):
+ *   - "vigente"          latest rabies dose next_due_at >= now
+ *   - "vencida"          latest rabies dose next_due_at < now
+ *   - "sin-vencimiento"  a rabies dose exists but records no next_due_at —
+ *                        neutral "Con registro", no vigencia claim
+ *   - "none"             no rabies dose at all — "Sin registro"
+ *
+ * UNLIKE isRabiesAtRisk below (which deliberately keeps its conservative
+ * latest-ANY-vaccine service-dog semantics), this filters to RABIES doses
+ * FIRST — accent/case-insensitive match on "rabi" — then takes the latest, so
+ * a later non-rabies vaccine can never mask an expired rabies dose.
+ *
+ * Privacy proportionality (checklist argued in the spec): the disclosed datum
+ * is ONE boolean vigencia — no dates, no vet, no batch, no other vaccine.
+ *
+ * Pass the pet's `vaccination_administered` rows + `event_amended` (WAVE D1:
+ * corrections fold before deriving, same contract as every badge here).
+ */
+export function deriveRabiesSemaphore(
+  events: CredentialEvent[],
+  now: Date,
+): "vigente" | "vencida" | "sin-vencimiento" | "none" {
+  const isRabiesName = (name: unknown): boolean =>
+    typeof name === "string" &&
+    name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .includes("rabi");
+
+  const rabiesDoses = overlayAmendments(events)
+    .filter(
+      (e) =>
+        e.eventType === "vaccination_administered" &&
+        isRabiesName((e.payload as { vaccine_name?: unknown })?.vaccine_name),
+    )
+    .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+
+  const latest = rabiesDoses[0];
+  if (!latest) return "none";
+
+  const nextDueRaw = (latest.payload as { next_due_at?: unknown })?.next_due_at;
+  if (typeof nextDueRaw !== "string" || !nextDueRaw) return "sin-vencimiento";
+  const nextDueAt = new Date(nextDueRaw);
+  if (Number.isNaN(nextDueAt.getTime())) return "sin-vencimiento";
+  return nextDueAt >= now ? "vigente" : "vencida";
+}
+
 export function isRabiesAtRisk(events: CredentialEvent[], now: Date): boolean {
   const vaccinations = overlayAmendments(events)
     .filter((e) => e.eventType === "vaccination_administered")

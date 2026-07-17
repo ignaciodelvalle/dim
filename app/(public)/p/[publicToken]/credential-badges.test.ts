@@ -7,7 +7,12 @@ import { describe, expect, it } from "vitest";
 
 import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { overlayAmendments } from "@/lib/infra/amendment";
-import { type CredentialEvent, deriveActiveMedications, isRabiesAtRisk } from "./credential-badges";
+import {
+  type CredentialEvent,
+  deriveActiveMedications,
+  deriveRabiesSemaphore,
+  isRabiesAtRisk,
+} from "./credential-badges";
 
 const vaccination = (
   id: string,
@@ -151,5 +156,81 @@ describe("isRabiesAtRisk — a corrected expiry flips the service-dog warning", 
 
   it("no vaccinations → not at risk", () => {
     expect(isRabiesAtRisk([], now)).toBe(false);
+  });
+});
+
+// pet-state-header R4 — the public rabies semaphore. UNLIKE isRabiesAtRisk
+// (which keeps its conservative latest-ANY-vaccine service-dog semantics),
+// the semaphore filters to RABIES doses FIRST (accent/case-insensitive match)
+// and then takes the latest — a later non-rabies vaccine must never mask an
+// expired rabies dose.
+describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () => {
+  const now = new Date("2026-06-01T00:00:00Z");
+
+  it("latest rabies dose with a future next_due_at → vigente", () => {
+    const events = [vaccination("v1", "Antirrábica", "2026-01-01", "2027-01-01")];
+    expect(deriveRabiesSemaphore(events, now)).toBe("vigente");
+  });
+
+  it("latest rabies dose with a past next_due_at → vencida", () => {
+    const events = [vaccination("v1", "Antirrábica", "2025-01-01", "2026-01-01")];
+    expect(deriveRabiesSemaphore(events, now)).toBe("vencida");
+  });
+
+  it("no rabies dose at all → none (even with other vaccines present)", () => {
+    expect(deriveRabiesSemaphore([], now)).toBe("none");
+    const events = [vaccination("v1", "Quíntuple", "2026-01-01", "2027-01-01")];
+    expect(deriveRabiesSemaphore(events, now)).toBe("none");
+  });
+
+  it("rabies dose without next_due_at → sin-vencimiento (no vigencia claim)", () => {
+    const events = [vaccination("v1", "Antirrábica", "2026-01-01")];
+    expect(deriveRabiesSemaphore(events, now)).toBe("sin-vencimiento");
+  });
+
+  it("matches rabies names accent- and case-insensitively (Antirrábica / RABIA / antirrabica)", () => {
+    for (const name of ["Antirrábica", "ANTIRRABICA", "Vacuna Rabia", "rabia"]) {
+      const events = [vaccination("v1", name, "2026-01-01", "2027-01-01")];
+      expect(deriveRabiesSemaphore(events, now), name).toBe("vigente");
+    }
+  });
+
+  it("a LATER non-rabies vaccine does NOT mask an expired rabies dose (the isRabiesAtRisk asymmetry)", () => {
+    const events = [
+      vaccination("v1", "Antirrábica", "2025-01-01", "2026-01-01"), // expired
+      vaccination("v2", "Quíntuple", "2026-05-01", "2027-05-01"), // newer, not rabies
+    ];
+    // The service-dog heuristic goes dark here (latest vaccine isn't rabies)…
+    expect(isRabiesAtRisk(events, now)).toBe(false);
+    // …but the semaphore must still say VENCIDA.
+    expect(deriveRabiesSemaphore(events, now)).toBe("vencida");
+  });
+
+  it("takes the LATEST rabies dose when several exist", () => {
+    const events = [
+      vaccination("v1", "Antirrábica", "2024-01-01", "2025-01-01"), // old, expired
+      vaccination("v2", "Antirrábica", "2026-01-01", "2027-01-01"), // newer, vigente
+    ];
+    expect(deriveRabiesSemaphore(events, now)).toBe("vigente");
+  });
+
+  it("an amended name/date flips the semaphore (Invariant #3)", () => {
+    // Correcting a mistyped name into a rabies dose brings it into the check…
+    const renamed = [
+      vaccination("v1", "Sextuple typo", "2025-01-01", "2026-01-01"),
+      amend("a1", "v1", "2026-05-01", [
+        { field: "vaccine_name", old: "Sextuple typo", new: "Antirrábica" },
+      ]),
+    ];
+    expect(deriveRabiesSemaphore(renamed, now)).toBe("vencida");
+
+    // …and correcting the due date forward flips vencida → vigente.
+    const extended = [
+      vaccination("v1", "Antirrábica", "2025-01-01", "2026-01-01"),
+      amend("a1", "v1", "2026-05-01", [
+        { field: "next_due_at", old: "2026-01-01", new: "2027-01-01" },
+      ]),
+    ];
+    expect(deriveRabiesSemaphore(extended, now)).toBe("vigente");
   });
 });

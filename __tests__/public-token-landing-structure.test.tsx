@@ -166,6 +166,9 @@ vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
 // single seeded pet object.
 // ---------------------------------------------------------------------------
 
+// Thenable (resolving []) besides .limit(): the amendments query
+// (getAmendmentEvents, on the always-run semaphore path) awaits the chain
+// directly after .where() with no .limit().
 function buildSelectChain(firstResult: unknown[]) {
   let callCount = 0;
   const chain = {
@@ -178,6 +181,10 @@ function buildSelectChain(firstResult: unknown[]) {
       callCount++;
       return callCount === 1 ? firstResult : [];
     }),
+    then: (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([] as unknown[]).then(onFulfilled, onRejected),
   };
   return chain;
 }
@@ -248,6 +255,10 @@ describe("/p/[publicToken] — landing-shell structure (Item 7, Phase C2)", () =
     // heading (WCAG 1.3.1 / 2.4.6) — exactly one <h1>, carrying the pet name.
     expect((html.match(/<h1(\s|>)/g) ?? []).length).toBe(1);
     expect(html).toMatch(/<h1[^>]*>[\s\S]*Firulais/);
+    // Rabies semaphore row (pet-state-header R4) — present on the active
+    // render; no doses mocked → honest "Sin registro".
+    expect(html).toContain("Antirrábica");
+    expect(html).toContain("Sin registro");
   });
 
   it("THROTTLE (rate-limited) render path emits NO page-owned <main> / #main-content", async () => {
@@ -330,6 +341,10 @@ describe("/p/[publicToken] — LOST path renders the single-card structure (pet-
     // The normal credential body still renders (identity grid + footer).
     expect(html).toContain("Identidad registrada");
     expect(html).toContain("Credencial pública");
+    // Rabies semaphore row (pet-state-header R4) — present on the LOST render
+    // too (finder-relevant: bite protocol).
+    expect(html).toContain("Antirrábica");
+    expect(html).toContain("Sin registro");
   });
 
   it("keeps the owner credential band and the public masthead keyed off the SAME data-situation attribute (parity guard)", async () => {

@@ -280,10 +280,12 @@ const LOST_EVENT_ROW = {
 //   1: vaccinationExists
 //   2: latestVaccinationRows
 //   3: openCustodyEpisodeRows
-//   4: petServiceDog (pet.species === 'dog')
-//   5: ownerRows (isLost block)
-//   6: latestLostEventRows (isLost block)
-// The ACTIVE path only ever reaches index 0-4 (isLost block is skipped).
+//   4: rabiesVaccinationRows (hoisted for the semaphore — pet-state-header R4)
+//   5: amendment events (getAmendmentEvents, folded into the semaphore)
+//   6: petServiceDog (pet.species === 'dog')
+//   7: ownerRows (isLost block)
+//   8: latestLostEventRows (isLost block)
+// The ACTIVE path only ever reaches index 0-6 (isLost block is skipped).
 // ---------------------------------------------------------------------------
 
 function buildSequencedSelectChain(sequence: unknown[][]) {
@@ -297,6 +299,12 @@ function buildSequencedSelectChain(sequence: unknown[][]) {
       where: vi.fn(() => chain),
       orderBy: vi.fn(() => chain),
       limit: vi.fn(async () => sequence[idx] ?? []),
+      // Thenable: the amendments query (getAmendmentEvents, always-run
+      // semaphore path) awaits the chain directly with no .limit().
+      then: (
+        onFulfilled?: (value: unknown) => unknown,
+        onRejected?: (reason: unknown) => unknown,
+      ) => Promise.resolve(sequence[idx] ?? []).then(onFulfilled, onRejected),
     };
     return chain;
   };
@@ -337,6 +345,8 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
         [],
         [],
         [],
+        [],
+        [],
         [OWNER_ROW],
         [LOST_EVENT_ROW],
       ]),
@@ -362,6 +372,8 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     mockDbSelect.mockImplementation(
       buildSequencedSelectChain([
         [{ pet, photo: null }],
+        [],
+        [],
         [],
         [],
         [],
@@ -398,6 +410,8 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     mockDbSelect.mockImplementation(
       buildSequencedSelectChain([
         [{ pet, photo: null }],
+        [],
+        [],
         [],
         [],
         [],

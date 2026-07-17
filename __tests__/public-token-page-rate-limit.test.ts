@@ -131,6 +131,9 @@ vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Thenable (resolving []) besides .limit(): the amendments query
+// (getAmendmentEvents, on the always-run semaphore path) awaits the chain
+// directly after .where() with no .limit().
 function buildSelectChain(firstResult: unknown[] = []) {
   let callCount = 0;
   const chain = {
@@ -143,6 +146,10 @@ function buildSelectChain(firstResult: unknown[] = []) {
       callCount++;
       return callCount === 1 ? firstResult : [];
     }),
+    then: (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([] as unknown[]).then(onFulfilled, onRejected),
   };
   return chain;
 }
