@@ -83,7 +83,7 @@ export default async function GobAnalyticsExportPage({
         <p className="text-[13px] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
-            : "Genera un export anonimizado de los datos de tu cobertura."}
+            : "Genera una exportación anonimizada de los datos de tu cobertura."}
         </p>
       </header>
 
@@ -96,13 +96,13 @@ export default async function GobAnalyticsExportPage({
             Los datos exportados están anonimizados según los principios de minimización y
             proporcionalidad. No se incluye ningún dato personal identificable (nombre, DNI, email,
             microchip) en el archivo generado. El link de descarga vence a las 24 horas. El uso de
-            este export queda registrado en el log de auditoría.
+            esta exportación queda registrada en el log de auditoría.
           </>
         }
       />
 
       <OpCard>
-        <OpCardHead title="Configurar export" />
+        <OpCardHead title="Configurar exportación" />
         <OpCardBody>
           <Suspense fallback={null}>
             <ExportFormClient

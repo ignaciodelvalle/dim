@@ -561,6 +561,22 @@ export function PanoramaConsole({
   // per key; superseded fetches abort instead of racing the UI state.
   const { signalFor } = useKeyedAbort();
 
+  // The cube-freshness stamp describes the SSR-SEEDED frame only: every client
+  // /api/panorama/[layer] response comes from the LIVE path, so the first such
+  // fetch invalidates the "datos agregados actualizados" claim (review
+  // 2026-07-17: a lingering stamp on a live view asserts cube lag the view does
+  // not have). One-way latch — dropCubeStamp() sits beside every layer-data
+  // fetch dispatch below; a clean first visit fires none of them, so the stamp
+  // survives exactly as long as the seeded frame does. Prefetch-triggered drops
+  // err on the honest side (stamp omitted while data is still cube-served).
+  const [seedCubeBuiltAt, setSeedCubeBuiltAt] = useState(cubeBuiltAt);
+  const cubeStampDroppedRef = useRef(false);
+  const dropCubeStamp = useCallback(() => {
+    if (cubeStampDroppedRef.current) return;
+    cubeStampDroppedRef.current = true;
+    setSeedCubeBuiltAt(null);
+  }, []);
+
   // panorama embedded-drill — CLIENT-COMMITTED scope. A province/locality drill
   // (map click, "← Volver", or the JurisdictionSwitcher) commits via a shallow
   // History pushState, which — like the preset/period commits — is NOT observed
@@ -1293,6 +1309,7 @@ export function PanoramaConsole({
         else if (isAggregatedPointLayer(l.id)) params.set("level", "locality");
         applyVerifiedParam(params, l.id);
         try {
+          dropCubeStamp();
           const res = await fetch(
             `/api/panorama/${l.id}${params.toString() ? `?${params.toString()}` : ""}`,
             { headers: { accept: "application/json" }, signal: signalFor(l.id) },
@@ -1326,7 +1343,7 @@ export function PanoramaConsole({
         }
       }),
     ).then(() => setLevelVersion((v) => v + 1));
-  }, [scopePeriodQs, signalFor, applyVerifiedParam]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [scopePeriodQs, signalFor, applyVerifiedParam, dropCubeStamp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the as-of moves, refetch the ACTIVE TEMPORAL layers at that instant and
   // repaint. Non-temporal layers are not refetched (they are dimmed instead).
@@ -1368,6 +1385,7 @@ export function PanoramaConsole({
           // — a rapid scrub or basis flip supersedes the prior in-flight
           // as-of request for this layer instead of racing it into
           // asOfDataRef out of order.
+          dropCubeStamp();
           const res = await fetch(`/api/panorama/${l.id}?${params.toString()}`, {
             headers: { accept: "application/json" },
             signal: signalFor(`${l.id}:asOf`),
@@ -1387,7 +1405,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [asOf, searchParams, timeBasis, signalFor, level]);
+  }, [asOf, searchParams, timeBasis, signalFor, level, dropCubeStamp]);
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
@@ -1807,6 +1825,7 @@ export function PanoramaConsole({
         const params = new URLSearchParams(scopePeriodQs);
         params.set("mode", "points");
         try {
+          dropCubeStamp();
           const r = await fetch(`/api/panorama/${id}?${params.toString()}`, {
             headers: { accept: "application/json" },
             signal: signalFor(`${id}:points`),
@@ -1845,7 +1864,7 @@ export function PanoramaConsole({
     return () => {
       cancelled = true;
     };
-  }, [activePointsLayerIds, scopePeriodQs, signalFor]);
+  }, [activePointsLayerIds, scopePeriodQs, signalFor, dropCubeStamp]);
 
   // Fetch a temporal layer's AS-OF features into the as-of cache (used when a
   // layer is toggled on mid-scrub, so it paints at the current instant, not live).
@@ -1859,6 +1878,7 @@ export function PanoramaConsole({
         // QA fix (finding 4): keyed abort — same `:asOf` key as the as-of
         // effect above, so a rapid re-toggle mid-scrub supersedes its own
         // prior in-flight request instead of racing it into asOfDataRef.
+        dropCubeStamp();
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
           signal: signalFor(`${id}:asOf`),
@@ -1873,7 +1893,7 @@ export function PanoramaConsole({
         // Leave the live features showing on a transient failure (no flash).
       }
     },
-    [searchParams, signalFor],
+    [searchParams, signalFor, dropCubeStamp],
   );
 
   // U5: fetch a choropleth layer at a given aggregation level into the right
@@ -1887,6 +1907,7 @@ export function PanoramaConsole({
       try {
         // `signalKey` lets a caller (e.g. the boundary-prefetch warm fetch) use a
         // DISTINCT abort key so it never supersedes an active same-layer fetch.
+        dropCubeStamp();
         const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
           headers: { accept: "application/json" },
           signal: signalFor(signalKey ?? id),
@@ -1904,7 +1925,7 @@ export function PanoramaConsole({
         return null;
       }
     },
-    [searchParams, signalFor, applyVerifiedParam],
+    [searchParams, signalFor, applyVerifiedParam, dropCubeStamp],
   );
 
   // P4b GHOST FIX (data side) — warm the province-axis cache for layers whose
@@ -2419,6 +2440,7 @@ export function PanoramaConsole({
         if (isAggregatedPointLayer(id)) params.set("level", levelRef.current);
         applyVerifiedParam(params, id);
         const qs = params.toString();
+        dropCubeStamp();
         const res = await fetch(`/api/panorama/${id}${qs ? `?${qs}` : ""}`, {
           headers: { accept: "application/json" },
           signal: signalFor(id),
@@ -2466,6 +2488,7 @@ export function PanoramaConsole({
       computeHints,
       signalFor,
       applyVerifiedParam,
+      dropCubeStamp,
     ],
   );
 
@@ -2722,6 +2745,7 @@ export function PanoramaConsole({
         // Basis still matters (valid vs transaction time).
         if (timeBasis === "transaction") params.set("basis", "transaction");
         try {
+          dropCubeStamp();
           const res = await fetch(`/api/panorama/${id}?${params.toString()}`, {
             headers: { accept: "application/json" },
             signal: signalFor(`${id}:histogram`),
@@ -2759,6 +2783,7 @@ export function PanoramaConsole({
     effectiveScopeLocality,
     level,
     timeBasis,
+    dropCubeStamp,
     signalFor,
     since,
     until,
@@ -4713,7 +4738,7 @@ export function PanoramaConsole({
           </p>
           {demoNotice}
           {aboutSlot}
-          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} cubeBuiltAt={cubeBuiltAt} />
+          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} cubeBuiltAt={seedCubeBuiltAt} />
         </div>
       ),
     },
