@@ -112,6 +112,14 @@ type Props = {
    * "Vista nacional". Defaults to false.
    */
   boundedJurisdiction?: boolean;
+  /**
+   * Cursor I2 — the aggregate cube's build timestamp when the seeded view is
+   * served from the cube (admin, cubeable choropleth, fresh). Forwarded to the
+   * console's "Acerca" footer as an honest "Datos agregados actualizados: …"
+   * stamp. Null/undefined → the view was live-served (or points-only) and the
+   * stamp is omitted (never fabricate a freshness the cube can't back).
+   */
+  cubeBuiltAt?: Date | string | null;
 };
 
 export function PanoramaShell({
@@ -134,6 +142,7 @@ export function PanoramaShell({
   seededPresetId,
   seededLayers,
   boundedJurisdiction = false,
+  cubeBuiltAt = null,
 }: Props) {
   return (
     // v2C FIXED CONSOLE (PO decision 2026-07-11): LIGHT operator theme on BOTH
@@ -175,6 +184,7 @@ export function PanoramaShell({
         defaultPresetId={defaultPresetId}
         seededPresetId={seededPresetId}
         seededLayers={seededLayers}
+        cubeBuiltAt={cubeBuiltAt}
         // panorama embedded-drill: the console renders the JurisdictionSwitcher
         // CLIENT-SIDE so a province/locality pick commits the scope shallowly (no
         // reload). allowedProvinces + the initial localities are handed down; the

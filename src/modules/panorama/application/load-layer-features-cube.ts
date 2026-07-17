@@ -103,26 +103,57 @@ export async function loadLayerFeaturesFromCube(
   adminLocality?: string,
   verifiedOnly = false,
 ): Promise<CubeLayerResult | null> {
+  // --- eligibility + staleness gate (shared with resolveCubeFreshness) ---
+  const builtAt = await resolveCubeFreshness(
+    layer,
+    actor,
+    adminProvince,
+    adminLocality,
+    verifiedOnly,
+  );
+  if (!builtAt) return null;
+  const metric = CUBE_LAYER_METRIC[layer];
+  if (!metric) return null; // narrowing only — resolveCubeFreshness already checked.
+
+  // --- read + rebuild the envelope ---
+  const rows = await readCubeRows(metric, adminProvince);
+  return { builtAt, result: assembleCubeLayerResult(rows, level, adminProvince) };
+}
+
+/**
+ * The cube-vs-live decision, WITHOUT reading or assembling any layer rows: returns
+ * the cube's `built_at` when a choropleth request for (layer, scope) WOULD be served
+ * from the cube (eligible AND fresh), else null. This is the exact eligibility +
+ * staleness gate `loadLayerFeaturesFromCube` applies — extracted so a caller can
+ * ANNOTATE a view with the cube's freshness (the "Datos agregados actualizados"
+ * stamp) without triggering a second cube assembly. Read-only: it never touches the
+ * layer data path.
+ *
+ * Mirrors the eligibility in `loadLayerFeaturesFromCube`'s header: CUBE_READS on,
+ * admin actor, not a locality drill, default numerator (verifiedOnly === false), a
+ * cubeable choropleth layer, and meta status 'ok' within CUBE_STALE_MAX_MS.
+ */
+export async function resolveCubeFreshness(
+  layer: LayerId,
+  actor: DashboardActor,
+  adminProvince?: string,
+  adminLocality?: string,
+  verifiedOnly = false,
+): Promise<Date | null> {
   // --- eligibility (cheap checks first, no DB) ---
   if (!cubeReadsEnabled()) return null;
   if (actor.role !== "admin") return null;
   if (adminLocality) return null; // locality drill → live (see header)
   if (verifiedOnly) return null;
-  // National + department IS now cube-eligible (served as a superset over the
-  // truncated live view — see header). No `!adminProvince` guard for the locality
-  // axis anymore; the only locality-axis exclusion left is the locality drill above.
-  const metric = CUBE_LAYER_METRIC[layer];
-  if (!metric) return null;
+  // National + department IS cube-eligible (superset over the truncated live view);
+  // the only locality-axis exclusion is the locality drill above.
+  if (!CUBE_LAYER_METRIC[layer]) return null;
 
   // --- staleness gate ---
   const meta = await readCubeMeta();
   if (!meta || meta.status !== "ok" || !meta.builtAt) return null;
-  const builtAt = meta.builtAt;
-  if (Date.now() - builtAt.getTime() > CUBE_STALE_MAX_MS) return null;
-
-  // --- read + rebuild the envelope ---
-  const rows = await readCubeRows(metric, adminProvince);
-  return { builtAt, result: assembleCubeLayerResult(rows, level, adminProvince) };
+  if (Date.now() - meta.builtAt.getTime() > CUBE_STALE_MAX_MS) return null;
+  return meta.builtAt;
 }
 
 /**

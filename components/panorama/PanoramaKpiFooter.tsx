@@ -6,6 +6,7 @@
 
 import { AR_TIME_ZONE, formatCount } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { cubeFreshnessStamp } from "@/src/modules/panorama/domain/cube-freshness";
 
 type Props = {
   kpis: PanoramaKpis;
@@ -20,9 +21,23 @@ type Props = {
    * to refresh until the first payload lands.
    */
   pending?: boolean;
+  /**
+   * Cursor I2 — the aggregate cube's build timestamp when the view is served from
+   * the precomputed cube. Renders an honest "Datos agregados actualizados: …"
+   * line so an operator can tell data lagging a day from no data. Null/undefined
+   * (live-served, or no/never-refreshed meta) → the line is omitted entirely.
+   */
+  cubeBuiltAt?: Date | string | null;
 };
 
-export function PanoramaKpiFooter({ kpis, onRefresh, refreshing = false, pending = false }: Props) {
+export function PanoramaKpiFooter({
+  kpis,
+  onRefresh,
+  refreshing = false,
+  pending = false,
+  cubeBuiltAt = null,
+}: Props) {
+  const cubeStamp = cubeFreshnessStamp(cubeBuiltAt);
   return (
     <div className="space-y-1.5">
       {/* metric-honesty demotion 2026-07-09: the coverage denominator ("N
@@ -76,6 +91,11 @@ export function PanoramaKpiFooter({ kpis, onRefresh, refreshing = false, pending
           </button>
         )}
       </div>
+      {/* Cursor I2 — aggregate-cube freshness. Rendered ONLY when the view is
+          actually cube-served (cubeStamp non-null); a live-served view omits it
+          rather than claim a freshness the cube can't back. Unobtrusive: mute
+          text, below the KPI row. */}
+      {cubeStamp && <p className="text-[var(--text-xs)] text-ln-op-mute">{cubeStamp}</p>}
     </div>
   );
 }

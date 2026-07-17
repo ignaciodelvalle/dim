@@ -515,6 +515,15 @@ type Props = {
    * control for admin. Undefined/false → admin/universal (national reset copy).
    */
   boundedJurisdiction?: boolean;
+  /**
+   * Cursor I2 — the aggregate cube's build timestamp when the SEEDED view is
+   * served from the cube (admin, cubeable choropleth, fresh). Rendered by the
+   * "Acerca" footer as an honest "Datos agregados actualizados: …" stamp.
+   * Null/undefined → live-served (or points-only) seed; the stamp is omitted.
+   * Reflects the FIRST-render (seeded) source; it is a freshness annotation, not
+   * a per-toggle live signal.
+   */
+  cubeBuiltAt?: Date | string | null;
 };
 
 export function PanoramaConsole({
@@ -540,6 +549,7 @@ export function PanoramaConsole({
   aboutSlot,
   demoNotice,
   boundedJurisdiction = false,
+  cubeBuiltAt = null,
 }: Props) {
   // perf plan 1.2: a first-visit seed is present only when the server handed
   // down BOTH the preset id and at least one layer envelope. Everything below
@@ -4703,7 +4713,7 @@ export function PanoramaConsole({
           </p>
           {demoNotice}
           {aboutSlot}
-          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} />
+          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} cubeBuiltAt={cubeBuiltAt} />
         </div>
       ),
     },

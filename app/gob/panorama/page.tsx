@@ -27,7 +27,10 @@ import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { loadLayerFeaturesCubeOrCached } from "@/src/modules/panorama/application/load-layer-features-cube";
+import {
+  loadLayerFeaturesCubeOrCached,
+  resolveCubeFreshness,
+} from "@/src/modules/panorama/application/load-layer-features-cube";
 import { loadCachedPanoramaKpis } from "@/src/modules/panorama/application/load-panorama-kpis";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 import {
@@ -357,10 +360,21 @@ async function GobPanoramaBoard({
       suppressedCount: seedResults[i].suppressedCount,
       noLocalityCount: seedResults[i].noLocalityCount,
     }));
+    // Cube-freshness annotation (Cursor I2): when the seeded preset is served from
+    // the aggregate cube (admin actor only in v1), surface the cube's build time so
+    // an operator can tell data lagging a day from no data at all. Read-only —
+    // resolveCubeFreshness reads only the cube meta row, never re-assembles a layer.
+    // Null (stamp omitted) for a live-served or points-only preset.
+    let cubeBuiltAt: Date | null = null;
+    for (const lid of seedIds) {
+      cubeBuiltAt = await resolveCubeFreshness(lid, actor, adminProvince, adminLocality);
+      if (cubeBuiltAt) break;
+    }
     return (
       <PanoramaShell
         scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
         boundedJurisdiction={boundedJurisdiction}
+        cubeBuiltAt={cubeBuiltAt}
         layer={layer}
         // perdidas is NOT seeded on the first-visit path — the preset owns the
         // board. Pass an empty envelope so the console has a default (unused).

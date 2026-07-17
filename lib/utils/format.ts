@@ -186,6 +186,24 @@ export function nowLocalDatetimeInAr(now: Date = new Date()): string {
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
+/**
+ * Compact numeric AR-pinned date+time — "17/07/2026 04:30" (dd/mm/aaaa HH:mm,
+ * 24-hour). Built from `Intl.DateTimeFormat` PARTS (not a formatted string) so
+ * the separators are fixed regardless of the es-AR locale's punctuation (which
+ * inserts a comma between date and time). AR_TIME_ZONE-pinned like every
+ * formatter here — a timestamp near AR midnight never renders the wrong calendar
+ * day, and SSR (UTC) and browser hydration produce byte-identical strings.
+ * Returns "—" for empty/invalid input.
+ */
+export function formatDateTimeNumericAr(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const parts = AR_ISO_DATETIME_PARTS_FORMAT.formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${part("day")}/${part("month")}/${part("year")} ${part("hour")}:${part("minute")}`;
+}
+
 // ---------------------------------------------------------------------------
 // Browser-independent dd/mm/aaaa date entry (operator filter surfaces)
 // ---------------------------------------------------------------------------

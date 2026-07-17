@@ -7,6 +7,7 @@
 
 import { OpCardSkeleton } from "@/components/ui/dashboard/OpCardSkeleton";
 import { OpKpiSkeleton } from "@/components/ui/dashboard/OpKpiSkeleton";
+import { AdminLoadingTimeoutNote } from "./AdminLoadingTimeoutNote";
 
 const KPI_KEYS = ["a", "b", "c"] as const;
 
@@ -31,6 +32,10 @@ export default function AdminLoading() {
         <OpCardSkeleton rows={5} />
         <OpCardSkeleton rows={4} />
       </div>
+
+      {/* Cowork I2: surfaced only if the skeleton is still mounted after ~12s
+          (a stuck load) — never flashes on a normal <12s navigation. */}
+      <AdminLoadingTimeoutNote />
     </output>
   );
 }
