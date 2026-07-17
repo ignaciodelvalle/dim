@@ -350,30 +350,17 @@ describe("DEFAULT_PANORAMA_PRESET_ID", () => {
     expect(getPreset(DEFAULT_PANORAMA_PRESET_ID)).toBeDefined();
   });
 
-  it("lands on the combined-risk vista, which opens in its bivariate encoding", () => {
-    // PO 2026-07-16. This default used to be `bienestar`, and before that
-    // `cumplimiento` — which painted an EMPTY map because cobertura had no data,
-    // a blank first paint reported 3× across QA rounds. That is why the bar here
-    // is not "which vista do we like": it is "does the first paint show data".
-    //
-    // Measured before the move (2026-07-16, seeded DB): cobertura 24 420/36 626
-    // dogs (67%), zoonosis 2 620 outbreak_signal events, and BOTH arms populated
-    // in ALL 24 provinces. The bivariate therefore encodes two real dimensions
-    // everywhere it paints. If that stops being true, this default must move
-    // again — a bivariate on a sparse axis looks like a risk read while showing
-    // noise, which is worse than no bivariate at all.
+  it("lands on the proven-populated welfare preset so the first paint shows data", () => {
+    // QA histórico 2026-07-08: the previous default `cumplimiento` (base
+    // cobertura, the antirrábica RATE) painted an EMPTY map in this build — the
+    // rabies-coverage rate lacks data — so the operator's first panorama load was
+    // blank. `bienestar` (base denuncias, welfare-report density) reliably draws
+    // with divisions, so the landing shows data instead of "Sin datos".
     const p = getPreset(DEFAULT_PANORAMA_PRESET_ID)!;
-    expect(p.id).toBe("brotes-activos");
-    // The default MUST declare bivariate: PanoramaConsole seeds the encoding from
-    // the opening preset's own declaration, so a default that does not declare it
-    // silently opens on the plain fill and the PO's ask evaporates.
-    expect(p.encodings).toContain("bivariate");
-    // Both bivariate arms must be in the vista's metrics, or the encoding has
-    // nothing to combine.
-    expect(p.metrics).toContain("cobertura");
-    expect(p.metrics).toContain("zoonosis");
-    // National framing — the bivariate is a cross-province pattern read.
-    expect(p.framing?.kind).toBe("national");
+    expect(p.id).toBe("bienestar");
+    // The welfare preset draws at locality granularity and stays framing-less
+    // (a drill-down question, not a national choropleth overview).
+    expect(p.base).toBe("denuncias");
   });
 });
 
