@@ -38,8 +38,16 @@ let adminUserId: string;
 
 const insertedPetIds: string[] = [];
 
-const TEST_PROVINCE = "CABA";
-const TEST_LOCALITY = "Belgrano";
+// Deliberately OUTSIDE the East region. This suite covers the ADMIN-FALLBACK
+// path — "no govt seeded for this locality" — so it needs a jurisdiction no
+// govt operator holds. It used to sit on CABA/Belgrano, which worked only while
+// Lucas held 5 barrios and Belgrano was not one of them. Lucas now coordinates
+// the whole East region (seed-demo GOVT_ASSIGNMENTS), so CABA has a govt, the
+// signal routes to him, and the fallback never fires — the test's premise, not
+// the code, is what broke. Mendoza has no seeded govt; if that ever changes,
+// move this again rather than deleting the assertion.
+const TEST_PROVINCE = "Mendoza";
+const TEST_LOCALITY = "Bowen";
 
 // ---------------------------------------------------------------------------
 // Cleanup helpers
