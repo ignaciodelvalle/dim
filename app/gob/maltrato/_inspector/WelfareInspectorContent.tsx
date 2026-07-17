@@ -3,7 +3,7 @@
 // WelfareInspectorContent — the TABBED body of the inspector for a single
 // welfare report (task #12). Fed by GET /api/gob/maltrato/[id] (rehydrated to
 // Date fields by the mounter). Tabs (Resumen / Línea de tiempo / Acciones /
-// Export) are LOCAL DOM state — they are inspector-internal and must never
+// Exportar) are LOCAL DOM state — they are inspector-internal and must never
 // touch the URL (the URL's `?queue=`/`?cursor=` belong to the LIST). Grouping
 // the actions into their own tab keeps them from being buried below a scroll.
 
@@ -40,7 +40,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: "resumen", label: "Resumen" },
   { value: "timeline", label: "Línea de tiempo" },
   { value: "acciones", label: "Acciones" },
-  { value: "export", label: "Export" },
+  { value: "export", label: "Exportar" },
 ];
 
 export function WelfareInspectorContent({
@@ -87,7 +87,7 @@ export function WelfareInspectorContent({
       {tab === "acciones" && <AccionesTab detail={detail} />}
       {tab === "export" && (
         <OpCard>
-          <OpCardHead title="Export fiscal" />
+          <OpCardHead title="Exportación fiscal" />
           <OpCardBody>
             <MpfExportGate welfareReportId={detail.id} status={detail.status} />
           </OpCardBody>

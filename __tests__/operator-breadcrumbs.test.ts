@@ -91,14 +91,14 @@ describe("deriveOperatorCrumbs — gob portal", () => {
 describe("deriveOperatorCrumbs — admin portal", () => {
   it("returns a single unlinked root crumb on the portal root", () => {
     const crumbs = deriveOperatorCrumbs("/admin", "admin");
-    expect(crumbs).toEqual([{ label: "Dashboard" }]);
+    expect(crumbs).toEqual([{ label: "Panel" }]);
     expect(crumbs[0]).not.toHaveProperty("href");
   });
 
   it("returns two crumbs on a known section route", () => {
     const crumbs = deriveOperatorCrumbs("/admin/moderacion", "admin");
     expect(crumbs).toHaveLength(2);
-    expect(crumbs[0]).toEqual({ label: "Dashboard", href: "/admin" });
+    expect(crumbs[0]).toEqual({ label: "Panel", href: "/admin" });
     expect(crumbs[1]).toEqual({ label: "Moderación" });
     expect(crumbs[1]).not.toHaveProperty("href");
   });
@@ -127,7 +127,7 @@ describe("deriveOperatorCrumbs — admin portal", () => {
     const rawId = "a1b2c3d4-0000-1111-2222-333344445555";
     const crumbs = deriveOperatorCrumbs(`/admin/moderacion/${rawId}`, "admin");
     expect(crumbs).toHaveLength(3);
-    expect(crumbs[0]).toEqual({ label: "Dashboard", href: "/admin" });
+    expect(crumbs[0]).toEqual({ label: "Panel", href: "/admin" });
     expect(crumbs[1]).toEqual({ label: "Moderación", href: "/admin/moderacion" });
     expect(crumbs[2]).toEqual({ label: "Detalle" });
     expect(crumbs[2]?.label).not.toBe(rawId);
@@ -150,7 +150,7 @@ describe("deriveOperatorCrumbs — admin portal", () => {
     ];
     for (const route of routes) {
       const crumbs = deriveOperatorCrumbs(route, "admin");
-      expect(crumbs[0]).toEqual({ label: "Dashboard", href: "/admin" });
+      expect(crumbs[0]).toEqual({ label: "Panel", href: "/admin" });
     }
   });
 

@@ -95,6 +95,7 @@ import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
+import { MAPLIBRE_LOCALE_ES } from "@/lib/ui/maplibre-locale";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 
@@ -967,27 +968,15 @@ export function SituationalMap({
         // next frame (the standard maplibre-gl v5 pattern for capturing a
         // non-preserved canvas).
         canvasContextAttributes: { preserveDrawingBuffer: false },
-        // es-AR labels for MapLibre's built-in NavigationControl (zoom buttons)
-        // — otherwise a govt user sees "Zoom in"/"Zoom out" tooltips in English.
-        // "Map.Title" is the aria-label MapLibre stamps on the interactive canvas
-        // (default "Map"); override it so a screen-reader user in a Spanish app
-        // hears an es-AR name instead of an English one.
+        // es-AR labels for every MapLibre-stamped control (zoom buttons, marker
+        // title, attribution toggle, fullscreen, popup close, cooperative-gestures
+        // overlay) — otherwise a screen-reader user in a Spanish app hears English
+        // ("Map marker", "Toggle attribution", "Zoom in"…). Shared with the public
+        // lost-credential map via MAPLIBRE_LOCALE_ES so both speak one vocabulary;
+        // "Map.Title" is overridden here to the console-specific canvas name.
         locale: {
+          ...MAPLIBRE_LOCALE_ES,
           "Map.Title": "Mapa de situación",
-          "NavigationControl.ZoomIn": "Acercar",
-          "NavigationControl.ZoomOut": "Alejar",
-          "NavigationControl.ResetBearing": "Restablecer orientación",
-          // FullscreenControl + Popup close button — otherwise a govt user sees
-          // "Enter fullscreen" / "Exit fullscreen" tooltips and a "Close popup"
-          // aria-label in English (recorrido-80 QA: map controls in English).
-          "FullscreenControl.Enter": "Pantalla completa",
-          "FullscreenControl.Exit": "Salir de pantalla completa",
-          "Popup.Close": "Cerrar",
-          // cooperativeGestures overlay copy (es-AR) — shown when the operator
-          // scrolls over the canvas without the modifier key.
-          "CooperativeGesturesHandler.WindowsHelpText": "Usá Ctrl + rueda para hacer zoom",
-          "CooperativeGesturesHandler.MacHelpText": "Usá ⌘ + rueda para hacer zoom",
-          "CooperativeGesturesHandler.MobileHelpText": "Usá dos dedos para mover el mapa",
         },
       });
       mapRef.current = map;

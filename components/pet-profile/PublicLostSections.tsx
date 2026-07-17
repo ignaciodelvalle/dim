@@ -180,9 +180,27 @@ export function PublicLostSections({
           )}
         </div>
 
-        {/* Honest warning — email included in the check: telling a finder there
-            are "no contact channels" next to a working mailto would lie. */}
-        {!ownerPhoneE164 && !finderFormHref && !ownerEmail && (
+        {/* Phone-privacy note (Cowork I1 / Cursor IDEA) — the NORMAL lost state:
+            the phone is not disclosed but an aviso path exists, so explain why
+            there's no "Llamar" button and point the finder at the avisos.
+            Suppressed when a call CTA is present (phone disclosed). It renders on
+            the null-phone prop alone — identical whether the owner has no phone or
+            simply didn't disclose it — so it never leaks whether a phone EXISTS,
+            only that we don't show one. Mutually exclusive with the no-channels
+            warning below (that one needs NO aviso path at all). */}
+        {!ownerPhoneE164 && (finderFormHref || sightingFormHref) && (
+          <p className="mt-3 text-xs text-ln-ink-2">
+            Por privacidad no mostramos el teléfono del dueño: completá uno de estos avisos y le
+            llega al instante.
+          </p>
+        )}
+
+        {/* Honest warning — the DEGENERATE state: no phone, no email, and no
+            aviso path (neither the finder form nor the sighting form). email and
+            sighting are included in the check because telling a finder there are
+            "no contact channels" next to a working mailto or a sighting CTA would
+            lie. */}
+        {!ownerPhoneE164 && !finderFormHref && !sightingFormHref && !ownerEmail && (
           <p className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-warn">
             Esta mascota no tiene canales de contacto habilitados.
           </p>

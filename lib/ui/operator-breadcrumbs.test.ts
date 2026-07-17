@@ -9,17 +9,17 @@ const labels = (pathname: string, portal: "gob" | "admin") =>
   deriveOperatorCrumbs(pathname, portal).map((c) => c.label);
 
 describe("deriveOperatorCrumbs — localized segment labels (A4)", () => {
-  it("localizes non-nav segments: /admin/govts/new → Dashboard · Gobiernos · Nueva cuenta", () => {
-    expect(labels("/admin/govts/new", "admin")).toEqual(["Dashboard", "Gobiernos", "Nueva cuenta"]);
+  it("localizes non-nav segments: /admin/govts/new → Panel · Gobiernos · Nueva cuenta", () => {
+    expect(labels("/admin/govts/new", "admin")).toEqual(["Panel", "Gobiernos", "Nueva cuenta"]);
   });
 
-  it("localizes /admin/admins → Dashboard · Administradores", () => {
-    expect(labels("/admin/admins", "admin")).toEqual(["Dashboard", "Administradores"]);
+  it("localizes /admin/admins → Panel · Administradores", () => {
+    expect(labels("/admin/admins", "admin")).toEqual(["Panel", "Administradores"]);
   });
 
   it("uses 'Detalle' for a dynamic id segment, never the raw id", () => {
     expect(labels("/admin/admins/a1b2c3d4-e5f6-7890-abcd-ef1234567890", "admin")).toEqual([
-      "Dashboard",
+      "Panel",
       "Administradores",
       "Detalle",
     ]);
@@ -27,7 +27,7 @@ describe("deriveOperatorCrumbs — localized segment labels (A4)", () => {
 
   it("still resolves nav-preset sections (e.g. /admin/sistema)", () => {
     const out = labels("/admin/sistema", "admin");
-    expect(out[0]).toBe("Dashboard");
+    expect(out[0]).toBe("Panel");
     expect(out).toHaveLength(2);
   });
 });

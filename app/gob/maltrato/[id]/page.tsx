@@ -543,7 +543,7 @@ export default async function GobMaltratoDetailPage({
 
         {/* MPF export — available regardless of triage status */}
         <OpCard>
-          <OpCardHead title="Export fiscal" />
+          <OpCardHead title="Exportación fiscal" />
           <OpCardBody>
             <MpfExportButton welfareReportId={report.id} />
           </OpCardBody>

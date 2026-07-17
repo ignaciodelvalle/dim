@@ -12,6 +12,7 @@
 //   - app/(app)/denuncias/[id]                                — welfare report authed
 //   - app/denuncias/codigo/[code]                             — welfare report anon
 
+import { MAPLIBRE_LOCALE_ES } from "@/lib/ui/maplibre-locale";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { useEffect, useRef } from "react";
@@ -47,6 +48,10 @@ export default function LocationMap({ lat, lng }: Props) {
         center: [lng, lat],
         zoom: 14,
         attributionControl: { compact: true },
+        // es-AR labels for MapLibre's built-in controls — otherwise a screen
+        // reader hears "Map marker" / "Toggle attribution" in English on the
+        // public lost-credential map. Shared vocabulary with the Panorama map.
+        locale: { ...MAPLIBRE_LOCALE_ES, "Map.Title": "Mapa de ubicación" },
       });
       new maplibregl.Marker({ color: "#dc2626" }).setLngLat([lng, lat]).addTo(map);
     })();

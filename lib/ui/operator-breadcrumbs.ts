@@ -3,7 +3,7 @@
 // Output: an ordered list of { label, href? } items suitable for OpCrumbs.
 //
 // Rules:
-//   - The first crumb is always the portal root ("Panel" / "Dashboard"), linked.
+//   - The first crumb is always the portal root ("Panel"), linked.
 //   - The second crumb is the section label derived from the nav presets.
 //   - Additional depth is capped: any dynamic id/token segment gets a generic
 //     "Detalle" label instead of echoing raw ids (PII / ugliness concern).
@@ -84,7 +84,7 @@ function labelForSegment(segment: string, segmentMap: Map<string, string>): stri
 
 const PORTAL_META: Record<OperatorPortal, { rootLabel: string; base: string }> = {
   gob: { rootLabel: "Panel", base: "/gob" },
-  admin: { rootLabel: "Dashboard", base: "/admin" },
+  admin: { rootLabel: "Panel", base: "/admin" },
 };
 
 // ---------------------------------------------------------------------------

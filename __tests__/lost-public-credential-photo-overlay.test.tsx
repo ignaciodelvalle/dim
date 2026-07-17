@@ -154,3 +154,56 @@ describe("PublicLostSections — fill photo containment (QA round 2 #0)", () => 
     expect(withPhone).not.toContain("no tiene canales de contacto");
   });
 });
+
+// Privacy note next to the aviso CTAs (Cursor IDEA / Cowork I1). When the
+// owner's phone is NOT disclosed but an aviso path exists, explain why there is
+// no "Llamar" button and point the finder at the avisos. Must never render next
+// to a call CTA, and must not leak whether a phone EXISTS — only that we don't
+// show one (it renders on the null-phone prop, identical whether the owner has
+// no phone or simply didn't disclose it).
+describe("PublicLostSections — phone-privacy note (Cowork I1 / Cursor IDEA)", () => {
+  const PRIVACY_LINE = "Por privacidad no mostramos el teléfono del dueño";
+
+  function render(props: Partial<React.ComponentProps<typeof PublicLostSections>>): string {
+    return renderToStaticMarkup(
+      <PublicLostSections
+        petName="Michi"
+        petSex="female"
+        identityLine="Felino · gris"
+        ownerFirstName={null}
+        ownerPhoneE164={null}
+        lastSeenPlaceName={null}
+        lastSeenLocality={null}
+        distinguishingFeatures={null}
+        finderFormHref={null}
+        sightingFormHref={null}
+        lostSince={new Date("2026-07-01T12:00:00Z")}
+        {...props}
+      />,
+    );
+  }
+
+  it("renders the note when the phone is hidden and a finder form is available", () => {
+    expect(render({ finderFormHref: "/p/DIM-TEST-0001/encontre" })).toContain(PRIVACY_LINE);
+  });
+
+  it("renders the note when the phone is hidden and only a sighting form is available", () => {
+    expect(render({ sightingFormHref: "/p/DIM-TEST-0001/sighting" })).toContain(PRIVACY_LINE);
+  });
+
+  it("does NOT render the note when a call CTA exists (phone disclosed)", () => {
+    const withPhone = render({
+      ownerPhoneE164: "+5491155551234",
+      finderFormHref: "/p/DIM-TEST-0001/encontre",
+    });
+    expect(withPhone).not.toContain(PRIVACY_LINE);
+    // The call CTA is what replaces it.
+    expect(withPhone).toContain('href="tel:+5491155551234"');
+  });
+
+  it("does NOT render the note when there is no aviso path (composes with, not contradicts, the no-channels warning)", () => {
+    const noChannels = render({});
+    expect(noChannels).not.toContain(PRIVACY_LINE);
+    expect(noChannels).toContain("no tiene canales de contacto");
+  });
+});
