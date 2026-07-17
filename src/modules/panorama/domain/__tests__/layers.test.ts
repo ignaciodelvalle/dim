@@ -6,6 +6,7 @@ import {
   AGGREGATED_POINT_IDS,
   AGGREGATED_POINT_LAYERS,
   CHOROPLETH_LAYERS,
+  NATIONAL_DEPARTMENT_GRAIN_IDS,
   PANORAMA_LAYERS,
   POINTS_LAYER_IDS,
   POINT_LAYERS,
@@ -14,6 +15,7 @@ import {
   getLayer,
   isAggregatedPointLayer,
   isLayerId,
+  isNationalDepartmentGrain,
   isPointsLayer,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
@@ -239,6 +241,32 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     for (const id of POINTS_LAYER_IDS) {
       expect(getLayer(id)?.renderPolicy.points).toBe("clustered-points");
     }
+  });
+
+  it("NATIONAL_DEPARTMENT_GRAIN_IDS: only zoonosis renders department grain at national", () => {
+    // PO 2026-07-16: the national overview draws one bubble per DEPARTMENT for
+    // zoonosis (urban departments get medium circles, the rest small/distributed),
+    // instead of one fixed point per province.
+    expect([...NATIONAL_DEPARTMENT_GRAIN_IDS].sort()).toEqual(["zoonosis"]);
+    expect(isNationalDepartmentGrain("zoonosis")).toBe(true);
+    // Density point layers stay one-point-per-province at national (byte-identical) —
+    // they are NOT members, so the shared view level is never dragged for them.
+    expect(isNationalDepartmentGrain("perdidas")).toBe(false);
+    expect(isNationalDepartmentGrain("mordeduras")).toBe(false);
+    expect(isNationalDepartmentGrain("denuncias")).toBe(false);
+    expect(isNationalDepartmentGrain("sintomas")).toBe(false);
+    expect(isNationalDepartmentGrain("reunificacion")).toBe(false);
+    // Choropleths and the province-only composite are unaffected.
+    expect(isNationalDepartmentGrain("cobertura")).toBe(false);
+    expect(isNationalDepartmentGrain("indice-territorial")).toBe(false);
+  });
+
+  it("zoonosis is national-department-grain AND still NOT points-capable (orthogonal axes)", () => {
+    // Department grain is an AGGREGATION choice, never real event dots: outbreak_signal
+    // persists no columnar coordinate, so zoonosis stays out of POINTS_LAYER_IDS.
+    expect(isNationalDepartmentGrain("zoonosis")).toBe(true);
+    expect(isPointsLayer("zoonosis")).toBe(false);
+    expect(POINTS_LAYER_IDS.has("zoonosis")).toBe(false);
   });
 
   it("REFERENCE_LAYERS contains refugios, clinicas and decomisos", () => {

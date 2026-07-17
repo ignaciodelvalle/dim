@@ -62,6 +62,7 @@ import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { fetchVetAccessByLocality, perThousand } from "@/lib/metrics/vet-access";
 import { findDisease } from "@/lib/reference/diseases";
 import { PROVINCE_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
+import { isNationalDepartmentGrain } from "@/src/modules/panorama/domain/layers";
 
 import {
   type AggregatedPointCell,
@@ -2213,7 +2214,16 @@ export async function loadZoonosisByUnit(
   if (asOf) conditions.push(lte(tcol, asOf));
   if (scope) conditions.push(sql`(${scope})`);
 
-  if (level === "province") {
+  // PO decision (2026-07-16): zoonosis is a NATIONAL_DEPARTMENT_GRAIN layer
+  // (isNationalDepartmentGrain), so the national/province request renders one
+  // graduated symbol per DEPARTMENT — NOT a single fixed point per province — via
+  // the SAME department-grain build the drilled (level="locality") path uses below.
+  // `level` therefore no longer forks the grain for zoonosis; the national-vs-drilled
+  // scope narrowing comes from petEventsScope / adminProvince, never from `level`.
+  // The province one-point-per-province rollup is retained only as the fallback for a
+  // hypothetical NON-department-grain signal loader routed through here (dead for
+  // zoonosis, which is always a member of the set).
+  if (level === "province" && !isNationalDepartmentGrain("zoonosis")) {
     const rows = await db
       .select({
         province: sql<string>`(${petEvents.payload}->>'pet_jurisdiction_province')`,
@@ -2287,9 +2297,14 @@ export async function loadZoonosisByUnit(
     .from(petEvents)
     .where(and(...conditions, sql`(${petEvents.payload}->>'pet_jurisdiction_locality') IS NULL`));
   const noLocalityCount = residual?.n ?? 0;
-  // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
-  // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
-  // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
+  // Detail tier (PO "Option A") AND, since 2026-07-16, the NATIONAL overview for
+  // zoonosis (isNationalDepartmentGrain): fold the per-locality rollup up to the
+  // department (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the
+  // division the map draws. At national this yields ~500 department cells countrywide
+  // (< PER_LAYER_CAP); at a drilled province, that province's departments. k=5 stays
+  // the privacy floor — coarser-than-locality is strictly more anonymising, so a lone
+  // department signal (count < 5) is suppressed, never rendered raw. `truncated` still
+  // reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
