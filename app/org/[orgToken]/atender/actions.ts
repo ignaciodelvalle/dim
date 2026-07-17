@@ -23,6 +23,7 @@ import {
 } from "@/lib/reference/medication-schedule";
 
 import { db } from "@/db";
+import { notifyOwnersOfClinicalEvent } from "@/lib/infra/notify-owners-of-clinical-event";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDrugByLabel } from "@/lib/reference/drugs";
@@ -158,6 +159,22 @@ export async function atenderVaccinationAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
+
+    // Owner alert for the third-party signature (best-effort; `result` is in
+    // scope here and the helper never throws — see
+    // lib/infra/notify-owners-of-clinical-event.ts).
+    const signedEventId = result.value?.eventId ?? null;
+    if (signedEventId) {
+      await notifyOwnersOfClinicalEvent({
+        petId: pet.id,
+        petName: pet.name,
+        petPublicToken: publicToken,
+        eventId: signedEventId,
+        eventType: "vaccination_administered",
+        authorUserId: user.id,
+        authorLabel: access.organizationName,
+      });
+    }
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
@@ -225,6 +242,19 @@ export async function atenderDewormingAction(
     if (!result.ok) {
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
+    }
+
+    const signedEventId = result.value?.eventId ?? null;
+    if (signedEventId) {
+      await notifyOwnersOfClinicalEvent({
+        petId: pet.id,
+        petName: pet.name,
+        petPublicToken: publicToken,
+        eventId: signedEventId,
+        eventType: "deworming_administered",
+        authorUserId: user.id,
+        authorLabel: access.organizationName,
+      });
     }
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
@@ -299,6 +329,19 @@ export async function atenderClinicalInfoAction(
     if (!result.ok) {
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
+    }
+
+    const signedEventId = result.value?.eventId ?? null;
+    if (signedEventId) {
+      await notifyOwnersOfClinicalEvent({
+        petId: pet.id,
+        petName: pet.name,
+        petPublicToken: publicToken,
+        eventId: signedEventId,
+        eventType: "clinical_info_logged",
+        authorUserId: user.id,
+        authorLabel: access.organizationName,
+      });
     }
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
@@ -398,6 +441,19 @@ export async function atenderMedicationStartAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
+
+    const signedEventId = result.value?.eventId ?? null;
+    if (signedEventId) {
+      await notifyOwnersOfClinicalEvent({
+        petId: pet.id,
+        petName: pet.name,
+        petPublicToken: publicToken,
+        eventId: signedEventId,
+        eventType: "medication_started",
+        authorUserId: user.id,
+        authorLabel: access.organizationName,
+      });
+    }
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
@@ -457,6 +513,19 @@ export async function atenderNoteAction(
     if (!result.ok) {
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
+    }
+
+    const signedEventId = result.value?.eventId ?? null;
+    if (signedEventId) {
+      await notifyOwnersOfClinicalEvent({
+        petId: pet.id,
+        petName: pet.name,
+        petPublicToken: publicToken,
+        eventId: signedEventId,
+        eventType: "note_added",
+        authorUserId: user.id,
+        authorLabel: access.organizationName,
+      });
     }
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
