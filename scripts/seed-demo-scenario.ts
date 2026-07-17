@@ -484,7 +484,11 @@ async function seedFocalDecomisos(govtUserId: string, sanitaryOrgId: string): Pr
       openedByUserId: govtUserId,
       openedByOrganizationId: sanitaryOrgId,
       receiverOrganizationId: spec.withReceiver && receiverOrgId ? receiverOrgId : null,
-      openedReason: `auto: decomiso motivo=${spec.motive} judicial_ref=sin_ref (seed-demo-scenario)`,
+      // The "(seed-demo-scenario)" suffix was captured by the rule's
+      // judicial_ref group, so the screen read "ref. judicial: sin_ref
+      // (seed-demo-scenario)" — a seed marker presented to the operator as a
+      // judicial reference. opened_reason is user-facing; tag elsewhere.
+      openedReason: `auto: decomiso motivo=${spec.motive} judicial_ref=sin_ref`,
       openedAt: new Date(Date.now() - 5 * 24 * 3600 * 1000),
     });
     created++;

@@ -1180,7 +1180,7 @@ async function buildStateShowcase(ownerUserId: string, seedOrgId: string | null)
           jurisdictionProvince: jur.province,
           jurisdictionLocality: jur.locality,
           openedByUserId: ownerUserId,
-          openedReason: "auto: status_changed to lost (seed-perf-state)",
+          openedReason: "auto: mascota reportada como perdida",
         });
       }
       await db.insert(petEvents).values({
@@ -1952,7 +1952,7 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
               jurisdictionLocality: jur.locality,
               openedByUserId: ownerUserId,
               openedByOrganizationId: tieToOrg ? seedOrgId : null,
-              openedReason: "auto: status_changed to lost (seed-perf)",
+              openedReason: "auto: mascota reportada como perdida",
             });
 
             // Emit the corresponding status_changed event

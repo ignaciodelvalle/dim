@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { sterilizedLabel } from "@/lib/utils/format";
+import { lostLabel, sterilizedLabel } from "@/lib/utils/format";
 
 describe("sterilizedLabel", () => {
   it("agrees with the pet's sex", () => {
@@ -27,5 +27,20 @@ describe("sterilizedLabel", () => {
   it("degrades to the slashed form for an unexpected value rather than guessing", () => {
     expect(sterilizedLabel("")).toBe("Castrado/a");
     expect(sterilizedLabel("Female")).toBe("Castrado/a");
+  });
+});
+
+// Same defect, same file, two lines apart: the lost listing inlined
+// `sex === "female" ? "Perdida" : "Perdido"`. 22k+ pets carry sex='unknown' —
+// and a stray posted by a finder is exactly the population that does.
+describe("lostLabel", () => {
+  it("agrees with the pet's sex", () => {
+    expect(lostLabel("female")).toBe("Perdida");
+    expect(lostLabel("male")).toBe("Perdido");
+  });
+
+  it("does not call an unknown-sex pet male", () => {
+    expect(lostLabel("unknown")).toBe("Perdido/a");
+    expect(lostLabel("")).toBe("Perdido/a");
   });
 });

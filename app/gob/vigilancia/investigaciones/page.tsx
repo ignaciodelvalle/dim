@@ -6,6 +6,7 @@ import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/u
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/infra/case-queries";
 import { formatDateTime } from "@/lib/utils/format";
+import { caseOpenedReasonDisplay } from "@/src/modules/cases/domain/opened-reason-display";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Abierta",
@@ -89,11 +90,20 @@ export default async function GobInvestigacionesPage() {
                         {STATUS_LABEL[inv.status] ?? inv.status}
                       </OpPill>
                     </div>
+                    {/* Render through the display dispatch, never the raw audit
+                        string: this list used to substring `openedReason`
+                        directly, so a funcionario read "manual [rabia_urbana]:
+                        …" — the writer's machine grammar — truncated at 80
+                        chars. The detail page one level down was already
+                        migrated; this list was the surface the columns were
+                        plumbed to and never wired. CSS truncates; slicing the
+                        string cut mid-word and mid-token. */}
                     <p className="text-[13px] text-ln-op-ink truncate">
-                      {inv.openedReason
-                        ? inv.openedReason.substring(0, 80) +
-                          (inv.openedReason.length > 80 ? "..." : "")
-                        : "Sin motivo registrado"}
+                      {caseOpenedReasonDisplay({
+                        openedReasonCode: inv.openedReasonCode,
+                        openedReasonParams: inv.openedReasonParams,
+                        openedReason: inv.openedReason,
+                      })}
                     </p>
                     <p className="text-sm text-ln-op-mute">
                       {[inv.jurisdictionLocality, inv.jurisdictionProvince]

@@ -2095,7 +2095,10 @@ async function seedVigilanceChain(
         primaryPetId: petId,
         jurisdictionCountry: "AR",
         jurisdictionProvince: prov,
-        openedReason: "auto: observación rábica de 10 días (seed-panorama)",
+        // No "(seed-panorama)" tag: opened_reason is a USER-FACING field. The
+        // tag rode through the generic `auto:` branch straight onto the operator's
+        // screen. Same class as the lost-case reason fixed in daf2c26b.
+        openedReason: "auto: observación rábica de 10 días",
         openedAt: startedAt,
       } as Parameters<typeof db.insert<typeof cases>>[0] extends {
         values: (v: infer V) => unknown;
@@ -2313,7 +2316,16 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
       jurisdictionCountry: "AR",
       jurisdictionProvince: prov,
       jurisdictionLocality: pet.locality,
-      openedReason: `auto: decomiso motivo=${motive} (Ley 14.346) judicial_ref=sin_ref`,
+      // Must match the decomiso writer's grammar EXACTLY — the display layer
+      // recognizes `auto: decomiso motivo=(\S+) judicial_ref=(...)` and the
+      // "(Ley 14.346)" this used to insert broke the `\S+`, so the row fell to
+      // the generic `auto:` catch-all and rendered on the demo panorama as
+      // "Apertura automática — decomiso motivo=maltrato_fisico (Ley 14.346)
+      // judicial_ref=sin_ref": a raw enum and an internal grammar, on the
+      // surface funcionarios are shown. The law reference belongs in the UI's
+      // normativa block (which cites Ley 14.346 already), not smuggled into an
+      // audit string that a parser has to survive.
+      openedReason: `auto: decomiso motivo=${motive} judicial_ref=sin_ref`,
       openedAt: randomWindowDate(WINDOW_DAYS),
     } as Parameters<typeof db.insert<typeof cases>>[0] extends {
       values: (v: infer V) => unknown;
@@ -2348,7 +2360,7 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
         jurisdictionCountry: "AR",
         jurisdictionProvince: prov,
         jurisdictionLocality: locality,
-        openedReason: "auto: disputa de custodia entre partes (seed-panorama)",
+        openedReason: "auto: disputa de custodia entre partes",
         openedAt: raisedAt,
       } as Parameters<typeof db.insert<typeof cases>>[0] extends {
         values: (v: infer V) => unknown;
@@ -3538,7 +3550,10 @@ async function seedHistoryWelfareAndCases(
             jurisdictionCountry: "AR",
             jurisdictionProvince: provinceName,
             jurisdictionLocality: loc.localityName,
-            openedReason: `auto: decomiso motivo=${motive} (Ley 14.346) seed histórico`,
+            // Matches the real decomiso writer's grammar exactly (see :2325) so
+            // the display layer translates it. The "(Ley 14.346) seed histórico"
+            // this carried broke the regex twice over and surfaced raw.
+            openedReason: `auto: decomiso motivo=${motive} judicial_ref=sin_ref`,
             openedAt,
             ...(isClosed && closedAt ? { closedAt, closedReason: "resolved" as const } : {}),
           } as Parameters<typeof db.insert<typeof cases>>[0] extends {
@@ -3575,7 +3590,7 @@ async function seedHistoryWelfareAndCases(
           jurisdictionCountry: "AR",
           jurisdictionProvince: provinceName,
           jurisdictionLocality: loc.localityName,
-          openedReason: "auto: disputa de custodia entre partes seed histórico",
+          openedReason: "auto: disputa de custodia entre partes",
           openedAt,
           ...(disIsClosed && disClosedAt
             ? { closedAt: disClosedAt, closedReason: "resolved" as const }

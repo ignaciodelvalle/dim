@@ -359,6 +359,9 @@ describe("searchOmnibox — case scoping (govt)", () => {
     // scope. Guards both halves of the shell-loss class at once.
     for (const scope of [ADMIN_SCOPE, GOVT_CABA]) {
       const r = await searchOmnibox(`CASO-${TAG}`, scope);
+      // Without this the loop below is vacuous: an empty result set would let
+      // the fence pass while asserting nothing at all.
+      expect(r.cases.length).toBeGreaterThan(0);
       for (const c of r.cases) {
         expect(c.href).not.toMatch(/^\/casos\//);
       }

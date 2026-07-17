@@ -10,11 +10,16 @@
 // denuncia from /admin/casos, landed on the citizen chrome with "Adoptar ·
 // Refugios · ← Volver a mi app", and could not act on the case).
 //
-// Access is NOT widened by this route: the /admin layout already gates the
-// segment, CaseDetailView re-runs canReadCase (admin = universal scope), and
-// the explicit guard below mirrors app/admin/casos/page.tsx so the URL is never
-// reachable unauthenticated and a govt viewer is bounced to their own shell
-// rather than borrowing the admin one.
+// Access is NOT widened by this route: `app/admin/layout.tsx` already gates the
+// whole segment with the STRICT `requireAdminOrRedirect` (govt and everyone else
+// land on /), and CaseDetailView re-runs canReadCase independently (admin =
+// universal scope).
+//
+// The guard below therefore never fires in practice — it mirrors the sibling
+// `app/admin/casos/page.tsx:37-38` as defence in depth, so the page keeps its
+// own gate if the layout is ever relaxed. Its govt branch forwards to the same
+// case in the /gob shell rather than dumping the operator on a list. Do not read
+// it as the reason govt cannot get here: the layout is.
 
 import { redirect } from "next/navigation";
 

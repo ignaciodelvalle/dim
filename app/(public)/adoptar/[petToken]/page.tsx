@@ -16,7 +16,7 @@ import {
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { formatDate, sexLabel, speciesLabel, sterilizedLabel } from "@/lib/utils/format";
 import { serializeJsonLd } from "@/lib/utils/json-ld";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
@@ -305,7 +305,10 @@ export default async function AdoptarFichaPage({
                     className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
-                    <Icon name="check" size="sm" decorative /> Castrada
+                    {/* Was a hardcoded "Castrada" for every pet — a male dog
+                        read "Castrada" on the public adoption ficha, two lines
+                        below ageBucketLabel(…, pet.sex), which agrees. */}
+                    <Icon name="check" size="sm" decorative /> {sterilizedLabel(pet.sex)}
                   </span>
                 )}
                 {hasMicrochip && (

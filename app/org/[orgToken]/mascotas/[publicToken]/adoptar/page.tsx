@@ -138,6 +138,7 @@ export default async function AdoptarOrgPage({
         )}
 
         <AdoptionListingForm
+          orgToken={orgToken}
           petPublicToken={publicToken}
           initial={{
             isPublished,

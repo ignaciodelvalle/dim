@@ -290,7 +290,11 @@ async function seedLostPet(ownerUserId: string): Promise<void> {
         jurisdictionProvince: "Buenos Aires",
         jurisdictionLocality: "Palermo",
         openedByUserId: ownerUserId,
-        openedReason: `Pet ${FIRULAIS_TOKEN} marked as lost by owner — seed-owner-demo`,
+        // The trailing "— seed-owner-demo" is captured by the rule as the
+        // owner's free-text reason, so the screen showed "Mascota … reportada
+        // como perdida por su dueño — seed-owner-demo". Give it a reason a real
+        // owner would type instead of a seed marker.
+        openedReason: `Pet ${FIRULAIS_TOKEN} marked as lost by owner — se escapó por el portón`,
       })
       .returning({ id: cases.id });
 

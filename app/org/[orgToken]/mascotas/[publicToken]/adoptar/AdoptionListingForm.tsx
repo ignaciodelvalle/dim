@@ -53,11 +53,14 @@ const TOTAL_STEPS = 2;
 const STEP_LABELS = ["Historia y atributos", "Visibilidad pública"];
 
 export function AdoptionListingForm({
+  orgToken,
   petPublicToken,
   initial,
   canPublish,
   petSex,
 }: {
+  /** Pins the listing actions to the org in the URL — see the actions' docs. */
+  orgToken: string;
   petPublicToken: string;
   initial: Initial;
   canPublish: boolean;
@@ -92,7 +95,9 @@ export function AdoptionListingForm({
     setError(null);
     setOkMessage(null);
     setPending(true);
-    const result = await setAdoptionListingStatusAction({ petPublicToken, action });
+    // orgToken pins the action to the org in the URL; without it the action
+    // resolves the session-default org — see setAdoptionListingStatusAction.
+    const result = await setAdoptionListingStatusAction({ orgToken, petPublicToken, action });
     if ("error" in result) {
       setError(result.error);
       setPending(false);
@@ -113,6 +118,7 @@ export function AdoptionListingForm({
     setPending(true);
     try {
       const result = await updateAdoptionListingContentAction({
+        orgToken,
         petPublicToken,
         story: story.trim() || null,
         requirements: requirements.trim() || null,

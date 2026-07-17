@@ -125,6 +125,8 @@ export async function setAdoptionEligibilityAction(
 export type AdoptionListingResult = { ok: true } | { error: string };
 
 export type AdoptionListingStatusInput = {
+  /** publicToken of the org in the URL — the org this action acts AS. */
+  orgToken: string;
   petPublicToken: string;
   action: "publish" | "pause" | "unpause" | "unpublish";
 };
@@ -132,7 +134,18 @@ export type AdoptionListingStatusInput = {
 export async function setAdoptionListingStatusAction(
   input: AdoptionListingStatusInput,
 ): Promise<AdoptionListingResult> {
-  const auth = await requireCapability("adoption.listing.manage");
+  // Pinned to the URL org — same reason as setAdoptionEligibilityAction, same
+  // sink: setAdoptionListingStatus → repo.findShelterPet(petPublicToken,
+  // organization.id). A bare requireCapability resolves the session-default
+  // (last-joined) membership, so for a multi-org member this asked a DIFFERENT
+  // org whether it holds the pet and got "no está bajo custodia de tu
+  // organización" about a pet the screen shows as theirs.
+  //
+  // 21-authz-scoping-audit.md filed THREE instances of this (#9 eligibility,
+  // #10 here, #11 updateAdoptionListingContentAction). Only #9 landed at first,
+  // which left the shelter able to mark its intake apta and then unable to
+  // publish it — the very next step of the flow QA could not finish.
+  const auth = await requireCapabilityForOrgToken("adoption.listing.manage", input.orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -162,6 +175,8 @@ export async function setAdoptionListingStatusAction(
 // ---------------------------------------------------------------------------
 
 export type AdoptionListingContentInput = {
+  /** publicToken of the org in the URL — the org this action acts AS. */
+  orgToken: string;
   petPublicToken: string;
   story?: string | null;
   requirements?: string | null;
@@ -178,7 +193,9 @@ export type AdoptionListingContentInput = {
 export async function updateAdoptionListingContentAction(
   input: AdoptionListingContentInput,
 ): Promise<AdoptionListingResult> {
-  const auth = await requireCapability("adoption.listing.manage");
+  // Pinned to the URL org — audit #11, the third instance of the same defect.
+  // See setAdoptionListingStatusAction above.
+  const auth = await requireCapabilityForOrgToken("adoption.listing.manage", input.orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 

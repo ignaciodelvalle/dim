@@ -10,7 +10,7 @@ import {
 } from "@/lib/infra/lost-listing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { sterilizedLabel } from "@/lib/utils/format";
+import { lostLabel, sterilizedLabel } from "@/lib/utils/format";
 import {
   countAllLost,
   countLostInWindow,
@@ -311,8 +311,7 @@ function LostListingCard({ item }: { item: LostListingItem }) {
 
   const urgency = lostUrgencyFor(item.markedLostAt);
   const timeLabel = lostTimeLabel(item.markedLostAt);
-  const lostFemale = item.sex === "female";
-  const lostWord = lostFemale ? "Perdida" : "Perdido";
+  const lostWord = lostLabel(item.sex);
   // Shared so all four surfaces agree, and so an unknown-sex pet reads
   // "Castrado/a" instead of being silently called male.
   const sterilizedText = sterilizedLabel(item.sex);

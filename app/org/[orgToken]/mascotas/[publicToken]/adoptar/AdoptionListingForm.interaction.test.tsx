@@ -49,6 +49,7 @@ const BASE_INITIAL = {
 function renderForm(overrides?: { canPublish?: boolean }) {
   return render(
     <AdoptionListingForm
+      orgToken="ORG-TEST-0001"
       petPublicToken="DIM-TEST-0001"
       initial={BASE_INITIAL}
       canPublish={overrides?.canPublish ?? true}

@@ -304,6 +304,25 @@ export function sterilizedLabel(sex: string): string {
   }
 }
 
+/**
+ * "Perdida" / "Perdido" agreeing with the pet's sex.
+ *
+ * Same shape and same reason as sterilizedLabel: the lost listing inlined
+ * `sex === "female" ? "Perdida" : "Perdido"`, which calls an unknown-sex pet
+ * male. 22k+ pets carry `sex = 'unknown'` — a stray posted by a finder rarely
+ * has a known sex, which is exactly the population this listing is for.
+ */
+export function lostLabel(sex: string): string {
+  switch (sex) {
+    case "male":
+      return "Perdido";
+    case "female":
+      return "Perdida";
+    default:
+      return "Perdido/a";
+  }
+}
+
 export function statusLabel(status: string): string {
   switch (status) {
     case "active":

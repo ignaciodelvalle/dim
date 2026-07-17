@@ -2370,13 +2370,24 @@ export function SituationalMap({
         }
       }
       if (!matched) continue;
+      // A locality-level CHOROPLETH drawn as circles carries the same drilled
+      // COUNT as divisionReadouts — the repository's V1 metric swap does not care
+      // how the cell is painted. So the same demotion applies, or a count renders
+      // as "11.205%" with a "meta 80%" beside it the moment divisions are not in
+      // fill mode (or a cell lands in join.unmatched and falls back to a circle).
+      //
+      // Graduated POINTS are exempt on purpose: `reunificacion` is a point layer
+      // whose locality-level value is a REAL ratePct, and demoting it would break
+      // the honest case to fix the dishonest one.
+      const isDrilledChoropleth = isSymbolChoro;
       out.push(
         buildLayerReadout({
           label: l.label,
           value: matched.value,
           suppressed: matched.suppressed,
-          dataType: l.dataType,
-          complianceTarget: l.complianceTarget,
+          dataType: isDrilledChoropleth ? divisionReadoutDataType(l.dataType) : l.dataType,
+          complianceTarget:
+            isDrilledChoropleth && l.dataType === "rate" ? undefined : l.complianceTarget,
         }),
       );
     }

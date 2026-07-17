@@ -5,9 +5,54 @@ import { describe, expect, it } from "vitest";
 import {
   buildLayerReadout,
   buildPinnedPopupHtml,
+  divisionReadoutDataType,
   formatMetaGap,
   formatValueWithUnit,
 } from "../map-popup";
+
+// A "rate" layer is only a rate at PROVINCE level. Drilled to a division the
+// repository swaps the metric to a raw count-density (a per-division rate would
+// expose both k-anonymised arms), and the legend and caption already say so.
+// The pinned popup did not: it passed the layer's STATIC dataType through, so a
+// drilled count of 11205 rendered "11.205%" and got measured against "meta 80%"
+// while the drawer beside it showed the same value unit-less. QA ronda 5
+// (2026-07-16) read that as the map contradicting the panel — the panel was
+// right and the popup was inventing a unit.
+describe("divisionReadoutDataType", () => {
+  it("demotes a rate layer to a count at division level", () => {
+    expect(divisionReadoutDataType("rate")).toBe("density");
+  });
+
+  it("leaves non-rate types untouched", () => {
+    expect(divisionReadoutDataType("density")).toBe("density");
+    expect(divisionReadoutDataType("signal")).toBe("signal");
+    expect(divisionReadoutDataType("reference")).toBe("reference");
+    expect(divisionReadoutDataType(undefined)).toBeUndefined();
+  });
+
+  it("a drilled coverage count renders with no percent and no compliance meta", () => {
+    const readout = buildLayerReadout({
+      label: "Cobertura antirrábica",
+      value: 11205,
+      dataType: divisionReadoutDataType("rate"),
+      complianceTarget: undefined,
+    });
+    expect(readout.valueText).toBe("11.205");
+    expect(readout.valueText).not.toContain("%");
+    expect(readout.metaText).toBeUndefined();
+  });
+
+  it("province level keeps the percentage and the meta — the rate IS a rate there", () => {
+    const readout = buildLayerReadout({
+      label: "Cobertura antirrábica",
+      value: 64.4,
+      dataType: "rate",
+      complianceTarget: 80,
+    });
+    expect(readout.valueText).toBe("64,4%");
+    expect(readout.metaText).toBe("meta 80% · −15,6");
+  });
+});
 
 describe("formatValueWithUnit", () => {
   it("renders a rate value as an es-AR percentage", () => {
