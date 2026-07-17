@@ -280,18 +280,13 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
     formData.set("adopterPhone", "+541111111111");
     formData.set("followupMonths", "0");
     formData.set("notes", "Cascade test finalize");
-    let redirectErr: unknown = null;
-    let returnValue: unknown = null;
-    try {
-      returnValue = await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
-    } catch (e) {
-      redirectErr = e;
-    }
-    if (!redirectErr) {
+    const result = await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
+    if (result.error !== null || !result.redirectTo) {
       throw new Error(
-        `finalizeAdoptionAction returned instead of redirecting: ${JSON.stringify(returnValue)}`,
+        `finalizeAdoptionAction did not succeed with a redirect target: ${JSON.stringify(result)}`,
       );
     }
+    expect(result.redirectTo).toContain(`/org/${orgToken}/mascotas?adopcion=`);
 
     // 1 adoption_finalized event with adopter=applicant1.
     const finalizedEvents = await db

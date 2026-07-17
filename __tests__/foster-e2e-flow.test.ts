@@ -349,15 +349,16 @@ describe("foster-e2e: propose → accept → adopt", () => {
     formData.set("followupMonths", "0");
     formData.set("notes", "Adoptado directo desde el tránsito.");
 
-    // finalizeAdoptionAction redirects on success — wrap in try/catch.
-    let redirectErr: unknown = null;
-    try {
-      await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
-    } catch (e) {
-      redirectErr = e;
-    }
-    // Next.js redirect throws a special internal error; verify the side effects.
-    expect(redirectErr).toBeTruthy(); // redirect threw, as expected
+    // finalizeAdoptionAction returns a redirect target on success (the client
+    // hard-navigates — the router-drop-immune cure), so no throw to catch.
+    const finalizeResult = await finalizeAdoptionAction(
+      orgToken,
+      petToken,
+      { error: null },
+      formData,
+    );
+    expect(finalizeResult.error).toBeNull();
+    expect(finalizeResult.redirectTo).toContain(`/org/${orgToken}/mascotas?adopcion=`);
 
     // Volunteer is now the owner.
     const [ownerRow] = await db
