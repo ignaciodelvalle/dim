@@ -26,6 +26,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { requireDenunciaModerationPrincipal } from "@/lib/infra/auth-guards";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { welfareReportParamCondition } from "@/lib/infra/welfare-inspector-detail";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
 import { createClient } from "@/lib/supabase/server";
@@ -85,13 +86,17 @@ export default async function GobModeracionDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // `id` is the PUBLIC reference code (DEN-XXXX-XXXX) for new links; legacy uuid
+  // links still resolve (welfareReportParamCondition accepts both). Resolving the
+  // code to the row here — BEFORE the govt scope guard below — keeps authorization
+  // byte-for-byte identical to the old uuid path.
   const { id } = await params;
   const { user, profile, jurisdictions } = await requireDenunciaModerationPrincipal();
 
   const [report] = await db
     .select(GOVT_WELFARE_MODERATION_SELECT)
     .from(welfareReports)
-    .where(eq(welfareReports.id, id))
+    .where(welfareReportParamCondition(id))
     .limit(1);
   if (!report) notFound();
   if (!report.flaggedAt) notFound();

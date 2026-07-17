@@ -134,6 +134,7 @@ export async function atenderVaccinationAction(
   if (upload.error) return { error: upload.error };
 
   const repo = new EventsRepository();
+  let signedEventId: string | null = null;
   try {
     const result = await createVaccination(
       {
@@ -159,27 +160,28 @@ export async function atenderVaccinationAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
-
-    // Owner alert for the third-party signature (best-effort; `result` is in
-    // scope here and the helper never throws — see
-    // lib/infra/notify-owners-of-clinical-event.ts).
-    const signedEventId = result.value?.eventId ?? null;
-    if (signedEventId) {
-      await notifyOwnersOfClinicalEvent({
-        petId: pet.id,
-        petName: pet.name,
-        petPublicToken: publicToken,
-        eventId: signedEventId,
-        eventType: "vaccination_administered",
-        authorUserId: user.id,
-        authorLabel: access.organizationName,
-      });
-    }
+    signedEventId = result.value?.eventId ?? null;
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo registrar la vacuna: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  // Owner alert for the third-party signature — best-effort and POST-COMMIT: run
+  // it AFTER the try/catch so a hypothetical throw in the helper can never trigger
+  // cleanupAttachment on an already-persisted event. The helper swallows its own
+  // errors (see lib/infra/notify-owners-of-clinical-event.ts).
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "vaccination_administered",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
   }
 
   return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
@@ -221,6 +223,7 @@ export async function atenderDewormingAction(
   if (upload.error) return { error: upload.error };
 
   const repo = new EventsRepository();
+  let signedEventId: string | null = null;
   try {
     const result = await createDeworming(
       {
@@ -243,24 +246,26 @@ export async function atenderDewormingAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
-
-    const signedEventId = result.value?.eventId ?? null;
-    if (signedEventId) {
-      await notifyOwnersOfClinicalEvent({
-        petId: pet.id,
-        petName: pet.name,
-        petPublicToken: publicToken,
-        eventId: signedEventId,
-        eventType: "deworming_administered",
-        authorUserId: user.id,
-        authorLabel: access.organizationName,
-      });
-    }
+    signedEventId = result.value?.eventId ?? null;
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo registrar el antiparasitario: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
+  // never clean up an already-persisted event; the helper swallows its own errors).
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "deworming_administered",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
   }
 
   return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
@@ -302,6 +307,7 @@ export async function atenderClinicalInfoAction(
   if (upload.error) return { error: upload.error };
 
   const repo = new EventsRepository();
+  let signedEventId: string | null = null;
   try {
     const result = await createClinicalInfo(
       {
@@ -330,24 +336,26 @@ export async function atenderClinicalInfoAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
-
-    const signedEventId = result.value?.eventId ?? null;
-    if (signedEventId) {
-      await notifyOwnersOfClinicalEvent({
-        petId: pet.id,
-        petName: pet.name,
-        petPublicToken: publicToken,
-        eventId: signedEventId,
-        eventType: "clinical_info_logged",
-        authorUserId: user.id,
-        authorLabel: access.organizationName,
-      });
-    }
+    signedEventId = result.value?.eventId ?? null;
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo guardar la información clínica: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
+  // never clean up an already-persisted event; the helper swallows its own errors).
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "clinical_info_logged",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
   }
 
   return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
@@ -412,6 +420,7 @@ export async function atenderMedicationStartAction(
   if (upload.error) return { error: upload.error };
 
   const repo = new EventsRepository();
+  let signedEventId: string | null = null;
   try {
     const result = await createMedicationStart(
       {
@@ -441,24 +450,26 @@ export async function atenderMedicationStartAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
-
-    const signedEventId = result.value?.eventId ?? null;
-    if (signedEventId) {
-      await notifyOwnersOfClinicalEvent({
-        petId: pet.id,
-        petName: pet.name,
-        petPublicToken: publicToken,
-        eventId: signedEventId,
-        eventType: "medication_started",
-        authorUserId: user.id,
-        authorLabel: access.organizationName,
-      });
-    }
+    signedEventId = result.value?.eventId ?? null;
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo registrar la medicación: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
+  // never clean up an already-persisted event; the helper swallows its own errors).
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "medication_started",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
   }
 
   return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
@@ -493,6 +504,7 @@ export async function atenderNoteAction(
   if (upload.error) return { error: upload.error };
 
   const repo = new EventsRepository();
+  let signedEventId: string | null = null;
   try {
     const result = await createNote(
       {
@@ -514,24 +526,26 @@ export async function atenderNoteAction(
       await cleanupAttachment(supabase, upload.uploadedPath);
       return { error: result.error };
     }
-
-    const signedEventId = result.value?.eventId ?? null;
-    if (signedEventId) {
-      await notifyOwnersOfClinicalEvent({
-        petId: pet.id,
-        petName: pet.name,
-        petPublicToken: publicToken,
-        eventId: signedEventId,
-        eventType: "note_added",
-        authorUserId: user.id,
-        authorLabel: access.organizationName,
-      });
-    }
+    signedEventId = result.value?.eventId ?? null;
   } catch (err) {
     await cleanupAttachment(supabase, upload.uploadedPath);
     return {
       error: `No se pudo guardar la nota: ${err instanceof Error ? err.message : "error desconocido"}`,
     };
+  }
+
+  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
+  // never clean up an already-persisted event; the helper swallows its own errors).
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "note_added",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
   }
 
   return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };

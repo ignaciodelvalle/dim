@@ -91,3 +91,71 @@ describe("VaccinationForm — vaccine combobox (Cowork B10)", () => {
     expect(input.value).toBe("Vacuna experimental X");
   });
 });
+
+// Cowork B10 (a11y follow-up) — keyboard support. The list opened on focus but
+// could only be operated with the mouse: options selected on onMouseDown (a
+// keyboard "click" on a <button> never fires that), Tab was eaten by onBlur, and
+// there was no active-option highlight or Escape. The combobox now mirrors the
+// LocalityPickerAcross keyboard layer: ArrowDown/ArrowUp move an active index,
+// Enter selects the active option, Escape closes — free text still allowed.
+describe("VaccinationForm — vaccine combobox keyboard support (Cowork B10 a11y)", () => {
+  it("Enter selects the active (first) option when the list is open", () => {
+    render(React.createElement(VaccinationForm, { action: noopAction, species: "dog" }));
+
+    const input = screen.getByPlaceholderText(/Empezá a tipear/i) as HTMLInputElement;
+    fireEvent.focus(input);
+    // First dog vaccine in the catalog leads and is active on open.
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input.value).toBe("Antirrábica");
+    expect(screen.queryByRole("button", { name: /Antirrábica/i })).toBeNull();
+  });
+
+  it("ArrowDown moves the active option and Enter selects it", () => {
+    render(React.createElement(VaccinationForm, { action: noopAction, species: "dog" }));
+
+    const input = screen.getByPlaceholderText(/Empezá a tipear/i) as HTMLInputElement;
+    fireEvent.focus(input);
+    // idx 0 = Antirrábica, idx 1 = Séxtuple (DHPPi-L).
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input.value).toBe("Séxtuple (DHPPi-L)");
+  });
+
+  it("ArrowUp does not move past the top of the list", () => {
+    render(React.createElement(VaccinationForm, { action: noopAction, species: "dog" }));
+
+    const input = screen.getByPlaceholderText(/Empezá a tipear/i) as HTMLInputElement;
+    fireEvent.focus(input);
+    // Already at idx 0; ArrowUp clamps, Enter still picks the first option.
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input.value).toBe("Antirrábica");
+  });
+
+  it("Escape closes the list without changing the value", () => {
+    render(React.createElement(VaccinationForm, { action: noopAction, species: "dog" }));
+
+    const input = screen.getByPlaceholderText(/Empezá a tipear/i) as HTMLInputElement;
+    fireEvent.focus(input);
+    expect(screen.getByRole("button", { name: /Antirrábica/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(screen.queryByRole("button", { name: /Antirrábica/i })).toBeNull();
+    expect(input.value).toBe("");
+  });
+
+  it("keyboard selection works on a typed filter (Enter picks the match)", () => {
+    render(React.createElement(VaccinationForm, { action: noopAction, species: "dog" }));
+
+    const input = screen.getByPlaceholderText(/Empezá a tipear/i) as HTMLInputElement;
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "anti" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(input.value).toBe("Antirrábica");
+  });
+});

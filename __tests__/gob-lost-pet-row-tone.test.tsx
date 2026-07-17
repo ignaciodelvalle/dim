@@ -24,8 +24,12 @@ vi.mock("next/link", () => ({
 }));
 
 import { LostPetRow } from "@/app/gob/perdidas/_components/LostPetRow";
+import { lostTimeLabel } from "@/lib/infra/lost-listing";
 
-function renderRow(petStatus: string): string {
+function renderRow(
+  petStatus: string,
+  markedLostAt: Date = new Date("2026-07-01T12:00:00Z"),
+): string {
   return renderToStaticMarkup(
     <LostPetRow
       pet={{
@@ -36,7 +40,7 @@ function renderRow(petStatus: string): string {
         petStatus,
         province: "Buenos Aires",
         locality: "La Plata",
-        markedLostAt: new Date("2026-07-01T12:00:00Z"),
+        markedLostAt,
         lastSeenLat: null,
         lastSeenLng: null,
         ownerDisplayName: null,
@@ -56,5 +60,27 @@ describe("gob LostPetRow — situation tone alignment (R7.1)", () => {
   it("active pill keeps the ok family", () => {
     const html = renderRow("active");
     expect(html).toContain("st-ok");
+  });
+});
+
+// Cowork B2 (consistency) — the row's "hace X" recency copy must come from the
+// single shared vocabulary (lostTimeLabel), not a third inline formatter. The old
+// local formatter said "hace minutos" under one hour and bucketed differently;
+// the shared one says "recién" / "hace N min". Lock the shared output so the row
+// can't drift back to a private formatter.
+describe("gob LostPetRow — shared lost-time vocabulary (Cowork B2)", () => {
+  it("renders lostTimeLabel output, not the retired 'hace minutos' copy", () => {
+    const fortyFiveMinAgo = new Date(Date.now() - 45 * 60 * 1000);
+    const html = renderRow("lost", fortyFiveMinAgo);
+    expect(html).toContain(lostTimeLabel(fortyFiveMinAgo));
+    expect(html).toContain("hace 45 min");
+    expect(html).not.toContain("hace minutos");
+  });
+
+  it("uses 'recién' for a just-lost pet (shared helper), never 'hace minutos'", () => {
+    const justNow = new Date(Date.now() - 30 * 1000);
+    const html = renderRow("lost", justNow);
+    expect(html).toContain("recién");
+    expect(html).not.toContain("hace minutos");
   });
 });

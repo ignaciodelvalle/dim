@@ -237,7 +237,7 @@ export default async function GobModeracionPage({
               <li key={r.id}>
                 <OpCard accent="warn">
                   <Link
-                    href={`/gob/moderacion/${r.id}`}
+                    href={`/gob/moderacion/${r.referenceCode}`}
                     className="block no-underline transition-colors hover:bg-ln-op-stripe"
                   >
                     <OpCardBody>

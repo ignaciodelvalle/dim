@@ -78,11 +78,38 @@ export function VaccinationForm({
   // A real app-controlled combobox opens on focus and filters as you type; free
   // text stays allowed (the input value is untouched).
   const [vaccineOpen, setVaccineOpen] = useState(false);
+  // Active-option index for keyboard navigation (mirrors LocalityPickerAcross).
+  const [vaccineActiveIdx, setVaccineActiveIdx] = useState(0);
   const vaccineMatches = useMemo(() => {
     const q = vaccineName.trim().toLowerCase();
     if (!q) return vaccines;
     return vaccines.filter((v) => v.name.toLowerCase().includes(q));
   }, [vaccineName, vaccines]);
+
+  function pickVaccine(name: string) {
+    setVaccineName(name);
+    setVaccineOpen(false);
+  }
+
+  // Keyboard layer ported from LocalityPickerAcross.handleKey: ArrowDown/ArrowUp
+  // move the active index, Enter selects the active match, Escape closes. Guarded
+  // so a closed/empty list lets Enter fall through to normal form submission.
+  function handleVaccineKey(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!vaccineOpen || vaccineMatches.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setVaccineActiveIdx((i) => Math.min(i + 1, vaccineMatches.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setVaccineActiveIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = vaccineMatches[vaccineActiveIdx];
+      if (pick) pickVaccine(pick.name);
+    } else if (e.key === "Escape") {
+      setVaccineOpen(false);
+    }
+  }
   const [nextDueAt, setNextDueAt] = useState("");
   const [nextDueOverridden, setNextDueOverridden] = useState(false);
   const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
@@ -133,12 +160,17 @@ export function VaccinationForm({
                   placeholder="Empezá a tipear o elegí…"
                   autoComplete="off"
                   value={vaccineName}
-                  onFocus={() => setVaccineOpen(true)}
+                  onFocus={() => {
+                    setVaccineActiveIdx(0);
+                    setVaccineOpen(true);
+                  }}
                   // Delay close so a click/tap on an option registers before the
                   // list unmounts (the option uses onMouseDown, which fires first).
                   onBlur={() => window.setTimeout(() => setVaccineOpen(false), 120)}
+                  onKeyDown={handleVaccineKey}
                   onChange={(e) => {
                     setVaccineName(e.target.value);
+                    setVaccineActiveIdx(0);
                     setVaccineOpen(true);
                   }}
                   aria-describedby={describedBy}
@@ -146,7 +178,7 @@ export function VaccinationForm({
                 />
                 {vaccineOpen && vaccineMatches.length > 0 && (
                   <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] py-1 shadow-lg">
-                    {vaccineMatches.map((v) => (
+                    {vaccineMatches.map((v, i) => (
                       <li key={v.name}>
                         <button
                           type="button"
@@ -154,10 +186,14 @@ export function VaccinationForm({
                           // input's onBlur closes the list; preventDefault keeps focus.
                           onMouseDown={(e) => {
                             e.preventDefault();
-                            setVaccineName(v.name);
-                            setVaccineOpen(false);
+                            pickVaccine(v.name);
                           }}
-                          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-sm)] text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+                          onMouseEnter={() => setVaccineActiveIdx(i)}
+                          className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-sm)] text-[var(--color-ln-ink)] transition-colors ${
+                            i === vaccineActiveIdx
+                              ? "bg-[var(--color-ln-stripe)]"
+                              : "hover:bg-[var(--color-ln-stripe)]"
+                          }`}
                         >
                           <span>{v.name}</span>
                           {v.isCore && (

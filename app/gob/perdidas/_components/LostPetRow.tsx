@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { OpPill } from "@/components/ui/dashboard";
 import type { LostPetRow as LostPetRowData } from "@/lib/analytics/govt-dashboards";
+import { lostTimeLabel } from "@/lib/infra/lost-listing";
 import { speciesLabel } from "@/lib/utils/format";
 
 type LostPetRowProps = {
@@ -10,21 +11,6 @@ type LostPetRowProps = {
    *  Rendered as a link to the case detail inside the operator shell. */
   caseCode?: string;
 };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function formatRelative(date: Date | null): string {
-  if (!date) return "—";
-  const diffMs = Date.now() - date.getTime();
-  const days = Math.floor(diffMs / DAY_MS);
-  if (days <= 0) {
-    const hours = Math.floor(diffMs / (60 * 60 * 1000));
-    return hours <= 0 ? "hace minutos" : `hace ${hours} h`;
-  }
-  if (days < 30) return `hace ${days} días`;
-  const months = Math.floor(days / 30);
-  return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
-}
 
 const STATUS_LABEL: Record<string, string> = {
   lost: "Perdida",
@@ -91,7 +77,7 @@ export function LostPetRow({ pet, caseCode }: LostPetRowProps) {
           )}
         </div>
         <div className="text-right space-y-1 whitespace-nowrap">
-          <p className="text-sm text-ln-op-mute tabular-nums">{formatRelative(pet.markedLostAt)}</p>
+          <p className="text-sm text-ln-op-mute tabular-nums">{lostTimeLabel(pet.markedLostAt)}</p>
           <Link
             href={`/p/${pet.petPublicToken}`}
             className="inline-block text-sm underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink"
