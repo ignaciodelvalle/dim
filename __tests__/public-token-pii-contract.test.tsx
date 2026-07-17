@@ -301,6 +301,7 @@ function buildSequencedSelectChain(sequence: unknown[][]) {
       limit: vi.fn(async () => sequence[idx] ?? []),
       // Thenable: the amendments query (getAmendmentEvents, always-run
       // semaphore path) awaits the chain directly with no .limit().
+      // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mocks drizzle's awaitable query chain
       then: (
         onFulfilled?: (value: unknown) => unknown,
         onRejected?: (reason: unknown) => unknown,

@@ -289,7 +289,6 @@ export default async function OrgPetDetailPage({
         {orgSituation && (
           <div
             data-section="org-situation-strip"
-            role="status"
             className={`flex items-center gap-2 rounded-[var(--radius-sm)] border border-l-[3px] px-4 py-2.5 text-md font-semibold ${OP_TONE_CLASSES[orgSituation.tone]}`}
           >
             <Icon name={orgSituation.icon} size="sm" decorative />

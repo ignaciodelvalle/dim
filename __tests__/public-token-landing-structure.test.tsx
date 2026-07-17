@@ -181,6 +181,7 @@ function buildSelectChain(firstResult: unknown[]) {
       callCount++;
       return callCount === 1 ? firstResult : [];
     }),
+    // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mocks drizzle's awaitable query chain
     then: (
       onFulfilled?: (value: unknown[]) => unknown,
       onRejected?: (reason: unknown) => unknown,
