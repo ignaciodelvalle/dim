@@ -520,9 +520,8 @@ describe("thin actions parity — finalizeAdoptionAction", () => {
     expect(result).toEqual({ error: "Mascota no encontrada." });
   });
 
-  it("flushes notifications and redirects on success", async () => {
+  it("flushes notifications and returns redirectTo to the org LIST on success", async () => {
     const { db } = await import("@/db");
-    const { redirect } = await import("next/navigation");
     mockRequireCapability.mockResolvedValue(makeAuth());
     finalizeAdoptionUc.mockResolvedValue({
       ok: true,
@@ -532,9 +531,16 @@ describe("thin actions parity — finalizeAdoptionAction", () => {
     const formData = new FormData();
     formData.append("adopterDni", "12345678");
     formData.append("adopterDisplayName", "Juan Pérez");
-    await finalizeAdoptionAction("org-tok", "pet-tok", { error: null }, formData);
+    const result = await finalizeAdoptionAction("org-tok", "pet-tok", { error: null }, formData);
     expect(db.insert).toHaveBeenCalled();
-    expect(redirect).toHaveBeenCalledWith("/org/org-tok/mascotas?adopcion=pet-tok");
+    // The action must NOT call redirect() (its transition is dropped by the
+    // Next 15.5.x router). It returns redirectTo instead, and the destination
+    // is the custody LIST — never the transferred pet's now-404 ficha.
+    expect(result).toEqual({
+      error: null,
+      redirectTo: "/org/org-tok/mascotas?adopcion=pet-tok",
+    });
+    expect(result.redirectTo).not.toContain("/mascotas/pet-tok");
   });
 
   it("does NOT flush notifications when empty (no db.insert for empty array)", async () => {

@@ -23,7 +23,6 @@ import {
 } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 import { finalizeAdoption } from "./application/finalize-adoption";
 import {
@@ -499,6 +498,19 @@ export async function requestInfoAdoptionApplicationAction(
 
 export type FinalizeAdoptionFormState = {
   error: string | null;
+  /**
+   * On success, the URL the calling form must navigate to via a FULL document
+   * navigation (lib/ui/use-action-redirect.ts). This action no longer calls
+   * next/navigation's redirect(): its post-action transition is silently
+   * dropped by the Next 15.5.x client router (engram #621/#622; see
+   * lib/ui/full-page-action-nav.ts for the mechanism). The dropped redirect
+   * left the "Finalizando adopción…" button stuck indefinitely even though the
+   * adoption had already committed server-side, and stranded the operator on
+   * the transferred pet's now-404 ficha (QA ALTO, 2026-07-16). The destination
+   * is the org custody LIST (?adopcion=<token> success banner) — never the
+   * transferred pet's ficha, which the org no longer has custody of.
+   */
+  redirectTo?: string;
 };
 
 export async function finalizeAdoptionAction(
@@ -579,5 +591,10 @@ export async function finalizeAdoptionAction(
     revalidatePath("/mis-mascotas/postulaciones");
   }
 
-  redirect(`/org/${orgToken}/mascotas?adopcion=${publicToken}`);
+  // Land on the org custody LIST with its success banner — NOT the transferred
+  // pet's ficha (the org lost custody, so that route now 404s). A full document
+  // navigation via the form (useActionRedirect) is the one path immune to the
+  // Next 15.5.x router-drop defect (see the redirectTo docblock above).
+  revalidatePath(`/org/${orgToken}/mascotas`);
+  return { error: null, redirectTo: `/org/${orgToken}/mascotas?adopcion=${publicToken}` };
 }

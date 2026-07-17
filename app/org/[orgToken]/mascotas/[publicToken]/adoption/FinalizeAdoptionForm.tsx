@@ -2,6 +2,7 @@
 
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import {
   type FinalizeAdoptionFormState,
   finalizeAdoptionAction,
@@ -28,6 +29,10 @@ export function FinalizeAdoptionForm({
 }) {
   const action = finalizeAdoptionAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // On success the action returns `redirectTo`; navigate via a full document
+  // load (immune to the Next 15.5.x router-drop that stranded this flow — see
+  // the FinalizeAdoptionFormState.redirectTo docblock).
+  useActionRedirect(state.redirectTo);
 
   const hasApproved = approvedApplications.length > 0;
   // Default to the approved-application path when one exists — it transfers the

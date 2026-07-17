@@ -76,7 +76,41 @@ export default async function OrgPetDetailPage({
     )
     .limit(1);
 
-  if (!petRow) notFound();
+  if (!petRow) {
+    // The org has no active ownership row on this pet. Distinguish "the pet
+    // genuinely does not exist" (→ 404) from "the pet exists but left this
+    // org's custody" (e.g. a finalized adoption or transfer). The latter is a
+    // stale in-app link and deserves a confirming state, not a bare dead-end
+    // 404 (QA ALTO, 2026-07-16). Existence by publicToken is already public
+    // (Tier-0 credential, /p/[token]), so this leaks nothing new.
+    const [stillExists] = await db
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, publicToken))
+      .limit(1);
+    if (!stillExists) notFound();
+
+    return (
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
+        <div className="max-w-md text-center space-y-4">
+          <Icon name="check-circle" className="mx-auto text-ln-op-ok" decorative />
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Esta mascota ya no está bajo tu custodia
+          </h1>
+          <p className="text-[13px] text-ln-op-ink-2">
+            Pasó a un nuevo dueño o fue transferida, así que salió del listado de tu organización.
+            Es el resultado esperado de una adopción o transferencia finalizada.
+          </p>
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+          >
+            Volver al listado
+          </Link>
+        </div>
+      </main>
+    );
+  }
   const { pet, ownershipRole } = petRow;
 
   // Active foster name (for the fin-transito sheet).
