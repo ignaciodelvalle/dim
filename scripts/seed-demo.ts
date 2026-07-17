@@ -117,6 +117,7 @@ type DbDeps = {
     organizationMemberships: any;
     organizationCoverage: any;
     govtAssignments: any;
+    arLocalities: any;
     attachments: any;
     petServiceDog: any;
     reminders: any;
@@ -150,6 +151,8 @@ async function loadDbDeps(): Promise<DbDeps> {
       organizationMemberships: db.organizationMemberships,
       organizationCoverage: db.organizationCoverage,
       govtAssignments: db.govtAssignments,
+      // Read-only here: the source of truth for Lucas's East-region localities.
+      arLocalities: db.arLocalities,
       attachments: db.attachments,
       petServiceDog: db.petServiceDog,
       reminders: db.reminders,
@@ -289,13 +292,45 @@ export const ORGS = {
 
 export type OrgKey = keyof typeof ORGS;
 
-const GOVT_ASSIGNMENTS = [
-  { province: "CABA", locality: "Retiro" },
-  { province: "CABA", locality: "Puerto Madero" },
-  { province: "CABA", locality: "San Nicolás" },
-  { province: "CABA", locality: "Recoleta" },
-  { province: "CABA", locality: "Palermo" },
-];
+// Lucas is the REGIONAL coordinator for the East: CABA + Buenos Aires + the
+// litoral up to Formosa. He is the scale case — the operator whose every scoped
+// query fans out across ~1.8k localities, which is what makes him worth having.
+//
+// Why every locality and not "the whole province": whole-province assignment
+// exists for CABA ONLY (lib/domain/jurisdiction-canonical.ts
+// WHOLE_PROVINCE_LOCALITY), and it works there because "Ciudad Autónoma de
+// Buenos Aires" is a real INDEC single-entry locality. The other provinces have
+// no such row — their obvious sentinels ("Formosa", "Corrientes", "Santa Fe")
+// are the CAPITAL CITIES. Adding `Formosa: "Formosa"` to that map would silently
+// hand the whole province to every official who only holds the capital. So the
+// province-grain model does not exist yet; enumerating localities is the honest
+// encoding available today, and it is also the load test.
+//
+// Order matters for nothing here, but the province list is deliberate: these are
+// contiguous and they are the ones with real seeded volume.
+const EAST_REGION_PROVINCES = [
+  "CABA",
+  "Buenos Aires",
+  "Santa Fe",
+  "Entre Ríos",
+  "Corrientes",
+  "Misiones",
+  "Chaco",
+  "Formosa",
+] as const;
+
+// Province NAME → INDEC province_code, to read localities out of ar_localities.
+// pets/cases store the name; ar_localities keys by code.
+const EAST_REGION_PROVINCE_CODES: Readonly<Record<string, string>> = {
+  CABA: "AR-C",
+  "Buenos Aires": "AR-B",
+  "Santa Fe": "AR-S",
+  "Entre Ríos": "AR-E",
+  Corrientes: "AR-W",
+  Misiones: "AR-N",
+  Chaco: "AR-H",
+  Formosa: "AR-P",
+};
 
 const PHOTO_DIR_ABS = path.join(process.cwd(), "docs", "archive", "Fotos");
 
@@ -509,14 +544,40 @@ async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
   return ids as Record<UserKey, string>;
 }
 
+/**
+ * Every (province, locality) pair in the East region, read from ar_localities.
+ *
+ * Derived, never hardcoded: the locality list is INDEC data that lives in the
+ * DB, and a literal copy here would rot the first time that table is refreshed.
+ */
+async function eastRegionJurisdictions(
+  deps: DbDeps,
+): Promise<{ province: string; locality: string }[]> {
+  const { db, drizzle, schemas } = deps;
+  const out: { province: string; locality: string }[] = [];
+  for (const province of EAST_REGION_PROVINCES) {
+    const code = EAST_REGION_PROVINCE_CODES[province];
+    const rows = await db
+      .selectDistinct({ locality: schemas.arLocalities.localityName })
+      .from(schemas.arLocalities)
+      .where(drizzle.eq(schemas.arLocalities.provinceCode, code));
+    for (const r of rows) out.push({ province, locality: r.locality });
+  }
+  return out;
+}
+
 async function provisionGovtAssignments(
   deps: DbDeps,
   lucasId: string,
   adminId: string,
 ): Promise<void> {
-  log("STEP", "Lucas govt assignments — CABA Comunas 1/2/14");
+  const assignments = await eastRegionJurisdictions(deps);
+  log(
+    "STEP",
+    `Lucas govt assignments — región Este (${EAST_REGION_PROVINCES.length} provincias, ${assignments.length} localidades)`,
+  );
   const { db, drizzle, schemas } = deps;
-  for (const loc of GOVT_ASSIGNMENTS) {
+  for (const loc of assignments) {
     const [existing] = await db
       .select({ id: schemas.govtAssignments.id })
       .from(schemas.govtAssignments)
