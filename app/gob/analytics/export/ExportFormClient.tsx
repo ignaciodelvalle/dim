@@ -120,7 +120,7 @@ export function ExportFormClient({
       </fieldset>
 
       <LnButton type="submit" disabled={pending}>
-        {pending ? "Generando…" : "Generar export"}
+        {pending ? "Generando…" : "Generar exportación"}
       </LnButton>
 
       {/* Error state */}
@@ -133,13 +133,13 @@ export function ExportFormClient({
       {/* Success state: show download link */}
       {state.status === "ok" && (
         <div className="space-y-3 rounded-lg border border-ln-op-line bg-ln-op-card p-4">
-          <p className="text-[13px] font-medium text-ln-op-ink">Export listo</p>
+          <p className="text-[13px] font-medium text-ln-op-ink">Exportación lista</p>
           <a
             href={state.signedUrl}
             download
             className="inline-flex items-center gap-1 text-[13px] font-medium text-ln-op-azul underline underline-offset-2 hover:opacity-80"
           >
-            Descargar export →
+            Descargar exportación →
           </a>
           <p className="text-sm text-ln-op-mute">
             Este link vence en 24 horas (Ley 25.326 de Proteccion de Datos Personales).

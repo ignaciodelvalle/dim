@@ -206,4 +206,18 @@ describe("PublicLostSections — phone-privacy note (Cowork I1 / Cursor IDEA)", 
     expect(noChannels).not.toContain(PRIVACY_LINE);
     expect(noChannels).toContain("no tiene canales de contacto");
   });
+
+  // Email-only edge state (Cursor/Cowork staging triage 2026-07-17): phone hidden,
+  // email disclosed, NO finder form and NO sighting form. The credential must show
+  // ONLY the email CTA — never a call CTA, never the phone-privacy line (there is no
+  // aviso path to point at), and never the no-channels warning (a working mailto is a
+  // channel, so claiming "no channels" would lie). Behavior confirmed correct in the
+  // 2026-07-16 review but previously untested.
+  it("email-only state: shows ONLY the email CTA — no call CTA, no privacy line, no no-channels warning", () => {
+    const html = render({ ownerEmail: "lucia@example.test" });
+    expect(html).toContain('href="mailto:lucia@example.test"');
+    expect(html).not.toContain('href="tel:');
+    expect(html).not.toContain(PRIVACY_LINE);
+    expect(html).not.toContain("no tiene canales de contacto");
+  });
 });
