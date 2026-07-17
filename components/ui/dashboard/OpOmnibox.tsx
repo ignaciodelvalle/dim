@@ -33,6 +33,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
 import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
 import type { CaseStatus } from "@/db/schema";
+import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import type { OmniboxResult, OmniboxResults } from "@/lib/infra/omnibox-search";
 import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 import { speciesLabel } from "@/lib/utils/format";
@@ -40,10 +41,6 @@ import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const DEBOUNCE_MS = 250;
 const MIN_QUERY_LENGTH = 2;
-
-// Mirrors DIM_TOKEN_PATTERN in lib/infra/omnibox-search.ts. Used only to tailor
-// the empty-state hint — the server owns the actual matching.
-const DIM_TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
 // Person-result role labels (same values as profiles.role across the app).
 const ROLE_LABELS: Record<string, string> = {

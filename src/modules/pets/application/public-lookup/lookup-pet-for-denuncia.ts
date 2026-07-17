@@ -14,13 +14,13 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { db, ownerships, pets, profiles } from "@/db";
+import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 import type { PublicLookupResult } from "./types";
 
 const MICROCHIP_PATTERN = /^\d{15}$/;
-const TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
 async function callerIpAddress(): Promise<string> {
   try {
@@ -70,7 +70,7 @@ export async function lookupPetForDenuncia(query: string): Promise<PublicLookupR
   }
 
   // Token path — direct query against pets.public_token + leftJoin owner.
-  if (TOKEN_PATTERN.test(trimmed)) {
+  if (DIM_TOKEN_PATTERN.test(trimmed)) {
     const [row] = await db
       .select({
         petName: pets.name,

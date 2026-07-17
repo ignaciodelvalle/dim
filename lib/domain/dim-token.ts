@@ -2,9 +2,8 @@
 //
 // `DIM-XXXX-XXXX` — the credential token that resolves to a pet's public page.
 // Invariant #1 ("the pet is the credential") makes this shape load-bearing, so
-// it had drifted into three private copies: lib/infra/omnibox-search.ts,
-// components/ui/dashboard/OpOmnibox.tsx, and
-// src/modules/decomiso/application/decomiso-pet-lookup/lookup-pet-for-decomiso.ts.
+// it had drifted into five private copies (omnibox server + client, decomiso
+// lookup, denuncia public lookup, Atender access) — all now import from here.
 //
 // This module holds NO dependencies on purpose: the omnibox needs the shape on
 // both sides of the wire, and the server module that used to own it imports the

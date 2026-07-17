@@ -26,6 +26,7 @@
 import { and, eq, ilike, or, sql } from "drizzle-orm";
 
 import { cases, db, ownerships, petIdentifications, pets, welfareReports } from "@/db";
+import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import { searchUsers } from "@/lib/infra/admin-search";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
@@ -34,10 +35,6 @@ import { likeContains } from "@/lib/utils/like-helpers";
 // Per-type cap. The dropdown only ever shows a handful of rows per group; a low
 // cap keeps the query cheap and the PII surface small.
 const PER_TYPE_LIMIT = 5;
-
-// DIM token shape: DIM-XXXX-XXXX (case-insensitive). Used to detect when the
-// query is an exact-token lookup vs a free-text name search.
-const DIM_TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
 export type OmniboxScope =
   | { role: "admin" }

@@ -47,12 +47,14 @@ Escaneaste un QR en una chapita.
 Lucas ahora coordina la **región Este**: CABA, Buenos Aires, Santa Fe, Entre Ríos, Corrientes,
 Misiones, Chaco y Formosa — 1.775 localidades.
 
-- **2a.** Abrí `/gob/panorama` **sin tocar nada**. Debería abrir en la vista de **riesgo
-  combinado (bivariado)**. **Anotá:** ¿abrió en bivariado? ¿cuánto tardó en pintar? ¿el mapa
-  muestra datos o está en blanco?
+- **2a.** Abrí `/gob/panorama` **sin tocar nada**. Debería abrir en **Síntomas / vigilancia
+  sindrómica**. **Anotá:** ¿en qué vista abrió? ¿cuánto tardó en pintar? ¿el mapa muestra datos
+  o está en blanco?
 - **2b.** ¿La etiqueta de alcance dice cuántas jurisdicciones tenés, o dice una provincia a secas?
-- **2c.** El bivariado cruza **cobertura × zoonosis**. ¿La leyenda te explica qué significa cada
-  color, o tenés que adivinar? ¿Podés decir en voz alta qué zona está peor y por qué?
+- **2c.** Abrí `/gob/panorama?preset=brotes-activos`. Debería abrir en la vista de **riesgo
+  combinado (bivariado)**, que cruza **cobertura × zoonosis**. ¿La leyenda te explica qué
+  significa cada color, o tenés que adivinar? ¿Podés decir en voz alta qué zona está peor y por
+  qué?
 - **2d.** Hacé zoom hasta departamentos. **Anotá el número que muestra el popup fijo.** ¿Tiene `%`?
   ¿Y el panel lateral dice lo mismo que el popup? **Si difieren, es CRÍTICO.**
 - **2e.** Mirá el pie de la vista. ¿Qué período declara? ¿Coincide con lo que dice la métrica?

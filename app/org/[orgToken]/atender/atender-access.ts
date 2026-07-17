@@ -24,6 +24,7 @@
 // self-contained; keep the two in sync.
 
 import { db, organizationMemberships, organizations, pets, profiles } from "@/db";
+import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 import {
   type RateLimitConfig,
@@ -41,9 +42,9 @@ import { headers } from "next/headers";
 // must exist because the DIM code is public → the lookup is an existence-oracle.
 const ATENDER_LOOKUP_LIMIT: RateLimitConfig = { maxPerMinute: 20, maxPerHour: 100 };
 
-// DIM credential token shape: DIM-XXXX-XXXX (case-insensitive). Mirrors the
-// pattern used by the govt decomiso lookup (lookup-pet-for-decomiso.ts).
-export const ATENDER_TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
+// Re-exported under the Atender name so call sites keep reading in terms of
+// this boundary; the shape itself is owned by lib/domain/dim-token.ts.
+export const ATENDER_TOKEN_PATTERN = DIM_TOKEN_PATTERN;
 
 /** Normalize a raw credential code for lookup (trim + upper-case). */
 export function normalizeAtenderToken(raw: string): string {

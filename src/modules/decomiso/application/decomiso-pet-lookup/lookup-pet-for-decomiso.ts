@@ -15,12 +15,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships, pets, profiles } from "@/db";
+import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import type { DecomisoPrincipalSession } from "@/lib/infra/auth-guards";
 
 import type { GovtPetLookupResult } from "./types";
-
-const TOKEN_PATTERN = /^DIM-[A-Z0-9]{4}-[A-Z0-9]{4}$/i;
 
 export async function lookupPetForDecomiso(
   session: DecomisoPrincipalSession,
@@ -28,7 +27,7 @@ export async function lookupPetForDecomiso(
 ): Promise<GovtPetLookupResult> {
   const trimmed = query.trim().toUpperCase();
   if (!trimmed) return { found: false, error: "Ingresá un token de mascota." };
-  if (!TOKEN_PATTERN.test(trimmed)) {
+  if (!DIM_TOKEN_PATTERN.test(trimmed)) {
     return { found: false, error: "El formato del token es DIM-XXXX-XXXX." };
   }
 
