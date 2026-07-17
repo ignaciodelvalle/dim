@@ -51,6 +51,29 @@ export function divisionReadoutDataType(dataType: ReadoutDataType): ReadoutDataT
   return dataType === "rate" ? "density" : dataType;
 }
 
+/** es-AR qualifier appended to a readout label once its value is a raw COUNT that
+ *  a same-named scope-level readout shows as a percentage. */
+export const COUNT_READOUT_SUFFIX = " (conteo)";
+
+/**
+ * Label for a readout whose value has been DEMOTED to a raw count at division grain
+ * (the divisionReadoutDataType swap). The SINGLE choke point for the demoted label:
+ * render sites pass the demotion flag they already compute; the label transform lives
+ * here so it is unit-testable and can never drift between the division popup and the
+ * point-circle popup.
+ *
+ * WHY (QA ronda, 2026-07-16): a drilled department popup shows the rate layer's raw
+ * count ("Cobertura antirrábica: 72") while the scope-level side panel shows the same
+ * layer's province/scope percentage ("Cobertura antirrábica · 64,3%"). SAME label,
+ * DIFFERENT unit, not comparable — both testers flagged it. The PO fix differentiates
+ * the LABELS, not the data: the demoted count keeps its layer name but gains the
+ * "(conteo)" qualifier so the reader sees it is a count, while the scope panel keeps
+ * the "%" label untouched. A non-demoted readout keeps its label verbatim.
+ */
+export function countReadoutLabel(label: string, demotedToCount: boolean): string {
+  return demotedToCount ? `${label}${COUNT_READOUT_SUFFIX}` : label;
+}
+
 /** Format a value with its unit. Rate layers read as a percentage ("64,4%");
  * every other type is a plain es-AR-grouped count ("1.234"). */
 export function formatValueWithUnit(value: number, dataType: ReadoutDataType): string {
@@ -79,12 +102,21 @@ export function buildLayerReadout(input: {
   suppressed?: boolean;
   dataType?: ReadoutDataType;
   complianceTarget?: number;
+  /**
+   * True when this readout is a rate layer DEMOTED to a raw count at division grain
+   * (its `dataType` was already run through divisionReadoutDataType). The label gains
+   * the "(conteo)" qualifier so it never reads as the scope-level percentage under the
+   * SAME name (QA ronda 2026-07-16). Applies to every value state (value/suppressed/
+   * nodata) so the demoted layer's name is consistent across the readout.
+   */
+  demotedToCount?: boolean;
 }): LayerReadout {
+  const label = countReadoutLabel(input.label, input.demotedToCount === true);
   if (input.suppressed === true) {
-    return { label: input.label, valueText: null, state: "suppressed" };
+    return { label, valueText: null, state: "suppressed" };
   }
   if (input.value === null) {
-    return { label: input.label, valueText: null, state: "nodata" };
+    return { label, valueText: null, state: "nodata" };
   }
   const valueText = formatValueWithUnit(input.value, input.dataType);
   // P2: the isMeta predicate reads the ONE shared registry helper (the gate's
@@ -92,7 +124,7 @@ export function buildLayerReadout(input: {
   const metaText = isMetaLayer(input)
     ? formatMetaGap(input.value, input.complianceTarget)
     : undefined;
-  return { label: input.label, valueText, metaText };
+  return { label, valueText, metaText };
 }
 
 /** es-AR copy for a null-value state. */

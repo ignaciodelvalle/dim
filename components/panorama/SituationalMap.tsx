@@ -2332,6 +2332,9 @@ export function SituationalMap({
           // ...and a rate's compliance target ("meta 80%") means nothing against
           // a raw count, so it must not ride along either.
           complianceTarget: l.dataType === "rate" ? undefined : l.complianceTarget,
+          // ...and the LABEL must say it is a count, or a demoted "72" sits under the
+          // SAME name as the scope panel's "64,3%" (QA ronda 2026-07-16, PO fix).
+          demotedToCount: l.dataType === "rate",
         }),
       );
     }
@@ -2388,6 +2391,9 @@ export function SituationalMap({
           dataType: isDrilledChoropleth ? divisionReadoutDataType(l.dataType) : l.dataType,
           complianceTarget:
             isDrilledChoropleth && l.dataType === "rate" ? undefined : l.complianceTarget,
+          // Same demotion as divisionReadouts: a locality-choropleth-as-circles rate
+          // value is a raw count, so its label must say "(conteo)" (QA ronda 2026-07-16).
+          demotedToCount: isDrilledChoropleth && l.dataType === "rate",
         }),
       );
     }
