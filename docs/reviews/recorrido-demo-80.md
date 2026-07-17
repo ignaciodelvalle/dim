@@ -45,7 +45,7 @@ Escaneaste un QR en una chapita.
 ## ACTO 2 · El ministro pide un informe (`lucas@dim.test` → `/gob/panorama`)
 
 Lucas ahora coordina la **región Este**: CABA, Buenos Aires, Santa Fe, Entre Ríos, Corrientes,
-Misiones, Chaco y Formosa — 1.775 localidades.
+Misiones, Chaco y Formosa — 1.774 localidades.
 
 - **2a.** Abrí `/gob/panorama` **sin tocar nada**. Debería abrir en **Síntomas / vigilancia
   sindrómica**. **Anotá:** ¿en qué vista abrió? ¿cuánto tardó en pintar? ¿el mapa muestra datos
