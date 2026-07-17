@@ -30,6 +30,7 @@ import {
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import { Icon } from "@/components/Icon";
+import type { ChromeSituation } from "@/components/pet-profile/DocumentChrome";
 import { FlipCard, PET_FACE_PANEL_ID, PET_FACE_TAB_ID } from "@/components/pet-profile/FlipCard";
 import {
   LibretaFace,
@@ -107,6 +108,12 @@ type Props = {
    * does not go through the deferred `getLibretaFaceData` fetch.
    */
   emergencyContacts?: LibretaFaceEmergencyContacts | null;
+  /**
+   * Pet situation for the document chrome band (pet-state-header) — server-
+   * derived, pre-gendered label. Threaded to FlipCard so BOTH faces carry the
+   * band tint + state chip. Null = default blue band.
+   */
+  situation?: ChromeSituation | null;
 };
 
 // ---------------------------------------------------------------------------
@@ -119,6 +126,7 @@ export function PetDetailTabsPanel({
   initialFace,
   isOwner,
   emergencyContacts,
+  situation,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -326,6 +334,7 @@ export function PetDetailTabsPanel({
         back={renderBackContent()}
         activeFace={activeFace}
         onFlip={switchFace}
+        situation={situation}
       />
     </div>
   );

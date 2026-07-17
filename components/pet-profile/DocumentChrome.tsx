@@ -14,8 +14,19 @@
 // tactile "turn" cue (disabled under prefers-reduced-motion via CSS).
 
 import { Icon } from "@/components/Icon";
+import type { PetSituationKey, PetSituationTone } from "@/lib/ui/pet-situation";
 import type { ReactNode } from "react";
 import type { FlipCardFace } from "./FlipCard";
+
+/** The band's situation payload (pet-state-header). The LABEL arrives already
+ *  gender-agreed (situationLabelForSex at the caller) so the chrome stays dumb
+ *  — it never re-derives copy, it just paints band + chip. */
+export type ChromeSituation = {
+  key: PetSituationKey;
+  tone: PetSituationTone;
+  label: string;
+  icon: string;
+};
 
 type DocumentChromeProps = {
   face: FlipCardFace;
@@ -24,10 +35,19 @@ type DocumentChromeProps = {
    *  turn button's aria-pressed so the flip control carries the toggle state
    *  the removed tab title bar used to own. */
   isLibretaActive: boolean;
+  /** Active pet situation — recolors the band (data-situation CSS variants)
+   *  and renders the state chip on BOTH faces. Null = default blue band. */
+  situation?: ChromeSituation | null;
   children: ReactNode;
 };
 
-export function DocumentChrome({ face, onFlip, isLibretaActive, children }: DocumentChromeProps) {
+export function DocumentChrome({
+  face,
+  onFlip,
+  isLibretaActive,
+  situation,
+  children,
+}: DocumentChromeProps) {
   const isCredencial = face === "credencial";
   const bandSubtitle = isCredencial ? "Credencial · frente" : "Libreta · dorso";
   const turnLabel = isCredencial ? "Dar vuelta" : "Ver credencial";
@@ -36,7 +56,7 @@ export function DocumentChrome({ face, onFlip, isLibretaActive, children }: Docu
   const turnAria = isCredencial ? "Girar a Libreta" : "Girar a Credencial";
 
   return (
-    <div className="ln-face">
+    <div className="ln-face" data-situation={situation?.key}>
       <div className="ln-frame" aria-hidden />
       <div className="ln-band" aria-hidden>
         <p className="ln-band-title">
@@ -44,6 +64,16 @@ export function DocumentChrome({ face, onFlip, isLibretaActive, children }: Docu
           <small>{bandSubtitle}</small>
         </p>
       </div>
+      {/* State chip — the band's textual situation carrier (icon + label, never
+          color alone). Sits over the band but OUTSIDE the aria-hidden wrapper
+          (same pattern as the turn button): on the back face this chip is the
+          ONLY textual carrier of the state, so it must be accessible text. */}
+      {situation && (
+        <span className="ln-band-chip" data-section="band-situation-chip">
+          <Icon name={situation.icon} size="sm" decorative />
+          {situation.label}
+        </span>
+      )}
       {/* Turn button sits over the band but outside the aria-hidden wrapper so
           it keeps its accessible name. */}
       <button

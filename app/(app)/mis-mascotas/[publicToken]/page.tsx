@@ -105,8 +105,14 @@ import {
   lnPetStatusFromCompliance,
   microchipHeroTag,
 } from "@/lib/projections/pet-compliance";
-import { derivePetSituation } from "@/lib/ui/pet-situation";
-import { ageFromDateOfBirth, formatDateShort, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { PET_SITUATIONS, derivePetSituation } from "@/lib/ui/pet-situation";
+import {
+  ageFromDateOfBirth,
+  formatDateShort,
+  sexLabel,
+  situationLabelForSex,
+  speciesLabel,
+} from "@/lib/utils/format";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
@@ -643,6 +649,20 @@ export default async function PetDetailPage({
     inTransit: isTransit,
   });
   const credentialSituation = !isDeceased && !petSituation.isDefault ? petSituation : null;
+  // Chrome band situation (pet-state-header) — the masthead carries the state
+  // on BOTH faces. One documented asymmetry vs the face body: DECEASED tints
+  // the band (memorial sepia + "Fallecido/a" chip) while CredentialFace still
+  // receives situation=null (the memorial skin owns the face body; the two
+  // skins never stack there — the band is chrome-owned).
+  const chromeSituationSource = isDeceased ? PET_SITUATIONS.fallecida : credentialSituation;
+  const chromeSituation = chromeSituationSource
+    ? {
+        key: chromeSituationSource.key,
+        tone: chromeSituationSource.tone,
+        icon: chromeSituationSource.icon,
+        label: situationLabelForSex(chromeSituationSource.label, pet.sex),
+      }
+    : null;
   // The situation pill carries the LABEL only ("Perdida"/"Preñada") — the date
   // suffix was dropped (owner-ia-redesign P1): LostCaseBlock and
   // PregnancyInProgressCard already show the date, so the pill repeating it
@@ -709,6 +729,7 @@ export default async function PetDetailPage({
         petPublicToken={pet.publicToken}
         initialFace={activeFace}
         isOwner={isOwner}
+        situation={chromeSituation}
         emergencyContacts={
           // owner-ia-redesign P2: pet-level override with account fallback.
           // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's

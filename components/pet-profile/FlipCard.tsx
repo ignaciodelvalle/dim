@@ -27,7 +27,7 @@
 // its loading skeleton to real content).
 
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { DocumentChrome } from "./DocumentChrome";
+import { type ChromeSituation, DocumentChrome } from "./DocumentChrome";
 
 export type FlipCardFace = "credencial" | "libreta";
 
@@ -48,6 +48,9 @@ type FlipCardProps = {
   activeFace: FlipCardFace;
   /** Toggles the face — wired by the caller (PetDetailTabsPanel.switchFace) to its ?tab= write. */
   onFlip: () => void;
+  /** Pet situation for the chrome band — threaded to BOTH DocumentChrome faces
+   *  so flipping the card never loses the state (pet-state-header). */
+  situation?: ChromeSituation | null;
 };
 
 function prefersReducedMotion(): boolean {
@@ -58,7 +61,7 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
+export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCardProps) {
   // `displayedFace` lags `activeFace` during the turn — it swaps at the edge-on
   // midpoint so the content change is invisible. Initialised to activeFace so
   // the FIRST render (server + client hydration) is identical and deterministic.
@@ -148,7 +151,12 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
               aria-hidden={!isCredencialShown}
               className={isCredencialShown ? "outline-none" : "hidden"}
             >
-              <DocumentChrome face="credencial" onFlip={onFlip} isLibretaActive={isLibretaActive}>
+              <DocumentChrome
+                face="credencial"
+                onFlip={onFlip}
+                isLibretaActive={isLibretaActive}
+                situation={situation}
+              >
                 {front}
               </DocumentChrome>
             </div>
@@ -161,7 +169,12 @@ export function FlipCard({ front, back, activeFace, onFlip }: FlipCardProps) {
               aria-hidden={isCredencialShown}
               className={isCredencialShown ? "hidden" : "outline-none"}
             >
-              <DocumentChrome face="libreta" onFlip={onFlip} isLibretaActive={isLibretaActive}>
+              <DocumentChrome
+                face="libreta"
+                onFlip={onFlip}
+                isLibretaActive={isLibretaActive}
+                situation={situation}
+              >
                 {back}
               </DocumentChrome>
             </div>
