@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { OpKpi } from "./OpKpi";
 
@@ -16,15 +16,16 @@ describe("OpKpi — ⓘ inside an href-wrapped tile", () => {
     caveat: "Se suprimen celdas con menos de 5 casos.",
   };
 
+  afterEach(cleanup);
+
   it("clicking ⓘ opens the tooltip and does NOT navigate the tile link", () => {
     render(<OpKpi label="Cobertura" value="64,3%" href="/gob/poblacion" info={info} />);
 
     const infoBtn = screen.getByRole("button", { name: /Información sobre este indicador/i });
 
-    // The click event's default (ancestor <a> navigation) must be cancelled.
-    const clickEvent = new MouseEvent("click", { bubbles: true, cancelable: true });
-    infoBtn.dispatchEvent(clickEvent);
-    expect(clickEvent.defaultPrevented).toBe(true);
+    // fireEvent returns false when the handler called preventDefault — i.e.
+    // the ancestor <a>'s native navigation was cancelled.
+    expect(fireEvent.click(infoBtn)).toBe(false);
 
     // …and the tooltip content is now visible.
     expect(screen.getByRole("tooltip")).toBeTruthy();
@@ -37,8 +38,6 @@ describe("OpKpi — ⓘ inside an href-wrapped tile", () => {
     fireEvent.click(screen.getByRole("button", { name: /Información sobre este indicador/i }));
     const backdrop = screen.getByRole("button", { name: /Cerrar información/i });
 
-    const clickEvent = new MouseEvent("click", { bubbles: true, cancelable: true });
-    backdrop.dispatchEvent(clickEvent);
-    expect(clickEvent.defaultPrevented).toBe(true);
+    expect(fireEvent.click(backdrop)).toBe(false);
   });
 });
