@@ -83,6 +83,7 @@ import {
   fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
+import { computeMedicationsActive } from "@/lib/domain/libreta-health-status";
 import {
   type CarouselPet,
   rankOwnerCarousel,
@@ -205,43 +206,67 @@ export default async function PetDetailPage({
   // Stage 1: photo + ownership role + service-dog + cases (all independent).
   // Photo query runs once; both photoUrl and editPhotoUrl are derived from it.
   // allCases: full row select (Case[] required by AchievementInput), capped at 50.
-  const [[photoRow], [ownerRow], [serviceDogRow], allCases] = await Promise.all([
-    pet.primaryPhotoId
-      ? db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
-      : (Promise.resolve([]) as Promise<(typeof attachments.$inferSelect)[]>),
-    accessPath === "owner"
-      ? db
-          .select({ role: ownerships.role })
-          .from(ownerships)
-          .where(
-            and(
-              eq(ownerships.petId, pet.id),
-              eq(ownerships.ownerUserId, user.id),
-              isNull(ownerships.endedAt),
-            ),
-          )
-          .limit(1)
-      : (Promise.resolve([]) as Promise<{ role: string }[]>),
-    db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1),
-    // Capped at 50, most recent first — the cap needs a deterministic order or
-    // a pet with >50 cases would silently lose an arbitrary subset.
-    // Excludes HIDDEN_FROM_SUBJECT_CASE_KINDS (welfare_denuncia) and
-    // lost_pet_episode — same predicate as findOpenCasesForPetWithCodes, so
-    // the alert-strip trigger below (`allCases.some(open)`) never fires on a
-    // case the owner isn't supposed to see, and lost stays single-rendering-
-    // path (LostCaseBlock owns it) — pet-document-redesign REQ-1.1/1.4.
-    db
-      .select()
-      .from(cases)
-      .where(
-        and(
-          eq(cases.primaryPetId, pet.id),
-          notInArray(cases.caseKind, [...GENERIC_CASE_LIST_EXCLUDED_KINDS]),
-        ),
-      )
-      .orderBy(desc(cases.openedAt))
-      .limit(50),
-  ]);
+  const [[photoRow], [ownerRow], [serviceDogRow], allCases, openCustodyEpisodeRows] =
+    await Promise.all([
+      pet.primaryPhotoId
+        ? db.select().from(attachments).where(eq(attachments.id, pet.primaryPhotoId)).limit(1)
+        : (Promise.resolve([]) as Promise<(typeof attachments.$inferSelect)[]>),
+      accessPath === "owner"
+        ? db
+            .select({ role: ownerships.role })
+            .from(ownerships)
+            .where(
+              and(
+                eq(ownerships.petId, pet.id),
+                eq(ownerships.ownerUserId, user.id),
+                isNull(ownerships.endedAt),
+              ),
+            )
+            .limit(1)
+        : (Promise.resolve([]) as Promise<{ role: string }[]>),
+      db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1),
+      // Capped at 50, most recent first — the cap needs a deterministic order or
+      // a pet with >50 cases would silently lose an arbitrary subset.
+      // Excludes HIDDEN_FROM_SUBJECT_CASE_KINDS (welfare_denuncia) and
+      // lost_pet_episode — same predicate as findOpenCasesForPetWithCodes, so
+      // the alert-strip trigger below (`allCases.some(open)`) never fires on a
+      // case the owner isn't supposed to see, and lost stays single-rendering-
+      // path (LostCaseBlock owns it) — pet-document-redesign REQ-1.1/1.4.
+      db
+        .select()
+        .from(cases)
+        .where(
+          and(
+            eq(cases.primaryPetId, pet.id),
+            notInArray(cases.caseKind, [...GENERIC_CASE_LIST_EXCLUDED_KINDS]),
+          ),
+        )
+        .orderBy(desc(cases.openedAt))
+        .limit(50),
+      // Open custody_episode opened by a sanitary_authority org — the SAME
+      // canonical discriminator /p uses (DC13): caseKind + opener orgType, never
+      // parsed from notes. Feeds the custodia-oficial situation (pet-state-header
+      // R2.6); allCases above lacks the opener-org join, so this stays its own
+      // bounded query.
+      db
+        .select({ caseId: cases.id })
+        .from(cases)
+        .innerJoin(
+          organizations,
+          and(
+            eq(organizations.id, cases.openedByOrganizationId),
+            eq(organizations.orgType, "sanitary_authority"),
+          ),
+        )
+        .where(
+          and(
+            eq(cases.primaryPetId, pet.id),
+            eq(cases.caseKind, "custody_episode"),
+            eq(cases.status, "open"),
+          ),
+        )
+        .limit(1),
+    ]);
 
   // Both photoUrl and editPhotoUrl come from the same single row.
   const photoUrl = petPhotoUrl(photoRow?.storagePath);
@@ -647,6 +672,13 @@ export default async function PetDetailPage({
     rabiesObservationStatus: pet.rabiesObservationStatus,
     pregnancyStatus: pet.pregnancyStatus,
     inTransit: isTransit,
+    // pet-state-header R2.6 — previously-unwired inputs, all derived from data
+    // this page already loads (plus the bounded custody query in Stage 1):
+    // an open medication course = en tratamiento (same projection the Libreta
+    // health dashboard uses — no auto-derivation from open cases).
+    inTreatment: computeMedicationsActive(typedEvents).length > 0,
+    inAdoption: Boolean(pet.adoptionListedAt) && !pet.adoptionListingPausedAt,
+    underOfficialCustody: openCustodyEpisodeRows.length > 0,
   });
   const credentialSituation = !isDeceased && !petSituation.isDefault ? petSituation : null;
   // Chrome band situation (pet-state-header) — the masthead carries the state
