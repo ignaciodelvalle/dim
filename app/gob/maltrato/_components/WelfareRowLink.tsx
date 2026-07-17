@@ -20,17 +20,19 @@ import type { ReactNode } from "react";
 import { selectCaso } from "../_inspector/inspector-nav";
 
 export function WelfareRowLink({
-  reportId,
+  // The PUBLIC reference code (DEN-XXXX-XXXX) — what `?caso=` carries and the row
+  // is keyed by. Never the internal uuid (privacy: no raw UUID in a user URL).
+  casoParam,
   href,
   children,
 }: {
-  reportId: string;
+  casoParam: string;
   href: string;
   children: ReactNode;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const selected = searchParams.get("caso") === reportId;
+  const selected = searchParams.get("caso") === casoParam;
 
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
     // Respect modifier/middle clicks and right-click — let the browser open the
@@ -41,7 +43,7 @@ export function WelfareRowLink({
     e.preventDefault();
     const params = new URLSearchParams(searchParams.toString());
     const currentHasCaso = params.has("caso");
-    params.set("caso", reportId);
+    params.set("caso", casoParam);
     params.delete("mascota");
     selectCaso(`${pathname}?${params.toString()}`, currentHasCaso);
   }
@@ -49,7 +51,7 @@ export function WelfareRowLink({
   return (
     <a
       href={href}
-      data-caso-row={reportId}
+      data-caso-row={casoParam}
       aria-current={selected ? "true" : undefined}
       onClick={handleClick}
       className={`block px-4 py-3 transition ${

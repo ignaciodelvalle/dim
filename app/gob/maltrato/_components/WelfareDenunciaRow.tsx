@@ -64,7 +64,10 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
 
   return (
     <li className="overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
-      <WelfareRowLink reportId={report.id} href={`/gob/maltrato/${report.id}`}>
+      <WelfareRowLink
+        casoParam={report.referenceCode}
+        href={`/gob/maltrato/${report.referenceCode}`}
+      >
         <div className="flex items-baseline justify-between gap-3">
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-2 flex-wrap">

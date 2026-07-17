@@ -151,3 +151,23 @@ describe("loadWelfareInspectorDetail — audit-on-open", () => {
     expect(mockLogAudit).toHaveBeenCalledWith("admin-1", "rep-1", "DEN-ABCD-1234");
   });
 });
+
+// The loader now addresses a report by its PUBLIC reference code (DEN-XXXX-XXXX)
+// as well as its uuid — the user-visible ?caso= param stopped leaking a raw UUID
+// (Cowork B5). The scope guard is UNCHANGED (still runs on the fetched row), so
+// a public code can never reach an out-of-scope report.
+describe("loadWelfareInspectorDetail — addressable by public reference code", () => {
+  it("resolves an in-scope report given its DEN- code and still enforces scope + audit", async () => {
+    h.dbState.queue = [[report()]];
+    const res = await loadWelfareInspectorDetail(GOVT_CABA, "DEN-ABCD-1234");
+    expect(res.ok).toBe(true);
+    expect(mockLogAudit).toHaveBeenCalledWith("u-1", "rep-1", "DEN-ABCD-1234");
+  });
+
+  it("still 404-no-leaks an out-of-scope report addressed by its DEN- code", async () => {
+    h.dbState.queue = [[report()]]; // report is in CABA
+    const res = await loadWelfareInspectorDetail(GOVT_SALTA, "DEN-ABCD-1234");
+    expect(res.ok).toBe(false);
+    expect(mockLogAudit).not.toHaveBeenCalled();
+  });
+});

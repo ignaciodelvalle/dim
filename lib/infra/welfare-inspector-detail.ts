@@ -40,7 +40,30 @@ import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
+import {
+  isValidReferenceCodeFormat,
+  normalizeReferenceCode,
+} from "@/src/modules/welfare/domain/reference-code";
 import { and, desc, eq, inArray } from "drizzle-orm";
+
+/**
+ * Where-condition for a welfare report addressed by EITHER its public reference
+ * code (DEN-XXXX-XXXX — the user-visible identifier now carried in `?caso=` and
+ * the /gob/maltrato/[id] segment) OR its internal uuid (legacy links, still
+ * accepted during the transition).
+ *
+ * Resolving the public code to the row HERE — before the govt scope guard — is
+ * what keeps authorization identical to the old uuid path: the scope check still
+ * runs on the fetched row's (province, locality), so a public code can never
+ * reach a report outside the caller's jurisdiction. This is the ONE place the
+ * mapping lives, shared by the inspector API and the full-page escape hatch.
+ */
+export function welfareReportParamCondition(param: string) {
+  const normalized = normalizeReferenceCode(param);
+  return isValidReferenceCodeFormat(normalized)
+    ? eq(welfareReports.referenceCode, normalized)
+    : eq(welfareReports.id, param);
+}
 
 // Govt detail projection — all PII fields included (govt role is permitted).
 // Mirrors GOB_WELFARE_DETAIL_SELECT on the full page.
@@ -160,14 +183,15 @@ const ORG_DERIVATION_TYPES = ["shelter", "rescue_network"] as const;
  */
 export async function loadWelfareInspectorDetail(
   session: WelfareInspectorSession,
-  id: string,
+  // Accepts the public reference code (DEN-XXXX-XXXX) or the internal uuid.
+  idOrCode: string,
 ): Promise<WelfareInspectorResult> {
   const { profile, jurisdictions, user } = session;
 
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)
     .from(welfareReports)
-    .where(eq(welfareReports.id, id))
+    .where(welfareReportParamCondition(idOrCode))
     .limit(1);
   if (!report) return { ok: false };
 

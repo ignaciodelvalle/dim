@@ -53,6 +53,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { welfareReportParamCondition } from "@/lib/infra/welfare-inspector-detail";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
@@ -105,13 +106,15 @@ export default async function GobMaltratoDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // `id` is the PUBLIC reference code (DEN-XXXX-XXXX) for new links; legacy uuid
+  // links still resolve (welfareReportParamCondition accepts both).
   const { id } = await params;
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
 
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)
     .from(welfareReports)
-    .where(eq(welfareReports.id, id))
+    .where(welfareReportParamCondition(id))
     .limit(1);
   if (!report) notFound();
 
