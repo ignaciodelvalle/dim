@@ -138,6 +138,14 @@ function InfoButton({ info }: { info: InfoTooltip }) {
         aria-label="Información sobre este indicador"
         aria-expanded={open}
         onClick={(e) => {
+          // preventDefault is load-bearing, not just stopPropagation: when the
+          // whole tile is wrapped in <a href> (KPI cards on /gob/programa), the
+          // ⓘ button is a descendant of that anchor, so a bare click still
+          // triggers the anchor's NATIVE navigation. stopPropagation only stops
+          // React bubbling; it does not cancel the ancestor <a> default. Without
+          // this, clicking ⓘ navigated away instead of opening the tooltip
+          // (Cowork B6). Navigation stays on the explicit tile/"Ver detalle" link.
+          e.preventDefault();
           e.stopPropagation();
           setOpen((v) => !v);
         }}
@@ -153,7 +161,14 @@ function InfoButton({ info }: { info: InfoTooltip }) {
             type="button"
             className="fixed inset-0 z-40"
             aria-label="Cerrar información"
-            onClick={() => setOpen(false)}
+            onClick={(e) => {
+              // Same anchor-descendant hazard as the ⓘ trigger: this backdrop
+              // covers the viewport and sits inside the tile's <a href>, so a
+              // dismiss click must cancel the native navigation too.
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            }}
           />
           <div
             role="tooltip"

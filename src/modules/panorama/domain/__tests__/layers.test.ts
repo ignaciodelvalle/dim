@@ -12,6 +12,7 @@ import {
   POINT_LAYERS,
   REFERENCE_LAYERS,
   TEMPORAL_LAYERS,
+  aggregationBadgeLabel,
   getLayer,
   isAggregatedPointLayer,
   isLayerId,
@@ -280,6 +281,81 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
       .map((l) => l.id)
       .sort();
     expect(aggregatedAndReference).toEqual(allPointIds);
+  });
+});
+
+describe("aggregationBadgeLabel — honest map-grain badge (recorrido-80 residual)", () => {
+  it("names the base grain below the national rollup, regardless of layers", () => {
+    // Locality without a province scope.
+    expect(
+      aggregationBadgeLabel({
+        level: "locality",
+        selectedProvinceCode: null,
+        activeLayerIds: ["zoonosis"],
+      }),
+    ).toBe("Localidades");
+    // Drilled into a province → the division noun (CABA is comunas).
+    expect(
+      aggregationBadgeLabel({
+        level: "locality",
+        selectedProvinceCode: "AR-B",
+        activeLayerIds: ["zoonosis"],
+      }),
+    ).toBe("Departamentos/partidos");
+    expect(
+      aggregationBadgeLabel({
+        level: "locality",
+        selectedProvinceCode: "AR-C",
+        activeLayerIds: ["zoonosis"],
+      }),
+    ).toBe("Comunas");
+  });
+
+  it("national rollup with NO finer-grain layer → plain 'Provincias'", () => {
+    expect(
+      aggregationBadgeLabel({
+        level: "province",
+        selectedProvinceCode: null,
+        activeLayerIds: ["perdidas", "cobertura"],
+      }),
+    ).toBe("Provincias");
+  });
+
+  it("national rollup where EVERY aggregating layer is finer-grain → 'Departamentos'", () => {
+    expect(
+      aggregationBadgeLabel({
+        level: "province",
+        selectedProvinceCode: null,
+        activeLayerIds: ["zoonosis"],
+      }),
+    ).toBe("Departamentos");
+    // Reference pins (refugios) don't establish a province grain → still Departamentos.
+    expect(
+      aggregationBadgeLabel({
+        level: "province",
+        selectedProvinceCode: null,
+        activeLayerIds: ["zoonosis", "refugios"],
+      }),
+    ).toBe("Departamentos");
+  });
+
+  it("national rollup with MIXED grains → compound label naming the finer layer", () => {
+    // The exact case the QA hit: zoonosis (departments) + a province-grain density layer.
+    expect(
+      aggregationBadgeLabel({
+        level: "province",
+        selectedProvinceCode: null,
+        activeLayerIds: ["zoonosis", "perdidas"],
+      }),
+    ).toBe("Provincias · Zoonosis: departamentos");
+    // A province-grain choropleth alongside zoonosis triggers the same compound.
+    expect(
+      aggregationBadgeLabel({
+        level: "province",
+        selectedProvinceCode: null,
+        activeLayerIds: ["cobertura", "zoonosis"],
+      }),
+    ).toBe("Provincias · Zoonosis: departamentos");
   });
 });
 

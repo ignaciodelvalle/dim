@@ -613,3 +613,63 @@ export const NATIONAL_DEPARTMENT_GRAIN_IDS: ReadonlySet<LayerId> = new Set<Layer
 export function isNationalDepartmentGrain(id: LayerId): boolean {
   return NATIONAL_DEPARTMENT_GRAIN_IDS.has(id);
 }
+
+/** Short display name for a layer — drops the "/ señales" tail so a badge reads
+ *  "Zoonosis", not "Zoonosis / señales". Falls back to the raw id. */
+function shortLayerLabel(id: LayerId): string {
+  const label = getLayer(id)?.label ?? id;
+  return label.split(/[/(]/)[0]?.trim() || label;
+}
+
+/**
+ * es-AR label for the on-canvas aggregation-grain badge. Announces the grain the
+ * MAP MARKS actually draw right now — honest to layers that disaggregate BELOW
+ * the shared view `level`.
+ *
+ * At the national rollup (level="province") most layers draw one mark per
+ * province, but NATIONAL_DEPARTMENT_GRAIN layers (zoonosis) draw departments even
+ * there. The old badge read the shared `level` alone, so it said "Provincias"
+ * while zoonosis painted departments — a label≠map lie (recorrido-80 residual).
+ * Decision:
+ *   - no finer-grain layer active → the base grain ("Provincias");
+ *   - EVERY aggregating layer is finer-grain → name that grain ("Departamentos");
+ *   - MIXED (finer-grain layer + a province-grain density/choropleth) → compound,
+ *     naming the finer-grain layer, e.g. "Provincias · Zoonosis: departamentos".
+ * Reference layers (pins at every level) never establish a grain, so they don't
+ * count toward the "province-grain" side of the decision. Below the national
+ * rollup the view `level`/province scope already matches every mark, so the base
+ * label stands.
+ */
+export function aggregationBadgeLabel(params: {
+  level: AggregationLevel;
+  selectedProvinceCode: string | null;
+  activeLayerIds: readonly LayerId[];
+}): string {
+  const { level, selectedProvinceCode, activeLayerIds } = params;
+
+  const baseLabel =
+    level === "province"
+      ? "Provincias"
+      : selectedProvinceCode
+        ? selectedProvinceCode === "AR-C"
+          ? "Comunas"
+          : "Departamentos/partidos"
+        : "Localidades";
+
+  // Finer-grain divergence only exists at the national rollup — below it the view
+  // level already drives every mark to the same (or a finer-scoped) grain.
+  if (level !== "province") return baseLabel;
+
+  const finerLayers = activeLayerIds.filter((id) => isNationalDepartmentGrain(id));
+  if (finerLayers.length === 0) return baseLabel;
+
+  // Aggregating layers (density/signal/choropleth) that still draw PROVINCE marks
+  // at this level — reference pins don't count (they're individual sites).
+  const coarserAggregating = activeLayerIds.filter(
+    (id) => !isNationalDepartmentGrain(id) && getLayer(id)?.dataType !== "reference",
+  );
+  if (coarserAggregating.length === 0) return "Departamentos";
+
+  const finerNames = finerLayers.map(shortLayerLabel).join(", ");
+  return `${baseLabel} · ${finerNames}: departamentos`;
+}

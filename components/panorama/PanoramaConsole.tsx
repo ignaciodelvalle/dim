@@ -115,6 +115,7 @@ import {
   AGGREGATED_POINT_LAYERS,
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
+  aggregationBadgeLabel,
   getLayer,
   isAggregatedPointLayer,
   isProvinceOnlyChoropleth,
@@ -153,6 +154,7 @@ import {
   toScopeFilter,
 } from "@/src/modules/panorama/domain/view-state";
 import { explainViewState } from "@/src/modules/panorama/domain/view-state-caption";
+import { toast } from "sonner";
 
 const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -3843,15 +3845,17 @@ export function PanoramaConsole({
   // ARCHETYPE A: on-canvas aggregation-level badge copy. Announces what a map
   // mark aggregates NOW — "Provincias" at the national rollup, the division noun
   // ("Departamentos/partidos", "Comunas" for CABA) when drilled into a province,
-  // or "Localidades" at locality level without a province scope.
-  const aggregationLabel =
-    level === "province"
-      ? "Provincias"
-      : selectedProvinceCode
-        ? selectedProvinceCode === "AR-C"
-          ? "Comunas"
-          : "Departamentos/partidos"
-        : "Localidades";
+  // or "Localidades" at locality level without a province scope. HONEST to a
+  // layer that draws a finer grain than the shared `level`: when zoonosis (a
+  // national-department-grain layer) is active at the national rollup, the badge
+  // names the divergence ("Provincias · Zoonosis: departamentos") instead of
+  // claiming "Provincias" while the map paints departments. Grain is decided by
+  // the domain helper (isNationalDepartmentGrain), never re-derived here.
+  const aggregationLabel = aggregationBadgeLabel({
+    level,
+    selectedProvinceCode,
+    activeLayerIds: activeLayers.map((l) => l.id as LayerId),
+  });
 
   // Finding #3 (honest disclosure): the map auto-disaggregates to a FINER grain
   // (department/locality) than the KPI scope on plain zoom, while the KPI chips
@@ -4629,6 +4633,10 @@ export function PanoramaConsole({
               <a
                 href={dockCsvHref}
                 download="panorama-mapa.csv"
+                // Cowork B7: the download fired in silence. Confirm it with the
+                // repo's standard sonner toast (Toaster is mounted in the root
+                // layout), so the operator knows the export started.
+                onClick={() => toast.success("Descarga iniciada: panorama-mapa.csv")}
                 className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
               >
                 <Icon name="descargar" size="sm" decorative /> Exportar CSV
