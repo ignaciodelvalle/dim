@@ -16,7 +16,7 @@
 import { Icon } from "@/components/Icon";
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
-import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
+import { PublicLostSections, formatLostSince } from "@/components/pet-profile/PublicLostSections";
 import {
   attachments,
   cases,
@@ -41,7 +41,8 @@ import {
 } from "@/lib/reference/permanent-conditions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BRANDING } from "@/lib/ui/branding";
-import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
+import { derivePetSituation } from "@/lib/ui/pet-situation";
+import { sexLabel, situationLabelForSex, speciesLabel, statusLabel } from "@/lib/utils/format";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import Image from "next/image";
@@ -502,75 +503,60 @@ export default async function PublicCredentialPage({
     };
   }
 
-  // Lost branch — v2 public credential. ScanLogger still fires so scan
-  // analytics are captured even in lost mode. lostSince falls back to now()
-  // when the lost event row is missing (shouldn't happen, but defensive).
+  // Lost-mode extras — pet-state-header R3.1 retired the LostPublicCredential
+  // full-page takeover: lost pets render the SAME single card below, with these
+  // sections in the body. lostSince falls back to now() when the lost event row
+  // is missing (shouldn't happen, but defensive).
+  let lostTattooPhotoUrl: string | null = null;
+  let lostSpecialConditions: ReturnType<typeof resolveLostSpecialConditions> = null;
+  let lostIdentityLine = "";
   if (isLost && lostContext) {
-    const identityLine = [speciesLabel(pet.species), pet.color, pet.distinguishingFeatures]
+    lostIdentityLine = [speciesLabel(pet.species), pet.color, pet.distinguishingFeatures]
       .filter(Boolean)
       .join(" · ");
 
-    // Tattoo photo — only resolved here, inside the lost branch. Active
-    // credentials never query this attachment to keep the data surface
-    // minimal (D3 closed 2026-05-22 — code + location + photo are gated by
-    // lost status, mirroring how the chip number is gated).
+    // Tattoo photo — only resolved in lost mode. Active credentials never
+    // query this attachment to keep the data surface minimal (D3 closed
+    // 2026-05-22 — code + location + photo are gated by lost status, mirroring
+    // how the chip number is gated).
     // Photo ID is sourced from the canonical tattoo row (ARCH-Q).
-    let tattooPhotoUrl: string | null = null;
     if (canonicalIds.tattoo?.photoId) {
       const [tattooPhoto] = await db
         .select({ storagePath: attachments.storagePath })
         .from(attachments)
         .where(eq(attachments.id, canonicalIds.tattoo.photoId))
         .limit(1);
-      tattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
+      lostTattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
     }
 
     // Welfare-safety disclosure: permanent conditions (blind, deaf, medicated,
     // etc.) on the LOST credential. Gated ONLY by discloseConditionsPublicly —
     // same gate the active-credential banner and Tier-2 medical view use for
     // this field; a finder handling a special-needs pet must be told.
-    const specialConditions = resolveLostSpecialConditions(
+    lostSpecialConditions = resolveLostSpecialConditions(
       pet.permanentConditions,
       pet.permanentConditionsOther,
       pet.discloseConditionsPublicly,
     );
-
-    return (
-      <>
-        {/* Lost mode: also renders the visible location-consent prompt so a
-            finder can share precise GPS (Task #45). Active credentials never
-            prompt — the server rejects coords for non-lost pets anyway. */}
-        <ScanLogger publicToken={publicToken} isLost petName={pet.name} />
-        <LostPublicCredential
-          petName={pet.name}
-          petPhotoUrl={photoUrl}
-          petSex={pet.sex}
-          identityLine={identityLine}
-          ownerFirstName={pet.discloseFirstNameWhenLost ? lostContext.ownerFirstName : null}
-          ownerPhoneE164={pet.disclosePhoneWhenLost ? lostContext.phone : null}
-          lastSeenPlaceName={pet.discloseLastLocationWhenLost ? lostContext.locationText : null}
-          lastSeenLocality={
-            pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
-          }
-          distinguishingFeatures={pet.distinguishingFeatures}
-          finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
-          sightingFormHref={`/p/${publicToken}/sighting`}
-          lastSeenLat={pet.discloseLastLocationWhenLost ? lostContext.lostLat : null}
-          lastSeenLng={pet.discloseLastLocationWhenLost ? lostContext.lostLng : null}
-          lostSince={lostContext.lostSince ?? new Date()}
-          tattooCode={canonicalIds.tattoo?.code ?? null}
-          tattooLocation={canonicalIds.tattoo?.tattooLocation ?? null}
-          tattooDescription={canonicalIds.tattoo?.tattooDescription ?? null}
-          tattooPhotoUrl={tattooPhotoUrl}
-          lostDescription={lostContext.lostDescription}
-          specialConditions={specialConditions}
-        />
-      </>
-    );
   }
 
+  // PUBLIC-SAFE masthead situation (pet-state-header R3.3, privacy checklist).
+  // The derivation is fed ONLY the public-safe signals: status (lost/deceased),
+  // rabies observation (already public on this page) and official custody
+  // (already public via the DC13 disclaimer). Medical/household states
+  // (en-tratamiento, prenada, en-adopcion, en-transito) are STRUCTURALLY
+  // unreachable here — their inputs are never passed — so the public masthead
+  // can never tint for them (Tier 0 exposes no medical/household state).
+  const publicSituationRaw = derivePetSituation({
+    status: pet.status,
+    rabiesObservationStatus: pet.rabiesObservationStatus,
+    underOfficialCustody: isUnderOfficialCustody,
+  });
+  const publicSituation = publicSituationRaw.isDefault ? null : publicSituationRaw;
+
   // ---------------------------------------------------------------------------
-  // Active credential — LN "warm libreta / document credential" render
+  // Credential — LN "warm libreta / document credential" render (single card
+  // for active AND lost pets; the masthead carries the situation).
   // ---------------------------------------------------------------------------
 
   const breedLine = [speciesLabel(pet.species), pet.breed, sexLabel(pet.sex)]
@@ -581,7 +567,14 @@ export default async function PublicCredentialPage({
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
-      <ScanLogger publicToken={publicToken} />
+      {/* Lost mode: ScanLogger also renders the visible location-consent prompt
+          so a finder can share precise GPS (Task #45). Active credentials never
+          prompt — the server rejects coords for non-lost pets anyway. */}
+      {isLost ? (
+        <ScanLogger publicToken={publicToken} isLost petName={pet.name} />
+      ) : (
+        <ScanLogger publicToken={publicToken} />
+      )}
 
       {/* Guilloché band — LN security stripe */}
       <div
@@ -644,8 +637,11 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
-        {/* Permanent conditions banner */}
-        {pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
+        {/* Permanent conditions banner — active pets only: in lost mode the
+            in-card special-conditions section (PublicLostSections) carries the
+            same disclosure with finder-welfare framing; both are keyed on the
+            same discloseConditionsPublicly gate. */}
+        {!isLost && pet.discloseConditionsPublicly && pet.permanentConditions.length > 0 && (
           <PermanentConditionsBanner
             codes={pet.permanentConditions}
             other={pet.permanentConditionsOther}
@@ -669,19 +665,18 @@ export default async function PublicCredentialPage({
         {/* ------------------------------------------------------------------ */}
         {/* CREDENTIAL CARD                                                     */}
         {/* ------------------------------------------------------------------ */}
-        <div className="overflow-hidden rounded-[var(--radius-input)] border border-ln-line-strong bg-ln-card shadow-[0_6px_18px_rgba(20,40,60,.08)]">
-          {/* Guilloché top band */}
-          <div
-            aria-hidden="true"
-            className="h-[8px]"
-            style={{
-              background:
-                "repeating-linear-gradient(90deg,var(--color-ln-azul) 0 2px,transparent 2px 4px),var(--color-ln-celeste)",
-            }}
-          />
+        <div
+          className="pc-cred overflow-hidden rounded-[var(--radius-input)] border border-ln-line-strong bg-ln-card shadow-[0_6px_18px_rgba(20,40,60,.08)]"
+          data-situation={publicSituation?.key}
+        >
+          {/* Guilloché top band — the 8px strip is half the public masthead
+              (pet-state-header D2): its default background lives in .pc-strip
+              (globals.css) so the .pc-cred[data-situation] variants can recolor
+              it per situation. */}
+          <div aria-hidden="true" className="pc-strip h-[8px]" />
 
-          {/* Official header row: crest + brand + tier chip */}
-          <div className="flex items-center gap-2 border-b border-ln-line-2 px-4 py-2.5">
+          {/* Official header row: crest + brand + tier chip (+ situation chip) */}
+          <div className="pc-head flex flex-wrap items-center gap-2 border-b border-ln-line-2 px-4 py-2.5">
             {/* Crest circle */}
             <div
               aria-hidden="true"
@@ -703,6 +698,25 @@ export default async function PublicCredentialPage({
             >
               {tier2Active ? "TIER 2 · MÉDICO" : "TIER 0 · IDENTIDAD"}
             </span>
+            {/* Situation chip (pet-state-header R3.2) — icon + gendered label,
+                never color alone. role="alert" only for perdida: a finder must
+                hear the urgent state immediately; the other public states are
+                informational. Recency rides the chip for lost pets. */}
+            {publicSituation && (
+              <span
+                className="pc-sit-chip"
+                data-section="masthead-situation-chip"
+                role={publicSituation.key === "perdida" ? "alert" : undefined}
+              >
+                <Icon name={publicSituation.icon} size="sm" decorative />
+                {situationLabelForSex(publicSituation.label, pet.sex)}
+                {isLost && lostContext && (
+                  <span className="pc-sit-chip-recency">
+                    · {formatLostSince(lostContext.lostSince ?? new Date())}
+                  </span>
+                )}
+              </span>
+            )}
           </div>
 
           {/* Photo — LCP element on the busiest path in the product (every QR
@@ -741,10 +755,13 @@ export default async function PublicCredentialPage({
                 it must expose a page-level heading (WCAG 1.3.1 / 2.4.6). */}
             <h1 className="flex items-center gap-[9px] font-[var(--font-ln-serif)] text-[27px] font-semibold leading-none tracking-[-0.02em] text-ln-ink">
               {pet.name}
-              {/* Status dot */}
+              {/* Status dot — default green; .pc-cred[data-situation] retints
+                  it (a green "all good" dot next to a lost pet's name would
+                  contradict the masthead). Decorative: the chip + identity grid
+                  carry the state as text. */}
               <span
                 aria-hidden="true"
-                className="inline-block h-[11px] w-[11px] flex-shrink-0 rounded-full bg-ln-ok shadow-[0_0_0_3px_#e8f3ec]"
+                className="pc-dot inline-block h-[11px] w-[11px] flex-shrink-0 rounded-full bg-ln-ok shadow-[0_0_0_3px_#e8f3ec]"
               />
             </h1>
             <p className="mt-[5px] text-[13px] text-ln-ink-2">
@@ -752,6 +769,36 @@ export default async function PublicCredentialPage({
               {ageLabel && ` · ${ageLabel}`}
             </p>
           </div>
+
+          {/* Lost body sections (pet-state-header R3.4) — CTA row + última vez
+              vista + tattoo + description + welfare box, directly under the
+              name bar. Every disclosure gate resolved server-side above. */}
+          {isLost && lostContext && (
+            <PublicLostSections
+              petName={pet.name}
+              petSex={pet.sex}
+              identityLine={lostIdentityLine}
+              ownerFirstName={pet.discloseFirstNameWhenLost ? lostContext.ownerFirstName : null}
+              ownerPhoneE164={pet.disclosePhoneWhenLost ? lostContext.phone : null}
+              ownerEmail={pet.discloseEmailWhenLost ? lostContext.email : null}
+              lastSeenPlaceName={pet.discloseLastLocationWhenLost ? lostContext.locationText : null}
+              lastSeenLocality={
+                pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
+              }
+              distinguishingFeatures={pet.distinguishingFeatures}
+              finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
+              sightingFormHref={`/p/${publicToken}/sighting`}
+              lastSeenLat={pet.discloseLastLocationWhenLost ? lostContext.lostLat : null}
+              lastSeenLng={pet.discloseLastLocationWhenLost ? lostContext.lostLng : null}
+              lostSince={lostContext.lostSince ?? new Date()}
+              tattooCode={canonicalIds.tattoo?.code ?? null}
+              tattooLocation={canonicalIds.tattoo?.tattooLocation ?? null}
+              tattooDescription={canonicalIds.tattoo?.tattooDescription ?? null}
+              tattooPhotoUrl={lostTattooPhotoUrl}
+              lostDescription={lostContext.lostDescription}
+              specialConditions={lostSpecialConditions}
+            />
+          )}
 
           {/* Tier 2 enabled notice */}
           {tier2Active && (

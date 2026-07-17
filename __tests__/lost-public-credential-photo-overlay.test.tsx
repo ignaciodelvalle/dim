@@ -1,16 +1,19 @@
 // Regression — QA round 2 finding #0 (North-Star-breaking).
 //
-// LostPublicCredential renders the pet photo as <Image fill>, which emits
-// position:absolute. Its wrapper span had NO `relative`, so the absolutely
-// positioned <img> escaped to the viewport as its containing block and painted
-// full-bleed ON TOP of every finder CTA — a finder scanning the QR of a
-// photographed lost pet could not tap "Llamar", "La tengo conmigo" or
-// "La vi cerca de acá" (document.elementFromPoint returned the IMG at all
-// three CTA centers; repro: /p/DIM-4SUZ-U2HT).
+// The lost credential renders photos via <Image fill>, which emits
+// position:absolute. A fill image whose wrapper has NO `relative` escapes to
+// the VIEWPORT as its containing block and paints full-bleed ON TOP of every
+// finder CTA — a finder scanning the QR of a photographed lost pet could not
+// tap "Llamar", "La tengo conmigo" or "La vi cerca de acá"
+// (document.elementFromPoint returned the IMG at all three CTA centers;
+// repro: /p/DIM-4SUZ-U2HT).
 //
-// This test locks the two invariants that make the photo non-blocking:
+// pet-state-header retired the LostPublicCredential full-page takeover: the
+// pet photo is now the card-owned width/height <Image> in page.tsx, and the
+// remaining <Image fill> on the lost path is the TATTOO photo inside
+// PublicLostSections. The same two invariants apply to it:
 //   1. the <Image fill> wrapper is a positioned ancestor (`relative`), so the
-//      photo is contained inside the 128px avatar circle;
+//      photo is contained inside its section;
 //   2. the decorative photo carries `pointer-events-none`, so even if stacking
 //      ever regresses it can never intercept a tap.
 //
@@ -39,13 +42,12 @@ vi.mock("next/link", () => ({
   }) => React.createElement("a", { href, className }, children),
 }));
 
-import { LostPublicCredential } from "@/components/pet-profile/LostPublicCredential";
+import { PublicLostSections } from "@/components/pet-profile/PublicLostSections";
 
-function renderCredentialWithPhoto(): string {
+function renderSectionsWithTattooPhoto(): string {
   return renderToStaticMarkup(
-    <LostPublicCredential
+    <PublicLostSections
       petName="Michi"
-      petPhotoUrl="https://example.test/storage/pets/michi.jpg"
       petSex="female"
       identityLine="Felino · gris"
       ownerFirstName="Lucía"
@@ -56,48 +58,99 @@ function renderCredentialWithPhoto(): string {
       finderFormHref="/p/DIM-TEST-0001/encontre"
       sightingFormHref="/p/DIM-TEST-0001/sighting"
       lostSince={new Date("2026-07-01T12:00:00Z")}
+      tattooCode="FCA-1234"
+      tattooLocation={null}
+      tattooDescription={null}
+      tattooPhotoUrl="https://example.test/storage/pets/michi-tattoo.jpg"
     />,
   );
 }
 
-/** The avatar <img> tag (first and only <img> — map is mocked, no tattoo photo passed). */
-function extractAvatarImgTag(html: string): { tag: string; index: number } {
+/** The tattoo <img> tag (first and only <img> — the map is mocked away). */
+function extractTattooImgTag(html: string): { tag: string; index: number } {
   const index = html.indexOf("<img");
   expect(index).toBeGreaterThan(-1);
   const end = html.indexOf(">", index);
   return { tag: html.slice(index, end + 1), index };
 }
 
-/** Class attribute of the innermost element that wraps the given offset. */
-function enclosingSpanClass(html: string, offset: number): string {
+/** Class attribute of the innermost element wrapper before the given offset. */
+function enclosingWrapperClass(html: string, offset: number): string {
   const before = html.slice(0, offset);
-  const spanStart = before.lastIndexOf("<span");
-  expect(spanStart).toBeGreaterThan(-1);
-  const spanTag = before.slice(spanStart, before.indexOf(">", spanStart) + 1 || undefined);
-  const match = /class="([^"]*)"/.exec(spanTag);
+  const wrapperStart = Math.max(before.lastIndexOf("<div"), before.lastIndexOf("<span"));
+  expect(wrapperStart).toBeGreaterThan(-1);
+  const wrapperTag = before.slice(wrapperStart, before.indexOf(">", wrapperStart) + 1 || undefined);
+  const match = /class="([^"]*)"/.exec(wrapperTag);
   return match?.[1] ?? "";
 }
 
-describe("LostPublicCredential — photographed lost pet (QA round 2 #0)", () => {
-  it("contains the fill photo inside a positioned avatar wrapper", () => {
-    const html = renderCredentialWithPhoto();
-    const { index } = extractAvatarImgTag(html);
+describe("PublicLostSections — fill photo containment (QA round 2 #0)", () => {
+  it("contains the fill tattoo photo inside a positioned wrapper", () => {
+    const html = renderSectionsWithTattooPhoto();
+    const { index } = extractTattooImgTag(html);
     // <Image fill> contract: the parent MUST be a positioned ancestor,
     // otherwise the img paints full-viewport over the CTAs.
-    const wrapperClass = enclosingSpanClass(html, index);
+    const wrapperClass = enclosingWrapperClass(html, index);
     expect(wrapperClass.split(/\s+/)).toContain("relative");
   });
 
   it("marks the decorative photo pointer-events-none so it can never swallow a tap", () => {
-    const html = renderCredentialWithPhoto();
-    const { tag } = extractAvatarImgTag(html);
+    const html = renderSectionsWithTattooPhoto();
+    const { tag } = extractTattooImgTag(html);
     expect(tag).toMatch(/pointer-events-none/);
   });
 
   it("still renders all three finder CTAs (call / encontre / sighting)", () => {
-    const html = renderCredentialWithPhoto();
+    const html = renderSectionsWithTattooPhoto();
     expect(html).toContain('href="tel:+5491155551234"');
     expect(html).toContain('href="/p/DIM-TEST-0001/encontre"');
     expect(html).toContain('href="/p/DIM-TEST-0001/sighting"');
+  });
+
+  it("renders the mailto CTA only when ownerEmail is disclosed (R3.4.12 gap fix)", () => {
+    const withEmail = renderToStaticMarkup(
+      <PublicLostSections
+        petName="Michi"
+        petSex="female"
+        identityLine="Felino · gris"
+        ownerFirstName="Lucía"
+        ownerPhoneE164={null}
+        ownerEmail="lucia@example.test"
+        lastSeenPlaceName={null}
+        lastSeenLocality={null}
+        distinguishingFeatures={null}
+        finderFormHref={null}
+        sightingFormHref={null}
+        lostSince={new Date("2026-07-01T12:00:00Z")}
+      />,
+    );
+    expect(withEmail).toContain('href="mailto:lucia@example.test"');
+
+    const withoutEmail = renderSectionsWithTattooPhoto();
+    expect(withoutEmail).not.toContain("mailto:");
+  });
+
+  it("shows the honest no-channels warning only when NO contact channel is enabled", () => {
+    const noChannels = renderToStaticMarkup(
+      <PublicLostSections
+        petName="Michi"
+        petSex="female"
+        identityLine="Felino · gris"
+        ownerFirstName={null}
+        ownerPhoneE164={null}
+        lastSeenPlaceName={null}
+        lastSeenLocality={null}
+        distinguishingFeatures={null}
+        finderFormHref={null}
+        sightingFormHref={null}
+        lostSince={new Date("2026-07-01T12:00:00Z")}
+      />,
+    );
+    expect(noChannels).toContain("no tiene canales de contacto");
+    // Honest empty-state for the missing sighting location also renders.
+    expect(noChannels).toContain("Sin ubicación de avistaje registrada");
+
+    const withPhone = renderSectionsWithTattooPhoto();
+    expect(withPhone).not.toContain("no tiene canales de contacto");
   });
 });

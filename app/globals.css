@@ -3119,6 +3119,120 @@ body {
   flex-shrink: 0;
 }
 
+/* ---- Public credential masthead (pet-state-header D2) -------------------- */
+/* The /p card deliberately MIRRORS the owner chrome (it is NOT DocumentChrome:
+   the public QR landing is server-rendered and LCP-critical, with no faces).
+   It keys off the SAME `data-situation` attribute + situation module, limited
+   to the PUBLIC-SAFE set (perdida / custodia-oficial / observacion-antirrabica
+   / fallecida — spec R3.3): medical/household states never tint this surface.
+   Parity with .ln-face[data-situation] is guarded by
+   public-token-landing-structure.test.tsx. */
+.pc-strip {
+  background: repeating-linear-gradient(90deg, var(--color-ln-azul) 0 2px, transparent 2px 4px),
+    var(--color-ln-celeste);
+}
+.pc-cred[data-situation="perdida"] .pc-strip {
+  background: repeating-linear-gradient(90deg, var(--color-ln-seal) 0 2px, transparent 2px 4px),
+    var(--color-ln-err);
+}
+.pc-cred[data-situation="custodia-oficial"] .pc-strip {
+  background: repeating-linear-gradient(90deg, var(--color-ln-warn) 0 2px, transparent 2px 4px),
+    var(--color-ln-warn-100);
+}
+.pc-cred[data-situation="observacion-antirrabica"] .pc-strip {
+  background: repeating-linear-gradient(90deg, var(--color-ln-azul) 0 2px, transparent 2px 4px),
+    var(--color-ln-celeste-100);
+}
+.pc-cred[data-situation="fallecida"] .pc-strip {
+  background: repeating-linear-gradient(
+      90deg,
+      var(--color-ln-memorial-sepia) 0 2px,
+      transparent 2px 4px
+    ), var(--color-ln-memorial-chip-bg);
+}
+
+/* Header row tint per situation. */
+.pc-cred[data-situation="perdida"] .pc-head {
+  background: var(--color-ln-err-050);
+  border-bottom-color: var(--color-ln-err-100);
+}
+.pc-cred[data-situation="custodia-oficial"] .pc-head {
+  background: var(--color-ln-warn-050);
+  border-bottom-color: var(--color-ln-warn-100);
+}
+.pc-cred[data-situation="observacion-antirrabica"] .pc-head {
+  background: var(--color-ln-celeste-050);
+  border-bottom-color: var(--color-ln-celeste-100);
+}
+.pc-cred[data-situation="fallecida"] .pc-head {
+  background: var(--color-ln-memorial-chip-bg);
+  border-bottom-color: var(--color-ln-memorial-chip-bd);
+}
+
+/* The masthead state chip — icon + label (+ recency), never color alone. */
+.pc-sit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-family: var(--font-ln-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pc-sit-chip svg {
+  flex-shrink: 0;
+}
+.pc-sit-chip-recency {
+  font-weight: 500;
+  opacity: 0.85;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+/* Perdida is solid (urgent, white-on-red); the rest are quiet tinted chips. */
+.pc-cred[data-situation="perdida"] .pc-sit-chip {
+  background: var(--color-ln-err);
+  border-color: var(--color-ln-err);
+  color: #fff;
+}
+.pc-cred[data-situation="custodia-oficial"] .pc-sit-chip {
+  background: var(--color-ln-warn-050);
+  border-color: var(--color-ln-warn-100);
+  color: var(--color-ln-warn);
+}
+.pc-cred[data-situation="observacion-antirrabica"] .pc-sit-chip {
+  background: var(--color-ln-celeste-050);
+  border-color: var(--color-ln-celeste-100);
+  color: var(--color-ln-azul);
+}
+.pc-cred[data-situation="fallecida"] .pc-sit-chip {
+  background: var(--color-ln-memorial-chip-bg);
+  border-color: var(--color-ln-memorial-chip-bd);
+  color: var(--color-ln-memorial-chip-text);
+}
+
+/* Name-bar status dot retint — a green "all good" dot next to a lost pet's
+   name would contradict the masthead (decorative; text carries the state). */
+.pc-cred[data-situation="perdida"] .pc-dot {
+  background: var(--color-ln-err);
+  box-shadow: 0 0 0 3px var(--color-ln-err-050);
+}
+.pc-cred[data-situation="custodia-oficial"] .pc-dot {
+  background: var(--color-ln-warn);
+  box-shadow: 0 0 0 3px var(--color-ln-warn-050);
+}
+.pc-cred[data-situation="observacion-antirrabica"] .pc-dot {
+  background: var(--color-ln-celeste);
+  box-shadow: 0 0 0 3px var(--color-ln-celeste-050);
+}
+.pc-cred[data-situation="fallecida"] .pc-dot {
+  background: var(--color-ln-memorial-sepia);
+  box-shadow: 0 0 0 3px var(--color-ln-memorial-chip-bg);
+}
+
 /* The single status line — the situation's textual carrier. */
 .ln-sit {
   position: relative;

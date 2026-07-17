@@ -19,14 +19,16 @@
 //      output — never the owner's DNI (never queried on this route at all)
 //      and never a full legal name (only ever the first token).
 //
-// NOTE (discovered while writing this test): the page fetches `ownerEmail`
-// when discloseEmailWhenLost is true (page.tsx ~480-491) but NEVER passes it
-// to <LostPublicCredential> — the prop doesn't exist on that component. So
-// opting in to email disclosure currently has zero visible effect. Not a
-// security regression (strictly less exposure than intended), but flagged
-// here as a real product gap for follow-up; this test intentionally does
-// NOT assert email appears when disclosed, since asserting that would fail
-// against current (arguably incomplete) behavior.
+// pet-state-header R3.4.12 closed the email gap: the page now passes
+// `ownerEmail` to <PublicLostSections> (mailto CTA) when — and ONLY when —
+// discloseEmailWhenLost is on. Case 3 asserts it reaches the props; case 2
+// asserts it never does with the flag off.
+//
+// pet-state-header R3.3 adds a second contract on this surface: the public
+// masthead may reflect ONLY the public-safe situation set (perdida,
+// custodia-oficial, observacion-antirrabica, fallecida). Medical/household
+// states (treatment, pregnancy, adoption, transit) must NEVER tint the public
+// card — a Tier-0 medical-state leak. Case 4 guards it.
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -123,6 +125,9 @@ vi.mock("@/lib/utils/format", () => ({
   lostBannerHeadline: vi.fn(() => "Estoy perdida"),
   lostFirstPersonLine: vi.fn(() => "estoy perdida"),
   normalizePhoneForTel: vi.fn((p: string | null) => p),
+  situationLabelForSex: vi.fn((label: string) => label),
+  foundPossessivePhrase: vi.fn(() => "La tengo conmigo"),
+  sightingPhrase: vi.fn(() => "La vi cerca de acá"),
 }));
 vi.mock("@/lib/reference/lookups", () => ({ tattooLocationLabel: vi.fn(() => null) }));
 vi.mock("@/lib/ui/branding", () => ({
@@ -169,16 +174,18 @@ vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: vi.fn(() => ({ auth: { admin: { getUserById: mockGetUserById } } })),
 }));
 
-// LostPublicCredential — SPY replacement. Per its own doc comment, "the
-// component itself never decides what to show — the page passes only what's
-// actually disclosable." This spy dumps every prop it receives into the DOM
-// as JSON, so THIS test can assert on the page's prop-passing contract
-// directly — the real security boundary — without depending on the child
-// component's own rendering choices.
-vi.mock("@/components/pet-profile/LostPublicCredential", () => ({
-  LostPublicCredential: vi.fn((props: Record<string, unknown>) =>
+// PublicLostSections — SPY replacement. The component never decides what to
+// show — the page passes only what's actually disclosable. This spy dumps
+// every prop it receives into the DOM as JSON, so THIS test can assert on the
+// page's prop-passing contract directly — the real security boundary —
+// without depending on the child component's own rendering choices.
+// formatLostSince lives in the same module (the page imports it for the
+// masthead chip recency), so the factory must export it too.
+vi.mock("@/components/pet-profile/PublicLostSections", () => ({
+  PublicLostSections: vi.fn((props: Record<string, unknown>) =>
     React.createElement("div", { "data-testid": "lost-credential-spy" }, JSON.stringify(props)),
   ),
+  formatLostSince: vi.fn(() => "hace 3 días"),
 }));
 
 // ---------------------------------------------------------------------------
@@ -381,9 +388,57 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     expect(html).not.toContain(FULL_NAME);
     // Never DNI — this route never selects it; canary against future leakage.
     expect(html).not.toContain(FAKE_DNI);
-    // Email is fetched (page.tsx ~480-491) but never wired into any prop on
-    // this route today (see file-header note) — documenting current
-    // behavior, not endorsing it as sufficient once email UI ships.
-    expect(html).not.toContain(EMAIL);
+    // Email gap CLOSED (pet-state-header R3.4.12): the disclosed email now
+    // reaches the lost sections (mailto CTA).
+    expect(html).toContain(EMAIL);
+  });
+
+  it("LOST credential stamps the public masthead with data-situation=perdida", async () => {
+    const pet = lostPet({ firstName: false, phone: false, email: false, location: false });
+    mockDbSelect.mockImplementation(
+      buildSequencedSelectChain([
+        [{ pet, photo: null }],
+        [],
+        [],
+        [],
+        [],
+        [OWNER_ROW],
+        [LOST_EVENT_ROW],
+      ]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: pet.publicToken }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    expect(html).toContain('data-situation="perdida"');
+  });
+
+  it("NEVER tints the public masthead for medical/household states (R3.3 — Tier-0 leak guard)", async () => {
+    // A pet in treatment AND pregnant, but active and not under observation or
+    // custody: the owner credential would show a situation band — the PUBLIC
+    // masthead must stay in its default state. Tinting it would disclose a
+    // medical/household state to any stranger scanning the QR (Tier 0 is
+    // identity-only).
+    const pet = {
+      ...ACTIVE_PET,
+      pregnancyStatus: "in_progress",
+      rabiesObservationStatus: null,
+    };
+    mockDbSelect.mockImplementation(
+      buildSequencedSelectChain([[{ pet, photo: null }], [], [], [], []]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: pet.publicToken }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    expect(html).toContain("Credencial pública"); // sanity: card rendered
+    expect(html).not.toContain("data-situation");
+    expect(html).not.toContain('data-section="masthead-situation-chip"');
   });
 });

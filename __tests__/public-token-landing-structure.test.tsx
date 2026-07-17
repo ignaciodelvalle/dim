@@ -123,10 +123,13 @@ vi.mock("@/lib/utils/format", () => ({
   sexLabel: vi.fn(() => ""),
   speciesLabel: vi.fn(() => "perro"),
   statusLabel: vi.fn(() => "activo"),
-  // Used by LostPublicCredential (lost render path).
+  // Used by the lost render path (masthead chip + PublicLostSections).
   lostBannerHeadline: vi.fn(() => "Estoy perdida"),
   lostFirstPersonLine: vi.fn(() => "estoy perdida"),
   normalizePhoneForTel: vi.fn((p: string | null) => p),
+  situationLabelForSex: vi.fn((label: string) => label),
+  foundPossessivePhrase: vi.fn(() => "La tengo conmigo"),
+  sightingPhrase: vi.fn(() => "La vi cerca de acá"),
 }));
 // LostPublicCredential deps (lost render path).
 vi.mock("@/lib/reference/lookups", () => ({ tattooLocationLabel: vi.fn(() => null) }));
@@ -151,9 +154,6 @@ vi.mock("@/lib/infra/storage", () => ({ petPhotoUrl: vi.fn(() => null) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/components/PppPublicBadge", () => ({ PppPublicBadge: vi.fn(() => null) }));
 vi.mock("@/components/event/ConfidenceBadge", () => ({ ConfidenceBadge: vi.fn(() => null) }));
-vi.mock("@/components/pet-profile/LostPublicCredential", () => ({
-  LostPublicCredential: vi.fn(() => null),
-}));
 vi.mock("@/app/(public)/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
 vi.mock("@/app/(public)/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
 vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
@@ -287,45 +287,59 @@ describe("/p/[publicToken] — landing-shell structure (Item 7, Phase C2)", () =
 });
 
 // ---------------------------------------------------------------------------
-// LostPublicCredential — the lost render path. It previously owned its own
-// full-screen <main id="main-content">; after C2 it is a plain <div> so the
-// landing shell owns the single landmark. Rendered directly (the component is
-// synchronous) with the real (un-mocked) implementation.
+// LOST render path — pet-state-header R3.1: the full-page lost takeover is
+// RETIRED. A lost pet renders the SAME single-card structure as an active pet
+// (one h1, no page-owned <main>), with the masthead in the lost treatment
+// (`data-situation="perdida"` + state chip) instead of the old
+// `lost-urgent-banner`.
 // ---------------------------------------------------------------------------
 
-describe("LostPublicCredential — no page-owned <main> after C2", () => {
-  it("renders a <div> wrapper, NOT a <main> / #main-content", async () => {
-    vi.doUnmock("@/components/pet-profile/LostPublicCredential");
-    vi.resetModules();
-    const { LostPublicCredential } = await import("@/components/pet-profile/LostPublicCredential");
+const LOST_PET = {
+  ...ACTIVE_PET,
+  status: "lost",
+};
 
-    const html = renderToStaticMarkup(
-      React.createElement(LostPublicCredential, {
-        petName: "Firulais",
-        petPhotoUrl: null,
-        petSex: "male",
-        identityLine: "Canino · marrón",
-        ownerFirstName: null,
-        ownerPhoneE164: null,
-        lastSeenPlaceName: null,
-        lastSeenLocality: null,
-        distinguishingFeatures: null,
-        finderFormHref: null,
-        sightingFormHref: null,
-        lostSince: new Date(),
-        tattooCode: null,
-        tattooLocation: null,
-        tattooDescription: null,
-        tattooPhotoUrl: null,
-        lastSeenLat: null,
-        lastSeenLng: null,
-        lostDescription: null,
-      }),
-    );
+describe("/p/[publicToken] — LOST path renders the single-card structure (pet-state-header)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+  });
 
+  it("emits NO page-owned <main>, exactly ONE h1, and the situation masthead instead of the banner", async () => {
+    mockDbSelect.mockImplementation(() => buildSelectChain([{ pet: LOST_PET, photo: null }]));
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: "DIM-AAAA-BBBB" }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    // Same chrome contract as the active path.
     expect(countMainTags(html)).toBe(0);
     expect(countMainContentIds(html)).toBe(0);
-    // Sanity: the lost banner content still renders.
-    expect(html).toContain('data-section="lost-urgent-banner"');
+    expect((html.match(/<h1(\s|>)/g) ?? []).length).toBe(1);
+    expect(html).toMatch(/<h1[^>]*>[\s\S]*Firulais/);
+
+    // The masthead is the state carrier now: card stamped with the situation
+    // + a chip with the gendered label. The old full-page takeover banner is out.
+    expect(html).toContain('data-situation="perdida"');
+    expect(html).toContain('data-section="masthead-situation-chip"');
+    expect(html).toContain("Perdida");
+    expect(html).not.toContain('data-section="lost-urgent-banner"');
+
+    // The normal credential body still renders (identity grid + footer).
+    expect(html).toContain("Identidad registrada");
+    expect(html).toContain("Credencial pública");
+  });
+
+  it("keeps the owner credential band and the public masthead keyed off the SAME data-situation attribute (parity guard)", async () => {
+    // D2 drift guard: the public masthead deliberately MIRRORS DocumentChrome
+    // (it is not the same component). Both stylesheet families must key off
+    // `data-situation="perdida"` so a rename in one cannot silently detach the
+    // other.
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync("app/globals.css", "utf8");
+    expect(css).toContain('.ln-face[data-situation="perdida"]');
+    expect(css).toContain('.pc-cred[data-situation="perdida"]');
   });
 });

@@ -104,6 +104,9 @@ vi.mock("@/lib/utils/format", () => ({
   lostBannerHeadline: vi.fn(() => "Estoy perdida"),
   lostFirstPersonLine: vi.fn(() => "estoy perdida"),
   normalizePhoneForTel: vi.fn((p: string | null) => p),
+  situationLabelForSex: vi.fn((label: string) => label),
+  foundPossessivePhrase: vi.fn(() => "La tengo conmigo"),
+  sightingPhrase: vi.fn(() => "La vi cerca de acá"),
 }));
 vi.mock("@/lib/domain/location", () => ({ readPoint: vi.fn(() => null) }));
 vi.mock("@/lib/reference/permanent-conditions", () => ({
@@ -118,8 +121,9 @@ vi.mock("@/lib/infra/pet-identifiers", () => ({
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/components/PppPublicBadge", () => ({ PppPublicBadge: vi.fn(() => null) }));
 vi.mock("@/components/event/ConfidenceBadge", () => ({ ConfidenceBadge: vi.fn(() => null) }));
-vi.mock("@/components/pet-profile/LostPublicCredential", () => ({
-  LostPublicCredential: vi.fn(() => null),
+vi.mock("@/components/pet-profile/PublicLostSections", () => ({
+  PublicLostSections: vi.fn(() => null),
+  formatLostSince: vi.fn(() => "hace 3 días"),
 }));
 vi.mock("@/app/(public)/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
 vi.mock("@/app/(public)/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));

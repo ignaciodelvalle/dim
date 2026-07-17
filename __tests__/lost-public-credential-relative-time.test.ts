@@ -6,7 +6,7 @@
 // server evaluation, no hydration re-run), but keeping it pure and tested
 // guards the whole relative-`now` class against a future SSR-eager refactor.
 
-import { formatLostSince } from "@/components/pet-profile/LostPublicCredential";
+import { formatLostSince } from "@/components/pet-profile/PublicLostSections";
 import { describe, expect, it } from "vitest";
 
 const NOW = new Date("2026-07-04T12:00:00Z").getTime();
