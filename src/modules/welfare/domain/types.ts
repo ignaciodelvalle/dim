@@ -36,7 +36,7 @@ export function welfareReportKindLabel(kind: WelfareReportKind | string): string
     case "no_shelter":
       return "Sin refugio del clima";
     case "hoarding":
-      return "Acumulación (hoarding)";
+      return "Acumulación de animales";
     case "dog_fighting":
       return "Peleas de perros";
     case "trafficking":

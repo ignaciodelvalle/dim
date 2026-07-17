@@ -977,6 +977,12 @@ export function SituationalMap({
           "NavigationControl.ZoomIn": "Acercar",
           "NavigationControl.ZoomOut": "Alejar",
           "NavigationControl.ResetBearing": "Restablecer orientación",
+          // FullscreenControl + Popup close button — otherwise a govt user sees
+          // "Enter fullscreen" / "Exit fullscreen" tooltips and a "Close popup"
+          // aria-label in English (recorrido-80 QA: map controls in English).
+          "FullscreenControl.Enter": "Pantalla completa",
+          "FullscreenControl.Exit": "Salir de pantalla completa",
+          "Popup.Close": "Cerrar",
           // cooperativeGestures overlay copy (es-AR) — shown when the operator
           // scrolls over the canvas without the modifier key.
           "CooperativeGesturesHandler.WindowsHelpText": "Usá Ctrl + rueda para hacer zoom",

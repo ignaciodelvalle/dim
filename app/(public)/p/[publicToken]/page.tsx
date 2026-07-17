@@ -704,7 +704,7 @@ export default async function PublicCredentialPage({
             <span
               className={`rounded-full border px-2 py-[3px] font-[var(--font-ln-mono)] text-[9px] font-semibold tracking-[.08em] ${tier2Active ? "border-ln-ok-100 bg-ln-ok-050 text-ln-ok" : "border-ln-celeste-100 bg-ln-celeste-050 text-ln-azul"}`}
             >
-              {tier2Active ? "TIER 2 · MÉDICO" : "TIER 0 · IDENTIDAD"}
+              {tier2Active ? "NIVEL 2 · DATOS MÉDICOS" : "NIVEL 0 · IDENTIDAD"}
             </span>
             {/* Situation chip (pet-state-header R3.2) — icon + gendered label,
                 never color alone. role="alert" only for perdida: a finder must

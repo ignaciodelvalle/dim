@@ -16,6 +16,7 @@
 // healthy, so callers can mount it unconditionally.
 
 import { Icon } from "@/components/Icon";
+import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 
 export function CronsDownBanner({
   failedCronNames,
@@ -60,9 +61,13 @@ export function CronsDownBanner({
       </p>
       <details className="text-[var(--text-sm)] text-ln-op-danger opacity-85">
         <summary className="cursor-pointer select-none font-medium">Detalle técnico</summary>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 font-ln-mono text-[var(--text-xs)]">
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[var(--text-xs)]">
           {failedCronNames.map((name) => (
-            <li key={name}>{name}</li>
+            // es-AR label for the operator; the raw snake_case key rides `title`
+            // for support/debugging without putting English-looking text on screen.
+            <li key={name} title={name}>
+              {cronDisplayLabel(name)}
+            </li>
           ))}
         </ul>
       </details>

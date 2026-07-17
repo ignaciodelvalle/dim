@@ -93,3 +93,44 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 9 * * *" },
   { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 12 * * *" },
 ];
+
+// es-AR display labels for the cron fleet. The snake_case `cronName` is the
+// canonical internal key (cron_runs.cron_name, route dirs, telemetry) and MUST
+// stay intact everywhere; this map is display-ONLY, for operator-facing surfaces
+// like the CronsDownBanner "Detalle técnico" list — a funcionario should read
+// "Recordatorio de vacunas por vencer", never the raw `vaccine_due`
+// (recorrido-80 QA: raw process names surfaced as English-looking text on
+// /admin). Keyed by cronName; unmapped names fall back to the raw key.
+const CRON_DISPLAY_LABELS: Record<string, string> = {
+  auto_expire_approvals: "Vencimiento de aprobaciones",
+  business_rules_reeval: "Reevaluación de reglas de negocio",
+  close_followup_expired_adoptions: "Cierre de seguimientos de adopción vencidos",
+  close_rabies_observations: "Cierre de observaciones antirrábicas",
+  close_stale_lost_episodes: "Cierre de episodios de pérdida vencidos",
+  cron_health: "Chequeo de salud de procesos",
+  data_lifecycle: "Ciclo de vida de datos",
+  drain_notification_dead_letter: "Reintento de notificaciones fallidas",
+  drain_outbox: "Envío de notificaciones pendientes",
+  escalate_stale_disputes: "Escalamiento de disputas demoradas",
+  escalate_stale_welfare_cases: "Escalamiento de denuncias de bienestar demoradas",
+  evaluate_alerts: "Evaluación de alertas de vigilancia",
+  expire_cross_org_transfers: "Vencimiento de transferencias entre organizaciones",
+  expire_decomiso_handoffs: "Vencimiento de entregas por decomiso",
+  expire_foster_proposals: "Vencimiento de propuestas de tránsito",
+  expire_pet_transfers: "Vencimiento de transferencias de mascotas",
+  materialize_slots: "Generación de turnos disponibles",
+  post_adoption_checkin: "Seguimiento posterior a la adopción",
+  process_eno_queue: "Procesamiento de la cola ENO",
+  purge_scan_events: "Depuración de escaneos de credenciales",
+  reconcile_pet_status: "Reconciliación de estados de mascotas",
+  vaccine_due: "Recordatorio de vacunas por vencer",
+};
+
+/**
+ * es-AR display label for a cron name. Display-only — never changes the internal
+ * key. Unknown names fall back to the raw key (forward-compat: a new cron shows
+ * its snake_case name until a label is added, never crashes).
+ */
+export function cronDisplayLabel(cronName: string): string {
+  return CRON_DISPLAY_LABELS[cronName] ?? cronName;
+}

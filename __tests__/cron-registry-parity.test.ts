@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { DAILY_JOB_ORDER } from "@/lib/infra/cron-dispatcher";
-import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
+import { CRON_REGISTRY, cronDisplayLabel } from "@/lib/infra/cron-registry";
 
 const ROOT = join(__dirname, "..");
 const CRON_DIR = join(ROOT, "app", "api", "cron");
@@ -119,5 +119,29 @@ describe("cron fleet parity (vercel.json ⇄ dispatcher ⇄ registry ⇄ routes)
         `${dir}/route.ts has no auth gate — it must call authorizeCronRequest (lib/domain/cron-auth.ts) or checkCronSecret (lib/infra/case-cron.ts)`,
       ).toBe(true);
     }
+  });
+});
+
+// es-AR display labels for the operator-facing CronsDownBanner "Detalle técnico"
+// list (recorrido-80 QA: raw snake_case process names read as English text).
+describe("cronDisplayLabel — es-AR operator labels", () => {
+  it("maps EVERY registered cron to a non-empty es-AR label (no raw key leaks)", () => {
+    for (const { cronName } of CRON_REGISTRY) {
+      const label = cronDisplayLabel(cronName);
+      expect(label, `${cronName} has no es-AR display label`).not.toBe(cronName);
+      expect(label.length).toBeGreaterThan(0);
+      // No English-looking snake_case underscores in the operator label.
+      expect(label).not.toMatch(/_/);
+    }
+  });
+
+  it("does not change the internal key — display-only", () => {
+    // The specific names the QA flagged on /admin.
+    expect(cronDisplayLabel("vaccine_due")).toBe("Recordatorio de vacunas por vencer");
+    expect(cronDisplayLabel("process_eno_queue")).toBe("Procesamiento de la cola ENO");
+  });
+
+  it("falls back to the raw name for an unknown cron (forward-compat)", () => {
+    expect(cronDisplayLabel("some_future_cron")).toBe("some_future_cron");
   });
 });

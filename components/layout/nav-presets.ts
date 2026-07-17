@@ -430,7 +430,7 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "",
     items: [
-      { href: "/admin", label: "Dashboard" },
+      { href: "/admin", label: "Panel" },
       { href: "/admin/panorama", label: "Panorama", matchPrefix: "/admin/panorama" },
     ],
   },

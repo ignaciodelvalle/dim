@@ -150,7 +150,7 @@ export default async function GobProgramaPage({
       <p className="text-[13px] text-ln-op-mute">
         {profile.role === "admin"
           ? "Vista universal — todas las jurisdicciones."
-          : "KPIs North-Star, outliers, calidad de datos y oversight de PII en tu cobertura asignada."}
+          : "KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII en tu cobertura asignada."}
       </p>
     </header>
   );
@@ -239,7 +239,7 @@ export default async function GobProgramaPage({
 
       {/* North-Star KPI strip */}
       <section
-        aria-label="KPIs North-Star del programa"
+        aria-label="KPIs principales del programa"
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         <OpKpi
