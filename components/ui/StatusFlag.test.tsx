@@ -32,4 +32,15 @@ describe("<LnStatusFlag>", () => {
     expect(render(<LnStatusFlag status="lost" />)).toContain("PERDIDO");
     expect(render(<LnStatusFlag status="pregnant" />)).toContain("PREÑADA");
   });
+
+  // pet-state-header R7.1 audit pin — each flag's token family must match the
+  // pet-situation tone family the credential masthead uses for the same state,
+  // so a lost pet reads the SAME red on its list row and on its band.
+  it("uses the situation tone-family tokens per state (alignment with pet-situation)", () => {
+    expect(render(<LnStatusFlag status="lost" />)).toContain("ln-err"); // alerta
+    expect(render(<LnStatusFlag status="sick" />)).toContain("ln-warn"); // tratamiento
+    expect(render(<LnStatusFlag status="pregnant" />)).toContain("ln-rosa"); // gestacion
+    expect(render(<LnStatusFlag status="ok" />)).toContain("ln-ok"); // ok
+    expect(render(<LnStatusFlag status="deceased" />)).toContain("ln-memorial"); // memoria
+  });
 });

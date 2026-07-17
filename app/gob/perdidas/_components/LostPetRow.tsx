@@ -32,10 +32,13 @@ const STATUS_LABEL: Record<string, string> = {
   deceased: "Fallecida",
 };
 
-type PillTone = "open" | "ok" | "neutral";
+type PillTone = "danger" | "ok" | "neutral";
 
 const STATUS_TONE: Record<string, PillTone> = {
-  lost: "open",
+  // pet-state-header R7.1 tone alignment: perdida is the ALERTA (err/red)
+  // family on every surface (credential band, owner row). `open` (amber) is
+  // case-workflow semantics — wrong axis for a pet's situation.
+  lost: "danger",
   active: "ok",
   deceased: "neutral",
 };

@@ -106,6 +106,15 @@ describe("<LostCaseBlock> — owner variant (all capabilities)", () => {
     expect(html).toContain("Credencial pública");
   });
 
+  it("demotes the header to a quiet card head — the chrome band owns the red now (pet-state-header R7.2)", () => {
+    // The seal→err gradient was the block's own red banner; with the masthead
+    // band carrying the perdida state on BOTH faces, a second full-red header
+    // inside the body duplicated the signal. The head is now a quiet tinted
+    // strip — same content (avatar, name, case link, counts), no gradient.
+    expect(html).not.toContain("linear-gradient(135deg, var(--color-ln-seal)");
+    expect(html).toContain('data-section="lost-case-head"');
+  });
+
   // Capability 2 (Marcar encontrada) is intentionally NOT asserted here
   // anymore — task #43 dedupe: the header no longer renders it, since
   // PetActionRow's identical always-visible icon (same

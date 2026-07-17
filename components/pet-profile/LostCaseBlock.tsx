@@ -158,42 +158,42 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
       data-section="lost-case-block"
       className="overflow-hidden rounded-md border border-[var(--color-ln-line-strong)]"
     >
-      {/* Urgent header — capability 1 + 2 */}
+      {/* Quiet card head — capability 1 + 2. DEMOTED from the seal→err
+          gradient banner (pet-state-header R7.2): the credential masthead band
+          now owns the perdida red on BOTH faces, so a second full-red header
+          in the body duplicated the signal. Same content, tinted-strip
+          treatment. Flagged for PO in the demo — reversible one-file change. */}
       <div
-        className="relative overflow-hidden px-4 py-3.5"
-        style={{
-          background: "linear-gradient(135deg, var(--color-ln-seal), var(--color-ln-err))",
-        }}
+        data-section="lost-case-head"
+        className="border-b border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-4 py-3.5"
       >
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(45deg, rgba(0,0,0,.14) 0 14px, transparent 14px 28px)",
-          }}
-        />
-        <div className="relative flex flex-wrap items-center gap-3">
-          <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border-2 border-white/80 bg-white/20">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border-2 border-[var(--color-ln-err-100)] bg-[var(--color-ln-card)]">
             {photoUrl ? (
               <Image src={photoUrl} alt={pet.name} fill sizes="40px" className="object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[var(--text-lg)] font-bold text-white">
+              <div className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[var(--text-lg)] font-bold text-[var(--color-ln-err)]">
                 {pet.name.charAt(0).toUpperCase()}
               </div>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-tight text-white">
+            <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-tight text-[var(--color-ln-err)]">
               {pet.name} {lostThirdPersonPhrase(pet.sex)}
             </p>
-            <p className="mt-0.5 text-[var(--text-sm)] text-white/85">
-              <Link href={caseHref} className="text-white no-underline hover:underline">
+            <p className="mt-0.5 text-[var(--text-sm)] text-[var(--color-ln-ink-2)]">
+              <Link
+                href={caseHref}
+                className="text-[var(--color-ln-ink-2)] underline-offset-2 hover:underline"
+              >
                 {episode.publicCode}
               </Link>
               {" · "}
-              <Link href={publicHref} className="text-white no-underline hover:underline">
+              <Link
+                href={publicHref}
+                className="text-[var(--color-ln-ink-2)] underline-offset-2 hover:underline"
+              >
                 Credencial pública
               </Link>
               {scanCount > 0 && ` · ${scanCount} ${scanCount === 1 ? "escaneo" : "escaneos"}`}
