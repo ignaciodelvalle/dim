@@ -61,6 +61,26 @@ describe("captionFor", () => {
     );
   });
 
+  it("zoonosis at PROVINCE (national) names the detail division — it renders department grain nationally", () => {
+    // NATIONAL_DEPARTMENT_GRAIN (PO 2026-07-16): the national overview draws one bubble
+    // per DEPARTMENT for zoonosis, so its caption at the province request must name the
+    // "división" unit (never "provincia") to keep label = map.
+    const nat = captionFor(layer("zoonosis"), "province", period90d);
+    expect(nat).toContain("es una división (departamento/partido, o barrio en CABA)");
+    expect(nat).not.toContain("es una provincia");
+    // The render MARK is unchanged — still a graduated bubble ("Cada burbuja"/"Tamaño"),
+    // only the unit noun flips.
+    expect(nat).toBe(
+      "Cada burbuja es una división (departamento/partido, o barrio en CABA). Tamaño = señales de zoonosis, últimos 90 días.",
+    );
+  });
+
+  it("a density point layer at PROVINCE still names the province (only zoonosis is national-department-grain)", () => {
+    // mordeduras is NOT a NATIONAL_DEPARTMENT_GRAIN member → national caption is
+    // byte-identical: one bubble per PROVINCE.
+    expect(captionFor(layer("mordeduras"), "province", period90d)).toContain("es una provincia");
+  });
+
   it("reunificacion names the detail division (its num/den fold to the department)", () => {
     // reunificacion now folds its NUMERATOR + DENOMINATOR to the department (barrio
     // in CABA) BEFORE the rate + k-anon — the last locality-granularity holdout

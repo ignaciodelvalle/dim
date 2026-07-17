@@ -8,6 +8,7 @@
 // Pure module — no DB, no React, no Next. The descriptor declares the WORDS; this
 // builder assembles the sentence, so the domain stays framework-free.
 
+import { isNationalDepartmentGrain } from "./layers";
 import type { AggregationLevel, PanoramaLayer, PanoramaPeriod, RenderMode } from "./types";
 
 const MS_PER_DAY = 86_400_000;
@@ -63,7 +64,15 @@ export function captionFor(
     return `Puntos individuales: ${layer.caption.measure}, ${when}.`;
   }
 
-  const unit = layer.caption.unit[level];
+  // A NATIONAL_DEPARTMENT_GRAIN layer (zoonosis) renders one graduated symbol per
+  // DEPARTMENT even at the national/province request (PO 2026-07-16), so its caption
+  // must name the "división" unit — the bubbles ARE departments, so "provincia" would
+  // be a label≠map lie. Per-layer: every other layer keeps `level` verbatim. The render
+  // MARK is unchanged (renderPolicy.province === renderPolicy.locality === graduated
+  // for zoonosis), so only the unit noun flips.
+  const unitLevel: AggregationLevel =
+    level === "province" && isNationalDepartmentGrain(layer.id) ? "locality" : level;
+  const unit = layer.caption.unit[unitLevel];
 
   // Honesty branch (v1 rate limitation — repository.ts rate-layer note): a `rate`
   // layer paints its true ratePct ONLY at province grain. At any FINER grain

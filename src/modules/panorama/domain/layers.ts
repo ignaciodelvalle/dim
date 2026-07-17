@@ -579,3 +579,37 @@ export const PROVINCE_ONLY_CHOROPLETH_IDS: ReadonlySet<LayerId> = new Set<LayerI
 export function isProvinceOnlyChoropleth(id: LayerId): boolean {
   return PROVINCE_ONLY_CHOROPLETH_IDS.has(id);
 }
+
+/**
+ * Point/signal layers that render DEPARTMENT grain even at the NATIONAL overview
+ * (the level="province" request), instead of ONE fixed graduated symbol per
+ * province. This is the structural INVERSE of PROVINCE_ONLY_CHOROPLETH_IDS: those
+ * never disaggregate below the province; these disaggregate to the department even
+ * at the coarsest (national) request.
+ *
+ * PO decision (2026-07-16): the zoonosis surveillance layer opens the national
+ * vista at DEPARTMENT grain — urban departments (capitales / centros urbanos)
+ * naturally get medium circles, the rest small and distributed — because a single
+ * province dot hides WHERE the signal actually concentrates. There are ~500
+ * departments nationally, well under PER_LAYER_CAP=2000.
+ *
+ * WHY a per-layer declaration and not the shared `level` axis: the data grain is a
+ * PER-LAYER property, but the view `level` (resolveDataLevel) is PER-VIEW and shared
+ * by every active layer. Flipping the whole view to "locality" at national would drag
+ * co-active density layers (perdidas / mordeduras / denuncias / sintomas) to
+ * department grain too. Declaring it here, read by BOTH the loader
+ * (loadZoonosisByUnit folds to the department at every level) AND the caption
+ * (captionFor names the "división" unit), keeps every OTHER layer byte-identical —
+ * density layers stay one-point-per-province at national by simply NOT being members.
+ *
+ * Orthogonal to POINTS_LAYER_IDS: department grain is an AGGREGATION choice, never
+ * real event dots. Zoonosis has no `renderPolicy.points` (outbreak_signal writers
+ * persist no columnar coordinate), so it is NOT points-capable and never will be
+ * from membership here.
+ */
+export const NATIONAL_DEPARTMENT_GRAIN_IDS: ReadonlySet<LayerId> = new Set<LayerId>(["zoonosis"]);
+
+/** True when the layer renders department grain even at the national (province) overview. */
+export function isNationalDepartmentGrain(id: LayerId): boolean {
+  return NATIONAL_DEPARTMENT_GRAIN_IDS.has(id);
+}

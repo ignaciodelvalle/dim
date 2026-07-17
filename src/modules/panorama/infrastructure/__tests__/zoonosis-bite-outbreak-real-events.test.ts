@@ -145,11 +145,19 @@ describe("outbreak/zoonosis surfaces count REAL outbreak_signal events (schema-d
     expect(res.rows.some((r) => r.diseaseCode === "rabies_suspected")).toBe(true);
   }, 30_000);
 
-  it("loadZoonosisByUnit attributes the signal to the pet_jurisdiction province and counts it", async () => {
+  it("loadZoonosisByUnit attributes the signal to the pet_jurisdiction province (national = department grain, k-anon)", async () => {
+    // PO 2026-07-16: the national (level="province") request now folds to DEPARTMENT
+    // grain with k=5 suppression (isNationalDepartmentGrain), not one raw point per
+    // province. The signal is still ATTRIBUTED to its pet_jurisdiction province (proving
+    // the schema-drift fix holds — it is not ghost-dropped), but a lone signal in a
+    // synthetic locality with no ar_localities department stands alone (count 1 < k=5),
+    // so its cell is SUPPRESSED — the privacy floor, strictly more anonymising than the
+    // old province count.
     const res = await loadZoonosisByUnit("province", GOVT, JURS, SINCE);
     const cell = res.cells.find((c) => c.province === PROVINCE);
     expect(cell).toBeDefined();
-    expect(cell?.count).toBe(1);
+    expect(cell?.suppressed).toBe(true);
+    expect(cell?.count).toBeNull();
   }, 30_000);
 
   it("loadUnitHistory('zoonosis') returns the outbreak_signal", async () => {

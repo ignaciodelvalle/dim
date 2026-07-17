@@ -3,8 +3,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  COUNT_READOUT_SUFFIX,
   buildLayerReadout,
   buildPinnedPopupHtml,
+  countReadoutLabel,
   divisionReadoutDataType,
   formatMetaGap,
   formatValueWithUnit,
@@ -51,6 +53,62 @@ describe("divisionReadoutDataType", () => {
     });
     expect(readout.valueText).toBe("64,4%");
     expect(readout.metaText).toBe("meta 80% · −15,6");
+  });
+});
+
+// The drilled department popup shows a rate layer's raw COUNT ("72"); the scope-level
+// side panel shows the same layer's percentage ("64,3%"). SAME label, different unit —
+// both QA testers (2026-07-16) flagged it as not comparable. The PO fix differentiates
+// the LABELS, not the data: the demoted count keeps its name + "(conteo)"; the scope %
+// label is untouched.
+describe("countReadoutLabel", () => {
+  it("appends the (conteo) qualifier when the value is a demoted count", () => {
+    expect(countReadoutLabel("Cobertura antirrábica", true)).toBe("Cobertura antirrábica (conteo)");
+    expect(countReadoutLabel("Cobertura antirrábica", true)).toContain(COUNT_READOUT_SUFFIX);
+  });
+
+  it("leaves the label verbatim when the value is NOT demoted (the scope % keeps its label)", () => {
+    expect(countReadoutLabel("Cobertura antirrábica", false)).toBe("Cobertura antirrábica");
+  });
+});
+
+describe("buildLayerReadout — demoted count label", () => {
+  it("a drilled rate count carries the (conteo) label AND no % / meta", () => {
+    const readout = buildLayerReadout({
+      label: "Cobertura antirrábica",
+      value: 72,
+      dataType: divisionReadoutDataType("rate"),
+      complianceTarget: undefined,
+      demotedToCount: true,
+    });
+    expect(readout.label).toBe("Cobertura antirrábica (conteo)");
+    expect(readout.valueText).toBe("72");
+    expect(readout.valueText).not.toContain("%");
+    expect(readout.metaText).toBeUndefined();
+  });
+
+  it("the scope-level percentage readout keeps the plain label (no (conteo))", () => {
+    const readout = buildLayerReadout({
+      label: "Cobertura antirrábica",
+      value: 64.3,
+      dataType: "rate",
+      complianceTarget: 80,
+      // demotedToCount omitted → the scope % is untouched.
+    });
+    expect(readout.label).toBe("Cobertura antirrábica");
+    expect(readout.valueText).toBe("64,3%");
+    expect(readout.metaText).toBe("meta 80% · −15,7");
+  });
+
+  it("a demoted count that is k-anon suppressed still carries the (conteo) label", () => {
+    const readout = buildLayerReadout({
+      label: "Cobertura antirrábica",
+      value: null,
+      suppressed: true,
+      demotedToCount: true,
+    });
+    expect(readout.label).toBe("Cobertura antirrábica (conteo)");
+    expect(readout.state).toBe("suppressed");
   });
 });
 
