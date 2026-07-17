@@ -275,7 +275,17 @@ describe("fetchNovedadesFeedRows — limit", () => {
 
 describe("fetchNovedadesFeedRows — first-visit fallback", () => {
   it("with no watermark shows the last 7 days and excludes older events", async () => {
-    const feed = await fetchNovedadesFeedRows(adminCtx(), { watermark: null, limit: 500 });
+    // The limit is deliberately larger than the seeded window. This asserts the
+    // WINDOW, not the ranking: the feed is global and recency-ordered, and a
+    // seeded DB carries ~18k events inside 7 days, so the fixture's own now−3d
+    // event has no chance of surviving a top-500 recency cut. At limit 500 this
+    // passed only while the local DB happened to be thin — a full re-seed made it
+    // red without a line of product code changing (QA 2026-07-16).
+    //
+    // The exclusion below holds at ANY limit, because now−10d is outside the
+    // window rather than merely outranked. That asymmetry is the tell: one
+    // assertion tests the contract, the other tested the seed volume.
+    const feed = await fetchNovedadesFeedRows(adminCtx(), { watermark: null, limit: 50_000 });
     const ids = feed.rows.map((r) => r.id);
     expect(feed.sinceWatermark).toBe(false);
     expect(ids).toContain(eC_recent); // now−3d → inside the 7-day window

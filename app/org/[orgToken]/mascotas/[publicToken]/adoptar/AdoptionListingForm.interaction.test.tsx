@@ -134,7 +134,12 @@ describe("<AdoptionListingForm> — publish enablement after save (bug #66)", ()
     fireEvent.click(screen.getByRole("button", { name: "Publicar adopción" }));
 
     await waitFor(() => {
+      // orgToken is part of the contract now, and asserting it here is the
+      // point: without it the action falls back to the session-default org and
+      // a multi-org member publishes against the wrong one (21-authz-scoping
+      // -audit #10). The pet token alone cannot disambiguate.
       expect(setStatusMock).toHaveBeenCalledWith({
+        orgToken: "ORG-TEST-0001",
         petPublicToken: "DIM-TEST-0001",
         action: "publish",
       });
