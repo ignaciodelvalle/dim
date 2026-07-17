@@ -33,19 +33,12 @@ const initialIdentityState: IdentityFormState = { error: null };
 export function SignupForm({
   intent,
   returnTo,
-  initialStep = "account",
 }: {
   intent: "apply" | null;
   returnTo: string | null;
-  /**
-   * "identity" when the page found an authenticated user who never finished
-   * step 2 — they already have an account, so the account form would only fail.
-   * Resume where they actually are instead of restarting them.
-   */
-  initialStep?: "account" | "identity";
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<"account" | "identity">(initialStep);
+  const [step, setStep] = useState<"account" | "identity">("account");
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
   const [identityState, identityFormAction, identityPending] = useActionState(
     completeIdentityAction,
