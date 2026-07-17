@@ -79,6 +79,12 @@ const DISCLOSURE_ROWS: Array<{
   },
 ];
 
+// The location-disclosure row also renders inline in the location step (R5.2)
+// — same key, label and description, so the two views can never drift.
+const LOCATION_DISCLOSURE_ROW = DISCLOSURE_ROWS.find(
+  (r) => r.key === "disclose_last_location_when_lost",
+) as (typeof DISCLOSURE_ROWS)[number];
+
 export function MarkLostWizard({
   action,
   petName,
@@ -202,9 +208,15 @@ export function MarkLostWizard({
             className={step === 1 ? "flex flex-col gap-3.5" : "sr-only"}
             aria-hidden={step !== 1}
           >
+            {/* R5.1 (pet-state-header): this copy used to promise the location
+                "se vuelve parte de la credencial pública" — contradicting the
+                affirmative-consent model where disclose_last_location_when_lost
+                defaults OFF. It now states the truth: nothing shows publicly
+                unless the owner enables the disclosure below. */}
             <p className="text-[12.5px] text-[var(--color-ln-mute)]">
-              Marcá el lugar y la hora aproximada del último avistaje. La ubicación se vuelve parte
-              de la credencial pública para orientar la búsqueda.
+              Marcá el lugar y la hora aproximada del último avistaje. La ubicación no se muestra en
+              la credencial pública salvo que actives compartirla — podés elegirlo acá abajo o en el
+              último paso.
             </p>
 
             <LocationFields
@@ -212,6 +224,26 @@ export function MarkLostWizard({
               biasProvince={petJurisdictionProvince}
               biasLocality={petJurisdictionLocality}
               useMyLocationVariant="primary"
+            />
+
+            {/* R5.2: the "Última ubicación" disclosure toggle, surfaced where
+                the owner is entering that very location. Bound to the SAME
+                disclosurePrefs state as the final consent step — one state,
+                two views, no divergence (the hidden mirrors below submit it
+                exactly once). */}
+            <LnToggleGroup
+              items={[
+                {
+                  key: "disclose_last_location_when_lost",
+                  label: LOCATION_DISCLOSURE_ROW.label,
+                  description: LOCATION_DISCLOSURE_ROW.description,
+                  checked: disclosurePrefs.disclose_last_location_when_lost,
+                  variant: "amber" as const,
+                },
+              ]}
+              onChange={(key, next) => {
+                setDisclosurePrefs((prev) => ({ ...prev, [key]: next }));
+              }}
             />
 
             <LnField label="Detalles">

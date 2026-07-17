@@ -74,4 +74,47 @@ describe("MarkLostWizard — affirmative disclosure consent", () => {
     expect(html).toContain("ltima ubicaci");
     expect(html).toContain("Formulario para avisarte");
   });
+
+  // pet-state-header R5.1 — the step-1 copy used to CONTRADICT the consent
+  // model: "La ubicación se vuelve parte de la credencial pública" while
+  // disclose_last_location_when_lost defaults OFF. The new copy states the
+  // truth: the location is NOT shown publicly unless the owner enables the
+  // disclosure preference.
+  it("step-1 copy no longer promises the location goes public (R5.1)", () => {
+    const html = renderToStaticMarkup(<MarkLostWizard {...BASE_PROPS} />);
+    expect(html).not.toContain("se vuelve parte de la credencial p");
+    expect(html).toContain("no se muestra en la credencial p");
+  });
+
+  // pet-state-header R5.2 — the "Última ubicación" disclosure toggle is ALSO
+  // visible in the location step (one state, two views): the label renders in
+  // BOTH the step-location section and the final disclosure step…
+  it("renders the location disclosure toggle in step 1 AND in the final step (R5.2)", () => {
+    const html = renderToStaticMarkup(<MarkLostWizard {...BASE_PROPS} />);
+    const stepLocation = html.slice(
+      html.indexOf('data-section="step-location"'),
+      html.indexOf('data-section="step-disclosure"'),
+    );
+    const stepDisclosure = html.slice(html.indexOf('data-section="step-disclosure"'));
+    expect(stepLocation).toContain("ltima ubicaci");
+    expect(stepDisclosure).toContain("ltima ubicaci");
+  });
+
+  // …while the hidden explicit-submission mirror stays SINGLE per field — two
+  // views of one state, never two divergent inputs.
+  it("keeps exactly ONE hidden mirror per disclosure field (single state, R5.2)", () => {
+    const html = renderToStaticMarkup(<MarkLostWizard {...BASE_PROPS} />);
+    for (const name of [
+      "disclose_first_name_when_lost",
+      "disclose_phone_when_lost",
+      "disclose_email_when_lost",
+      "disclose_last_location_when_lost",
+      "allow_finder_form_when_lost",
+    ]) {
+      const hiddenCount = (
+        html.match(new RegExp(`<input[^>]*type="hidden"[^>]*name="${name}"`, "g")) ?? []
+      ).length;
+      expect(hiddenCount, name).toBe(1);
+    }
+  });
 });
