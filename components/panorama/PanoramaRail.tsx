@@ -37,6 +37,13 @@ export type RailPanelItem = {
   kind: "panel";
   /** Optional count badge over the icon (e.g. the Filtro modifier counter). */
   badge?: number;
+  /**
+   * Accessible name + tooltip for the badge (Item 3). Without it the bare number
+   * reads as a layer count; with it a screen reader / hover announces WHAT the
+   * number means (e.g. "2 ajustes sobre la vista"). Absent → the badge stays
+   * aria-hidden (decorative), announced through the trigger's own label.
+   */
+  badgeLabel?: string;
   /** Simple (false) / Detalle (true). */
   detail: boolean;
   /**
@@ -136,7 +143,16 @@ export function PanoramaRail({ items, open, onOpenChange }: Props) {
               >
                 <Icon name={item.icon} size="lg" decorative />
                 {item.kind === "panel" && item.badge != null && item.badge > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-ln-op-azul px-1 text-[var(--text-xs)] font-semibold tabular-nums text-white">
+                  <span
+                    // Item 3: the bare number masqueraded as a layer count. When a
+                    // badgeLabel is provided it becomes the badge's accessible name
+                    // + tooltip ("N ajustes sobre la vista"); otherwise the badge is
+                    // decorative and announced via the trigger's own aria-label.
+                    aria-label={item.badgeLabel}
+                    title={item.badgeLabel}
+                    aria-hidden={item.badgeLabel ? undefined : true}
+                    className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-ln-op-azul px-1 text-[var(--text-xs)] font-semibold tabular-nums text-white"
+                  >
                     {item.badge}
                   </span>
                 )}

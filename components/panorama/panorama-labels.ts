@@ -198,3 +198,37 @@ export function countFiltroModifiers(input: {
 
   return overlays + deviations;
 }
+
+/**
+ * Item 3 — the bare Filtro/Capas badge number read as a LAYER count ("2" next to
+ * "Capas del mapa" looks like "2 layers"), but it is the deliberate
+ * modifiers-beyond-the-vista counter ({@link countFiltroModifiers}). These two
+ * pure helpers stop the number from masquerading as a layer count by NAMING both
+ * facts:
+ *
+ *   - {@link describeCapasMeta} — the panel-header meta line surfacing BOTH the
+ *     real active-layer count AND the modifier count, each labelled.
+ *   - {@link filtroBadgeAriaLabel} — the badge's accessible name / tooltip, so the
+ *     bare number announces "N ajustes sobre la vista" instead of a lone integer.
+ */
+export function describeCapasMeta(input: {
+  /** Real count of active layers on the map (base + overlays). */
+  activeLayerCount: number;
+  /** Modifiers beyond the vista's defaults (the badge number). */
+  modifierCount: number;
+}): string {
+  const capas =
+    input.activeLayerCount === 1 ? "1 capa activa" : `${input.activeLayerCount} capas activas`;
+  const ajustes =
+    input.modifierCount === 1
+      ? "1 ajuste sobre la vista"
+      : `${input.modifierCount} ajustes sobre la vista`;
+  return `${capas} · ${ajustes}`;
+}
+
+/** The Capas badge's accessible name / tooltip — names what the number counts. */
+export function filtroBadgeAriaLabel(modifierCount: number): string {
+  return modifierCount === 1
+    ? "1 ajuste sobre la vista"
+    : `${modifierCount} ajustes sobre la vista`;
+}

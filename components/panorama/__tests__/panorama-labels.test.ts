@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   activeVistaName,
   countFiltroModifiers,
+  describeCapasMeta,
+  filtroBadgeAriaLabel,
   legendRampTitle,
   shortKpiLabel,
   shortLayerLabel,
@@ -263,6 +265,28 @@ describe("countFiltroModifiers", () => {
         verifiedOnly: false,
       }),
     ).toBe(1);
+  });
+});
+
+describe("describeCapasMeta / filtroBadgeAriaLabel — the badge stops masquerading as a layer count (Item 3)", () => {
+  it("names BOTH facts: real active layers AND modifiers over the vista", () => {
+    expect(describeCapasMeta({ activeLayerCount: 2, modifierCount: 1 })).toBe(
+      "2 capas activas · 1 ajuste sobre la vista",
+    );
+  });
+
+  it("pluralizes each fact independently", () => {
+    expect(describeCapasMeta({ activeLayerCount: 1, modifierCount: 3 })).toBe(
+      "1 capa activa · 3 ajustes sobre la vista",
+    );
+    expect(describeCapasMeta({ activeLayerCount: 0, modifierCount: 0 })).toBe(
+      "0 capas activas · 0 ajustes sobre la vista",
+    );
+  });
+
+  it("badge aria-label names what the number counts (not a bare integer)", () => {
+    expect(filtroBadgeAriaLabel(1)).toBe("1 ajuste sobre la vista");
+    expect(filtroBadgeAriaLabel(3)).toBe("3 ajustes sobre la vista");
   });
 });
 
