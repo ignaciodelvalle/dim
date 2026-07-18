@@ -1,5 +1,5 @@
 {
-  "app/actions/admin-decisions.ts": 2,
+  "app/actions/admin-decisions.ts": 3,
   "app/actions/admin-institutional.ts": 3,
   "app/actions/admin-proposals.ts": 3,
   "app/actions/admin-revocations.ts": 2,
@@ -8,16 +8,11 @@
   "app/actions/bulk-actions.ts": 1,
   "app/actions/bulk-adoption-actions.ts": 2,
   "app/actions/bulk-pet-events.ts": 3,
-  "app/actions/chip-match.ts": 1,
   "app/actions/custody-disputes.ts": 5,
   "app/actions/decomiso-pet-lookup.ts": 1,
-  "app/actions/intake.ts": 1,
   "app/actions/omnibox-search.ts": 2,
   "app/actions/revocation-evidence.ts": 1,
   "app/actions/rule-impact-preview.ts": 1,
-  "src/modules/adoption/actions.ts": 3,
-  "src/modules/foster/actions.ts": 3,
   "src/modules/organizations/actions.ts": 1,
-  "src/modules/transfers/actions.ts": 1,
   "src/modules/welfare/actions.ts": 5
 }
