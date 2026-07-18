@@ -28,7 +28,7 @@ import { type OpBulkAction, OpBulkBar } from "@/components/ui/dashboard/OpBulkBa
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { CaseStatus } from "@/db/schema";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, pluralizeEs } from "@/lib/utils/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ export function CaseQueue({
           ? "Sin casos"
           : totalCount !== undefined && totalCount > rows.length
             ? `Mostrando los ${rows.length.toLocaleString("es-AR")} más recientes de ${totalCount.toLocaleString("es-AR")}`
-            : `${rows.length} caso${rows.length !== 1 ? "s" : ""}${truncated ? " (hay más — refiná los filtros)" : ""}`}
+            : `${rows.length} ${pluralizeEs(rows.length, "caso")}${truncated ? " (hay más — refiná los filtros)" : ""}`}
       </p>
 
       {/* Table */}

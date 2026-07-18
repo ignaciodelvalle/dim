@@ -4,6 +4,8 @@
 // without a browser. The OpBulkBar component and the queue list components hold
 // the React state; these functions compute the next state.
 
+import { pluralizeEs } from "@/lib/utils/format";
+
 /** Toggle a single id in/out of the selection set, returning a new Set. */
 export function toggleSelection(selected: ReadonlySet<string>, id: string): Set<string> {
   const next = new Set(selected);
@@ -43,5 +45,5 @@ export function isReasonValid(reason: string, minLength = 5): boolean {
 
 /** Human-readable "N seleccionados" summary (es-AR pluralization). */
 export function selectionSummary(count: number): string {
-  return `${count} seleccionado${count === 1 ? "" : "s"}`;
+  return `${count} ${pluralizeEs(count, "seleccionado")}`;
 }

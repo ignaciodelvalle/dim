@@ -14,6 +14,7 @@ import {
   notificationTypeLabel,
   nowLocalDatetimeInAr,
   parseArDateToIso,
+  pluralizeEs,
   rabiesObservationOutcomeLabel,
   relativeDaysShort,
   todayIsoInAr,
@@ -406,5 +407,36 @@ describe("maskArDateInput", () => {
     expect(maskArDateInput("03/07/2026")).toBe("03/07/2026");
     expect(maskArDateInput("ab03cd07")).toBe("03/07");
     expect(maskArDateInput("030720261234")).toBe("03/07/2026");
+  });
+});
+
+describe("pluralizeEs", () => {
+  it("returns the singular for exactly 1", () => {
+    expect(pluralizeEs(1, "evento")).toBe("evento");
+    expect(pluralizeEs(1, "señal")).toBe("señal");
+  });
+
+  it("pluralizes vowel-ending nouns with +s (0 and 2+ are plural)", () => {
+    expect(pluralizeEs(0, "evento")).toBe("eventos");
+    expect(pluralizeEs(2, "regla")).toBe("reglas");
+    expect(pluralizeEs(3, "café")).toBe("cafés");
+  });
+
+  it("pluralizes consonant-ending nouns with +es", () => {
+    expect(pluralizeEs(2, "señal")).toBe("señales");
+    expect(pluralizeEs(2, "animal")).toBe("animales");
+    expect(pluralizeEs(2, "mes")).toBe("meses");
+    expect(pluralizeEs(2, "solicitud")).toBe("solicitudes");
+    expect(pluralizeEs(2, "lugar")).toBe("lugares");
+  });
+
+  it("pluralizes z-ending nouns with -ces", () => {
+    expect(pluralizeEs(2, "vez")).toBe("veces");
+  });
+
+  it("honors an explicit plural for irregulars", () => {
+    expect(pluralizeEs(2, "camión", "camiones")).toBe("camiones");
+    expect(pluralizeEs(2, "lunes", "lunes")).toBe("lunes");
+    expect(pluralizeEs(1, "camión", "camiones")).toBe("camión");
   });
 });

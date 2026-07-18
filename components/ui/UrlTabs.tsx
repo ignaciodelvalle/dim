@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { type KeyboardEvent, type ReactNode, createContext, useContext, useRef } from "react";
 
 import { Icon, type IconName } from "@/components/Icon";
+import { pluralizeEs } from "@/lib/utils/format";
 
 /**
  * Libreta Nacional URL-driven Tabs (with content panels).
@@ -164,7 +165,7 @@ export function UrlTabs({
                           ? "bg-[var(--color-ln-seal)] text-white"
                           : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
                       ].join(" ")}
-                      aria-label={`${tab.badge} urgente${tab.badge !== 1 ? "s" : ""}`}
+                      aria-label={`${tab.badge} ${pluralizeEs(tab.badge, "urgente")}`}
                     >
                       {tab.badge}
                     </span>

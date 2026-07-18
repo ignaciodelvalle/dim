@@ -19,6 +19,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
+import { pluralizeEs } from "@/lib/utils/format";
 
 import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
 
@@ -73,7 +74,7 @@ export function LostLastSeenCard({
           Última ubicación
           {sightingsCount > 0 && (
             <span className="ml-2 text-xs font-normal text-ln-mute ">
-              · {sightingsCount} avistamiento{sightingsCount === 1 ? "" : "s"}
+              · {sightingsCount} {pluralizeEs(sightingsCount, "avistamiento")}
             </span>
           )}
         </h2>
