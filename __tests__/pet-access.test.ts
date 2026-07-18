@@ -129,6 +129,10 @@ describe("requirePetAccess — right-to-erasure lockout (Wave E2)", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toBe("Tu cuenta fue eliminada.");
     expect(result.pet).toBeNull();
+    // An erased account is a PERMISSION failure, not a no-session one — it must
+    // fail closed to notFound() on pages (same as no-ownership), NOT bounce to
+    // /login. Only the true no-session branch carries reason "no-session".
+    if (!result.ok) expect(result.reason).toBe("not-found-or-forbidden");
     // The boundary must short-circuit before issuing the ownership/org query —
     // no data read for an erased account.
     expect(mockSelect).not.toHaveBeenCalled();
@@ -141,8 +145,27 @@ describe("requirePetAccess — right-to-erasure lockout (Wave E2)", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe("Sesión expirada.");
+    // Structural discriminator (external audit 2026-07): the no-session outcome
+    // is distinguishable from a permission denial so a page can redirect to
+    // /login (with returnTo) instead of rendering a misleading 404.
+    if (!result.ok) expect(result.reason).toBe("no-session");
     expect(mockGetProfileCached).not.toHaveBeenCalled();
     expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("returns reason 'not-found-or-forbidden' for a live account with no ownership/membership", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-live"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "user-live", deletedAt: null }));
+    // Both the ownership query and the org query return no rows.
+    dbState.results = [[], []];
+
+    const result = await requirePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe("Mascota no encontrada o sin permisos.");
+    // A resolvable session that simply lacks access must NOT redirect to login —
+    // it stays a notFound() on pages (no information leak). reason marks that.
+    if (!result.ok) expect(result.reason).toBe("not-found-or-forbidden");
   });
 
   it("proceeds to the ownership lookup for a live (non-erased) account", async () => {
@@ -177,7 +200,22 @@ describe("requireAlivePetAccess — inherits erasure lockout", () => {
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe("Tu cuenta fue eliminada.");
+    if (!result.ok) expect(result.reason).toBe("not-found-or-forbidden");
     expect(mockSelect).not.toHaveBeenCalled();
     expect(mockGetGrantedCapabilities).not.toHaveBeenCalled();
+  });
+
+  it("blocks a deceased pet with reason 'not-found-or-forbidden' (never a login bounce)", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-live"));
+    mockGetProfileCached.mockResolvedValue(profile({ id: "user-live", deletedAt: null }));
+    // Ownership query returns a deceased pet the caller owns.
+    dbState.results = [
+      [{ pet: { id: "pet-dead", publicToken: "DIM-TEST-0001", status: "deceased" } }],
+    ];
+
+    const result = await requireAlivePetAccess("DIM-TEST-0001");
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("not-found-or-forbidden");
   });
 });

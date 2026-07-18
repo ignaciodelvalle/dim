@@ -35,12 +35,21 @@ export type AuthenticatedSession = {
 // expires. We resolve the profile (request-cached — every layout/guard downstream
 // reuses the same round-trip) and bounce erased accounts to /login, which renders
 // the "cuenta eliminada" notice + a logout surface instead of looping back in.
-export async function requireUserOrRedirect(): Promise<AuthenticatedSession> {
+// `returnTo` (optional): a same-origin path preserved across the login round-trip
+// (login validates it via safeReturnTo before honoring it). App Router layouts do
+// not receive the pathname, so the (app) layout — the primary caller — cannot
+// cheaply pass it and stays on the bare /login bounce; the page-level fixes carry
+// returnTo themselves. This param lets callers that DO know their path (or the
+// pets.ts shim) preserve it instead of string-matching the error message. The
+// erased-account branch intentionally drops returnTo: an erased account can never
+// reach the target again, so it lands on plain /login (the "cuenta eliminada"
+// notice) rather than a returnTo that would loop.
+export async function requireUserOrRedirect(returnTo?: string): Promise<AuthenticatedSession> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect(returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login");
 
   const profile = await getProfileCached(user.id);
   if (profile?.deletedAt != null) redirect("/login");
