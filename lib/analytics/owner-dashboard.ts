@@ -57,6 +57,7 @@ import {
 } from "@/lib/domain/vaccine-reminder-state";
 import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
 import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
@@ -1282,6 +1283,12 @@ export async function fetchComplianceStatesForPets(
         species: pets.species,
         breed: pets.breed,
         estimatedWeightKg: pets.estimatedWeightKg,
+        // Jurisdiction pair for the microchip_required rule resolution below —
+        // the LIST must gate the microchip card exactly as the profile does
+        // (adversarial review 2026-07-18 W2: omitting it re-shows "falta
+        // microchip" on /inicio for pets whose jurisdiction opted out).
+        jurisdictionProvince: pets.jurisdictionProvince,
+        jurisdictionLocality: pets.jurisdictionLocality,
       })
       .from(pets)
       .where(inArray(pets.id, petIds)),
@@ -1362,9 +1369,31 @@ export async function fetchComplianceStatesForPets(
 
   const petInfoByPet = new Map(petRows.map((r) => [r.id, r]));
 
+  // Resolve microchip_required once per DISTINCT jurisdiction pair — the rule
+  // resolver hits the DB per call, and an owner's pets cluster in few
+  // jurisdictions. Same gate the profile applies; default { required: true }.
+  const jurisdictionKeys = new Map<string, { province: string | null; locality: string | null }>();
+  for (const r of petRows) {
+    jurisdictionKeys.set(`${r.jurisdictionProvince ?? ""}|${r.jurisdictionLocality ?? ""}`, {
+      province: r.jurisdictionProvince,
+      locality: r.jurisdictionLocality,
+    });
+  }
+  const microchipRuleByKey = new Map<string, boolean>();
+  await Promise.all(
+    [...jurisdictionKeys.entries()].map(async ([key, j]) => {
+      const rule = await resolveBusinessRule("microchip_required", {
+        province: j.province,
+        locality: j.locality,
+      });
+      microchipRuleByKey.set(key, rule.payload.required !== false);
+    }),
+  );
+
   const result = new Map<string, ComplianceState>();
   for (const petId of petIds) {
     const petInfo = petInfoByPet.get(petId);
+    const jurisdictionKey = `${petInfo?.jurisdictionProvince ?? ""}|${petInfo?.jurisdictionLocality ?? ""}`;
     result.set(
       petId,
       deriveComplianceState({
@@ -1374,6 +1403,7 @@ export async function fetchComplianceStatesForPets(
         reservedRabiesTurno: turnoByPet.get(petId) ?? null,
         microchipCode: identsByPet.get(petId)?.microchip?.code ?? null,
         pppApplies: Boolean(petInfo?.ppp),
+        microchipApplies: microchipRuleByKey.get(jurisdictionKey) ?? true,
         // Same PPP-determinability inputs the profile passes (review 02-6).
         species: petInfo?.species ?? null,
         breed: petInfo?.breed ?? null,

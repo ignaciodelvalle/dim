@@ -6,9 +6,9 @@
  * ---------------------------------------------------
  * rebuild-projections replays EVERY pet, which is correct but impractical
  * against a remote database: 66k pets x 4 round-trips at WAN latency is
- * hours. This tool narrows the sweep with a single SQL CANDIDATE pre-filter
- * (pets whose latest status_changed.to_status disagrees with the cache — a
- * SUPERSET of real status drift, cheap to compute server-side) and then runs
+ * hours. This tool narrows the sweep with a server-side SQL CANDIDATE
+ * pre-filter (status_changed disagreement UNION un-cached death_recorded —
+ * see findCandidateIds for why both legs are needed) and then runs
  * the SAME canonical per-pet check rebuild-projections uses: advisory lock,
  * full event replay via replayPetStatus, diff, and only-then update. The
  * deriver re-verifies every candidate, so a false-positive candidate (e.g. a
@@ -54,7 +54,16 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-/** Candidate pre-filter: latest status_changed disagrees with the cache. */
+/**
+ * Candidate pre-filter, in two legs mirroring replayPetStatus's two inputs:
+ *   1. latest status_changed.to_status disagrees with the cache, OR
+ *   2. a death_recorded event exists but the cache is not deceased — death is
+ *      terminal in the replay REGARDLESS of status_changed events (the death
+ *      writer emits death_recorded only), so leg 1 alone under-selects this
+ *      class (adversarial review 2026-07-18, W1).
+ * Together the legs form a true superset of status-projection drift; every
+ * candidate is still re-verified by the canonical replay before any write.
+ */
 async function findCandidateIds(): Promise<string[]> {
   const rows = (await db.execute(sql`
     WITH latest AS (
@@ -68,7 +77,15 @@ async function findCandidateIds(): Promise<string[]> {
     JOIN latest l ON l.pet_id = p.id
     WHERE l.log_status IS NOT NULL
       AND l.log_status <> p.status::text
-    ORDER BY p.id
+    UNION
+    SELECT p.id
+    FROM pets p
+    WHERE p.status <> 'deceased'
+      AND EXISTS (
+        SELECT 1 FROM pet_events e
+        WHERE e.pet_id = p.id AND e.event_type = 'death_recorded'
+      )
+    ORDER BY id
   `)) as { id: string }[];
   return rows.map((r) => r.id);
 }
