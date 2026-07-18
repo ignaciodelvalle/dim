@@ -588,6 +588,19 @@ export function lostPosterHeadline(sex: string | null | undefined): string {
   }
 }
 
+/** "Última vez visto" / "Última vez vista" section heading (cartel + public
+ * credential). Slashed inclusive form when sex is unknown. */
+export function lastSeenHeadingLabel(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Última vez visto";
+    case "female":
+      return "Última vez vista";
+    default:
+      return "Última vez visto/a";
+  }
+}
+
 /** Cartel guard prompt when the pet is not lost yet, e.g. "Marcalo como
  * perdido primero para generar el cartel." Neutral rewords around the clitic. */
 export function markLostFirstPrompt(sex: string | null | undefined): string {

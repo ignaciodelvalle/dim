@@ -110,6 +110,7 @@ export default async function CartelPage({
         species={speciesLabel(pet.species)}
         breed={pet.breed ?? null}
         sex={sexLabel(pet.sex)}
+        sexRaw={pet.sex}
         age={ageFromDateOfBirth(pet.dateOfBirth)}
         color={pet.color ?? null}
         distinguishingFeatures={pet.distinguishingFeatures ?? null}

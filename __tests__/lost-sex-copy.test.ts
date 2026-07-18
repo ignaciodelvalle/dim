@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   foundParticiple,
   foundPossessivePhrase,
+  lastSeenHeadingLabel,
   lostBannerHeadline,
   lostFirstPersonLine,
   lostPosterHeadline,
@@ -218,6 +219,17 @@ describe("lostPosterHeadline", () => {
     expect(lostPosterHeadline("unknown")).toBe("SE BUSCA");
     expect(lostPosterHeadline(null)).toBe("SE BUSCA");
     expect(lostPosterHeadline("nonsense")).toBe("SE BUSCA");
+  });
+});
+
+describe("lastSeenHeadingLabel", () => {
+  it("genders by sex", () => {
+    expect(lastSeenHeadingLabel("male")).toBe("Última vez visto");
+    expect(lastSeenHeadingLabel("female")).toBe("Última vez vista");
+  });
+  it("inclusive form for unknown/null", () => {
+    expect(lastSeenHeadingLabel("unknown")).toBe("Última vez visto/a");
+    expect(lastSeenHeadingLabel(null)).toBe("Última vez visto/a");
   });
 });
 
