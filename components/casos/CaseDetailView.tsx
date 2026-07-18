@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { casePetLink } from "@/components/casos/case-pet-link";
 import { shouldRedactPetName } from "@/components/casos/pet-name-redaction";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -33,7 +34,7 @@ import type { EventType } from "@/db/schema";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { eventPayloadSummary } from "@/lib/events/events";
 import { canReadCase } from "@/lib/infra/case-access";
-import { type CaseDetail, getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
+import { getCaseDetailByPublicCode } from "@/lib/infra/case-queries";
 import { getJurisdictionsCached, getProfileCached } from "@/lib/infra/request-cache";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
@@ -90,7 +91,7 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
     ? detail.pet
       ? `/p/${detail.pet.publicToken}`
       : null
-    : computePetLink(detail, viewerRole ?? "owner");
+    : casePetLink(detail.pet?.publicToken, viewerRole ?? "owner");
 
   const photoUrl = detail.pet?.primaryPhotoStoragePath
     ? petPhotoUrl(detail.pet.primaryPhotoStoragePath)
@@ -307,12 +308,4 @@ function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
       <p className="text-[13px] leading-[1.5] text-ln-ink-2">{reason}</p>
     </div>
   );
-}
-
-function computePetLink(detail: CaseDetail, role: string): string | null {
-  if (!detail.pet) return null;
-  // Both admin and govt land on the owner-facing detail for now —
-  // there's no admin-side pet page yet.
-  void role;
-  return `/mis-mascotas/${detail.pet.publicToken}`;
 }
