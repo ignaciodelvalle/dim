@@ -385,6 +385,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
       { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
+      { href: "/gob/rupga", label: "Credenciales RUPGA", matchPrefix: "/gob/rupga" },
       { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
     ],
   },

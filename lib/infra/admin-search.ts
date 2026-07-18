@@ -18,7 +18,8 @@
 
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 
-import { db, organizations, ownerships, pets, profiles } from "@/db";
+import { db, organizations, ownerships, petServiceDog, pets, profiles } from "@/db";
+import type { ServiceDogType } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { likeContains } from "@/lib/utils/like-helpers";
 
@@ -237,6 +238,84 @@ export async function searchOrganizations(
       verified: organizations.verified,
     })
     .from(organizations)
+    .where(where)
+    .limit(limit + 1);
+
+  const truncated = rows.length > limit;
+  return { items: truncated ? rows.slice(0, limit) : rows, truncated };
+}
+
+export type ServiceDogCredentialSearchResult = {
+  petId: string;
+  petPublicToken: string;
+  petName: string;
+  serviceType: ServiceDogType;
+  credentialStatus: string;
+  rupgaCredential: string | null;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+};
+
+// Search pets holding an active (credential_status='vigente') RUPGA
+// service-dog credential. Mirrors searchOrganizations: admin sees all, govt
+// is scoped to a (jurisdiction_province, jurisdiction_locality) match.
+// Only "vigente" is listed — "revocada" has nothing left to act on, and
+// "en_entrenamiento"/"pendiente_verificacion" aren't credentials yet (no
+// verified RUPGA number to revoke). "vencida" is a natural expiry, not
+// something a govt/admin acts on here.
+export async function searchServiceDogCredentials(
+  query: string,
+  scope: { role: "admin" | "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] },
+): Promise<{ items: ServiceDogCredentialSearchResult[]; truncated: boolean }> {
+  // Govt with zero assignments sees nothing; skip the query entirely.
+  if (scope.role === "govt" && scope.jurisdictions.length === 0)
+    return { items: [], truncated: false };
+
+  const trimmed = query.trim();
+  const pattern = likeContains(trimmed);
+  // Search by pet name, public token, or the RUPGA credential number itself.
+  const textPredicate = trimmed
+    ? or(
+        sql`unaccent(${pets.name}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+        sql`unaccent(${pets.publicToken}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+        sql`unaccent(${petServiceDog.rupgaCredential}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+      )
+    : undefined;
+
+  const scopePredicate =
+    scope.role === "admin"
+      ? undefined
+      : or(
+          ...scope.jurisdictions.map((j) =>
+            and(
+              eq(pets.jurisdictionProvince, j.province),
+              eq(pets.jurisdictionLocality, j.locality),
+            ),
+          ),
+        );
+
+  const statusPredicate = eq(petServiceDog.credentialStatus, "vigente");
+
+  const activeClauses = [textPredicate, scopePredicate, statusPredicate].filter(
+    (c): c is NonNullable<typeof c> => c !== undefined,
+  );
+  const where = activeClauses.length === 1 ? activeClauses[0] : and(...activeClauses);
+
+  // Fetch one extra row to detect truncation without a separate COUNT query.
+  const limit = SEARCH_LIMIT;
+  const rows = await db
+    .select({
+      petId: pets.id,
+      petPublicToken: pets.publicToken,
+      petName: pets.name,
+      serviceType: petServiceDog.serviceType,
+      credentialStatus: petServiceDog.credentialStatus,
+      rupgaCredential: petServiceDog.rupgaCredential,
+      jurisdictionProvince: pets.jurisdictionProvince,
+      jurisdictionLocality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .innerJoin(petServiceDog, eq(petServiceDog.petId, pets.id))
     .where(where)
     .limit(limit + 1);
 
