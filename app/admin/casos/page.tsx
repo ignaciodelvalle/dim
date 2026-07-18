@@ -8,7 +8,7 @@ import { OpButton } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { listCasesForAdmin } from "@/lib/infra/case-queries";
+import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
@@ -73,16 +73,25 @@ export default async function AdminCasosPage({
     ...(provinceFilter ? { province: provinceFilter } : {}),
   };
 
-  // Fetch limit+1 to detect hasMore.
-  const rawItems = await listCasesForAdmin({
-    limit: ADMIN_CASOS_PAGE_LIMIT + 1,
-    cursor: rawCursor,
-    filters: {
+  // Fetch limit+1 to detect hasMore, plus the true total behind the cap (M4) so
+  // the header reads "Mostrando los 50 más recientes de N" instead of "50 casos"
+  // when more exist. The count uses the SAME filters as the list.
+  const [rawItems, totalCount] = await Promise.all([
+    listCasesForAdmin({
+      limit: ADMIN_CASOS_PAGE_LIMIT + 1,
+      cursor: rawCursor,
+      filters: {
+        status: statusFilter,
+        kind: kindFilter,
+        province: provinceFilter,
+      },
+    }),
+    countCasesForAdmin({
       status: statusFilter,
       kind: kindFilter,
       province: provinceFilter,
-    },
-  });
+    }),
+  ]);
   const hasMore = rawItems.length > ADMIN_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, ADMIN_CASOS_PAGE_LIMIT) : rawItems;
 
@@ -195,6 +204,9 @@ export default async function AdminCasosPage({
           filters={{ status: statusFilter, kind: kindFilter }}
           showStatusChips={false}
           caption="Cola de casos — vista universal admin"
+          // "más recientes de N" is a first-page affordance; on a keyset page
+          // (cursor set) these are the NEXT 50, not the most recent, so omit it.
+          totalCount={rawCursor ? undefined : totalCount}
           emptyMessage="Sin casos registrados para los filtros aplicados."
         />
       </Suspense>

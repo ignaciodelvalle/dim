@@ -144,4 +144,32 @@ describe("cronDisplayLabel — es-AR operator labels", () => {
   it("falls back to the raw name for an unknown cron (forward-compat)", () => {
     expect(cronDisplayLabel("some_future_cron")).toBe("some_future_cron");
   });
+
+  // M2 (cowork demo 2026-07-17): the WRAPPER/dispatcher jobs (cron_daily,
+  // cron_health, refresh_cube) are NOT in CRON_REGISTRY — they run/monitor the
+  // fleet — but each writes its OWN cron_runs row (const CRON_NAME in its route),
+  // so they appear on /admin/sistema + the CronsDownBanner just like a job. The
+  // banner's "Detalle técnico" showed raw "cron_daily"; pin that every wrapper
+  // telemetry name also resolves to an es-AR label.
+  const WRAPPER_CRON_NAMES = ["cron_daily", "cron_health", "refresh_cube"] as const;
+  it("maps EVERY wrapper/dispatcher telemetry name to a non-raw es-AR label", () => {
+    for (const name of WRAPPER_CRON_NAMES) {
+      const label = cronDisplayLabel(name);
+      expect(label, `${name} has no es-AR display label`).not.toBe(name);
+      expect(label.length).toBeGreaterThan(0);
+      expect(label).not.toMatch(/_/);
+    }
+  });
+
+  it("the wrapper telemetry names match the dispatcher route CRON_NAME constants", () => {
+    // Guard against drift: the labels above are keyed by the exact cron_runs name
+    // each dispatcher writes. If a dispatcher's CRON_NAME changes, this catches it.
+    const dispatcherNames = DISPATCHER_DIRS.map((dir) => {
+      const src = readFileSync(join(CRON_DIR, dir, "route.ts"), "utf8");
+      return src.match(/const CRON_NAME = "([^"]+)"/)?.[1];
+    }).filter((n): n is string => Boolean(n));
+    for (const name of dispatcherNames) {
+      expect(WRAPPER_CRON_NAMES).toContain(name);
+    }
+  });
 });

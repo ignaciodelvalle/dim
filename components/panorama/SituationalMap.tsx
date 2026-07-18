@@ -2494,6 +2494,10 @@ export function SituationalMap({
     map.on("mousemove", fillId, (e) => {
       const f = e.features?.[0];
       if (!f) return;
+      // M5 (cowork demo 2026-07-17): while a popup is PINNED, suppress the hover
+      // tooltip so the two don't overlap with duplicate info (the pin is the
+      // selectable readout; dismiss it with ✕ or Esc to get hover previews back).
+      if (pinnedPopupRef.current?.isOpen()) return;
       const props = f.properties as { code?: string; name?: string };
       const code = codeFor(props.code ?? "");
       // cursor #6: move the division hover glow to the polygon under the pointer
@@ -2888,6 +2892,9 @@ export function SituationalMap({
     map.on("mousemove", fillId, (e) => {
       const f = e.features?.[0];
       if (!f) return;
+      // M5 (cowork demo 2026-07-17): no hover tooltip while a popup is pinned —
+      // avoids the duplicate-info overlap. Dismiss the pin (✕/Esc) to restore hover.
+      if (pinnedPopupRef.current?.isOpen()) return;
       const props = f.properties as { code?: string; name?: string };
       const code = props.code ?? "";
       // panorama-ia-v2 §3.3: highlight the matching ranked row (map→row sync).
@@ -2982,6 +2989,9 @@ export function SituationalMap({
     map.on("mousemove", pl, (e) => {
       const f = e.features?.[0];
       if (!f) return;
+      // M5 (cowork demo 2026-07-17): no hover tooltip while a popup is pinned —
+      // avoids the duplicate-info overlap. Dismiss the pin (✕/Esc) to restore hover.
+      if (pinnedPopupRef.current?.isOpen()) return;
       const p = f.properties as {
         place?: string;
         count?: number | null;
@@ -3052,6 +3062,9 @@ export function SituationalMap({
     map.on("mousemove", cl, (e) => {
       const f = e.features?.[0];
       if (!f) return;
+      // M5 (cowork demo 2026-07-17): no hover tooltip while a popup is pinned —
+      // avoids the duplicate-info overlap. Dismiss the pin (✕/Esc) to restore hover.
+      if (pinnedPopupRef.current?.isOpen()) return;
       const n = (f.properties as { point_count?: number }).point_count ?? 0;
       popup
         .setLngLat(e.lngLat)
@@ -3082,6 +3095,9 @@ export function SituationalMap({
     map.on("mousemove", pl, (e) => {
       const f = e.features?.[0];
       if (!f) return;
+      // M5 (cowork demo 2026-07-17): no hover tooltip while a popup is pinned —
+      // avoids the duplicate-info overlap. Dismiss the pin (✕/Esc) to restore hover.
+      if (pinnedPopupRef.current?.isOpen()) return;
       popup
         .setLngLat(e.lngLat)
         .setHTML(pointPopupHtml(layer, f.properties ?? {}))
@@ -3109,6 +3125,9 @@ export function SituationalMap({
     map.on("mousemove", id, (e) => {
       const f = e.features?.[0];
       if (!f) return;
+      // M5 (cowork demo 2026-07-17): no hover tooltip while a popup is pinned —
+      // avoids the duplicate-info overlap. Dismiss the pin (✕/Esc) to restore hover.
+      if (pinnedPopupRef.current?.isOpen()) return;
       const p = f.properties as {
         locality?: string;
         province?: string;

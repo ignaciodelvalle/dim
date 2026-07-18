@@ -16,6 +16,7 @@ import {
 } from "@/lib/analytics/admin-metrics";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
@@ -280,7 +281,11 @@ export default async function AdminSistemaPage() {
                   return (
                     <li key={c.cronName} className="space-y-1">
                       <div className="flex items-baseline justify-between gap-3">
-                        <span className="text-sm text-ln-op-ink-2">{c.cronName}</span>
+                        {/* M2 (cowork demo): show the es-AR label; the raw
+                            snake_case key rides `title` for support/debugging. */}
+                        <span className="text-sm text-ln-op-ink-2" title={c.cronName}>
+                          {cronDisplayLabel(c.cronName)}
+                        </span>
                         <span className="tabular-nums text-[11px] flex items-center gap-1.5">
                           {c.lastRunAt
                             ? new Date(c.lastRunAt).toLocaleString("es-AR", {

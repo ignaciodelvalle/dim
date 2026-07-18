@@ -33,6 +33,7 @@ import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import {
   TARGETS,
   buildProjectionContext,
@@ -596,7 +597,10 @@ export default async function AdminProgramaPage({
                     className="flex items-baseline justify-between gap-3 text-sm"
                     aria-label={`${c.cronName}: ${c.lastStatus ?? "desconocido"}`}
                   >
-                    <span className="text-ln-op-ink-2 truncate max-w-[160px]">{c.cronName}</span>
+                    {/* M2 (cowork demo): es-AR label; raw key on `title`. */}
+                    <span className="text-ln-op-ink-2 truncate max-w-[160px]" title={c.cronName}>
+                      {cronDisplayLabel(c.cronName)}
+                    </span>
                     <span className="flex items-center gap-1.5 tabular-nums text-[11px] shrink-0">
                       {c.lastRunAt
                         ? new Date(c.lastRunAt).toLocaleString("es-AR", {

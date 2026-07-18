@@ -107,6 +107,11 @@ const CRON_DISPLAY_LABELS: Record<string, string> = {
   close_followup_expired_adoptions: "Cierre de seguimientos de adopción vencidos",
   close_rabies_observations: "Cierre de observaciones antirrábicas",
   close_stale_lost_episodes: "Cierre de episodios de pérdida vencidos",
+  // Wrapper/dispatcher jobs — NOT in CRON_REGISTRY (they run/monitor the fleet
+  // rather than being monitored jobs), but they write their OWN cron_runs rows,
+  // so they surface on /admin/sistema + the CronsDownBanner and need es-AR labels
+  // too (M2, cowork demo 2026-07-17: "cron_daily" showed raw in Detalle técnico).
+  cron_daily: "Corrida diaria de procesos",
   cron_health: "Chequeo de salud de procesos",
   data_lifecycle: "Ciclo de vida de datos",
   drain_notification_dead_letter: "Reintento de notificaciones fallidas",
@@ -123,6 +128,9 @@ const CRON_DISPLAY_LABELS: Record<string, string> = {
   process_eno_queue: "Procesamiento de la cola ENO",
   purge_scan_events: "Depuración de escaneos de credenciales",
   reconcile_pet_status: "Reconciliación de estados de mascotas",
+  // Standalone dispatcher (its own Vercel Pro function; writes cron_runs as
+  // `refresh_cube`). Surfaces on /admin/sistema like any other row.
+  refresh_cube: "Actualización del cubo de análisis",
   vaccine_due: "Recordatorio de vacunas por vencer",
 };
 

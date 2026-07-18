@@ -96,6 +96,12 @@ export interface CaseQueueProps {
   caption?: string;
   /** When true, shows a "Truncated — hay más resultados" note. */
   truncated?: boolean;
+  /**
+   * The TRUE total behind a capped list (M4). When set and larger than the
+   * rendered rows, the count reads "Mostrando los N más recientes de M" instead
+   * of a bare "N casos" that hides how many exist. Omit on uncapped lists.
+   */
+  totalCount?: number;
   /** Empty-state message. */
   emptyMessage?: string;
   /**
@@ -144,6 +150,7 @@ export function CaseQueue({
   filterBase = "",
   caption = "Cola de casos",
   truncated = false,
+  totalCount,
   emptyMessage = "No hay casos en esta cola.",
   showStatusChips = true,
 }: CaseQueueProps) {
@@ -200,7 +207,9 @@ export function CaseQueue({
       <p aria-live="polite" className="text-sm text-ln-op-mute">
         {rows.length === 0
           ? "Sin casos"
-          : `${rows.length} caso${rows.length !== 1 ? "s" : ""}${truncated ? " (hay más — refiná los filtros)" : ""}`}
+          : totalCount !== undefined && totalCount > rows.length
+            ? `Mostrando los ${rows.length.toLocaleString("es-AR")} más recientes de ${totalCount.toLocaleString("es-AR")}`
+            : `${rows.length} caso${rows.length !== 1 ? "s" : ""}${truncated ? " (hay más — refiná los filtros)" : ""}`}
       </p>
 
       {/* Table */}

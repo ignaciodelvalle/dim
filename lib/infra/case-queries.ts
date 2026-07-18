@@ -686,6 +686,23 @@ export async function listCasesForAdmin(opts?: {
   return rows.map(mapListRow);
 }
 
+/**
+ * Total count of admin cases matching `filters` — the true denominator behind
+ * the capped keyset list (M4, cowork demo 2026-07-17: the list said "50 casos"
+ * when 534 were open). Reuses the SAME filter clauses as listCasesForAdmin
+ * (minus the cursor), so N describes the exact filtered set the page shows —
+ * never a different denominator. Single-statement count → stays on the OLTP pool.
+ */
+export async function countCasesForAdmin(filters: ListCasesForAdminFilters = {}): Promise<number> {
+  const clauses = buildAdminCaseFilterClauses(filters);
+  const whereClause = clauses.length > 0 ? and(...clauses) : undefined;
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(cases)
+    .where(whereClause);
+  return row?.count ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard preview: open/escalated cases, limited in SQL
 // ---------------------------------------------------------------------------
