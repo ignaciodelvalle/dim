@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeFutureLedger } from "./libreta-future.helpers";
+import { REMINDER_SURFACE_WINDOW_DAYS, mergeFutureLedger } from "./libreta-future.helpers";
 
 describe("mergeFutureLedger", () => {
   it("interleaves reminders, appointments, and doses ascending by dueAt", () => {
@@ -152,5 +152,106 @@ describe("mergeFutureLedger", () => {
       [],
     );
     expect(item?.action).toEqual({ type: "reschedule", href: "/mis-turnos/apt1" });
+  });
+});
+
+// medianos-sesión-2 finding #2: a freshly-created reminder due ~365 days out
+// (the next annual dose, just registered) showed up as an active pendiente
+// with "Posponer 7 días" — noise a year early. Only reminders within
+// REMINDER_SURFACE_WINDOW_DAYS are useful/actionable TODAY; farther-out
+// reminders are real data (their dueAt is untouched) but don't belong in this
+// section yet. Appointments/medication doses are untouched by this gate.
+describe("mergeFutureLedger — reminder surface window (display-only gate)", () => {
+  const now = new Date("2026-07-18T12:00:00Z");
+
+  function daysFromNow(days: number): Date {
+    return new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  }
+
+  it("a reminder ~365 days out is not surfaced", () => {
+    const result = mergeFutureLedger(
+      [{ reminderId: "r1", title: "Antirrábica", dueAt: daysFromNow(365), variant: "upcoming" }],
+      [],
+      [],
+      now,
+    );
+    expect(result).toEqual([]);
+  });
+
+  it("a reminder ~20 days out is surfaced (within the window)", () => {
+    const result = mergeFutureLedger(
+      [{ reminderId: "r1", title: "Antirrábica", dueAt: daysFromNow(20), variant: "upcoming" }],
+      [],
+      [],
+      now,
+    );
+    expect(result.map((r) => r.id)).toEqual(["reminder-r1"]);
+    // reminderId (powers the "Posponer 7 días" action) survives the gate.
+    expect(result[0]?.reminderId).toBe("r1");
+  });
+
+  it("a reminder exactly at the window boundary is surfaced; one day past is not", () => {
+    const atBoundary = mergeFutureLedger(
+      [
+        {
+          reminderId: "r1",
+          title: "Antiparasitario",
+          dueAt: daysFromNow(REMINDER_SURFACE_WINDOW_DAYS),
+          variant: "upcoming",
+        },
+      ],
+      [],
+      [],
+      now,
+    );
+    expect(atBoundary).toHaveLength(1);
+
+    const pastBoundary = mergeFutureLedger(
+      [
+        {
+          reminderId: "r1",
+          title: "Antiparasitario",
+          dueAt: daysFromNow(REMINDER_SURFACE_WINDOW_DAYS + 1),
+          variant: "upcoming",
+        },
+      ],
+      [],
+      [],
+      now,
+    );
+    expect(pastBoundary).toEqual([]);
+  });
+
+  it("an overdue reminder is always surfaced, however far in the past", () => {
+    const result = mergeFutureLedger(
+      [
+        {
+          reminderId: "r1",
+          title: "Antirrábica",
+          dueAt: daysFromNow(-400),
+          variant: "overdue_critical",
+        },
+      ],
+      [],
+      [],
+      now,
+    );
+    expect(result.map((r) => r.id)).toEqual(["reminder-r1"]);
+  });
+
+  it("appointments and medication doses far in the future are unaffected by the reminder gate", () => {
+    const result = mergeFutureLedger(
+      [],
+      [
+        {
+          publicToken: "apt1",
+          offeringDisplayName: "Control anual",
+          slotStartsAt: daysFromNow(365),
+        },
+      ],
+      [{ reminderId: "m1", drugName: "Amoxicilina", dueAt: daysFromNow(365) }],
+      now,
+    );
+    expect(result.map((r) => r.id).sort()).toEqual(["appt-apt1", "med-m1"]);
   });
 });
