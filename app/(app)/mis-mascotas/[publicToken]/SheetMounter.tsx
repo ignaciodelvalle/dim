@@ -55,8 +55,13 @@ import { VaccinationForm } from "./eventos/nuevo/vacuna/VaccinationForm";
 import { MarkLostWizard } from "./perdida/MarkLostWizard";
 
 import { createLibretaShareAction } from "@/app/actions/libreta-share";
+import { setPetDisclosurePrefsAction } from "@/app/actions/lost-mode";
 import { enableTier2PublicAction, revokeTier2PublicAction } from "@/app/actions/tier2-public";
 import { PetForm } from "@/components/PetForm";
+import {
+  type DisclosurePrefs,
+  LostDisclosureCard,
+} from "@/components/pet-profile/LostDisclosureCard";
 import type { Pet } from "@/db";
 import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
 import {
@@ -139,6 +144,15 @@ type Props = {
    * gating page.tsx already applies to `viewerContacts`.
    */
   emergencyContacts: EmergencyContactValues | null;
+  /**
+   * "Primeros pasos" star item (?sheet=privacidad) — lets the owner decide
+   * lost-mode disclosure prefs BEFORE a crisis instead of only at mark-lost
+   * time. Same legal-owner + non-deceased gate as emergencyContacts (null =
+   * no entry point for this viewer/state).
+   */
+  disclosurePrefs: DisclosurePrefs | null;
+  /** Owner first name for LostDisclosureCard's preview copy. */
+  ownerFirstName: string;
 };
 
 export function SheetMounter({
@@ -157,6 +171,8 @@ export function SheetMounter({
   chapitaData,
   physicalCredentialChannels,
   emergencyContacts,
+  disclosurePrefs,
+  ownerFirstName,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -365,6 +381,25 @@ export function SheetMounter({
           petPublicToken={petToken}
           initialValues={emergencyContacts}
           onSaved={closeAfterEmergencyContactSave}
+        />
+      </Sheet>
+    );
+  }
+
+  if (sheet === "privacidad") {
+    // "Primeros pasos" star item — same defense-in-depth backstop pattern as
+    // the chapita/emergencia branches: disclosurePrefs is null unless this
+    // viewer is the legal owner of an active pet, so a hand-typed URL from
+    // anyone else renders nothing.
+    if (accessPath !== "owner" || petStatus === "deceased" || !disclosurePrefs) return null;
+    const toggleAction = setPetDisclosurePrefsAction.bind(null, petToken);
+    return (
+      <Sheet id="privacidad" title="Qué se muestra si se pierde" open onClose={close}>
+        <LostDisclosureCard
+          prefs={disclosurePrefs}
+          toggleAction={toggleAction}
+          publicHref={`/p/${petToken}`}
+          ownerFirstName={ownerFirstName}
         />
       </Sheet>
     );

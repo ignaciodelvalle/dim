@@ -304,6 +304,15 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                 </div>
               </div>
 
+              {/* Curiosity-hook microcopy (PO-locked wording, landing microcopy
+                  train): sits between the credential and the state dots, so it
+                  reads as "about this card" without crowding either. Points at
+                  the same QR the card already renders — no new link, just the
+                  nudge to actually try it. */}
+              <p className="lp-hcard-hint lp-reveal" data-d="3">
+                Escanealo para ver más sobre {PAMPA.name}
+              </p>
+
               {/* State dots — tap one to take control of the cycle */}
               <div className="lp-hdots" role="toolbar" aria-label="Estados de la credencial">
                 {HERO_STATES.map((s, i) => (

@@ -127,6 +127,18 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
           {credentialUrl}
         </p>
 
+        {/* Self-scan privacy lesson — the moment the landing deliberately does
+            NOT teach (the flagship-pet demo stays curiosity-only). Alta is
+            when it's actionable: the owner can still adjust what a stranger
+            sees before anyone ever scans. Reframes the existing "Ver
+            credencial pública" link below instead of adding a 4th CTA — the
+            regla de 4 verbos / max-3-CTAs contract stays intact. */}
+        <p className="text-left text-xs leading-relaxed text-[var(--color-ln-mute)] bg-[var(--color-ln-stripe)] rounded-[var(--radius-md)] px-3 py-2.5">
+          Esto es lo que ve un extraño que escanea a {petName}: su nombre, especie y lo que vos
+          decidas mostrar — nunca tus datos sin que los actives. Podés revisarlo con el link de
+          abajo y, si {petName} alguna vez se pierde, elegir qué se comparte desde su perfil.
+        </p>
+
         {/* Actions — max 3 per spec */}
         <div className="space-y-3">
           {/* Primary: share */}

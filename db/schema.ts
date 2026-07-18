@@ -614,6 +614,18 @@ export const pets = pgTable(
       .notNull()
       .default(true),
     allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
+    // "Primeros pasos" onboarding checklist — per-pet dismissed step keys
+    // (owner-onboarding train, migration 0153). A step key here ("photo",
+    // "microchip", "vaccines", "emergency_contact", "disclosure_prefs") means
+    // the owner explicitly chose "Omitir" for that nudge — NOT that the
+    // underlying task was done (done is derived live from the pet's own
+    // fields/ledger events) and NOT that the capability is disabled: the
+    // owner can still add a photo / set disclosure prefs later through their
+    // normal surfaces, this only silences the onboarding nudge. UI
+    // preference like the disclose_*_when_lost columns above — a dismissal
+    // does NOT emit a pet_profile_updated event (the append-only event log
+    // stays for facts about the pet, not for owner UI choices).
+    dismissedFirstSteps: text("dismissed_first_steps").array().notNull().default(sql`'{}'::text[]`),
     // Tier 2 público temporal — owner opt-in window for /p/[publicToken].
     // When non-null and > now(), the public credential reveals a curated
     // medical summary (vacunas vigentes, esterilización, medicación
@@ -1403,6 +1415,12 @@ export type NewAttachment = typeof attachments.$inferInsert;
 // Notifications often *project from* events — e.g. registering a pet with a
 // dangerous breed produces a `ppp_registration_reminder`. Some are pure
 // system messages (welcome, app updates) with no source event.
+//
+// `first_stranger_scan` (owner-onboarding train): fired once per pet, the
+// first time a non-owner scans its public credential — see
+// lib/infra/notify-owner-of-first-stranger-scan.ts. Every notificationType
+// literal's es-AR label lives in lib/utils/format.ts's
+// NOTIFICATION_TYPE_LABELS, kept in sync by convention (no schema enum here).
 
 export const notifications = pgTable(
   "notifications",

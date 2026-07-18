@@ -30,6 +30,7 @@ import { headers } from "next/headers";
 
 import { db, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { notifyOwnerOfFirstStrangerScan } from "@/lib/infra/notify-owner-of-first-stranger-scan";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { ipAreaFromHeaders } from "@/lib/infra/scan-geo";
 import { createClient } from "@/lib/supabase/server";
@@ -100,7 +101,7 @@ export async function logScan(publicToken: string, opts?: { coords?: ScanCoords 
   }
 
   const [pet] = await db
-    .select({ id: pets.id, status: pets.status })
+    .select({ id: pets.id, status: pets.status, name: pets.name })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
@@ -177,4 +178,20 @@ export async function logScan(publicToken: string, opts?: { coords?: ScanCoords 
     authorRole: isSelfScan ? "owner" : "scanner",
     payload: eventPayload,
   });
+
+  // Owner-onboarding train: the first time an actual stranger scans this
+  // pet's credential, tell the owner "así funciona el QR" — never for a
+  // self-scan (the owner already knows what they're looking at). Idempotent
+  // per (pet, owner) via a stable dedupeKey inside the notifier — see its
+  // docblock for why this can safely run on EVERY external scan, not just
+  // provably-the-first one. No relatedEventId (the insert above doesn't
+  // `.returning()` — keeping it a plain insert avoids reshaping the write
+  // this function is named for); the notifier's dedupeKey doesn't need it.
+  if (!isSelfScan) {
+    await notifyOwnerOfFirstStrangerScan({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+    });
+  }
 }

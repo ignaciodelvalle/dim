@@ -58,6 +58,11 @@ describe("<PetCreatedAha>", () => {
     expect(html).toContain("/p/abc-123-def");
   });
 
+  it("teaches the self-scan privacy lesson naming the pet and a stranger scanning it", () => {
+    const html = render(<PetCreatedAha {...defaultProps} />);
+    expect(html).toContain("Esto es lo que ve un extraño que escanea a Luna");
+  });
+
   it("has at most 3 interactive CTAs", () => {
     const html = render(<PetCreatedAha {...defaultProps} />);
     // Count buttons + anchor tags that are CTAs (exclude the QR wrapper which is a div)

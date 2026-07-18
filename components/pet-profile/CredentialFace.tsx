@@ -26,9 +26,11 @@ import type { ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import { ComplianceObligationsPanel } from "@/components/pet-profile/ComplianceObligationsPanel";
 import { DiscList, DiscRow } from "@/components/pet-profile/DiscList";
+import { FirstStepsChecklist } from "@/components/pet-profile/FirstStepsChecklist";
 import { LnAlert } from "@/components/ui/Alert";
 import type { LnHeroProps } from "@/components/ui/Hero";
 import { LnMemorialChip, LnVstamp } from "@/components/ui/StatusFlag";
+import type { FirstStepItem } from "@/lib/projections/first-steps-checklist";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 import type { PetSituation } from "@/lib/ui/pet-situation";
 import { registeredAdjective } from "@/lib/utils/format";
@@ -99,6 +101,15 @@ export type CredentialFaceProps = {
   anotar?: ReactNode;
   /** Action row node (PetActionRow). Always rendered as the sheet footer. */
   actions?: ReactNode;
+  /**
+   * "Primeros pasos" owner-onboarding checklist (pending rows only — see
+   * lib/projections/first-steps-checklist.ts). Owner-only, non-deceased;
+   * the caller passes `null`/absent (or an empty array) for every other
+   * viewer/state, which renders no section — this is onboarding, not a
+   * permanent fixture, and it is distinct from the Cumplimiento panel below
+   * (legal obligations) — see that file's scope-boundary doc comment.
+   */
+  firstSteps?: FirstStepItem[] | null;
 };
 
 export function CredentialFace({
@@ -114,6 +125,7 @@ export function CredentialFace({
   anotar,
   actions,
   petSex,
+  firstSteps,
 }: CredentialFaceProps) {
   const memorialYearRange =
     memorial?.birthYear && memorial?.deathYear
@@ -283,6 +295,25 @@ export function CredentialFace({
           </div>
         </div>
       </div>
+
+      {/* Primeros pasos — owner-onboarding checklist (setup tasks, never a
+          legal obligation on their own). Rendered ABOVE Cumplimiento: a new
+          pet needs onboarding guidance before it needs to see its compliance
+          state, and the section fully vanishes once every step is done or
+          dismissed — a permanent, empty divider never lingers here. */}
+      {firstSteps && firstSteps.length > 0 && (
+        <>
+          <div className="ln-divider">
+            <span className="ln-divider-label">
+              <Icon name="star" size="sm" decorative />
+              Primeros pasos
+            </span>
+          </div>
+          <div className="ln-sec">
+            <FirstStepsChecklist items={firstSteps} petPublicToken={petPublicToken} />
+          </div>
+        </>
+      )}
 
       {/* Cumplimiento — the provenance-gated obligation grid, bare (the divider
           labels it; no card-in-card outer box). */}

@@ -76,6 +76,16 @@ vi.mock("@/lib/infra/rate-limit", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock: @/lib/infra/notify-owner-of-first-stranger-scan — asserted directly
+// below (owner-onboarding train), decoupled from the @/db mock's shape.
+// ---------------------------------------------------------------------------
+
+const mockNotifyFirstStrangerScan = vi.fn(async (..._args: unknown[]) => ({ delivered: 0 }));
+vi.mock("@/lib/infra/notify-owner-of-first-stranger-scan", () => ({
+  notifyOwnerOfFirstStrangerScan: (...args: unknown[]) => mockNotifyFirstStrangerScan(...args),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock: @/db — select chain routes pet + ownership queries; insert is captured.
 // ---------------------------------------------------------------------------
 
@@ -145,6 +155,36 @@ describe("logScanAction — scan-location capture (Task #45)", () => {
     setVercelGeoHeaders();
     mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
     buildMockDb();
+    mockNotifyFirstStrangerScan.mockClear();
+  });
+
+  // --- (d) first-stranger-scan notification guard (owner-onboarding train) ---
+
+  it("calls the first-stranger-scan notifier on an anonymous (non-self) scan", async () => {
+    await runScan();
+
+    expect(mockNotifyFirstStrangerScan).toHaveBeenCalledTimes(1);
+    expect(mockNotifyFirstStrangerScan.mock.calls[0][0]).toMatchObject({
+      petId: PET_ID,
+      petPublicToken: PUBLIC_TOKEN,
+    });
+  });
+
+  it("calls the notifier on an authenticated NON-owner scan too", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: VISITOR_USER_ID } }, error: null });
+
+    await runScan();
+
+    expect(mockNotifyFirstStrangerScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT call the notifier on a self-scan", async () => {
+    viewerIsOwner = true;
+    mockGetUser.mockResolvedValue({ data: { user: { id: OWNER_USER_ID } }, error: null });
+
+    await runScan();
+
+    expect(mockNotifyFirstStrangerScan).not.toHaveBeenCalled();
   });
 
   // --- (a) coarse IP-area floor, hard-anonymized ---
