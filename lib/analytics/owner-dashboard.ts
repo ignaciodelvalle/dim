@@ -67,6 +67,7 @@ import {
   type ReservedRabiesTurno,
   deriveComplianceState,
 } from "@/lib/projections/pet-compliance";
+import { lostReportedTitle } from "@/lib/utils/format";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // ---------------------------------------------------------------------------
@@ -456,6 +457,7 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
     kind: "pet_lost" | "dangerous_breed_pending_attestation";
     pet_id: string;
     pet_name: string;
+    pet_sex: string | null;
     pet_public_token: string;
     since_ts: string;
   }>(sql`
@@ -464,6 +466,7 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
       'pet_lost'::text AS kind,
       p.id::text        AS pet_id,
       p.name            AS pet_name,
+      p.sex::text       AS pet_sex,
       p.public_token    AS pet_public_token,
       p.updated_at::text AS since_ts
     FROM pets p
@@ -481,6 +484,7 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
       'dangerous_breed_pending_attestation'::text AS kind,
       p.id::text        AS pet_id,
       p.name            AS pet_name,
+      p.sex::text       AS pet_sex,
       p.public_token    AS pet_public_token,
       p.created_at::text AS since_ts
     FROM pets p
@@ -503,7 +507,9 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
       return {
         id: `pet_lost:${r.pet_id}`,
         kind: "pet_lost" as const,
-        title: `${r.pet_name} está reportada como perdida`,
+        // Sex-flexed (ciclo-perdido sweep fix #2): "está reportada como
+        // perdida" called a male pet feminine.
+        title: lostReportedTitle(r.pet_name, r.pet_sex),
         subtitle: "Avisanos cuando aparezca",
         ctaUrl: `/mis-mascotas/${r.pet_public_token}`,
         since: new Date(r.since_ts),

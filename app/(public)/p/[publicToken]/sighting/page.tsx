@@ -82,6 +82,7 @@ export default async function PetSightingPage({
           <PetSightingForm
             publicToken={publicToken}
             petName={pet.name}
+            petSex={pet.sex}
             biasProvince={pet.jurisdictionProvince}
             biasLocality={pet.jurisdictionLocality}
           />

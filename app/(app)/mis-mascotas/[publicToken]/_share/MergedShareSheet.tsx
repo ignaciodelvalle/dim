@@ -19,6 +19,7 @@ import { SharesManager } from "@/app/(app)/mis-mascotas/[publicToken]/libreta/Sh
 import { getActiveLibretaSharesAction } from "@/app/actions/libreta-share";
 import { Icon } from "@/components/Icon";
 import type { LibretaShareToken } from "@/db";
+import { lostShareMessage } from "@/lib/utils/format";
 import { ShareLibretaSheet } from "../_share-libreta/ShareLibretaSheet";
 import { Tier2PublicView } from "../_tier2-public/Tier2PublicView";
 
@@ -35,6 +36,8 @@ type Tier2Props = {
 type Props = {
   petPublicToken: string;
   petName: string;
+  /** Pet sex ('male' | 'female' | 'unknown') — flexes the lost share copy. */
+  petSex: string | null;
   createShareAction: (
     input: Pick<{ expiresInDays: number | null; label: string | null }, "expiresInDays" | "label">,
   ) => Promise<CreateShareResult>;
@@ -62,6 +65,7 @@ function SectionHeading({ children }: { children: string }) {
 export function MergedShareSheet({
   petPublicToken,
   petName,
+  petSex,
   createShareAction,
   tier2,
   isOwner,
@@ -101,8 +105,9 @@ export function MergedShareSheet({
   function handleShareWhatsApp() {
     const url = `${window.location.origin}/p/${petPublicToken}`;
     // Generic copy on purpose — see the `isLost` prop doc comment: this
-    // sheet has no disclosure prefs to gate on, unlike LostShareCard.
-    const text = `${petName} está perdida. Mirá su credencial y avisanos si la viste:`;
+    // sheet has no disclosure prefs to gate on, unlike LostShareCard. The
+    // wording flexes by the pet's recorded sex (ciclo-perdido sweep fix #2).
+    const text = lostShareMessage(petName, petSex);
     const waUrl = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`;
     window.open(waUrl, "_blank", "noopener");
   }

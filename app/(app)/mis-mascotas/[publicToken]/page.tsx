@@ -931,6 +931,7 @@ export default async function PetDetailPage({
       <SheetMounter
         petToken={pet.publicToken}
         petName={pet.name}
+        petSex={pet.sex}
         species={pet.species}
         petStatus={pet.status as "active" | "lost" | "deceased"}
         accessPath={accessPath === "org" ? "org" : "owner"}

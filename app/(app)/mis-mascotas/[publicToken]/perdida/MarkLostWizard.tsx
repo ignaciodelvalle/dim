@@ -30,6 +30,7 @@ import {
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggleGroup } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
+import { markLostActionLabel } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -88,6 +89,7 @@ const LOCATION_DISCLOSURE_ROW = DISCLOSURE_ROWS.find(
 export function MarkLostWizard({
   action,
   petName,
+  petSex = null,
   petPublicToken,
   petHasMicrochip,
   petHasTattoo,
@@ -98,6 +100,8 @@ export function MarkLostWizard({
 }: {
   action: FormAction;
   petName: string;
+  /** Pet sex ('male' | 'female' | 'unknown') — flexes the submit label. */
+  petSex?: string | null;
   petPublicToken: string;
   petHasMicrochip: boolean;
   petHasTattoo: boolean;
@@ -496,7 +500,7 @@ export function MarkLostWizard({
                 Marcando...
               </>
             ) : (
-              "Marcar como perdida"
+              markLostActionLabel(petSex)
             )}
           </button>
         )}

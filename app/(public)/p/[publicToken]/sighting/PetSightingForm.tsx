@@ -14,7 +14,7 @@ import { useActionState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
-import { nowLocalDatetimeInAr } from "@/lib/utils/format";
+import { nowLocalDatetimeInAr, sightedWhenQuestion } from "@/lib/utils/format";
 
 import { type SightingActionState, reportPetSightingAction } from "@/app/actions/pet-sighting";
 
@@ -23,11 +23,14 @@ const initialState: SightingActionState = { ok: false, error: null };
 export function PetSightingForm({
   publicToken,
   petName,
+  petSex = null,
   biasProvince,
   biasLocality,
 }: {
   publicToken: string;
   petName: string;
+  /** Pet sex ('male' | 'female' | 'unknown') — flexes "¿Cuándo la viste?". */
+  petSex?: string | null;
   biasProvince: string | null;
   biasLocality: string | null;
 }) {
@@ -85,7 +88,7 @@ export function PetSightingForm({
           htmlFor="sightedAt"
           className="block text-xs font-medium text-[var(--color-ln-ink-2)]"
         >
-          ¿Cuándo la viste?
+          {sightedWhenQuestion(petSex)}
         </label>
         <input
           id="sightedAt"

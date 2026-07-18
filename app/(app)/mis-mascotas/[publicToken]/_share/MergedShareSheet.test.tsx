@@ -28,6 +28,7 @@ function renderSheet(tier2Active: boolean) {
     <MergedShareSheet
       petPublicToken="abc123"
       petName="Firulais"
+      petSex="male"
       createShareAction={vi.fn().mockResolvedValue({ shareToken: "t" })}
       tier2={{
         isActive: tier2Active,

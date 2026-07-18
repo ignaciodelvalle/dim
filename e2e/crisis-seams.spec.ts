@@ -88,7 +88,8 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       // --- Owner marks the pet lost (affirmative-consent disclosure) --------
       await page.goto(`/mis-mascotas/${token}/perdida`, { waitUntil: "domcontentloaded" });
       await expect(
-        page.getByRole("heading", { name: "Marcar como perdida", exact: true }),
+        // Sex-flexed since the ciclo-perdido sweep — tolerate all forms.
+        page.getByRole("heading", { name: /^Marcar como perdid(?:o|a|o\/a)$/ }),
       ).toBeVisible();
 
       // Step 1 — location (optional): skip straight through.
@@ -104,7 +105,7 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       // Final step — disclosure: opt IN to phone only.
       await expect(page.getByText(/qué se muestra al público/i)).toBeVisible();
       await page.getByRole("switch", { name: "Tu teléfono" }).click();
-      await page.getByRole("button", { name: /^marcar como perdida$/i }).click();
+      await page.getByRole("button", { name: /^marcar como perdid(?:o|a|o\/a)$/i }).click();
       await expect(page.getByText(/activamos la búsqueda de/i)).toBeVisible({ timeout: 20_000 });
 
       // --- Stranger POV: public credential flips to lost + /perdidas lists it -
