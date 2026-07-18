@@ -12,6 +12,7 @@ import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { AgendaRuleForm } from "./AgendaRuleForm";
@@ -38,7 +39,7 @@ function formatDays(days: number[]): string {
 
 function formatDate(d: string | Date | null): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium" });
+  return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium", timeZone: AR_TIME_ZONE });
 }
 
 export default async function AgendaPage({

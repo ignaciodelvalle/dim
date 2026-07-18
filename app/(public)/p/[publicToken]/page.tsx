@@ -45,7 +45,13 @@ import {
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BRANDING } from "@/lib/ui/branding";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
-import { sexLabel, situationLabelForSex, speciesLabel, statusLabel } from "@/lib/utils/format";
+import {
+  AR_TIME_ZONE,
+  sexLabel,
+  situationLabelForSex,
+  speciesLabel,
+  statusLabel,
+} from "@/lib/utils/format";
 import { withDbBudget, withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
@@ -644,7 +650,7 @@ export default async function PublicCredentialPage({
               {pet.tier2PublicPermanent
                 ? "El dueño habilitó la libreta médica de forma permanente"
                 : tier2EnabledUntil
-                  ? `El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}`
+                  ? `El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: AR_TIME_ZONE })}`
                   : null}
             </div>
           )}

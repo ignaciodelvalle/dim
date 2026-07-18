@@ -18,6 +18,7 @@ import Link from "next/link";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { OutboxStatus } from "@/db";
 import { type BreachCue, buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Shared filter/presentation constants (previously duplicated in both pages)
@@ -94,7 +95,11 @@ export interface OutboxTableProps {
 const TH_CLS = "px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute";
 
 function formatDateTime(value: Date): string {
-  return new Date(value).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+  return new Date(value).toLocaleString("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 export function OutboxTable({

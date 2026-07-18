@@ -108,6 +108,7 @@ function eventToVaccineRow(event: Event): LnVaccineRow {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: AR_TIME_ZONE,
   });
 
   const nextDueRaw = p.next_due_at ?? p.next_due ?? null;
@@ -233,12 +234,22 @@ function LnTimelineSection({
 
         const date =
           event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt);
-        const dayStr = date.getDate().toString().padStart(2, "0");
+        // AR-pinned parts: getDate()/getFullYear() read the AMBIENT zone
+        // (UTC on the server, the viewer's zone in the browser), so a
+        // late-evening timestamp rendered a different day server-side than
+        // client-side (hydration risk) — and the wrong AR day either way.
+        const dayStr = date.toLocaleDateString("es-AR", {
+          day: "2-digit",
+          timeZone: AR_TIME_ZONE,
+        });
         const monthStr = date
-          .toLocaleDateString("es-AR", { month: "short" })
+          .toLocaleDateString("es-AR", { month: "short", timeZone: AR_TIME_ZONE })
           .toUpperCase()
           .replace(".", "");
-        const yearStr = date.getFullYear();
+        const yearStr = date.toLocaleDateString("es-AR", {
+          year: "numeric",
+          timeZone: AR_TIME_ZONE,
+        });
 
         const color = eventColor(event.eventType);
         const icon = eventIcon(event.eventType);

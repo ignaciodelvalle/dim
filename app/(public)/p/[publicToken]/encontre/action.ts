@@ -30,7 +30,7 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-lim
 import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseArDatetimeLocal } from "@/lib/utils/format";
+import { AR_TIME_ZONE, parseArDatetimeLocal } from "@/lib/utils/format";
 
 export type FinderInPossessionState = {
   ok: boolean;
@@ -321,7 +321,7 @@ export async function reportFinderInPossessionAction(
     canKeepIndefinite
       ? "Puede cuidarlo indefinidamente."
       : canKeepUntil
-        ? `Puede cuidarlo hasta ${canKeepUntil.toLocaleDateString("es-AR")}.`
+        ? `Puede cuidarlo hasta ${canKeepUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}.`
         : null,
   ]
     .filter(Boolean)

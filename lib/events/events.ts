@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { EventType } from "@/db/schema";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { findDisease } from "@/lib/reference/diseases";
+import { AR_TIME_ZONE, parseDateInput } from "@/lib/utils/format";
 import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 /**
@@ -82,8 +83,13 @@ export function eventPayloadDetails(
   const pushDate = (label: string, key: string) => {
     const v = p[key];
     if (typeof v === "string" && v.length > 0) {
-      const d = new Date(v);
-      if (Number.isFinite(d.getTime())) rows.push({ label, value: d.toLocaleDateString("es-AR") });
+      // Legacy payloads may carry a bare "YYYY-MM-DD" (midnight UTC = the
+      // previous AR day) — anchor those at noon UTC before the AR-pinned
+      // render, same guard as pet-compliance.ts::parseNextDue.
+      const d = /^\d{4}-\d{2}-\d{2}$/.test(v) ? parseDateInput(v) : new Date(v);
+      if (d && Number.isFinite(d.getTime())) {
+        rows.push({ label, value: d.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE }) });
+      }
     }
   };
 

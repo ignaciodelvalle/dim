@@ -8,6 +8,7 @@ import { summarizeApprovalPayload } from "@/lib/infra/approval-payload-summary";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 
 import { ReviewActions } from "./ReviewActions";
@@ -139,6 +140,7 @@ export default async function ReviewRequestPage({
               {new Date(request.createdAt).toLocaleString("es-AR", {
                 dateStyle: "short",
                 timeStyle: "short",
+                timeZone: AR_TIME_ZONE,
               })}
             </span>
           </p>
@@ -196,6 +198,7 @@ export default async function ReviewRequestPage({
                 ` el ${new Date(request.decidedAt).toLocaleString("es-AR", {
                   dateStyle: "short",
                   timeStyle: "short",
+                  timeZone: AR_TIME_ZONE,
                 })}`}
             </p>
             {request.decisionNotes && (

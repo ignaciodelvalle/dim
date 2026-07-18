@@ -5,6 +5,7 @@ import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import type { PublicServiceOffering } from "@/lib/infra/org-public-offerings";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 // "Servicios" panel (handoff P2-5) — Libreta Nacional look.
 //
@@ -43,6 +44,7 @@ function formatDate(d: Date): string {
   return d.toLocaleDateString("es-AR", {
     day: "2-digit",
     month: "short",
+    timeZone: AR_TIME_ZONE,
   });
 }
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import type { WorkflowItem, WorkflowKind } from "@/lib/analytics/owner-dashboard";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 // CasesWidget — the owner's cases list.
 //
@@ -116,7 +117,7 @@ export function CasesWidget({
                 </div>
                 <p
                   className="shrink-0 text-[11px] text-ln-mute"
-                  title={c.since.toLocaleString("es-AR")}
+                  title={c.since.toLocaleString("es-AR", { timeZone: AR_TIME_ZONE })}
                 >
                   {relativeShort(c.since)}
                 </p>

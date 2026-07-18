@@ -37,6 +37,7 @@ import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
 import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 export const dynamic = "force-dynamic";
@@ -206,7 +207,11 @@ export default async function GobHistorialPage({
     uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
 
   const fmtTime = (d: Date) =>
-    new Date(d).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+    new Date(d).toLocaleString("es-AR", {
+      dateStyle: "short",
+      timeStyle: "short",
+      timeZone: AR_TIME_ZONE,
+    });
 
   const runFilterHref = (action: string, uid: string | null) => {
     const params = new URLSearchParams({ action });

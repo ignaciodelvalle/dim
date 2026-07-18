@@ -13,6 +13,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
@@ -112,6 +113,7 @@ export default async function GobServicioDetailPage({
           {new Date(offering.submittedAt).toLocaleString("es-AR", {
             dateStyle: "short",
             timeStyle: "short",
+            timeZone: AR_TIME_ZONE,
           })}
         </p>
       </header>
@@ -191,6 +193,7 @@ export default async function GobServicioDetailPage({
               ` el ${new Date(offering.reviewedAt).toLocaleString("es-AR", {
                 dateStyle: "short",
                 timeStyle: "short",
+                timeZone: AR_TIME_ZONE,
               })}`}
           </p>
           {offering.rejectionReason && (
