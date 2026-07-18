@@ -118,8 +118,8 @@ export const CORRIDORS: readonly Corridor[] = [
       required_documents: [
         "Certificado Veterinario Internacional (CVI) modelo Mercosur — SENASA",
         "Microchip ISO 11784/11785 (perros >90 días; Res. 273 DGSG)",
-        "Antiparasitario interno con praziquantel + externo, ≤15 días antes del CVI",
-        "Test de leishmaniasis negativo (perros >90 días, ≤60 días antes del ingreso)",
+        "Antiparasitario interno con praziquantel + externo, hasta 15 días antes del CVI",
+        "Test de leishmaniasis negativo (perros >90 días, hasta 60 días antes del ingreso)",
       ],
       required_vaccines: ["Antirrábica"],
       // Sin cuarentena (cuarentena.aplica=false en la fuente) — se omite el
@@ -222,7 +222,7 @@ export const CORRIDORS: readonly Corridor[] = [
       rabies_titer_test_required: false,
       required_documents: [
         "Certificado Veterinario Internacional (CVI) — SENASA",
-        "Certificado Libre de Miasis (screwworm), emitido ≤5 días antes del embarque",
+        "Certificado Libre de Miasis (screwworm), emitido hasta 5 días antes del embarque",
         "CDC Dog Import Form (online, completado por el dueño; válido 6 meses)",
         "Microchip legible ISO 11784/11785 (detectable por escáner universal)",
       ],

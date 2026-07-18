@@ -147,13 +147,16 @@ describe("tarjeta-todo — the page renders nothing after the card container", (
   it("mounts no under-card components: after the document only SheetMounter (invisible, URL-driven) follows", () => {
     const src = read(PAGE_TSX);
     // Slice the RETURN JSX from the card container conditional to the end of
-    // the page component (the preserved banner helpers below the component
-    // are alert-strip content, mounted INSIDE the card's Avisos slot).
-    // PetSwitcherDots is deliberately OUTSIDE this slice — it mounts BEFORE
-    // `{showCarousel ? (` (above the card, not after it); the companion
-    // describe block below proves that source position directly.
+    // the MAIN owner-flow component. The slice ends at the sibling
+    // `FormerOwnerCustodyReadOnlyView` function (a SEPARATE render branch — the
+    // ex-owner read-only view during a custody episode; its own back-link and
+    // banner are that branch's content, NOT under-card surfaces of the owner
+    // flow), and the preserved banner helpers below it are alert-strip content
+    // mounted INSIDE the card's Avisos slot. PetSwitcherDots is deliberately
+    // OUTSIDE this slice — it mounts BEFORE `{showCarousel ? (` (above the
+    // card); the companion describe block below proves that source position.
     const start = sourceIndex(src, "{showCarousel ? (");
-    const end = sourceIndex(src, "// Banners — PRESERVED");
+    const end = sourceIndex(src, "function FormerOwnerCustodyReadOnlyView");
     const tail = src.slice(start, end);
     // Every component mounted from the card container onward — the carousel
     // shell wrapping the document, and the invisible sheet mounter. Anything
