@@ -11,7 +11,7 @@
 //   - No auth logic — auth lives at the action / use-case edge.
 //   - Reads return Drizzle row shapes ($inferSelect) — callers expect them.
 
-import { and, desc, eq, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 
 import {
   auditLog,
@@ -19,8 +19,6 @@ import {
   db,
   govtAssignments,
   notifications,
-  organizationMemberships,
-  organizations,
   ownerships,
   petEvents,
   petIdentifications,

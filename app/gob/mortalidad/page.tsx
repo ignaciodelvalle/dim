@@ -41,7 +41,7 @@ import {
 } from "@/lib/metrics";
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
-import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
+import { deathCauseLabel, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -216,7 +216,10 @@ export default async function GobMortalidadPage({
             ) : (
               <figure
                 role="img"
-                aria-label={`Disposición final de fallecimientos — ${m.byBucket.length} método${m.byBucket.length !== 1 ? "s" : ""}. Máximo: ${maxBucket} fallecimiento${maxBucket !== 1 ? "s" : ""}.`}
+                aria-label={`Disposición final de fallecimientos — ${m.byBucket.length} ${pluralizeEs(
+                  m.byBucket.length,
+                  "método",
+                )}. Máximo: ${maxBucket} ${pluralizeEs(maxBucket, "fallecimiento")}.`}
               >
                 <figcaption className="sr-only">
                   Gráfico de barras horizontales: distribución de fallecimientos por método de
@@ -231,7 +234,7 @@ export default async function GobMortalidadPage({
                       <li
                         key={b.bucket}
                         className="flex items-center gap-3"
-                        aria-label={`${label}: ${b.count} fallecimiento${b.count !== 1 ? "s" : ""} (${Math.round(pct)}% del máximo)`}
+                        aria-label={`${label}: ${b.count} ${pluralizeEs(b.count, "fallecimiento")} (${Math.round(pct)}% del máximo)`}
                       >
                         <span className="w-40 shrink-0 text-[13px] text-ln-op-ink">{label}</span>
                         <div
@@ -254,7 +257,7 @@ export default async function GobMortalidadPage({
                   })}
                 </ul>
                 <p className="mt-1.5 text-xs text-ln-op-mute">
-                  Escala: 0 – {maxBucket} fallecimiento{maxBucket !== 1 ? "s" : ""} · cada barra
+                  Escala: 0 – {maxBucket} {pluralizeEs(maxBucket, "fallecimiento")} · cada barra
                   representa el total en el período.
                 </p>
               </figure>
@@ -342,7 +345,7 @@ export default async function GobMortalidadPage({
           ) : (
             <figure
               role="img"
-              aria-label={`Fallecimientos por localidad — máximo: ${maxLocality} fallecimiento${maxLocality !== 1 ? "s" : ""}.`}
+              aria-label={`Fallecimientos por localidad — máximo: ${maxLocality} ${pluralizeEs(maxLocality, "fallecimiento")}.`}
             >
               <figcaption className="sr-only">
                 Gráfico de barras horizontales: distribución de fallecimientos por localidad.
@@ -356,7 +359,7 @@ export default async function GobMortalidadPage({
                     <li
                       key={c.key}
                       className="flex items-center gap-3"
-                      aria-label={`${c.key}: ${c.count} fallecimiento${c.count !== 1 ? "s" : ""}`}
+                      aria-label={`${c.key}: ${c.count} ${pluralizeEs(c.count, "fallecimiento")}`}
                     >
                       <span className="w-40 shrink-0 truncate text-[13px] text-ln-op-ink">
                         {c.key}
@@ -381,7 +384,7 @@ export default async function GobMortalidadPage({
                 })}
               </ul>
               <p className="mt-1.5 text-xs text-ln-op-mute">
-                Escala: 0 – {maxLocality} fallecimiento{maxLocality !== 1 ? "s" : ""} · celdas &lt;
+                Escala: 0 – {maxLocality} {pluralizeEs(maxLocality, "fallecimiento")} · celdas &lt;
                 5 ocultas (k-anonimato).
               </p>
             </figure>

@@ -1,19 +1,13 @@
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { and, eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
-import {
-  APPROVAL_REQUEST_TYPES,
-  type ApprovalRequestType,
-  approvalRequests,
-  db,
-  profiles,
-} from "@/db";
+import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
-import { formatDateShort } from "@/lib/utils/format";
+import { formatDateShort, pluralizeEs } from "@/lib/utils/format";
 
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
@@ -70,7 +64,7 @@ export default async function ColaPage({
   const subtitle =
     pending.length === 0
       ? "No hay solicitudes pendientes en tu jurisdicción."
-      : `${pending.length}${hasMore ? "+" : ""} solicitud${pending.length === 1 ? "" : "es"} pendiente${pending.length === 1 ? "" : "s"}.`;
+      : `${pending.length}${hasMore ? "+" : ""} ${pluralizeEs(pending.length, "solicitud")} ${pluralizeEs(pending.length, "pendiente")}.`;
 
   // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
   const filterParams: Record<string, string | undefined> = activeType ? { type: activeType } : {};

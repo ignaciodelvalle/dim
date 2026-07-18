@@ -227,15 +227,7 @@ export function scanForLabelConflicts(files: string[]): Map<string, LabelHit[]> 
  *  the baseline (or any brand-new file) fails. Migrating a file to import its
  *  label from the registry lets its entry be removed — the ratchet only
  *  tightens. */
-export const INLINE_CATALOG_LABEL_BASELINE: Record<string, number> = {
-  "app/admin/poblacion/page.tsx": 1,
-  "app/admin/programa/page.tsx": 1,
-  "app/gob/page.tsx": 5,
-  "app/gob/poblacion/page.tsx": 1,
-  "app/gob/programa/page.tsx": 1,
-  "components/admin/AlertInboxTable.tsx": 1,
-  "components/admin/AlertSubscriptionForm.tsx": 1,
-};
+export const INLINE_CATALOG_LABEL_BASELINE: Record<string, number> = {};
 
 export type InlineLabelHit = { file: string; label: string; count: number };
 

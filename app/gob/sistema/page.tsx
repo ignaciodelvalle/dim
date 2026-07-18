@@ -17,7 +17,7 @@ import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { TARGETS, buildProjectionContext, enoSlaTone, toneForTarget } from "@/lib/metrics";
+import { TARGETS, buildProjectionContext, enoSlaTone } from "@/lib/metrics";
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";

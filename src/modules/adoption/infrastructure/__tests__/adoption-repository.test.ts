@@ -5,10 +5,10 @@
 // forces the connection to 127.0.0.1:54322). They follow the same fixture
 // pattern used by __tests__/adoption-listing.test.ts and similar suites.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+import { hashDni } from "@/lib/utils/dni-hash";
 
 import {
   attachments,

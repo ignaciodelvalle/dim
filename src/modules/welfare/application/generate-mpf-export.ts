@@ -27,7 +27,6 @@ import { MPF_EXPORT_SCHEMA_VERSION } from "@/lib/analytics/welfare-exports";
 import type { WelfareMpfAttachmentInfo, WelfareMpfDto } from "@/lib/analytics/welfare-exports";
 import { formatDate } from "@/lib/utils/format";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
-import type { UseCaseResult } from "./types";
 
 // ---------------------------------------------------------------------------
 // Constants

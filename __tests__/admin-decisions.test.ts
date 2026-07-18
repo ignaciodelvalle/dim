@@ -21,7 +21,6 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { approveRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/approve-request";
 import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 import { rejectRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/reject-request";

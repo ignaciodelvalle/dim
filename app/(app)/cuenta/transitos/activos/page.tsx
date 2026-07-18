@@ -1,14 +1,12 @@
 // Tránsitos activos — Libreta Nacional redesign.
 // CoFosterToggle (client component) unchanged.
 
-import Link from "next/link";
-
-import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, organizations, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { speciesLabel } from "@/lib/utils/format";
 import { and, eq, isNull } from "drizzle-orm";
+import Link from "next/link";
 
 import { CoFosterToggle } from "./CoFosterToggle";
 

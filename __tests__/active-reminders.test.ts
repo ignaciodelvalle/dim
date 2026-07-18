@@ -6,7 +6,7 @@
 // its own fixtures and tears them down in afterAll.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, pets, reminders } from "@/db";

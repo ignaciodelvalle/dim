@@ -7,8 +7,9 @@
 // OrgMascotasBulkList client component so multi-select + bulk vaccination
 // can be wired with useState/useTransition.
 
-import { db, ownerships, petEvents, pets } from "@/db";
+import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { pluralizeEs } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, ilike, inArray, isNull, notInArray, sql } from "drizzle-orm";
@@ -232,7 +233,7 @@ export default async function OrgMascotasPage({
             <p className="text-[13px] text-ln-op-ink-2">
               {allCards.length === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."
-                : `${allCards.length} animal${allCards.length === 1 ? "" : "es"} bajo custodia activa.`}
+                : `${allCards.length} ${pluralizeEs(allCards.length, "animal")} bajo custodia activa.`}
             </p>
           </div>
           {canIntake && (

@@ -22,7 +22,7 @@
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, notifications, organizations, petEvents, pets } from "@/db";
+import { db, notifications, organizations, petEvents, pets } from "@/db";
 import {
   escalateStaleDecomiso,
   findStaleDecomisoCandidates,

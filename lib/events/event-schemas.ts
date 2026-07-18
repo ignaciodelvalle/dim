@@ -25,7 +25,7 @@
 
 import { z } from "zod";
 
-import { EVENT_TYPES, type EventType } from "@/db/schema";
+import type { EventType } from "@/db/schema";
 import { findDisease } from "@/lib/reference/diseases";
 
 // Helper: every schema gets the version field baked in.

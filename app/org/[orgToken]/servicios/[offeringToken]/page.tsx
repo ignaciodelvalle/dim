@@ -10,7 +10,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui
 import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { CapacityEditor } from "./CapacityEditor";
@@ -191,7 +191,7 @@ export default async function OfferingDetailPage({
             ) : (
               <Row
                 label="Capacidad por turno"
-                value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
+                value={`${offering.slotCapacity} ${pluralizeEs(offering.slotCapacity, "lugar")}`}
               />
             )}
             {offering.description && <Row label="Descripción" value={offering.description} />}

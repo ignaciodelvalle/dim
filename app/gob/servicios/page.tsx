@@ -8,13 +8,13 @@ import { type SQL, and, eq, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
-import { formatDateShort } from "@/lib/utils/format";
+import { formatDateShort, pluralizeEs } from "@/lib/utils/format";
 
 export default async function GobServiciosPage() {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -73,7 +73,7 @@ export default async function GobServiciosPage() {
   const subtitle =
     pendingOfferings.length === 0
       ? "No hay servicios pendientes de revisión en tu cobertura."
-      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revisión.`;
+      : `${pendingOfferings.length} ${pluralizeEs(pendingOfferings.length, "servicio")} ${pluralizeEs(pendingOfferings.length, "pendiente")} de revisión.`;
 
   return (
     <div className="space-y-6">

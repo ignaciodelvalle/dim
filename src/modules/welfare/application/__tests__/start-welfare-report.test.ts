@@ -1,7 +1,7 @@
 // Unit tests for startWelfareReport use-case.
 // Spec R3 — start transitions + audit_log + triage-actor backfill + reporter notification.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db/schema";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";

@@ -12,7 +12,7 @@
 //
 // Note: pet_events is append-only (db/triggers.sql). Cleanup uses withMutationOverride.
 
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, enoProcessingQueue, petEvents, pets } from "@/db";

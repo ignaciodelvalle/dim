@@ -6,7 +6,7 @@
 import { and, count, desc, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import {
   db,
   organizationCapabilityGrants,

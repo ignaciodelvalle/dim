@@ -15,6 +15,7 @@ import { db, govtBusinessRules } from "@/db";
 import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { pluralizeEs } from "@/lib/utils/format";
 
 import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
@@ -99,7 +100,7 @@ export async function AdminReglasLens({ base }: Props) {
           title="AR (país)"
           actions={
             <span className="text-sm text-ln-op-mute">
-              {countryWideCount} regla{countryWideCount === 1 ? "" : "s"}
+              {countryWideCount} {pluralizeEs(countryWideCount, "regla")}
             </span>
           }
         />
@@ -137,7 +138,7 @@ export async function AdminReglasLens({ base }: Props) {
                           ? "Sin excepciones (usando valores por defecto)"
                           : [
                               pwCount > 0
-                                ? `${pwCount} provincial${pwCount === 1 ? "" : "es"}`
+                                ? `${pwCount} ${pluralizeEs(pwCount, "provincial")}`
                                 : null,
                               localityRuleCount > 0 ? `${localityRuleCount} en localidades` : null,
                             ]
@@ -160,7 +161,7 @@ export async function AdminReglasLens({ base }: Props) {
                           <span className="text-[11px] text-ln-op-ink-2">
                             {l.locality}
                             <span className="ml-1 text-ln-op-mute">
-                              · {l.count} regla{l.count === 1 ? "" : "s"}
+                              · {l.count} {pluralizeEs(l.count, "regla")}
                             </span>
                           </span>
                           <Link

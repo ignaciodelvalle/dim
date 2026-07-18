@@ -51,7 +51,7 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { resolveVetLanding } from "@/lib/infra/role-landing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
-import { speciesLabel } from "@/lib/utils/format";
+import { pluralizeEs, speciesLabel } from "@/lib/utils/format";
 import { likeContains } from "@/lib/utils/like-helpers";
 
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
@@ -205,7 +205,7 @@ export default async function MisMascotasPage({
             Mis mascotas
           </h1>
           <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
-            {activePets.length} activa{activePets.length === 1 ? "" : "s"}
+            {activePets.length} {pluralizeEs(activePets.length, "activa")}
             {deceasedPets.length > 0 && ` · ${deceasedPets.length} en memoria`}
           </p>
         </div>
@@ -220,7 +220,7 @@ export default async function MisMascotasPage({
       {claimedCount !== null && (
         <p className="mb-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3.5 py-2.5 text-sm text-[var(--color-ln-ok)]">
           {claimedCount > 0
-            ? `Reclamaste ${claimedCount} mascota${claimedCount === 1 ? "" : "s"} adoptada${claimedCount === 1 ? "" : "s"} a tu cuenta.`
+            ? `Reclamaste ${claimedCount} ${pluralizeEs(claimedCount, "mascota")} ${pluralizeEs(claimedCount, "adoptada")} a tu cuenta.`
             : "Vinculamos tu DNI a tu cuenta. Si esperabas una adopción, pedile al refugio que verifique el DNI cargado."}
         </p>
       )}
@@ -335,7 +335,7 @@ export default async function MisMascotasPage({
           <LnSectionHead
             num="†"
             title="In memoriam"
-            meta={`${deceasedPets.length} recordada${deceasedPets.length !== 1 ? "s" : ""}`}
+            meta={`${deceasedPets.length} ${pluralizeEs(deceasedPets.length, "recordada")}`}
           />
           <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-ln-paper">
             {deceasedPets.map(({ pet, photo }) => (

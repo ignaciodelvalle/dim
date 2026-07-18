@@ -5,8 +5,10 @@
 
 import { describe, expect, it } from "vitest";
 
+import { AUDIT_ACTION_LABELS } from "@/lib/ui/audit-action-labels";
 import {
   DECISION_AUDIT_ACTIONS,
+  buildAuditActionOptions,
   decisionsAuditDrillHref,
   parseAuditActions,
   parseAuditDateRange,
@@ -80,5 +82,29 @@ describe("decisionsAuditDrillHref", () => {
     const href = decisionsAuditDrillHref(Date.now());
     const actionParam = new URL(href, "https://x").searchParams.get("action");
     expect(parseAuditActions(actionParam)).toEqual([...DECISION_AUDIT_ACTIONS]);
+  });
+});
+
+describe("buildAuditActionOptions", () => {
+  it("renders one option per UNIQUE label — no duplicate dropdown rows", () => {
+    const options = buildAuditActionOptions();
+    const labels = options.map((o) => o.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
+  it("every option's value carries every code that shares its label", () => {
+    const options = buildAuditActionOptions();
+    for (const [code, label] of Object.entries(AUDIT_ACTION_LABELS)) {
+      const option = options.find((o) => o.label === label);
+      expect(option).toBeDefined();
+      expect(option?.value.split(",")).toContain(code);
+    }
+  });
+
+  it("options are sorted by label (es-AR)", () => {
+    const options = buildAuditActionOptions();
+    const labels = options.map((o) => o.label);
+    const sorted = [...labels].sort((a, b) => a.localeCompare(b, "es-AR"));
+    expect(labels).toEqual(sorted);
   });
 });

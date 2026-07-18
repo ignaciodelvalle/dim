@@ -6,11 +6,7 @@ import { notFound, redirect } from "next/navigation";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { attachments, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
-import {
-  APPLY_INTENT_COOKIE_NAME,
-  APPLY_INTENT_PET_TOKEN_COOKIE_NAME,
-  validateApplyIntentToken,
-} from "@/lib/domain/apply-intent";
+import { APPLY_INTENT_COOKIE_NAME, validateApplyIntentToken } from "@/lib/domain/apply-intent";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 

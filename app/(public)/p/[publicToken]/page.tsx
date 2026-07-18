@@ -47,6 +47,7 @@ import { BRANDING } from "@/lib/ui/branding";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   AR_TIME_ZONE,
+  pluralizeEs,
   sexLabel,
   situationLabelForSex,
   speciesLabel,
@@ -405,7 +406,7 @@ export default async function PublicCredentialPage({
   const breedLine = [speciesLabel(pet.species), pet.breed, sexLabel(pet.sex)]
     .filter(Boolean)
     .join(" · ");
-  const ageLabel = ageYears !== null ? `${ageYears} año${ageYears === 1 ? "" : "s"}` : null;
+  const ageLabel = ageYears !== null ? `${ageYears} ${pluralizeEs(ageYears, "año")}` : null;
 
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.

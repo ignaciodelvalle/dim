@@ -13,6 +13,7 @@ import {
 } from "@/lib/infra/govt-roster";
 import { isTestAccount } from "@/lib/infra/test-accounts";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
+import { pluralizeEs } from "@/lib/utils/format";
 import { likeContains } from "@/lib/utils/like-helpers";
 
 // Universal-scope roster: cap the render and tell the operator when there is
@@ -216,7 +217,7 @@ export default async function GovtsPage({
                 href={testToggleHref}
                 className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
               >
-                Mostrar {hiddenTestCount} cuenta{hiddenTestCount === 1 ? "" : "s"} de prueba
+                Mostrar {hiddenTestCount} {pluralizeEs(hiddenTestCount, "cuenta")} de prueba
               </Link>
             ) : (
               !query &&
@@ -304,7 +305,7 @@ function GovtRow({ govt }: GovtRowProps) {
             {/* C24: "open" is the OpPill warn (amber) palette — see OpPill tones. */}
             {isDead && <OpPill tone="open">sin localidades — no puede operar</OpPill>}
             <span className="text-sm text-ln-op-mute">
-              {govt.activeLocalityCount} localidad{govt.activeLocalityCount !== 1 ? "es" : ""}
+              {govt.activeLocalityCount} {pluralizeEs(govt.activeLocalityCount, "localidad")}
             </span>
             <OpPill tone={isActive ? "ok" : "neutral"}>
               {isActive ? "Activo" : "Desactivado"}

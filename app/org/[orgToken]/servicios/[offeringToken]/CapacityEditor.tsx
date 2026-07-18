@@ -8,6 +8,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { updateOfferingCapacityAction } from "@/app/actions/service-offerings";
 import { OpButton } from "@/components/ui/dashboard";
+import { pluralizeEs } from "@/lib/utils/format";
 
 type Props = {
   orgToken: string;
@@ -57,7 +58,10 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
       setSuccessMsg(
         result.slotsUpdated === 0
           ? "Capacidad actualizada. No hay turnos futuros para sincronizar."
-          : `Se actualizaron ${result.slotsUpdated} turno${result.slotsUpdated === 1 ? "" : "s"} futuro${result.slotsUpdated === 1 ? "" : "s"}.`,
+          : `Se actualizaron ${result.slotsUpdated} ${pluralizeEs(result.slotsUpdated, "turno")} ${pluralizeEs(
+              result.slotsUpdated,
+              "futuro",
+            )}.`,
       );
     });
   }
@@ -68,7 +72,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
         {successMsg && <output className="text-sm text-ln-op-ok">{successMsg}</output>}
         <div className="flex items-center gap-3">
           <span className="text-[13px] text-ln-op-ink">
-            {capacity} lugar{capacity === 1 ? "" : "es"} por turno
+            {capacity} {pluralizeEs(capacity, "lugar")} por turno
           </span>
           <OpButton variant="ghost" size="sm" onClick={openEditor}>
             Editar cupos

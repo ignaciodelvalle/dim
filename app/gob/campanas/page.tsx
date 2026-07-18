@@ -27,6 +27,7 @@ import {
   windows,
 } from "@/lib/metrics";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { pluralizeEs } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -248,8 +249,8 @@ export default async function GobCampanasPage({
                 <span id={panelOfferingsId}>
                   Performance por servicio
                   <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
-                    ({dashboard.offerings.length} servicio
-                    {dashboard.offerings.length !== 1 ? "s" : ""})
+                    ({dashboard.offerings.length}{" "}
+                    {pluralizeEs(dashboard.offerings.length, "servicio")})
                   </span>
                 </span>
               }

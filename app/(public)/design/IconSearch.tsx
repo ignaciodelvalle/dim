@@ -2,6 +2,7 @@
 
 import { Icon, type IconName, iconNames } from "@/components/Icon";
 import { LnField, LnInput } from "@/components/ui/Field";
+import { pluralizeEs } from "@/lib/utils/format";
 import { useMemo, useState } from "react";
 
 /**
@@ -29,7 +30,7 @@ export function IconSearch() {
   }
 
   const resultsHelp = query
-    ? `${results.length} resultado${results.length === 1 ? "" : "s"}`
+    ? `${results.length} ${pluralizeEs(results.length, "resultado")}`
     : `Mostrando los primeros 60 (de ${iconNames.length})`;
 
   return (

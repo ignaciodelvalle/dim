@@ -4,7 +4,7 @@
 //
 // Dependencies are mocked via vitest.fn(). No DB needed.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import { type ReportBiteInput, reportBite } from "./report-bite";

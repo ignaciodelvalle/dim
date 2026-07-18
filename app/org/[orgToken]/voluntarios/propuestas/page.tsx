@@ -1,5 +1,5 @@
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { db, fosterProposals, organizations, pets, profiles } from "@/db";
+import { db, fosterProposals, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDateShort } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";

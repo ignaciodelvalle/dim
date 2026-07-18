@@ -26,7 +26,7 @@
 // Salta with suite-unique synthetic localities avoid cross-suite collisions on
 // the shared dev DB (the govt jurisdiction pair only ever matches our pets).
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, operatorFeedWatermarks, ownerships, petEvents, pets } from "@/db";

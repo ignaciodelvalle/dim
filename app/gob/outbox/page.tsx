@@ -32,14 +32,12 @@ import {
 } from "@/components/ui/dashboard/OutboxTable";
 import { db, eventNotificationOutbox } from "@/db";
 import type { OutboxStatus, OutboxTargetKind } from "@/db";
-import { PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
-import { listLocalitiesByProvince, localityByName } from "@/lib/infra/ar-localidades";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue } from "@/lib/infra/outbox-list";
 import { buildProjectionContext, jurisdictionPairClause } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import { pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 // Set of canonical province names for filter validation.
@@ -197,7 +195,7 @@ export default async function GobOutboxPage({
         </h1>
         <p className="text-[13px] text-ln-op-ink-2">
           {hasFilters
-            ? `${rows.length} fila${rows.length === 1 ? "" : "s"} con los filtros aplicados.`
+            ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
             : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
         </p>
       </header>
@@ -205,7 +203,7 @@ export default async function GobOutboxPage({
       {/* SLA breach banner */}
       {breachCount > 0 && (
         <OpBreach
-          title={`${breachCount} item${breachCount === 1 ? "" : "s"} en incumplimiento de SLA`}
+          title={`${breachCount} ${pluralizeEs(breachCount, "item", "items")} en incumplimiento de SLA`}
           detail="Revisa los items marcados en rojo y reintenta si es necesario."
         />
       )}

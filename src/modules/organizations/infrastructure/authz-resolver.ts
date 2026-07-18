@@ -15,7 +15,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
-  ORGANIZATION_CAPABILITIES,
   type Organization,
   type OrganizationCapability,
   type OrganizationMembership,

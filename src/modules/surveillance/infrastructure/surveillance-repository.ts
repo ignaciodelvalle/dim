@@ -15,7 +15,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, gt, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, sql } from "drizzle-orm";
 
 import {
   cases,
@@ -26,7 +26,6 @@ import {
   ownerships,
   petEvents,
   pets,
-  profiles,
 } from "@/db";
 import type { NewPetEvent, PetEvent } from "@/db/schema";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";

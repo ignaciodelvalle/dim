@@ -24,10 +24,7 @@ import { OpButton } from "@/components/ui/dashboard";
 import { OpField } from "@/components/ui/dashboard/OpField";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { formatDate, todayIsoInAr } from "@/lib/utils/format";
-import {
-  type ReportBiteFromOrgFormState,
-  reportBiteFromOrgAction,
-} from "@/src/modules/surveillance/actions";
+import type { ReportBiteFromOrgFormState } from "@/src/modules/surveillance/actions";
 
 type FormAction = (
   prev: ReportBiteFromOrgFormState,

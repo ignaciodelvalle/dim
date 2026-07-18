@@ -8,7 +8,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { createScheduleRuleAction, deleteScheduleRuleAction } from "@/app/actions/schedule-rules";
 import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";

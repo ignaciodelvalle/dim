@@ -21,7 +21,7 @@
 //   - redirect(`/mis-mascotas/${publicToken}`)
 
 import { type ExistingCanonicalIds, type ExistingPetSnapshot, diffPet } from "../domain/pet-diff";
-import { isBecamePPP, isChipNewlyAdded, isFlagOnlyChange, isNoOp } from "../domain/pet-rules";
+import { isBecamePPP, isChipNewlyAdded, isNoOp } from "../domain/pet-rules";
 import type { NewNotification, UpdatePetInput, UseCaseResult } from "../domain/types";
 import type { PetsRepository } from "../infrastructure/pets-repository";
 

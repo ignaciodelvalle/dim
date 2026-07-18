@@ -1,15 +1,7 @@
 import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
-import {
-  OpBreach,
-  OpButton,
-  OpCard,
-  OpCardBody,
-  OpCardHead,
-  OpKpi,
-  OpPill,
-} from "@/components/ui/dashboard";
+import { OpBreach, OpButton, OpCard, OpCardBody, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
 import { searchUsers } from "@/lib/infra/admin-search";
@@ -20,7 +12,7 @@ import { windows } from "@/lib/metrics/period";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
-import { formatPercent } from "@/lib/utils/format";
+import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 import { ProposeUserActions } from "./ProposeUserActions";
@@ -114,7 +106,7 @@ export default async function UsuariosPage({
           route to human review. This is a SIGNAL, not an auto-classification. */}
       {chipSignal.flaggedForReview > 0 && (
         <OpBreach
-          title={`${chipSignal.flaggedForReview} reemplazo${chipSignal.flaggedForReview === 1 ? "" : "s"} de chip marcado${chipSignal.flaggedForReview === 1 ? "" : "s"} para revisión`}
+          title={`${chipSignal.flaggedForReview} ${pluralizeEs(chipSignal.flaggedForReview, "reemplazo")} de chip ${pluralizeEs(chipSignal.flaggedForReview, "marcado")} para revisión`}
           detail={`${chipSignal.byReason.fraud_detected ?? 0} por fraude · ${chipSignal.byReason.duplicate_detected ?? 0} por duplicado · ${chipSignal.total} reemplazos en total (12m)`}
         />
       )}
@@ -167,7 +159,7 @@ export default async function UsuariosPage({
             ? "Sin resultados."
             : "No hay usuarios registrados."
           : query
-            ? `${results.length} resultado${results.length === 1 ? "" : "s"}`
+            ? `${results.length} ${pluralizeEs(results.length, "resultado")}`
             : `Mostrando los primeros ${results.length} usuarios ordenados por rol y nombre.`}
       </p>
 

@@ -14,16 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { hashDni } from "@/lib/utils/dni-hash";
 
-import {
-  db,
-  notifications,
-  organizations,
-  ownerships,
-  petEvents,
-  petTransfers,
-  pets,
-  profiles,
-} from "@/db";
+import { db, organizations, ownerships, petEvents, petTransfers, pets, profiles } from "@/db";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
 // Module under test — created in GREEN phase.

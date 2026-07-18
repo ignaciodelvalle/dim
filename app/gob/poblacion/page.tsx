@@ -38,7 +38,7 @@ import {
   fetchSterilizationTrend,
   toneForTarget,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { formatPercent, formatRate } from "@/lib/utils/format";
 import { gobEmbedView } from "@/src/modules/panorama/domain/embed-view";
@@ -278,7 +278,7 @@ export default async function GobPoblacionPage({
           real natalidad. Smaller value + explicit "sobrestima" caveat so it
           never reads as a decision headline. */}
       {sterilNatalidadRatio !== null && (
-        <section aria-label="Ratio esterilización / natalidad registrada">
+        <section aria-label={KPI_CATALOG.sterilization_natalidad_ratio.label}>
           <div className="rounded-xl border border-ln-op-line bg-white px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute">
               Contexto · Ratio esterilización / natalidad registrada

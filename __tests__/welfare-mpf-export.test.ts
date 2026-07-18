@@ -7,11 +7,11 @@
 // `welfare-exports` bucket is owner-created ops and not auto-provisioned in CI.
 // The audit_log insert is real (hit the DB).
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db";
-import { auditLog, db, pets, profiles, welfareReports } from "@/db";
+import { db, pets, profiles, welfareReports } from "@/db";
 import { MPF_EXPORT_SCHEMA_VERSION, welfareReportToMpfDto } from "@/lib/analytics/welfare-exports";
 import * as authGuards from "@/lib/infra/auth-guards";
 import * as supabaseServer from "@/lib/supabase/server";

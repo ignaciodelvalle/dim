@@ -1,22 +1,12 @@
 // Buscar nuevo hogar — Libreta Nacional redesign.
 // Presentation only; RehomeRequestForm and data fetching unchanged.
 
-import Link from "next/link";
-import { notFound } from "next/navigation";
-
-import { LnCallout } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import {
-  db,
-  organizationCoverage,
-  organizationMemberships,
-  organizations,
-  ownerships,
-  pets,
-  profiles,
-} from "@/db";
+import { db, organizationCoverage, organizations, ownerships, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 import { RehomeRequestForm } from "./RehomeRequestForm";
 
 export default async function BuscarHogarPage({

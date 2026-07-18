@@ -14,7 +14,7 @@
 // Notifications are inserted inside the transaction (pre-existing behavior —
 // zero-behavior-change contract for strangler 7/61).
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import {
   approvalRequests,

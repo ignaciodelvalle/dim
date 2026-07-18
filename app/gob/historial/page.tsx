@@ -12,7 +12,8 @@
 // "Mi actividad" survives as an actor-filter preset, not a separate mode.
 //
 // Filters (all via URL params so links/bookmarks are shareable):
-//   action  — exact AuditLogAction code (dropdown of known labels)
+//   action  — one or more AuditLogAction codes, comma-separated (dropdown of
+//             known labels; an aliased label selects every code it groups)
 //   actor   — exact user id, constrained to the jurisdiction scope by the
 //             SQL AND (a stale/foreign id in the URL just yields zero rows —
 //             never a scope bypass)
@@ -31,13 +32,14 @@ import Link from "next/link";
 
 import { DateInputAr } from "@/components/ui/DateInputAr";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
-import { type AuditLogAction, approvalRequests, auditLog, db, profiles } from "@/db";
+import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
-import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 export const dynamic = "force-dynamic";
@@ -71,9 +73,11 @@ export default async function GobHistorialPage({
   const isAdmin = profile.role === "admin";
 
   const sp = await searchParams;
-  const rawAction = sp.action?.trim() || null;
-  const actionFilter: AuditLogAction | null =
-    rawAction && rawAction in AUDIT_ACTION_LABELS ? (rawAction as AuditLogAction) : null;
+  // A single dropdown selection may carry more than one code when it lands on
+  // an aliased option (buildAuditActionOptions groups codes that share a
+  // label), so this parses a comma-separated list — same contract as
+  // /admin/auditoria.
+  const actionFilters = parseAuditActions(sp.action);
   const actorFilter = sp.actor?.trim() || null;
   const fromDate = parseDateParam(sp.from);
   // `to` is inclusive of the whole AR day — bump to the end of that day
@@ -94,7 +98,7 @@ export default async function GobHistorialPage({
       scopedActorIds.length > 0 ? inArray(auditLog.actorUserId, scopedActorIds) : sql`false`,
     );
   }
-  if (actionFilter) filterClauses.push(eq(auditLog.action, actionFilter));
+  if (actionFilters.length > 0) filterClauses.push(inArray(auditLog.action, actionFilters));
   if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
   if (fromDate) filterClauses.push(gte(auditLog.performedAt, fromDate));
   if (toDate) filterClauses.push(lte(auditLog.performedAt, toDate));
@@ -122,7 +126,7 @@ export default async function GobHistorialPage({
 
   // Pagination links — changing a filter resets cursor to page 1.
   const filterParams: Record<string, string | undefined> = {
-    ...(actionFilter ? { action: actionFilter } : {}),
+    ...(actionFilters.length > 0 ? { action: actionFilters.join(",") } : {}),
     ...(actorFilter ? { actor: actorFilter } : {}),
     ...(sp.from ? { from: sp.from } : {}),
     ...(sp.to ? { to: sp.to } : {}),
@@ -199,12 +203,18 @@ export default async function GobHistorialPage({
   }
   actorOptions.sort((a, b) => a.name.localeCompare(b.name, "es-AR"));
 
-  const actionOptions = Object.entries(AUDIT_ACTION_LABELS).sort((a, b) =>
-    a[1].localeCompare(b[1], "es-AR"),
-  );
+  // Deduped by visible label so aliased codes render one dropdown row each.
+  const actionOptions = buildAuditActionOptions();
+  // A single-code filter may belong to an aliased option (its `value` carries
+  // every code sharing that label, comma-joined) — match by membership, not
+  // equality, so the <select> still preselects the right row.
+  const selectedActionOption =
+    actionFilters.length === 1
+      ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
+      : undefined;
 
   const hasFilters =
-    actionFilter !== null || actorFilter !== null || fromDate !== null || toDate !== null;
+    actionFilters.length > 0 || actorFilter !== null || fromDate !== null || toDate !== null;
   const isMineFilter = actorFilter === user.id;
 
   const groups = groupConsecutiveAuditRows(entries);
@@ -309,7 +319,7 @@ export default async function GobHistorialPage({
                 const parts: string[] = [];
                 if (query) parts.push(`"${query}"`);
                 if (surface) parts.push(surface);
-                if (count !== null) parts.push(`${count} resultado${count !== 1 ? "s" : ""}`);
+                if (count !== null) parts.push(`${count} ${pluralizeEs(count, "resultado")}`);
                 return parts.length > 0 ? (
                   <>
                     {" "}
@@ -347,13 +357,13 @@ export default async function GobHistorialPage({
           <select
             id="historial-action"
             name="action"
-            defaultValue={actionFilter ?? ""}
+            defaultValue={selectedActionOption?.value ?? ""}
             className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           >
             <option value="">Todas las acciones</option>
-            {actionOptions.map(([code, label]) => (
-              <option key={code} value={code}>
-                {label}
+            {actionOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </select>

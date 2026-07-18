@@ -13,7 +13,6 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  auditLog,
   db,
   enoProcessingQueue,
   govtAssignments,

@@ -11,7 +11,7 @@
 //   4. runDataLifecyclePurge — composite; returns summed counts.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, like, sql } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cronRuns, db, notifications, profiles, rateLimitBuckets } from "@/db";

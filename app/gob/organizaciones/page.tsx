@@ -5,6 +5,7 @@ import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard"
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
+import { pluralizeEs } from "@/lib/utils/format";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 import { ProposeOrgActions } from "./ProposeOrgActions";
@@ -47,7 +48,7 @@ export default async function OrganizacionesPage({
         <p className="text-[13px] text-ln-op-ink-2">
           {profile.role === "admin"
             ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
-            : `Buscá entre las orgs en tus ${jurisdictions.length} localidad${jurisdictions.length === 1 ? "" : "es"}.`}
+            : `Buscá entre las orgs en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
         </p>
       </header>
 
@@ -71,8 +72,8 @@ export default async function OrganizacionesPage({
             ? "Sin resultados."
             : "Ingresa una consulta para buscar organizaciones."
           : truncated
-            ? `Mostrando los primeros ${results.length} resultado${results.length === 1 ? "" : "s"}. Usá el buscador para acotar la lista.`
-            : `${results.length} resultado${results.length === 1 ? "" : "s"}`}
+            ? `Mostrando los primeros ${results.length} ${pluralizeEs(results.length, "resultado")}. Usá el buscador para acotar la lista.`
+            : `${results.length} ${pluralizeEs(results.length, "resultado")}`}
       </p>
 
       <BulkRevokeList

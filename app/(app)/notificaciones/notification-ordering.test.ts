@@ -1,4 +1,4 @@
-import type { Notification, Pet } from "@/db";
+import type { Notification } from "@/db";
 import { describe, expect, it } from "vitest";
 
 import {

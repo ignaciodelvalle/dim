@@ -17,7 +17,7 @@
 //     would have been purged.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets } from "@/db";

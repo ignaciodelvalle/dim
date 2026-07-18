@@ -9,7 +9,7 @@
 // Mirrors the pattern from transferencias-inbox.test.ts — direct DB inserts,
 // no server-action or auth mock needed (we're testing the query predicate).
 
-import { and, eq, or } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petTransfers, pets, profiles } from "@/db";

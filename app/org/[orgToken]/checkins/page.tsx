@@ -9,7 +9,7 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db, petEvents, pets, profiles, reminders } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { AR_TIME_ZONE } from "@/lib/utils/format";

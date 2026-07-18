@@ -13,7 +13,7 @@
 //      build owner notification.
 //   6. Flush notifications outside tx.
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { cases, db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";

@@ -5,10 +5,10 @@
 // endFosterAction use them (open + close), plus the closed_reason
 // mapping for the end_foster_ui_reason → reason transition.
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, pets } from "@/db";
+import { db, pets } from "@/db";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

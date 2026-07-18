@@ -8,7 +8,6 @@ import { Suspense } from "react";
 import { markAllNotificationsReadAction } from "@/app/actions/notifications";
 import { NotificationCard } from "@/components/NotificationCard";
 import { LnButton } from "@/components/ui/Button";
-import { LnSectionHead } from "@/components/ui/DocElements";
 import { type UrlTabItem, UrlTabs } from "@/components/ui/UrlTabs";
 import { db, notifications, pets } from "@/db";
 import {
@@ -20,13 +19,7 @@ import {
   excludeResolvedLostEpisodeSql,
   excludeStaleWelcomeSql,
 } from "@/lib/infra/notification-reconcile";
-import {
-  decodeCursor,
-  encodeCursor,
-  keysetWhere,
-  newerHref,
-  olderHref,
-} from "@/lib/utils/keyset-pagination";
+import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { groupNotifications, sortNotificationsForDisplay } from "./notification-ordering";

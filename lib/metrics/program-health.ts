@@ -31,14 +31,7 @@ import { and, count, desc, gte, inArray, sql } from "drizzle-orm";
 // oversight feed /admin/programa + /gob/programa). supavisor transaction mode (6543)
 // has a measured >100x pathology for this fan-out shape (db/index.ts); session mode
 // serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
-import {
-  auditLog,
-  analyticsDb as db,
-  govtAssignments,
-  ownerships,
-  petIdentifications,
-  pets,
-} from "@/db";
+import { auditLog, analyticsDb as db, govtAssignments, pets } from "@/db";
 import { activePetsCondition, petsScopeClause } from "@/lib/metrics";
 
 import type { ProjectionContext } from "./context";
