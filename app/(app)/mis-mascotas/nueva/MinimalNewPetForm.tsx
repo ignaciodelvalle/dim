@@ -24,7 +24,14 @@
 //      fields are also controlled via useState for reset-safety).
 
 import Link from "next/link";
-import { type FormEvent, useActionState, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
@@ -82,7 +89,28 @@ export function MinimalNewPetForm({
   action: FormAction;
   isFirstPet?: boolean;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // PO bug 2026-07-18, "se salta la foto" second cause: React 19 resets
+  // uncontrolled fields after EVERY action return — the photo <input
+  // type=file> included — while the preview (React state) kept showing the
+  // picked image. A resubmission after any server round-trip (duplicate
+  // prompt, error) therefore posted an EMPTY photo and the pet was created
+  // without it. File inputs can't be controlled, so the picked File lives
+  // HERE as the reset-safe source of truth (the same posture as the
+  // controlled text fields) and the action wrapper below re-attaches it
+  // whenever the reset emptied the posted entry. The ONE-form/ONE-submit
+  // design is untouched — the single final FormData just stays whole.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  const [state, formAction, isPending] = useActionState(
+    (prev: NewPetFormState, formData: FormData) => {
+      const posted = formData.get("photo");
+      if (photoFile && (!(posted instanceof File) || posted.size === 0)) {
+        formData.set("photo", photoFile);
+      }
+      return action(prev, formData);
+    },
+    initialState,
+  );
   useActionRedirect(state.redirectTo);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -113,7 +141,29 @@ export function MinimalNewPetForm({
     setOverrideDuplicate(true);
   }
 
-  const duplicatePrompt = !overrideDuplicate ? state.duplicatePrompt : undefined;
+  // PO bug 2026-07-18: the duplicatePrompt lives in SERVER state, which never
+  // clears on client edits. After Volver + changing the identity, the stale
+  // banner kept hiding the normal submit, leaving "crear igual" as the only
+  // affirmative action — an IMMEDIATE submit that skipped the P2 re-check for
+  // an identity the server never evaluated. Editing any P2-relevant field
+  // (name / species / sex) marks the prompt STALE: a stale prompt stops
+  // rendering and stops gating, and the fresh submit re-runs the cheap,
+  // authoritative server-side P2 check (a changed identity that still collides
+  // re-prompts with fresh data). Staleness resets whenever a NEW prompt
+  // arrives — the effect is keyed on the action-state identity because every
+  // action return builds a fresh state object.
+  const [duplicatePromptStale, setDuplicatePromptStale] = useState(false);
+
+  useEffect(() => {
+    if (state.duplicatePrompt) setDuplicatePromptStale(false);
+  }, [state]);
+
+  function markIdentityEdited() {
+    if (state.duplicatePrompt) setDuplicatePromptStale(true);
+  }
+
+  const duplicatePrompt =
+    !overrideDuplicate && !duplicatePromptStale ? state.duplicatePrompt : undefined;
 
   // Controlled field state — survives the React 19 form-reset on a server-error
   // return and preserves values across step back-navigation.
@@ -181,10 +231,23 @@ export function MinimalNewPetForm({
     setClientError(null);
   }
 
+  // Paso 1 has no submit button, so Enter must never fall through to an
+  // implicit form submission (nor dead-end): route it to the same guard as
+  // the "Continuar" button. Skips events a child already consumed (the
+  // locality LnCombobox preventDefaults Enter to pick the active option).
+  function handleFormKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+    if (e.key !== "Enter" || step !== 1 || e.defaultPrevented) return;
+    const target = e.target;
+    if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) {
+      e.preventDefault();
+      goToStep2();
+    }
+  }
+
   const errorText = clientError ?? state?.error ?? null;
 
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleSubmit}>
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
       {/* Data-quality gates: stable idempotency key (P1) + soft-dedupe override (P2). */}
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="duplicateOverride" value={overrideDuplicate ? "1" : "0"} />
@@ -221,7 +284,10 @@ export function MinimalNewPetForm({
                 invalid={invalid}
                 autoComplete="off"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  markIdentityEdited();
+                }}
               />
             )}
           </LnField>
@@ -233,10 +299,12 @@ export function MinimalNewPetForm({
             onPick={(p) => {
               setSpeciesPick(p);
               setBreed("");
+              markIdentityEdited();
             }}
             onOtherSpeciesChange={(v) => {
               setOtherSpecies(v);
               setBreed("");
+              markIdentityEdited();
             }}
           />
 
@@ -288,7 +356,10 @@ export function MinimalNewPetForm({
                 name="sex"
                 value="female"
                 checked={sex === "female"}
-                onChange={() => setSex("female")}
+                onChange={() => {
+                  setSex("female");
+                  markIdentityEdited();
+                }}
               >
                 Hembra
               </LnRadio>
@@ -296,7 +367,10 @@ export function MinimalNewPetForm({
                 name="sex"
                 value="male"
                 checked={sex === "male"}
-                onChange={() => setSex("male")}
+                onChange={() => {
+                  setSex("male");
+                  markIdentityEdited();
+                }}
               >
                 Macho
               </LnRadio>
@@ -304,7 +378,10 @@ export function MinimalNewPetForm({
                 name="sex"
                 value="unknown"
                 checked={sex === "unknown"}
-                onChange={() => setSex("unknown")}
+                onChange={() => {
+                  setSex("unknown");
+                  markIdentityEdited();
+                }}
               >
                 No sé
               </LnRadio>
@@ -322,7 +399,7 @@ export function MinimalNewPetForm({
 
         {/* ── Paso 2 — Foto y más ────────────────────────────────────── */}
         <div hidden={step !== 2} className="flex flex-col gap-5">
-          <PhotoField />
+          <PhotoField file={photoFile} onFileChange={setPhotoFile} />
 
           <details className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
@@ -518,19 +595,36 @@ function SpeciesField({
 // PhotoField — prominent uploader; camera AND gallery; preview + removable.
 // ---------------------------------------------------------------------------
 
-function PhotoField() {
+function PhotoField({
+  file,
+  onFileChange,
+}: {
+  /** The picked File — lifted to the form as the reset-safe source of truth
+   *  (React 19 clears the uncontrolled file input after every action return;
+   *  the form re-attaches this File to the posted FormData when that happens). */
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Preview derived from the lifted File; the object-URL lifecycle stays local.
   const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    setPreview(file ? URL.createObjectURL(file) : null);
+    onFileChange(e.target.files?.[0] ?? null);
   }
 
   function removePhoto() {
-    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    setPreview(null);
+    onFileChange(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
