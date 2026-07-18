@@ -140,17 +140,3 @@ END $$;
 -- ─────────────────────────────────────────────────────────────────────────
 
 COMMIT;
-
--- ─────────────────────────────────────────────────────────────────────────
--- ADDENDUM (docs-sync pass, 2026-07-18) — informational only, no DDL change.
--- Migrations are immutable; this note documents completion for future readers
--- so the "Remaining phases" plan above (lines 16-27) is not re-planned as if
--- still open.
---
--- All four phases are DONE, completed under later ARCH work:
---   Phase 1 (rederive-pet-cache.ts harness) — done, ARCH-Q.
---   Phase 2 (readers migrated to pet_identifications) — done, ARCH-Q/R.
---   Phase 3 (legacy double-writes killed) — done, ARCH-R.
---   Phase 4 (DROP COLUMN for the 11 legacy identifier columns) — done,
---     migration 0084_drop_legacy_chip_tattoo_columns.sql.
--- ─────────────────────────────────────────────────────────────────────────
