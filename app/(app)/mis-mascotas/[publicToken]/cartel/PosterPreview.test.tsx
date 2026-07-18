@@ -153,12 +153,16 @@ describe("<PosterPreview> — missing-photo pre-print warning (tester fix #3b)",
     expect(html).toContain("/mis-mascotas/DIM-TEST-1234?sheet=editar-mascota");
     // Print CTA is demoted (secondary styling), NOT removed — printing stays possible.
     expect(html).toContain("Imprimir cartel");
-    expect(html).not.toContain("bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]");
+    expect(html).not.toContain(
+      "bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]",
+    );
   });
 
   it("no warning and a primary print CTA when a photo exists", () => {
     const html = render(<PosterPreview {...BASE_PROPS} photoUrl="https://cdn.test/luna.jpg" />);
     expect(html).not.toContain("Sin foto, el cartel pierde casi todo su valor");
-    expect(html).toContain("bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]");
+    expect(html).toContain(
+      "bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]",
+    );
   });
 });
