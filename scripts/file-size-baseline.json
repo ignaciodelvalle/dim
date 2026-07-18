@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "generatedAt": "2026-07-18",
+    "threshold": 1500,
+    "description": "Files over 1500 lines are grandfathered at the recorded count. New over-threshold files, or baselined files growing past recorded+25, fail lint:file-size. A baselined file that drops to/under 1500 should be removed."
+  },
+  "files": {
+    "components/panorama/PanoramaConsole.tsx": 5337,
+    "src/modules/panorama/infrastructure/repository.ts": 3981,
+    "components/panorama/SituationalMap.tsx": 3930,
+    "lib/analytics/govt-dashboards.ts": 2508,
+    "lib/analytics/owner-dashboard.ts": 2005,
+    "lib/events/event-schemas.ts": 1761,
+    "src/modules/events/actions.ts": 1745,
+    "src/modules/foster/infrastructure/foster-repository.ts": 1664,
+    "src/modules/welfare/actions.ts": 1511
+  }
+}
