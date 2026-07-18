@@ -56,6 +56,14 @@ const baseSheetMounterProps = {
     emergencyContactName: "",
     emergencyContactPhone: "+54 9 11 0000-0000",
   },
+  disclosurePrefs: {
+    discloseFirstNameWhenLost: true,
+    disclosePhoneWhenLost: true,
+    discloseEmailWhenLost: false,
+    discloseLastLocationWhenLost: true,
+    allowFinderFormWhenLost: true,
+  },
+  ownerFirstName: "Martín",
 };
 
 const mockAssign = vi.fn();

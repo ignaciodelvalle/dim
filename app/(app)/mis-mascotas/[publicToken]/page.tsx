@@ -97,6 +97,10 @@ import { SERVICE_TYPE_LABELS, buildPresentarHref } from "@/lib/infra/service-dog
 import { credentialQrUrl } from "@/lib/infra/site-url";
 import { eventAttachmentSignedUrl, petPhotoUrl } from "@/lib/infra/storage";
 import {
+  deriveFirstStepsChecklist,
+  hasReviewedDisclosurePrefs,
+} from "@/lib/projections/first-steps-checklist";
+import {
   deriveComplianceState,
   lnPetStatusFromCompliance,
   microchipHeroTag,
@@ -760,6 +764,48 @@ export default async function PetDetailPage({
     currentToken: pet.publicToken,
   });
 
+  // owner-ia-redesign P2: pet-level override with account fallback. Resolution
+  // is pure (lib/domain/emergency-contacts.ts) — the pet's own columns win per
+  // row, else the owner's profile default shows (tagged "de tu cuenta" in the
+  // block). Non-owners get null (no block), and so do foster/transit holders —
+  // legal owners only (M2 fresh-review required fix 2). Hoisted (used by both
+  // the emergencyContacts prop below AND the "Primeros pasos" checklist).
+  const resolvedEmergencyContacts =
+    isOwner && ownershipRole === "owner"
+      ? resolveEmergencyContacts(
+          {
+            preferredVetName: pet.preferredVetName,
+            preferredVetPhone: pet.preferredVetPhone,
+            emergencyContactName: pet.emergencyContactName,
+            emergencyContactPhone: pet.emergencyContactPhone,
+          },
+          {
+            preferredVetName: viewerContacts?.preferredVetName ?? null,
+            preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
+            emergencyContactName: viewerContacts?.emergencyContactName ?? null,
+            emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
+          },
+        )
+      : null;
+
+  // "Primeros pasos" owner-onboarding checklist (lib/projections/
+  // first-steps-checklist.ts) — legal owner only, never for a deceased pet (a
+  // closed life record has no onboarding left to do). Empty array on every
+  // other viewer/state renders no section (CredentialFace's `firstSteps.length
+  // > 0` gate).
+  const firstSteps =
+    isOwner && ownershipRole === "owner" && !isDeceased
+      ? deriveFirstStepsChecklist({
+          petPublicToken: pet.publicToken,
+          hasPhoto: Boolean(pet.primaryPhotoId),
+          hasMicrochip: canonicalIds.microchip !== null,
+          hasVaccineRecorded: typedEvents.some((e) => e.eventType === "vaccination_administered"),
+          hasEmergencyContact: resolvedEmergencyContacts?.emergency !== null,
+          disclosurePrefsDecided: hasReviewedDisclosurePrefs(pet),
+          dismissedKeys: pet.dismissedFirstSteps,
+        })
+      : [];
+
   // The credential document — server-rendered per route. A swipe/key/dot is a
   // NAVIGATION to the neighbor's route, not a client pane slide, so this same
   // node renders whether or not the carousel gesture shell wraps it.
@@ -774,30 +820,7 @@ export default async function PetDetailPage({
         initialFace={activeFace}
         isOwner={isOwner}
         situation={chromeSituation}
-        emergencyContacts={
-          // owner-ia-redesign P2: pet-level override with account fallback.
-          // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
-          // own columns win per row, else the owner's profile default shows
-          // (tagged "de tu cuenta" in the block). Non-owners get null (no
-          // block), and so do foster/transit holders — legal owners only
-          // (M2 fresh-review required fix 2).
-          isOwner && ownershipRole === "owner"
-            ? resolveEmergencyContacts(
-                {
-                  preferredVetName: pet.preferredVetName,
-                  preferredVetPhone: pet.preferredVetPhone,
-                  emergencyContactName: pet.emergencyContactName,
-                  emergencyContactPhone: pet.emergencyContactPhone,
-                },
-                {
-                  preferredVetName: viewerContacts?.preferredVetName ?? null,
-                  preferredVetPhone: viewerContacts?.preferredVetPhone ?? null,
-                  emergencyContactName: viewerContacts?.emergencyContactName ?? null,
-                  emergencyContactPhone: viewerContacts?.emergencyContactPhone ?? null,
-                },
-              )
-            : null
-        }
+        emergencyContacts={resolvedEmergencyContacts}
         credencialContent={
           // The whole front face is ONE framed sheet ("Una sola libreta"):
           // identity → Cumplimiento → Avisos → Anotar → action row, bound by
@@ -834,6 +857,7 @@ export default async function PetDetailPage({
             memorial={memorial}
             situation={credentialSituation}
             avisos={petAlerts.length > 0 ? <PetAlertStrip alerts={petAlerts} /> : null}
+            firstSteps={firstSteps}
             // 3b improvement C — the embedded mid-face capture textarea was
             // REMOVED to declutter the front. Capture now lives in the fixed
             // "Asentar un hecho" bar (CitizenTabBar, mobile — task #9) and, as
@@ -976,6 +1000,21 @@ export default async function PetDetailPage({
               }
             : null
         }
+        disclosurePrefs={
+          // "Primeros pasos" star item (?sheet=privacidad) — same LEGAL-owner
+          // gate as emergencyContacts above: a foster/transit holder must not
+          // review or edit the legal owner's lost-mode disclosure choices.
+          isOwner && ownershipRole === "owner" && !isDeceased
+            ? {
+                discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
+                disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
+                discloseEmailWhenLost: pet.discloseEmailWhenLost,
+                discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+                allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
+              }
+            : null
+        }
+        ownerFirstName={ownerFirstName}
       />
 
       {/* PostCreateModal was deleted (flow audit 2026-07-03 + PO decision):

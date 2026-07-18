@@ -52,6 +52,14 @@ const baseProps = {
     emergencyContactName: "",
     emergencyContactPhone: "",
   },
+  disclosurePrefs: {
+    discloseFirstNameWhenLost: true,
+    disclosePhoneWhenLost: true,
+    discloseEmailWhenLost: false,
+    discloseLastLocationWhenLost: true,
+    allowFinderFormWhenLost: true,
+  },
+  ownerFirstName: "Martín",
 };
 
 describe("<SheetMounter> — sheet=anotar, owner path", () => {
