@@ -114,7 +114,7 @@
       }
     },
     {
-      "include": ["components/ui/dashboard/OpOmnibox.tsx"],
+      "include": ["components/ui/dashboard/OpOmnibox.tsx", "components/ui/LnCombobox.tsx"],
       "linter": {
         "rules": {
           "a11y": {

@@ -23,7 +23,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
 import type { SearchLocalitiesResult } from "@/app/actions/localities";
-import { LnInput } from "@/components/ui/Field";
+import { LnCombobox } from "@/components/ui/LnCombobox";
 import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
 import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 
@@ -95,7 +95,6 @@ export function LocalityPickerAcross({
   const [selected, setSelected] = useState<LocalitySearchResult | null>(null);
   const [results, setResults] = useState<LocalitySearchResult[]>([]);
   const [open, setOpen] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);
   const [pending, startTransition] = useTransition();
   const [errored, setErrored] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,7 +118,6 @@ export function LocalityPickerAcross({
         if ("results" in res) {
           setResults(res.results);
           setOpen(res.results.length > 0);
-          setActiveIdx(0);
           setErrored(false);
         } else {
           setErrored(true);
@@ -136,22 +134,6 @@ export function LocalityPickerAcross({
     setQuery(r.localityName);
     setOpen(false);
     onSelect?.(r);
-  }
-
-  function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!open || results.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      handleSelect(results[activeIdx]);
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
   }
 
   const showNoResults =
@@ -173,7 +155,7 @@ export function LocalityPickerAcross({
 
   return (
     <div className="relative">
-      <LnInput
+      <LnCombobox
         id={visibleInputId}
         type="text"
         disabled={disabled}
@@ -183,22 +165,37 @@ export function LocalityPickerAcross({
           setSelected(null);
           onQueryChange?.(e.target.value);
         }}
-        onKeyDown={handleKey}
         onFocus={() => {
           if (results.length > 0) setOpen(true);
-        }}
-        onBlur={() => {
-          setTimeout(() => setOpen(false), 150);
         }}
         placeholder={placeholder}
         required={required}
         aria-required={required || undefined}
-        aria-autocomplete="list"
-        aria-expanded={open}
         // Only system-catalog localities are valid here — suppress the browser's
         // own autofill/history/password-manager dropdown so it can't overlay or
         // pollute the results (see lib/ui/no-browser-autofill.ts).
         {...NO_BROWSER_AUTOFILL}
+        items={results}
+        getItemKey={(r) =>
+          r.indecId ?? `${r.provinceCode}-${r.localitySlug}-${r.departmentName ?? "x"}`
+        }
+        onSelect={handleSelect}
+        open={open}
+        onOpenChange={setOpen}
+        listClassName="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-ln-line  bg-ln-card  shadow-lg"
+        renderItem={(r, { active }) => (
+          <div
+            className={`block w-full text-left px-3 py-2 ${
+              active ? "bg-ln-stripe " : "hover:bg-ln-stripe "
+            }`}
+          >
+            <p className="text-sm text-ln-ink ">{r.localityName}</p>
+            <p className="text-xs text-ln-mute ">
+              {r.departmentName ? `${r.departmentName}, ` : ""}
+              {r.provinceName}
+            </p>
+          </div>
+        )}
       />
       {/* Wire contract:
             provinceCode        — ISO 3166-2:AR. Empty when user typed free text and there's no defaultValue.
@@ -209,30 +206,6 @@ export function LocalityPickerAcross({
       <input type="hidden" name="provinceName" value={provinceNameValue} />
       <input type="hidden" name={name} value={localityNameValue} />
       <input type="hidden" name={`${name}IndecId`} value={indecIdValue} />
-      {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-ln-line  bg-ln-card  shadow-lg">
-          {results.map((r, i) => (
-            <li key={r.indecId ?? `${r.provinceCode}-${r.localitySlug}-${r.departmentName ?? "x"}`}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelect(r);
-                }}
-                className={`block w-full text-left px-3 py-2 ${
-                  i === activeIdx ? "bg-ln-stripe " : "hover:bg-ln-stripe "
-                }`}
-              >
-                <p className="text-sm text-ln-ink ">{r.localityName}</p>
-                <p className="text-xs text-ln-mute ">
-                  {r.departmentName ? `${r.departmentName}, ` : ""}
-                  {r.provinceName}
-                </p>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
       {pending && (
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute">…</span>
       )}

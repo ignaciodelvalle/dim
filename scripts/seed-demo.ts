@@ -86,7 +86,7 @@ if (!STATS_ONLY) {
 // ---------------------------------------------------------------------------
 
 import { EVENT_TYPES, type EventType } from "../db/schema";
-import { chipImplantSiteFromLocation } from "../src/modules/pets/domain/pet-rules";
+import { chipImplantSiteFromLocation } from "../lib/domain/microchip-implant-site";
 import { DANGEROUS_STORYLINES } from "./seed-storylines-dangerous";
 import { STORYLINES as ICONIC_STORYLINES } from "./seed-storylines-iconic";
 import { LEGEND_STORYLINES } from "./seed-storylines-legends";

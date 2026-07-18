@@ -17,9 +17,9 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, petIdentifications, pets } from "@/db";
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { generatePublicToken } from "@/lib/infra/publicToken";
-import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 import { withMutationOverride } from "../_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

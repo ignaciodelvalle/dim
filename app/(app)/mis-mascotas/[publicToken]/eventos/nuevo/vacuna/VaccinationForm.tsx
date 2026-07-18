@@ -7,6 +7,7 @@
 import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
+import { LnCombobox } from "@/components/ui/LnCombobox";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
@@ -76,10 +77,11 @@ export function VaccinationForm({
   // whose popup never opened reliably for a human tester (Cowork B10 — and some
   // browsers/devices, e.g. iOS Safari, never render datalist suggestions at all).
   // A real app-controlled combobox opens on focus and filters as you type; free
-  // text stays allowed (the input value is untouched).
+  // text stays allowed (the input value is untouched). Keyboard nav, aria wiring
+  // and the listbox shell live in the shared LnCombobox (extracted from this
+  // field + LocalityPickerAcross); this component just owns the match algorithm
+  // (substring filter over the species catalog) and each option's markup.
   const [vaccineOpen, setVaccineOpen] = useState(false);
-  // Active-option index for keyboard navigation (mirrors LocalityPickerAcross).
-  const [vaccineActiveIdx, setVaccineActiveIdx] = useState(0);
   const vaccineMatches = useMemo(() => {
     const q = vaccineName.trim().toLowerCase();
     if (!q) return vaccines;
@@ -91,25 +93,6 @@ export function VaccinationForm({
     setVaccineOpen(false);
   }
 
-  // Keyboard layer ported from LocalityPickerAcross.handleKey: ArrowDown/ArrowUp
-  // move the active index, Enter selects the active match, Escape closes. Guarded
-  // so a closed/empty list lets Enter fall through to normal form submission.
-  function handleVaccineKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!vaccineOpen || vaccineMatches.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setVaccineActiveIdx((i) => Math.min(i + 1, vaccineMatches.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setVaccineActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      const pick = vaccineMatches[vaccineActiveIdx];
-      if (pick) pickVaccine(pick.name);
-    } else if (e.key === "Escape") {
-      setVaccineOpen(false);
-    }
-  }
   const [nextDueAt, setNextDueAt] = useState("");
   const [nextDueOverridden, setNextDueOverridden] = useState(false);
   const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
@@ -146,67 +129,45 @@ export function VaccinationForm({
 
           <LnField label="Vacuna" required>
             {({ id, describedBy, invalid }) => (
-              <div className="relative">
-                <LnInput
-                  id={id}
-                  name="vaccineName"
-                  type="text"
-                  required
-                  // Mirrors the LocalityPickerAcross combobox pattern (a11y-lint
-                  // clean): aria-autocomplete + aria-expanded on the input, a plain
-                  // ul/li/button menu below (no listbox/option roles).
-                  aria-autocomplete="list"
-                  aria-expanded={vaccineOpen && vaccineMatches.length > 0}
-                  placeholder="Empezá a tipear o elegí…"
-                  autoComplete="off"
-                  value={vaccineName}
-                  onFocus={() => {
-                    setVaccineActiveIdx(0);
-                    setVaccineOpen(true);
-                  }}
-                  // Delay close so a click/tap on an option registers before the
-                  // list unmounts (the option uses onMouseDown, which fires first).
-                  onBlur={() => window.setTimeout(() => setVaccineOpen(false), 120)}
-                  onKeyDown={handleVaccineKey}
-                  onChange={(e) => {
-                    setVaccineName(e.target.value);
-                    setVaccineActiveIdx(0);
-                    setVaccineOpen(true);
-                  }}
-                  aria-describedby={describedBy}
-                  invalid={invalid}
-                />
-                {vaccineOpen && vaccineMatches.length > 0 && (
-                  <ul className="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] py-1 shadow-lg">
-                    {vaccineMatches.map((v, i) => (
-                      <li key={v.name}>
-                        <button
-                          type="button"
-                          // onMouseDown (not onClick) so selection fires BEFORE the
-                          // input's onBlur closes the list; preventDefault keeps focus.
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            pickVaccine(v.name);
-                          }}
-                          onMouseEnter={() => setVaccineActiveIdx(i)}
-                          className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-sm)] text-[var(--color-ln-ink)] transition-colors ${
-                            i === vaccineActiveIdx
-                              ? "bg-[var(--color-ln-stripe)]"
-                              : "hover:bg-[var(--color-ln-stripe)]"
-                          }`}
-                        >
-                          <span>{v.name}</span>
-                          {v.isCore && (
-                            <span className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-wide text-[var(--color-ln-mute)]">
-                              Núcleo
-                            </span>
-                          )}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+              <LnCombobox
+                id={id}
+                name="vaccineName"
+                type="text"
+                required
+                placeholder="Empezá a tipear o elegí…"
+                autoComplete="off"
+                value={vaccineName}
+                onFocus={() => setVaccineOpen(true)}
+                onChange={(e) => {
+                  setVaccineName(e.target.value);
+                  setVaccineOpen(true);
+                }}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                items={vaccineMatches}
+                getItemKey={(v) => v.name}
+                onSelect={(v) => pickVaccine(v.name)}
+                open={vaccineOpen}
+                onOpenChange={setVaccineOpen}
+                // Original delay was 120ms (vs LocalityPickerAcross's 150ms) —
+                // preserved exactly, not worth unifying for an imperceptible diff.
+                blurCloseDelayMs={120}
+                listClassName="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] py-1 shadow-lg"
+                renderItem={(v, { active }) => (
+                  <div
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-sm)] text-[var(--color-ln-ink)] transition-colors ${
+                      active ? "bg-[var(--color-ln-stripe)]" : "hover:bg-[var(--color-ln-stripe)]"
+                    }`}
+                  >
+                    <span>{v.name}</span>
+                    {v.isCore && (
+                      <span className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-wide text-[var(--color-ln-mute)]">
+                        Núcleo
+                      </span>
+                    )}
+                  </div>
                 )}
-              </div>
+              />
             )}
           </LnField>
 

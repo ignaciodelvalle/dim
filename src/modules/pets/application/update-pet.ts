@@ -20,13 +20,9 @@
 //   - Flushing pendingNotifications (post-tx, best-effort)
 //   - redirect(`/mis-mascotas/${publicToken}`)
 
-import type {
-  NewNotification,
-  UseCaseResult,
-} from "@/src/modules/adoption/application/set-adoption-eligibility";
 import { type ExistingCanonicalIds, type ExistingPetSnapshot, diffPet } from "../domain/pet-diff";
 import { isBecamePPP, isChipNewlyAdded, isFlagOnlyChange, isNoOp } from "../domain/pet-rules";
-import type { UpdatePetInput } from "../domain/types";
+import type { NewNotification, UpdatePetInput, UseCaseResult } from "../domain/types";
 import type { PetsRepository } from "../infrastructure/pets-repository";
 
 // ---------------------------------------------------------------------------
