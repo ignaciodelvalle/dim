@@ -180,9 +180,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       definition:
         "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón es el primer denominador; el segundo es la población canina estimada. Meta de salud pública: 80%.",
       formula:
-        "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,152 perros/hab.).",
+        "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,158 perros/hab.).",
       caveat:
-        "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,152 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; sin fila de censo se muestra «sin estimación censal».",
+        "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., GCBA — Encuesta Anual de Hogares 2022, módulo Tenencia responsable) — es una estimación piso (CABA subestima la tenencia nacional), no un censo canino; sin fila de censo se muestra «sin estimación censal». No existe cifra oficial nacional de población canina (ni INDEC, ni SENASA, ni Ministerio de Salud) — este factor NO se atribuye a OMS/OPS.",
     },
   },
 
