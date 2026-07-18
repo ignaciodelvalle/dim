@@ -42,15 +42,16 @@ describe("parseAuditDateRange", () => {
     expect(parseAuditDateRange(undefined, undefined)).toEqual({ since: null, until: null });
   });
 
-  it("parses `from` to a UTC-midnight inclusive lower bound", () => {
+  // AR calendar days (PO 2026-07-16): midnight AR = 03:00Z (fixed -03:00, no DST).
+  it("parses `from` to an AR-midnight inclusive lower bound (03:00Z)", () => {
     const { since, until } = parseAuditDateRange("2026-06-27", undefined);
-    expect(since?.toISOString()).toBe("2026-06-27T00:00:00.000Z");
+    expect(since?.toISOString()).toBe("2026-06-27T03:00:00.000Z");
     expect(until).toBeNull();
   });
 
-  it("makes `to` inclusive by advancing `until` to the next UTC midnight", () => {
+  it("makes `to` inclusive by advancing `until` to the next AR midnight", () => {
     const { until } = parseAuditDateRange(undefined, "2026-06-27");
-    expect(until?.toISOString()).toBe("2026-06-28T00:00:00.000Z");
+    expect(until?.toISOString()).toBe("2026-06-28T03:00:00.000Z");
   });
 
   it("rejects malformed and rolled-over dates", () => {
@@ -66,6 +67,13 @@ describe("decisionsAuditDrillHref", () => {
     const href = decisionsAuditDrillHref(now);
     expect(href).toContain("action=request_approved,request_rejected");
     expect(href).toContain("from=2026-06-27");
+  });
+
+  it("computes `from` on the ARGENTINE calendar day (not the UTC day)", () => {
+    // 2026-07-04T01:00Z is still 2026-07-03 22:00 in AR, so 7 days back lands
+    // on the AR day 2026-06-26 even though the UTC day is 2026-06-27.
+    const now = new Date("2026-07-04T01:00:00Z").getTime();
+    expect(decisionsAuditDrillHref(now)).toContain("from=2026-06-26");
   });
 
   it("the drill's action param round-trips through parseAuditActions", () => {

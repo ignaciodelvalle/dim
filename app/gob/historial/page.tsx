@@ -44,10 +44,15 @@ export const dynamic = "force-dynamic";
 
 const GOB_HISTORIAL_PAGE_LIMIT = 100;
 
-/** Accepts only YYYY-MM-DD; anything else (absent, malformed) → no bound. */
+/**
+ * Accepts only YYYY-MM-DD; anything else (absent, malformed) → no bound.
+ * The day is an ARGENTINE calendar day (PO decision 2026-07-16): parsed at AR
+ * midnight via a fixed -03:00 offset (AR is UTC-3 year-round, no DST), so a
+ * "2026-07-18" filter spans 2026-07-18T00:00 AR through 24:00 AR.
+ */
 function parseDateParam(raw: string | undefined): Date | null {
   if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const d = new Date(`${raw}T00:00:00Z`);
+  const d = new Date(`${raw}T00:00:00-03:00`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
@@ -71,7 +76,8 @@ export default async function GobHistorialPage({
     rawAction && rawAction in AUDIT_ACTION_LABELS ? (rawAction as AuditLogAction) : null;
   const actorFilter = sp.actor?.trim() || null;
   const fromDate = parseDateParam(sp.from);
-  // `to` is inclusive of the whole day — bump to the start of the next day.
+  // `to` is inclusive of the whole AR day — bump to the end of that day
+  // (23:59:59.999 AR).
   const toDateRaw = parseDateParam(sp.to);
   const toDate = toDateRaw ? new Date(toDateRaw.getTime() + 86_400_000 - 1) : null;
   const rawCursor = sp.cursor;
