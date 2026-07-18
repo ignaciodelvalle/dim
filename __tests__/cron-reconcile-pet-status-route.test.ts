@@ -10,8 +10,13 @@
 //   7. Cursor persistence: earlyStop persists `nextCursor`; a later run reads
 //      the previous run's `nextCursor` from cron_runs and resumes from it,
 //      wrapping back to null once it reaches the end of the table.
+//   8. Drift alert: divergent > 0 sends a "warning"-severity sendCronAlert
+//      with the sample + count; divergent === 0 sends no alert.
 //
 // Mocks: @/db (cronRuns, pets, db) + @/lib/infra/rederive-pet-cache (rederivePetCache, hasDrift, driftedColumns)
+//   + @/lib/infra/cron-alert (sendCronAlert, mocked only in the drift-alert
+//     tests — other tests leave it unmocked, which is safe: the real
+//     implementation no-ops when CRON_ALERT_WEBHOOK is unset, as it is here)
 //   + drizzle-orm's `gt` (spied, passthrough disabled) so we can assert the
 //     exact cursor value the pets query was built with, without needing a
 //     real column/SQL builder.
@@ -56,6 +61,7 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     vi.restoreAllMocks();
     vi.doUnmock("@/db");
     vi.doUnmock("@/lib/infra/rederive-pet-cache");
+    vi.doUnmock("@/lib/infra/cron-alert");
   });
 
   // ---------------------------------------------------------------------------
@@ -211,6 +217,19 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     return { updateSetMock, petsWhereMock };
   }
 
+  /**
+   * Mocks @/lib/infra/cron-alert so drift-alert tests can assert on
+   * sendCronAlert's call arguments. Must be invoked (and vi.doMock takes
+   * effect) BEFORE callRoute() dynamically imports the route module.
+   */
+  function mockSendCronAlert() {
+    const sendCronAlertMock = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/lib/infra/cron-alert", () => ({
+      sendCronAlert: sendCronAlertMock,
+    }));
+    return sendCronAlertMock;
+  }
+
   async function callRoute(headers: Record<string, string>) {
     const { GET } = await import("@/app/api/cron/reconcile-pet-status/route");
     const req = new Request("http://test.local/api/cron/reconcile-pet-status", { headers });
@@ -330,6 +349,56 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     // and returns true only for PET_DRIFTED's report shape)
     expect(body.divergent).toBe(1);
     warnSpy.mockRestore();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Drift alert (sendCronAlert) — the gap this change wires up: reconcile
+  // itself must page on drift instead of relying solely on cron-health's
+  // next (up to daily) run to notice the "drift" verdict.
+  // ---------------------------------------------------------------------------
+
+  it("sends a warning-severity cron alert with the sample + count when drift is detected", async () => {
+    mockDriftedRun([[PET_DRIFTED], []], PET_DRIFTED.id);
+    const sendCronAlertMock = mockSendCronAlert();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: true, scanned: 1, divergent: 1 });
+
+    expect(sendCronAlertMock).toHaveBeenCalledTimes(1);
+    expect(sendCronAlertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        job: "reconcile_pet_status",
+        severity: "warning",
+        details: expect.objectContaining({
+          scanned: 1,
+          divergent: 1,
+          sample: expect.arrayContaining([
+            expect.objectContaining({
+              petId: PET_DRIFTED.id,
+              publicToken: PET_DRIFTED.publicToken,
+            }),
+          ]),
+        }),
+      }),
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("does not send a cron alert when divergent is 0", async () => {
+    mockCleanRun([[PET_CLEAN], []]);
+    const sendCronAlertMock = mockSendCronAlert();
+
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.divergent).toBe(0);
+    expect(sendCronAlertMock).not.toHaveBeenCalled();
   });
 
   // ---------------------------------------------------------------------------
