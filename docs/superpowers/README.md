@@ -14,6 +14,14 @@ Index of design docs (`specs/`) and implementation plans (`plans/`) for MiMAR fe
 
 A typical feature lifecycle: brainstorm in chat → spec in `specs/` → review/iterate → plan in `plans/` → Claude Code executes → mark done.
 
+## ADRs (architecture decision records)
+
+Standing decisions that outlive any one spec/plan pair — `docs/adr/`.
+
+| ADR | What it locks in |
+|---|---|
+| [`2026-07-18-native-readiness.md`](../adr/2026-07-18-native-readiness.md) | The API-exposability standing rule: every use-case that graduates into `src/modules/<domain>/application/` stays plain-data-in/plain-data-out and framework-free, so a future `/api/v1` for native (iOS/Android) clients never has to rewrite a strangler extraction that already shipped. No native code lands from this ADR — it's a contract for extractions happening anyway. |
+
 ---
 
 ## What to attack next

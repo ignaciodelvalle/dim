@@ -25,6 +25,17 @@ unpolled. This is a STRUCTURAL rule, not a reminder — it recurred 3× in one d
 despite prompt warnings, so it leads every brief as a positive recipe rather
 than a buried "don't".
 
+**Verify worktree freshness before touching anything.** Worktree provisioning
+can hand an agent a copy that is many commits behind the integration tip it
+was told to work from — `git log --oneline -1` on the target integration
+branch, compare against the worktree's own `HEAD`, and `git reset --hard` to
+the tip if they diverge, before making a single edit. This is not
+hypothetical: an agent briefed against "expect SHA `bab941de` or newer" found
+its worktree 2,009 commits behind (`git rev-list --left-right --count
+HEAD...integration/all-20260703` → `0  2009`) despite a clean `git status`. A
+clean tree proves nothing about freshness — only a direct comparison against
+the named tip does.
+
 ## Working-norm methodology (validated 2026-07-11)
 
 - **Cursor as fresh reviewer is a standard pre-push step.** Before pushing a
@@ -44,6 +55,14 @@ than a buried "don't".
   ΔE deuteranopia-margin violation — building from the table would have silently
   reintroduced a fixed CVD accessibility bug. Treat `viz-scales.ts` (and other
   test-pinned constants) as the source of truth; flag the handoff, don't follow it.
+- **No self-referential assertions.** A test must assert `f(x)` against an
+  independently-stated expected value, never against a value derived from the
+  same code path under test — e.g. re-deriving the expected string from the
+  same template the production code uses to build it, so a broken template and
+  a "passing" test agree with each other and nothing else. Found by a
+  theater-audit sweep (suite came back under 0.5% theater overall, but this
+  pattern was the recurring false-green shape). Applies to every new or edited
+  test, not just tests written for this repo's own agents.
 
 Machine-enforced rules (no memory required): `pnpm verify` lints,
 `__tests__/cron-registry-parity.test.ts`, `__tests__/pet-cache-rederivation.test.ts`

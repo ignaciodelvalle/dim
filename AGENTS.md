@@ -524,6 +524,38 @@ Indexes: partial index on `(user_id) where read_at IS NULL AND archived_at IS NU
 
 UI for browsing notifications is deferred to a future round; for now the rows materialize correctly in the database and can be inspected in Studio.
 
+### `PushSubscription` — Web Push (VAPID) endpoints, migration `0152`
+
+A second, best-effort delivery leg for `Notification` rows, not a parallel
+source of truth — `notifications` stays authoritative; a push send is a side
+effect of `severity='urgent'` inserts only (avistajes/hallazgos/custodia),
+fired from `lib/infra/notification-service.ts` (`createNotification`) via
+`lib/infra/web-push.ts` (`sendPushForNotifications`) — and only when the
+insert used the shared `db` pool, not a caller-supplied transaction handle
+(push network I/O must never hold a business tx open). Design: ADR
+[`docs/adr/2026-07-18-native-readiness.md`](./docs/adr/2026-07-18-native-readiness.md) §4.
+
+- `id`, `user_id` (fk → users)
+- `endpoint` — the push service URL; **globally unique**, identifies the
+  browser registration. Re-subscribing from the same browser upserts on
+  `endpoint`.
+- `p256dh`, `auth` — client encryption keys from the `PushSubscription` object
+- `revoked_at?` — **soft revoke**. A 410/404 from the push service, or the user
+  toggling push off in `/cuenta`, sets this instead of deleting the row —
+  keeps an auditable trail. Hard delete only happens via the `profiles`
+  erasure cascade.
+- `created_at`
+
+RLS: owner-only (`user_id = auth.uid()`) for SELECT/INSERT/UPDATE; no DELETE
+policy (rows are soft-revoked, never client-deleted) — mirrors
+`alert_subscriptions` (migration 0108). Drizzle service-role is the primary
+authz gate (`requireUserOrRedirect` + `user_id` scoping in
+`app/actions/push-subscriptions.ts`); RLS is defense-in-depth for any future
+direct PostgREST surface.
+
+Feature flag `NEXT_PUBLIC_PUSH_ENABLED` gates the client-side subscribe UI;
+default **OFF**. Service worker: `public/sw.js`.
+
 ## Libreta sanitaria
 
 The **Libreta sanitaria** is the digital embodiment of the canonical Argentine pet booklet — the yellow paper book every vet stamps and every dueño carries. In DIM it is a **projection over `pet_events`** filtered to the medical subset: vaccinations, dewormings, sterilization, vet visits, weight, medications, microchip, clinical work (labs, imaging, surgeries), allergies, symptoms, incidents, death.
@@ -1131,6 +1163,7 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 | ✅ | Consola fija v2C — viewport-locked (`100dvh`, sin scroll de página), chrome flotante sobre el mapa (Vista/Capas + KPI chips + legend pill) + dock inferior con tabs `Registros \| Estadísticas \| Línea de tiempo` | `components/panorama/PanoramaConsole.tsx` + `PanoramaDock.tsx`; el canvas MapLibre nunca re-layoutea |
 | ✅ | Event-points mode — puntos por evento scope-gated (no jitter; ver plan de puntos) | `pointsMode` en `PanoramaConsole` + disclosure honesto por capa |
 | 🟡 | Cube precompute (road-to-10 infra, migración 0139) — detrás del flag `CUBE_READS` (default **OFF** → fallback en vivo); lee por un handle analítico dedicado con timeout largo solo para las lecturas del builder | `src/modules/panorama/application/load-layer-features-cube.ts` (flag `=== "1"`), `db/index.ts` (`analyticsReadOverride`); habilitar a escala nacional es decisión pendiente |
+| 🟡 | KPI-strip cube (migración 0151, extiende road-to-10 infra #1) — mismo `CUBE_READS` dual-path que 0139 pero para `/api/panorama/kpis`; el builder REUSA `getPanoramaKpis` (mismo fan-out que la request path) así que cube-vs-live drift es estructuralmente imposible. Fase independiente dentro del cron `refresh-cube`: un fallo de la fase KPI no bloquea el swap de la cube de capas ni viceversa | `src/modules/panorama/application/load-panorama-kpis-cube.ts`, `panorama_kpi_cube` + `panorama_kpi_cube_meta` (deny-all RLS, solo `analyticsDb` service-role), `app/api/cron/refresh-cube/route.ts` (campo `kpi` en la respuesta), fence de paridad cube-vs-live |
 | ✅ | k-anonimato display suppression (k=5) en las 5 rutas de render; limitación de differencing KA1/KA2 **aceptada y documentada** (no implementar el fix salvo que se dispare un reopen trigger) | `lib/metrics/anonymity.ts` (`k ?? 5`); `docs/architecture/privacy-known-limitations.md` |
 
 ### Professional & vet
@@ -1173,8 +1206,11 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 | ✅ | RLS smoke test cross-account vía PostgREST (extendido Item 26: pet_identifications, pet_transfers) | `pnpm rls:smoke` |
 | ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md` |
 | ✅ | Localities catalog INDEC (catalog reference) | `ar_localities` table + `scripts/import-indec-localities.ts`; seeded via `db:bootstrap` step 4; graceful fallback + vendored-CSV override (`INDEC_LOCALITIES_CSV`). Runbook: `docs/ops/remote-supabase-bootstrap-runbook.md` §3 + `docs/ops/db-bootstrap-runbook.md` |
-| ⚪ | Push notifications (iOS PWA limitations) | — |
-| ⚪ | Native mobile via React Native sharing data layer | — |
+| ✅ | Public-credential resilience — `/p/[publicToken]` reads are budgeted and fail-soft; a partial/slow read renders an honest degraded state instead of a 500 or an infinite spinner | `app/(public)/p/[publicToken]/DegradedCredentialCard.tsx` + `CredentialStreamedSections.tsx`; structured single-line JSON error logging for Vercel via `lib/infra/report-error.ts` |
+| ✅ | Durable rate limiting on public search endpoints (`rate_limit_buckets`, DB-backed, IP-and-endpoint keyed, cross-worker-safe) | `localities_search` (`src/modules/localities/application/search/search-localities.ts`), `performed_by_search` (`src/modules/search/application/performed-by/search-performed-by.ts`) |
+| ✅ | `/refugios` public directory — Next Data Cache (`unstable_cache`, 300s) instead of an uncacheable per-request fan-out; invalidated on tag `"org-directory"` when an org is verified or revoked | `app/(public)/refugios/page.tsx` |
+| ✅ | Web push v1 (VAPID) — best-effort second delivery leg for `severity='urgent'` notifications only (avistajes/hallazgos/custodia); in-app `notifications` table stays source of truth. Flag `NEXT_PUBLIC_PUSH_ENABLED` default **OFF**. iOS PWA push has its own platform limitations (Safari's install-to-homescreen requirement) — not solved by this, just not blocked by it | migration `0152_push_subscriptions.sql`; `public/sw.js`; `/cuenta` toggle; `lib/infra/web-push.ts` (urgent-only seam inside `lib/infra/notification-service.ts`, skipped for tx clients — ADR `docs/adr/2026-07-18-native-readiness.md` §4) |
+| ⚪ | Native mobile via React Native sharing data layer | ADR `docs/adr/2026-07-18-native-readiness.md` — the API-exposability standing rule for when this lands |
 | ⚪ | Agente conversacional con LLM (audio/text → intent → form prefilled) | Captura rápida ya cubre el path determinístico; LLM aterriza encima del mismo registry |
 | ⚪ | Materialized views para proyecciones caras | — |
 
@@ -1331,18 +1367,47 @@ If a new feature seems to need an exception, write the exception into the PR des
 These conventions were locked after fixing chronic worker-exit errors and suite
 instability (Item 29, 2026-06-19). Respect them to keep the suite green and fast.
 
+### Two-project split (unit vs db)
+
+`vitest.config.ts` defines two Vitest **projects** instead of one suite running
+`fileParallelism:false` globally (the old suite paid the serial + DB tax on
+every file, even the ~44% that never touch Postgres):
+
+- **`unit`** — files whose transitive import graph provably never reaches
+  `db/index.ts`. Runs in **parallel** (default workers), `setupFiles:
+  __tests__/setup-env.ts` (env-only, no `DATABASE_URL`/`SUPABASE_URL` forcing,
+  no pool-drain `globalSetup`). ~387 files, ~31s.
+- **`db`** — files that do reach the DB client. Runs **serially**
+  (`fileParallelism: false`), `setupFiles: __tests__/setup.ts` (URL-forcing) +
+  `globalSetup: __tests__/global-setup.ts` (postgres.js pool-drain teardown) —
+  byte-for-byte the old behavior. ~495 files, ~10min.
+
+Membership is **mechanical, not a maintained manifest**:
+`__tests__/db-reachability.ts` (`computeTestPartition()`) walks the import
+graph from every test file via reverse-BFS and classifies by reachability of
+`db/index.ts` plus its own DB-signal heuristics (including Supabase client
+imports). It is recomputed on every `vitest` invocation — nothing to drift —
+and guarded by `__tests__/project-partition.guard.test.ts`.
+
+Scripts: `pnpm test:unit` (`vitest run --project unit`), `pnpm test:db`
+(`vitest run --project db`). Bare `pnpm test` (`vitest run`) still runs both
+projects in one pass, as does `pnpm test:coverage` (coverage is a root-level,
+cross-project concern in Vitest 4).
+
 ### DB connection pool
 
 `db/index.ts` applies a **test-mode pool cap** when `VITEST=true` or
 `NODE_ENV=test`:
 
-- `max: 3` — prevents exhausting the local Supabase limit (100 connections) across
-  a 220+ file suite.
+- `max: 3` — prevents exhausting the local Supabase limit (100 connections)
+  across the `db` project's ~495 serial files.
 - `idle_timeout: 20 s` — returns connections quickly between files.
 - `max_lifetime: 60 s` — recycles long-lived connections.
 - `connect_timeout: 10 s` — fails fast when the local stack is not running.
 
 In production none of these apply; Supavisor/pgBouncer sits in front anyway.
+This pool cap only matters to the `db` project — `unit` files never open a
+pool.
 
 ### Global teardown
 
@@ -1378,6 +1443,61 @@ Migration `0084_drop_legacy_chip_tattoo_columns.sql` now drops
 migration-order run (not just on a drizzle-kit-push-first bootstrap).
 
 All migrations use `IF EXISTS` / `IF NOT EXISTS` guards — do not remove them.
+
+### Fences (the `pnpm verify` chain)
+
+`pnpm verify` is `typecheck && lint` + **~30 `lint:*` fences** + `build`, in
+that order (`package.json` → `verify` script is the literal source of truth —
+read it before assuming this list, it grows). Each fence is a standalone
+`pnpm lint:<name>` script so it can be run in isolation while iterating.
+
+Long-standing fences (pre-dating this section): `lint:tokens`, `lint:locality`,
+`lint:timezone`, `lint:ui`, `lint:professionalism`, `lint:authz`,
+`lint:events`, `lint:authz-scoping`, `lint:authz-subsumption`,
+`lint:authz-orgtoken`, `lint:deps`, `lint:rls`, `lint:actions`, `lint:lib-root`,
+`lint:mocks`, `lint:buttons`, `lint:nav`, `lint:notifications`,
+`lint:db-budget`, `lint:metric-labels`, `lint:opened-reason`.
+
+**New fences, waves S + M:**
+
+| Fence | Script | Guards |
+|---|---|---|
+| `lint:file-size` | `scripts/check-file-size.ts` | File-length ratchet |
+| `lint:maplibre` | `scripts/check-maplibre-locale.ts` | MapLibre strings stay es-AR, no hardcoded English map chrome |
+| `lint:hard-nav` | `scripts/check-hard-nav-anchors.ts` | No raw `<a href>` hard-navigation where client routing is expected |
+| `lint:tablist` | `scripts/check-tablist-ratchet.ts` | `role="tablist"` a11y pattern ratchet |
+| `lint:eyebrow` | `scripts/check-eyebrow-title.ts` | Eyebrow/title heading convention |
+| `lint:uuid` | `scripts/check-uuid-literals.ts` | No hardcoded UUID literals outside seeds/tests |
+| `lint:plural` | `scripts/check-pluralize-es.ts` | Spanish pluralization helper used instead of ad-hoc `s`-suffixing |
+| `lint:dupes` | `scripts/check-duplication.ts` | `jscpd` duplication ceiling — 7% |
+
+**Biome, `biome.json`** additions worth knowing about (verified against the
+file, not the plan that proposed them):
+
+- `noExcessiveCognitiveComplexity` — `maxAllowedComplexity: 25` by default;
+  a per-file `overrides` entry raises the ceiling to `160` for **138 files**
+  (pre-existing complexity the ratchet grandfathers rather than blocks;
+  extending this list back down is a tracked cleanup, not a blocker).
+- `noUnusedVariables` / `noUnusedImports` — `error` by default, with narrow
+  per-file `off` overrides for known exceptions.
+- `nursery.noRestrictedImports` on `src/modules/*/domain/**` (no `@/db`,
+  `drizzle-orm`, `next*`, `server-only`) **and now also on
+  `src/modules/*/application/**`** (no `next*`/`server-only` — see ADR
+  [`docs/adr/2026-07-18-native-readiness.md`](./docs/adr/2026-07-18-native-readiness.md)
+  Decision 1). The application-layer fence has a 46-path `off` override for
+  use-cases grandfathered in before the rule landed — new use-cases don't get
+  added to that list; the goal is 0.
+
+### Test suite state
+
+~882 test files (387 `unit` + 495 `db`, see the two-project split above). A
+theater audit (mutation-probe + matrix sweep) found the suite under 0.5%
+theater. **Review rule that came out of it: no self-referential assertions** —
+a test must assert `f(x)` against an independently-stated expected value, never
+against a value derived from the code under test (e.g. re-deriving the
+expected string from the same template the production code uses defeats the
+test). See `docs/agents/README.md` for where this is enforced as a review
+convention.
 
 ---
 

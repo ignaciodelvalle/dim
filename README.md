@@ -58,7 +58,7 @@ Account type is DB-enforced via CHECK constraint on `profiles.account_type`. Per
 | ORM              | Drizzle                                 |
 | File storage     | Supabase Storage                        |
 | Lint / format    | Biome                                   |
-| Tests            | Vitest (strict TDD; run against local Postgres) |
+| Tests            | Vitest (strict TDD) — split into a parallel `unit` project (no DB) and a serial `db` project (against local Postgres); `pnpm test` runs both |
 | Local dev        | Supabase CLI (Docker)                   |
 | Deploy (when)    | Vercel + Supabase Cloud                 |
 | Locale           | Spanish (es-AR)                         |
