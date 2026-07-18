@@ -40,6 +40,11 @@
 //     again at the end. When a run reaches the true end of the table (no
 //     more rows past the cursor) `nextCursor` resets to null so the next
 //     run wraps around and starts a fresh full sweep.
+//   - Drift alerting: `divergent > 0` fires a "warning"-severity sendCronAlert
+//     (lib/infra/cron-alert.ts) with the sample + count, in addition to the
+//     cronRuns row and cron-health's own "drift" verdict (status-family gate
+//     in app/api/cron/cron-health/route.ts) — see the in-body comment for why
+//     this doesn't flip the run to "failed".
 //
 // Returns: { ok, scanned, divergent, sample, durationMs }
 // cronRuns.details includes divergence summary + sample for /admin/sistema.
@@ -226,12 +231,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     if (divergent > 0) {
       // Prominent log line — surfaces in Vercel function logs and any log
-      // aggregator that tails the function output. The meta-cron / health-check
-      // (R3 follow-up) would alert on this; for now the cronRuns row and this
-      // log line are the signal.
+      // aggregator that tails the function output.
       console.warn(
         `[cron/reconcile-pet-status] DRIFT DETECTED — scanned=${scanned} divergent=${divergent} sample_ids=${sample.map((s) => s.publicToken).join(",")}`,
       );
+
+      // Page a human directly instead of relying on cron-health's "drift"
+      // verdict (app/api/cron/cron-health/route.ts, status-family gate) to
+      // surface it on its own daily schedule (up to ~24h later — see
+      // lib/infra/cron-registry.ts). Severity is "warning", not "critical":
+      // THIS run succeeded — it detected the drift it was built to detect.
+      // Drift is detect-not-repair (see header), so it's a degraded-state
+      // signal, not a run failure; cronStatus below stays "ok" and the route
+      // still returns 200 on drift alone.
+      //
+      // Dedup: sendCronAlert has no built-in dedup (lib/infra/cron-alert.ts
+      // is a stateless best-effort webhook POST). This cron runs nightly, so
+      // a persisting drift re-alerts once per run until repaired — acceptable
+      // cadence, not spam. cron-health's own "drift" verdict remains the
+      // backstop if this alert is ever missed (webhook down, env unset, etc.).
+      await sendCronAlert({
+        job: CRON_NAME,
+        severity: "warning",
+        error: `${divergent} pet(s) with status-family drift (cache vs. event log)`,
+        details: { scanned, divergent, sample },
+      });
     } else {
       console.info(
         `[cron/reconcile-pet-status] clean — scanned=${scanned} divergent=0 earlyStop=${earlyStop}`,
