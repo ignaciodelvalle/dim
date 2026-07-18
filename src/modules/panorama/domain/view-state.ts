@@ -59,6 +59,9 @@ export type EncodingId =
   | "choropleth-seq"
   | "choropleth-meta"
   | "bivariate"
+  /** panorama-percapita v1: count layers re-encoded por 10.000 habitantes
+   *  (province grain — jurisdictions_census denominator). */
+  | "percapita"
   | "graduated"
   | "points"
   | "reference"

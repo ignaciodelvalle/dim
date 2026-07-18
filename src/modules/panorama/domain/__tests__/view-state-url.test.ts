@@ -52,6 +52,13 @@ const VIEWS: Record<string, PanoramaViewState> = {
     layers: ["cobertura", "zoonosis"],
     encoding: "bivariate",
   }),
+  // panorama-percapita: the per-cápita selection is a shareable coordinate too —
+  // a shared "denuncias por 10.000 hab." link reproduces the encoding.
+  "with percapita encoding": makeViewState({
+    preset: "bienestar",
+    layers: ["denuncias", "decomisos"],
+    encoding: "percapita",
+  }),
   "the full deep link (H14)": makeViewState({
     scope: { kind: "locality", province: "AR-B", locality: "La Plata" },
     period: { kind: "preset", preset: "30d" },
@@ -114,6 +121,9 @@ describe("view-state URL boundary — minimal serialization", () => {
     expect(viewStateFromParams({ encoding: "glow" }).encoding).toBeNull();
     expect(viewStateFromParams({ encoding: "garbage" }).encoding).toBeNull();
     expect(viewStateFromParams({ encoding: "bivariate" }).encoding).toBe("bivariate");
+    // panorama-percapita: declared by bienestar → parses; the map projection
+    // still gates WHERE it applies (province grain, eligible set).
+    expect(viewStateFromParams({ encoding: "percapita" }).encoding).toBe("percapita");
   });
 });
 

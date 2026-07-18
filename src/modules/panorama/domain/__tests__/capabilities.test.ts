@@ -28,6 +28,7 @@ import {
   markForZoom,
 } from "@/src/modules/panorama/domain/capabilities";
 import { getLayer, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
+import { percapitaEligibleFor } from "@/src/modules/panorama/domain/percapita";
 import {
   PANORAMA_PRESETS,
   type PanoramaPreset,
@@ -219,8 +220,37 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     expect(brotes.caps.mapModes).toEqual(["auto", "bivariate"]);
     // Same preset drilled (locality level) → auto only.
     expect(gateFor(getPreset("brotes-activos"), "province", 7).caps.mapModes).toEqual(["auto"]);
-    // A preset with no declared encodings → auto only, at any scope.
-    expect(gateFor(getPreset("bienestar"), "national", 3).caps.mapModes).toEqual(["auto"]);
+    // bienestar (base denuncias + reference decomisos) at national → province
+    // level: the per-cápita encoding is offered (panorama-percapita v1).
+    expect(gateFor(getPreset("bienestar"), "national", 3).caps.mapModes).toEqual([
+      "auto",
+      "percapita",
+    ]);
+  });
+
+  it("mapModes/allowedControls (panorama-percapita): per-cápita only at province grain over an all-eligible count set", () => {
+    // bienestar drilled (locality level) → no department denominator → auto only.
+    const drilled = gateFor(getPreset("bienestar"), "province", 7);
+    expect(drilled.caps.mapModes).toEqual(["auto"]);
+    expect(drilled.caps.allowedControls.percapitaEligible).toBe(false);
+
+    // National bienestar → offered, and the control mirror agrees with the
+    // shared predicate (the same single-source pattern as bivariateEligible).
+    const national = gateFor(getPreset("bienestar"), "national", 3);
+    expect(national.caps.allowedControls.percapitaEligible).toBe(true);
+    expect(percapitaEligibleFor(national.layers, national.level)).toBe(true);
+
+    // sintomas (base sintomas + SIGNAL zoonosis): a non-eligible aggregating
+    // layer shares the ONE graduated scale → refused (mixed units would lie).
+    const sintomas = gateFor(getPreset("sintomas"), "national", 3);
+    expect(sintomas.caps.mapModes).toEqual(["auto"]);
+    expect(sintomas.caps.allowedControls.percapitaEligible).toBe(false);
+
+    // A hand-edited single eligible layer (mordeduras alone) also qualifies —
+    // eligibility is a LAYER-SET predicate, never a preset id.
+    const view = makeViewState({ layers: ["mordeduras"] });
+    const caps = capabilitiesFor(view, { zoom: 3, level: "province" });
+    expect(caps.mapModes).toEqual(["auto", "percapita"]);
   });
 
   it("representationPerZoom declares the near-zoom points swap for points-capable bases", () => {

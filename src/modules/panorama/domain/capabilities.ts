@@ -25,6 +25,7 @@
 
 import { roleOf } from "./compatibility";
 import { PANORAMA_LAYERS, getLayer, isTemporalLayer } from "./layers";
+import { percapitaEligibleFor } from "./percapita";
 import type {
   AggregationLevel,
   LayerId,
@@ -68,6 +69,10 @@ export type AllowedControls = {
   /** base is a rate-with-target AND a signal is active AND province level ⇒ the
    *  bivariate "riesgo de brotes" 3×3 encoding is offered. NO preset id here. */
   bivariateEligible: boolean;
+  /** every aggregating active layer is a per-cápita-eligible count layer AND
+   *  province level ⇒ the "por 10.000 hab." encoding is offered
+   *  (panorama-percapita v1 — the registry predicate, NO preset id here). */
+  percapitaEligible: boolean;
 };
 
 /**
@@ -330,6 +335,7 @@ export function capabilitiesFor(
   const basisToggle = scrubbing && base !== null && isTemporalLayer(base.id);
 
   const bivariateEligible = bivariateEligibleFor(layers, level);
+  const percapitaEligible = percapitaEligibleFor(layers, level);
 
   // Representations: registros + stats are always available; the timeline
   // (temporal reproduction) lights up only when the scrubber is live.
@@ -353,13 +359,15 @@ export function capabilitiesFor(
   };
 
   // task #24 — the declarative mode list the "Modo" switcher projects. "auto"
-  // always; "bivariate" when the view is eligible. #33 modes append here.
+  // always; "bivariate" / "percapita" when the view is eligible. #33 modes
+  // append here.
   const mapModes: MapMode[] = ["auto"];
   if (bivariateEligible) mapModes.push("bivariate");
+  if (percapitaEligible) mapModes.push("percapita");
 
   return {
     level,
-    allowedControls: { scrubber, basisToggle, bivariateEligible },
+    allowedControls: { scrubber, basisToggle, bivariateEligible, percapitaEligible },
     mapModes,
     allowedRepresentations,
     encoding,

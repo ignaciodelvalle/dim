@@ -224,6 +224,13 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     level: "locality",
     periodPreset: "90d",
     metrics: ["denuncias", "mordeduras"],
+    // panorama-percapita v1: the "Per cápita" toggle is a display encoding
+    // WITHIN this vista (base denuncias is per-cápita eligible; decomisos is a
+    // reference layer and never blocks). Selecting it keeps the badge on
+    // "Bienestar y fiscalización" and round-trips the URL (?encoding=percapita)
+    // so a shared link reproduces the normalized view. It only APPLIES at
+    // province framing — the map projection gates that (percapitaEligibleFor).
+    encodings: ["percapita"],
   },
   {
     id: "control-poblacional",

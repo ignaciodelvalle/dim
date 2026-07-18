@@ -53,6 +53,17 @@ describe("derivePreset", () => {
     expect(derivePreset(["cobertura"], "bivariate", PANORAMA_PRESETS)).toBeNull();
   });
 
+  it("panorama-percapita: bienestar owns the percapita encoding; other sets do not", () => {
+    // bienestar declares encodings:["percapita"] — the per-10k toggle is a display
+    // encoding WITHIN the vista, so the badge stays "Bienestar y fiscalización".
+    expect(derivePreset(["denuncias", "decomisos"], "percapita", PANORAMA_PRESETS)).toBe(
+      "bienestar",
+    );
+    // Forced onto a set whose preset does not own it → personalizada.
+    expect(derivePreset(["cobertura"], "percapita", PANORAMA_PRESETS)).toBeNull();
+    expect(derivePreset(["cobertura", "zoonosis"], "percapita", PANORAMA_PRESETS)).toBeNull();
+  });
+
   it("matches against the passed catalogue only", () => {
     // Empty catalogue → nothing can match.
     expect(derivePreset(["cobertura"], null, [])).toBeNull();
