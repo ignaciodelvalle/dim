@@ -6,7 +6,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 
-import { appointments, db, notifications, timeSlots } from "@/db";
+import { appointments, db, notifications, organizations, timeSlots } from "@/db";
 
 import type { CancelAppointmentResult } from "./types";
 
@@ -100,6 +100,17 @@ export async function cancelAppointmentByOwner(
 
     // 3. Notify the provider org members (org_id path only).
     if (row.organizationId) {
+      // Resolve the org's public token to build a valid /org/{token}/agenda
+      // CTA. Fall back to the org-picker root when it can't be resolved
+      // (should not happen for a row with organizationId set, but the CTA
+      // must never point at the nonexistent /org/agenda route).
+      const [orgRow] = await tx
+        .select({ publicToken: organizations.publicToken })
+        .from(organizations)
+        .where(eq(organizations.id, row.organizationId))
+        .limit(1);
+      const ctaUrl = orgRow?.publicToken ? `/org/${orgRow.publicToken}/agenda` : "/org";
+
       // Find all admin/coordinator/member/vet_individual members of the org to notify.
       const orgMembers = await tx.execute(
         sql`SELECT user_id FROM organization_memberships
@@ -117,7 +128,7 @@ export async function cancelAppointmentByOwner(
           body: "Un propietario canceló su turno reservado.",
           severity: "info",
           ctaLabel: "Ver agenda",
-          ctaUrl: "/org/agenda",
+          ctaUrl,
         });
       }
     }

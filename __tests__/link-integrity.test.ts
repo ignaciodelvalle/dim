@@ -296,6 +296,7 @@ describe("link-integrity: every static internal link resolves to a real route", 
     // the route itself survives as a redirect) — Mis mascotas is its anchor.
     expect(navPresetsHrefs).toContain("/mis-mascotas"); // OWNER_NAV
     expect(navPresetsHrefs).toContain("/gob"); // GOB_NAV
+    expect(navPresetsHrefs).toContain("/gob/rupga"); // GOB_NAV — RUPGA credential revocation console
     expect(navPresetsHrefs).toContain("/admin"); // ADMIN_NAV
   });
 

@@ -135,41 +135,45 @@ export function CaptureBox({
         <label htmlFor="capture-text" className="sr-only">
           ¿Qué pasó?
         </label>
-        <div className="flex items-start gap-2">
-          <textarea
-            id="capture-text"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (unmatched) setUnmatched(false);
-            }}
-            rows={3}
-            placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
-            className="w-full flex-1 px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-          />
+        <textarea
+          id="capture-text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (unmatched) setUnmatched(false);
+          }}
+          rows={3}
+          placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
+          className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+        />
+        <div className="flex items-center gap-2">
+          <button
+            type="submit"
+            disabled={pending || !text.trim()}
+            className="px-5 py-2.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-ok)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pending ? "Buscando formulario..." : "Identificar →"}
+          </button>
           {/* Roadmap placeholder — voice dictation (PO-approved pattern:
               visible, disabled, reads as "coming", never as broken —
               precedent: "Informe de situación (en desarrollo)" in panorama's
-              SituationalMap). Disabled semantics only: no submit, no focus
-              trap, doesn't touch the textarea's onChange/value wiring. */}
+              SituationalMap). Grouped with its sibling action (the submit
+              button) instead of floating beside the textarea, and given a
+              dashed border + muted fill so the "not yet built" read is
+              visible at a glance, not only on hover. Disabled semantics
+              only: no submit, no focus trap, doesn't touch the textarea's
+              onChange/value wiring. */}
           <button
             type="button"
             disabled
             aria-disabled="true"
             aria-label="Dictado por voz (próximamente)"
             title="Dictado por voz (próximamente)"
-            className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-faint)] cursor-not-allowed disabled:opacity-60"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-faint)] opacity-70 cursor-not-allowed"
           >
             <Icon name="mic" size="sm" decorative />
           </button>
         </div>
-        <button
-          type="submit"
-          disabled={pending || !text.trim()}
-          className="px-5 py-2.5 rounded-[3px] bg-[var(--color-ln-ok)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {pending ? "Buscando formulario..." : "Identificar →"}
-        </button>
         {unmatched && (
           <div className="space-y-2">
             <p className="text-sm text-[var(--color-ln-warn)]">

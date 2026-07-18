@@ -444,6 +444,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/analytics",
   "/gob/usuarios",
   "/gob/organizaciones",
+  "/gob/rupga", // RUPGA service-dog credential revocation console
   "/gob/perdidas",
   "/gob/disputas",
   "/gob/maltrato",
