@@ -148,16 +148,17 @@ This is the **strangler pattern**: the new implementation grows around the old s
 
 ### Strangler migration status — `app/actions/` (as of 2026-06-26)
 
-> **Status: IN PROGRESS — only one file is fully migrated.**
+> **Status: IN PROGRESS — two files are fully migrated (`events`, `decomiso`).**
 
 The `events` module is the completed reference slice: the old `app/actions/events.ts` (≈2,920 lines) has been replaced by a thin shim in `src/modules/events/actions.ts`, and all business logic lives in `src/modules/events/application/`. The shim now lives at `src/modules/events/actions.ts`; the `app/actions/events.ts` path no longer exists.
 
-The remaining **~61 files in `app/actions/`** (≈20,000 lines total) are still fat actions pending migration. The largest files by line count:
+`decomiso` is a second completed slice, cut differently: `app/actions/decomiso.ts` stayed in place (still the caller-facing path) but shrank from 1,574 to 411 lines — it is now a thin controller (parse → auth → call use-case → redirect) delegating into `src/modules/decomiso/application/` (`validateExecuteDecomiso`, `validateReassignDecomiso`, plus the handoff accept/reject use-cases). No re-export shim needed here since the action file itself never moved.
+
+The remaining **~60 files in `app/actions/`** are still fat actions pending migration. The largest files by line count:
 
 | File | Lines | Notes |
 |---|---|---|
 | `return-to-owner.ts` | 1,929 | Critical flow — needs extra parity coverage + browser QA |
-| `decomiso.ts` | 1,574 | Critical flow — same caution |
 | `admin-institutional.ts` | 915 | |
 | `service-offerings.ts` | 782 | |
 | `bulk-pet-events.ts` | 752 | |
@@ -260,8 +261,9 @@ Each migration was independently **verified** against the deleted original for b
 | `welfare` | `welfare*.ts` | done — rate-limit, moderation, escalation |
 | `surveillance` | `bite.ts`, `outbreak-investigation.ts`, ENO | done — bite / rabies / ENO / outbreak |
 | `organizations` | `org*.ts`, `lib/capabilities.ts` | done — **auth kernel** (shims in `lib/`) |
-| `events` | `events.ts` → `src/modules/events/actions.ts` | **done** — the only fully migrated action file (2,919 → thin shim) |
-| _(remaining ~61 files)_ | `app/actions/*.ts` | **pending** — see [strangler plan](../superpowers/plans/2026-06-26-strangler-finish-plan.md) |
+| `events` | `events.ts` → `src/modules/events/actions.ts` | **done** — 2,919 → thin shim, only fully-relocated action file |
+| `decomiso` | `decomiso.ts` (stays in place, calls into the module) | **done** — 1,574 → 411 lines, thin controller |
+| _(remaining ~60 files)_ | `app/actions/*.ts` | **pending** — see [strangler plan](../superpowers/plans/2026-06-26-strangler-finish-plan.md) |
 
 ---
 
