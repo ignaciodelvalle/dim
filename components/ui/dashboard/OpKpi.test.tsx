@@ -40,4 +40,14 @@ describe("OpKpi — ⓘ inside an href-wrapped tile", () => {
 
     expect(fireEvent.click(backdrop)).toBe(false);
   });
+
+  // PO directive (no loose glyphs/emojis): the ⓘ literal is retired in favour of
+  // the app's Icon registry. The trigger must render the registry `info` glyph,
+  // not a bare unicode character.
+  it("renders the ⓘ trigger through the Icon registry, not a literal glyph", () => {
+    const { container } = render(<OpKpi label="Cobertura" value="64,3%" info={info} />);
+    const trigger = screen.getByRole("button", { name: /Información sobre este indicador/i });
+    expect(trigger.querySelector('[data-icon-name="info"]')).toBeTruthy();
+    expect(container.textContent ?? "").not.toContain("ⓘ");
+  });
 });

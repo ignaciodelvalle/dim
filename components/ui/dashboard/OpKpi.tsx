@@ -149,9 +149,11 @@ function InfoButton({ info }: { info: InfoTooltip }) {
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        className="ml-1 text-ln-op-mute hover:text-ln-op-ink text-[11px] leading-none align-middle focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul rounded-sm"
+        className="ml-1 inline-flex items-center align-middle text-ln-op-mute hover:text-ln-op-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul rounded-sm"
       >
-        ⓘ
+        {/* PO directive: no loose glyphs. The ⓘ literal is replaced by the app's
+            Icon registry (b026716c standardized all glyphs on it). */}
+        <Icon name="info" size={14} decorative />
       </button>
 
       {open && (
@@ -170,17 +172,21 @@ function InfoButton({ info }: { info: InfoTooltip }) {
               setOpen(false);
             }}
           />
+          {/* Popover aligned to the LN card system (rounded-lg / border-ln-line /
+              bg-ln-card / shadow-lg) — the same surface tokens the panorama drawer
+              and LN callouts use. Consistent vertical rhythm (space-y-1.5) and a
+              leading-snug definition so it reads as one system, not a bespoke box. */}
           <div
             role="tooltip"
-            className="absolute z-50 bottom-full left-0 mb-2 w-64 rounded-lg border border-ln-line bg-ln-card shadow-lg p-3 text-[11px] text-ln-ink"
+            className="absolute z-50 bottom-full left-0 mb-2 w-72 space-y-1.5 rounded-lg border border-ln-line bg-ln-card p-3 text-[11px] leading-snug text-ln-ink shadow-lg"
           >
-            <p className="font-medium text-ln-ink-2 mb-1">{info.definition}</p>
+            <p className="font-medium text-ln-ink-2">{info.definition}</p>
             {info.formula && (
-              <p className="text-ln-ink-3 font-mono text-xs bg-ln-stripe rounded px-2 py-1 mb-1">
+              <p className="rounded bg-ln-stripe px-2 py-1 font-mono text-xs text-ln-ink-3">
                 {info.formula}
               </p>
             )}
-            {info.caveat && <p className="text-[var(--color-st-warn)] text-xs">{info.caveat}</p>}
+            {info.caveat && <p className="text-xs text-[var(--color-st-warn)]">{info.caveat}</p>}
           </div>
         </>
       )}
