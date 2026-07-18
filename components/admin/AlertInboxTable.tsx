@@ -66,7 +66,6 @@ const STATUS_CLASSES: Record<AlertFiringStatus, string> = {
 
 // A `disparada` firing older than this (days) is in breach of the triage SLA.
 const BREACH_DAYS = 3;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function StatusBadge({ status }: { status: AlertFiringStatus }) {
   return (
