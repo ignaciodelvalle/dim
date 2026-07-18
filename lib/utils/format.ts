@@ -1120,6 +1120,8 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   vaccine_due: "Vacuna próxima a vencer",
   // Rehome
   rehome_request_received: "Solicitud de re-hogar recibida",
+  // Scans
+  first_stranger_scan: "Primer escaneo de un desconocido",
   // Onboarding
   welcome: "Bienvenida",
 };

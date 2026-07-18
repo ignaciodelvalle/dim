@@ -1415,6 +1415,12 @@ export type NewAttachment = typeof attachments.$inferInsert;
 // Notifications often *project from* events — e.g. registering a pet with a
 // dangerous breed produces a `ppp_registration_reminder`. Some are pure
 // system messages (welcome, app updates) with no source event.
+//
+// `first_stranger_scan` (owner-onboarding train): fired once per pet, the
+// first time a non-owner scans its public credential — see
+// lib/infra/notify-owner-of-first-stranger-scan.ts. Every notificationType
+// literal's es-AR label lives in lib/utils/format.ts's
+// NOTIFICATION_TYPE_LABELS, kept in sync by convention (no schema enum here).
 
 export const notifications = pgTable(
   "notifications",
