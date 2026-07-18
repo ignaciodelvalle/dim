@@ -65,6 +65,12 @@ export const DENY_ALL_ALLOWLIST: Record<string, string> = {
   // panorama_cube_meta — cube build metadata singleton (migration 0139). Service-role reads only.
   panorama_cube_meta:
     "Panorama cube build metadata singleton; read only via analyticsDb service-role. Deny-all to PostgREST is safe.",
+  // panorama_kpi_cube — precomputed KPI-strip tiles (migration 0151). Service-role reads only.
+  panorama_kpi_cube:
+    "Precomputed KPI-strip tiles; built k-anon'd by the refresh-cube cron, read only via analyticsDb service-role. Deny-all to PostgREST is safe.",
+  // panorama_kpi_cube_meta — KPI cube build metadata singleton (migration 0151). Service-role reads only.
+  panorama_kpi_cube_meta:
+    "KPI cube build metadata singleton; read only via analyticsDb service-role. Deny-all to PostgREST is safe.",
   // physical_tag_interest — demand signal (migration 0044). Owner server actions only.
   physical_tag_interest:
     "Physical-tag demand signal (tenant-scoped); toggled via owner server actions. Deny-all to PostgREST is safe.",
