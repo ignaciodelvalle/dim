@@ -2196,6 +2196,10 @@ export const AUDIT_LOG_ACTIONS = [
   "decomiso_handoff_accepted",
   "decomiso_handoff_rejected",
   "decomiso_handoff_cancelled",
+  // Return-to-owner terminal (closed_to_owner_return in
+  // src/modules/cases/domain/lifecycles/custody-episode.ts). Emitted by
+  // returnCustodyToOwnerAction.
+  "decomiso_returned_to_owner",
   // Outbreak investigation lifecycle (Ley 15.465/60 + Decreto 3640/64 ENO).
   // Emitted by outbreak investigation server actions (app/actions/outbreak-investigation.ts).
   "outbreak_investigation_opened",

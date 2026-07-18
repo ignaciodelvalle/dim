@@ -34,6 +34,10 @@ import {
   rejectDecomisoHandoffInTx,
   validateRejectDecomisoHandoff,
 } from "@/src/modules/decomiso/application/reject-decomiso-handoff";
+import {
+  returnCustodyToOwnerInTx,
+  validateReturnCustodyToOwner,
+} from "@/src/modules/decomiso/application/return-custody-to-owner";
 import { ATTACHMENT_BUCKET } from "@/src/modules/decomiso/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -420,5 +424,75 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
   }
 
   revalidatePath("/gob/decomisos");
+  return { ok: true, publicCode: input.casePublicCode };
+}
+
+// ---------------------------------------------------------------------------
+// returnCustodyToOwnerAction
+// ---------------------------------------------------------------------------
+
+export async function returnCustodyToOwnerAction(input: {
+  casePublicCode: string;
+}): Promise<DecomisoHandshakeResult> {
+  // 1. Auth.
+  const session = await requireDecomisoPrincipal();
+  const { user } = session;
+
+  if (session.profile.role === "govt" && session.jurisdictions.length === 0) {
+    return {
+      error: "No tenés jurisdicciones activas asignadas para devolver un decomiso.",
+    };
+  }
+
+  // 2. Resolve govt org.
+  const govtOrg = await resolveGovtOrgForUser(user.id);
+  if (!govtOrg) {
+    return {
+      error: "Tu usuario no está asociado a ninguna autoridad sanitaria.",
+    };
+  }
+
+  // 3. Pre-tx validation (module use-case): case load + open-episode checks,
+  // opener authorization, immediate former-owner derivation.
+  const validated = await validateReturnCustodyToOwner(input, { govtOrg }, db);
+  if (!validated.ok) return { error: validated.error };
+  const { caseRow, formerOwner, petName, petPublicToken } = validated;
+
+  let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
+
+  try {
+    await db.transaction(async (tx) => {
+      const result = await returnCustodyToOwnerInTx(
+        caseRow,
+        formerOwner,
+        petName,
+        { user, govtOrg },
+        tx,
+      );
+      pendingNotifications = result.pendingNotifications as (typeof notifications.$inferInsert)[];
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo devolver la mascota al dueño: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (pendingNotifications.length > 0) {
+    try {
+      await db.insert(notifications).values(pendingNotifications);
+      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
+    } catch (e) {
+      console.error("notifications insert failed (returnCustodyToOwnerAction succeeded)", e);
+    }
+  }
+
+  revalidatePath("/gob/decomisos");
+  revalidatePath(`/gob/casos/${input.casePublicCode}`);
+  if (petPublicToken) {
+    revalidatePath(`/mis-mascotas/${petPublicToken}`);
+  }
+  revalidatePath("/mis-mascotas");
   return { ok: true, publicCode: input.casePublicCode };
 }
