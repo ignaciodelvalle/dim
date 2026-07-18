@@ -7,10 +7,12 @@ import { approvalRequests, db, organizations, profiles } from "@/db";
 import { summarizeApprovalPayload } from "@/lib/infra/approval-payload-summary";
 import { canDecideRequest } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { portalBase } from "@/lib/ui/portal-base";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 
+import { matriculaRegistryFor } from "../_lib/matricula-registries";
 import { ReviewActions } from "./ReviewActions";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -91,6 +93,22 @@ export default async function ReviewRequestPage({
     .where(eq(profiles.id, request.applicantUserId))
     .limit(1);
 
+  // Contact email — auth.users holds it (no email column on profiles; same
+  // service-role read as /admin/govts/[userId]). CONTACT data, not identity:
+  // the identity headline is the profile display name; the email renders as a
+  // demoted contact line. Degrades to no line if the read fails.
+  const applicantEmail = await fetchApplicantEmail(request.applicantUserId);
+
+  // Matrícula verification aids (UI/UX audit 2026-07): the jurisdiction the
+  // applicant DECLARED for their matrícula + the consultation link for it
+  // (documented public search page of the professional college — always
+  // "consulta manual", see ../_lib/matricula-registries.ts).
+  const isVetMatricula = request.type === "role_upgrade_vet";
+  const matriculaJurisdiccion = isVetMatricula
+    ? declaredMatriculaJurisdiccion(request.payload)
+    : null;
+  const registryLink = isVetMatricula ? matriculaRegistryFor(matriculaJurisdiccion) : null;
+
   let targetOrg: { displayName: string; legalName: string; orgType: string } | null = null;
   if (request.targetOrganizationId) {
     const [org] = await db
@@ -146,12 +164,17 @@ export default async function ReviewRequestPage({
           </p>
         </header>
 
-        {/* Applicant */}
+        {/* Applicant — the DISPLAY NAME is the identity headline (UI/UX audit
+            2026-07); the email is demoted to a contact line below it. The
+            approver verifies a PERSON, not an inbox. */}
         <Section title="Aplicante">
-          <p className="text-[13px] text-ln-op-ink">{applicant?.displayName ?? "Usuario"}</p>
+          <p className="text-[15px] font-semibold text-ln-op-ink">
+            {applicant?.displayName ?? "Usuario"}
+          </p>
           <p className="text-sm text-ln-op-mute">
             Rol actual: {ROLE_LABELS[applicant?.role ?? "owner"] ?? applicant?.role ?? "Dueño/a"}
           </p>
+          {applicantEmail && <p className="text-sm text-ln-op-mute">Contacto: {applicantEmail}</p>}
         </Section>
 
         {/* Target org */}
@@ -185,10 +208,45 @@ export default async function ReviewRequestPage({
           )}
         </Section>
 
+        {/* Matrícula: official-registry consultation aid (UI/UX audit 2026-07).
+            The matrícula number above is SELF-DECLARED — this block gives the
+            approver the jurisdiction's college page to check it against. Every
+            link is a documented public search page ("consulta manual"): no
+            authoritative deep-link registry exists in the reference data. */}
+        {isVetMatricula && (
+          <Section title="Consulta del registro oficial">
+            {registryLink ? (
+              <p className="text-[13px] text-ln-op-ink">
+                <a
+                  href={registryLink.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-ln-op-azul underline underline-offset-4"
+                >
+                  {registryLink.label}
+                </a>{" "}
+                <OpCodeBadge tone="neutral">consulta manual</OpCodeBadge>
+              </p>
+            ) : (
+              <p className="text-sm text-ln-op-mute">
+                Sin registro en línea conocido para
+                {matriculaJurisdiccion
+                  ? ` “${matriculaJurisdiccion}”`
+                  : " la jurisdicción declarada"}
+                . Consultá al colegio profesional de esa jurisdicción antes de aprobar.
+              </p>
+            )}
+            <p className="text-sm text-ln-op-mute">
+              El número de matrícula es autodeclarado por el aplicante: verificalo contra el
+              registro antes de decidir.
+            </p>
+          </Section>
+        )}
+
         {/* Decision section */}
         {request.status === "pending" ? (
           <Section title="Decidir">
-            <ReviewActions publicToken={request.publicToken} />
+            <ReviewActions publicToken={request.publicToken} requestType={request.type} />
           </Section>
         ) : (
           <Section title="Decisión">
@@ -209,6 +267,25 @@ export default async function ReviewRequestPage({
       </div>
     </main>
   );
+}
+
+/** auth.users email for the applicant — null on any failure (the contact line
+ * simply doesn't render; the page never breaks over a lookup). */
+async function fetchApplicantEmail(userId: string): Promise<string | null> {
+  try {
+    const supabase = createAdminClient();
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    return authUser?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** The applicant-declared matrícula jurisdiction from the (jsonb) payload. */
+function declaredMatriculaJurisdiccion(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const raw = (payload as Record<string, unknown>).matricula_jurisdiccion;
+  return typeof raw === "string" && raw.trim() ? raw.trim() : null;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

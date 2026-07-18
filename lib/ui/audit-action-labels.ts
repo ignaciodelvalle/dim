@@ -10,6 +10,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // Approval queue
   request_approved: "Solicitud aprobada",
   request_rejected: "Solicitud rechazada",
+  request_info_requested: "Más información solicitada",
   request_viewed: "Solicitud vista",
   evidence_viewed: "Evidencia vista",
   approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",

@@ -15,18 +15,20 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { newerHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
   WELFARE_REPORT_SEVERITIES,
   WELFARE_REPORT_STATUSES,
   type WelfareReportKind,
   type WelfareReportSeverity,
+  welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
-import { and, count, desc } from "drizzle-orm";
+import { and, asc, count, sql } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 import { InspectorMounter } from "./_inspector/InspectorMounter";
+import { decodeRiskCursor, encodeRiskCursor, severityRank } from "./_lib/welfare-sla";
 
 const PAGE_SIZE = 50;
 const VALID_QUEUES: MaltratoQueue[] = ["urgent", "unassigned", "mine", "all", "overdue"];
@@ -113,19 +115,32 @@ export default async function GobMaltratoPage({
   // Build a ctx for the freshness footer (jurisdiction-scoped, trailing 30d window).
   const freshnessCtx = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
 
-  // Keyset (seek) pagination — perf/scale review 2026-07-04 P1 "Operator lists
-  // without real pagination": OFFSET-based paging (`.limit(PAGE_SIZE).offset(offset)`)
-  // costs O(offset) per page — a province-scale denuncia queue with a growing
-  // page number re-scans and discards everything before it on every request.
-  // Reuses the shared ts+id cursor pattern (lib/utils/keyset-pagination.ts,
-  // same contract as /gob/casos, /admin/auditoria, /gob/cola): DESC order on
-  // (createdAt, id), cursor encodes the last row of the current page, "next"
-  // fetches strictly older rows via (createdAt, id) < (cursorTs, cursorId).
-  const cursorClause = keysetWhere(
-    welfareReports.createdAt,
-    welfareReports.id,
-    decodeCursor(sp.cursor),
-  );
+  // Default order = RISK + SLA, not date (UI/UX audit 2026-07): severity DESC
+  // first (critical → low), then AGE DESC within a tier (oldest first — age is
+  // the SLA pressure), id ASC as the deterministic tiebreak. The rank values
+  // and the SLA tiers live in ./_lib/welfare-sla.ts so the ORDER BY, the row
+  // badge and the cursor can never disagree.
+  const severityRankSql = sql<number>`(CASE ${welfareReports.severity}
+    WHEN 'critical' THEN 3
+    WHEN 'high' THEN 2
+    WHEN 'medium' THEN 1
+    WHEN 'low' THEN 0
+    ELSE -1 END)`;
+
+  // Keyset (seek) pagination — perf/scale review 2026-07-04 P1 posture kept
+  // (no OFFSET), but on the risk ordering's 3-part key: (rank DESC,
+  // createdAt ASC, id ASC). The shared (ts,id) cursor of
+  // lib/utils/keyset-pagination.ts encodes a plain createdAt-DESC contract, so
+  // this page carries its own rank|ts|id cursor (./_lib/welfare-sla.ts); a
+  // legacy 2-part cursor decodes to null → page 1.
+  const riskCursor = decodeRiskCursor(sp.cursor);
+  const cursorClause = riskCursor
+    ? sql`(${severityRankSql} < ${riskCursor.rank}
+        OR (${severityRankSql} = ${riskCursor.rank}
+          AND (${welfareReports.createdAt} > ${riskCursor.ts}::timestamptz
+            OR (${welfareReports.createdAt} = ${riskCursor.ts}::timestamptz
+              AND ${welfareReports.id} > ${riskCursor.id}::uuid))))`
+    : undefined;
   const rowsWhereCondition = cursorClause ? and(whereCondition, cursorClause) : whereCondition;
 
   // Fetch metrics and paginated report list in parallel.
@@ -135,8 +150,8 @@ export default async function GobMaltratoPage({
       .select()
       .from(welfareReports)
       .where(rowsWhereCondition)
-      // Deterministic ORDER BY matches the keyset column pair above.
-      .orderBy(desc(welfareReports.createdAt), desc(welfareReports.id))
+      // Deterministic ORDER BY matches the 3-part risk keyset above.
+      .orderBy(sql`${severityRankSql} DESC`, asc(welfareReports.createdAt), asc(welfareReports.id))
       // limit+1 probe row detects hasMore without a second query.
       .limit(PAGE_SIZE + 1),
     // Total count still reflects ALL filtered rows (not just this page) —
@@ -163,10 +178,18 @@ export default async function GobMaltratoPage({
     locality: sp.locality,
   };
   const lastRow = rows.at(-1);
-  const olderLink =
-    hasMore && lastRow
-      ? olderHref("/gob/maltrato", filterParams, { ts: lastRow.createdAt, id: lastRow.id })
-      : null;
+  let olderLink: string | null = null;
+  if (hasMore && lastRow) {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(filterParams)) {
+      if (v !== undefined) params.set(k, v);
+    }
+    params.set(
+      "cursor",
+      encodeRiskCursor(severityRank(lastRow.severity), lastRow.createdAt, lastRow.id),
+    );
+    olderLink = `/gob/maltrato?${params.toString()}`;
+  }
   const newerLink = sp.cursor ? newerHref("/gob/maltrato", filterParams) : null;
 
   const TABS = [
@@ -233,7 +256,12 @@ export default async function GobMaltratoPage({
             }}
           />
           <OpKpi
-            label="En investigación"
+            // ONE status vocabulary (UI/UX audit 2026-07): the tile label comes
+            // from the SAME domain label registry the rows render with
+            // (welfareReportStatusLabel), so the stat can never say
+            // "En investigación" while the row pill says "En curso" for the
+            // same status='in_progress'. Never an inline synonym here.
+            label={welfareReportStatusLabel("in_progress")}
             value={String(metrics.inProgressCount)}
             tone="neutral"
             info={{
@@ -267,7 +295,18 @@ export default async function GobMaltratoPage({
               {TABS.map((tab) => (
                 <UrlTabsContent key={tab.value} value={tab.value}>
                   <OpCard className="mt-4">
-                    <OpCardHead title={`Denuncias (${totalCount})`} />
+                    {/* "(N en total)" — not a bare "(N)" (UI/UX audit 2026-07,
+                        number coherence): under "Todas" this count includes
+                        TERMINAL rows (cerrada/duplicada/sin sustento), so a bare
+                        number read as if it were the dashboard's "denuncias
+                        activas" figure (which counts non-terminal only) and the
+                        two "disagreed". The count must keep matching the list it
+                        heads (which legitimately shows closed rows), so we label
+                        it with the SAME "en total" vocabulary the pagination
+                        footer inside this card already uses, instead of
+                        narrowing it to active-only and desyncing it from the
+                        rows below. */}
+                    <OpCardHead title={`Denuncias (${totalCount} en total)`} />
                     <OpCardBody>
                       {rows.length === 0 ? (
                         <p className="text-sm text-ln-op-mute py-4 text-center">
@@ -300,7 +339,7 @@ export default async function GobMaltratoPage({
                                 href={olderLink}
                                 className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
                               >
-                                Ver más antiguas →
+                                Ver más →
                               </a>
                             )}
                           </div>

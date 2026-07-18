@@ -2044,6 +2044,12 @@ export const AUDIT_LOG_ACTIONS = [
   "welfare_location_viewed",
   "request_approved",
   "request_rejected",
+  // Non-terminal "pedir más información" on a pending approval request (UI/UX
+  // audit 2026-07). The approval_requests status CHECK constraint has no
+  // compatible intermediate state (pending must keep decided_at/decided_by
+  // NULL), so the info request is a notes-only audit event + applicant
+  // notification that leaves the request pending. Payload: { message }.
+  "request_info_requested",
   "revocation_org_verified",
   "revocation_vet_role",
   "revocation_govt_assignment",

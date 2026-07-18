@@ -23,6 +23,24 @@ export const APPROVAL_TYPE_BREAKDOWN_LABELS: Record<ApprovalRequestType, string>
 export const RUPGA_APPROVAL_WARNING =
   "RUPGA requiere verificación de CUD vigente fuera de MiMAR antes de aprobar.";
 
+export const VET_MATRICULA_TYPE: ApprovalRequestType = "role_upgrade_vet";
+
+/**
+ * Shown when the selection contains a vet matrícula and bulk APPROVE is
+ * therefore blocked (UI/UX audit 2026-07: matrícula approval is an individual
+ * verification flow — format / official registry / identity checklist on the
+ * detail page). Bulk REJECT stays available. The server enforces the same rule
+ * (approveRequestForAuthority refuses bulk role_upgrade_vet), so this is the
+ * legible UI face of a hard invariant, not the invariant itself.
+ */
+export const VET_MATRICULA_BULK_APPROVE_BLOCKED =
+  "Las matrículas veterinarias se aprueban una por una desde el detalle (verificación individual requerida). Sacalas de la selección para aprobar el resto.";
+
+/** True when any selected item is a vet matrícula (blocks bulk approve). */
+export function selectionHasVetMatricula(selectedTypes: readonly ApprovalRequestType[]): boolean {
+  return selectedTypes.includes(VET_MATRICULA_TYPE);
+}
+
 export type TypeBreakdownEntry = {
   type: ApprovalRequestType;
   label: string;

@@ -155,6 +155,13 @@ export function AppShellDrawer({
                         key={item.href}
                         href={item.href}
                         aria-current={active ? "page" : undefined}
+                        // Mirrors OpRailNav's guaranteed accessible name (a11y
+                        // audit 2026-07) — the drawer is the rail's mobile twin.
+                        aria-label={
+                          item.badge != null && item.badge > 0
+                            ? `${item.label} — ${item.badge} pendientes`
+                            : item.label
+                        }
                         className={[
                           "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
                           "text-[12.5px] no-underline transition-colors -ml-0.5",

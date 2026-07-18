@@ -846,6 +846,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   // Approval requests
   approval_request_approved: "Solicitud aprobada",
   approval_request_auto_expired: "Solicitud vencida automáticamente",
+  approval_request_info_requested: "Más información solicitada",
   approval_request_pending_authority: "Solicitud pendiente de aprobación",
   approval_request_proposed_authority: "Nueva solicitud de aprobación",
   approval_request_rejected: "Solicitud rechazada",
