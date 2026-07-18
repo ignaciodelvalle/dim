@@ -9,6 +9,7 @@
 
 import type { AuditLogAction } from "@/db";
 import { AUDIT_ACTION_LABELS } from "@/lib/ui/audit-action-labels";
+import { isoDateInAr } from "@/lib/utils/format";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,27 +43,34 @@ export type AuditDateRange = {
   until: Date | null;
 };
 
-/** Parse a YYYY-MM-DD string to a UTC-midnight Date, or null when malformed. */
-function parseUtcDateOnly(raw: string): Date | null {
+/**
+ * Parse a YYYY-MM-DD string to the ARGENTINE midnight of that day (03:00Z —
+ * AR is UTC-3 year-round, no DST since 2009, so a fixed offset is exact), or
+ * null when malformed. PO decision 2026-07-16: filter days are Argentine
+ * calendar days, not UTC days — a "2026-07-18" filter must span
+ * 2026-07-18T00:00 AR through 24:00 AR.
+ */
+function parseArDateOnly(raw: string): Date | null {
   if (!DATE_ONLY_RE.test(raw)) return null;
-  const d = new Date(`${raw}T00:00:00.000Z`);
+  const d = new Date(`${raw}T00:00:00.000-03:00`);
   if (Number.isNaN(d.getTime())) return null;
   // Reject rolled-over dates like 2026-02-30 (JS would silently normalise to Mar 2).
-  if (d.toISOString().slice(0, 10) !== raw) return null;
+  if (isoDateInAr(d) !== raw) return null;
   return d;
 }
 
 /**
- * Parse `from`/`to` (date-only, YYYY-MM-DD) into a half-open [since, until)
- * range. `to` is treated as inclusive of the whole day by advancing `until`
- * to the next UTC midnight, so a single-day filter (from === to) still matches.
+ * Parse `from`/`to` (date-only, YYYY-MM-DD, Argentine calendar days) into a
+ * half-open [since, until) range. `to` is treated as inclusive of the whole AR
+ * day by advancing `until` to the next AR midnight, so a single-day filter
+ * (from === to) still matches.
  */
 export function parseAuditDateRange(
   from: string | null | undefined,
   to: string | null | undefined,
 ): AuditDateRange {
-  const since = from ? parseUtcDateOnly(from) : null;
-  const toDate = to ? parseUtcDateOnly(to) : null;
+  const since = from ? parseArDateOnly(from) : null;
+  const toDate = to ? parseArDateOnly(to) : null;
   const until = toDate ? new Date(toDate.getTime() + DAY_MS) : null;
   return { since, until };
 }
@@ -70,9 +78,11 @@ export function parseAuditDateRange(
 /**
  * Build the drill href for the admin "Decisiones 7d" KPI: the decision actions
  * it counts, scoped to the trailing 7 days. `now` is injectable for testing.
+ * The `from` day is the ARGENTINE calendar day 7 days back — it feeds
+ * parseAuditDateRange, which reads it as an AR day.
  */
 export function decisionsAuditDrillHref(now: number = Date.now()): string {
-  const from = new Date(now - 7 * DAY_MS).toISOString().slice(0, 10);
+  const from = isoDateInAr(new Date(now - 7 * DAY_MS));
   return `/admin/auditoria?action=${DECISION_AUDIT_ACTIONS.join(",")}&from=${from}`;
 }
 

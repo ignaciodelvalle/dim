@@ -10,8 +10,8 @@
 //   - canKeepIndefinite checkbox + canKeepUntil datetime-local
 //   - Photo file input in the collapsible group
 //   - Success state: thank-you message + back link
-//   - Logged-in banner renders when loggedIn=true + prefill.displayName
-//   - Prefilled values render as defaultValue on inputs
+//   - Logged-in banner renders when loggedIn=true (advisory only)
+//   - Form values are NEVER prefilled from the session (PO 2026-07-16)
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -137,44 +137,47 @@ describe("<FinderInPossessionForm> — initial state (form render)", () => {
 
   it("does NOT render the logged-in banner when loggedIn=false (default)", () => {
     const html = render(<FinderInPossessionForm {...BASE_PROPS} />);
-    expect(html).not.toContain("Completamos el formulario con tus datos");
+    expect(html).not.toContain("Tenés una sesión iniciada");
   });
 });
 
-describe("<FinderInPossessionForm> — logged-in prefill", () => {
+describe("<FinderInPossessionForm> — logged-in advisory (no prefill, PO 2026-07-16)", () => {
   beforeEach(() => {
     mockUseActionState.mockReturnValue([INITIAL_STATE, formActionStub, false]);
     mockUseState.mockImplementation((initialValue: unknown) => [initialValue, vi.fn()]);
   });
 
-  it("renders the logged-in banner when loggedIn=true and displayName set", () => {
+  it("renders the logged-in banner when loggedIn=true and sessionDisplayName set", () => {
     const html = render(
-      <FinderInPossessionForm
-        {...BASE_PROPS}
-        loggedIn
-        prefill={{
-          displayName: "María García",
-          name: "María García",
-          phone: "11-0000",
-          email: "m@g.com",
-        }}
-      />,
+      <FinderInPossessionForm {...BASE_PROPS} loggedIn sessionDisplayName="María García" />,
     );
-    expect(html).toContain("Completamos el formulario con tus datos");
+    expect(html).toContain("Tenés una sesión iniciada");
     // Anonymity copy: the banner must state the report is NOT account-linked.
     expect(html).toContain("no queda vinculado a tu cuenta");
     expect(html).toContain("María García");
+    // Sign-out escape hatch stays.
+    expect(html).toContain("Salí de la sesión");
   });
 
-  it("prefills finderName defaultValue from props.prefill.name", () => {
+  it("renders the banner without a name when the session has no display name", () => {
+    const html = render(<FinderInPossessionForm {...BASE_PROPS} loggedIn />);
+    expect(html).toContain("Tenés una sesión iniciada");
+    expect(html).toContain("Salí de la sesión");
+  });
+
+  it("never prefills form values from the session", () => {
     const html = render(
-      <FinderInPossessionForm
-        {...BASE_PROPS}
-        loggedIn
-        prefill={{ name: "Pedro Sosa", displayName: "Pedro Sosa" }}
-      />,
+      <FinderInPossessionForm {...BASE_PROPS} loggedIn sessionDisplayName="Pedro Sosa" />,
     );
-    expect(html).toContain('value="Pedro Sosa"');
+    // Controlled inputs render with empty values — the session name must not
+    // appear as a field value anywhere.
+    expect(html).not.toContain('value="Pedro Sosa"');
+    const nameInput = html.match(/<input[^>]*id="finderName"[^>]*>/)?.[0] ?? "";
+    expect(nameInput).toContain('value=""');
+    const phoneInput = html.match(/<input[^>]*id="finderPhone"[^>]*>/)?.[0] ?? "";
+    expect(phoneInput).toContain('value=""');
+    const emailInput = html.match(/<input[^>]*id="finderEmail"[^>]*>/)?.[0] ?? "";
+    expect(emailInput).toContain('value=""');
   });
 });
 

@@ -13,6 +13,7 @@
 
 import { redirect } from "next/navigation";
 
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { parseDateInput } from "@/lib/utils/format";
 import { recordPregnancyEndedWriter as _recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
@@ -62,6 +63,10 @@ export async function recordPregnancyStartedAction(
   if (!occurredAtRaw) return { error: "Falta la fecha estimada de inicio." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de inicio inválida." };
+  // Date-only plausibility guard (PO decision 2026-07-16 — same family as P4
+  // item 1 on the events edge): AR calendar-day compare + BEFORE_BIRTH.
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   let weeksAtDiagnosis: number | null = null;
   if (weeksRaw) {
@@ -103,6 +108,8 @@ export async function recordPregnancyEndedAction(
   if (!occurredAtRaw) return { error: "Falta la fecha del cierre." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
   if (!(PREGNANCY_OUTCOMES as readonly string[]).includes(outcomeRaw)) {
     return { error: "Resultado inválido." };
   }

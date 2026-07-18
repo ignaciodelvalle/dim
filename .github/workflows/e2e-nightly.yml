@@ -1,0 +1,66 @@
+name: E2E nightly (staging)
+
+# Nightly Playwright pass against the deployed staging origin.
+# Cron is UTC: 06:00 UTC = 03:00 in Argentina (UTC-3, no DST).
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-staging:
+    name: E2E vs staging (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    # No local Supabase stack and no Next.js build here — the suite drives the
+    # ALREADY-DEPLOYED staging app via playwright.staging.config.ts (no
+    # webServer block; serial workers; x-real-ip rate-limit workaround baked
+    # into the config).
+    #
+    # Secrets to configure (Settings → Secrets and variables → Actions):
+    #   STAGING_SUPABASE_URL       — staging project URL (https://<ref>.supabase.co).
+    #   STAGING_SUPABASE_ANON_KEY  — staging anon (publishable) key.
+    # Both feed cross-tenant-isolation.spec.ts, which talks to GoTrue directly;
+    # when unset, its API-level checks run against the localhost defaults and
+    # fail — configure them or expect that spec to be red. Everything else in
+    # the suite only needs the public STAGING_URL below (no secret).
+    env:
+      STAGING_URL: https://dim-staging.vercel.app
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium only)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright suite against staging
+        run: pnpm exec playwright test --config=playwright.staging.config.ts
+
+      - name: Upload Playwright HTML report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-staging
+          path: playwright-report/
+          retention-days: 14

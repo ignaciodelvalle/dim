@@ -55,6 +55,10 @@ the named tip does.
   ΔE deuteranopia-margin violation — building from the table would have silently
   reintroduced a fixed CVD accessibility bug. Treat `viz-scales.ts` (and other
   test-pinned constants) as the source of truth; flag the handoff, don't follow it.
+- **Audit date filters are ARGENTINE calendar days, not UTC (PO 2026-07-16).**
+  `lib/ui/audit-filters.ts` and `/gob/historial` anchor a `YYYY-MM-DD` filter
+  at AR midnight (fixed `-03:00`, no DST): "2026-07-18" spans 03:00Z–03:00Z.
+  This is intentional — do not "fix" the boundaries back to UTC midnights.
 - **No self-referential assertions.** A test must assert `f(x)` against an
   independently-stated expected value, never against a value derived from the
   same code path under test — e.g. re-deriving the expected string from the

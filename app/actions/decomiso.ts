@@ -197,6 +197,10 @@ export async function executeDecomisoAction(
   if (pendingNotifications.length > 0) {
     try {
       await db.insert(notifications).values(pendingNotifications);
+      // Web Push leg — urgent-only filtering happens inside the seam;
+      // best-effort, never throws into the action path.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error("notifications insert failed (executeDecomisoAction succeeded)", e);
     }
@@ -264,6 +268,9 @@ export async function acceptDecomisoHandoffAction(input: {
   if (pendingNotifications.length > 0) {
     try {
       await db.insert(notifications).values(pendingNotifications);
+      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error("notifications insert failed (acceptDecomisoHandoffAction succeeded)", e);
     }
@@ -332,6 +339,9 @@ export async function rejectDecomisoHandoffAction(input: {
   if (pendingNotifications.length > 0) {
     try {
       await db.insert(notifications).values(pendingNotifications);
+      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error("notifications insert failed (rejectDecomisoHandoffAction succeeded)", e);
     }
@@ -398,6 +408,9 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
   if (pendingNotifications.length > 0) {
     try {
       await db.insert(notifications).values(pendingNotifications);
+      // Web Push leg — urgent-only inside the seam; best-effort, never throws.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error(
         "notifications insert failed (reassignDecomisoToAnotherReceiverAction succeeded)",

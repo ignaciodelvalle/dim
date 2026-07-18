@@ -6,8 +6,9 @@
 // an optional current photo.
 //
 // Client-side validation: name + (phone OR email) required before submit.
-// Prefill: when the user is logged in, props contain prefill values and loggedIn=true;
-// a banner prompts them to sign out if they're not the finder.
+// No prefill (PO decision 2026-07-16): even when the user is logged in, the
+// finder types every field by hand. Logged-in detection remains only to render
+// the "¿No sos vos? Salí de la sesión" advisory banner.
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
@@ -31,20 +32,16 @@ export function FinderInPossessionForm({
   petName,
   biasProvince,
   biasLocality,
-  prefill,
   loggedIn,
+  sessionDisplayName,
 }: {
   publicToken: string;
   petName: string;
   biasProvince: string | null;
   biasLocality: string | null;
-  prefill?: {
-    name?: string;
-    phone?: string;
-    email?: string;
-    displayName?: string;
-  };
   loggedIn?: boolean;
+  /** Display name of the logged-in session, banner-only — never a form value. */
+  sessionDisplayName?: string | null;
 }) {
   const boundAction = reportFinderInPossessionAction.bind(null, publicToken);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
@@ -57,9 +54,10 @@ export function FinderInPossessionForm({
   const errorId = "finder-possession-form-error";
 
   // Controlled field state — preserves typed input on validation error.
-  const [finderName, setFinderName] = useState(prefill?.name ?? "");
-  const [finderPhone, setFinderPhone] = useState(prefill?.phone ?? "");
-  const [finderEmail, setFinderEmail] = useState(prefill?.email ?? "");
+  // Always starts EMPTY (no session prefill — PO 2026-07-16).
+  const [finderName, setFinderName] = useState("");
+  const [finderPhone, setFinderPhone] = useState("");
+  const [finderEmail, setFinderEmail] = useState("");
   const [canKeepUntil, setCanKeepUntil] = useState("");
   const [message, setMessage] = useState("");
 
@@ -112,11 +110,17 @@ export function FinderInPossessionForm({
     <>
       {/* Logged-in banner — rendered outside the main form: forms cannot nest,
           and the main form's onSubmit validation would block the logout submit. */}
-      {loggedIn && prefill?.displayName && (
+      {loggedIn && (
         <div className="mb-5 rounded-lg border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-4 py-3 text-sm text-[var(--color-ln-azul)]">
-          Completamos el formulario con tus datos,{" "}
-          <span className="font-medium">{prefill.displayName}</span>. El aviso no queda vinculado a
-          tu cuenta: el dueño solo ve lo que escribas acá.{" "}
+          {sessionDisplayName ? (
+            <>
+              Tenés una sesión iniciada como{" "}
+              <span className="font-medium">{sessionDisplayName}</span>.
+            </>
+          ) : (
+            <>Tenés una sesión iniciada.</>
+          )}{" "}
+          El aviso no queda vinculado a tu cuenta: el dueño solo ve lo que escribas acá.{" "}
           <form
             action={logoutAndReturnAction.bind(null, `/p/${publicToken}/encontre`)}
             className="inline"

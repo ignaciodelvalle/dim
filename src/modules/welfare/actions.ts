@@ -122,6 +122,10 @@ async function flushNotifications(
   if (pending.length === 0) return;
   try {
     await repo.insertNotifications(pending as (typeof notifications.$inferInsert)[]);
+    // Web Push leg — urgent-only filtering happens inside the seam;
+    // best-effort, never throws into the action path.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications(pending);
   } catch (e) {
     console.error("[welfare/actions] notifications insert failed (action did succeed):", e);
   }
