@@ -6,16 +6,6 @@ import { CLOCK_SKEW_TOLERANCE_MS, assertOccurredAtPlausible } from "./plausibili
 
 const NOW = new Date("2026-07-08T12:00:00Z");
 
-describe("CLOCK_SKEW_TOLERANCE_MS", () => {
-  it("is pinned to 5 minutes (300000 ms) as a literal", () => {
-    // Mutation gate: the boundary tests below compute offsets FROM the imported
-    // constant, so a mutant that changes the tolerance (5 → 50 minutes) would
-    // survive them. This literal pin is the only assertion that fails when the
-    // constant itself drifts.
-    expect(CLOCK_SKEW_TOLERANCE_MS).toBe(300_000);
-  });
-});
-
 describe("assertOccurredAtPlausible", () => {
   it("pins CLOCK_SKEW_TOLERANCE_MS at exactly 5 minutes", () => {
     // Literal on purpose: the boundary tests below derive their fixtures FROM
