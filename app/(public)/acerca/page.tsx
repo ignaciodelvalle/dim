@@ -79,15 +79,25 @@ export default function AcercaPage() {
           </p>
         </section>
 
-        <section aria-labelledby="codigo-heading" className="space-y-3">
-          <h2 id="codigo-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
-            Código abierto
+        <section aria-labelledby="transparencia-heading" className="space-y-3">
+          <h2
+            id="transparencia-heading"
+            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
+          >
+            Transparencia de datos y metodología
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR es un proyecto de código abierto, publicado bajo licencia MIT. El repositorio está
-            disponible en GitHub. La apertura del código no es solo un detalle técnico: es parte de
-            la estrategia de confianza necesaria para una eventual integración con organismos
-            públicos.
+            MiMAR publica datos abiertos de salud y bienestar animal por provincia, bajo licencia{" "}
+            <strong>CC BY 4.0</strong> (Ley 27.275 de Acceso a la Información Pública), junto con la
+            metodología que los produce. Podés consultarlos y descargarlos en{" "}
+            <Link
+              href="/transparencia"
+              className="text-[var(--color-ln-azul)] no-underline hover:underline"
+            >
+              /transparencia
+            </Link>
+            . Esta apertura no es solo un detalle técnico: es parte de la estrategia de confianza
+            necesaria para una eventual integración con organismos públicos.
           </p>
         </section>
 

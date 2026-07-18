@@ -25,17 +25,8 @@ export default function SugerenciasPage() {
             Canal de sugerencias en preparación.
           </p>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            Estamos preparando un espacio formal para recibir ideas y comentarios. Mientras tanto,
-            si encontrás un error o una barrera de accesibilidad, podés reportarlo a través del{" "}
-            <a
-              href="https://github.com/galdoneudi/dim/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--color-ln-azul)] underline hover:no-underline"
-            >
-              repositorio público en GitHub
-            </a>
-            .
+            Estamos preparando un espacio formal para recibir ideas y comentarios. Muy pronto vas a
+            poder enviarnos tus sugerencias directamente desde tu cuenta de MiMAR.
           </p>
         </div>
         <Link

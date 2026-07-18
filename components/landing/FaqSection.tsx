@@ -32,7 +32,7 @@ export function FaqSection() {
             <Icon name="candado" size="sm" decorative /> Datos protegidos · Ley 25.326
           </span>
           <span>
-            <Icon name="laptop" size="sm" decorative /> Código abierto
+            <Icon name="chart-line" size="sm" decorative /> Datos abiertos
           </span>
           <span>
             <Icon name="check-circle" size="sm" decorative /> Gratis para siempre
