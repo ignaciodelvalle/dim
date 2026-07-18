@@ -21,7 +21,10 @@ export type PresetId =
   | "bienestar"
   | "control-poblacional"
   | "mortalidad"
-  | "perdidas-reunificacion";
+  | "perdidas-reunificacion"
+  | "desierto-veterinario"
+  | "tendencia"
+  | "riesgo-ppp";
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -78,6 +81,10 @@ export type PanoramaPreset = {
   /**
    * Optional overlay signal layer (dataType "signal").
    * At most 1 signal per preset — enforced by the F2 compatibility model.
+   * EXCEPTION (new-vistas wave): the overlay slot of a DECLARED bivariate pair
+   * (bivariate.ts BIVARIATE_PAIRS) may name a density layer — riesgo-ppp stacks
+   * mordeduras (density) over the ppp rate surface; the F2 exception in
+   * checkCompatibility admits exactly these vetted pairs.
    */
   signal?: LayerId;
   /**
@@ -278,6 +285,65 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["perdidas", "reunificacion", "denuncias"],
     // Locality-level drill-down question — stays framing-less, same as sintomas
     // and bienestar (design-QA 2026-07-04 convention).
+  },
+  {
+    id: "desierto-veterinario",
+    label: "Desierto veterinario",
+    description: "¿Qué zonas llevan más días sin actividad veterinaria registrada?",
+    // base: desierto-veterinario (days-without-vet-activity choropleth). The
+    // default 90d window is the vista's N: a quarter without ANY registered
+    // vet-attended event is a meaningful access gap (annual antirrábica boosters
+    // + routine controls make quarterly activity the expected floor). The period
+    // selector changes N and the caption follows (window: "period").
+    base: "desierto-veterinario",
+    level: "province",
+    periodPreset: "90d",
+    // A province-level access overview is a national question — frame the
+    // country so the longest-silent jurisdictions are comparable at a glance.
+    framing: { kind: "national" },
+    // Vet-delivered intervention KPIs — the coverage measures that stall when a
+    // territory has no registered veterinary activity.
+    metrics: ["cobertura", "esterilizacion"],
+  },
+  {
+    id: "tendencia",
+    label: "Tendencia",
+    description: "¿Dónde hay más o menos eventos registrados que en el período anterior?",
+    // base: tendencia (two-window delta choropleth, zero-anchored diverging
+    // fill with inverted polarity — more events than before = warning pole).
+    base: "tendencia",
+    level: "province",
+    // 30d vs the prior 30d: the operational trend cadence — long enough to
+    // smooth day-of-week noise, short enough that a shift is actionable.
+    periodPreset: "30d",
+    // A cross-province comparison is a national question — frame the country.
+    framing: { kind: "national" },
+    // The event families the delta is most often ABOUT — the headline movers.
+    metrics: ["mordeduras", "perdidas", "denuncias"],
+  },
+  {
+    id: "riesgo-ppp",
+    label: "Riesgo PPP",
+    description: "¿Dónde se cruzan mordeduras altas con bajo registro PPP?",
+    // base: ppp (registry-adoption rate surface). The overlay is mordeduras —
+    // a DENSITY layer riding the signal slot via the declared bivariate pair
+    // (see the `signal` JSDoc exception; bivariate.ts BIVARIATE_PAIRS).
+    base: "ppp",
+    signal: "mordeduras",
+    // The question is "¿dónde muerden más?" over the registry backdrop — rank
+    // by the mordeduras overlay, not the ppp base (brotes-activos precedent).
+    rankBy: "mordeduras",
+    level: "province",
+    periodPreset: "90d",
+    // A cross-province risk read — frame the country (brotes-activos precedent).
+    framing: { kind: "national" },
+    // The two crossed axes + the compliance sibling that shares the Ley Prov
+    // 14.107 family with ppp.
+    metrics: ["mordeduras", "ppp", "microchip"],
+    // The vista OWNS the bivariate encoding — navigating here opens in it (the
+    // encoding-seeding rule kept from the a948c975 revert), and the badge stays
+    // "Riesgo PPP" while it is selected (?encoding=bivariate round-trips).
+    encodings: ["bivariate"],
   },
 ] as const;
 

@@ -23,10 +23,10 @@ import {
 import type { LayerDataType, LayerPrivacy } from "@/src/modules/panorama/domain/types";
 
 describe("PANORAMA_LAYERS registry", () => {
-  it("has the 17 v2 layers with unique ids", () => {
-    expect(PANORAMA_LAYERS).toHaveLength(17);
+  it("has the 19 v2 layers with unique ids", () => {
+    expect(PANORAMA_LAYERS).toHaveLength(19);
     const ids = PANORAMA_LAYERS.map((l) => l.id);
-    expect(new Set(ids).size).toBe(17);
+    expect(new Set(ids).size).toBe(19);
   });
 
   it("every layer declares a unique color (legend swatch collisions confuse the map)", () => {
@@ -49,9 +49,9 @@ describe("PANORAMA_LAYERS registry", () => {
     }
   });
 
-  it("partitions cleanly into point (9) and choropleth (8) layers", () => {
+  it("partitions cleanly into point (9) and choropleth (10) layers", () => {
     expect(POINT_LAYERS).toHaveLength(9);
-    expect(CHOROPLETH_LAYERS).toHaveLength(8);
+    expect(CHOROPLETH_LAYERS).toHaveLength(10);
     expect(POINT_LAYERS.length + CHOROPLETH_LAYERS.length).toBe(PANORAMA_LAYERS.length);
   });
 
@@ -134,6 +134,12 @@ describe("PANORAMA_LAYERS registry", () => {
         "zoonosis",
         "sintomas",
         "reunificacion",
+        // desierto-veterinario: a period-windowed RECENCY choropleth ("as of t"
+        // the last vet visit was N days back) — temporal, unlike its
+        // current-state choropleth siblings.
+        "desierto-veterinario",
+        // tendencia: two period-derived event windows — temporal (asOf shifts both).
+        "tendencia",
       ].sort(),
     );
     // Non-temporal: refugios (no time) + the three current-state choropleths.

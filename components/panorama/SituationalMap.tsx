@@ -42,7 +42,11 @@ import {
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
-import { type BivariateCell, riskLabel } from "@/src/modules/panorama/domain/bivariate";
+import {
+  type BivariateCell,
+  type BivariatePair,
+  riskLabel,
+} from "@/src/modules/panorama/domain/bivariate";
 
 import {
   type DivisionLevel,
@@ -179,6 +183,12 @@ export type ActiveLayer = {
    */
   complianceTarget?: number;
   /**
+   * new-vistas wave (tendencia): the layer's `value` is a SIGNED DELTA — the
+   * province fill renders the zero-anchored diverging classes (delta-scale.ts)
+   * instead of the quantile/META paths. Threaded from the layer registry.
+   */
+  deltaEncoded?: boolean;
+  /**
    * map-QOL: per-layer opacity multiplier 0.2..1 (default 1), set from the
    * Personalizar panel. Multiplies the layer's base opacity expressions — the
    * suppressed-cell muting and the F4 dim behavior are preserved underneath.
@@ -193,6 +203,12 @@ export type ActiveLayer = {
    * a province-level choropleth layer. Absent → normal single-value rendering.
    */
   bivariateCells?: BivariateCell[];
+  /**
+   * new-vistas wave: the declared axis pair behind `bivariateCells` — carries
+   * the es-AR axis vocabulary (popup row labels, legend axes/title) so every
+   * surface names the SAME crossed axes. Absent → the original brotes wording.
+   */
+  bivariatePair?: BivariatePair;
   /**
    * panorama-percapita: this graduated layer's `count` props carry PER-10K RATES
    * (the console's projectPerCapita swap), not raw counts. The graduated scale
@@ -1827,6 +1843,18 @@ export function SituationalMap({
               colors: metaScale.colors,
             };
           }
+        } else if (layer.deltaEncoded === true) {
+          // Delta layer (tendencia): the zero-anchored diverging classes are
+          // frame-stable at the 0 anchor by construction (META precedent), so
+          // no scrub lock applies. Lift the SAME resolved scale the fill paints
+          // (resolveChoroplethEncoding's delta branch) for the legend.
+          const deltaEnc = resolveChoroplethEncoding(layer);
+          if (deltaEnc) {
+            nextProvinceSeqLegend[layer.id] = {
+              breaks: deltaEnc.scale.breaks,
+              colors: deltaEnc.scale.colors,
+            };
+          }
         } else {
           // MAP-1 fix: derive the live-edge QUANTILE breaks from the current frame,
           // then freeze THOSE across a scrub (not a min/max domain), so classing is
@@ -2292,7 +2320,9 @@ export function SituationalMap({
       // single value, so the color can't be reverse-engineered into a hidden one.
       if (l.bivariateCells) {
         const cell = l.bivariateCells.find((c) => c.provinceCode === code);
-        if (cell) return bivariateReadouts(cell);
+        // Axis labels follow the declared pair (Registro PPP × Mordeduras vs
+        // the default Cobertura × Señales) so the rows name the crossed axes.
+        if (cell) return bivariateReadouts(cell, l.bivariatePair);
         continue;
       }
       let value: number | null = null;

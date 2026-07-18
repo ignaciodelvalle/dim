@@ -100,6 +100,7 @@ import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import {
   BIVARIATE_MIN_UNITS,
+  bivariatePairFor,
   bivariateRefusalReason,
   buildBivariateCells,
 } from "@/src/modules/panorama/domain/bivariate";
@@ -1778,6 +1779,9 @@ export function PanoramaConsole({
         // the map can choose divergent vs sequential choropleth rendering.
         dataType: l.dataType,
         complianceTarget: l.complianceTarget,
+        // new-vistas: delta-encoded layers (tendencia) render the zero-anchored
+        // diverging classes — threaded from the registry like the fields above.
+        deltaEncoded: l.deltaEncoded,
         // map-QOL: per-layer opacity multiplier from the Personalizar slider.
         opacity: opacities[l.id] ?? 1,
       });
@@ -2585,6 +2589,13 @@ export function PanoramaConsole({
     PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
     level,
   );
+  // new-vistas wave: WHICH declared pair the active set matches (null unless
+  // exactly a pair). The join, the degenerate check, the map label, the legend
+  // axes, and the popup rows all read THIS — no axis id is hardcoded anymore.
+  // Constant identities (BIVARIATE_PAIRS), so memo deps stay cheap.
+  const bivariatePair = bivariatePairFor(
+    PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
+  );
   // The bivariate join reads the LIVE province cache for both axes. cobertura is
   // non-temporal (it can't be replayed), so during a scrub it stays frozen at the
   // live edge while zoonosis has an as-of frame — mixing two time bases into one
@@ -2602,12 +2613,12 @@ export function PanoramaConsole({
   const bivariateDegenerateReason = useMemo<"count" | "tercile" | null>(() => {
     void levelVersion;
     void asOfVersion;
-    if (!bivariateEligible) return null;
-    const cov = provinceDataRef.current.get("cobertura");
-    const sig = provinceDataRef.current.get("zoonosis");
+    if (!bivariateEligible || !bivariatePair) return null;
+    const cov = provinceDataRef.current.get(bivariatePair.coverage);
+    const sig = provinceDataRef.current.get(bivariatePair.signal);
     if (!cov || !sig || cov.features.length === 0) return null;
     return bivariateRefusalReason(cov, sig, BIVARIATE_MIN_UNITS);
-  }, [bivariateEligible, levelVersion, asOfVersion]);
+  }, [bivariateEligible, bivariatePair, levelVersion, asOfVersion]);
   const bivariateDegenerate = bivariateDegenerateReason !== null;
   const bivariateActive = bivariateMode && bivariateEligible && !scrubbing && !bivariateDegenerate;
 
@@ -2694,20 +2705,20 @@ export function PanoramaConsole({
           : l,
       );
     }
-    if (!bivariateActive) return activeLayers;
-    const cov = provinceDataRef.current.get("cobertura");
-    const sig = provinceDataRef.current.get("zoonosis");
+    if (!bivariateActive || !bivariatePair) return activeLayers;
+    const cov = provinceDataRef.current.get(bivariatePair.coverage);
+    const sig = provinceDataRef.current.get(bivariatePair.signal);
     if (!cov || !sig || cov.features.length === 0) return activeLayers;
     const cells = buildBivariateCells(cov, sig);
     return activeLayers
-      .filter((l) => l.id !== "zoonosis")
+      .filter((l) => l.id !== bivariatePair.signal)
       .map((l) =>
-        l.id === "cobertura"
-          ? { ...l, label: "Riesgo de brotes (cobertura × señales)", bivariateCells: cells }
+        l.id === bivariatePair.coverage
+          ? { ...l, label: bivariatePair.mapLabel, bivariateCells: cells, bivariatePair }
           : l,
       );
     // levelVersion/asOfVersion bump when the province caches (refs) change.
-  }, [activeLayers, bivariateActive, percapitaActive, levelVersion, asOfVersion]);
+  }, [activeLayers, bivariateActive, bivariatePair, percapitaActive, levelVersion, asOfVersion]);
 
   // H12 (cowork QA): on a direct-URL entry the map paints its bubbles 2-4s late,
   // so the operator stares at a blank canvas wondering if it is empty or broken.
@@ -4584,7 +4595,8 @@ export function PanoramaConsole({
       heading="Modo del mapa"
       sub={
         bivariateEligible
-          ? "Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas"
+          ? (bivariatePair?.switcherSub ??
+            "Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas")
           : "Cómo se pinta la vista — per cápita normaliza por población del censo"
       }
       note={

@@ -118,16 +118,19 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
 
   // --- Invariant spot-checks (mirror the characterization fence, via the gate) --
 
-  it("bivariate is eligible ONLY for a rate-with-target base × an active signal at province", () => {
-    // brotes-activos (cobertura rate+target × zoonosis signal) at national→province.
+  it("bivariate is eligible ONLY for a DECLARED pair's layer set at province", () => {
+    // The two pair-owning presets at national→province framing.
     const brotes = PANORAMA_PRESETS.find((p) => p.id === "brotes-activos")!;
     expect(gateFor(brotes, "national", 3).caps.allowedControls.bivariateEligible).toBe(true);
+    const riesgoPpp = PANORAMA_PRESETS.find((p) => p.id === "riesgo-ppp")!;
+    expect(gateFor(riesgoPpp, "national", 3).caps.allowedControls.bivariateEligible).toBe(true);
     // province scope forces locality level → not eligible.
     expect(gateFor(brotes, "province", 7).caps.allowedControls.bivariateEligible).toBe(false);
-    // No OTHER preset satisfies the predicate (cumplimiento/control have a
-    // rate+target base but NO signal; sintomas/bienestar/perdidas have a non-rate base).
+    expect(gateFor(riesgoPpp, "province", 7).caps.allowedControls.bivariateEligible).toBe(false);
+    // No OTHER preset matches a declared pair (cumplimiento/control have a
+    // rate+target base but NO overlay; sintomas/bienestar/perdidas have a non-rate base).
     for (const preset of PANORAMA_PRESETS) {
-      if (preset.id === "brotes-activos") continue;
+      if (preset.id === "brotes-activos" || preset.id === "riesgo-ppp") continue;
       for (const scopeKey of Object.keys(SCOPES)) {
         expect(
           gateFor(preset, scopeKey, 3).caps.allowedControls.bivariateEligible,
@@ -192,9 +195,13 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
   // the toggle for combos it cannot render. The fix constrains
   // bivariateEligibleFor to that exact pair. These cases call it DIRECTLY to
   // pin the constrained behavior. See the P2 review (2026-07-12).
-  it("bivariateEligibleFor is constrained to the exact {cobertura, zoonosis} pair the join supports", () => {
-    // The supported pair, at province level.
+  it("bivariateEligibleFor is constrained to the DECLARED pairs the join supports", () => {
+    // The supported pairs, at province level (BIVARIATE_PAIRS: the original
+    // brotes pair + the new-vistas riesgo-ppp pair).
     expect(bivariateEligibleFor(["cobertura", "zoonosis"], "province")).toBe(true);
+    expect(bivariateEligibleFor(["ppp", "mordeduras"], "province")).toBe(true);
+    // Order-free (the active set is a SET).
+    expect(bivariateEligibleFor(["mordeduras", "ppp"], "province")).toBe(true);
 
     // The regression: esterilizacion is a rate-with-target base like cobertura,
     // but it is NOT cobertura — the join can't render this combo.
@@ -212,6 +219,12 @@ describe("capabilitiesFor — registry cross-check (P2 gate)", () => {
     // The supported pair, but off the province level — bivariate is
     // province-only regardless of the layer set.
     expect(bivariateEligibleFor(["cobertura", "zoonosis"], "locality")).toBe(false);
+    expect(bivariateEligibleFor(["ppp", "mordeduras"], "locality")).toBe(false);
+
+    // Still NEVER a shape predicate: a rate × count combo that is not a
+    // DECLARED pair stays refused (nobody vetted its tercile sanity).
+    expect(bivariateEligibleFor(["ppp", "denuncias"], "province")).toBe(false);
+    expect(bivariateEligibleFor(["cobertura", "mordeduras"], "province")).toBe(false);
   });
 
   it("mapModes (task #24): always ['auto']; bivariate joins ONLY when eligible", () => {

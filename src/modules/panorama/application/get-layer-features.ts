@@ -31,7 +31,9 @@ import {
   loadReunificacionByUnit,
   loadShelters,
   loadSintomasByUnit,
+  loadTendenciaByProvince,
   loadTerritorialIndexByProvince,
+  loadVetDesertByProvince,
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
@@ -189,7 +191,10 @@ function provinceChoroplethResult(rows: ProvinceChoroplethRows): LayerFeaturesRe
   return {
     features: buildProvinceChoroplethFeatures(rows.cells),
     truncated: rows.truncated,
-    suppressedCount: 0,
+    // Almost always 0 at province grain — the exceptions are the loaders whose
+    // unit can still be k-anon-small (vet-desert universe / tendencia deltas),
+    // which report their withheld-cell count so the LayerPanel can disclose it.
+    suppressedCount: rows.suppressedCount ?? 0,
     // Province level counts every pet in the province — nothing is invisible.
     noLocalityCount: 0,
     level: "province",
@@ -571,6 +576,42 @@ async function resolveLayerFeatures(
         jurisdictions,
         adminProvince,
         adminLocality,
+      );
+    }
+    case "tendencia": {
+      // Two-window event DELTA (current period vs the prior equivalent period)
+      // — PROVINCE-ONLY v1 (PROVINCE_ONLY_CHOROPLETH_IDS), `level` ignored.
+      // Temporal: `asOf` shifts both windows; `basis` replays by
+      // occurred_at/recorded_at. k-anon: the differencing rule (deltaCells)
+      // suppresses a cell when EITHER raw window carries a protected sub-k
+      // count (suppressedCount discloses it).
+      return provinceChoroplethResult(
+        await loadTendenciaByProvince(
+          actor,
+          jurisdictions,
+          period.since,
+          period.asOf,
+          adminProvince,
+          adminLocality,
+          period.basis,
+        ),
+      );
+    }
+    case "desierto-veterinario": {
+      // Period-windowed vet-activity RECENCY (days since the last
+      // vet_visit_logged, capped at the window length) — PROVINCE-ONLY v1
+      // (PROVINCE_ONLY_CHOROPLETH_IDS), so `level` is ignored. Temporal: `asOf`
+      // replays the recency as of t. k-anon: a scoped province universe under
+      // k=5 pets gets no cell (suppressedCount discloses it).
+      return provinceChoroplethResult(
+        await loadVetDesertByProvince(
+          actor,
+          jurisdictions,
+          period.since,
+          period.asOf,
+          adminProvince,
+          adminLocality,
+        ),
       );
     }
     case "indice-territorial": {

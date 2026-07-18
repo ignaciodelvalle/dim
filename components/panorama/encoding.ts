@@ -33,6 +33,7 @@ import {
   type ClassSwatch,
   classSwatches,
 } from "@/components/panorama/class-scale";
+import { deltaProvinceClassScale } from "@/components/panorama/delta-scale";
 import {
   classedProvinceFill,
   provinceMetaClassScale,
@@ -50,6 +51,9 @@ export type ChoroplethLayerLike = {
   features: FeatureCollection;
   dataType?: string;
   complianceTarget?: number;
+  /** new-vistas wave: the value is a SIGNED DELTA → zero-anchored diverging
+   *  classes (delta-scale.ts) instead of the quantile/META paths. */
+  deltaEncoded?: boolean;
 };
 
 /**
@@ -88,6 +92,22 @@ export function resolveChoroplethEncoding(
   layer: ChoroplethLayerLike,
   opts?: { lockedSeqBreaks?: readonly number[] | null },
 ): ChoroplethEncoding | null {
+  // Delta-encoded layer (tendencia): zero-anchored diverging classes with
+  // inverted polarity — resolved FIRST so a delta can never fall into the
+  // quantile path (which would class all-positive deltas as ordinary blues).
+  // The 0 anchor is frame-stable, so no scrub-lock breaks apply here (META
+  // precedent: anchored breaks are frame-stable by construction).
+  if (layer.deltaEncoded === true) {
+    const scale = deltaProvinceClassScale(layer.features);
+    if (scale === null) return null;
+    return {
+      kind: "choropleth-seq",
+      scale,
+      fillColorExpr: classedProvinceFill(layer.features, scale),
+      legend: classSwatches(scale),
+      meta: false,
+    };
+  }
   if (isMetaLayer(layer)) {
     const scale = provinceMetaClassScale(layer.features, layer.complianceTarget);
     if (scale === null) return null;

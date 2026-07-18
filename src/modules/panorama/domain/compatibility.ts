@@ -9,6 +9,7 @@
 //   - Signal slot: at most 1 active layer with dataType "signal".
 //   - Reference: dataType "reference" layers are unlimited; always allowed.
 
+import { isDeclaredBivariatePair } from "./bivariate";
 import type { PanoramaLayer } from "./types";
 import type { LayerId } from "./types";
 
@@ -60,12 +61,17 @@ export function checkCompatibility(
   const byId = new Map<LayerId, PanoramaLayer>(registry.map((l) => [l.id, l]));
 
   if (proposedRole === "base") {
-    // At most 1 base layer active at a time.
+    // At most 1 base layer active at a time — EXCEPT the two axes of a declared
+    // bivariate pair (bivariate.ts BIVARIATE_PAIRS): a vetted density overlay
+    // stacks over a rate surface (ppp × mordeduras reads exactly like
+    // cobertura × zoonosis). The exception is per conflicting layer, so any
+    // OTHER active base still blocks.
     for (const id of activeIds) {
       if (id === proposedId) continue; // already active — shouldn't happen when turning ON, but safe.
       const active = byId.get(id);
       if (!active) continue;
       if (roleOf(active) === "base") {
+        if (isDeclaredBivariatePair(active.id, proposedId)) continue;
         return {
           allowed: false,
           hint: `Ya hay una capa base activa (${active.label}). Elegí una sola base; las señales y referencias van encima.`,

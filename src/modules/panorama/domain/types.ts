@@ -26,7 +26,9 @@ export type LayerId =
   | "mortalidad"
   | "acceso-veterinario"
   | "antiparasitario"
-  | "indice-territorial";
+  | "indice-territorial"
+  | "desierto-veterinario"
+  | "tendencia";
 
 /** Point/cluster layers plot individual features; choropleth layers shade
  * locality rollups (computed via lib/metrics with k-anon suppression). */
@@ -190,6 +192,16 @@ export type PanoramaLayer = {
    * Unit: same as the layer's `value` property (percentage for cobertura: 0–100).
    */
   complianceTarget?: number;
+  /**
+   * new-vistas wave (tendencia): the layer's `value` is a SIGNED DELTA
+   * (current window − prior equivalent window), not a magnitude. The province
+   * fill renders a zero-anchored classed DIVERGING scale with INVERTED
+   * polarity relative to the compliance meta scale: MORE events than before is
+   * the WARNING pole, FEWER is the good pole (components/panorama/delta-scale
+   * derives the classes from the validated COLOR_DIVERGENT_* tokens). Mutually
+   * exclusive with `complianceTarget` — a delta has no attainment target.
+   */
+  deltaEncoded?: boolean;
 
   // --- panorama-ia-v2 descriptor extension (design §2.2) ---------------------
 

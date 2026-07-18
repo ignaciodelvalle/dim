@@ -18,7 +18,7 @@
 // govt → intersection with its assignments. The scope clauses are the SAME
 // tested helpers the /gob dashboards use.
 
-import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lt, lte, sql } from "drizzle-orm";
 
 // Heavy read-only analytics — routed through the ANALYTICS pool (session
 // pooler in production; see db/index.ts, task #74 dual-pool split).
@@ -60,6 +60,7 @@ import {
   rabiesVaccinatedExists,
   suppressSmallCells,
 } from "@/lib/metrics";
+import { deltaCells } from "@/lib/metrics/anonymity";
 import { fetchDewormingCoverage } from "@/lib/metrics/deworming";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
@@ -833,10 +834,16 @@ export type ChoroplethRows = {
 };
 
 /** Result envelope for a PROVINCE choropleth loader (filled polygons; U5). No
- * k-anon (province cells are large), so there is no suppressedCount. */
+ * k-anon (province cells are large), so there is USUALLY no suppressedCount —
+ * the optional field exists for the province-grain loaders whose UNIT can still
+ * be small (vet-desert: a scoped province universe under k pets gets no cell;
+ * tendencia: a sub-k delta window suppresses the cell). Absent = 0. */
 export type ProvinceChoroplethRows = {
   cells: ProvinceChoroplethCell[];
   truncated: boolean;
+  /** Cells withheld by the k-anon primitives (suppressSmallCells / suppressDelta).
+   * The use-case envelope surfaces it so the LayerPanel can disclose the count. */
+  suppressedCount?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -1465,6 +1472,151 @@ export async function loadVetAccessByProvince(
     });
   }
   return { cells, truncated: false };
+}
+
+// metrics:tendencia — per-PROVINCE two-window event delta.
+//
+//   value = Δ = events(current window) − events(prior equivalent window)
+//
+// Both windows count ALL pet events (no type predicate) attributed to the pet's
+// home province (pets JOIN — same attribution as the mordeduras/perdidas
+// loaders). current = [since, until]; prior = the equal-length window ending
+// where the current one starts: [since − len, since). `asOf` shifts `until`
+// (temporal replay); `basis` picks occurred_at vs recorded_at.
+//
+// k-anon DIFFERENCING RULE (viz-suite wave 0): both windows go RAW into
+// deltaCells — a cell with a protected (0 < n < 5) count in EITHER window
+// publishes NO delta (suppressed; disclosed via suppressedCount). A count of
+// exactly 0 is not protected, so "+N desde cero" stays as public as the visible
+// current window. Suppressed cells emit NO cell at all (no-data on the map) —
+// never a value the single-window rule protects.
+export async function loadTendenciaByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+  basis: TimeBasis = "valid",
+): Promise<ProvinceChoroplethRows> {
+  const until = asOf ?? new Date();
+  const priorSince = new Date(since.getTime() - (until.getTime() - since.getTime()));
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
+
+  const countWindow = async (from: Date, to: Date, openUpper: boolean) => {
+    const conditions: SQL[] = [
+      gte(tcol, from),
+      openUpper ? lt(tcol, to) : lte(tcol, to),
+      isNotNull(pets.jurisdictionProvince),
+    ];
+    if (scope) conditions.push(sql`(${scope})`);
+    const rows = await db
+      .select({ province: pets.jurisdictionProvince, n: countDistinct(petEvents.id) })
+      .from(petEvents)
+      .innerJoin(pets, eq(petEvents.petId, pets.id))
+      .where(and(...conditions))
+      .groupBy(pets.jurisdictionProvince)
+      .limit(PER_LAYER_CAP);
+    return rows.filter((r) => r.province).map((r) => ({ province: r.province as string, n: r.n }));
+  };
+
+  // Half-open prior window [priorSince, since) so no event is double-counted at
+  // the boundary; the current window keeps the resolver's inclusive [since, until].
+  const current = await countWindow(since, until, false);
+  const prior = await countWindow(priorSince, since, true);
+
+  const cells: ProvinceChoroplethCell[] = [];
+  let suppressedCount = 0;
+  for (const c of deltaCells(current, prior, { key: (r) => r.province, count: (r) => r.n })) {
+    const code = PROVINCE_ISO[c.key];
+    if (!code) continue;
+    if (c.suppressed || c.delta === null) {
+      suppressedCount++;
+      continue;
+    }
+    cells.push({ provinceCode: code, label: c.key, value: c.delta });
+  }
+  return { cells, truncated: false, suppressedCount };
+}
+
+// metrics:vet-desert (desierto-veterinario) — per-PROVINCE days since the last
+// vet_visit_logged event, capped at the analytic window's length.
+//
+//   value = min(windowDays, days between the last vet visit and `until`)
+//         = windowDays when NO vet visit was ever registered in scope.
+//
+// The recency MAX is deliberately NOT floored at `since`: a province whose last
+// visit predates the window still reads the honest cap (windowDays = "sin
+// actividad en todo el período"), never a fabricated smaller number. `asOf`
+// replays the signal ("as of t" the last visit was ...).
+//
+// k-anon: the unit's ACTIVE-PET UNIVERSE is the protected dimension (same as
+// fetchVetAccessByLocality) — a scoped province universe with < k pets gets NO
+// cell (suppressSmallCells; reported via suppressedCount) so "días sin
+// actividad" can never characterize a handful of identifiable pets. The event
+// recency itself is publishable at unit grain (loadUnitHistory already exposes
+// per-unit daily event counts).
+export async function loadVetDesertByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const until = asOf ?? new Date();
+  const dayMs = 86_400_000;
+  // ROUND, not ceil: `until` is sampled milliseconds after the resolver anchored
+  // `since`, so a 90-day window measures 90d + ε — ceil would report "91 días"
+  // for every bare 90d period. Round restores the period the operator selected.
+  const windowDays = Math.max(1, Math.round((until.getTime() - since.getTime()) / dayMs));
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+
+  // Universe: pets per province (no metric predicate) — the k-anon dimension.
+  const universe = await rollupPetsPerProvince([], scope);
+  const { visible, suppressedCount } = suppressSmallCells(universe, {
+    count: (r) => r.count,
+    key: (r) => r.province,
+    k: 5,
+  });
+
+  // Last vet-attended event per province (≤ until; see the no-floor note above).
+  const conditions: SQL[] = [
+    eq(petEvents.eventType, "vet_visit_logged"),
+    lte(petEvents.occurredAt, until),
+    isNotNull(pets.jurisdictionProvince),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      lastAt: sql<string | null>`MAX(${petEvents.occurredAt})`,
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...conditions))
+    .groupBy(pets.jurisdictionProvince)
+    .limit(PER_LAYER_CAP);
+  const lastByProvince = new Map<string, string>();
+  for (const r of rows) {
+    if (r.province && r.lastAt) lastByProvince.set(r.province, r.lastAt);
+  }
+
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of visible as unknown as ProvinceRollupRow[]) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    const lastAt = lastByProvince.get(r.province);
+    const days = lastAt
+      ? Math.min(
+          windowDays,
+          Math.max(0, Math.floor((until.getTime() - new Date(lastAt).getTime()) / dayMs)),
+        )
+      : windowDays;
+    cells.push({ provinceCode: code, label: r.province, value: days });
+  }
+  return { cells, truncated: false, suppressedCount };
 }
 
 // metrics:deworming (antiparasitario) — per-PROVINCE deworming coverage RATE via

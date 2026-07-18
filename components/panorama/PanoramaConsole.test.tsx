@@ -261,6 +261,102 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   });
 });
 
+describe("PanoramaConsole — Desierto veterinario vista (new-vistas wave)", () => {
+  it("commits the desierto board shallow (preset/layers/period=90d) and fetches its layer", async () => {
+    renderConsole();
+    // spyOn returns the SAME accumulated spy when pushState is already spied
+    // (earlier tests in this file) — clear it so the count below is THIS click's.
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Desierto veterinario/ }));
+
+    // Same preset-commit mechanism as every vista: ONE shallow push, no router.
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(routerPush).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("desierto-veterinario");
+    // The vista's N: 90 days without registered vet activity (the period IS N).
+    expect(params.get("period")).toBe("90d");
+    expect(params.get("layers")).toBe("desierto-veterinario");
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      expect(layerCalls.some((u) => u.includes("/api/panorama/desierto-veterinario"))).toBe(true);
+      for (const u of layerCalls) expect(u).toContain("period=90d");
+    });
+  });
+});
+
+describe("PanoramaConsole — Tendencia vista (new-vistas wave)", () => {
+  it("commits the tendencia board shallow (preset/layers/period=30d) and fetches its layer", async () => {
+    renderConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Tendencia/ }));
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(routerPush).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("tendencia");
+    // 30d vs the prior 30d — the operational trend cadence.
+    expect(params.get("period")).toBe("30d");
+    expect(params.get("layers")).toBe("tendencia");
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      expect(layerCalls.some((u) => u.includes("/api/panorama/tendencia"))).toBe(true);
+      for (const u of layerCalls) expect(u).toContain("period=30d");
+    });
+  });
+});
+
+describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivariate pair)", () => {
+  it("commits the riesgo-ppp board shallow (ppp base + mordeduras overlay) and fetches both axes", async () => {
+    renderConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    pushSpy.mockClear();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Riesgo PPP/ }));
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(routerPush).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("riesgo-ppp");
+    expect(params.get("period")).toBe("90d");
+    // Registry order (canonicalLayersKey): mordeduras precedes ppp.
+    expect(params.get("layers")).toBe("mordeduras,ppp");
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      // BOTH axes of the declared pair load through the ordinary layer path —
+      // the bivariate join reads the same caches, no side-channel fetch.
+      expect(layerCalls.some((u) => u.includes("/api/panorama/ppp"))).toBe(true);
+      expect(layerCalls.some((u) => u.includes("/api/panorama/mordeduras"))).toBe(true);
+      for (const u of layerCalls) expect(u).toContain("period=90d");
+    });
+  });
+});
+
 describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () => {
   it("restores a saved board on a bare URL via shallow replaceState + client fetch", async () => {
     window.localStorage.setItem(
