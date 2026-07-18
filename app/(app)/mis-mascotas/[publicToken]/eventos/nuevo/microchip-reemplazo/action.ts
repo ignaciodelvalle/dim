@@ -1,5 +1,6 @@
 "use server";
 
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { parseDateInput } from "@/lib/utils/format";
@@ -48,6 +49,10 @@ export async function replaceMicrochipOwnerAction(
   if (!replacedAtRaw) return { error: "Falta la fecha del reemplazo." };
   const replacedAtDate = parseDateInput(replacedAtRaw);
   if (!replacedAtDate) return { error: "Fecha de reemplazo inválida." };
+  // Date-only plausibility guard (PO decision 2026-07-16 — same family as P4
+  // item 1 on the events edge): AR calendar-day compare + BEFORE_BIRTH.
+  const plausibility = checkOccurredAtPlausible(replacedAtDate, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   // ARCH-S: legacy pets.microchipId column dropped — read from canonical.
   const canonicalIds = await fetchActiveIdentifications(pet.id);

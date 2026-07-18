@@ -11,6 +11,10 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Real module (NOT mocked) — the plausibility guard's AR-day compare needs the
+// genuine parseDateInput noon-UTC anchor plus isoDateInAr/todayIsoInAr.
+import { todayIsoInAr } from "@/lib/utils/format";
+
 // ---------------------------------------------------------------------------
 // Stable fixture values
 // ---------------------------------------------------------------------------
@@ -22,7 +26,14 @@ const CHIP = "985141000000001";
 const VET_USER_ID = "aaaaaaaa-0000-0000-0000-000000000002";
 const ORG_ID = "cccccccc-0000-0000-0000-000000000001";
 const ORG_TOKEN = "test-org-token";
-const TODAY = new Date().toISOString().slice(0, 10);
+// AR calendar day — the plausibility guard compares ARGENTINE days, and the
+// UTC day is already "tomorrow" in AR between 21:00 and 24:00 AR.
+const TODAY = todayIsoInAr();
+const TOMORROW_AR = (() => {
+  const d = new Date(`${TODAY}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+})();
 
 // ---------------------------------------------------------------------------
 // Mock: inner writer
@@ -40,7 +51,7 @@ vi.mock("@/src/modules/pets/application/microchip/replace-microchip", () => ({
 vi.mock("@/lib/infra/pets", () => ({
   requireOwnedPetByToken: vi.fn(async () => ({
     user: { id: OWNER_USER_ID },
-    pet: { id: PET_ID, publicToken: PET_TOKEN, microchipId: CHIP },
+    pet: { id: PET_ID, publicToken: PET_TOKEN, microchipId: CHIP, dateOfBirth: "2020-01-01" },
     accessPath: "owner" as const,
     organization: null,
   })),
@@ -80,7 +91,14 @@ vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
 // Both return the same pet fixture — callers can't distinguish the shape.
 // ---------------------------------------------------------------------------
 
-const PET_FIXTURE = { id: PET_ID, publicToken: PET_TOKEN, microchipId: CHIP, name: "Test" };
+const PET_FIXTURE = {
+  id: PET_ID,
+  publicToken: PET_TOKEN,
+  microchipId: CHIP,
+  name: "Test",
+  // Feeds the plausibility guard's BEFORE_BIRTH leg (PO 2026-07-16).
+  dateOfBirth: "2020-01-01",
+};
 // Vet action uses: db.select({ pet: pets, role: ownerships.role }).from(...).innerJoin(...).where(...).limit(1)
 // → first element of the result array is { pet: ..., role: ... }
 const VET_ROW = { pet: PET_FIXTURE, role: "shelter_custody" };
@@ -138,9 +156,9 @@ vi.mock("@/lib/infra/pet-identifiers", () => ({
 // Mock: format helpers + navigation
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/utils/format", () => ({
-  parseDateInput: vi.fn((s: string) => (s ? new Date(s) : null)),
-}));
+// NOTE: @/lib/utils/format is intentionally NOT mocked anymore — the
+// plausibility guard (PO 2026-07-16) needs the real noon-UTC parseDateInput
+// and the AR-day helpers.
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(() => {
@@ -359,5 +377,87 @@ describe("replaceMicrochipAdminAction — reason validation", () => {
     );
 
     expect(mockReplaceMicrochipForUser).toHaveBeenCalledOnce();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Date plausibility (PO 2026-07-16) — same-day AR accepted, tomorrow rejected.
+// The "accepts" leg is already exercised by the acceptance tests above (their
+// replacedAt is TODAY in AR); these assert the rejection copy per actor.
+// ---------------------------------------------------------------------------
+
+describe("replaceMicrochip* actions — date plausibility", () => {
+  beforeEach(() => mockReplaceMicrochipForUser.mockReset());
+
+  it("owner action rejects tomorrow's AR date", async () => {
+    const { replaceMicrochipOwnerAction } = await import(
+      "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip-reemplazo/action"
+    );
+    const fd = makeFormData({
+      reason: "damaged",
+      newChipNumber: "985141000000099",
+      replacedAt: TOMORROW_AR,
+    });
+    const result = await replaceMicrochipOwnerAction(PET_TOKEN, { error: null }, fd);
+    expect(result.error).toBe("La fecha no puede ser futura.");
+    expect(mockReplaceMicrochipForUser).not.toHaveBeenCalled();
+  });
+
+  it("owner action accepts today's AR date", async () => {
+    mockReplaceMicrochipForUser.mockResolvedValue({ ok: true, eventId: "evt-5", caseId: null });
+    const { replaceMicrochipOwnerAction } = await import(
+      "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip-reemplazo/action"
+    );
+    const fd = makeFormData({
+      reason: "damaged",
+      newChipNumber: "985141000000099",
+      replacedAt: TODAY,
+    });
+    await expect(replaceMicrochipOwnerAction(PET_TOKEN, { error: null }, fd)).rejects.toThrow(
+      "REDIRECT",
+    );
+    expect(mockReplaceMicrochipForUser).toHaveBeenCalledOnce();
+  });
+
+  it("vet action rejects tomorrow's AR date", async () => {
+    const { replaceMicrochipVetAction } = await import(
+      "@/app/org/[orgToken]/mascotas/[publicToken]/microchip/reemplazar/action"
+    );
+    const fd = makeFormData({
+      reason: "damaged",
+      newChipNumber: "985141000000099",
+      replacedAt: TOMORROW_AR,
+    });
+    const result = await replaceMicrochipVetAction(ORG_TOKEN, PET_TOKEN, { error: null }, fd);
+    expect(result.error).toBe("La fecha no puede ser futura.");
+    expect(mockReplaceMicrochipForUser).not.toHaveBeenCalled();
+  });
+
+  it("admin action rejects tomorrow's AR date", async () => {
+    const { replaceMicrochipAdminAction } = await import(
+      "@/app/admin/observaciones/[publicToken]/microchip/reemplazar/action"
+    );
+    const fd = makeFormData({
+      reason: "damaged",
+      newChipNumber: "985141000000099",
+      replacedAt: TOMORROW_AR,
+    });
+    const result = await replaceMicrochipAdminAction(PET_TOKEN, { error: null }, fd);
+    expect(result.error).toBe("La fecha no puede ser futura.");
+    expect(mockReplaceMicrochipForUser).not.toHaveBeenCalled();
+  });
+
+  it("owner action rejects a replacedAt before the pet's date of birth", async () => {
+    const { replaceMicrochipOwnerAction } = await import(
+      "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip-reemplazo/action"
+    );
+    const fd = makeFormData({
+      reason: "damaged",
+      newChipNumber: "985141000000099",
+      replacedAt: "2019-12-31",
+    });
+    const result = await replaceMicrochipOwnerAction(PET_TOKEN, { error: null }, fd);
+    expect(result.error).toMatch(/anterior a la fecha de nacimiento/i);
+    expect(mockReplaceMicrochipForUser).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 "use server";
 
 import { db, ownerships, pets } from "@/db";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { parseDateInput } from "@/lib/utils/format";
@@ -87,6 +88,10 @@ export async function replaceMicrochipVetAction(
   if (!replacedAtRaw) return { error: "Falta la fecha del reemplazo." };
   const replacedAtDate = parseDateInput(replacedAtRaw);
   if (!replacedAtDate) return { error: "Fecha de reemplazo inválida." };
+  // Date-only plausibility guard (PO decision 2026-07-16 — same family as P4
+  // item 1 on the events edge): AR calendar-day compare + BEFORE_BIRTH.
+  const plausibility = checkOccurredAtPlausible(replacedAtDate, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const result = await replaceMicrochipForUser(user.id, {
     petId: pet.id,

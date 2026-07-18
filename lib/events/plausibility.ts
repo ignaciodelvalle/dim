@@ -10,6 +10,9 @@
 // Pure function — no DB access. Callers (the events action edge) map the
 // returned error code to es-AR copy consistent with their own action's
 // existing error strings, and are responsible for fetching pet.dateOfBirth.
+// `checkOccurredAtPlausible` below is the shared date-only wrapper every
+// action edge wires (owner, atender, pregnancy/tattoo/microchip shims,
+// intake) so the copy cannot drift between surfaces.
 
 import { isoDateInAr, todayIsoInAr } from "@/lib/utils/format";
 
@@ -68,4 +71,27 @@ export function assertOccurredAtPlausible(
   }
 
   return { ok: true };
+}
+
+/** Canonical es-AR copy for the two plausibility rejections — shared by every
+ * action edge so the strings stay identical across owner/professional/admin
+ * surfaces. */
+export function plausibilityErrorMessage(error: PlausibilityErrorCode): string {
+  return error === "FUTURE_DATE"
+    ? "La fecha no puede ser futura."
+    : "La fecha es anterior a la fecha de nacimiento registrada de la mascota.";
+}
+
+/**
+ * Date-only convenience wrapper for action edges whose occurred-at input is an
+ * `<input type="date">` parsed via `parseDateInput` (noon-UTC anchor). Runs the
+ * guard in `isDateOnly` mode (Argentine calendar-day compare) and maps the
+ * error code to the shared es-AR copy. Returns null when the date is plausible.
+ */
+export function checkOccurredAtPlausible(
+  occurredAt: Date,
+  petDateOfBirth: string | null,
+): { error: string } | null {
+  const result = assertOccurredAtPlausible({ occurredAt, isDateOnly: true, petDateOfBirth });
+  return result.ok ? null : { error: plausibilityErrorMessage(result.error) };
 }

@@ -18,6 +18,7 @@
 
 import { redirect } from "next/navigation";
 
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { type SupabaseServerClient, requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { parseDateInput } from "@/lib/utils/format";
@@ -55,6 +56,23 @@ async function cleanupAttachment(
 }
 
 // ---------------------------------------------------------------------------
+// Private helper — optional recordedAt: parse + date-only plausibility guard
+// (PO decision 2026-07-16 — same family as P4 item 1 on the events edge).
+// ---------------------------------------------------------------------------
+
+function parseRecordedAt(
+  raw: string,
+  petDateOfBirth: string | null,
+): { ok: true; recordedAt: Date | null } | { ok: false; error: string } {
+  if (!raw) return { ok: true, recordedAt: null };
+  const recordedAt = parseDateInput(raw);
+  if (!recordedAt) return { ok: false, error: "Fecha del tatuaje inválida." };
+  const plausibility = checkOccurredAtPlausible(recordedAt, petDateOfBirth);
+  if (plausibility) return { ok: false, error: plausibility.error };
+  return { ok: true, recordedAt };
+}
+
+// ---------------------------------------------------------------------------
 // Outer server action — gates via requireAlivePetAccess, then delegates to writer.
 // ---------------------------------------------------------------------------
 
@@ -80,10 +98,9 @@ export async function createTattooAction(
     ? (locationRaw as TattooLocation)
     : null;
 
-  const recordedAt = recordedAtRaw ? parseDateInput(recordedAtRaw) : null;
-  if (recordedAtRaw && !recordedAt) {
-    return { error: "Fecha del tatuaje inválida." };
-  }
+  const recordedAtParsed = parseRecordedAt(recordedAtRaw, pet.dateOfBirth);
+  if (!recordedAtParsed.ok) return { error: recordedAtParsed.error };
+  const { recordedAt } = recordedAtParsed;
 
   const attachmentFile = formData.get("attachment") as File | null;
   if (!attachmentFile || attachmentFile.size === 0) {

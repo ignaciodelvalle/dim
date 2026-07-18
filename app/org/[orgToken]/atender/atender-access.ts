@@ -57,6 +57,8 @@ export type AtenderPet = {
   name: string;
   species: string;
   status: "active" | "lost" | "deceased";
+  /** "YYYY-MM-DD" or null — feeds the writers' BEFORE_BIRTH plausibility leg. */
+  dateOfBirth: string | null;
 };
 
 export type AtenderSigner = {
@@ -237,6 +239,9 @@ export async function resolveAtenderPet(
       name: pets.name,
       species: pets.species,
       status: pets.status,
+      // Needed by the atender writers' plausibility guard (BEFORE_BIRTH leg) —
+      // pet identity data, not owner PII.
+      dateOfBirth: pets.dateOfBirth,
     })
     .from(pets)
     .where(eq(pets.publicToken, normalized))

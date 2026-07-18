@@ -23,6 +23,7 @@ import {
 } from "@/lib/reference/medication-schedule";
 
 import { db } from "@/db";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { notifyOwnersOfClinicalEvent } from "@/lib/infra/notify-owners-of-clinical-event";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -126,6 +127,10 @@ export async function atenderVaccinationAction(
   if (!occurredAtRaw) return { error: "Falta la fecha de aplicación." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+  // Same date-only plausibility guard as the owner edge (P4 item 1) — the
+  // walk-in input is an <input type="date">, so AR calendar-day compare.
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
 
@@ -215,6 +220,8 @@ export async function atenderDewormingAction(
   if (!occurredAtRaw) return { error: "Falta la fecha de aplicación." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
 
@@ -301,6 +308,8 @@ export async function atenderClinicalInfoAction(
   if (!occurredAtRaw) return { error: "Falta la fecha." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -388,6 +397,8 @@ export async function atenderMedicationStartAction(
   if (!occurredAtRaw) return { error: "Falta la fecha de inicio." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de inicio inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const frequencyRaw = String(formData.get("frequency") ?? "").trim();
   const customHoursRaw = String(formData.get("customHours") ?? "").trim() || null;
@@ -498,6 +509,8 @@ export async function atenderNoteAction(
   if (!occurredAtRaw) return { error: "Falta la fecha." };
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");

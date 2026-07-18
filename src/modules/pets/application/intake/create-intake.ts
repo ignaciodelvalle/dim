@@ -35,6 +35,7 @@ import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { EventPayloadValidationError, validateEventPayload } from "@/lib/events/event-schemas";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { openCase } from "@/lib/infra/case-helpers";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { matchesDbError } from "@/lib/infra/db-errors";
@@ -117,6 +118,14 @@ function parseIntakeForm(formData: FormData) {
   const occurredAt = occurredAtRaw ? parseDateInput(occurredAtRaw) : new Date();
   if (occurredAtRaw && !occurredAt) {
     return { parsed: null, error: "Fecha de ingreso inválida." };
+  }
+  // Future-date guard (PO decision 2026-07-16, same family as P4 item 1):
+  // date-only input → AR calendar-day compare. No BEFORE_BIRTH leg here — the
+  // pet's DOB is ESTIMATED from the age fields at this very moment, so
+  // comparing the (past) intake date against it would produce false rejections.
+  if (occurredAtRaw && occurredAt) {
+    const plausibility = checkOccurredAtPlausible(occurredAt, null);
+    if (plausibility) return { parsed: null, error: plausibility.error };
   }
 
   const breed = String(formData.get("breed") ?? "").trim() || null;

@@ -34,7 +34,7 @@ import { db, profiles } from "@/db";
 import { pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
@@ -121,27 +121,12 @@ function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
 // their own edge.
 // ---------------------------------------------------------------------------
 
-function plausibilityErrorMessage(error: "FUTURE_DATE" | "BEFORE_BIRTH"): string {
-  return error === "FUTURE_DATE"
-    ? "La fecha no puede ser futura."
-    : "La fecha es anterior a la fecha de nacimiento registrada de la mascota.";
-}
-
-/**
- * Returns an EventFormState-shaped error, or null when the date is plausible.
- * Every caller in this module parses `occurredAt` from a date-only
- * `<input type="date">` via `parseDateInput` (noon-UTC anchor), so the guard
- * runs in date-only mode: the future check compares Argentine calendar days,
- * never the noon-UTC instant against the wall clock (which rejected same-day
- * submissions made before 09:05 AR).
- */
-function checkOccurredAtPlausible(
-  occurredAt: Date,
-  petDateOfBirth: string | null,
-): { error: string } | null {
-  const result = assertOccurredAtPlausible({ occurredAt, isDateOnly: true, petDateOfBirth });
-  return result.ok ? null : { error: plausibilityErrorMessage(result.error) };
-}
+// Every caller in this module parses `occurredAt` from a date-only
+// `<input type="date">` via `parseDateInput` (noon-UTC anchor), so the shared
+// checkOccurredAtPlausible (lib/events/plausibility.ts) runs in date-only
+// mode: the future check compares Argentine calendar days, never the noon-UTC
+// instant against the wall clock (which rejected same-day submissions made
+// before 09:05 AR).
 
 // P4 item 2 (2026-07-08): upper bound on weight_recorded.kg. The write path
 // below parses kg as a bare positive float with no upper bound, so a
@@ -1325,6 +1310,17 @@ export async function createSymptomObservedAction(
   const onsetRaw = String(formData.get("onsetAt") ?? "").trim();
   const onsetAt = onsetRaw.length > 0 ? onsetRaw : null;
 
+  // Guard the optional date-only onset (the writer stamps occurredAt from it;
+  // an unparseable value falls back to "now" inside the use-case, so only a
+  // successfully parsed onset needs the plausibility check).
+  if (onsetAt) {
+    const onsetDate = parseDateInput(onsetAt);
+    if (onsetDate) {
+      const plausibility = checkOccurredAtPlausible(onsetDate, pet.dateOfBirth);
+      if (plausibility) return plausibility;
+    }
+  }
+
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   const repo = new EventsRepository();
@@ -1651,6 +1647,10 @@ export async function createDeathRecordAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  // A future death date is an impossible record (PO decision 2026-07-16 —
+  // same family as the P4 guard on the medical writers above).
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const dispositionMethod = dispositionMethodRaw === "" ? null : dispositionMethodRaw;
   if (dispositionMethod !== null && !(DM as readonly string[]).includes(dispositionMethod)) {

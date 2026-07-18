@@ -20,6 +20,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { todayIsoInAr } from "@/lib/utils/format";
+
 // ---------------------------------------------------------------------------
 // Module mocks (must be at top level before imports)
 // ---------------------------------------------------------------------------
@@ -106,6 +108,17 @@ vi.mock("@/lib/supabase/server", () => ({
 
 vi.mock("@/src/modules/surveillance/application/enqueue-eno-trigger", () => ({
   enqueueEnoTrigger: vi.fn().mockResolvedValue(undefined),
+}));
+
+// createDeathRecordAction dynamically imports these before its writer runs.
+vi.mock("@/lib/infra/case-helpers", () => ({
+  findOpenCaseForPetAndKind: vi.fn().mockResolvedValue(null),
+  openCase: vi.fn(),
+}));
+
+// createSymptomObservedAction revalidates its pet page on success.
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
 }));
 
 vi.mock("@/src/modules/surveillance/infrastructure/surveillance-repository", () => ({
@@ -197,8 +210,9 @@ vi.mock("../application/clinical/clinical-info-use-case", () => ({
 vi.mock("../application/clinical/record-disease-diagnosis-use-case", () => ({
   recordDiseaseDiagnosisWriter: vi.fn().mockResolvedValue({ ok: true, value: {} }),
 }));
+const mockCreateDeathRecord = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true, value: {} }));
 vi.mock("../application/lifecycle/death-record-use-case", () => ({
-  createDeathRecord: vi.fn().mockResolvedValue({ ok: true, value: {} }),
+  createDeathRecord: mockCreateDeathRecord,
 }));
 vi.mock("../application/lifecycle/set-pet-found-use-case", () => ({
   setPetFound: vi.fn().mockResolvedValue(undefined),
@@ -209,8 +223,11 @@ vi.mock("../application/lifecycle/set-pet-lost-use-case", () => ({
 vi.mock("../application/lifecycle/update-lost-last-seen-use-case", () => ({
   updateLostLastSeen: vi.fn().mockResolvedValue({ error: null }),
 }));
+const mockCreateSymptomObservedWriter = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ ok: true, value: {} }),
+);
 vi.mock("../application/surveillance/symptom-observed-use-case", () => ({
-  createSymptomObservedWriter: vi.fn().mockResolvedValue({ ok: true, value: {} }),
+  createSymptomObservedWriter: mockCreateSymptomObservedWriter,
 }));
 
 // ---------------------------------------------------------------------------
@@ -249,6 +266,31 @@ function weightFormData(overrides?: Record<string, string>): FormData {
   const fd = new FormData();
   fd.set("kg", "10");
   fd.set("occurredAt", "2026-07-08");
+  for (const [k, v] of Object.entries(overrides ?? {})) fd.set(k, v);
+  return fd;
+}
+
+// AR calendar-day fixtures — the guard compares ARGENTINE days, so "today"
+// must be the AR day, not the runner's UTC day (they differ 21:00-24:00 AR).
+const TODAY_AR = todayIsoInAr();
+const TOMORROW_AR = (() => {
+  const d = new Date(`${TODAY_AR}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+})();
+
+function deathFormData(overrides?: Record<string, string>): FormData {
+  const fd = new FormData();
+  fd.set("cause", "natural");
+  fd.set("occurredAt", TODAY_AR);
+  for (const [k, v] of Object.entries(overrides ?? {})) fd.set(k, v);
+  return fd;
+}
+
+function symptomFormData(overrides?: Record<string, string>): FormData {
+  const fd = new FormData();
+  fd.set("freeText", "Vomita desde ayer");
+  fd.set("onsetAt", TODAY_AR);
   for (const [k, v] of Object.entries(overrides ?? {})) fd.set(k, v);
   return fd;
 }
@@ -422,6 +464,56 @@ describe("events/actions.ts — P4 plausibility layer", () => {
       expect(result.sameDayPrompt).toBeUndefined();
       expect(mockFindSameDayEventOfType).not.toHaveBeenCalled();
       expect(mockCreateDeworming).toHaveBeenCalledOnce();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // PO decision 2026-07-16 — guard the remaining guardless writers
+  // ---------------------------------------------------------------------
+  describe("createDeathRecordAction — plausibility", () => {
+    it("accepts today's AR date and rejects tomorrow's", async () => {
+      mockRequirePetAccess.mockResolvedValue(makeAliveAccess());
+      const mod = await import("../actions");
+
+      const ok = await mod.createDeathRecordAction(
+        "DIM-TEST-0001",
+        { error: null },
+        deathFormData(),
+      );
+      expect(ok.error).toBeNull();
+      expect(mockCreateDeathRecord).toHaveBeenCalledOnce();
+
+      mockCreateDeathRecord.mockClear();
+      const rejected = await mod.createDeathRecordAction(
+        "DIM-TEST-0001",
+        { error: null },
+        deathFormData({ occurredAt: TOMORROW_AR }),
+      );
+      expect(rejected.error).toBe("La fecha no puede ser futura.");
+      expect(mockCreateDeathRecord).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("createSymptomObservedAction — plausibility", () => {
+    it("accepts today's AR onset and rejects tomorrow's", async () => {
+      const mod = await import("../actions");
+
+      const ok = await mod.createSymptomObservedAction(
+        "DIM-TEST-0001",
+        { error: null },
+        symptomFormData(),
+      );
+      expect(ok.error).toBeNull();
+      expect(mockCreateSymptomObservedWriter).toHaveBeenCalledOnce();
+
+      mockCreateSymptomObservedWriter.mockClear();
+      const rejected = await mod.createSymptomObservedAction(
+        "DIM-TEST-0001",
+        { error: null },
+        symptomFormData({ onsetAt: TOMORROW_AR }),
+      );
+      expect(rejected.error).toBe("La fecha no puede ser futura.");
+      expect(mockCreateSymptomObservedWriter).not.toHaveBeenCalled();
     });
   });
 });
