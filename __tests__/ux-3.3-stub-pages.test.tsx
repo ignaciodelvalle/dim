@@ -94,7 +94,7 @@ describe("AccesibilidadPage — honest accessibility statement (UX 3.3)", () => 
 
   it("includes a contact channel for accessibility issues", () => {
     // Must point users somewhere to report accessibility problems.
-    expect(html).toContain("github.com");
+    expect(html).toContain("/sugerencias");
   });
 });
 
