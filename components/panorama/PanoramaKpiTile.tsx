@@ -43,10 +43,12 @@ export function PanoramaKpiTile({ kpi }: Props) {
         <span className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {kpi.label}
         </span>
-        <span className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-mute">
+        <span className="font-ln-serif text-[var(--text-2xl)] font-semibold leading-none tracking-[-0.02em] text-ln-op-mute">
           —
         </span>
-        <p className="mt-auto pt-1.5 text-[11px] text-ln-op-mute">No disponible en este momento.</p>
+        <p className="mt-auto pt-1.5 text-[var(--text-xs)] text-ln-op-mute">
+          No disponible en este momento.
+        </p>
       </div>
     );
   }
