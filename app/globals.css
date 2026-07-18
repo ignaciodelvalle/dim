@@ -2827,25 +2827,17 @@ body {
   }
 }
 
-/* Carousel position dots (tarjeta-todo → PO 2026-07-18 dedicated-slot fix).
-   TRUE horizontal centering is the fix itself — no directional offset to
-   miscalibrate. The previous ad-hoc `translate-x-3` (right-of-center) nudge
-   pushed the strip past the card's right edge at OWNER_CAROUSEL_CAP (8 dots,
-   ~170px wide) on a 320–360px viewport, where `.ln-face`'s overflow:hidden
-   clipped it against the QR poke corner — that clipped fragment is what read
-   as "outside the credential" (PO QA 2026-07-18). Vertically it sits in the
-   band's free strip: the turn button ends ~54px from the band top, and the
-   photo/QR poke-up starts ~74px (desktop, the tightest case — mobile clears
-   ~84px). `top: 56px` centers the 16px-tall dots row in that ~20px window
-   with a couple px clearance on both sides; the photo/QR additionally sit at
-   the band's far horizontal edges while the dots are dead-center, so a
-   hairline vertical graze never becomes a visual overlap. */
-.ln-band-dots {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  top: 56px;
-  z-index: 4;
+/* Pet switcher nav (PO correction 2026-07-18, reversing the tarjeta-todo
+   dots-in-band placement — ".ln-band-dots" is gone): "El carousel lo quiero
+   FUERA de la credencial. No tiene nada que ver la navegación en la app con
+   la credencial digital de una mascota." PetSwitcherDots now mounts in
+   page.tsx ABOVE the credential card, in the page's own space — app chrome,
+   not credential content. Centered, with clearance below it so it never
+   reads as touching the card's frame/band. */
+.ln-pet-switcher {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
 }
 
 /* ---- Body + labeled hairline dividers ------------------------------------ */

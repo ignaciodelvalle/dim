@@ -128,11 +128,19 @@ describe("pet-profile page.tsx — front-face delegation (AGENTS.md rule 5)", ()
 
 // ---------------------------------------------------------------------------
 // tarjeta-todo (PO 2026-07-19) — the profile is ONE thing: the rotating card.
-// Nothing above it (org back-link/notice excepted — org viewers only), nothing
-// below it. The under-card blocks (PetOwnerActivity: nudges / Recordatorios /
-// Próximos turnos / Ciclos abiertos) are gone; their unique actions moved
-// INTO the card (libreta PRÓXIMO rows), and the carousel dots moved into the
-// document band.
+// Nothing below it. The under-card blocks (PetOwnerActivity: nudges /
+// Recordatorios / Próximos turnos / Ciclos abiertos) are gone; their unique
+// actions moved INTO the card (libreta PRÓXIMO rows).
+//
+// PO correction (2026-07-18) revises the "nothing above it" half of that
+// doctrine: the carousel position dots briefly lived INSIDE the document
+// band (tarjeta-todo's dots-in-band placement), but the PO clarified that
+// switching between pets is APP-LEVEL navigation, a different layer from the
+// credential itself — "no tiene nada que ver la navegación en la app con la
+// credencial digital de una mascota." PetSwitcherDots now mounts ABOVE the
+// card as app chrome (org back-link/notice excepted — org viewers only, and
+// now also PetSwitcherDots — owners with >1 live pet). See the describe
+// block below for the render-order proof.
 // ---------------------------------------------------------------------------
 
 describe("tarjeta-todo — the page renders nothing after the card container", () => {
@@ -141,6 +149,9 @@ describe("tarjeta-todo — the page renders nothing after the card container", (
     // Slice the RETURN JSX from the card container conditional to the end of
     // the page component (the preserved banner helpers below the component
     // are alert-strip content, mounted INSIDE the card's Avisos slot).
+    // PetSwitcherDots is deliberately OUTSIDE this slice — it mounts BEFORE
+    // `{showCarousel ? (` (above the card, not after it); the companion
+    // describe block below proves that source position directly.
     const start = sourceIndex(src, "{showCarousel ? (");
     const end = sourceIndex(src, "// Banners — PRESERVED");
     const tail = src.slice(start, end);
@@ -172,19 +183,54 @@ describe("tarjeta-todo — the page renders nothing after the card container", (
     expect(ledger).toContain("buildReminderVaccineUrl");
   });
 
-  it("the carousel dots render in the band (bandDots slot), not as page chrome", () => {
+  it('no longer renders the deleted "bandDots" slot thread or its DocumentChrome slot', () => {
+    // Regression guard for the PO correction: the carousel dots' old home
+    // (the document band's bandDots prop thread, page.tsx → PetDetailTabsPanel
+    // → FlipCard → DocumentChrome) must not resurface.
     const src = read(PAGE_TSX);
-    // page.tsx builds the band dots and threads them into the document...
-    sourceIndex(src, "<CarouselBandDots");
-    sourceIndex(src, "bandDots={bandDots}");
-    // ...and DocumentChrome mounts the slot outside the aria-hidden band
-    // (render-level proof in DocumentChrome.test.tsx).
+    expect(src).not.toContain("<CarouselBandDots");
+    expect(src).not.toContain("bandDots={bandDots}");
     const chrome = read(resolve(__dirname, "../components/pet-profile/DocumentChrome.tsx"));
-    expect(chrome).toContain('data-section="band-dots"');
-    // The dots group carries its accessible name (the honest-cap disclosure).
-    const dots = read(resolve(__dirname, "../components/pet-profile/CarouselBandDots.tsx"));
+    expect(chrome).not.toContain('data-section="band-dots"');
+    expect(chrome).not.toContain("bandDots");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PO correction (2026-07-18) — PetSwitcherDots (the renamed carousel dots)
+// mounts ABOVE the card as its own app-chrome element, gated by the same
+// `showCarousel` condition as the swipe shell, never inside the credential.
+// ---------------------------------------------------------------------------
+
+describe("PO correction — the multi-pet nav (PetSwitcherDots) renders ABOVE the card, as app chrome", () => {
+  it("mounts PetSwitcherDots, gated by showCarousel, BEFORE the card container in source order", () => {
+    const src = read(PAGE_TSX);
+    const switcherAt = sourceIndex(src, "{showCarousel && (");
+    sourceIndex(src, "<PetSwitcherDots");
+    const cardAt = sourceIndex(src, "{showCarousel ? (");
+    expect(
+      switcherAt,
+      "PetSwitcherDots must mount BEFORE the card container — it is app-level navigation above the credential, not credential content (PO correction 2026-07-18)",
+    ).toBeLessThan(cardAt);
+  });
+
+  it("PetSwitcherDots is a standalone component, not a prop threaded into the credential document", () => {
+    const dots = read(resolve(__dirname, "../components/pet-profile/PetSwitcherDots.tsx"));
+    // The dots group carries its accessible name (the honest-cap disclosure) —
+    // pure design on the page, no visible "mostrando N de M" text.
     expect(dots).toContain("aria-label={groupLabel}");
     expect(dots).toContain("mostrando ${total} de ${householdTotal}");
+    // It renders as its own <nav>, styled above the card (not the old
+    // in-band class).
+    expect(dots).toContain("ln-pet-switcher");
+    expect(dots).not.toContain("ln-band-dots");
+  });
+
+  it("the removed .ln-band-dots CSS rule never resurfaces in globals.css", () => {
+    const css = read(resolve(__dirname, "../app/globals.css"));
+    // Match the actual selector (a class rule opening), not the historical
+    // mention of the removed class name in this file's own migration comment.
+    expect(css).not.toMatch(/\.ln-band-dots\s*\{/);
   });
 });
 

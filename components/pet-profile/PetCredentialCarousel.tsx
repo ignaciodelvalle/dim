@@ -2,24 +2,27 @@
 
 // PetCredentialCarousel — the owner credential carousel shell (owner-ia-redesign
 // P4, "the heart"). The pet profile SWIPES between the owner's live pets,
-// urgent-first. This shell is now INVISIBLE (tarjeta-todo: the profile is the
-// card and nothing else): the old top chrome — position dots, desktop arrows,
-// the "Mostrando N de M" cap paragraph — is gone. The dots moved INTO the
-// document band (CarouselBandDots, mounted by DocumentChrome; the cap
-// disclosure lives in that group's aria-label), the arrows died with the
-// strip (keyboard ←/→, swipe, and the dots still navigate), and this shell
-// keeps only the gesture handling, the window keyboard listener, and the
-// one-neighbor-each-side prefetch. The credential document itself stays
-// SERVER-RENDERED per route and is passed in as `children` — a swipe is a real
-// NAVIGATION to the neighbor's route (`/mis-mascotas/[token]`), NOT a
-// client-side pane slider. The URL follows, so the back button and sharing stay
-// honest (PO decision 7).
+// urgent-first. This shell is INVISIBLE (tarjeta-todo: the credential document
+// itself carries no chrome of its own): the old top chrome — position dots,
+// desktop arrows, the "Mostrando N de M" cap paragraph — is gone. The dots
+// live in PetSwitcherDots, mounted by page.tsx ABOVE this shell (PO
+// correction 2026-07-18: navigating between pets is app-level, not credential
+// content — the dots moved OUT of the document band they briefly occupied
+// under tarjeta-todo; the cap disclosure still lives in that group's
+// aria-label). The arrows died with the old strip (keyboard ←/→ and swipe
+// still navigate), and this shell keeps only the gesture handling, the
+// window keyboard listener, and the one-neighbor-each-side prefetch. The
+// credential document itself stays SERVER-RENDERED per route and is passed
+// in as `children` — a swipe is a real NAVIGATION to the neighbor's route
+// (`/mis-mascotas/[token]`), NOT a client-side pane slider. The URL follows,
+// so the back button and sharing stay honest (PO decision 7).
 //
 // GESTURE SURFACE IS CONSTRAINED (the top P4 UX risk — vertical scroll of the
 // long document must never fight the swipe). The horizontal swipe is captured
 // ONLY when the gesture STARTS inside a `[data-swipe-zone]` element: the
-// band dots strip (CarouselBandDots) and the credential's identity band
-// (CredentialFace's identity `.ln-sec`, marked there). Everywhere else —
+// credential's identity band (CredentialFace's identity `.ln-sec`, marked
+// there). PetSwitcherDots, now mounted outside this shell above the card, is
+// NOT a swipe zone — it is a plain tap-nav strip. Everywhere else —
 // compliance, avisos, the libreta face — pointer gestures pass straight
 // through to normal scrolling, because we never preventDefault and only act on
 // a completed, horizontal-dominant gesture that began in a zone.
@@ -167,8 +170,8 @@ export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
   return (
     // Pointer handlers are the touch/mouse swipe surface (not click targets);
     // keyboard nav is the window ←/→ listener above. No visible chrome of its
-    // own (tarjeta-todo) — the position dots render inside the document band
-    // (CarouselBandDots via DocumentChrome).
+    // own — the position dots (PetSwitcherDots) render as a sibling ABOVE
+    // this wrapper in page.tsx, app-level chrome outside the credential.
     <div
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}

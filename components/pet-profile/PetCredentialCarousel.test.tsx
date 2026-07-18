@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 //
 // PetCredentialCarousel interaction tests (owner-ia-redesign P4; slimmed by
-// tarjeta-todo). The shell is INVISIBLE now — the position dots moved into the
-// document band (CarouselBandDots.test.tsx covers them) and the desktop
+// tarjeta-todo). The shell is INVISIBLE — the position dots live in
+// PetSwitcherDots, mounted by page.tsx ABOVE this shell (PO correction
+// 2026-07-18; PetSwitcherDots.test.tsx covers them) and the desktop
 // arrows died with the top chrome strip. This file drives what the shell
 // still owns: keyboard ←/→ navigation (with end-clamp and the tab/dialog
 // guards), the constrained pointer swipe (zone-gated, sheet-gated), and the
