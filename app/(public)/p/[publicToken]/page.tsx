@@ -33,6 +33,7 @@ import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import {
   type PermanentCondition,
@@ -471,9 +472,10 @@ export default async function PublicCredentialPage({
         const adminClient = createAdminClient();
         const { data } = await adminClient.auth.admin.getUserById(ownerRow.ownerUserId);
         ownerEmail = data?.user?.email ?? null;
-      } catch {
+      } catch (err) {
         // Non-fatal: if email fetch fails, fall through to null (same as
         // if the pref were false). The credential renders without email.
+        reportError("public-credential/owner-email", err, { publicToken });
         ownerEmail = null;
       }
     }

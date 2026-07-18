@@ -27,6 +27,7 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -209,7 +210,7 @@ export async function reportFinderInPossessionAction(
       },
     );
     if (uploadResult.error) {
-      console.warn("[finder-possession] Photo upload failed (non-fatal):", uploadResult.error);
+      reportError("public-encontre/photo-upload", uploadResult.error, { publicToken });
       photoWarning = "No se pudo subir la foto, pero el aviso fue registrado igual.";
     } else {
       photoStoragePath = uploadResult.uploadedPath;
