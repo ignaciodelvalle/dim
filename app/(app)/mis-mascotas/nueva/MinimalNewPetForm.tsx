@@ -24,7 +24,14 @@
 //      fields are also controlled via useState for reset-safety).
 
 import Link from "next/link";
-import { type FormEvent, useActionState, useEffect, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type KeyboardEvent,
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
@@ -113,7 +120,29 @@ export function MinimalNewPetForm({
     setOverrideDuplicate(true);
   }
 
-  const duplicatePrompt = !overrideDuplicate ? state.duplicatePrompt : undefined;
+  // PO bug 2026-07-18: the duplicatePrompt lives in SERVER state, which never
+  // clears on client edits. After Volver + changing the identity, the stale
+  // banner kept hiding the normal submit, leaving "crear igual" as the only
+  // affirmative action — an IMMEDIATE submit that skipped the P2 re-check for
+  // an identity the server never evaluated. Editing any P2-relevant field
+  // (name / species / sex) marks the prompt STALE: a stale prompt stops
+  // rendering and stops gating, and the fresh submit re-runs the cheap,
+  // authoritative server-side P2 check (a changed identity that still collides
+  // re-prompts with fresh data). Staleness resets whenever a NEW prompt
+  // arrives — the effect is keyed on the action-state identity because every
+  // action return builds a fresh state object.
+  const [duplicatePromptStale, setDuplicatePromptStale] = useState(false);
+
+  useEffect(() => {
+    if (state.duplicatePrompt) setDuplicatePromptStale(false);
+  }, [state]);
+
+  function markIdentityEdited() {
+    if (state.duplicatePrompt) setDuplicatePromptStale(true);
+  }
+
+  const duplicatePrompt =
+    !overrideDuplicate && !duplicatePromptStale ? state.duplicatePrompt : undefined;
 
   // Controlled field state — survives the React 19 form-reset on a server-error
   // return and preserves values across step back-navigation.
@@ -181,10 +210,23 @@ export function MinimalNewPetForm({
     setClientError(null);
   }
 
+  // Paso 1 has no submit button, so Enter must never fall through to an
+  // implicit form submission (nor dead-end): route it to the same guard as
+  // the "Continuar" button. Skips events a child already consumed (the
+  // locality LnCombobox preventDefaults Enter to pick the active option).
+  function handleFormKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+    if (e.key !== "Enter" || step !== 1 || e.defaultPrevented) return;
+    const target = e.target;
+    if (target instanceof HTMLInputElement || target instanceof HTMLSelectElement) {
+      e.preventDefault();
+      goToStep2();
+    }
+  }
+
   const errorText = clientError ?? state?.error ?? null;
 
   return (
-    <form ref={formRef} action={formAction} onSubmit={handleSubmit}>
+    <form ref={formRef} action={formAction} onSubmit={handleSubmit} onKeyDown={handleFormKeyDown}>
       {/* Data-quality gates: stable idempotency key (P1) + soft-dedupe override (P2). */}
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="duplicateOverride" value={overrideDuplicate ? "1" : "0"} />
@@ -221,7 +263,10 @@ export function MinimalNewPetForm({
                 invalid={invalid}
                 autoComplete="off"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  markIdentityEdited();
+                }}
               />
             )}
           </LnField>
@@ -233,10 +278,12 @@ export function MinimalNewPetForm({
             onPick={(p) => {
               setSpeciesPick(p);
               setBreed("");
+              markIdentityEdited();
             }}
             onOtherSpeciesChange={(v) => {
               setOtherSpecies(v);
               setBreed("");
+              markIdentityEdited();
             }}
           />
 
@@ -288,7 +335,10 @@ export function MinimalNewPetForm({
                 name="sex"
                 value="female"
                 checked={sex === "female"}
-                onChange={() => setSex("female")}
+                onChange={() => {
+                  setSex("female");
+                  markIdentityEdited();
+                }}
               >
                 Hembra
               </LnRadio>
@@ -296,7 +346,10 @@ export function MinimalNewPetForm({
                 name="sex"
                 value="male"
                 checked={sex === "male"}
-                onChange={() => setSex("male")}
+                onChange={() => {
+                  setSex("male");
+                  markIdentityEdited();
+                }}
               >
                 Macho
               </LnRadio>
@@ -304,7 +357,10 @@ export function MinimalNewPetForm({
                 name="sex"
                 value="unknown"
                 checked={sex === "unknown"}
-                onChange={() => setSex("unknown")}
+                onChange={() => {
+                  setSex("unknown");
+                  markIdentityEdited();
+                }}
               >
                 No sé
               </LnRadio>
