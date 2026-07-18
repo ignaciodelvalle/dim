@@ -25,15 +25,13 @@ describe("breedsForSpecies — companion species", () => {
     expect(breedsForSpecies("dog").length).toBeGreaterThan(10);
     expect(breedsForSpecies("cat").length).toBeGreaterThan(5);
   });
-  it("rabbit/guinea_pig/ferret return only SPECIAL options (no breed catalog)", () => {
-    const rabbit = breedsForSpecies("rabbit");
-    const guinea = breedsForSpecies("guinea_pig");
-    const ferret = breedsForSpecies("ferret");
-    // SPECIAL_BREED_OPTIONS prefix is the same across species; we only
-    // assert that no dog/cat-specific entries leaked.
-    expect(rabbit).not.toContain("Pit Bull Terrier");
-    expect(guinea).not.toContain("Persa");
-    expect(ferret.length).toBe(rabbit.length);
+  it("rabbit/guinea_pig/ferret return only the SPECIAL options, as a literal list", () => {
+    // Literal array (audit 2026-07): the former length-equality assertion
+    // could not tell "both correct" apart from "both equally wrong".
+    const SPECIAL_ONLY = ["Mixto / Cruza", "Pura raza no listada"];
+    expect(breedsForSpecies("rabbit")).toEqual(SPECIAL_ONLY);
+    expect(breedsForSpecies("guinea_pig")).toEqual(SPECIAL_ONLY);
+    expect(breedsForSpecies("ferret")).toEqual(SPECIAL_ONLY);
   });
 });
 
@@ -63,6 +61,14 @@ describe("drugsForSpecies — companion species", () => {
   it("falls back to the full catalog for non-dog/cat species", () => {
     const rabbit = drugsForSpecies("rabbit");
     const full = drugsForSpecies(null);
-    expect(rabbit.length).toBe(full.length);
+    // Full deep equality (audit 2026-07): length-only equality would pass for
+    // two catalogs that are equally truncated or reordered differently.
+    expect(rabbit).toEqual(full);
+    // And the fallback really is the WHOLE catalog, not an empty-equals-empty
+    // degenerate case: pin a couple of known entries as literals.
+    const codes = rabbit.map((d) => d.code);
+    expect(codes).toContain("amoxicillin");
+    expect(codes).toContain("enrofloxacin");
+    expect(rabbit.length).toBeGreaterThan(20);
   });
 });

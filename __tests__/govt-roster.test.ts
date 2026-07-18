@@ -11,10 +11,14 @@ describe("isDeadGovt", () => {
     expect(isDeadGovt(true, 0)).toBe(true);
   });
   it("does not flag an active govt with localities", () => {
+    // 1 is the boundary (merged from the deleted lib/infra/govt-roster.test.ts).
+    expect(isDeadGovt(true, 1)).toBe(false);
     expect(isDeadGovt(true, 3)).toBe(false);
+    expect(isDeadGovt(true, 5)).toBe(false);
   });
   it("never flags a deactivated govt", () => {
     expect(isDeadGovt(false, 0)).toBe(false);
+    expect(isDeadGovt(false, 3)).toBe(false);
   });
 });
 

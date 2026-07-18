@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  ADMIN_NAV,
   ADMIN_NAV_FLAT,
   ADMIN_NAV_SECTIONS,
   GOB_NAV,
@@ -415,116 +414,12 @@ describe("OWNER_NAV", () => {
   });
 });
 
-describe("GOB_NAV — no route regression", () => {
-  const hrefs = GOB_NAV.map((i) => i.href);
-
-  const expectedRoutes = [
-    "/gob",
-    "/gob/cola",
-    "/gob/usuarios",
-    "/gob/organizaciones",
-    "/gob/servicios",
-    "/gob/vigilancia",
-    "/gob/perdidas",
-    "/gob/disputas",
-    "/gob/maltrato",
-    "/gob/casos",
-    "/gob/historial",
-    "/gob/reglas",
-    "/gob/analytics",
-  ];
-
-  for (const route of expectedRoutes) {
-    it(`covers route ${route}`, () => {
-      expect(hrefs).toContain(route);
-    });
-  }
-
-  it("has at least 24 items (no silent drops — includes gov-vis routes)", () => {
-    expect(GOB_NAV.length).toBeGreaterThanOrEqual(24);
-  });
-
-  it("contains /gob/analytics (wired to nav — was deferred in PR2)", () => {
-    expect(hrefs).toContain("/gob/analytics");
-  });
-
-  it("contains /gob/campanas (Item 20 — campaign performance, ASCII route)", () => {
-    expect(hrefs).toContain("/gob/campanas");
-  });
-
-  it("contains /gob/outreach (Item 21 — actionable outreach pipelines)", () => {
-    expect(hrefs).toContain("/gob/outreach");
-  });
-
-  it("contains /gob/poblacion (Paquete G — control poblacional)", () => {
-    expect(hrefs).toContain("/gob/poblacion");
-  });
-
-  it("contains /gob/adopciones (Paquete F — pipeline de custodia & adopción)", () => {
-    expect(hrefs).toContain("/gob/adopciones");
-  });
-
-  it("contains /gob/programa (gov-vis — exec summary scoped to jurisdiction)", () => {
-    expect(hrefs).toContain("/gob/programa");
-  });
-
-  it("does NOT contain /gob/sistema (folded into /gob/programa for govt, 2026-07-09 audit)", () => {
-    expect(hrefs).not.toContain("/gob/sistema");
-  });
-
-  it("contains /gob/outbox (gov-vis — ENO SLA / notification monitor)", () => {
-    expect(hrefs).toContain("/gob/outbox");
-  });
-});
-
-describe("ADMIN_NAV — no route regression", () => {
-  const hrefs = ADMIN_NAV.map((i) => i.href);
-
-  const expectedRoutes = [
-    "/admin",
-    // Cola/Usuarios/Organizaciones/Reglas/Servicios exist under both portals
-    // (portal-follows-viewer, 2026-07-02) — admin nav points at the /admin/*
-    // copy so an admin never leaves admin chrome.
-    "/admin/cola",
-    "/admin/usuarios",
-    "/admin/organizaciones",
-    "/admin/reglas",
-    "/admin/servicios",
-    "/admin/historial",
-    "/admin/auditoria",
-    "/admin/outbox",
-    "/admin/sistema",
-    "/admin/govts",
-    "/admin/admins",
-    "/admin/observaciones",
-    "/admin/moderacion",
-    "/admin/casos",
-    "/admin/alertas", // WS-K — bandeja de alertas + triage
-    "/admin/libro", // WS-L — Libro de eventos
-  ];
-
-  for (const route of expectedRoutes) {
-    it(`covers route ${route}`, () => {
-      expect(hrefs).toContain(route);
-    });
-  }
-
-  it("has at least 15 items (no silent drops)", () => {
-    expect(ADMIN_NAV.length).toBeGreaterThanOrEqual(15);
-  });
-
-  it("contains /admin/poblacion (Paquete G — control poblacional)", () => {
-    expect(hrefs).toContain("/admin/poblacion");
-  });
-
-  it("contains /admin/adopciones (Paquete F — pipeline de custodia & adopción)", () => {
-    expect(hrefs).toContain("/admin/adopciones");
-  });
-
-  it("contains /admin/programa (Paquete H — resumen ejecutivo del programa)", () => {
-    expect(hrefs).toContain("/admin/programa");
-  });
-});
+// NOTE (test-suite audit 2026-07): the former per-route "GOB_NAV / ADMIN_NAV —
+// no route regression" blocks (one `it` per href + a >=N length floor) were
+// deleted as fully subsumed: GOB_NAV === GOB_NAV_FLAT === flatten(GOB_NAV_SECTIONS)
+// (same for ADMIN_*), and the frozen-snapshot invariant pairs below assert set
+// EQUALITY in both directions against hard-coded snapshots — strictly stronger
+// than per-route containment plus a length floor.
 
 // ---------------------------------------------------------------------------
 // GOB_NAV_SECTIONS — grouped nav invariants (Item 1 PR1)
