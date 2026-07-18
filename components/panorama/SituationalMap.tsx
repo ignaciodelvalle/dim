@@ -3545,9 +3545,9 @@ export function SituationalMap({
     map.panBy([dx, dy], { animate: !reducedMotion });
   }
 
-  // The briefing TOOLBAR (copy view / saved views / export PNG / roadmap
-  // report). Rendered either in the legacy top chrome bar or inside the v2C
-  // floating top-right cluster (topRightSlot mode) — one JSX, two homes.
+  // The briefing TOOLBAR (copy view / saved views / export PNG). Rendered
+  // either in the legacy top chrome bar or inside the v2C floating top-right
+  // cluster (topRightSlot mode) — one JSX, two homes.
   const briefingActions = viewMeta ? (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
       {copied && (
@@ -3571,18 +3571,11 @@ export function SituationalMap({
       >
         Exportar PNG
       </button>
-      {/* Roadmap signal (PO obs 1048, re-ratified 2026-07-09): the one-click
-          situación report is planned and the PO wants this placeholder VISIBLE
-          in production so the affordance reads as "coming". Visibly disabled. */}
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        title="En desarrollo"
-        className="cursor-not-allowed rounded-[var(--radius-sm)] border border-ln-op-line/60 px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-faint"
-      >
-        Informe de situación (en desarrollo)
-      </button>
+      {/* The "Informe de situación (en desarrollo)" roadmap placeholder (PO obs
+          1048, added 2026-07-09) lived here until task #55 (2026-07-12)
+          shipped the real one-click briefing — see PanoramaConsole's
+          handlePrintInforme. Removed as dead weight now that the roadmap
+          item it signaled is DONE and live in the same console. */}
     </div>
   ) : null;
 
