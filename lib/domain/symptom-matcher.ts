@@ -10,6 +10,7 @@
 
 import { findDisease } from "@/lib/reference/diseases";
 import { SYMPTOMS } from "@/lib/reference/symptoms";
+import { normalizeText } from "@/lib/utils/text-normalize";
 
 export type MatchedSymptom = {
   symptom_code: string;
@@ -31,18 +32,12 @@ export type DiseaseMatch = {
 /**
  * Normalize a string for fuzzy matching: lowercase, strip diacritics (NFD),
  * collapse whitespace. Conservative — no stemming (Spanish stemming is non-trivial).
+ *
+ * Re-exported from the canonical implementation at lib/utils/text-normalize.ts
+ * (shared with lib/domain/vaccine-reminder-state.ts and
+ * lib/reference/vaccine-fuzzy-match.ts).
  */
-export function normalize(input: string): string {
-  return (
-    input
-      .toLowerCase()
-      .normalize("NFD")
-      // biome-ignore lint/suspicious/noMisleadingCharacterClass: combining diacritic marks (U+0300–U+036F).
-      .replace(/[̀-ͯ]/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-  );
-}
+export const normalize = normalizeText;
 
 /**
  * Match free-text input against the symptom catalog.

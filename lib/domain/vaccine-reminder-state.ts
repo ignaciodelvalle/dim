@@ -1,6 +1,8 @@
 // Shared helper: pure functions to derive ReminderCard display state.
 // No DB access — all inputs are pre-loaded by the call site.
 
+import { normalizeText } from "@/lib/utils/text-normalize";
+
 /**
  * Cinco variantes de visualización para un recordatorio de vacuna.
  *
@@ -128,16 +130,21 @@ export function getReportableVaccines(species: string, _jurisdiction: string): r
 }
 
 /**
- * Normaliza un string para comparación: lowercase + elimina diacríticos (NFD decompose + strip marks).
+ * Normaliza un string para comparación: lowercase + elimina diacríticos (NFD decompose + strip marks)
+ * + colapsa espacios.
  * Permite que "Antirrábica" matchee "rabia": "antirrabica".includes("rabia") → true.
  *
  * Exportada para reuso fuera de este módulo (ej: matching case/accent-insensitive
  * de títulos de recordatorios de vacuna en vaccination-use-case.ts, ya que no existe
  * una clave estructural de tipo-de-vacuna en `reminders` — el título es texto libre).
+ *
+ * Re-exportada desde la implementación canónica en lib/utils/text-normalize.ts
+ * (compartida con lib/domain/symptom-matcher.ts y lib/reference/vaccine-fuzzy-match.ts).
+ * Único cambio de comportamiento vs. la versión previa: ahora también colapsa
+ * espacios — no afecta a ningún caller existente (compara substrings/igualdad
+ * de títulos, nunca depende de espacios crudos).
  */
-export function normalize(s: string): string {
-  return s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
-}
+export const normalize = normalizeText;
 
 /**
  * Determina si una vacuna es reportable (obligatoria por ley) para una especie y jurisdicción.
