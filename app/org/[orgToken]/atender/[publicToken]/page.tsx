@@ -17,7 +17,10 @@ import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpCrumbs } from "@/compone
 import { speciesLabel } from "@/lib/utils/format";
 
 import { resolveAtenderPet } from "../atender-access";
+import { fetchPendingDeclaredEvents } from "../atender-declared-events";
 import { AtenderCaptureMounter } from "./AtenderCaptureMounter";
+import { AtenderQuickCapture } from "./AtenderQuickCapture";
+import { PendingSignaturesCard } from "./PendingSignaturesCard";
 import { ATENDER_EVENTOS } from "./atender-eventos";
 
 export default async function AtenderSignPage({
@@ -63,6 +66,7 @@ export default async function AtenderSignPage({
   const { pet, signer } = access;
   const activeEvento = sp.evento ?? null;
   const justSigned = sp.firmado === "1";
+  const pendingSignatures = await fetchPendingDeclaredEvents(pet.id);
 
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
@@ -98,6 +102,19 @@ export default async function AtenderSignPage({
             Evento clínico firmado. Podés registrar otro o volver al inicio.
           </output>
         )}
+
+        <PendingSignaturesCard
+          orgToken={orgToken}
+          publicToken={pet.publicToken}
+          pending={pendingSignatures}
+        />
+
+        <OpCard>
+          <OpCardHead title="Contame qué pasó" />
+          <OpCardBody>
+            <AtenderQuickCapture orgToken={orgToken} publicToken={pet.publicToken} />
+          </OpCardBody>
+        </OpCard>
 
         <OpCard>
           <OpCardHead title="¿Qué querés registrar?" />

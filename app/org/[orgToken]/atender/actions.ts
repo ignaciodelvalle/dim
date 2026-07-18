@@ -28,19 +28,24 @@ import { notifyOwnersOfClinicalEvent } from "@/lib/infra/notify-owners-of-clinic
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDrugByLabel } from "@/lib/reference/drugs";
+import { findVaccineByName } from "@/lib/reference/lookups";
 import { createClient } from "@/lib/supabase/server";
 import { parseDateInput } from "@/lib/utils/format";
 
 import type { EventFormState } from "@/src/modules/events/actions";
 import { createClinicalInfo } from "@/src/modules/events/application/clinical/clinical-info-use-case";
+import { createMicrochip } from "@/src/modules/events/application/identity/microchip-use-case";
 import { createNote } from "@/src/modules/events/application/identity/note-use-case";
 import { createDeworming } from "@/src/modules/events/application/medical/deworming-use-case";
 import { createMedicationStart } from "@/src/modules/events/application/medical/medication-start-use-case";
+import { createSterilization } from "@/src/modules/events/application/medical/sterilization-use-case";
 import { createVaccination } from "@/src/modules/events/application/medical/vaccination-use-case";
 import { CLINICAL_SUB_KINDS } from "@/src/modules/events/domain/enums";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 
 import { ATENDER_TOKEN_PATTERN, normalizeAtenderToken, resolveAtenderPet } from "./atender-access";
+import { rejectIfAlreadySigned } from "./atender-declared-events";
+import { hasUncataloguedVaccineFlag } from "./atender-vaccine-gate";
 
 export type { EventFormState } from "@/src/modules/events/actions";
 
@@ -133,6 +138,17 @@ export async function atenderVaccinationAction(
   if (plausibility) return plausibility;
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
+
+  // THE HARD GATE, server-side mirror (#5, PO decision, defense in depth): a
+  // vaccine name outside the catalog must never commit unless it's explicitly
+  // flagged as uncatalogued in notes — the client picker (AtenderVaccinationGate)
+  // is the primary gate; this is the backstop for a client that skips it.
+  if (!hasUncataloguedVaccineFlag(notes) && !findVaccineByName(vaccineName)) {
+    return {
+      error:
+        "Esa vacuna no está en el catálogo. Elegí una del listado o marcala como no catalogada en las notas.",
+    };
+  }
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -556,6 +572,199 @@ export async function atenderNoteAction(
       petPublicToken: publicToken,
       eventId: signedEventId,
       eventType: "note_added",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
+  }
+
+  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+}
+
+// ---------------------------------------------------------------------------
+// Microchip — declared-by-owner sign-off (#3, #43 keystone extension)
+// ---------------------------------------------------------------------------
+//
+// Same #43 provenance mechanism the vaccine keystone already uses (this file,
+// atenderVaccinationAction): the writer is CUSTODY-FREE and takes the SIGNER's
+// eventAuthorship from resolveAtenderPet, so a matriculated vet's chip
+// confirmation lands as verified_professional exactly like every other
+// atender-signed event. `confirmEventId`, when present, is the pet_event id
+// of the owner-declared row this submission confirms — bound as a SERVER
+// ACTION ARGUMENT (see AtenderCaptureMounter's .bind), not a form field, so a
+// client cannot forge which declared event a signature targets. Append-only:
+// rejectIfAlreadySigned only reads that row; this action always INSERTS a new
+// event, never edits the original.
+
+export async function atenderMicrochipAction(
+  orgToken: string,
+  publicToken: string,
+  confirmEventId: string | null,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await resolveAtenderPet(orgToken, publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+  const supabase = await createClient();
+
+  const chipNumber = String(formData.get("chipNumber") ?? "").trim();
+  const countryCode = String(formData.get("countryCode") ?? "").trim() || null;
+  const implantedBy = String(formData.get("implantedBy") ?? "").trim() || null;
+  const locationOnBody = String(formData.get("locationOnBody") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  if (!chipNumber) return { error: "Falta el número de microchip." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de implantación." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
+
+  if (confirmEventId) {
+    const rejected = await rejectIfAlreadySigned(pet.id, "microchip_implanted", confirmEventId);
+    if (rejected) return rejected;
+  }
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  // ARCH-S parity with the owner action: read canonical chip status (legacy
+  // pets.microchipId column dropped).
+  const { fetchActiveIdentifications } = await import("@/lib/infra/pet-identifiers");
+  const existingIds = await fetchActiveIdentifications(pet.id);
+
+  const repo = new EventsRepository();
+  let signedEventId: string | null = null;
+  try {
+    const result = await createMicrochip(
+      {
+        pet: { id: pet.id, petHasCanonicalChip: existingIds.microchip !== null },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as Authorship,
+        chipNumber,
+        countryCode,
+        implantedBy,
+        locationOnBody,
+        occurredAt,
+        notes,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+        clientIdempotencyKey,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+    signedEventId = result.value?.eventId ?? null;
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar el microchip: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "microchip_implanted",
+      authorUserId: user.id,
+      authorLabel: access.organizationName,
+    });
+  }
+
+  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+}
+
+// ---------------------------------------------------------------------------
+// Sterilization — declared-by-owner sign-off (#3, #43 keystone extension)
+// ---------------------------------------------------------------------------
+//
+// See atenderMicrochipAction above for the shared rationale (same #43
+// provenance mechanism, same confirmEventId/append-only contract).
+
+export async function atenderSterilizationAction(
+  orgToken: string,
+  publicToken: string,
+  confirmEventId: string | null,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const access = await resolveAtenderPet(orgToken, publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+  const supabase = await createClient();
+
+  const procedure = String(formData.get("procedure") ?? "").trim();
+  const performedBy = String(formData.get("performedBy") ?? "").trim() || null;
+  const clinic = String(formData.get("clinic") ?? "").trim() || null;
+  const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  if (!["castration", "spay"].includes(procedure)) return { error: "Procedimiento inválido." };
+  if (!occurredAtRaw) return { error: "Falta la fecha de la cirugía." };
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
+
+  if (confirmEventId) {
+    const rejected = await rejectIfAlreadySigned(pet.id, "sterilization_performed", confirmEventId);
+    if (rejected) return rejected;
+  }
+
+  const attachmentFile = formData.get("attachment") as File | null;
+  const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
+  if (upload.error) return { error: upload.error };
+
+  const repo = new EventsRepository();
+  let signedEventId: string | null = null;
+  try {
+    const result = await createSterilization(
+      {
+        pet: { id: pet.id },
+        user: { id: user.id },
+        eventAuthorship: eventAuthorship as Authorship,
+        procedure,
+        performedBy,
+        clinic,
+        occurredAt,
+        notes,
+        uploadedPath: upload.uploadedPath,
+        uploadedMimeType: upload.mimeType ?? null,
+        uploadedSize: upload.size ?? null,
+        clientIdempotencyKey,
+      },
+      { repo, transaction: makeTransaction() },
+    );
+    if (!result.ok) {
+      await cleanupAttachment(supabase, upload.uploadedPath);
+      return { error: result.error };
+    }
+    signedEventId = result.value?.eventId ?? null;
+  } catch (err) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error: `No se pudo registrar la esterilización: ${err instanceof Error ? err.message : "error desconocido"}`,
+    };
+  }
+
+  if (signedEventId) {
+    await notifyOwnersOfClinicalEvent({
+      petId: pet.id,
+      petName: pet.name,
+      petPublicToken: publicToken,
+      eventId: signedEventId,
+      eventType: "sterilization_performed",
       authorUserId: user.id,
       authorLabel: access.organizationName,
     });
