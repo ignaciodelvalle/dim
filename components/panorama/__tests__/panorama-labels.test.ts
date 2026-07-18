@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeVistaName,
   countFiltroModifiers,
+  legendRampTitle,
   shortKpiLabel,
   shortLayerLabel,
 } from "@/components/panorama/panorama-labels";
@@ -262,5 +263,68 @@ describe("countFiltroModifiers", () => {
         verifiedOnly: false,
       }),
     ).toBe(1);
+  });
+});
+
+describe("legendRampTitle — the collapsed legend pill names the layer that PAINTED the ramp", () => {
+  it("A2 regression: a DRILLED division count ramp is titled by the base choropleth, not the signal overlay", () => {
+    // Custom vista, zoonosis + cobertura active, drilled to departments.
+    // captionLayer = the first active non-reference layer = "Zoonosis / señales"
+    // (it precedes cobertura in the catalogue), but the ramp is cobertura's
+    // department COUNT fill. The title must follow the ramp, demoted to counts.
+    expect(
+      legendRampTitle({
+        bivariateActive: false,
+        captionLabel: "Zoonosis / señales",
+        captionPaintsProvinceRamp: false,
+        divisionRampLabel: "Cobertura antirrábica (perros, 12m)",
+      }),
+    ).toBe("Cobertura antirrábica (perros, 12m) (conteo)");
+  });
+
+  it("titles by the caption layer when IT paints its own province-grain ramp", () => {
+    // At province grain cobertura paints its own classed % ramp — the caption
+    // layer IS the paint, so it keeps its (rate) label with no count demotion.
+    expect(
+      legendRampTitle({
+        bivariateActive: false,
+        captionLabel: "Cobertura antirrábica (perros, 12m)",
+        captionPaintsProvinceRamp: true,
+        divisionRampLabel: null,
+      }),
+    ).toBe("Cobertura antirrábica (perros, 12m)");
+  });
+
+  it("bivariate matrix overrides both", () => {
+    expect(
+      legendRampTitle({
+        bivariateActive: true,
+        captionLabel: "Cobertura antirrábica (perros, 12m)",
+        captionPaintsProvinceRamp: true,
+        divisionRampLabel: "Cobertura antirrábica (perros, 12m)",
+      }),
+    ).toBe("Riesgo combinado");
+  });
+
+  it("no ramp at all → falls back to the caption label (names the point overlay's dots)", () => {
+    expect(
+      legendRampTitle({
+        bivariateActive: false,
+        captionLabel: "Zoonosis / señales",
+        captionPaintsProvinceRamp: false,
+        divisionRampLabel: null,
+      }),
+    ).toBe("Zoonosis / señales");
+  });
+
+  it("no ramp and no caption → the generic graduated fallback", () => {
+    expect(
+      legendRampTitle({
+        bivariateActive: false,
+        captionLabel: null,
+        captionPaintsProvinceRamp: false,
+        divisionRampLabel: null,
+      }),
+    ).toBe("Eventos por unidad");
   });
 });

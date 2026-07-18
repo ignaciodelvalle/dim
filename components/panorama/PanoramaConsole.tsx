@@ -68,7 +68,11 @@ import { coalescedGet } from "@/components/panorama/coalesced-get";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
-import { activeVistaName, countFiltroModifiers } from "@/components/panorama/panorama-labels";
+import {
+  activeVistaName,
+  countFiltroModifiers,
+  legendRampTitle,
+} from "@/components/panorama/panorama-labels";
 import {
   binDailyCounts,
   binTimestamps,
@@ -4357,6 +4361,23 @@ export function PanoramaConsole({
     return null;
   }, [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive]);
 
+  // A2 (cowork demo 2026-07-17): the pill TITLE must name the layer that painted
+  // the ramp above, NOT `captionLayer` (the first active non-reference layer =
+  // the signal overlay in a custom vista). Mirror legendRampColors' source
+  // precedence so title and scale always agree — signal-titled cobertura counts
+  // ("Zoonosis / señales · 16 … 676") were a label≠scale lie.
+  const legendRampLabel = useMemo(
+    () =>
+      legendRampTitle({
+        bivariateActive,
+        captionLabel: captionLayer?.label ?? null,
+        captionPaintsProvinceRamp: Boolean(captionLayer && provinceSeqLegend[captionLayer.id]),
+        divisionRampLabel:
+          divisionLegend && divisionLegend.colors.length > 0 ? divisionLegend.label : null,
+      }),
+    [bivariateActive, captionLayer, provinceSeqLegend, divisionLegend],
+  );
+
   // Round-3 QA fix 6: graduated/points encodings rendered NO collapsed scale at
   // all (just a color dot) — the biggest gap the QA doc named. A tiny
   // small●–large● hint using the SAME bins the map's bubbles use
@@ -5051,9 +5072,7 @@ export function PanoramaConsole({
               encoding detail below it. */}
           <ViewCaption text={viewExplanation} />
           <LegendPill
-            baseLabel={
-              bivariateActive ? "Riesgo combinado" : (captionLayer?.label ?? "Eventos por unidad")
-            }
+            baseLabel={legendRampLabel}
             rampColors={legendRampColors}
             rampEndpoints={legendRampEndpoints}
             bivariate={bivariateActive}

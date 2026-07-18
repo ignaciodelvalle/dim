@@ -105,6 +105,47 @@ export function shortLayerLabel(
 }
 
 // ---------------------------------------------------------------------------
+// v2C legend pill — the collapsed ramp strip's TITLE.
+// ---------------------------------------------------------------------------
+
+/**
+ * The metric label to show above the collapsed legend ramp (LegendPill.baseLabel).
+ *
+ * A2 (cowork demo 2026-07-17): in a manual/custom vista the pill was titled by
+ * `captionLayer` — the FIRST active non-reference layer in catalogue order — which
+ * is the SIGNAL point overlay (e.g. "Zoonosis / señales") whenever it sits before
+ * the choropleth base in PANORAMA_LAYERS. But the ramp itself is painted by the
+ * CHOROPLETH: the caption layer's OWN province-grain classed ramp, or — when
+ * drilled — the DIVISION count ramp of the base choropleth. A signal-titled ramp
+ * over cobertura counts read "Zoonosis / señales · 16 … 676" on a blue cobertura
+ * gradient — a label≠scale lie the funcionario reads as "zoonosis 676" where there
+ * are vaccinated dogs.
+ *
+ * The pill title must name the layer that PAINTED the ramp, mirroring the ramp's
+ * own source precedence (legendRampColors / legendRampEndpoints):
+ *   - bivariate matrix              → "Riesgo combinado";
+ *   - the caption layer's OWN ramp  → the caption label (it IS the paint);
+ *   - the drilled DIVISION ramp     → the base choropleth's label, demoted to
+ *                                     counts ("… (conteo)") to match the popup;
+ *   - no ramp at all                → the caption label (names the point overlay).
+ */
+export function legendRampTitle(input: {
+  bivariateActive: boolean;
+  captionLabel: string | null;
+  /** captionLayer paints its OWN province-grain classed ramp this frame. */
+  captionPaintsProvinceRamp: boolean;
+  /** The DRILLED division fill's label (base choropleth) when it paints the ramp. */
+  divisionRampLabel: string | null;
+}): string {
+  if (input.bivariateActive) return "Riesgo combinado";
+  if (input.captionLabel && input.captionPaintsProvinceRamp) return input.captionLabel;
+  // The drilled division fill encodes raw COUNTS (v1) — say so, exactly as the
+  // department popup does (map-popup.ts COUNT_READOUT_SUFFIX).
+  if (input.divisionRampLabel) return `${input.divisionRampLabel} (conteo)`;
+  return input.captionLabel ?? "Eventos por unidad";
+}
+
+// ---------------------------------------------------------------------------
 // Filtro counter semantics (item 3).
 // ---------------------------------------------------------------------------
 
