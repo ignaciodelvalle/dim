@@ -219,7 +219,7 @@ export function BulkApprovalQueueList({
                   </div>
                 </div>
                 {hasVetMatricula && (
-                  <output className="block text-[11px] text-ln-op-mute">
+                  <output className="block text-[var(--text-sm)] text-ln-op-mute">
                     {VET_MATRICULA_BULK_APPROVE_BLOCKED}
                   </output>
                 )}
@@ -250,7 +250,7 @@ export function BulkApprovalQueueList({
                 {hasRupga && (
                   <p
                     role="alert"
-                    className="rounded-md border border-ln-op-danger-bd bg-ln-op-danger-bg px-2 py-1.5 text-[11px] text-ln-op-danger"
+                    className="rounded-md border border-ln-op-danger-bd bg-ln-op-danger-bg px-2 py-1.5 text-[var(--text-sm)] text-ln-op-danger"
                   >
                     {RUPGA_APPROVAL_WARNING}
                   </p>
