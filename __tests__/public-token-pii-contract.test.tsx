@@ -119,6 +119,7 @@ vi.mock("@/lib/events/event-confidence", () => ({
   isAtLeast: vi.fn(() => false),
 }));
 vi.mock("@/lib/utils/format", () => ({
+  AR_TIME_ZONE: "America/Argentina/Buenos_Aires",
   sexLabel: vi.fn(() => ""),
   speciesLabel: vi.fn(() => "perro"),
   statusLabel: vi.fn(() => "activo"),

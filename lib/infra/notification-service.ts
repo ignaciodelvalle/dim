@@ -123,8 +123,14 @@ export async function createNotification(
       // Web Push leg (ADR 2026-07-18 §4): urgent-only, best-effort, never
       // throws. Runs only for genuinely NEW rows — a dedupe no-op must not
       // re-push. Duplicate sends from retries collapse browser-side via the
-      // notification tag (= dedupeKey).
-      await sendPushForNotifications([values]);
+      // notification tag (= dedupeKey). SKIPPED when the caller passed a
+      // transaction handle: push network I/O must never hold a business tx
+      // open, and a post-insert rollback would leave a push delivered for a
+      // row that never committed. Tx callers get push when their outer flow
+      // re-notifies via the pool-backed path.
+      if (client === defaultDb) {
+        await sendPushForNotifications([values]);
+      }
       return { status: "inserted", id: inserted[0].id };
     }
     // No row returned → the dedupe_key already existed. Idempotent no-op.
@@ -204,7 +210,8 @@ export async function createNotificationsBulk(
       // and dedupe no-ops we cannot map returned ids back to inputs, so we
       // push for every urgent input in a chunk that inserted at least one row;
       // the browser-side tag (= dedupeKey) collapses any double-display.
-      if (inserted.length > 0) {
+      // Skipped for tx clients — see createNotification's rationale.
+      if (inserted.length > 0 && client === defaultDb) {
         await sendPushForNotifications(values);
       }
     } catch (err) {

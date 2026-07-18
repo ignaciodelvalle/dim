@@ -101,6 +101,14 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // deny-all so PostgREST can never read them. Same posture as rate_limit_buckets.
   "panorama_cube",
   "panorama_cube_meta",
+  // Precomputed KPI-strip cube (migration 0151): same posture as panorama_cube —
+  // deny-all, tiles k-anon'd at build, read only via analyticsDb service-role.
+  "panorama_kpi_cube",
+  "panorama_kpi_cube_meta",
+  // Web Push subscriptions (migration 0152): owner-only SELECT/INSERT/UPDATE
+  // policies (user_id = auth.uid()); no DELETE (revocation is a soft
+  // revoked_at update; rows go via profiles CASCADE only).
+  "push_subscriptions",
 ];
 
 // ---------------------------------------------------------------------------
@@ -122,6 +130,8 @@ const RLS_DENY_ALL: ReadonlyArray<string> = [
   "notification_dead_letter",
   "panorama_cube",
   "panorama_cube_meta",
+  "panorama_kpi_cube",
+  "panorama_kpi_cube_meta",
   "case_events",
   "organization_invitations",
   "alert_firings",

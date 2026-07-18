@@ -21,6 +21,7 @@
 
 import { unstable_cache } from "next/cache";
 
+import { reportError } from "@/lib/infra/report-error";
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 
 import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./data-cache";
@@ -183,8 +184,10 @@ export async function loadCachedPanoramaKpis(
     if (cube) {
       return { value: cube.value, cacheHit: false, source: "cube", cubeBuiltAt: cube.builtAt };
     }
-  } catch {
+  } catch (err) {
     // Cube read failed → fall through to live (identical to CUBE_READS off).
+    // Logged so a persistently broken cube degrades VISIBLY, not silently.
+    reportError("panorama/kpi-cube-read", err);
   }
   const live = await loadLivePanoramaKpis(params);
   return { ...live, source: "live" };
