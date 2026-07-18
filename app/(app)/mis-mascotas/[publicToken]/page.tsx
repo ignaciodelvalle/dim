@@ -59,8 +59,6 @@ import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetCredentialCarousel } from "@/components/pet-profile/PetCredentialCarousel";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
-import { PetOwnerActivity } from "@/components/pet-profile/PetOwnerActivity";
-import { filterProfileWorkflows } from "@/components/pet-profile/profile-workflow-filter";
 import {
   appointments,
   attachments,
@@ -77,9 +75,7 @@ import {
   fetchActiveRemindersForPet,
   fetchComplianceStatesForPets,
   fetchLivePetsForCarouselRanking,
-  fetchOpenWorkflows,
   fetchPetEventsForProfileV2,
-  fetchUpcomingAppointments,
 } from "@/lib/analytics/owner-dashboard";
 import { resolveEmergencyContacts } from "@/lib/domain/emergency-contacts";
 import { computeMedicationsActive } from "@/lib/domain/libreta-health-status";
@@ -92,7 +88,6 @@ import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-fa
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
-import { fetchPetHealthNudges } from "@/lib/infra/owner-nudges";
 import { requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
@@ -128,8 +123,8 @@ import { resolveCaptureIntentUrl } from "./anotar/handoff";
 // below) is the single state authority on this page. The old page-local
 // derivePetState/derivePetStateLabel helpers (a third, unused state mapping)
 // were removed — derivePetSituation (lib/ui/pet-situation.ts) is the one
-// derivation every surface reads. The "Ciclos abiertos" dedup filter lives in
-// components/pet-profile/profile-workflow-filter.ts (pure, unit-tested).
+// derivation every surface reads. (The transitional "Ciclos abiertos" dedup
+// filter died with the under-card PetOwnerActivity block — tarjeta-todo.)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -469,14 +464,7 @@ export default async function PetDetailPage({
   // Achievements, medication doses, upcoming appointments, and weight history
   // moved out of Face 1 entirely (design.md deletion list) — Face 2 re-queries
   // its own future/weight sources inside getLibretaFaceData when it activates.
-  const [
-    petActiveReminders,
-    canonicalIds,
-    reservedRabiesTurnoRows,
-    petUpcomingAppointments,
-    petOpenWorkflows,
-    petHealthStatuses,
-  ] = await Promise.all([
+  const [petActiveReminders, canonicalIds, reservedRabiesTurnoRows] = await Promise.all([
     // Vaccine reminders for owner path only.
     accessPath === "owner"
       ? fetchActiveRemindersForPet(user.id, pet.id)
@@ -507,28 +495,17 @@ export default async function PetDetailPage({
       )
       .orderBy(asc(timeSlots.startsAt))
       .limit(1),
-    // owner-ia-redesign P3 — the pet profile absorbs its own reminders/turnos/
-    // open cycles. Owner-only, pet-scoped: the SAME fetchers /inicio uses,
-    // filtered to this pet. `/inicio` still renders the cross-pet versions this
-    // phase (transitional duplication; removal is P5's gate).
-    accessPath === "owner"
-      ? fetchUpcomingAppointments(user.id, 5, pet.id)
-      : Promise.resolve([] as Awaited<ReturnType<typeof fetchUpcomingAppointments>>),
-    accessPath === "owner"
-      ? fetchOpenWorkflows(user.id, pet.id)
-      : Promise.resolve([] as Awaited<ReturnType<typeof fetchOpenWorkflows>>),
-    // owner-ia-redesign P5 — this pet's per-pet health nudges (chip_missing CTA,
-    // scan-activity signal). fetchPetHealthNudges returns the owner's whole
-    // owned-and-active set (bounded, role='owner' only); we filter to THIS pet
-    // below. Orphaned when the /inicio PetHealthStatusStrip was deleted; now
-    // rendered inside the profile via PetOwnerActivity.
-    accessPath === "owner"
-      ? fetchPetHealthNudges(user.id)
-      : Promise.resolve([] as Awaited<ReturnType<typeof fetchPetHealthNudges>>),
   ]);
 
-  // This pet's nudges only (fetchPetHealthNudges is owner-wide; scope by id).
-  const thisPetNudges = petHealthStatuses.find((s) => s.petId === pet.id)?.nudges ?? [];
+  // tarjeta-todo (PO 2026-07-18): the under-card PetOwnerActivity block
+  // (nudges / RemindersSection / Próximos turnos / Ciclos abiertos) was
+  // DELETED — the rotating card is the whole profile. Its unique actions
+  // moved INTO the card: reminder "Posponer 7 días"/"Registrar" live on the
+  // libreta face's PRÓXIMO rows (FutureLedgerList), turnos already render
+  // there ("Ver turno"), and open cases keep their one authoritative surface
+  // in the Avisos strip (PetOpenCasesSection). The chip_missing nudge CTA
+  // duplicated the Cumplimiento card; the scan-activity signal's outside
+  // surface dies per PO (the libreta remains the one place scans surface).
 
   const age = ageFromDateOfBirth(pet.dateOfBirth);
 
@@ -907,22 +884,6 @@ export default async function PetDetailPage({
         </PetCredentialCarousel>
       ) : (
         documentNode
-      )}
-
-      {/* owner-ia-redesign P3 — the profile absorbs its pet's content. This
-          pet's reminders, turnos, and open cycles, below the document. Owner-
-          only (org/public/vet viewers of the same route never see it) and
-          pet-scoped. Renders nothing when the pet has none of the three. */}
-      {isOwner && (
-        <PetOwnerActivity
-          nudges={thisPetNudges}
-          reminders={petActiveReminders}
-          appointments={petUpcomingAppointments}
-          // Pet-state standardization (PO 2026-07-16): drop the rows that
-          // repeat a state/case the profile already shows in its authoritative
-          // surfaces — see profile-workflow-filter.ts.
-          workflows={filterProfileWorkflows(petOpenWorkflows)}
-        />
       )}
 
       {/* Quick-capture sheets — driven by ?sheet=<id> URL param.
