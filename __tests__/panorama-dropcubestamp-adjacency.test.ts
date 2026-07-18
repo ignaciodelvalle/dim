@@ -22,12 +22,10 @@
 // file drops the stamp within 2 lines, so a small window is both sufficient and
 // tight enough not to borrow a neighbour's latch.
 //
-// KNOWN GAP: the shared multi-layer helper fetchLayersInto() dispatches a layer
-// fetch WITHOUT its own dropCubeStamp() and none of its callers drop it adjacently
-// — a flagged honesty gap (its seed stamp can linger after a live refetch). It is
-// allowlisted BY ENCLOSING-FUNCTION NAME (line-shift robust) so this fence stays
-// green while still guarding every other site and any NEW one. Remove it from
-// KNOWN_GAP_HELPERS once fetchLayersInto drops the stamp.
+// KNOWN_GAP_HELPERS: enclosing helpers (by function name, line-shift robust)
+// whose layer fetch is allowlisted despite lacking an adjacent latch. Empty
+// today — fetchLayersInto, the original gap, drops the stamp since wave S.
+// Keep the mechanism: a future documented gap goes here, not in the window.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -51,7 +49,7 @@ const WINDOW = 6;
 
 // Enclosing helpers whose layer fetch has NO adjacent dropCubeStamp — documented
 // known gaps, allowlisted by name so line shifts don't break the fence.
-const KNOWN_GAP_HELPERS = new Set<string>(["fetchLayersInto"]);
+const KNOWN_GAP_HELPERS = new Set<string>([]);
 
 /** The nearest `const <name> = useCallback(` at or above `lineIdx`, or null. */
 function enclosingCallbackName(lineIdx: number): string | null {

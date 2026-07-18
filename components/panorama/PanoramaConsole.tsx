@@ -2018,6 +2018,7 @@ export function PanoramaConsole({
           else if (isAggregatedPointLayer(id)) params.set("level", "locality");
           applyVerifiedParam(params, id);
           try {
+            dropCubeStamp();
             const qsStr = params.toString();
             const url = `/api/panorama/${id}${qsStr ? `?${qsStr}` : ""}`;
             const signal = signalFor(id);
@@ -2085,7 +2086,7 @@ export function PanoramaConsole({
       );
       setLevelVersion((v) => v + 1);
     },
-    [signalFor, applyVerifiedParam],
+    [signalFor, applyVerifiedParam, dropCubeStamp],
   );
 
   // panorama QA root-cause #3b (Root B) — commit a PERÍODO change the SAME way
