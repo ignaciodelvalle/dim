@@ -104,6 +104,11 @@ export const RULE_OUTCOME_METRICS: Record<GovtBusinessRuleType, RuleOutcomeMetri
     rationale:
       "Channel availability drives physical credential usage; scans are its observable trace.",
   },
+  microchip_required: {
+    eventType: "microchip_implanted",
+    metricLabel: "Microchips implantados",
+    rationale: "Requiring a microchip drives chipping — implant events are its direct output.",
+  },
   rabies_observation_window: {
     eventType: "rabies_observation_started",
     metricLabel: "Observaciones antirrábicas iniciadas",

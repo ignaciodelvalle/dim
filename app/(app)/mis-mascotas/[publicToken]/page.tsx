@@ -372,6 +372,15 @@ export default async function PetDetailPage({
     locality: pet.jurisdictionLocality,
   });
 
+  // Jurisdiction gate for the microchip obligation (jurisdiction-compliance):
+  // resolves the microchip_required rule for the pet's jurisdiction. Default is
+  // TRUE everywhere (no override rows at rollout), so the microchip card keeps
+  // showing until a jurisdiction opts out with a { required: false } rule.
+  const microchipRule = await resolveBusinessRule("microchip_required", {
+    province: pet.jurisdictionProvince,
+    locality: pet.jurisdictionLocality,
+  });
+
   // Lost-episode + scans fetch — relocated out of the old early-return into
   // the mainline (pet-document-redesign REQ-5.1/ADR-7): runs unconditionally
   // when `status === 'lost'`, for BOTH owner and org viewers, since the
@@ -560,6 +569,7 @@ export default async function PetDetailPage({
         }
       : null,
     microchipCode: canonicalIds.microchip?.code ?? null,
+    microchipApplies: microchipRule.payload.required,
     pppApplies: Boolean(pet.potentiallyDangerousBreed),
     // PPP-indeterminado inputs: a DOG missing breed and/or weight surfaces the
     // obligation instead of hiding it (2026-07-04).

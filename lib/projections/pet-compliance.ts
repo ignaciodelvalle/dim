@@ -97,6 +97,14 @@ export type ComplianceInput = {
   rabiesReminder: RabiesReminder | null;
   reservedRabiesTurno: ReservedRabiesTurno | null; // WS-2
   microchipCode: string | null; // from fetchActiveIdentifications().microchip
+  // Jurisdiction gate for the microchip obligation, resolved from the
+  // `microchip_required` business rule for the pet's jurisdiction (default
+  // TRUE — every jurisdiction requires a chip until one opts out). Optional so
+  // pre-existing callers/tests keep the old universal behavior. When FALSE and
+  // no chip is on record, the obligation card is omitted entirely (it drops out
+  // of the "N de M al día" count); a chip that IS registered still shows,
+  // because a registered chip is information, not an unmet obligation.
+  microchipApplies?: boolean;
   pppApplies: boolean; // authoritative jurisdiction gate (pet.potentiallyDangerousBreed)
   // PPP-determinability inputs (2026-07-04). PPP is dogs-only, and the size rule
   // needs the pet's WEIGHT while the breed rule needs its BREED. A dog registered
@@ -115,7 +123,12 @@ export type ComplianceInput = {
 // Kept as one muted line each; never a banner (handoff §5).
 const FOOTNOTE = {
   rabies: "Obligación del propietario · Ord. CABA 41.831 · Ley 22.953",
-  microchip: "Identificación · Ord. CABA 41.831 art. 4°",
+  // Neutralized from a hardcoded CABA ordinance: the microchip obligation is now
+  // gated per-jurisdiction (microchip_required rule), so a pet outside CABA must
+  // not be shown a CABA article as if it were its own norm. The rule's resolved
+  // jurisdiction context is not plumbed this far; cite the applicable-norm class
+  // instead of inventing per-province ordinance numbers.
+  microchip: "Identificación · según normativa jurisdiccional",
   ppp: "Régimen perros potencialmente peligrosos · regla jurisdiccional",
 } as const;
 
@@ -408,8 +421,15 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
   );
 }
 
-function deriveMicrochip(input: ComplianceInput): ObligationCard {
+// The microchip obligation. Returns null ONLY when the jurisdiction does not
+// require a chip AND none is on record — then there is no obligation to surface
+// and it drops out of the "N de M al día" count. A registered chip (declared or
+// verified) always shows, regardless of the jurisdiction gate: it is
+// information the credential should surface, not an unmet obligation.
+function deriveMicrochip(input: ComplianceInput): ObligationCard | null {
   const code = input.microchipCode;
+  // Default TRUE: undefined preserves the pre-gate universal behavior.
+  const applies = input.microchipApplies !== false;
   // Best-provenance selection, not earliest (H1 fix): a later vet/institution
   // implant event must clear the obligation even if an earlier owner-declared
   // one exists. `some` picks any satisfying event instead of `find`'s oldest.
@@ -429,6 +449,9 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard {
   if (code || implants.length > 0) {
     return declaradaCard("microchip", "Microchip", FOOTNOTE.microchip, HINT.microchip, code);
   }
+  // No chip on record. If the jurisdiction does not require one, there is no
+  // obligation to surface — omit the card so it is not counted in "N de M".
+  if (!applies) return null;
   return {
     key: "microchip",
     label: "Microchip",
@@ -557,16 +580,18 @@ export function lnPetStatusFromCompliance(
 
 /**
  * Compose the owner obligations into an ordered, summarized compliance view.
- * Cards are sorted worst-state first. The PPP card is attestation when the pet
- * is a flagged PPP, "indeterminado" when a DOG is missing breed and/or weight,
- * and omitted otherwise (non-dog, or a dog with both fields known and no flag).
+ * Cards are sorted worst-state first. The microchip card is omitted when the
+ * jurisdiction does not require a chip (microchipApplies=false) and none is on
+ * record. The PPP card is attestation when the pet is a flagged PPP,
+ * "indeterminado" when a DOG is missing breed and/or weight, and omitted
+ * otherwise (non-dog, or a dog with both fields known and no flag).
  */
 export function deriveComplianceState(input: ComplianceInput): ComplianceState {
-  const cards: ObligationCard[] = [
-    deriveRabies(input),
-    deriveSterilization(input),
-    deriveMicrochip(input),
-  ];
+  const cards: ObligationCard[] = [deriveRabies(input), deriveSterilization(input)];
+  const microchipCard = deriveMicrochip(input);
+  if (microchipCard) {
+    cards.push(microchipCard);
+  }
   const pppCard = derivePpp(input);
   if (pppCard) {
     cards.push(pppCard);

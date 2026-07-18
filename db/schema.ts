@@ -2263,6 +2263,10 @@ export const GOVT_BUSINESS_RULE_TYPES = [
   "ppp_weight_threshold",
   "ppp_attestation_required_registries",
   "physical_credential_channels",
+  // Whether this jurisdiction requires a microchip (migration 0150). Default
+  // TRUE (lib/domain/business-rules-defaults.ts) so the microchip obligation
+  // keeps showing everywhere until a jurisdiction opts out. Pet-scope rule.
+  "microchip_required",
   // Promoted rule types (admin-rules-console, migration 0116) — see
   // lib/domain/rule-types-registry.ts for label/schema/resolutionScope.
   "rabies_observation_window",
@@ -2296,7 +2300,7 @@ export const govtBusinessRules = pgTable(
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
     govtBusinessRulesRuleTypeValid: check(
       "govt_business_rules_rule_type_valid",
-      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements')`,
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'microchip_required', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements')`,
     ),
     govtBusinessRulesJurisdictionProvinceCanonical: check(
       "govt_business_rules_jurisdiction_province_canonical",
