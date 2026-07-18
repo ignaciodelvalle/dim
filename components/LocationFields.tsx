@@ -97,6 +97,7 @@ export function LocationFields({
   required = false,
   l1Label = "Localidad",
   cascade = false,
+  defaultCenter = null,
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
@@ -144,6 +145,10 @@ export function LocationFields({
   // M-followup). Additive + opt-in — consumers that omit it are unaffected and
   // keep relying on the hidden-input wire format.
   onChange?: (value: LocationFieldsChange) => void;
+  // Optional (L2): initial center for the EMPTY map — no marker, no hidden
+  // input value. The public sighting form passes the pet's DISCLOSED
+  // last-known lost location here (privacy-gated server-side).
+  defaultCenter?: { lat: number; lng: number } | null;
 }) {
   const isL2 = mode === "l2";
 
@@ -554,7 +559,11 @@ export function LocationFields({
               Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
               estás en el lugar.
             </p>
-            <LocationPicker value={point} onChange={handlePointChange} />
+            <LocationPicker
+              value={point}
+              onChange={handlePointChange}
+              defaultCenter={defaultCenter}
+            />
             {geoError && (
               <p className="text-xs text-ln-warn " role="alert">
                 {geoError}

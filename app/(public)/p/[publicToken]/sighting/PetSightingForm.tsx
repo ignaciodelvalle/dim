@@ -26,6 +26,7 @@ export function PetSightingForm({
   petSex = null,
   biasProvince,
   biasLocality,
+  defaultCenter = null,
 }: {
   publicToken: string;
   petName: string;
@@ -33,6 +34,10 @@ export function PetSightingForm({
   petSex?: string | null;
   biasProvince: string | null;
   biasLocality: string | null;
+  /** Initial map center: the pet's DISCLOSED last-known lost location
+   * (publicSightingMapCenter, privacy-gated server-side) or null for the
+   * neutral default. */
+  defaultCenter?: { lat: number; lng: number } | null;
 }) {
   const boundAction = reportPetSightingAction.bind(null, publicToken);
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
@@ -81,6 +86,7 @@ export function PetSightingForm({
         biasLocality={biasLocality}
         useMyLocationVariant="primary"
         allowAnonymous
+        defaultCenter={defaultCenter}
       />
 
       <div className="space-y-1">
