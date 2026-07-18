@@ -49,14 +49,32 @@ export type FutureMedicationDoseInput = {
 const RABIES_TITLE_RE = /antirr[aá]b|rabi/i;
 const DUE_OR_OVER_VARIANTS = new Set(["due_soon", "overdue", "overdue_critical"]);
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Horizon (days) within which a reminder is a USEFUL, actionable pendiente in
+ * the libreta's PRÓXIMO section. A freshly-registered annual dose's reminder
+ * is due ~365 days out — real data, but showing it as an active pendiente
+ * with "Posponer 7 días" is noise a year early (medianos-sesión-2 finding #2:
+ * a fresh reminder read "vence en 365 días" right next to the snooze action).
+ * Overdue reminders (negative days) always count as within window — they are
+ * the most urgent, never "too far out". This gate is DISPLAY-ONLY: the
+ * reminder's `dueAt` is untouched, and a reminder outside the window is still
+ * a real reminder — it simply doesn't clutter this section until it becomes
+ * useful. Distinct from `PROXIMOS_HORIZON_DAYS` (vaccine-reminder-state.ts,
+ * 60 days) — that constant gates the /inicio greeting's "N vencimientos
+ * próximos" COUNTER, a different surface with a different design call.
+ */
+export const REMINDER_SURFACE_WINDOW_DAYS = 30;
+
 /**
  * Merges reminders, confirmed appointments, and pending medication doses into
  * one ascending-by-dueAt ledger. Sort is stable — ties preserve the order in
  * which items were appended (reminders, then appointments, then doses).
  *
- * `now` is accepted for API symmetry with the design's documented signature
- * and reserved for future "hide already-passed" filtering; the current
- * sources are all pre-filtered to pending/future rows by their queries.
+ * `now` gates reminders to `REMINDER_SURFACE_WINDOW_DAYS` (see above) —
+ * appointments and medication doses are left untouched, their own queries
+ * already bound them to near-term/pending rows.
  */
 export function mergeFutureLedger(
   reminders: FutureReminderInput[],
@@ -64,19 +82,23 @@ export function mergeFutureLedger(
   medicationDoses: FutureMedicationDoseInput[],
   now: Date = new Date(),
 ): FutureLedgerItem[] {
-  void now;
-
-  const reminderItems: FutureLedgerItem[] = reminders.map((r) => {
-    const isRabiesDueOrOver = RABIES_TITLE_RE.test(r.title) && DUE_OR_OVER_VARIANTS.has(r.variant);
-    return {
-      id: `reminder-${r.reminderId}`,
-      kind: "reminder",
-      label: r.title,
-      dueAt: r.dueAt,
-      action: isRabiesDueOrOver ? { type: "programar-turno" } : undefined,
-      reminderId: r.reminderId,
-    };
-  });
+  const reminderItems: FutureLedgerItem[] = reminders
+    .filter((r) => {
+      const daysUntilDue = Math.round((r.dueAt.getTime() - now.getTime()) / MS_PER_DAY);
+      return daysUntilDue <= REMINDER_SURFACE_WINDOW_DAYS;
+    })
+    .map((r) => {
+      const isRabiesDueOrOver =
+        RABIES_TITLE_RE.test(r.title) && DUE_OR_OVER_VARIANTS.has(r.variant);
+      return {
+        id: `reminder-${r.reminderId}`,
+        kind: "reminder" as const,
+        label: r.title,
+        dueAt: r.dueAt,
+        action: isRabiesDueOrOver ? ({ type: "programar-turno" } as const) : undefined,
+        reminderId: r.reminderId,
+      };
+    });
 
   const appointmentItems: FutureLedgerItem[] = appointments.map((a) => ({
     id: `appt-${a.publicToken}`,

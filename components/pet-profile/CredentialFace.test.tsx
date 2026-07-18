@@ -79,6 +79,55 @@ describe("CredentialFace — H1 provenance gate (negative case)", () => {
   });
 });
 
+// medianos-sesión-2 finding #4: the mobile summary line said "falta vacuna
+// antirrábica" for a dose that WAS on record — declared by the owner and
+// currently vigente, just not vet-signed — the exact "you have nothing"
+// contradiction the code's own doc comment warns against. A declared-only
+// card must read "X sin verificar", never "falta X"; a genuinely absent
+// obligation keeps "falta X".
+describe("CredentialFace — compliance summary wording (declared vs. missing)", () => {
+  function vaccination(
+    vaccineName: string,
+    nextDueAt: string | null,
+    prov: Partial<ComplianceEvent>,
+  ): ComplianceEvent {
+    return {
+      eventType: "vaccination_administered",
+      occurredAt: "2026-01-01T00:00:00Z",
+      payload: { vaccine_name: vaccineName, next_due_at: nextDueAt },
+      ...prov,
+    };
+  }
+
+  const SELF = { authorRole: "owner", authorVerified: false, authorOrganizationId: null };
+
+  it("a declared-and-vigente rabies dose reads 'sin verificar', never 'falta'", () => {
+    const state = deriveComplianceState(
+      complianceInput({
+        events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)],
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Declarada");
+    expect(card?.tone).toBe("neutral");
+    expect(card?.provenance).toBe("declarado");
+
+    const html = render(state);
+    expect(html).toContain("vacuna antirrábica sin verificar");
+    expect(html).not.toContain("falta vacuna antirrábica");
+  });
+
+  it("a pet with no rabies record at all still reads 'falta vacuna antirrábica'", () => {
+    const state = deriveComplianceState(complianceInput());
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Sin registro");
+    expect(card?.provenance).toBeUndefined();
+
+    const html = render(state);
+    expect(html).toContain("falta vacuna antirrábica");
+  });
+});
+
 describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
   // wave-3 D12: the ribbon now renders through the shared LnMemorialChip
   // (components/ui/StatusFlag.tsx) instead of hand-rolling its own box —

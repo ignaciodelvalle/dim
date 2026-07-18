@@ -174,6 +174,65 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
 }
 
 // ---------------------------------------------------------------------------
+// fetchLatestLostDescription
+// ---------------------------------------------------------------------------
+
+export type LatestLostDescription = {
+  accessoriesWhenLost: string | null;
+  behaviorNotes: string | null;
+  lastSeenContext: string | null;
+};
+
+/**
+ * The `lost_description` snapshot (accessories/behavior/last-seen context)
+ * from the pet's MOST RECENT prior `pet_marked_lost` episode, or null when
+ * there is none.
+ *
+ * Prefills a SECOND "Marcar como perdida" wizard (medianos-sesión-2 finding
+ * #3): `pet.color`/`pet.distinguishingFeatures` already carry forward
+ * correctly (`setPetLostWriter` persists them onto the pet row every episode
+ * — see updatePetLostProjection), but `accessories_when_lost`,
+ * `behavior_notes` and `last_seen_context` live ONLY in the `status_changed`
+ * event's payload, never on the pet row — so a diligent owner who typed
+ * "collar rojo, se asusta de los autos" on episode 1 saw those fields blank
+ * on episode 2, despite events being the source of truth (invariant #2).
+ *
+ * Events are append-only: this reads the LATEST status_changed(to_status=
+ * 'lost') event carrying a `lost_description`, not a cached/mutable column.
+ */
+export async function fetchLatestLostDescription(
+  petId: string,
+): Promise<LatestLostDescription | null> {
+  const [row] = await db
+    .select({ payload: petEvents.payload })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "status_changed"),
+        sql`${petEvents.payload}->>'to_status' = 'lost'`,
+      ),
+    )
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+
+  if (!row) return null;
+
+  const payload = (row.payload ?? {}) as Record<string, unknown>;
+  const lostDescription = (payload.lost_description ?? {}) as Record<string, unknown>;
+  const str = (key: string): string | null =>
+    typeof lostDescription[key] === "string" && lostDescription[key].trim()
+      ? (lostDescription[key] as string).trim()
+      : null;
+
+  return {
+    accessoriesWhenLost: str("accessories_when_lost"),
+    behaviorNotes: str("behavior_notes"),
+    lastSeenContext: str("last_seen_context"),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // fetchLostScanEvents
 // ---------------------------------------------------------------------------
 

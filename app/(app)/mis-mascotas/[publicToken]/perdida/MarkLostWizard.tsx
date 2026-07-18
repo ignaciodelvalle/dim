@@ -97,6 +97,9 @@ export function MarkLostWizard({
   petDistinguishingFeatures,
   petJurisdictionProvince,
   petJurisdictionLocality,
+  priorAccessoriesWhenLost = null,
+  priorBehaviorNotes = null,
+  priorLastSeenContext = null,
 }: {
   action: FormAction;
   petName: string;
@@ -109,6 +112,19 @@ export function MarkLostWizard({
   petDistinguishingFeatures: string | null;
   petJurisdictionProvince: string | null;
   petJurisdictionLocality: string | null;
+  /**
+   * "Accesorios que llevaba" / "Comportamiento" / "Contexto del último
+   * avistaje" from the pet's most recent PRIOR pet_marked_lost episode
+   * (fetchLatestLostDescription — events are the source of truth, unlike
+   * petColor/petDistinguishingFeatures above which persist on the pet row).
+   * Null on a pet's first-ever lost episode. The owner can still edit —
+   * these are only DEFAULT values (medianos-sesión-2 finding #3: a second
+   * "Marcar como perdida" started these fields blank despite them being
+   * entered before).
+   */
+  priorAccessoriesWhenLost?: string | null;
+  priorBehaviorNotes?: string | null;
+  priorLastSeenContext?: string | null;
 }) {
   // Detail step is conditional — pets with chip or tattoo skip it. The
   // disclosure (affirmative consent) step is ALWAYS the final step.
@@ -309,6 +325,7 @@ export function MarkLostWizard({
                       id={id}
                       name="enriched_accessories_when_lost"
                       type="text"
+                      defaultValue={priorAccessoriesWhenLost ?? ""}
                       placeholder="Ej: collar rojo con placa, campera azul"
                       aria-describedby={describedBy}
                     />
@@ -320,6 +337,7 @@ export function MarkLostWizard({
                       id={id}
                       name="enriched_behavior_notes"
                       rows={2}
+                      defaultValue={priorBehaviorNotes ?? ""}
                       placeholder="Ej: se asusta de los autos, responde a su nombre"
                       aria-describedby={describedBy}
                     />
@@ -331,6 +349,7 @@ export function MarkLostWizard({
                       id={id}
                       name="enriched_last_seen_context"
                       rows={2}
+                      defaultValue={priorLastSeenContext ?? ""}
                       placeholder="Ej: salió por la puerta cuando abrimos el portón"
                       aria-describedby={describedBy}
                     />

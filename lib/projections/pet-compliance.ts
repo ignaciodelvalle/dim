@@ -19,7 +19,7 @@
 import { type ProvenanceTier, provenanceTier } from "@/lib/domain/provenance";
 import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
 import { computeConfidence } from "@/lib/events/event-confidence";
-import { AR_TIME_ZONE, parseDateInput } from "@/lib/utils/format";
+import { formatDateArOmitCurrentYear, parseDateInput } from "@/lib/utils/format";
 
 // Minimal event shape — decoupled from ProjectionEvent so tests stay trivial.
 // Carries provenance (the ConfidenceInput fields) so an obligation is only
@@ -193,7 +193,24 @@ function declaradaCard(
   hint: string,
   detail: string | null = null,
 ): ObligationCard {
-  return { key, label, state: DECLARADA_STATE, tone: "neutral", detail, legalFootnote, hint };
+  // provenance: "declarado" — something IS on record, it just isn't
+  // professional/institutional-verified (medianos-sesión-2 finding #4). Without
+  // this, every declared-only card (sterilization, microchip, and the rabies
+  // fallback below) was indistinguishable from a genuinely absent obligation to
+  // any surface deriving wording from `tone` alone — the credential-face summary
+  // (CredentialFace.tsx) read a Declarada card as "falta X" (missing), the exact
+  // contradiction its own doc comment warns against ("a declared-only card is
+  // not 'falta'").
+  return {
+    key,
+    label,
+    state: DECLARADA_STATE,
+    tone: "neutral",
+    detail,
+    legalFootnote,
+    hint,
+    provenance: "declarado",
+  };
 }
 
 // The latest rabies vaccination event (by occurredAt), if any.
@@ -208,15 +225,14 @@ function latestRabiesDose(events: ComplianceEvent[]): ComplianceEvent | undefine
     .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())[0];
 }
 
-function formatDate(date: Date): string {
-  // Pin AR_TIME_ZONE (PJ-M3): without it a date-only midnight-UTC value renders
-  // as the previous day in AR, and SSR (UTC) disagrees with client hydration.
-  return date.toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: AR_TIME_ZONE,
-  });
-}
+// formatDateArOmitCurrentYear (lib/utils/format.ts) is AR_TIME_ZONE-pinned
+// (PJ-M3: without it a date-only midnight-UTC value renders as the previous
+// day in AR, and SSR/hydration disagree) AND appends the year the moment the
+// date's AR-calendar year differs from `now`'s — a bare "Vence 18/07" reads
+// as THIS year every time, which is silently wrong the one day a due date
+// crosses into next year (medianos-sesión-2 finding #1). `now` threads
+// through from ComplianceInput so the comparison always uses the caller's
+// pinned instant, not a fresh `new Date()` at format time.
 
 // A date-only "YYYY-MM-DD" next_due_at is midnight UTC = the previous AR
 // calendar day; anchor it at NOON UTC (parseDateInput) so a dose "due today" in
@@ -227,14 +243,14 @@ function parseNextDue(raw: string): Date | null {
 }
 
 // Map a reminder variant to the coarse compliance tone + labels.
-function rabiesFromVariant(variant: ReminderVariant, dueAt: Date): ObligationCard {
+function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): ObligationCard {
   if (variant === "due_soon") {
     return {
       key: "rabies",
       label: "Vacuna antirrábica",
       state: "Por vencer",
       tone: "due",
-      detail: `Vence ${formatDate(dueAt)}`,
+      detail: `Vence ${formatDateArOmitCurrentYear(dueAt, now)}`,
       legalFootnote: FOOTNOTE.rabies,
     };
   }
@@ -244,7 +260,7 @@ function rabiesFromVariant(variant: ReminderVariant, dueAt: Date): ObligationCar
       label: "Vacuna antirrábica",
       state: "Vencida",
       tone: "over",
-      detail: `Venció ${formatDate(dueAt)}`,
+      detail: `Venció ${formatDateArOmitCurrentYear(dueAt, now)}`,
       legalFootnote: FOOTNOTE.rabies,
     };
   }
@@ -254,7 +270,7 @@ function rabiesFromVariant(variant: ReminderVariant, dueAt: Date): ObligationCar
     label: "Vacuna antirrábica",
     state: "Vigente",
     tone: "ok",
-    detail: `Próxima ${formatDate(dueAt)}`,
+    detail: `Próxima ${formatDateArOmitCurrentYear(dueAt, now)}`,
     legalFootnote: FOOTNOTE.rabies,
   };
 }
@@ -271,7 +287,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
       label: "Vacuna antirrábica",
       state: "Turno reservado",
       tone: "reserved",
-      detail: `${formatDate(date)}${providerSuffix}`,
+      detail: `${formatDateArOmitCurrentYear(date, input.now)}${providerSuffix}`,
       legalFootnote: FOOTNOTE.rabies,
     };
   }
@@ -297,7 +313,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
   let base: ObligationCard;
   let currencyKnown: boolean;
   if (input.rabiesReminder) {
-    base = rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt);
+    base = rabiesFromVariant(input.rabiesReminder.variant, input.rabiesReminder.dueAt, input.now);
     currencyKnown = true;
   } else {
     // dose is defined here (the early return above handled the no-dose case).
@@ -307,8 +323,8 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     if (nextDue && Number.isFinite(nextDue.getTime())) {
       base =
         nextDue <= input.now
-          ? rabiesFromVariant("overdue", nextDue)
-          : rabiesFromVariant("upcoming", nextDue);
+          ? rabiesFromVariant("overdue", nextDue, input.now)
+          : rabiesFromVariant("upcoming", nextDue, input.now);
       currencyKnown = true;
     } else {
       // A dose IS on record but its payload carries no next_due_at, so we can't
@@ -323,7 +339,7 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
         label: "Vacuna antirrábica",
         state: "Registrada",
         tone: "ok",
-        detail: `Aplicada ${formatDate(appliedAt)}`,
+        detail: `Aplicada ${formatDateArOmitCurrentYear(appliedAt, input.now)}`,
         legalFootnote: FOOTNOTE.rabies,
       };
       currencyKnown = false;

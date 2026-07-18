@@ -4,6 +4,7 @@ import {
   calendarDaysAgoInAr,
   eventTypeLabel,
   formatCount,
+  formatDateArOmitCurrentYear,
   formatDateShort,
   formatDateTime,
   formatDateTimeLegal,
@@ -95,6 +96,51 @@ describe("calendarDaysAgoInAr", () => {
     expect(calendarDaysAgoInAr(new Date("2026-07-03T02:30:00Z"), lateNow)).toBe(2);
     // Future date → negative.
     expect(calendarDaysAgoInAr(new Date("2026-07-05T15:00:00Z"), now)).toBe(-1);
+  });
+});
+
+// medianos-sesión-2 finding #1: "Próxima 18/7" with no year reads as TODAY
+// when the real due date is a year out. The year must appear the moment the
+// date's AR-calendar year differs from the current one — never a raw UTC
+// comparison (a date-only value near AR midnight must not flip years on SSR
+// vs. hydration).
+describe("formatDateArOmitCurrentYear", () => {
+  const thisYearNow = new Date("2026-07-04T13:00:00Z"); // 10:00 AR, 2026
+
+  it("omits the year when the date falls in the current AR calendar year", () => {
+    expect(formatDateArOmitCurrentYear(new Date("2026-12-31T13:00:00Z"), thisYearNow)).toBe(
+      "31/12",
+    );
+  });
+
+  it("appends the year when the date falls in a different AR calendar year", () => {
+    expect(formatDateArOmitCurrentYear(new Date("2027-01-18T13:00:00Z"), thisYearNow)).toBe(
+      "18/01/2027",
+    );
+  });
+
+  it("compares AR-calendar years, not raw UTC years, near the AR New Year boundary", () => {
+    // 2027-01-01T02:00Z is 2026-12-31T23:00 AR (UTC-3) — UTC year is already
+    // 2027, but the AR calendar day is still 31/12/2026. Against `thisYearNow`
+    // (AR year 2026) the AR years match, so the year must be OMITTED — a
+    // UTC-year comparison would wrongly append "/2027".
+    const lateArNewYearsEveInstant = new Date("2027-01-01T02:00:00Z");
+    expect(formatDateArOmitCurrentYear(lateArNewYearsEveInstant, thisYearNow)).toBe("31/12");
+
+    // Flip it: `now` itself sits at that same late-AR-New-Year's-Eve instant
+    // (AR year 2026, UTC year 2027) while the date is genuinely early January
+    // AR year 2027. A UTC-year comparison on `now` would read 2027 and wrongly
+    // omit the year; the AR-year comparison correctly appends it.
+    const dateEarlyNextArYear = new Date("2027-01-02T13:00:00Z"); // 10:00 AR 01-02-2027
+    expect(formatDateArOmitCurrentYear(dateEarlyNextArYear, lateArNewYearsEveInstant)).toBe(
+      "02/01/2027",
+    );
+  });
+
+  it("returns the empty marker for null/undefined/unparseable input", () => {
+    expect(formatDateArOmitCurrentYear(null, thisYearNow)).toBe("—");
+    expect(formatDateArOmitCurrentYear(undefined, thisYearNow)).toBe("—");
+    expect(formatDateArOmitCurrentYear("not-a-date", thisYearNow)).toBe("—");
   });
 });
 

@@ -45,3 +45,24 @@ describe("<CaptureBox> — voice dictation roadmap placeholder", () => {
     expect(html).toContain("Identificar");
   });
 });
+
+// medianos-sesión-2 finding #5 (verified against current code — not
+// reproducible: the quick-capture chips already render icon-free, label-only
+// links, so their text content IS their accessible name). Pinned here as a
+// regression guard so a future edit can't split the icon and label into
+// sibling elements again (the exact shape that produces a nameless link).
+describe("<CaptureBox> — quick-action chips carry a real accessible name", () => {
+  it("every quick-action chip is a link whose visible text is non-empty", () => {
+    const html = renderToStaticMarkup(<CaptureBox petPublicToken="abc123" petName="Firulais" />);
+    const chipLinks = [...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/g)];
+    // The quick-action grid renders at least one chip in test env (registry-backed).
+    expect(chipLinks.length).toBeGreaterThan(0);
+    for (const [, inner] of chipLinks) {
+      // Strip any nested tags (none expected — chips are icon-free label-only
+      // links) and assert real, non-whitespace text remains as the accessible
+      // name source.
+      const text = inner.replace(/<[^>]*>/g, "").trim();
+      expect(text.length).toBeGreaterThan(0);
+    }
+  });
+});
