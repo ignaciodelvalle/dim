@@ -61,6 +61,12 @@ function parseArgs(argv: string[]): Args {
  *      terminal in the replay REGARDLESS of status_changed events (the death
  *      writer emits death_recorded only), so leg 1 alone under-selects this
  *      class (adversarial review 2026-07-18, W1).
+ *   3. every already-deceased pet — the status COLUMN can agree while the
+ *      deceased_at column drifts (staging 2026-07-19: reconcile flagged 2 pets
+ *      "deceased/deceased" with deceasedAt-only drift that legs 1-2 cannot
+ *      see, since both trigger on status disagreement). Deliberately coarse:
+ *      deriving the payload date in SQL would duplicate deriver logic, and the
+ *      canonical replay re-verifies every candidate before any write anyway.
  * Together the legs form a true superset of status-projection drift; every
  * candidate is still re-verified by the canonical replay before any write.
  */
@@ -85,6 +91,10 @@ async function findCandidateIds(): Promise<string[]> {
         SELECT 1 FROM pet_events e
         WHERE e.pet_id = p.id AND e.event_type = 'death_recorded'
       )
+    UNION
+    SELECT p.id
+    FROM pets p
+    WHERE p.status = 'deceased'
     ORDER BY id
   `)) as { id: string }[];
   return rows.map((r) => r.id);
