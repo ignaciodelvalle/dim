@@ -8,11 +8,6 @@
 //     outcome='cancelled' → org cancelled their own proposal, closed_reason='cancelled'.
 //     outcome='expired'   → cron auto-expires after 7 days, closed_reason='auto_expired'.
 //
-// Phases (lifecycles spec L1): phases are subdivisions of status='open'. The
-// only open phase is pending_response. The outcomes (accepted / rejected /
-// cancelled / expired) are discriminated by closed_reason/payload — they are
-// NOT phases; they describe a closed case.
-//
 // Cron close: /api/cron/expire-foster-proposals. proposeFosterAction opens a
 // cases row and writes its id to foster_proposals.case_id (migration 0068).
 // The expirer cron resolves case_id from the proposal row (or falls back to
@@ -25,10 +20,6 @@ import type { CaseLifecycle } from "./types";
 export const fosterProposalLifecycle: CaseLifecycle = {
   kind: "foster_proposal",
   statusValues: ["open", "closed"],
-  // pending_response is the only genuine open phase (lifecycles spec L1: phases
-  // are subdivisions of status='open'). accepted / rejected / cancelled / expired
-  // are closed outcomes — discriminated by closed_reason/payload, not phases.
-  phases: ["pending_response"],
   opensEvents: [
     {
       eventType: "foster_proposed",

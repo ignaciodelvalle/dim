@@ -18,16 +18,6 @@ import type { CaseLifecycle } from "./types";
 export const welfareDenunciaLifecycle: CaseLifecycle = {
   kind: "welfare_denuncia",
   statusValues: ["open", "escalated", "closed", "merged"],
-  phases: [
-    "open_pending_triage",
-    "in_progress",
-    "escalated_no_activity",
-    "closed_resolved",
-    "closed_invalid",
-    "closed_duplicate",
-    "closed_spam",
-    "merged",
-  ],
   // The kind is opened atomically with `welfare_reports` row creation,
   // not by a pet_events row. opensEvents stays empty so the attachment
   // helper doesn't try to auto-open from a pet_events insert.

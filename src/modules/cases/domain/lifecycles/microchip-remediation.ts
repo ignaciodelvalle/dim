@@ -12,7 +12,6 @@ import type { CaseLifecycle } from "./types";
 export const microchipRemediationLifecycle: CaseLifecycle = {
   kind: "microchip_remediation",
   statusValues: ["open", "escalated", "closed"],
-  phases: ["investigation", "evidence_collected", "resolved", "dismissed"],
   opensEvents: [
     {
       eventType: "microchip_replaced",

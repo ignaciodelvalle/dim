@@ -20,13 +20,6 @@ import type { CaseLifecycle } from "./types";
 export const lostPetEpisodeLifecycle: CaseLifecycle = {
   kind: "lost_pet_episode",
   statusValues: ["open", "closed"],
-  phases: [
-    "lost_open",
-    "match_proposed",
-    "lost_closed_resolved",
-    "lost_closed_auto_expired",
-    "lost_closed_cancelled",
-  ],
   opensEvents: [
     {
       eventType: "status_changed",

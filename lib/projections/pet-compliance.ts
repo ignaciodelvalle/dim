@@ -77,10 +77,6 @@ export type ObligationCard = {
   detail: string | null; // es-AR secondary line (date, provider, chip number)
   legalFootnote: string; // es-AR muted legal citation
   hint?: string | null; // es-AR nudge to get a self-reported event verified (H1)
-  // Provenance lens (task #78): declarado / verificado / firmado_matricula, from
-  // the satisfying event's author. Lets a surface caption WHO signed the record
-  // without re-deriving it. Omitted when there is no satisfying event.
-  provenance?: ProvenanceTier;
   // Dual honest vaccine state — see ComplianceDual. Rabies-only, declared-dose-only.
   dual?: ComplianceDual;
 };
@@ -193,14 +189,13 @@ function declaradaCard(
   hint: string,
   detail: string | null = null,
 ): ObligationCard {
-  // provenance: "declarado" — something IS on record, it just isn't
-  // professional/institutional-verified (medianos-sesión-2 finding #4). Without
-  // this, every declared-only card (sterilization, microchip, and the rabies
-  // fallback below) was indistinguishable from a genuinely absent obligation to
-  // any surface deriving wording from `tone` alone — the credential-face summary
-  // (CredentialFace.tsx) read a Declarada card as "falta X" (missing), the exact
-  // contradiction its own doc comment warns against ("a declared-only card is
-  // not 'falta'").
+  // The "Declarada" state itself (not a separate provenance field) is what
+  // keeps a declared-only card (sterilization, microchip, and the rabies
+  // fallback below) distinguishable from a genuinely absent obligation on any
+  // surface deriving wording from `tone`/`state` — the credential-face summary
+  // (CredentialFace.tsx) once read a Declarada card as "falta X" (missing),
+  // the exact contradiction its own doc comment warns against ("a
+  // declared-only card is not 'falta'").
   return {
     key,
     label,
@@ -209,7 +204,6 @@ function declaradaCard(
     detail,
     legalFootnote,
     hint,
-    provenance: "declarado",
   };
 }
 
@@ -378,7 +372,6 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
       tone: countingTone,
       detail: base.detail,
       legalFootnote: FOOTNOTE.rabies,
-      provenance: "declarado",
       dual: {
         ownerLabel: ownerDeclared
           ? "Antirrábica cargada por vos"
@@ -398,9 +391,8 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     return declaradaCard("rabies", "Vacuna antirrábica", FOOTNOTE.rabies, HINT.rabies, base.detail);
   }
 
-  // Signed dose (or a reminder-only due/over base) → keep the currency card,
-  // tagged with its provenance tier for surfaces that caption it.
-  return tier ? { ...base, provenance: tier } : base;
+  // Signed dose (or a reminder-only due/over base) → keep the currency card.
+  return base;
 }
 
 function deriveSterilization(input: ComplianceInput): ObligationCard {

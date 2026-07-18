@@ -6,16 +6,18 @@
 //   src/modules/organizations/application/admin-proposals/
 //
 // This file provides thin Action wrappers (proposeVetUpgradeAction,
-// proposeOrgVerificationAction, logPiiQueryAction). The bare writers
-// (logPiiQueryForAuthority, logPiiReadSafely, proposeVetUpgradeForUser,
-// proposeOrgVerificationForOrg) are NOT exported here (authz triage
-// 2026-07-04; logPiiReadSafely added review 07, 2026-07-05): every export of
-// a "use server" file is an independently-addressable server action, so a bare
-// writer taking a caller-supplied actorUserId would allow PII-audit forgery /
-// proposal spam as any user — being called only from an already-gated /gob
-// page is NOT a backstop, since the export bypasses the page entirely. The
-// server-component list pages import logPiiReadSafely from
-// src/modules/organizations/application/admin-proposals/log-pii-query directly.
+// proposeOrgVerificationAction). The bare writers (logPiiReadSafely,
+// proposeVetUpgradeForUser, proposeOrgVerificationForOrg) are NOT exported
+// here (authz triage 2026-07-04; logPiiReadSafely added review 07,
+// 2026-07-05): every export of a "use server" file is an independently-
+// addressable server action, so a bare writer taking a caller-supplied
+// actorUserId would allow PII-audit forgery / proposal spam as any user —
+// being called only from an already-gated /gob page is NOT a backstop, since
+// the export bypasses the page entirely. The server-component list pages
+// import logPiiReadSafely from
+// src/modules/organizations/application/admin-proposals/log-pii-query directly
+// (PII audit logging has no client-callable action — it is only ever invoked
+// server-side from those pages).
 //
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
@@ -23,7 +25,6 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { logPiiQueryForAuthority as _logPiiQueryForAuthority } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 import { proposeOrgVerificationForOrg as _proposeOrgVerificationForOrg } from "@/src/modules/organizations/application/admin-proposals/propose-org-verification";
 import { proposeVetUpgradeForUser as _proposeVetUpgradeForUser } from "@/src/modules/organizations/application/admin-proposals/propose-vet-upgrade";
 
@@ -69,13 +70,4 @@ export async function proposeOrgVerificationAction(
     revalidatePath("/admin/organizaciones");
   }
   return result;
-}
-
-export async function logPiiQueryAction(input: {
-  query: string;
-  resultCount: number;
-  surface: "users" | "organizations";
-}): Promise<void> {
-  const { user } = await requireAdminOrGovtOrRedirect();
-  await _logPiiQueryForAuthority(user.id, input.query, input.resultCount, input.surface);
 }

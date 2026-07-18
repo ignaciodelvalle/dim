@@ -30,7 +30,6 @@ import type { CaseLifecycle } from "./types";
 export const outbreakInvestigationLifecycle: CaseLifecycle = {
   kind: "outbreak_investigation",
   statusValues: ["open", "escalated", "closed"],
-  phases: ["under_investigation", "escalated", "closed_resolved", "closed_dismissed"],
   opensEvents: [
     {
       eventType: "outbreak_signal",
