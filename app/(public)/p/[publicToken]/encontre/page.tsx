@@ -10,8 +10,10 @@
 //      (respects disclosePhoneWhenLost / discloseEmailWhenLost prefs).
 //   4. Happy path                    → header + FinderInPossessionForm.
 //
-// Logged-in prefill: getUser() without redirect. If logged in, prefill
-// name/phone/email from the profile row.
+// Logged-in detection: getUser() without redirect. PO decision 2026-07-16 —
+// the form is NEVER prefilled from the session (the finder types everything by
+// hand); the session is only used to render the "¿No sos vos? Salí de la
+// sesión" advisory banner (with the session's display name).
 
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
@@ -173,16 +175,11 @@ export default async function FinderInPossessionPage({
   }
 
   // Happy path: pet is lost + allowFinderFormWhenLost.
-  // Prefill: check if there's a logged-in user without redirecting.
-  let prefill:
-    | {
-        name?: string;
-        phone?: string;
-        email?: string;
-        displayName?: string;
-      }
-    | undefined;
+  // Logged-in detection (banner only — NO form prefill, PO 2026-07-16): check
+  // for a session without redirecting; resolve the display name so the
+  // "¿No sos vos? Salí de la sesión" advisory can identify whose session it is.
   let loggedIn = false;
+  let sessionDisplayName: string | null = null;
 
   try {
     const supabase = await createClient();
@@ -193,24 +190,15 @@ export default async function FinderInPossessionPage({
     if (user?.id) {
       loggedIn = true;
       const [profile] = await db
-        .select({
-          displayName: profiles.displayName,
-          phone: profiles.phone,
-        })
+        .select({ displayName: profiles.displayName })
         .from(profiles)
         .where(eq(profiles.id, user.id))
         .limit(1);
-
-      prefill = {
-        name: profile?.displayName ?? undefined,
-        phone: profile?.phone ?? undefined,
-        email: user.email ?? undefined,
-        displayName: profile?.displayName ?? undefined,
-      };
+      sessionDisplayName = profile?.displayName ?? null;
     }
   } catch (err) {
     // Non-fatal — anonymous path.
-    reportError("public-encontre/prefill", err, { publicToken });
+    reportError("public-encontre/session", err, { publicToken });
   }
 
   // Resolve owner first name (for the header copy "X está esperando reencontrarse").
@@ -279,8 +267,8 @@ export default async function FinderInPossessionPage({
             petName={pet.name}
             biasProvince={pet.jurisdictionProvince}
             biasLocality={pet.jurisdictionLocality}
-            prefill={prefill}
             loggedIn={loggedIn}
+            sessionDisplayName={sessionDisplayName}
           />
         </section>
       </div>
