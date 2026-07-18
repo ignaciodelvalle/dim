@@ -37,7 +37,7 @@ import {
   projectSeries,
   toneForTarget,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { formatPercent, formatRate } from "@/lib/utils/format";
 
@@ -203,7 +203,7 @@ export default async function AdminPoblacionPage({
           control because its denominator (partos en seguimiento) under-counts
           real natalidad. */}
       {sterilNatalidadRatio !== null && (
-        <section aria-label="Ratio esterilización / natalidad registrada">
+        <section aria-label={KPI_CATALOG.sterilization_natalidad_ratio.label}>
           <div className="rounded-xl border border-ln-op-line bg-white px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute">
               Contexto · Ratio esterilización / natalidad registrada (nacional)

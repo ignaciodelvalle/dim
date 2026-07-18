@@ -51,7 +51,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
@@ -62,7 +62,7 @@ import { formatDateShort, formatPercent } from "@/lib/utils/format";
 export const dynamic = "force-dynamic";
 
 const ALERT_METRIC_LABEL: Record<string, string> = {
-  active_zoonosis: "Casos de zoonosis activos",
+  active_zoonosis: KPI_CATALOG.active_zoonosis_signals.label,
   eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
   queue_oldest_days: "Días sin atender (solicitud más antigua)",
   sterilization_coverage_pct: "Cobertura de esterilización (%)",

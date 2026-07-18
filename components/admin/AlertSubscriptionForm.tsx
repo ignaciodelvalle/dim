@@ -11,13 +11,14 @@ import { createAlertSubscriptionAction } from "@/app/actions/alert-subscriptions
 // also exports the postgres client) — this is a client component, and "@/db"
 // would pull the Node `net`/`tls` driver into the client bundle.
 import { ALERT_DIRECTIONS, ALERT_METRIC_KEYS } from "@/db/schema";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 
 // ---------------------------------------------------------------------------
 // es-AR labels for metric keys and directions
 // ---------------------------------------------------------------------------
 
 const METRIC_LABELS: Record<(typeof ALERT_METRIC_KEYS)[number], string> = {
-  active_zoonosis: "Casos de zoonosis activos",
+  active_zoonosis: KPI_CATALOG.active_zoonosis_signals.label,
   eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
   queue_oldest_days: "Días sin atender (solicitud más antigua)",
   sterilization_coverage_pct: "Cobertura de esterilización (%)",

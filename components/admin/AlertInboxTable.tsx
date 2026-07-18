@@ -12,6 +12,7 @@
 
 import { AlertRowActions } from "@/app/admin/alertas/AlertRowActions";
 import type { AlertFiring, AlertFiringStatus, AlertMetricKey } from "@/db/schema";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -19,7 +20,7 @@ import { calendarDaysAgoInAr } from "@/lib/utils/format";
 // ---------------------------------------------------------------------------
 
 export const ALERT_METRIC_LABEL: Record<AlertMetricKey, string> = {
-  active_zoonosis: "Casos de zoonosis activos",
+  active_zoonosis: KPI_CATALOG.active_zoonosis_signals.label,
   eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
   queue_oldest_days: "Días sin atender (cola)",
   sterilization_coverage_pct: "Cobertura de esterilización (%)",

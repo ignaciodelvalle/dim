@@ -51,7 +51,7 @@ import {
   fetchKpiTrend,
   toneForTarget,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { type ActivityFeedRow, collapseActivityFeed } from "@/lib/ui/activity-feed";
@@ -313,7 +313,7 @@ export default async function GobiernoDashboardPage({
           info={getKpiInfo("rabies_coverage_dogs_12m")}
         />
         <OpKpi
-          label="Esterilizaciones / mes"
+          label={KPI_CATALOG.sterilizations_per_month.label}
           value={sterilizations.count.toLocaleString("es-AR")}
           deltaV2={
             sterilizations.deltaPct !== 0
@@ -361,7 +361,7 @@ export default async function GobiernoDashboardPage({
             un único número opaco: observación rábica abierta, mordeduras abiertas
             y enfermedades notificadas. */}
         <OpKpi
-          label="Observaciones rábicas abiertas"
+          label={KPI_CATALOG.open_rabies_observations.label}
           value={openRabiesObservations.count}
           tone={openRabiesObservations.count > 0 ? "danger" : "neutral"}
           deltaV2={
@@ -382,7 +382,7 @@ export default async function GobiernoDashboardPage({
           info={getKpiInfo("open_rabies_observations")}
         />
         <OpKpi
-          label="Mordeduras abiertas"
+          label={KPI_CATALOG.open_bite_cases.label}
           value={openBiteCases.count}
           tone={openBiteCases.count > 0 ? "warn" : "neutral"}
           sub={openBiteCases.count === 1 ? "caso abierto" : "casos abiertos"}
@@ -390,7 +390,7 @@ export default async function GobiernoDashboardPage({
           info={getKpiInfo("open_bite_cases")}
         />
         <OpKpi
-          label="Enfermedades notificadas"
+          label={KPI_CATALOG.notified_diseases.label}
           value={notifiedDiseases.count}
           tone={notifiedDiseases.count > 0 ? "danger" : "neutral"}
           sub={`${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · últimos 30 días`}
@@ -446,7 +446,7 @@ export default async function GobiernoDashboardPage({
         className="grid grid-cols-2 gap-3 sm:grid-cols-4"
       >
         <OpKpi
-          label="Penetración de microchip"
+          label={KPI_CATALOG.microchip_penetration.label}
           value={formatPercent(microchipPenetration.ratePct)}
           tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           bar={microchipPenetration.ratePct}
