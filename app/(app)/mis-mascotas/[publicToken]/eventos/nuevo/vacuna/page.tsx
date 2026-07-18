@@ -21,6 +21,7 @@ export default async function NewVaccinationPage({
     vaccineName?: string;
     occurredAt?: string;
     notes?: string;
+    autoconfirm?: string;
   }>;
 }) {
   const { publicToken } = await params;
@@ -73,6 +74,7 @@ export default async function NewVaccinationPage({
           initialVaccineName={initialVaccineName}
           sourceReminderId={validReminderId}
           defaults={defaults}
+          autoConfirm={sp.autoconfirm === "1"}
         />
       </LnSheetCard>
     </LnSheetWrap>

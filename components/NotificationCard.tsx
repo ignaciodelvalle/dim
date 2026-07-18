@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { archiveNotificationAction, markNotificationReadAction } from "@/app/actions/notifications";
+import { NotificationQuickReply, isQuickReplyEligible } from "@/components/NotificationQuickReply";
 import type { Notification, Pet } from "@/db";
 import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "@/lib/utils/format";
 
@@ -10,6 +11,12 @@ import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "
 //
 // Variants: unread vs read (colored border + bg vs neutral). Severity
 // drives the left bar color (info/warning/urgent/success).
+//
+// Quick-reply island (capture-console surface #4): for an explicit
+// allowlist of actionable types (isQuickReplyEligible), mounts the ONE
+// client bit — NotificationQuickReply — below the existing CTA row. The
+// full ctaUrl button above is untouched and stays as the direct fallback
+// (works even if the owner's free text doesn't match anything).
 
 export function NotificationCard({
   notification,
@@ -22,6 +29,11 @@ export function NotificationCard({
   const tone = severityClasses(notification.severity);
   const markRead = markNotificationReadAction.bind(null, notification.id);
   const archive = archiveNotificationAction.bind(null, notification.id);
+  const showQuickReply = isQuickReplyEligible(
+    notification.notificationType,
+    notification.relatedPetId,
+    Boolean(relatedPet),
+  );
 
   return (
     <article
@@ -89,6 +101,13 @@ export function NotificationCard({
             </button>
           </form>
         </div>
+
+        {showQuickReply && relatedPet && (
+          <NotificationQuickReply
+            petPublicToken={relatedPet.publicToken}
+            reminderId={notification.relatedReminderId}
+          />
+        )}
       </div>
     </article>
   );
