@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import type { WorkflowItem, WorkflowKind } from "@/lib/analytics/owner-dashboard";
+import { AR_TIME_ZONE, calendarDaysAgoInAr } from "@/lib/utils/format";
 
 // CasesWidget — the owner's cases list.
 //
@@ -116,7 +117,7 @@ export function CasesWidget({
                 </div>
                 <p
                   className="shrink-0 text-[11px] text-ln-mute"
-                  title={c.since.toLocaleString("es-AR")}
+                  title={c.since.toLocaleString("es-AR", { timeZone: AR_TIME_ZONE })}
                 >
                   {relativeShort(c.since)}
                 </p>
@@ -155,9 +156,9 @@ function CaseIcon({
 }
 
 function relativeShort(d: Date): string {
-  const ms = Date.now() - d.getTime();
-  const day = 24 * 60 * 60 * 1000;
-  const days = Math.floor(ms / day);
+  // AR-calendar days, not elapsed-ms floor: 20:00 yesterday viewed at 10:00
+  // today must read "ayer", not "hoy" (calendarDaysAgoInAr rationale).
+  const days = calendarDaysAgoInAr(d);
   if (days < 1) return "hoy";
   if (days === 1) return "ayer";
   if (days < 30) return `hace ${days} d.`;

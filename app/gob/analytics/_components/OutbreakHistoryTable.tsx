@@ -54,10 +54,14 @@ export function OutbreakHistoryTable({ rows }: Props) {
               <td className="px-3 py-2 text-ln-op-ink">{row.locality || "—"}</td>
               <td className="px-3 py-2 text-ln-op-ink">{row.province || "—"}</td>
               <td className="px-3 py-2 text-ln-op-mute tabular-nums">
+                {/* peakDate is a date_trunc('day') UTC bucket (midnight-UTC
+                    ISO) — pin UTC so the label names the bucket's own calendar
+                    day; an ambient- or AR-zone render shifts it a day back. */}
                 {new Date(row.peakDate).toLocaleDateString("es-AR", {
                   day: "2-digit",
                   month: "short",
                   year: "numeric",
+                  timeZone: "UTC",
                 })}
               </td>
               <td className="px-3 py-2 text-right tabular-nums font-semibold text-ln-op-ink">

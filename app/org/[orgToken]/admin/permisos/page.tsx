@@ -6,6 +6,7 @@ import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/component
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
 import { ORGANIZATION_CAPABILITIES } from "@/db/schema";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import {
   CAPABILITY_CATALOG,
   resolveGrantedCaps,
@@ -44,7 +45,11 @@ const LABEL_BY_CAPABILITY = new Map(
 
 function formatDate(d: Date | string): string {
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+  return date.toLocaleString("es-AR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 export default async function PermisosPage({

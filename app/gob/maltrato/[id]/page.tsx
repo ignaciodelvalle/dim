@@ -56,7 +56,7 @@ import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { welfareReportParamCondition } from "@/lib/infra/welfare-inspector-detail";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateTime } from "@/lib/utils/format";
+import { calendarDaysAgoInAr, formatDate, formatDateTime } from "@/lib/utils/format";
 import {
   welfareAssignmentLabel,
   welfareReportKindLabel,
@@ -253,10 +253,9 @@ export default async function GobMaltratoDetailPage({
   const isTerminal =
     report.status === "closed" || report.status === "invalid" || report.status === "duplicate";
 
-  // Case age in days.
-  const ageInDays = Math.floor(
-    (Date.now() - new Date(report.createdAt).getTime()) / (24 * 60 * 60 * 1000),
-  );
+  // Case age in AR-calendar days (a case opened yesterday evening is "1 día"
+  // this morning, never "Hoy" — calendarDaysAgoInAr rationale).
+  const ageInDays = calendarDaysAgoInAr(new Date(report.createdAt));
 
   // Timeline events.
   const timelineEvents = await fetchWelfareTimeline(report.id);

@@ -12,7 +12,7 @@ import { auditLog, db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
-import { accountTypeLabel, formatDateShort } from "@/lib/utils/format";
+import { AR_TIME_ZONE, accountTypeLabel, formatDateShort } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
@@ -242,6 +242,7 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
                         {entry.performedAt.toLocaleString("es-AR", {
                           dateStyle: "short",
                           timeStyle: "short",
+                          timeZone: AR_TIME_ZONE,
                         })}
                       </span>
                     </p>

@@ -19,6 +19,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { StaticFirstMap } from "@/components/maps/StaticFirstMap";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 import { CopyPublicLinkButton } from "./CopyPublicLinkButton";
 
@@ -140,5 +141,6 @@ function formatWhen(d: Date): string {
     month: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: AR_TIME_ZONE,
   });
 }

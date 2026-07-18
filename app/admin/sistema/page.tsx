@@ -20,7 +20,7 @@ import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
-import { formatDateShort } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatDateShort } from "@/lib/utils/format";
 
 type CronTone = "ok" | "danger" | "open";
 const STATUS_LABEL: Record<string, string> = {
@@ -293,6 +293,7 @@ export default async function AdminSistemaPage() {
                                 month: "short",
                                 hour: "2-digit",
                                 minute: "2-digit",
+                                timeZone: AR_TIME_ZONE,
                               })
                             : "—"}
                           {c.lastStatus && (

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  calendarDaysAgoInAr,
   eventTypeLabel,
   formatCount,
   formatDateShort,
@@ -14,8 +15,12 @@ import {
   notificationTypeLabel,
   nowLocalDatetimeInAr,
   parseArDateToIso,
+  parseArDatetimeLocal,
+  parseDateInput,
   rabiesObservationOutcomeLabel,
+  relativeDayLabel,
   relativeDaysShort,
+  relativeTime,
   todayIsoInAr,
 } from "./format";
 
@@ -71,6 +76,75 @@ describe("relativeDaysShort", () => {
     const out = relativeDaysShort(daysAgo(20624));
     expect(out).not.toMatch(/hace \d+d/);
     expect(out).not.toContain("20624");
+  });
+});
+
+// Calendar-day relative labels — "hoy"/"ayer" are CALENDAR words, so they must
+// compare Argentine calendar days, not elapsed 24h blocks.
+describe("calendarDaysAgoInAr", () => {
+  it("counts AR calendar days, not elapsed 24h blocks", () => {
+    const now = new Date("2026-07-04T13:00:00Z"); // 10:00 AR on 07-04
+    const yesterdayEvening = new Date("2026-07-03T23:00:00Z"); // 20:00 AR 07-03
+    // 14 elapsed hours — but ONE calendar day ago.
+    expect(calendarDaysAgoInAr(yesterdayEvening, now)).toBe(1);
+    // Same AR day, hours apart → 0.
+    expect(calendarDaysAgoInAr(new Date("2026-07-04T03:30:00Z"), now)).toBe(0);
+    // 25 elapsed hours crossing two AR midnights → 2.
+    const lateNow = new Date("2026-07-04T03:30:00Z"); // 00:30 AR
+    expect(calendarDaysAgoInAr(new Date("2026-07-03T02:30:00Z"), lateNow)).toBe(2);
+    // Future date → negative.
+    expect(calendarDaysAgoInAr(new Date("2026-07-05T15:00:00Z"), now)).toBe(-1);
+  });
+});
+
+describe("relativeDayLabel", () => {
+  const now = new Date("2026-07-04T13:00:00Z"); // 10:00 AR on 07-04
+
+  it("labels the same AR day 'hoy' regardless of hour", () => {
+    expect(relativeDayLabel(new Date("2026-07-04T03:00:00Z"), now)).toBe("hoy"); // 00:00 AR
+    expect(relativeDayLabel("2026-07-04", now)).toBe("hoy"); // pre-computed AR day string
+  });
+
+  it("labels 20:00-yesterday viewed at 10:00-today 'ayer' (14h elapsed)", () => {
+    expect(relativeDayLabel(new Date("2026-07-03T23:00:00Z"), now)).toBe("ayer");
+    expect(relativeDayLabel("2026-07-03", now)).toBe("ayer");
+  });
+
+  it("falls back to a compact d/M chip beyond ayer", () => {
+    expect(relativeDayLabel("2026-07-01", now)).toBe("1/7");
+  });
+});
+
+describe("relativeDaysShort — calendar-day semantics", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("says 'hace 1d', not 'hoy', for yesterday evening viewed this morning", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T13:00:00Z")); // 10:00 AR
+    expect(relativeDaysShort(new Date("2026-07-03T23:00:00Z"))).toBe("hace 1d"); // 20:00 AR ayer
+  });
+});
+
+describe("relativeTime — calendar-day semantics", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("says 'ayer' for yesterday evening viewed this morning (14h elapsed)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T13:00:00Z")); // 10:00 AR
+    expect(relativeTime(new Date("2026-07-03T23:00:00Z"))).toBe("ayer");
+  });
+
+  it("keeps hour granularity within the same AR day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T13:00:00Z")); // 10:00 AR
+    expect(relativeTime(new Date("2026-07-04T05:00:00Z"))).toBe("hace 8 h"); // 02:00 AR hoy
+  });
+
+  it("never says 'ayer' for something two AR days back at 24-48h elapsed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T03:30:00Z")); // 00:30 AR
+    // 25h ago = 23:30 AR two days back — old elapsed math said "ayer".
+    expect(relativeTime(new Date("2026-07-03T02:30:00Z"))).toBe("hace 2 días");
   });
 });
 
@@ -342,6 +416,64 @@ describe("nowLocalDatetimeInAr", () => {
 // The whole point of this control is that an es-AR operator's "03/07" is always
 // 3-July, never mm/dd 7-March, on every browser — so parsing must be strict and
 // leap-aware, and the round-trip ISO<->display must be lossless.
+describe("parseDateInput", () => {
+  it("anchors a YYYY-MM-DD input at NOON UTC of that calendar day", () => {
+    // The noon anchor is a deliberate, load-bearing choice: it keeps the date
+    // on the same calendar day when rendered in any zone within ±12h, and 21
+    // consumers (incl. the legal rabies-observation window) depend on it.
+    expect(parseDateInput("2026-07-08")?.toISOString()).toBe("2026-07-08T12:00:00.000Z");
+    expect(parseDateInput("2024-02-29")?.toISOString()).toBe("2024-02-29T12:00:00.000Z");
+  });
+
+  it("returns null for empty or garbage input", () => {
+    expect(parseDateInput(null)).toBeNull();
+    expect(parseDateInput(undefined)).toBeNull();
+    expect(parseDateInput("")).toBeNull();
+    expect(parseDateInput("not-a-date")).toBeNull();
+    expect(parseDateInput("2026-13-45")).toBeNull();
+  });
+});
+
+describe("parseArDatetimeLocal", () => {
+  it("parses a datetime-local string as AR wall clock (UTC-3)", () => {
+    // 18:00 AR = 21:00 UTC — NOT 18:00 UTC (what an offset-less parse yields
+    // on a UTC server, firing dose reminders 3h early).
+    expect(parseArDatetimeLocal("2026-07-08T18:00")?.toISOString()).toBe(
+      "2026-07-08T21:00:00.000Z",
+    );
+  });
+
+  it("round-trips with nowLocalDatetimeInAr", () => {
+    const instant = new Date("2026-07-08T14:37:00.000Z");
+    const local = nowLocalDatetimeInAr(instant); // "2026-07-08T11:37"
+    expect(parseArDatetimeLocal(local)?.toISOString()).toBe(instant.toISOString());
+  });
+
+  it("crosses the UTC midnight boundary at 21:00 ART correctly", () => {
+    // 21:00 AR on the 8th is already 00:00Z on the 9th — the UTC calendar day
+    // advances but the AR wall clock (and the value the user typed) does not.
+    const parsed = parseArDatetimeLocal("2026-07-08T21:00");
+    expect(parsed?.toISOString()).toBe("2026-07-09T00:00:00.000Z");
+    expect(parsed ? nowLocalDatetimeInAr(parsed) : null).toBe("2026-07-08T21:00");
+  });
+
+  it("accepts an optional seconds component", () => {
+    expect(parseArDatetimeLocal("2026-07-08T18:00:30")?.toISOString()).toBe(
+      "2026-07-08T21:00:30.000Z",
+    );
+  });
+
+  it("returns null for empty or malformed input", () => {
+    expect(parseArDatetimeLocal(null)).toBeNull();
+    expect(parseArDatetimeLocal(undefined)).toBeNull();
+    expect(parseArDatetimeLocal("")).toBeNull();
+    expect(parseArDatetimeLocal("2026-07-08")).toBeNull(); // date-only
+    expect(parseArDatetimeLocal("garbage")).toBeNull();
+    expect(parseArDatetimeLocal("2026-07-08T18:00Z")).toBeNull(); // explicit zone
+    expect(parseArDatetimeLocal("2026-13-08T18:00")).toBeNull(); // impossible month
+  });
+});
+
 describe("isoToArDateDisplay", () => {
   it("renders ISO yyyy-mm-dd as dd/mm/aaaa", () => {
     expect(isoToArDateDisplay("2026-07-03")).toBe("03/07/2026");

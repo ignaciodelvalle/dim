@@ -214,6 +214,17 @@ describe("deriveRabiesSemaphore — tri-state antirrábica vigencia (R4)", () =>
     expect(deriveRabiesSemaphore(events, now)).toBe("vigente");
   });
 
+  it("a date-only next_due_at due TODAY is still vigente in the early-AR-morning window", () => {
+    // Legacy rows store a bare "YYYY-MM-DD". Parsed at midnight UTC that is
+    // 21:00 of the PREVIOUS AR day, so the badge read "vencida" from three
+    // hours before the due day even began in Argentina. The noon-UTC anchor
+    // keeps it vigente through the 21:00-prev-day → 09:00 AR window.
+    const midnightAr = new Date("2026-06-01T03:00:00Z"); // 00:00 AR on 2026-06-01
+    const events = [vaccination("v1", "Antirrábica", "2025-06-01", "2026-06-01")];
+    expect(deriveRabiesSemaphore(events, midnightAr)).toBe("vigente");
+    expect(isRabiesAtRisk(events, midnightAr)).toBe(false);
+  });
+
   it("an amended name/date flips the semaphore (Invariant #3)", () => {
     // Correcting a mistyped name into a rabies dose brings it into the check…
     const renamed = [

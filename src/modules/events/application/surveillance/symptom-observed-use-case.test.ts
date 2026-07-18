@@ -323,6 +323,43 @@ describe("createSymptomObservedWriter", () => {
     expect((insertArg.occurredAt as Date).toISOString().startsWith("2026-05-30")).toBe(true);
   });
 
+  it("anchors a date-only onsetAt on that ARGENTINE calendar day (noon UTC, not midnight)", async () => {
+    // Regression: `new Date("2026-07-18")` is midnight UTC = 21:00 on the 17th
+    // in AR (UTC-3) — the symptom landed one day EARLY. The noon-UTC anchor
+    // (parseDateInput) keeps it on the 18th in every zone within ±12h.
+    mockMatchSymptoms.mockReturnValue([]);
+    mockAggregateDiseaseMatches.mockReturnValue([]);
+
+    const symptomId = randomUUID();
+    const repo = makeRepo();
+    repo.insertEvent.mockResolvedValueOnce({ id: symptomId });
+
+    await createSymptomObservedWriter(
+      { ...baseParams, onsetAt: "2026-07-18" },
+      {
+        repo: repo as unknown as Pick<
+          EventsRepository,
+          "insertEvent" | "insertEventIdempotent" | "enqueueOutbox"
+        >,
+        transaction: makeTransaction(),
+        flushNotifications: makeFlushNotifications(),
+      },
+    );
+
+    const [insertArg] = repo.insertEvent.mock.calls[0] as [Record<string, unknown>, unknown];
+    const occurredAt = insertArg.occurredAt as Date;
+    expect(occurredAt.toISOString()).toBe("2026-07-18T12:00:00.000Z");
+    // And the AR calendar day is the day the user picked.
+    expect(
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(occurredAt),
+    ).toBe("2026-07-18");
+  });
+
   it("returns ok=false when the transaction throws", async () => {
     mockMatchSymptoms.mockReturnValue([]);
     mockAggregateDiseaseMatches.mockReturnValue([]);

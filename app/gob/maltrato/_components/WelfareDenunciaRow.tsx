@@ -9,6 +9,8 @@ import type {
   WelfareReportStatus,
 } from "@/src/modules/welfare/domain/types";
 
+import { calendarDaysAgoInAr } from "@/lib/utils/format";
+
 import { WelfareRowLink } from "./WelfareRowLink";
 
 // Severity → OpPill tone mapping.
@@ -32,11 +34,12 @@ const STATUS_TONE: Record<
   duplicate: "neutral",
 };
 
-/** Compact time-ago label for a past date, in Spanish. */
+/** Compact time-ago label for a past date, in Spanish. AR-calendar days —
+ * a report from yesterday evening reads "hace 1 día" this morning, never
+ * "hoy" (calendarDaysAgoInAr rationale). */
 function timeAgo(date: Date): string {
-  const diffMs = Date.now() - date.getTime();
-  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-  if (diffDays === 0) return "hoy";
+  const diffDays = calendarDaysAgoInAr(date);
+  if (diffDays <= 0) return "hoy";
   if (diffDays === 1) return "hace 1 día";
   if (diffDays < 30) return `hace ${diffDays} días`;
   const diffMonths = Math.floor(diffDays / 30);

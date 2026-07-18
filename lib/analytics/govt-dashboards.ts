@@ -1155,7 +1155,10 @@ export async function fetchZoonosisTrend(
   return rows.map((r) => {
     const d = new Date(r.month);
     return {
-      x: d.toLocaleString("es-AR", { month: "short" }),
+      // r.month is a date_trunc('month') UTC boundary — pin UTC so the label
+      // names the bucket month (an ambient/AR render shifts midnight-UTC
+      // boundaries into the PREVIOUS month).
+      x: d.toLocaleString("es-AR", { month: "short", timeZone: "UTC" }),
       y: r.n,
       periodStart: d.toISOString(),
     };
@@ -2094,7 +2097,12 @@ export async function fetchAcquisitionTrend(
 
   return rows.map((r) => {
     const d = new Date(r.month);
-    const monthLabel = d.toLocaleString("es-AR", { month: "short", year: "numeric" });
+    // UTC pin: same date_trunc('month') bucket-boundary rationale as above.
+    const monthLabel = d.toLocaleString("es-AR", {
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
     return {
       x: monthLabel,
       y: r.n,

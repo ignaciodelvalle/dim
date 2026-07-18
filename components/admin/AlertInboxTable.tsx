@@ -12,6 +12,7 @@
 
 import { AlertRowActions } from "@/app/admin/alertas/AlertRowActions";
 import type { AlertFiring, AlertFiringStatus, AlertMetricKey } from "@/db/schema";
+import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Labels
@@ -83,7 +84,9 @@ function StatusBadge({ status }: { status: AlertFiringStatus }) {
 }
 
 function agingDays(firedAt: Date): number {
-  return Math.floor((Date.now() - firedAt.getTime()) / DAY_MS);
+  // AR-calendar days, not elapsed-ms floor — an alert fired yesterday evening
+  // reads "1 día" this morning, never "hoy" (calendarDaysAgoInAr rationale).
+  return calendarDaysAgoInAr(firedAt);
 }
 
 function formatAging(days: number): string {

@@ -2,6 +2,7 @@
 // No medical-advice calculations — this is scheduling arithmetic only.
 
 import type { FrequencyKind } from "@/lib/reference/drugs";
+import { parseArDatetimeLocal } from "@/lib/utils/format";
 
 // Maximum number of auto-generated reminders when no duration is specified.
 // 28 = 14 days × 2 doses/day (the most common twice-daily antibiotics).
@@ -137,13 +138,15 @@ export function parseFrequencyFields(
     durationDays = parsed;
   }
 
-  // Parse firstDoseAt from a datetime-local string ("YYYY-MM-DDTHH:mm").
-  // We treat it as local browser time by reading it as-is.
+  // Parse firstDoseAt from a datetime-local string ("YYYY-MM-DDTHH:mm") as AR
+  // wall-clock time. NOT "local browser time read as-is": this code runs on
+  // the SERVER, where an offset-less `new Date(...)` parses in the server's
+  // zone (UTC) — every dose reminder then fires 3 hours early.
   if (!firstDoseAtRaw || firstDoseAtRaw.trim() === "") {
     return { error: "Falta la fecha/hora de la primera dosis." };
   }
-  const firstDoseAt = new Date(firstDoseAtRaw);
-  if (Number.isNaN(firstDoseAt.getTime())) {
+  const firstDoseAt = parseArDatetimeLocal(firstDoseAtRaw);
+  if (!firstDoseAt) {
     return { error: "Fecha/hora de primera dosis inválida." };
   }
 

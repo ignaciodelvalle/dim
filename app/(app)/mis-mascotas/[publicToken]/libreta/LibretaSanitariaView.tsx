@@ -21,7 +21,17 @@ import {
   libretaConfidenceTier,
 } from "@/lib/infra/libreta-sanitaria";
 import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
-import { eventTypeLabel, formatDate } from "@/lib/utils/format";
+import { AR_TIME_ZONE, eventTypeLabel, formatDate, parseDateInput } from "@/lib/utils/format";
+
+// A date-only "YYYY-MM-DD" next_due_at (legacy rows written before the
+// noon-UTC normalization) is midnight UTC = 21:00 of the PREVIOUS AR day, so
+// the "vencida" status flipped 3 hours early and the printed date was one day
+// off. Anchor date-only values at noon UTC (parseDateInput); full ISO
+// timestamps pass through. Same guard as pet-compliance.ts::parseNextDue.
+function parseNextDue(raw: string): Date | null {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parseDateInput(raw) : new Date(raw);
+  return d && !Number.isNaN(d.getTime()) ? d : null;
+}
 
 type Event = {
   id: string;
@@ -98,24 +108,26 @@ function eventToVaccineRow(event: Event): LnVaccineRow {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: AR_TIME_ZONE,
   });
 
   const nextDueRaw = p.next_due_at ?? p.next_due ?? null;
-  const nextDue =
-    nextDueRaw && typeof nextDueRaw === "string"
-      ? new Date(nextDueRaw).toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-      : undefined;
+  const nextDueDate =
+    typeof nextDueRaw === "string" && nextDueRaw ? parseNextDue(nextDueRaw) : null;
+  const nextDue = nextDueDate
+    ? nextDueDate.toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: AR_TIME_ZONE,
+      })
+    : undefined;
 
   // Derive vstamp status from next_due_at
   let status: "ok" | "due" | "over" = "ok";
-  if (nextDueRaw) {
-    const next = new Date(nextDueRaw as string);
+  if (nextDueDate) {
     const now = new Date();
-    const daysUntil = (next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    const daysUntil = (nextDueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
     if (daysUntil < 0) status = "over";
     else if (daysUntil < 30) status = "due";
     else status = "ok";
@@ -222,12 +234,22 @@ function LnTimelineSection({
 
         const date =
           event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt);
-        const dayStr = date.getDate().toString().padStart(2, "0");
+        // AR-pinned parts: getDate()/getFullYear() read the AMBIENT zone
+        // (UTC on the server, the viewer's zone in the browser), so a
+        // late-evening timestamp rendered a different day server-side than
+        // client-side (hydration risk) — and the wrong AR day either way.
+        const dayStr = date.toLocaleDateString("es-AR", {
+          day: "2-digit",
+          timeZone: AR_TIME_ZONE,
+        });
         const monthStr = date
-          .toLocaleDateString("es-AR", { month: "short" })
+          .toLocaleDateString("es-AR", { month: "short", timeZone: AR_TIME_ZONE })
           .toUpperCase()
           .replace(".", "");
-        const yearStr = date.getFullYear();
+        const yearStr = date.toLocaleDateString("es-AR", {
+          year: "numeric",
+          timeZone: AR_TIME_ZONE,
+        });
 
         const color = eventColor(event.eventType);
         const icon = eventIcon(event.eventType);

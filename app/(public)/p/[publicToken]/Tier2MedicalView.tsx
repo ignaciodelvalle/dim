@@ -18,7 +18,7 @@ import {
   type PermanentCondition,
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
-import { sterilizedLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, sterilizedLabel } from "@/lib/utils/format";
 
 interface Props {
   /** When the bounded window closes. Null when permanent ("siempre" option). */
@@ -73,6 +73,7 @@ export function Tier2MedicalView({
         month: "short",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: AR_TIME_ZONE,
       })
     : null;
 

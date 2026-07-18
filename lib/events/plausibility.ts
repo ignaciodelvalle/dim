@@ -11,6 +11,8 @@
 // returned error code to es-AR copy consistent with their own action's
 // existing error strings, and are responsible for fetching pet.dateOfBirth.
 
+import { isoDateInAr, todayIsoInAr } from "@/lib/utils/format";
+
 /** Tolerance for client/server clock skew — a device a few minutes fast must
  * not bounce a legitimate "just now" submission. */
 export const CLOCK_SKEW_TOLERANCE_MS = 5 * 60 * 1000;
@@ -19,6 +21,16 @@ export type PlausibilityErrorCode = "FUTURE_DATE" | "BEFORE_BIRTH";
 
 export type AssertOccurredAtPlausibleInput = {
   occurredAt: Date;
+  /**
+   * Set when `occurredAt` came from a date-only input (`<input type="date">`
+   * parsed via `parseDateInput`, which anchors the day at NOON UTC = 09:00 AR).
+   * A date-only value carries no wall-clock intent, so the future check must
+   * compare ARGENTINE CALENDAR DAYS, not instants: comparing the noon-UTC
+   * anchor against `now` rejects every same-day submission made before
+   * 09:05 AR ("La fecha no puede ser futura" for TODAY's date). The
+   * BEFORE_BIRTH branch is unaffected — both sides use the same noon anchor.
+   */
+  isDateOnly?: boolean;
   /** pets.date_of_birth — "YYYY-MM-DD" (Drizzle `date` column, string mode) or null/undefined when unknown. */
   petDateOfBirth?: string | null;
   /** Injectable for tests; defaults to the real wall clock. */
@@ -32,9 +44,16 @@ export type AssertOccurredAtPlausibleResult =
 export function assertOccurredAtPlausible(
   input: AssertOccurredAtPlausibleInput,
 ): AssertOccurredAtPlausibleResult {
-  const { occurredAt, petDateOfBirth, now = new Date() } = input;
+  const { occurredAt, isDateOnly = false, petDateOfBirth, now = new Date() } = input;
 
-  if (occurredAt.getTime() - now.getTime() > CLOCK_SKEW_TOLERANCE_MS) {
+  if (isDateOnly) {
+    // Calendar-day comparison in AR: "YYYY-MM-DD" strings sort lexically, so a
+    // plain string compare is a correct date compare. Same-day is always
+    // plausible regardless of the hour the form is submitted.
+    if (isoDateInAr(occurredAt) > todayIsoInAr(now)) {
+      return { ok: false, error: "FUTURE_DATE" };
+    }
+  } else if (occurredAt.getTime() - now.getTime() > CLOCK_SKEW_TOLERANCE_MS) {
     return { ok: false, error: "FUTURE_DATE" };
   }
 

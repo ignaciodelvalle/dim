@@ -14,6 +14,7 @@ import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/u
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { BlockSlotButton } from "./BlockSlotButton";
@@ -195,11 +196,15 @@ export default async function OrgAgendaPage({
           </Link>
         )}
         <span className="text-[13px] font-medium text-ln-op-ink">
-          {new Date(`${targetDateStr}T12:00:00`).toLocaleDateString("es-AR", {
+          {/* Noon-UTC anchor + AR pin: offset-less "T12:00:00" parses in the
+              SERVER zone, and an unpinned formatter renders in it too — the
+              header day then depends on where the process runs. */}
+          {new Date(`${targetDateStr}T12:00:00Z`).toLocaleDateString("es-AR", {
             weekday: "long",
             day: "numeric",
             month: "long",
             year: "numeric",
+            timeZone: AR_TIME_ZONE,
           })}
         </span>
         <Link

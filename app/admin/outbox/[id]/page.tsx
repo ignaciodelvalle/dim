@@ -23,7 +23,7 @@ import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
-import { eventTypeLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
 
 import { RetryOutboxButton } from "./RetryOutboxButton";
 
@@ -46,6 +46,7 @@ function fmt(d: Date | null): string {
   return new Date(d).toLocaleString("es-AR", {
     dateStyle: "short",
     timeStyle: "short",
+    timeZone: AR_TIME_ZONE,
   });
 }
 

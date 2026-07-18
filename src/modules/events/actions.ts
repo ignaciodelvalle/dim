@@ -117,9 +117,8 @@ function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
 // ---------------------------------------------------------------------------
 // P4 item 1 (2026-07-08): shared IMPOSSIBLE-date guard for the medical/
 // clinical/identity writers below that parse an occurred-at/date input.
-// Bite actions (src/modules/surveillance/actions.ts:123,287) already reject
-// future dates on their own and are intentionally left as-is — this does not
-// change their behavior.
+// Bite actions (src/modules/surveillance/actions.ts) run the same guard at
+// their own edge.
 // ---------------------------------------------------------------------------
 
 function plausibilityErrorMessage(error: "FUTURE_DATE" | "BEFORE_BIRTH"): string {
@@ -128,12 +127,19 @@ function plausibilityErrorMessage(error: "FUTURE_DATE" | "BEFORE_BIRTH"): string
     : "La fecha es anterior a la fecha de nacimiento registrada de la mascota.";
 }
 
-/** Returns an EventFormState-shaped error, or null when the date is plausible. */
+/**
+ * Returns an EventFormState-shaped error, or null when the date is plausible.
+ * Every caller in this module parses `occurredAt` from a date-only
+ * `<input type="date">` via `parseDateInput` (noon-UTC anchor), so the guard
+ * runs in date-only mode: the future check compares Argentine calendar days,
+ * never the noon-UTC instant against the wall clock (which rejected same-day
+ * submissions made before 09:05 AR).
+ */
 function checkOccurredAtPlausible(
   occurredAt: Date,
   petDateOfBirth: string | null,
 ): { error: string } | null {
-  const result = assertOccurredAtPlausible({ occurredAt, petDateOfBirth });
+  const result = assertOccurredAtPlausible({ occurredAt, isDateOnly: true, petDateOfBirth });
   return result.ok ? null : { error: plausibilityErrorMessage(result.error) };
 }
 

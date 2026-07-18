@@ -21,7 +21,7 @@ import type { EventType } from "@/db/schema";
 import { computeConfidence } from "@/lib/events/event-confidence";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
-import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, calendarDaysAgoInAr, eventTypeLabel } from "@/lib/utils/format";
 import type { HistorialEventRow } from "@/src/modules/pets/application/tab-data/types";
 
 export type AsientoFact = {
@@ -91,7 +91,9 @@ function formatAbsolute(date: Date): string {
 // on (LibretaFace threads a single mount-stable `now` into every call).
 export function formatRelative(date: Date, now: Date): string {
   if (!isValidDate(date)) return "";
-  const days = Math.floor((now.getTime() - date.getTime()) / 86_400_000);
+  // AR-calendar days, not elapsed-ms floor: an asiento from 20:00 yesterday
+  // viewed at 10:00 today is "ayer", never "hoy" (calendarDaysAgoInAr).
+  const days = calendarDaysAgoInAr(date, now);
   if (days <= 0) return "hoy";
   if (days === 1) return "ayer";
   if (days < 7) return `hace ${days} días`;

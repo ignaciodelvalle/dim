@@ -30,6 +30,7 @@ import { db, notifications } from "@/db";
 import { notifyOutbreakInvestigationOpened } from "@/lib/domain/authority";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
@@ -131,7 +132,12 @@ export async function reportBiteAction(
   if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
     return { error: "Fecha del incidente inválida." };
   }
-  if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };
+  // Date-only guard (shared with the events edge): compare AR calendar days,
+  // not the noon-UTC anchor against the wall clock — the previous instant
+  // compare rejected a same-day bite reported before 09:00 AR.
+  if (!assertOccurredAtPlausible({ occurredAt, isDateOnly: true }).ok) {
+    return { error: "La fecha no puede ser futura." };
+  }
 
   const victimKindRaw = String(formData.get("victimKind") ?? "");
   if (!["human", "animal", "unknown"].includes(victimKindRaw)) {
@@ -300,7 +306,12 @@ export async function reportBiteFromOrgAction(
   if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
     return { error: "Fecha del incidente inválida." };
   }
-  if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };
+  // Date-only guard (shared with the events edge): compare AR calendar days,
+  // not the noon-UTC anchor against the wall clock — the previous instant
+  // compare rejected a same-day bite reported before 09:00 AR.
+  if (!assertOccurredAtPlausible({ occurredAt, isDateOnly: true }).ok) {
+    return { error: "La fecha no puede ser futura." };
+  }
 
   const victimKindRaw = String(formData.get("victimKind") ?? "");
   if (!["human", "animal", "unknown"].includes(victimKindRaw)) {

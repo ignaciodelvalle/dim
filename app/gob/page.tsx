@@ -62,8 +62,7 @@ import {
   formatDate,
   formatPercent,
   formatRate,
-  isoDateInAr,
-  todayIsoInAr,
+  relativeDayLabel,
 } from "@/lib/utils/format";
 
 export default async function GobiernoDashboardPage({
@@ -252,20 +251,12 @@ export default async function GobiernoDashboardPage({
 
   // G3: collapse the recent-activity feed's repeated PII-search rows into a
   // single per-day counted row so real decisions aren't buried. Display-only —
-  // the audit_log is unchanged (append-only). `dayChip` renders the group's AR
-  // day as "hoy" / "ayer" / a compact "d/M".
+  // the audit_log is unchanged (append-only). `relativeDayLabel` renders the
+  // group's AR day as "hoy" / "ayer" / a compact "d/M".
   const activityRows = collapseActivityFeed(recentDecisions);
-  const todayAr = todayIsoInAr();
-  const yesterdayAr = isoDateInAr(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  const dayChip = (day: string): string => {
-    if (day === todayAr) return "hoy";
-    if (day === yesterdayAr) return "ayer";
-    const [, m, d] = day.split("-");
-    return `${Number(d)}/${Number(m)}`;
-  };
   const activityRowLabel = (row: ActivityFeedRow): string =>
     row.count > 1 && row.day
-      ? `${row.count} búsquedas de información personal · ${dayChip(row.day)}`
+      ? `${row.count} búsquedas de información personal · ${relativeDayLabel(row.day)}`
       : auditActionLabel(row.action);
 
   // Shape the bites trend for TimeSeriesChart (x/y points).

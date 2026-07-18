@@ -52,7 +52,7 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { createClient } from "@/lib/supabase/server";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { formatDateShort, formatPercent } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatDateShort, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -608,6 +608,7 @@ export default async function AdminProgramaPage({
                             month: "short",
                             hour: "2-digit",
                             minute: "2-digit",
+                            timeZone: AR_TIME_ZONE,
                           })
                         : "—"}
                       {c.lastStatus && (

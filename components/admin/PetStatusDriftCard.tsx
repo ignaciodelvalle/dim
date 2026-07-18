@@ -9,6 +9,7 @@
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import type { PetStatusDrift } from "@/lib/analytics/admin-metrics";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 function formatDate(d: Date): string {
   return d.toLocaleString("es-AR", {
@@ -16,6 +17,7 @@ function formatDate(d: Date): string {
     month: "short",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: AR_TIME_ZONE,
   });
 }
 

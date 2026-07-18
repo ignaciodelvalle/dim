@@ -503,8 +503,13 @@ describe("markAppointmentAttendedWriter", () => {
     expect(ev.authorVerified).toBe(true);
     const evPayload = ev.payload as Record<string, unknown>;
     expect(evPayload.vaccine_name).toBe("Antirrábica");
+    // next_due_at is normalized to the canonical noon-UTC ISO instant (same as
+    // vaccination-use-case), NOT stored as the raw "YYYY-MM-DD" string — a raw
+    // date-only string reads back as midnight UTC = the previous AR day.
+    expect(evPayload.next_due_at).toBe("2027-05-18T12:00:00.000Z");
 
-    // Reminder inserted for next_due_at.
+    // Reminder inserted for next_due_at, anchored at noon UTC (not midnight,
+    // which would fire on the evening of the previous AR day).
     const remRows = await db
       .select()
       .from(reminders)
@@ -512,6 +517,7 @@ describe("markAppointmentAttendedWriter", () => {
 
     expect(remRows.length).toBeGreaterThan(0);
     expect(remRows[0]!.reminderType).toBe("vaccine");
+    expect(remRows[0]!.dueAt?.toISOString()).toBe("2027-05-18T12:00:00.000Z");
   });
 
   it("invalid payload (missing vaccine_name) — returns error, no event inserted", async () => {

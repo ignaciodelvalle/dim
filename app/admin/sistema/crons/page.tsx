@@ -12,6 +12,7 @@ import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboar
 import { OpStatusPill } from "@/components/ui/dashboard/OpStatusPill";
 import { fetchCronHealth } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -178,6 +179,7 @@ export default async function AdminSistemaCronsPage() {
                               month: "short",
                               hour: "2-digit",
                               minute: "2-digit",
+                              timeZone: AR_TIME_ZONE,
                             })
                           : "—"}
                       </td>

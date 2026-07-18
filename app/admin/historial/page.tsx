@@ -5,6 +5,7 @@ import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const ADMIN_HISTORIAL_PAGE_LIMIT = 100;
@@ -115,6 +116,7 @@ export default async function AdminHistorialPage({
                     {new Date(entry.performedAt).toLocaleString("es-AR", {
                       dateStyle: "short",
                       timeStyle: "short",
+                      timeZone: AR_TIME_ZONE,
                     })}
                   </time>
                 </li>
