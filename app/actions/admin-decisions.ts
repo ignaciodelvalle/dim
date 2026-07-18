@@ -16,7 +16,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { approveRequestForAuthority as _approveRequest } from "@/src/modules/organizations/application/admin-decisions/approve-request";
@@ -40,6 +40,10 @@ export async function approveRequestAction(publicToken: string, notes: string | 
     revalidatePath(`/gob/cola/${publicToken}`);
     revalidatePath("/admin/cola");
     revalidatePath(`/admin/cola/${publicToken}`);
+    // An approval can flip an org to verified — the public /refugios directory
+    // (Data Cache, tag "org-directory") must not serve the stale roster for
+    // its full 300s window.
+    revalidateTag("org-directory");
   }
   return result;
 }

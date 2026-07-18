@@ -5,7 +5,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { approveRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/approve-request";
 
@@ -39,5 +39,8 @@ export async function bulkApproveRequests(
 
   revalidatePath("/admin/cola");
   revalidatePath("/gob/cola");
+  // Approvals can flip orgs to verified — drop the public /refugios directory
+  // cache (tag "org-directory") rather than serving the stale roster for 300s.
+  revalidateTag("org-directory");
   return { bulkActionId, succeeded, failed };
 }

@@ -20,7 +20,7 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { claimAttachmentsForAudit as _claimAttachments } from "@/src/modules/organizations/application/revocations/helpers";
@@ -79,6 +79,10 @@ export async function revokeOrgVerificationAction(input: {
     // same page, so both copies need revalidating.
     revalidatePath("/gob/organizaciones");
     revalidatePath("/admin/organizaciones");
+    // A revoked verification must drop the org from the public /refugios
+    // directory (Data Cache, tag "org-directory") immediately, not after the
+    // 300s window.
+    revalidateTag("org-directory");
   }
   return result;
 }

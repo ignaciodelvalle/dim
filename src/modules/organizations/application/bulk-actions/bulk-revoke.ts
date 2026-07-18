@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { revokeGovtLocalityForAuthority } from "@/src/modules/organizations/application/revocations/revoke-govt-locality";
@@ -86,5 +86,9 @@ export async function bulkRevoke(input: BulkRevokeInput): Promise<BulkResult> {
   revalidatePath("/admin/organizaciones");
   revalidatePath("/gob/organizaciones");
   revalidatePath("/admin/govts");
+  // targetKind === "org" revocations drop orgs from the public /refugios
+  // directory (Data Cache, tag "org-directory") — invalidate rather than
+  // serving the stale roster for the 300s window.
+  revalidateTag("org-directory");
   return { bulkActionId, succeeded, failed };
 }
