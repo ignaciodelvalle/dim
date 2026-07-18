@@ -89,7 +89,28 @@ export function MinimalNewPetForm({
   action: FormAction;
   isFirstPet?: boolean;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  // PO bug 2026-07-18, "se salta la foto" second cause: React 19 resets
+  // uncontrolled fields after EVERY action return — the photo <input
+  // type=file> included — while the preview (React state) kept showing the
+  // picked image. A resubmission after any server round-trip (duplicate
+  // prompt, error) therefore posted an EMPTY photo and the pet was created
+  // without it. File inputs can't be controlled, so the picked File lives
+  // HERE as the reset-safe source of truth (the same posture as the
+  // controlled text fields) and the action wrapper below re-attaches it
+  // whenever the reset emptied the posted entry. The ONE-form/ONE-submit
+  // design is untouched — the single final FormData just stays whole.
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  const [state, formAction, isPending] = useActionState(
+    (prev: NewPetFormState, formData: FormData) => {
+      const posted = formData.get("photo");
+      if (photoFile && (!(posted instanceof File) || posted.size === 0)) {
+        formData.set("photo", photoFile);
+      }
+      return action(prev, formData);
+    },
+    initialState,
+  );
   useActionRedirect(state.redirectTo);
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -378,7 +399,7 @@ export function MinimalNewPetForm({
 
         {/* ── Paso 2 — Foto y más ────────────────────────────────────── */}
         <div hidden={step !== 2} className="flex flex-col gap-5">
-          <PhotoField />
+          <PhotoField file={photoFile} onFileChange={setPhotoFile} />
 
           <details className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
@@ -574,19 +595,36 @@ function SpeciesField({
 // PhotoField — prominent uploader; camera AND gallery; preview + removable.
 // ---------------------------------------------------------------------------
 
-function PhotoField() {
+function PhotoField({
+  file,
+  onFileChange,
+}: {
+  /** The picked File — lifted to the form as the reset-safe source of truth
+   *  (React 19 clears the uncontrolled file input after every action return;
+   *  the form re-attaches this File to the posted FormData when that happens). */
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Preview derived from the lifted File; the object-URL lifecycle stays local.
   const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    setPreview(file ? URL.createObjectURL(file) : null);
+    onFileChange(e.target.files?.[0] ?? null);
   }
 
   function removePhoto() {
-    if (preview?.startsWith("blob:")) URL.revokeObjectURL(preview);
-    setPreview(null);
+    onFileChange(null);
     if (inputRef.current) inputRef.current.value = "";
   }
 
