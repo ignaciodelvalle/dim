@@ -132,15 +132,13 @@ export default function AccesibilidadPage() {
             Reportar un problema de accesibilidad
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            Si encontrás una barrera de accesibilidad en MiMAR, podés reportarla a través del{" "}
-            <a
-              href="https://github.com/galdoneudi/dim/issues"
-              target="_blank"
-              rel="noopener noreferrer"
+            Si encontrás una barrera de accesibilidad en MiMAR, podés reportarla a través de nuestro{" "}
+            <Link
+              href="/sugerencias"
               className="text-[var(--color-ln-azul)] underline hover:no-underline"
             >
-              repositorio público del proyecto en GitHub
-            </a>
+              canal de sugerencias
+            </Link>
             . Describí el problema, la sección donde ocurre y la tecnología de asistencia que usás
             (si aplica). Revisamos los reportes de forma regular.
           </p>

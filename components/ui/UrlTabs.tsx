@@ -39,6 +39,13 @@ export type UrlTabItem = {
   icon?: IconName;
   /** Optional count badge. Rendered in seal (red) tone when > 0. */
   badge?: number;
+  /**
+   * Badge semantics. "urgent" (default) reads the count as a red seal alert
+   * ("N urgentes") — the queue/case idiom the gob pages use. "neutral" reads it
+   * as a plain filter count, tinted to the active/inactive tab state — the inbox
+   * idiom (e.g. /notificaciones category counts, where every tab has items).
+   */
+  badgeTone?: "urgent" | "neutral";
 };
 
 export type UrlTabsProps = {
@@ -137,19 +144,31 @@ export function UrlTabs({
               >
                 {tab.icon && <Icon name={tab.icon} size="1em" decorative />}
                 {tab.label}
-                {tab.badge !== undefined && (
-                  <span
-                    className={[
-                      "ml-1 rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs leading-none",
-                      tab.badge > 0
-                        ? "bg-[var(--color-ln-seal)] text-white"
-                        : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
-                    ].join(" ")}
-                    aria-label={`${tab.badge} urgente${tab.badge !== 1 ? "s" : ""}`}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
+                {tab.badge !== undefined &&
+                  (tab.badgeTone === "neutral" ? (
+                    <span
+                      className={[
+                        "ml-1 rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs leading-none",
+                        isActive
+                          ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
+                          : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
+                      ].join(" ")}
+                    >
+                      {tab.badge}
+                    </span>
+                  ) : (
+                    <span
+                      className={[
+                        "ml-1 rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs leading-none",
+                        tab.badge > 0
+                          ? "bg-[var(--color-ln-seal)] text-white"
+                          : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
+                      ].join(" ")}
+                      aria-label={`${tab.badge} urgente${tab.badge !== 1 ? "s" : ""}`}
+                    >
+                      {tab.badge}
+                    </span>
+                  ))}
               </button>
             );
           })}

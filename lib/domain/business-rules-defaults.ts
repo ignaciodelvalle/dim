@@ -41,6 +41,11 @@ export interface PhysicalCredentialChannels {
   nfc_tag: PhysicalCredentialProvider;
 }
 
+export interface MicrochipRequired {
+  /** Whether this jurisdiction requires a microchip. Default TRUE. */
+  required: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Promoted rule types (design ADR-2/ADR-4) — hardcoded operational constants
 // promoted to per-jurisdiction-overridable rules. Each default snapshots the
@@ -73,6 +78,7 @@ export interface BusinessRulePayloadByType {
   ppp_weight_threshold: PppWeightThreshold;
   ppp_attestation_required_registries: PppAttestationRequiredRegistries;
   physical_credential_channels: PhysicalCredentialChannels;
+  microchip_required: MicrochipRequired;
   rabies_observation_window: RabiesObservationWindow;
   due_soon_window: DueSoonWindow;
   reminder_windows: ReminderWindows;
@@ -100,6 +106,9 @@ export const BUSINESS_RULES_DEFAULTS: {
     engraved_plate: { enabled: false },
     nfc_tag: { enabled: false },
   },
+  // Default TRUE — every jurisdiction requires a microchip until one opts out,
+  // preserving the pre-gate universal microchip obligation (migration 0150).
+  microchip_required: { required: true },
   rabies_observation_window: { days: 10 },
   due_soon_window: { days: 30 },
   reminder_windows: { aheadDays: 14 },

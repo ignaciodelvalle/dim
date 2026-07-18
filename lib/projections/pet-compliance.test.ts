@@ -625,3 +625,54 @@ describe("lnPetStatusFromCompliance — the single chip mapper (QA round 2 #4)",
     ).toBe("deceased");
   });
 });
+
+describe("deriveMicrochip — jurisdiction applicability gate (microchip_required rule)", () => {
+  it("default (microchipApplies undefined) keeps the obligation card — non-breaking", () => {
+    const { cards } = deriveComplianceState(baseInput());
+    const chip = cards.find((c) => c.key === "microchip");
+    expect(chip?.state).toBe("Sin registro");
+  });
+
+  it("microchipApplies:true + no chip → 'Sin registro' obligation card (in N de M)", () => {
+    const state = deriveComplianceState(baseInput({ microchipApplies: true }));
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.state).toBe("Sin registro");
+    expect(state.summary.total).toBe(3);
+  });
+
+  it("microchipApplies:false + no chip → NO card, and the M in N de M shrinks", () => {
+    const state = deriveComplianceState(baseInput({ microchipApplies: false }));
+    expect(state.cards.some((c) => c.key === "microchip")).toBe(false);
+    // rabies + sterilization only.
+    expect(state.summary.total).toBe(2);
+  });
+
+  it("microchipApplies:false but a chip IS registered (declared) → card still shows as information", () => {
+    const state = deriveComplianceState(
+      baseInput({ microchipApplies: false, microchipCode: "982000123456789" }),
+    );
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip).toBeDefined();
+    expect(chip?.state).toBe("Declarada · sin verificar");
+    expect(chip?.detail).toBe("982000123456789");
+  });
+
+  it("microchipApplies:false but a VERIFIED implant exists → card shows as ok/informational", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        microchipApplies: false,
+        microchipCode: "982000123456789",
+        events: [{ eventType: "microchip_implanted", occurredAt: NOW, payload: {}, ...VET }],
+      }),
+    );
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.state).toBe("Sí");
+    expect(chip?.tone).toBe("ok");
+  });
+
+  it("uses a neutral, non-CABA-specific legal footnote", () => {
+    const state = deriveComplianceState(baseInput({ microchipApplies: true }));
+    const chip = state.cards.find((c) => c.key === "microchip");
+    expect(chip?.legalFootnote).not.toMatch(/CABA/);
+  });
+});

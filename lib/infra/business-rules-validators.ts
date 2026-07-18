@@ -55,6 +55,8 @@ export const physicalCredentialChannelsSchema = z
   })
   .strict();
 
+export const microchipRequiredSchema = z.object({ required: z.boolean() }).strict();
+
 // ---------------------------------------------------------------------------
 // Promoted rule types (design ADR-2/ADR-4, R4.1) — see
 // lib/domain/business-rules-defaults.ts for the payload shapes + rationale.
@@ -88,6 +90,7 @@ export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema>
   ppp_weight_threshold: pppWeightThresholdSchema,
   ppp_attestation_required_registries: pppAttestationRequiredRegistriesSchema,
   physical_credential_channels: physicalCredentialChannelsSchema,
+  microchip_required: microchipRequiredSchema,
   rabies_observation_window: rabiesObservationWindowSchema,
   due_soon_window: dueSoonWindowSchema,
   reminder_windows: reminderWindowsSchema,

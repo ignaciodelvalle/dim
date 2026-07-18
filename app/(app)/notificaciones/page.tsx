@@ -9,7 +9,8 @@ import { markAllNotificationsReadAction } from "@/app/actions/notifications";
 import { NotificationCard } from "@/components/NotificationCard";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
-import { type Notification, type Pet, db, notifications, pets } from "@/db";
+import { type UrlTabItem, UrlTabs } from "@/components/ui/UrlTabs";
+import { db, notifications, pets } from "@/db";
 import {
   fetchNotificationCategoryCounts,
   fetchUnreadNotificationCount,
@@ -25,49 +26,14 @@ import {
 } from "@/lib/utils/keyset-pagination";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
+import { groupNotifications, sortNotificationsForDisplay } from "./notification-ordering";
+
 // Maximum notifications rendered per page (PERF-5 keyset pagination).
 // We fetch LIMIT+1 to detect hasMore; render only LIMIT rows.
 const NOTIFICATIONS_PAGE_LIMIT = 100;
 
-// ---------------------------------------------------------------------------
-// Grouping logic (unchanged from original)
-// ---------------------------------------------------------------------------
-
-const GROUP_MIN = 3;
-
-type NotificationRow = { notification: Notification; pet: Pet | null };
-
-type Group =
-  | { kind: "single"; row: NotificationRow }
-  | { kind: "group"; leader: NotificationRow; rest: NotificationRow[] };
-
-function groupNotifications(rows: NotificationRow[]): Group[] {
-  const counts = new Map<string, number>();
-  for (const row of rows) {
-    const key = `${row.notification.relatedPetId ?? "_"}|${row.notification.notificationType}`;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  const result: Group[] = [];
-  const seenBuckets = new Map<string, NotificationRow[]>();
-  for (const row of rows) {
-    const key = `${row.notification.relatedPetId ?? "_"}|${row.notification.notificationType}`;
-    const total = counts.get(key) ?? 0;
-    if (total < GROUP_MIN) {
-      result.push({ kind: "single", row });
-      continue;
-    }
-    const existing = seenBuckets.get(key);
-    if (existing) {
-      existing.push(row);
-      continue;
-    }
-    const rest: NotificationRow[] = [];
-    seenBuckets.set(key, rest);
-    result.push({ kind: "group", leader: row, rest });
-  }
-  return result;
-}
+// Ordering + grouping logic lives in ./notification-ordering (pure + unit
+// tested): severity-first display sort, then same-pet+type collapse.
 
 // ---------------------------------------------------------------------------
 // Category definitions
@@ -197,100 +163,34 @@ export default async function NotificacionesPage({
   // "en total" pairs with the unread figure, so it must also be the view-wide
   // total (not the current page's row count) or the two would be incoherent.
   const totalCount = activeCat === "all" ? counts.all : countByCategory[activeCat];
-  const groups = groupNotifications(rows);
+  // Severity-first display order (urgent → warning → success → info), then
+  // recency — applied to the fetched page, then grouped. The keyset cursor is
+  // still derived from the SQL (chronological) order's last row above, so this
+  // reordering must NOT mutate `rows` (sortNotificationsForDisplay returns a
+  // copy). Trade-off: page composition stays chronological (an urgent item on a
+  // later page does not jump to page 1); within a page, urgent floats to top.
+  const groups = groupNotifications(sortNotificationsForDisplay(rows));
 
-  return (
-    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
-      {/* Back */}
-      <Link
-        href="/inicio"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
-      >
-        ← Inicio
-      </Link>
+  const tabItems: UrlTabItem[] = visibleCategories.map((c) => ({
+    value: c,
+    label: CATEGORY_LABELS[c],
+    badge: countByCategory[c],
+    badgeTone: "neutral",
+  }));
 
-      {/* Header */}
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-            Notificaciones
-          </h1>
-          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-            {counts.all === 0
-              ? "Sin notificaciones."
-              : unreadCount > 0
-                ? `${unreadCount} sin leer · ${totalCount} en total`
-                : `${totalCount} en total`}
-          </p>
-        </div>
-        {unreadCount > 0 && (
-          <Suspense>
-            <form action={markAllNotificationsReadAction} className="flex-shrink-0 mt-1.5">
-              <LnButton type="submit" variant="ghost" size="sm">
-                Marcar todas como leídas
-              </LnButton>
-            </form>
-          </Suspense>
-        )}
-      </div>
-
-      {/* Category tab bar — Link-based server navigation */}
-      {visibleCategories.length > 1 && (
-        <div
-          className="mb-6 flex gap-0 overflow-x-auto border-b border-[var(--color-ln-line)]"
-          role="tablist"
-          aria-label="Filtrar notificaciones por categoría"
-        >
-          {visibleCategories.map((c) => {
-            const isActive = c === activeCat;
-            const count = countByCategory[c];
-            return (
-              <Link
-                key={c}
-                href={c === "all" ? "/notificaciones" : `/notificaciones?cat=${c}`}
-                role="tab"
-                aria-selected={isActive}
-                className={[
-                  "inline-flex flex-shrink-0 items-center gap-[7px] border-b-2 px-4 py-2.5 text-[13px] font-semibold no-underline transition-colors -mb-px",
-                  isActive
-                    ? "border-b-[var(--color-ln-azul)] text-[var(--color-ln-azul)]"
-                    : "border-b-transparent text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)]",
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-              >
-                {CATEGORY_LABELS[c]}
-                <span
-                  className={[
-                    "rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs",
-                    isActive
-                      ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
-                      : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  {count}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Notification list */}
+  // List + pagination — rendered once, then shown either inside the category
+  // tab bar (UrlTabs) or bare when there is only one populated category.
+  const listBody = (
+    <>
       {rows.length === 0 ? (
         <div className="py-8 text-center">
           <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink-2)]">
             {EMPTY_CATEGORY_TITLES[activeCat]}
           </p>
-          {(EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
-            "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo.") && (
-            <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
-              {EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
-                "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."}
-            </p>
-          )}
+          <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
+            {EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
+              "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."}
+          </p>
         </div>
       ) : (
         <ul className="flex flex-col gap-2.5">
@@ -356,6 +256,50 @@ export default async function NotificacionesPage({
             )}
           </div>
         </nav>
+      )}
+    </>
+  );
+
+  return (
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
+      {/* Header */}
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Notificaciones
+          </h1>
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+            {counts.all === 0
+              ? "Sin notificaciones."
+              : unreadCount > 0
+                ? `${unreadCount} sin leer · ${totalCount} en total`
+                : `${totalCount} en total`}
+          </p>
+        </div>
+        {unreadCount > 0 && (
+          <Suspense>
+            <form action={markAllNotificationsReadAction} className="flex-shrink-0 mt-1.5">
+              <LnButton type="submit" variant="ghost" size="sm">
+                Marcar todas como leídas
+              </LnButton>
+            </form>
+          </Suspense>
+        )}
+      </div>
+
+      {/* Category tabs — canonical UrlTabs (APG keyboard nav) when more than one
+          category is populated; otherwise the list stands alone. */}
+      {visibleCategories.length > 1 ? (
+        <UrlTabs
+          paramKey="cat"
+          defaultValue="all"
+          tabs={tabItems}
+          aria-label="Filtrar notificaciones por categoría"
+        >
+          <div className="mt-6">{listBody}</div>
+        </UrlTabs>
+      ) : (
+        listBody
       )}
     </div>
   );

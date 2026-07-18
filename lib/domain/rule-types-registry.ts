@@ -137,6 +137,17 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
       };
     },
   },
+  microchip_required: {
+    id: "microchip_required",
+    label: "Microchip obligatorio",
+    description: "Si esta jurisdicción exige la identificación por microchip.",
+    schema: BUSINESS_RULE_VALIDATORS.microchip_required,
+    default: BUSINESS_RULES_DEFAULTS.microchip_required,
+    resolutionScope: "pet",
+    parseFromForm: (formData) => {
+      return { required: formData.get("required") === "on" };
+    },
+  },
   rabies_observation_window: {
     id: "rabies_observation_window",
     label: "Ventana de observación antirrábica",
@@ -217,6 +228,9 @@ export function summarizeRulePayload(ruleType: GovtBusinessRuleType, payload: un
         enabled.push("placa grabada");
       if ((p.nfc_tag as { enabled?: boolean } | undefined)?.enabled) enabled.push("NFC");
       return enabled.length === 0 ? "Sin canales habilitados" : enabled.join(" · ");
+    }
+    case "microchip_required": {
+      return p.required ? "Microchip obligatorio" : "Microchip no obligatorio";
     }
     case "rabies_observation_window":
     case "due_soon_window":

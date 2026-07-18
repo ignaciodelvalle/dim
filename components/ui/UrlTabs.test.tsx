@@ -170,3 +170,43 @@ describe("UrlTabs — keyboard (APG Tabs pattern, a11y audit 2026-07-04 #1)", ()
     expect(mockAssign).not.toHaveBeenCalled();
   });
 });
+
+describe("UrlTabs — badge tone", () => {
+  it("urgent (default) badge labels the count as urgentes for screen readers", () => {
+    render(
+      <UrlTabs
+        paramKey="queue"
+        defaultValue="abierto"
+        tabs={[
+          { value: "abierto", label: "Abierto", badge: 3 },
+          { value: "cerrado", label: "Cerrado", badge: 0 },
+        ]}
+        aria-label="Cola de casos"
+      >
+        <div />
+      </UrlTabs>,
+    );
+    expect(screen.getByLabelText("3 urgentes")).toBeInTheDocument();
+    expect(screen.getByLabelText("0 urgentes")).toBeInTheDocument();
+  });
+
+  it("neutral badge reads the count as plain text (no 'urgente' semantics)", () => {
+    render(
+      <UrlTabs
+        paramKey="cat"
+        defaultValue="all"
+        tabs={[
+          { value: "all", label: "Todas", badge: 12, badgeTone: "neutral" },
+          { value: "health", label: "Salud", badge: 4, badgeTone: "neutral" },
+        ]}
+        aria-label="Filtrar notificaciones por categoría"
+      >
+        <div />
+      </UrlTabs>,
+    );
+    // The count renders as visible text, but is NOT announced as "urgentes".
+    expect(screen.queryByLabelText(/urgente/)).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Todas/ })).toHaveTextContent("12");
+    expect(screen.getByRole("tab", { name: /Salud/ })).toHaveTextContent("4");
+  });
+});

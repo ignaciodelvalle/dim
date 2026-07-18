@@ -180,7 +180,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
             </div>
             {/* Hero triad — exact copy is a PO-locked decision (#4). */}
             <p className="lp-hero-kill lp-reveal" data-d="4">
-              <b>Gratis para siempre.</b> Sin papeleo. Código abierto.
+              <b>Gratis para siempre.</b> Sin papeleo. Datos abiertos.
             </p>
           </div>
 
