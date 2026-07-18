@@ -14,6 +14,8 @@ import {
   notificationTypeLabel,
   nowLocalDatetimeInAr,
   parseArDateToIso,
+  parseArDatetimeLocal,
+  parseDateInput,
   rabiesObservationOutcomeLabel,
   relativeDaysShort,
   todayIsoInAr,
@@ -342,6 +344,64 @@ describe("nowLocalDatetimeInAr", () => {
 // The whole point of this control is that an es-AR operator's "03/07" is always
 // 3-July, never mm/dd 7-March, on every browser — so parsing must be strict and
 // leap-aware, and the round-trip ISO<->display must be lossless.
+describe("parseDateInput", () => {
+  it("anchors a YYYY-MM-DD input at NOON UTC of that calendar day", () => {
+    // The noon anchor is a deliberate, load-bearing choice: it keeps the date
+    // on the same calendar day when rendered in any zone within ±12h, and 21
+    // consumers (incl. the legal rabies-observation window) depend on it.
+    expect(parseDateInput("2026-07-08")?.toISOString()).toBe("2026-07-08T12:00:00.000Z");
+    expect(parseDateInput("2024-02-29")?.toISOString()).toBe("2024-02-29T12:00:00.000Z");
+  });
+
+  it("returns null for empty or garbage input", () => {
+    expect(parseDateInput(null)).toBeNull();
+    expect(parseDateInput(undefined)).toBeNull();
+    expect(parseDateInput("")).toBeNull();
+    expect(parseDateInput("not-a-date")).toBeNull();
+    expect(parseDateInput("2026-13-45")).toBeNull();
+  });
+});
+
+describe("parseArDatetimeLocal", () => {
+  it("parses a datetime-local string as AR wall clock (UTC-3)", () => {
+    // 18:00 AR = 21:00 UTC — NOT 18:00 UTC (what an offset-less parse yields
+    // on a UTC server, firing dose reminders 3h early).
+    expect(parseArDatetimeLocal("2026-07-08T18:00")?.toISOString()).toBe(
+      "2026-07-08T21:00:00.000Z",
+    );
+  });
+
+  it("round-trips with nowLocalDatetimeInAr", () => {
+    const instant = new Date("2026-07-08T14:37:00.000Z");
+    const local = nowLocalDatetimeInAr(instant); // "2026-07-08T11:37"
+    expect(parseArDatetimeLocal(local)?.toISOString()).toBe(instant.toISOString());
+  });
+
+  it("crosses the UTC midnight boundary at 21:00 ART correctly", () => {
+    // 21:00 AR on the 8th is already 00:00Z on the 9th — the UTC calendar day
+    // advances but the AR wall clock (and the value the user typed) does not.
+    const parsed = parseArDatetimeLocal("2026-07-08T21:00");
+    expect(parsed?.toISOString()).toBe("2026-07-09T00:00:00.000Z");
+    expect(parsed ? nowLocalDatetimeInAr(parsed) : null).toBe("2026-07-08T21:00");
+  });
+
+  it("accepts an optional seconds component", () => {
+    expect(parseArDatetimeLocal("2026-07-08T18:00:30")?.toISOString()).toBe(
+      "2026-07-08T21:00:30.000Z",
+    );
+  });
+
+  it("returns null for empty or malformed input", () => {
+    expect(parseArDatetimeLocal(null)).toBeNull();
+    expect(parseArDatetimeLocal(undefined)).toBeNull();
+    expect(parseArDatetimeLocal("")).toBeNull();
+    expect(parseArDatetimeLocal("2026-07-08")).toBeNull(); // date-only
+    expect(parseArDatetimeLocal("garbage")).toBeNull();
+    expect(parseArDatetimeLocal("2026-07-08T18:00Z")).toBeNull(); // explicit zone
+    expect(parseArDatetimeLocal("2026-13-08T18:00")).toBeNull(); // impossible month
+  });
+});
+
 describe("isoToArDateDisplay", () => {
   it("renders ISO yyyy-mm-dd as dd/mm/aaaa", () => {
     expect(isoToArDateDisplay("2026-07-03")).toBe("03/07/2026");

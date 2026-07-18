@@ -30,6 +30,7 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-lim
 import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseArDatetimeLocal } from "@/lib/utils/format";
 
 export type FinderInPossessionState = {
   ok: boolean;
@@ -131,8 +132,10 @@ export async function reportFinderInPossessionAction(
 
   let canKeepUntil: Date | null = null;
   if (!canKeepIndefinite && canKeepUntilRaw) {
-    canKeepUntil = new Date(canKeepUntilRaw);
-    if (Number.isNaN(canKeepUntil.getTime())) {
+    // datetime-local string typed as AR wall clock — parse it as such
+    // (offset-less `new Date(...)` reads it in the server's zone → 3h early).
+    canKeepUntil = parseArDatetimeLocal(canKeepUntilRaw);
+    if (!canKeepUntil) {
       return { ok: false, error: "La fecha hasta cuándo podés cuidarla es inválida." };
     }
   }

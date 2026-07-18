@@ -45,6 +45,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { parseArDatetimeLocal } from "@/lib/utils/format";
 
 import type { SightingActionState } from "./types";
 
@@ -136,8 +137,11 @@ export async function reportPetSighting(
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
 
   const safeDescription = description.slice(0, 500);
-  const occurredAt = sightedAtIso ? new Date(sightedAtIso) : new Date();
-  if (Number.isNaN(occurredAt.getTime())) {
+  // The sightedAt input is a datetime-local defaulted to AR wall clock — read
+  // it back as AR wall clock (offset-less `new Date(...)` would parse it in
+  // the server's zone, i.e. UTC → 3h early).
+  const occurredAt = sightedAtIso ? parseArDatetimeLocal(sightedAtIso) : new Date();
+  if (!occurredAt) {
     return { ok: false, error: "Fecha y hora del avistaje inválida." };
   }
 
