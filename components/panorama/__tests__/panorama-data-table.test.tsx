@@ -71,4 +71,58 @@ describe("PanoramaDataTable — accessible view (Ley 26.653)", () => {
       screen.queryByText("Sin jurisdicciones bajo meta en este alcance."),
     ).not.toBeInTheDocument();
   });
+
+  // Ranking one-list consolidation: the table is now the DEFAULT rendering, so it
+  // inherits the map linkage the retired headerless list used to own.
+  it("names the value column after the metric (Jurisdicción / <métrica> / Brecha vs meta)", () => {
+    render(<PanoramaDataTable rows={RATE_ROWS} kind="rate" measureLabel="cobertura antirrábica" />);
+    // The <métrica> column header carries the actual measure, capitalized.
+    expect(screen.getByRole("columnheader", { name: /Cobertura antirrábica/ })).toBeInTheDocument();
+  });
+
+  it("carries the worst-N heading, reframed for a small scope (scopeFallback)", () => {
+    const { rerender } = render(
+      <PanoramaDataTable rows={RATE_ROWS} kind="rate" measureLabel="cobertura" />,
+    );
+    expect(screen.getByRole("heading", { name: /Peores 3 · cobertura/ })).toBeInTheDocument();
+    rerender(
+      <PanoramaDataTable
+        rows={RATE_ROWS}
+        kind="rate"
+        measureLabel="cobertura"
+        scopeFallback
+        unitNoun="comunas"
+      />,
+    );
+    expect(screen.getByRole("heading", { name: /Tus 3 comunas · cobertura/ })).toBeInTheDocument();
+  });
+
+  it("bubbles the unit key on row hover and clears it on leave (map sync)", () => {
+    const onHover = vi.fn();
+    render(
+      <PanoramaDataTable rows={RATE_ROWS} kind="rate" measureLabel="cobertura" onHover={onHover} />,
+    );
+    // Row header cell carries the jurisdiction; hover fires on its <tr>.
+    const row = screen.getByRole("rowheader", { name: "Formosa" }).closest("tr");
+    expect(row).not.toBeNull();
+    fireEvent.mouseEnter(row as Element);
+    expect(onHover).toHaveBeenCalledWith("AR-F");
+    fireEvent.mouseLeave(row as Element);
+    expect(onHover).toHaveBeenCalledWith(null);
+  });
+
+  it("marks the highlighted row with aria-current (map→row sync)", () => {
+    render(
+      <PanoramaDataTable
+        rows={RATE_ROWS}
+        kind="rate"
+        measureLabel="cobertura"
+        highlightedKey="AR-H"
+      />,
+    );
+    const chacoRow = screen.getByRole("rowheader", { name: "Chaco" }).closest("tr");
+    const formosaRow = screen.getByRole("rowheader", { name: "Formosa" }).closest("tr");
+    expect(chacoRow).toHaveAttribute("aria-current", "true");
+    expect(formosaRow).not.toHaveAttribute("aria-current");
+  });
 });
