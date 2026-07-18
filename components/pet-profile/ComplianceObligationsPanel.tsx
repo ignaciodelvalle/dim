@@ -183,9 +183,12 @@ function ObligationCardView({
   );
 }
 
-// Compliance grid + summary. `bare` (used inside the credential sheet) drops the
-// own outer bordered box and the "Cumplimiento" eyebrow — the sheet's labeled
-// hairline divider provides both, so the panel doesn't nest a card in a card.
+// Compliance grid + summary. `bare` (used inside the credential sheet) drops
+// the own outer bordered box AND renders no header at all: the sheet's labeled
+// hairline divider owns the section LABEL, and the caller's summary row owns
+// the "N de M al día" COUNTER (cumplimiento dedup, PO 2026-07-18 — this header
+// used to repeat both, so "Estado de cumplimiento" + the counter showed twice
+// or three times on one profile).
 export function ComplianceObligationsPanel({
   state,
   petPublicToken,
@@ -196,32 +199,6 @@ export function ComplianceObligationsPanel({
   bare?: boolean;
 }) {
   if (state.cards.length === 0) return null;
-
-  const header = bare ? (
-    <div className="ln-comply-head">
-      <h3>
-        <span className="ln-eyebrow">Estado</span>
-        Estado de cumplimiento
-      </h3>
-      <LnBadge variant={TONE_TO_BADGE[state.worstTone]} className="flex-shrink-0">
-        {state.summary.label}
-      </LnBadge>
-    </div>
-  ) : (
-    <div className="mb-3 flex items-center justify-between gap-3">
-      <div>
-        <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
-          Cumplimiento
-        </p>
-        <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
-          Estado de cumplimiento
-        </h2>
-      </div>
-      <LnBadge variant={TONE_TO_BADGE[state.worstTone]} className="flex-shrink-0">
-        {state.summary.label}
-      </LnBadge>
-    </div>
-  );
 
   // Bare (inside the sheet): borderless obligation ROWS separated by hairlines
   // — one continuous document, no card-in-card. Standalone: bordered cards.
@@ -240,13 +217,24 @@ export function ComplianceObligationsPanel({
   );
 
   if (bare) {
-    return (
-      <section data-section="compliance">
-        {header}
-        {grid}
-      </section>
-    );
+    return <section data-section="compliance">{grid}</section>;
   }
+
+  const header = (
+    <div className="mb-3 flex items-center justify-between gap-3">
+      <div>
+        <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
+          Cumplimiento
+        </p>
+        <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
+          Estado de cumplimiento
+        </h2>
+      </div>
+      <LnBadge variant={TONE_TO_BADGE[state.worstTone]} className="flex-shrink-0">
+        {state.summary.label}
+      </LnBadge>
+    </div>
+  );
 
   return (
     <section

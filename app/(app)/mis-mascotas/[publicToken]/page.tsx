@@ -51,7 +51,6 @@
 // and the `ppp.attested` prop below read the same fixed whitelist.
 // ---------------------------------------------------------------------------
 
-import type { PetState } from "@/components/EventCatcher";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
@@ -61,6 +60,7 @@ import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertS
 import { PetCredentialCarousel } from "@/components/pet-profile/PetCredentialCarousel";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
 import { PetOwnerActivity } from "@/components/pet-profile/PetOwnerActivity";
+import { filterProfileWorkflows } from "@/components/pet-profile/profile-workflow-filter";
 import {
   appointments,
   attachments,
@@ -73,7 +73,6 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import type { Pet } from "@/db";
 import {
   fetchActiveRemindersForPet,
   fetchComplianceStatesForPets,
@@ -125,24 +124,13 @@ import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { resolveCaptureIntentUrl } from "./anotar/handoff";
 
 // ---------------------------------------------------------------------------
-// Pet state derivation — maps pets fields to the visual state ring convention.
-// The same mapping lives in EventCatcher.tsx; when lib/pet-state.ts is
-// extracted (follow-up) both will share it.
+// Pet-state standardization (PO 2026-07-16): the masthead band (chromeSituation
+// below) is the single state authority on this page. The old page-local
+// derivePetState/derivePetStateLabel helpers (a third, unused state mapping)
+// were removed — derivePetSituation (lib/ui/pet-situation.ts) is the one
+// derivation every surface reads. The "Ciclos abiertos" dedup filter lives in
+// components/pet-profile/profile-workflow-filter.ts (pure, unit-tested).
 // ---------------------------------------------------------------------------
-
-function derivePetState(pet: Pet): PetState {
-  if (pet.status === "lost") return "urgent";
-  if (pet.rabiesObservationStatus === "in_progress") return "attention";
-  if (pet.pregnancyStatus === "in_progress") return "info";
-  return "ok";
-}
-
-function derivePetStateLabel(pet: Pet): string | null {
-  if (pet.status === "lost") return "Perdida";
-  if (pet.rabiesObservationStatus === "in_progress") return "Obs. antirrábica";
-  if (pet.pregnancyStatus === "in_progress") return "Gestación";
-  return null;
-}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -930,7 +918,10 @@ export default async function PetDetailPage({
           nudges={thisPetNudges}
           reminders={petActiveReminders}
           appointments={petUpcomingAppointments}
-          workflows={petOpenWorkflows}
+          // Pet-state standardization (PO 2026-07-16): drop the rows that
+          // repeat a state/case the profile already shows in its authoritative
+          // surfaces — see profile-workflow-filter.ts.
+          workflows={filterProfileWorkflows(petOpenWorkflows)}
         />
       )}
 
