@@ -13,9 +13,19 @@
 
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
-import { auditLog, cases, type db, organizationMemberships, petEvents } from "@/db";
+import {
+  auditLog,
+  cases,
+  type db,
+  organizationMemberships,
+  organizations,
+  petEvents,
+  pets,
+} from "@/db";
+import type { Case } from "@/db/schema";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
+import { validateReceiverOrg } from "../domain/seizure-rules";
 import type { GovtOrg, NewNotification, ReceiverOrg } from "../domain/types";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +42,113 @@ export type ReassignDecomisoContext = {
   user: { id: string };
   govtOrg: GovtOrg;
 };
+
+type ValidateReassignOk = {
+  ok: true;
+  caseRow: Case;
+  /** Pre-validated new receiver org (guaranteed shelter/rescue_network, active, verified). */
+  newReceiverOrg: ReceiverOrg & { id: string; displayName: string };
+  petName: string;
+  reassignReason: string;
+};
+
+type ValidateReassignErr = { ok: false; error: string };
+
+// ---------------------------------------------------------------------------
+// Pre-tx validation (runs before opening the transaction)
+// ---------------------------------------------------------------------------
+// Moved verbatim from app/actions/decomiso.ts (strangler follow-up): case
+// load + open-episode checks, opener-org authorization, new-receiver rules,
+// and pet-name resolution for notification copy. Auth and govt-org resolution
+// stay in the actions controller.
+
+export async function validateReassignDecomiso(
+  input: ReassignDecomisoInput,
+  ctx: { govtOrg: GovtOrg },
+  dbInstance: typeof db,
+): Promise<ValidateReassignOk | ValidateReassignErr> {
+  const { govtOrg } = ctx;
+
+  // Load + validate the custody_episode case.
+  const [caseRow] = await dbInstance
+    .select()
+    .from(cases)
+    .where(eq(cases.publicCode, input.casePublicCode))
+    .limit(1);
+  if (!caseRow) return { ok: false, error: "Caso no encontrado." };
+  if (caseRow.caseKind !== "custody_episode") {
+    return { ok: false, error: "Este caso no es un episodio de custodia." };
+  }
+  if (caseRow.status !== "open") {
+    return { ok: false, error: "Este caso ya no está abierto." };
+  }
+  if (!caseRow.primaryPetId) {
+    return { ok: false, error: "Caso sin mascota asociada." };
+  }
+
+  // Must be the opening govt org.
+  if (caseRow.openedByOrganizationId !== govtOrg.id) {
+    return { ok: false, error: "Solo la autoridad que abrió el decomiso puede reasignarlo." };
+  }
+
+  // Validate new receiver org.
+  if (!input.newReceiverOrgId?.trim()) {
+    return { ok: false, error: "Debe seleccionar un nuevo refugio destinatario." };
+  }
+  if (input.newReceiverOrgId === govtOrg.id) {
+    return {
+      ok: false,
+      error: "El nuevo destinatario no puede ser la propia autoridad sanitaria.",
+    };
+  }
+  if (input.newReceiverOrgId === caseRow.receiverOrganizationId) {
+    return { ok: false, error: "El nuevo destinatario es el mismo que el actual." };
+  }
+
+  const [newReceiverOrg] = await dbInstance
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      verified: organizations.verified,
+      status: organizations.status,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, input.newReceiverOrgId))
+    .limit(1);
+
+  const receiverErr = validateReceiverOrg(newReceiverOrg, govtOrg.id);
+  if (receiverErr) {
+    // Adjust error message for reassign context.
+    return {
+      ok: false,
+      error: receiverErr.replace(
+        "La organización destinataria debe ser un refugio",
+        "El nuevo destinatario debe ser un refugio",
+      ),
+    };
+  }
+  // newReceiverOrg is guaranteed non-null here (validateReceiverOrg returns error if null).
+  const validatedNewReceiverOrg = newReceiverOrg as NonNullable<typeof newReceiverOrg>;
+
+  // Load pet name for notification copy.
+  const [pet] = await dbInstance
+    .select({ id: pets.id, name: pets.name })
+    .from(pets)
+    .where(eq(pets.id, caseRow.primaryPetId as string))
+    .limit(1);
+
+  const petName = pet?.name ?? "el animal";
+  const reassignReason = input.reason?.trim() || "Reasignado por la autoridad sanitaria";
+
+  return {
+    ok: true,
+    caseRow,
+    newReceiverOrg: validatedNewReceiverOrg,
+    petName,
+    reassignReason,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // In-tx body

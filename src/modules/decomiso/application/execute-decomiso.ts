@@ -28,17 +28,30 @@ import {
   type db,
   notifications,
   organizationMemberships,
+  organizations,
   ownerships,
   petEvents,
   pets,
   profiles,
 } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { closeCase as libCloseCase, openCase as libOpenCase } from "@/lib/infra/case-helpers";
+import {
+  findOpenCaseForPetAndKind,
+  closeCase as libCloseCase,
+  openCase as libOpenCase,
+} from "@/lib/infra/case-helpers";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 
-import { motiveLabel, straySyntheticName, validateUnownedAnimal } from "../domain/seizure-rules";
+import {
+  motiveLabel,
+  straySyntheticName,
+  validateAttachments,
+  validateReceiverOrg,
+  validateSeizureMotive,
+  validateUnownedAnimal,
+} from "../domain/seizure-rules";
 import type { ExecuteDecomisoInput, GovtOrg, NewNotification, ReceiverOrg } from "../domain/types";
 
 // ---------------------------------------------------------------------------
@@ -70,6 +83,132 @@ export type ExecuteDecomisoContext = {
 export type ExecuteDecomisoResult =
   | { ok: true; value: { publicCode: string }; notifications: NewNotification[] }
   | { ok: false; error: string };
+
+/** Minimal structural view of the caller's authenticated principal. */
+export type DecomisoPrincipal = {
+  profile: { role: "admin" | "govt" };
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>;
+};
+
+type ValidateExecuteOk = {
+  ok: true;
+  /** Pre-validated receiver org (guaranteed shelter/rescue_network, active, verified). */
+  receiverOrg: ReceiverOrg & { id: string };
+  /** Non-null for the registered_pet path. */
+  existingPet: typeof pets.$inferSelect | null;
+};
+
+type ValidateExecuteErr = { ok: false; error: string };
+
+// ---------------------------------------------------------------------------
+// Pre-tx validation (runs before attachment upload and the transaction)
+// ---------------------------------------------------------------------------
+// Moved verbatim from app/actions/decomiso.ts (strangler follow-up): seizure
+// motive, receiver org, attachments, and the subject-kind branch (jurisdiction
+// scope + double-seizure guard). Auth and govt-org resolution stay in the
+// actions controller.
+
+export async function validateExecuteDecomiso(
+  input: ExecuteDecomisoInput,
+  ctx: { session: DecomisoPrincipal; govtOrg: GovtOrg },
+  dbInstance: typeof db,
+): Promise<ValidateExecuteOk | ValidateExecuteErr> {
+  const { session, govtOrg } = ctx;
+
+  // ---- Validate seizure motive -------------------------------------------
+  const motiveErr = validateSeizureMotive(input.seizureMotive, input.seizureMotiveOtherDetail);
+  if (motiveErr) return { ok: false, error: motiveErr };
+
+  // ---- Validate receiver org ---------------------------------------------
+  if (!input.intendedReceiverOrganizationId?.trim()) {
+    return { ok: false, error: "Debe seleccionar un refugio destinatario." };
+  }
+
+  const [receiverOrg] = await dbInstance
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      verified: organizations.verified,
+      status: organizations.status,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(eq(organizations.id, input.intendedReceiverOrganizationId))
+    .limit(1);
+
+  const receiverErr = validateReceiverOrg(receiverOrg, govtOrg.id);
+  if (receiverErr) return { ok: false, error: receiverErr };
+  // receiverOrg is guaranteed non-null here (validateReceiverOrg returns an error if null).
+  const validatedReceiverOrg = receiverOrg as NonNullable<typeof receiverOrg>;
+
+  // ---- Validate attachments (DC5) ----------------------------------------
+  const attachErr = validateAttachments(input.attachmentFiles);
+  if (attachErr) return { ok: false, error: attachErr };
+
+  // ---- Subject-kind branch -----------------------------------------------
+  let existingPet: typeof pets.$inferSelect | null = null;
+
+  if (input.subjectKind === "registered_pet") {
+    if (!input.petPublicToken?.trim()) {
+      return { ok: false, error: "Ingresá el token de la mascota registrada." };
+    }
+
+    const [pet] = await dbInstance
+      .select()
+      .from(pets)
+      .where(eq(pets.publicToken, input.petPublicToken))
+      .limit(1);
+    if (!pet) {
+      return { ok: false, error: "Mascota no encontrada. Verificá el token público." };
+    }
+
+    // Jurisdiction scope check (spec §9; review 24 HIGH #4). Require the pet's
+    // FULL (province, locality) pair to match an assignment before seizing —
+    // province-only / null-province let a govt seize an animal (and revoke its
+    // owner's custody) outside their jurisdiction. Fail-closed on any mismatch.
+    if (session.profile.role === "govt") {
+      // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
+      // every barrio in it. Never widens security — barrio assignments stay exact.
+      const inScope = jurisdictionScopeContains(
+        session.jurisdictions,
+        pet.jurisdictionProvince,
+        pet.jurisdictionLocality,
+      );
+      if (!inScope) {
+        return { ok: false, error: "Esta mascota no está en tu jurisdicción asignada." };
+      }
+    }
+
+    // Double-seizure guard (Fix 5).
+    const existingEpisode = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
+    if (existingEpisode) {
+      return { ok: false, error: "Esta mascota ya tiene un decomiso/custodia activa en curso." };
+    }
+
+    existingPet = pet;
+  } else {
+    // Unowned path jurisdiction check (C1; review 24 HIGH #5). Require the govt
+    // org's FULL (province, locality) pair to match an assignment — a
+    // province-only check let a govt seize an unowned animal outside their
+    // assigned locality. Fail-closed on any mismatch (incl. null org locality).
+    if (session.profile.role === "govt") {
+      // Subsumption-aware (whole-province assignment governs every barrio in it).
+      const inScope = jurisdictionScopeContains(
+        session.jurisdictions,
+        govtOrg.jurisdictionProvince,
+        govtOrg.jurisdictionLocality,
+      );
+      if (!inScope) {
+        return {
+          ok: false,
+          error: "Tu organización sanitaria no está en tu jurisdicción asignada.",
+        };
+      }
+    }
+  }
+
+  return { ok: true, receiverOrg: validatedReceiverOrg, existingPet };
+}
 
 // ---------------------------------------------------------------------------
 // Use-case

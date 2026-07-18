@@ -11,10 +11,8 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, notifications, organizations, pets } from "@/db";
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import { db, notifications, organizations } from "@/db";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
-import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -24,17 +22,18 @@ import {
   acceptDecomisoHandoffInTx,
   validateAcceptDecomisoHandoff,
 } from "@/src/modules/decomiso/application/accept-decomiso-handoff";
-import { executeDecomiso } from "@/src/modules/decomiso/application/execute-decomiso";
-import { reassignDecomisoInTx } from "@/src/modules/decomiso/application/reassign-decomiso";
+import {
+  executeDecomiso,
+  validateExecuteDecomiso,
+} from "@/src/modules/decomiso/application/execute-decomiso";
+import {
+  reassignDecomisoInTx,
+  validateReassignDecomiso,
+} from "@/src/modules/decomiso/application/reassign-decomiso";
 import {
   rejectDecomisoHandoffInTx,
   validateRejectDecomisoHandoff,
 } from "@/src/modules/decomiso/application/reject-decomiso-handoff";
-import {
-  validateAttachments,
-  validateReceiverOrg,
-  validateSeizureMotive,
-} from "@/src/modules/decomiso/domain/seizure-rules";
 import { ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES } from "@/src/modules/decomiso/domain/types";
 
 // ---------------------------------------------------------------------------
@@ -108,96 +107,12 @@ export async function executeDecomisoAction(
     };
   }
 
-  // ---- 3. Validate seizure motive ----------------------------------------
-  const motiveErr = validateSeizureMotive(input.seizureMotive, input.seizureMotiveOtherDetail);
-  if (motiveErr) return { error: motiveErr };
-
-  // ---- 4. Validate receiver org ------------------------------------------
-  if (!input.intendedReceiverOrganizationId?.trim()) {
-    return { error: "Debe seleccionar un refugio destinatario." };
-  }
-
-  const [receiverOrg] = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      verified: organizations.verified,
-      status: organizations.status,
-      orgType: organizations.orgType,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, input.intendedReceiverOrganizationId))
-    .limit(1);
-
-  const receiverErr = validateReceiverOrg(receiverOrg, govtOrg.id);
-  if (receiverErr) return { error: receiverErr };
-  // receiverOrg is guaranteed non-null here (validateReceiverOrg returns an error if null).
-  const validatedReceiverOrg = receiverOrg as NonNullable<typeof receiverOrg>;
-
-  // ---- 5. Validate attachments (DC5) -------------------------------------
-  const attachErr = validateAttachments(input.attachmentFiles);
-  if (attachErr) return { error: attachErr };
-
-  // ---- 6. Subject-kind branch --------------------------------------------
-  let existingPet: { id: string; name: string; publicToken: string } | null = null;
-
-  if (input.subjectKind === "registered_pet") {
-    if (!input.petPublicToken?.trim()) {
-      return { error: "Ingresá el token de la mascota registrada." };
-    }
-
-    const [pet] = await db
-      .select()
-      .from(pets)
-      .where(eq(pets.publicToken, input.petPublicToken))
-      .limit(1);
-    if (!pet) {
-      return { error: "Mascota no encontrada. Verificá el token público." };
-    }
-
-    // Jurisdiction scope check (spec §9; review 24 HIGH #4). Require the pet's
-    // FULL (province, locality) pair to match an assignment before seizing —
-    // province-only / null-province let a govt seize an animal (and revoke its
-    // owner's custody) outside their jurisdiction. Fail-closed on any mismatch.
-    if (session.profile.role === "govt") {
-      // Subsumption-aware: a whole-province assignment (e.g. whole-CABA) governs
-      // every barrio in it. Never widens security — barrio assignments stay exact.
-      const inScope = jurisdictionScopeContains(
-        session.jurisdictions,
-        pet.jurisdictionProvince,
-        pet.jurisdictionLocality,
-      );
-      if (!inScope) {
-        return { error: "Esta mascota no está en tu jurisdicción asignada." };
-      }
-    }
-
-    // Double-seizure guard (Fix 5).
-    const existingEpisode = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
-    if (existingEpisode) {
-      return { error: "Esta mascota ya tiene un decomiso/custodia activa en curso." };
-    }
-
-    existingPet = pet;
-  } else {
-    // Unowned path jurisdiction check (C1; review 24 HIGH #5). Require the govt
-    // org's FULL (province, locality) pair to match an assignment — a
-    // province-only check let a govt seize an unowned animal outside their
-    // assigned locality. Fail-closed on any mismatch (incl. null org locality).
-    if (session.profile.role === "govt") {
-      // Subsumption-aware (whole-province assignment governs every barrio in it).
-      const inScope = jurisdictionScopeContains(
-        session.jurisdictions,
-        govtOrg.jurisdictionProvince,
-        govtOrg.jurisdictionLocality,
-      );
-      if (!inScope) {
-        return {
-          error: "Tu organización sanitaria no está en tu jurisdicción asignada.",
-        };
-      }
-    }
-  }
+  // ---- 3. Pre-tx validation (module use-case) ----------------------------
+  // Seizure motive, receiver org, attachments, subject-kind branch
+  // (jurisdiction scope + double-seizure guard) live in the decomiso module.
+  const validated = await validateExecuteDecomiso(input, { session, govtOrg }, db);
+  if (!validated.ok) return { error: validated.error };
+  const { receiverOrg: validatedReceiverOrg, existingPet } = validated;
 
   // ---- 7. Upload attachments to Storage (before the DB transaction) ------
   const supabaseAdmin = createAdminClient();
@@ -454,86 +369,18 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
     };
   }
 
-  // 3. Load + validate the custody_episode case.
-  const { cases } = await import("@/db");
-  const [caseRow] = await db
-    .select()
-    .from(cases)
-    .where(eq(cases.publicCode, input.casePublicCode))
-    .limit(1);
-  if (!caseRow) return { error: "Caso no encontrado." };
-  if (caseRow.caseKind !== "custody_episode") {
-    return { error: "Este caso no es un episodio de custodia." };
-  }
-  if (caseRow.status !== "open") {
-    return { error: "Este caso ya no está abierto." };
-  }
-  if (!caseRow.primaryPetId) {
-    return { error: "Caso sin mascota asociada." };
-  }
-
-  // Must be the opening govt org.
-  if (caseRow.openedByOrganizationId !== govtOrg.id) {
-    return { error: "Solo la autoridad que abrió el decomiso puede reasignarlo." };
-  }
-
-  // 4. Validate new receiver org.
-  if (!input.newReceiverOrgId?.trim()) {
-    return { error: "Debe seleccionar un nuevo refugio destinatario." };
-  }
-  if (input.newReceiverOrgId === govtOrg.id) {
-    return { error: "El nuevo destinatario no puede ser la propia autoridad sanitaria." };
-  }
-  if (input.newReceiverOrgId === caseRow.receiverOrganizationId) {
-    return { error: "El nuevo destinatario es el mismo que el actual." };
-  }
-
-  const [newReceiverOrg] = await db
-    .select({
-      id: organizations.id,
-      displayName: organizations.displayName,
-      verified: organizations.verified,
-      status: organizations.status,
-      orgType: organizations.orgType,
-    })
-    .from(organizations)
-    .where(eq(organizations.id, input.newReceiverOrgId))
-    .limit(1);
-
-  const receiverErr = validateReceiverOrg(newReceiverOrg, govtOrg.id);
-  if (receiverErr) {
-    // Adjust error message for reassign context.
-    return {
-      error: receiverErr.replace(
-        "La organización destinataria debe ser un refugio",
-        "El nuevo destinatario debe ser un refugio",
-      ),
-    };
-  }
-  // newReceiverOrg is guaranteed non-null here (validateReceiverOrg returns error if null).
-  const validatedNewReceiverOrg = newReceiverOrg as NonNullable<typeof newReceiverOrg>;
-
-  // Load pet name for notification copy.
-  const [pet] = await db
-    .select({ id: pets.id, name: pets.name })
-    .from(pets)
-    .where(eq(pets.id, caseRow.primaryPetId as string))
-    .limit(1);
-
-  const petName = pet?.name ?? "el animal";
-  const reassignReason = input.reason?.trim() || "Reasignado por la autoridad sanitaria";
+  // 3+4. Pre-tx validation (module use-case): case load + open-episode
+  // checks, opener authorization, new-receiver rules, pet-name resolution.
+  const validated = await validateReassignDecomiso(input, { govtOrg }, db);
+  if (!validated.ok) return { error: validated.error };
+  const { caseRow, newReceiverOrg: validatedNewReceiverOrg, petName, reassignReason } = validated;
 
   let pendingNotifications: (typeof notifications.$inferInsert)[] = [];
 
   try {
     await db.transaction(async (tx) => {
       const result = await reassignDecomisoInTx(
-        caseRow as {
-          id: string;
-          primaryPetId: string | null;
-          publicCode: string;
-          receiverOrganizationId: string | null;
-        },
+        caseRow,
         validatedNewReceiverOrg,
         petName,
         reassignReason,
