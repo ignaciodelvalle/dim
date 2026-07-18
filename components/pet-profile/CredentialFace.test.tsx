@@ -79,13 +79,17 @@ describe("CredentialFace — H1 provenance gate (negative case)", () => {
   });
 });
 
-// medianos-sesión-2 finding #4: the mobile summary line said "falta vacuna
-// antirrábica" for a dose that WAS on record — declared by the owner and
-// currently vigente, just not vet-signed — the exact "you have nothing"
-// contradiction the code's own doc comment warns against. A declared-only
-// card must read "X sin verificar", never "falta X"; a genuinely absent
-// obligation keeps "falta X".
-describe("CredentialFace — compliance summary wording (declared vs. missing)", () => {
+// Cumplimiento dedup (PO 2026-07-18): the summary line used to append
+// "· falta X" / "· X sin verificar" naming the specific pending obligation —
+// immediately duplicated by that SAME obligation's card rendered right below
+// (e.g. "0 de 4 al día · falta régimen ppp" atop a PPP card that itself says
+// "Faltan datos"). The summary now carries ONLY the count; the medianos-
+// sesión-2 finding #4 distinction (a declared-and-vigente dose must never
+// read like a genuinely absent one) still has to hold, but it now lives
+// exclusively in the CARD the summary sits above — the dual "declared /
+// registry still needs a firma" block for a declared dose, vs. the flat
+// "Sin registro" badge for a truly absent one.
+describe("CredentialFace — compliance summary vs. obligation cards (dedup, PO 2026-07-18)", () => {
   function vaccination(
     vaccineName: string,
     nextDueAt: string | null,
@@ -101,30 +105,41 @@ describe("CredentialFace — compliance summary wording (declared vs. missing)",
 
   const SELF = { authorRole: "owner", authorVerified: false, authorOrganizationId: null };
 
-  it("a declared-and-vigente rabies dose reads 'sin verificar', never 'falta'", () => {
+  it("a declared-and-vigente rabies dose: the summary shows only the count, and the card alone carries the 'not yet verified' honesty", () => {
     const state = deriveComplianceState(
       complianceInput({
         events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)],
       }),
     );
     const card = state.cards.find((c) => c.key === "rabies");
+    // The projection-level distinction (medianos-sesión-2 #4) is unchanged —
+    // only where it surfaces in this component changes.
     expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
     expect(card?.provenance).toBe("declarado");
 
     const html = render(state);
-    expect(html).toContain("vacuna antirrábica sin verificar");
+    // The summary tail is gone — neither wording it used to carry appears.
+    expect(html).not.toContain("vacuna antirrábica sin verificar");
     expect(html).not.toContain("falta vacuna antirrábica");
+    // The summary itself is exactly the "N de M al día" count.
+    expect(html).toContain(state.summary.label);
+    // The honest "declared, registry still needs a matriculated firma"
+    // distinction survives — but now ONLY in the card's own dual block.
+    expect(html).toContain("Antirrábica cargada por vos");
+    expect(html).toContain("un veterinario matriculado tiene que firmarla");
   });
 
-  it("a pet with no rabies record at all still reads 'falta vacuna antirrábica'", () => {
+  it("a pet with no rabies record at all: the summary shows only the count, and the card alone reads 'Sin registro'", () => {
     const state = deriveComplianceState(complianceInput());
     const card = state.cards.find((c) => c.key === "rabies");
     expect(card?.state).toBe("Sin registro");
     expect(card?.provenance).toBeUndefined();
 
     const html = render(state);
-    expect(html).toContain("falta vacuna antirrábica");
+    expect(html).not.toContain("falta vacuna antirrábica");
+    expect(html).toContain(state.summary.label);
+    expect(html).toContain("Sin registro");
   });
 });
 
