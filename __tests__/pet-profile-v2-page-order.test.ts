@@ -127,6 +127,68 @@ describe("pet-profile page.tsx — front-face delegation (AGENTS.md rule 5)", ()
 });
 
 // ---------------------------------------------------------------------------
+// tarjeta-todo (PO 2026-07-19) — the profile is ONE thing: the rotating card.
+// Nothing above it (org back-link/notice excepted — org viewers only), nothing
+// below it. The under-card blocks (PetOwnerActivity: nudges / Recordatorios /
+// Próximos turnos / Ciclos abiertos) are gone; their unique actions moved
+// INTO the card (libreta PRÓXIMO rows), and the carousel dots moved into the
+// document band.
+// ---------------------------------------------------------------------------
+
+describe("tarjeta-todo — the page renders nothing after the card container", () => {
+  it("mounts no under-card components: after the document only SheetMounter (invisible, URL-driven) follows", () => {
+    const src = read(PAGE_TSX);
+    // Slice the RETURN JSX from the card container conditional to the end of
+    // the page component (the preserved banner helpers below the component
+    // are alert-strip content, mounted INSIDE the card's Avisos slot).
+    const start = sourceIndex(src, "{showCarousel ? (");
+    const end = sourceIndex(src, "// Banners — PRESERVED");
+    const tail = src.slice(start, end);
+    // Every component mounted from the card container onward — the carousel
+    // shell wrapping the document, and the invisible sheet mounter. Anything
+    // else here is a new under-card surface creeping back.
+    const mounted = [...new Set(tail.match(/<[A-Z][A-Za-z0-9]*/g) ?? [])];
+    expect(mounted.sort()).toEqual(["<PetCredentialCarousel", "<SheetMounter"]);
+  });
+
+  it("the deleted under-card blocks never resurface in page.tsx", () => {
+    const src = read(PAGE_TSX);
+    for (const gone of ["<PetOwnerActivity", "<RemindersSection", "<CasesWidget", "<LnCard"]) {
+      expect(src, `${gone} found in page.tsx — an under-card block returned`).not.toContain(gone);
+    }
+    expect(src).not.toContain('data-section="pet-owner-activity"');
+  });
+
+  it("reminder actions live on the back face: the libreta PRÓXIMO rows carry Posponer/Registrar", () => {
+    // Render-level proof lives in FutureLedgerList.test.tsx; this pins the
+    // structural chain: LibretaFace mounts FutureLedgerList, and the list
+    // wires the SAME server action + canonical reminder URL the deleted
+    // under-card blocks used.
+    const libretaFace = read(resolve(__dirname, "../components/pet-profile/LibretaFace.tsx"));
+    expect(libretaFace).toContain("<FutureLedgerList");
+    const ledger = read(resolve(__dirname, "../components/pet-profile/FutureLedgerList.tsx"));
+    expect(ledger).toContain("Posponer 7 días");
+    expect(ledger).toContain("snoozeReminderAction");
+    expect(ledger).toContain("buildReminderVaccineUrl");
+  });
+
+  it("the carousel dots render in the band (bandDots slot), not as page chrome", () => {
+    const src = read(PAGE_TSX);
+    // page.tsx builds the band dots and threads them into the document...
+    sourceIndex(src, "<CarouselBandDots");
+    sourceIndex(src, "bandDots={bandDots}");
+    // ...and DocumentChrome mounts the slot outside the aria-hidden band
+    // (render-level proof in DocumentChrome.test.tsx).
+    const chrome = read(resolve(__dirname, "../components/pet-profile/DocumentChrome.tsx"));
+    expect(chrome).toContain('data-section="band-dots"');
+    // The dots group carries its accessible name (the honest-cap disclosure).
+    const dots = read(resolve(__dirname, "../components/pet-profile/CarouselBandDots.tsx"));
+    expect(dots).toContain("aria-label={groupLabel}");
+    expect(dots).toContain("mostrando ${total} de ${householdTotal}");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // CredentialFace.tsx — the credential-first block order now lives here
 // ---------------------------------------------------------------------------
 
