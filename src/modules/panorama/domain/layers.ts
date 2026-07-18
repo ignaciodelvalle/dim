@@ -445,6 +445,42 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     },
   },
   {
+    id: "tendencia",
+    label: "Tendencia de eventos (Δ vs período anterior)",
+    description:
+      "Variación de eventos registrados por provincia: el período elegido contra el período equivalente inmediatamente anterior (Δ = actual − anterior). Cuenta todos los eventos cargados en MiMAR.",
+    geomType: "choropleth",
+    source: "metrics:tendencia",
+    // Slate indigo — distinct from refugios' blue (#4e79a7) and microchip's
+    // pale blue (#a0cbe8), its nearest legend neighbours.
+    color: "#647acb",
+    scopeFilterable: true,
+    privacy: "none",
+    // Two event windows derived from the period (and shifted by asOf) —
+    // replayable "as of t" like the other pet_events-backed layers.
+    temporal: true,
+    // A signed delta magnitude — no attainment target, so NOT "rate"/meta.
+    dataType: "density",
+    // Zero-anchored diverging fill with INVERTED polarity (more events than
+    // before = warning pole) — see PanoramaLayer.deltaEncoded.
+    deltaEncoded: true,
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    // PROVINCE-GRAIN v1 (PROVINCE_ONLY_CHOROPLETH_IDS): a department-grain
+    // delta needs complementary suppression over published department totals
+    // (deltaCells' render contract) — deferred with the other locality
+    // asymmetries. Unit reads "provincia" at both bands.
+    caption: {
+      unit: { province: "provincia", locality: "provincia" },
+      measure: "variación de eventos registrados vs. el período anterior",
+      window: "period",
+    },
+  },
+  {
     id: "desierto-veterinario",
     label: "Desierto veterinario (días sin actividad)",
     description:
@@ -612,6 +648,9 @@ export const PROVINCE_ONLY_CHOROPLETH_IDS: ReadonlySet<LayerId> = new Set<LayerI
   // Vet-desert recency: no k-anon'd per-department pet universe in v1 (see the
   // registry entry) — the loader always returns province cells.
   "desierto-veterinario",
+  // Two-window delta: department grain needs complementary suppression over
+  // published totals (deltaCells render contract) — province cells only in v1.
+  "tendencia",
 ]);
 
 /** True when the choropleth is province-grain only (never disaggregates to departments). */

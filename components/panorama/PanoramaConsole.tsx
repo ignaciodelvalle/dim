@@ -1778,6 +1778,9 @@ export function PanoramaConsole({
         // the map can choose divergent vs sequential choropleth rendering.
         dataType: l.dataType,
         complianceTarget: l.complianceTarget,
+        // new-vistas: delta-encoded layers (tendencia) render the zero-anchored
+        // diverging classes — threaded from the registry like the fields above.
+        deltaEncoded: l.deltaEncoded,
         // map-QOL: per-layer opacity multiplier from the Personalizar slider.
         opacity: opacities[l.id] ?? 1,
       });

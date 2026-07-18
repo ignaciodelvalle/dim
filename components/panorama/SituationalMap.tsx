@@ -179,6 +179,12 @@ export type ActiveLayer = {
    */
   complianceTarget?: number;
   /**
+   * new-vistas wave (tendencia): the layer's `value` is a SIGNED DELTA — the
+   * province fill renders the zero-anchored diverging classes (delta-scale.ts)
+   * instead of the quantile/META paths. Threaded from the layer registry.
+   */
+  deltaEncoded?: boolean;
+  /**
    * map-QOL: per-layer opacity multiplier 0.2..1 (default 1), set from the
    * Personalizar panel. Multiplies the layer's base opacity expressions — the
    * suppressed-cell muting and the F4 dim behavior are preserved underneath.
@@ -1825,6 +1831,18 @@ export function SituationalMap({
             nextProvinceSeqLegend[layer.id] = {
               breaks: metaScale.breaks,
               colors: metaScale.colors,
+            };
+          }
+        } else if (layer.deltaEncoded === true) {
+          // Delta layer (tendencia): the zero-anchored diverging classes are
+          // frame-stable at the 0 anchor by construction (META precedent), so
+          // no scrub lock applies. Lift the SAME resolved scale the fill paints
+          // (resolveChoroplethEncoding's delta branch) for the legend.
+          const deltaEnc = resolveChoroplethEncoding(layer);
+          if (deltaEnc) {
+            nextProvinceSeqLegend[layer.id] = {
+              breaks: deltaEnc.scale.breaks,
+              colors: deltaEnc.scale.colors,
             };
           }
         } else {

@@ -22,7 +22,8 @@ export type PresetId =
   | "control-poblacional"
   | "mortalidad"
   | "perdidas-reunificacion"
-  | "desierto-veterinario";
+  | "desierto-veterinario"
+  | "tendencia";
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -298,6 +299,22 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // Vet-delivered intervention KPIs — the coverage measures that stall when a
     // territory has no registered veterinary activity.
     metrics: ["cobertura", "esterilizacion"],
+  },
+  {
+    id: "tendencia",
+    label: "Tendencia",
+    description: "¿Dónde hay más o menos eventos registrados que en el período anterior?",
+    // base: tendencia (two-window delta choropleth, zero-anchored diverging
+    // fill with inverted polarity — more events than before = warning pole).
+    base: "tendencia",
+    level: "province",
+    // 30d vs the prior 30d: the operational trend cadence — long enough to
+    // smooth day-of-week noise, short enough that a shift is actionable.
+    periodPreset: "30d",
+    // A cross-province comparison is a national question — frame the country.
+    framing: { kind: "national" },
+    // The event families the delta is most often ABOUT — the headline movers.
+    metrics: ["mordeduras", "perdidas", "denuncias"],
   },
 ] as const;
 

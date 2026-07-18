@@ -28,8 +28,8 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 9 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(9);
+  it("contains exactly 10 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(10);
   });
 
   it("all preset ids are unique", () => {
@@ -37,7 +37,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 9 expected preset ids are present", () => {
+  it("all 10 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
@@ -50,6 +50,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(ids.has("perdidas-reunificacion")).toBe(true);
     // New-vistas wave (PO 2026-07-18): the vet-activity recency vista.
     expect(ids.has("desierto-veterinario")).toBe(true);
+    expect(ids.has("tendencia")).toBe(true);
   });
 
   it("every preset has a non-empty label", () => {
@@ -269,6 +270,7 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
       "control-poblacional",
       "mortalidad",
       "desierto-veterinario",
+      "tendencia",
     ] as const) {
       expect(getPreset(id)!.framing).toEqual({ kind: "national" });
     }

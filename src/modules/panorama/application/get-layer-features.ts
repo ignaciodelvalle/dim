@@ -31,6 +31,7 @@ import {
   loadReunificacionByUnit,
   loadShelters,
   loadSintomasByUnit,
+  loadTendenciaByProvince,
   loadTerritorialIndexByProvince,
   loadVetDesertByProvince,
   loadZoonosisByUnit,
@@ -575,6 +576,25 @@ async function resolveLayerFeatures(
         jurisdictions,
         adminProvince,
         adminLocality,
+      );
+    }
+    case "tendencia": {
+      // Two-window event DELTA (current period vs the prior equivalent period)
+      // — PROVINCE-ONLY v1 (PROVINCE_ONLY_CHOROPLETH_IDS), `level` ignored.
+      // Temporal: `asOf` shifts both windows; `basis` replays by
+      // occurred_at/recorded_at. k-anon: the differencing rule (deltaCells)
+      // suppresses a cell when EITHER raw window carries a protected sub-k
+      // count (suppressedCount discloses it).
+      return provinceChoroplethResult(
+        await loadTendenciaByProvince(
+          actor,
+          jurisdictions,
+          period.since,
+          period.asOf,
+          adminProvince,
+          adminLocality,
+          period.basis,
+        ),
       );
     }
     case "desierto-veterinario": {

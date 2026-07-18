@@ -291,6 +291,35 @@ describe("PanoramaConsole — Desierto veterinario vista (new-vistas wave)", () 
   });
 });
 
+describe("PanoramaConsole — Tendencia vista (new-vistas wave)", () => {
+  it("commits the tendencia board shallow (preset/layers/period=30d) and fetches its layer", async () => {
+    renderConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState");
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Tendencia/ }));
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(routerPush).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("tendencia");
+    // 30d vs the prior 30d — the operational trend cadence.
+    expect(params.get("period")).toBe("30d");
+    expect(params.get("layers")).toBe("tendencia");
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      expect(layerCalls.some((u) => u.includes("/api/panorama/tendencia"))).toBe(true);
+      for (const u of layerCalls) expect(u).toContain("period=30d");
+    });
+  });
+});
+
 describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () => {
   it("restores a saved board on a bare URL via shallow replaceState + client fetch", async () => {
     window.localStorage.setItem(

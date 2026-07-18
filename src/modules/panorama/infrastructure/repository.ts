@@ -18,7 +18,7 @@
 // govt → intersection with its assignments. The scope clauses are the SAME
 // tested helpers the /gob dashboards use.
 
-import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
+import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lt, lte, sql } from "drizzle-orm";
 
 // Heavy read-only analytics — routed through the ANALYTICS pool (session
 // pooler in production; see db/index.ts, task #74 dual-pool split).
@@ -60,6 +60,7 @@ import {
   rabiesVaccinatedExists,
   suppressSmallCells,
 } from "@/lib/metrics";
+import { deltaCells } from "@/lib/metrics/anonymity";
 import { fetchDewormingCoverage } from "@/lib/metrics/deworming";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
@@ -1471,6 +1472,72 @@ export async function loadVetAccessByProvince(
     });
   }
   return { cells, truncated: false };
+}
+
+// metrics:tendencia — per-PROVINCE two-window event delta.
+//
+//   value = Δ = events(current window) − events(prior equivalent window)
+//
+// Both windows count ALL pet events (no type predicate) attributed to the pet's
+// home province (pets JOIN — same attribution as the mordeduras/perdidas
+// loaders). current = [since, until]; prior = the equal-length window ending
+// where the current one starts: [since − len, since). `asOf` shifts `until`
+// (temporal replay); `basis` picks occurred_at vs recorded_at.
+//
+// k-anon DIFFERENCING RULE (viz-suite wave 0): both windows go RAW into
+// deltaCells — a cell with a protected (0 < n < 5) count in EITHER window
+// publishes NO delta (suppressed; disclosed via suppressedCount). A count of
+// exactly 0 is not protected, so "+N desde cero" stays as public as the visible
+// current window. Suppressed cells emit NO cell at all (no-data on the map) —
+// never a value the single-window rule protects.
+export async function loadTendenciaByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+  basis: TimeBasis = "valid",
+): Promise<ProvinceChoroplethRows> {
+  const until = asOf ?? new Date();
+  const priorSince = new Date(since.getTime() - (until.getTime() - since.getTime()));
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+  const tcol = eventWindowCol(basis);
+
+  const countWindow = async (from: Date, to: Date, openUpper: boolean) => {
+    const conditions: SQL[] = [
+      gte(tcol, from),
+      openUpper ? lt(tcol, to) : lte(tcol, to),
+      isNotNull(pets.jurisdictionProvince),
+    ];
+    if (scope) conditions.push(sql`(${scope})`);
+    const rows = await db
+      .select({ province: pets.jurisdictionProvince, n: countDistinct(petEvents.id) })
+      .from(petEvents)
+      .innerJoin(pets, eq(petEvents.petId, pets.id))
+      .where(and(...conditions))
+      .groupBy(pets.jurisdictionProvince)
+      .limit(PER_LAYER_CAP);
+    return rows.filter((r) => r.province).map((r) => ({ province: r.province as string, n: r.n }));
+  };
+
+  // Half-open prior window [priorSince, since) so no event is double-counted at
+  // the boundary; the current window keeps the resolver's inclusive [since, until].
+  const current = await countWindow(since, until, false);
+  const prior = await countWindow(priorSince, since, true);
+
+  const cells: ProvinceChoroplethCell[] = [];
+  let suppressedCount = 0;
+  for (const c of deltaCells(current, prior, { key: (r) => r.province, count: (r) => r.n })) {
+    const code = PROVINCE_ISO[c.key];
+    if (!code) continue;
+    if (c.suppressed || c.delta === null) {
+      suppressedCount++;
+      continue;
+    }
+    cells.push({ provinceCode: code, label: c.key, value: c.delta });
+  }
+  return { cells, truncated: false, suppressedCount };
 }
 
 // metrics:vet-desert (desierto-veterinario) — per-PROVINCE days since the last
