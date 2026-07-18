@@ -11,6 +11,7 @@ import {
   BIVARIATE_SAFE_INDEX,
   type BivariateCell,
   bivariateIndex,
+  bivariateRefusalReason,
   bivariateViable,
   buildBivariateCells,
   classifyTercile,
@@ -105,6 +106,53 @@ describe("bivariateViable (WARNING 7 degeneracy guard)", () => {
     // toward the distribution, but the visible ones already clear the bar).
     const base = spreadUnits(BIVARIATE_MIN_UNITS);
     expect(bivariateViable(base.cov, base.sig)).toBe(true);
+  });
+});
+
+describe("bivariateRefusalReason — WHY the encoding is refused (Item 2: split the two reasons)", () => {
+  it("returns null when the encoding is viable", () => {
+    const { cov, sig } = spreadUnits(BIVARIATE_MIN_UNITS);
+    expect(bivariateRefusalReason(cov, sig)).toBeNull();
+  });
+
+  it('returns "count" when an axis has fewer than the minimum comparable units', () => {
+    const { cov, sig } = spreadUnits(BIVARIATE_MIN_UNITS - 1);
+    expect(bivariateRefusalReason(cov, sig)).toBe("count");
+  });
+
+  it('returns "tercile" when there are enough units but the cut-points collapse', () => {
+    // Enough units, but every coverage value is identical → t1 === t2. Not a
+    // count problem — the distribution is too flat to cut into honest levels.
+    const cov = coverageFc(
+      Array.from({ length: BIVARIATE_MIN_UNITS }, (_, i) => ({
+        code: `AR-${i}`,
+        name: `P${i}`,
+        value: 80,
+      })),
+    );
+    const sig = signalFc(
+      Array.from({ length: BIVARIATE_MIN_UNITS }, (_, i) => ({ name: `P${i}`, count: 1 + i })),
+    );
+    expect(bivariateRefusalReason(cov, sig)).toBe("tercile");
+  });
+
+  it("count is reported BEFORE tercile when both would fail (too few AND degenerate)", () => {
+    // A lone province fails the count bar first; report that, not the (also
+    // degenerate) terciles — the operator's actionable reading is "too few units".
+    const cov = coverageFc([{ code: "AR-A", name: "A", value: 95 }]);
+    const sig = signalFc([{ name: "A", count: 3 }]);
+    expect(bivariateRefusalReason(cov, sig)).toBe("count");
+  });
+
+  it("bivariateViable agrees with bivariateRefusalReason (viable ⇔ null)", () => {
+    const viable = spreadUnits(BIVARIATE_MIN_UNITS);
+    expect(bivariateViable(viable.cov, viable.sig)).toBe(
+      bivariateRefusalReason(viable.cov, viable.sig) === null,
+    );
+    const notViable = spreadUnits(BIVARIATE_MIN_UNITS - 1);
+    expect(bivariateViable(notViable.cov, notViable.sig)).toBe(
+      bivariateRefusalReason(notViable.cov, notViable.sig) === null,
+    );
   });
 });
 

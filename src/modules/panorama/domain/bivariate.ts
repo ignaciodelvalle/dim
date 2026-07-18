@@ -167,23 +167,26 @@ function normName(raw: string): string {
 export const BIVARIATE_MIN_UNITS = 6;
 
 /**
- * Whether the bivariate encoding is statistically viable for the current scope.
+ * WHY the bivariate encoding is refused, or `null` when it is viable (Item 2).
  *
- * With too few comparable units — or a degenerate distribution where the tercile
- * cut-points collapse (t1 === t2) — the 3×3 class matrix stops carrying honest
- * meaning: a lone 95%-coverage province would still be labelled "baja cobertura /
- * riesgo medio" purely because it is the only value to classify. Refuse to encode
- * in that case so the caller can show an honest note instead of a false risk band.
+ * Two distinct failure modes hid behind a single "requiere N unidades" note:
+ *   - `"count"`  — an axis has fewer than `minUnits` non-suppressed values, so
+ *                  there is simply not enough comparable data to classify.
+ *   - `"tercile"`— there ARE enough units but the distribution is degenerate: the
+ *                  tercile cut-points collapse (t1 === t2), so a lone 95%-coverage
+ *                  province would still be mislabelled "baja cobertura / riesgo
+ *                  medio". Nothing more data would fix — the values are too alike.
  *
- * Viable ⇔ BOTH axes have ≥ `minUnits` non-suppressed values AND neither
- * distribution is tercile-degenerate. Values are extracted with the SAME rules as
- * {@link buildBivariateCells} (suppressed / null cells never count).
+ * Count is reported BEFORE tercile: when a scope is both too small AND flat, the
+ * operator's actionable reading is "too few comparable units", not "too alike".
+ * Values are extracted with the SAME rules as {@link buildBivariateCells}
+ * (suppressed / null cells never count).
  */
-export function bivariateViable(
+export function bivariateRefusalReason(
   coverage: FeatureCollection,
   signal: FeatureCollection,
   minUnits: number = BIVARIATE_MIN_UNITS,
-): boolean {
+): "count" | "tercile" | null {
   const coverageValues: number[] = [];
   for (const f of coverage.features) {
     const p = (f.properties ?? {}) as CoverageProps;
@@ -196,12 +199,30 @@ export function bivariateViable(
     if (p.suppressed === true || p.count == null) continue;
     if (typeof p.count === "number") signalValues.push(p.count);
   }
-  if (coverageValues.length < minUnits || signalValues.length < minUnits) return false;
+  if (coverageValues.length < minUnits || signalValues.length < minUnits) return "count";
   const covTh = tercileThresholds(coverageValues);
   const sigTh = tercileThresholds(signalValues);
-  if (!covTh || !sigTh) return false;
-  if (covTh.t1 === covTh.t2 || sigTh.t1 === sigTh.t2) return false;
-  return true;
+  // No thresholds at all (empty distribution) is a count/data problem, not a
+  // spread one — but the count guard above already covers empty vs minUnits.
+  if (!covTh || !sigTh) return "count";
+  if (covTh.t1 === covTh.t2 || sigTh.t1 === sigTh.t2) return "tercile";
+  return null;
+}
+
+/**
+ * Whether the bivariate encoding is statistically viable for the current scope.
+ *
+ * Viable ⇔ {@link bivariateRefusalReason} finds no reason to refuse: BOTH axes
+ * have ≥ `minUnits` non-suppressed values AND neither distribution is
+ * tercile-degenerate. See that function for the two failure modes and why encoding
+ * is refused (the caller shows an honest note instead of a false risk band).
+ */
+export function bivariateViable(
+  coverage: FeatureCollection,
+  signal: FeatureCollection,
+  minUnits: number = BIVARIATE_MIN_UNITS,
+): boolean {
+  return bivariateRefusalReason(coverage, signal, minUnits) === null;
 }
 
 /**
