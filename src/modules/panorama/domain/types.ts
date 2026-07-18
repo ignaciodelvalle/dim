@@ -26,7 +26,8 @@ export type LayerId =
   | "mortalidad"
   | "acceso-veterinario"
   | "antiparasitario"
-  | "indice-territorial";
+  | "indice-territorial"
+  | "desierto-veterinario";
 
 /** Point/cluster layers plot individual features; choropleth layers shade
  * locality rollups (computed via lib/metrics with k-anon suppression). */

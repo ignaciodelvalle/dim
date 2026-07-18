@@ -21,7 +21,8 @@ export type PresetId =
   | "bienestar"
   | "control-poblacional"
   | "mortalidad"
-  | "perdidas-reunificacion";
+  | "perdidas-reunificacion"
+  | "desierto-veterinario";
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -278,6 +279,25 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["perdidas", "reunificacion", "denuncias"],
     // Locality-level drill-down question — stays framing-less, same as sintomas
     // and bienestar (design-QA 2026-07-04 convention).
+  },
+  {
+    id: "desierto-veterinario",
+    label: "Desierto veterinario",
+    description: "¿Qué zonas llevan más días sin actividad veterinaria registrada?",
+    // base: desierto-veterinario (days-without-vet-activity choropleth). The
+    // default 90d window is the vista's N: a quarter without ANY registered
+    // vet-attended event is a meaningful access gap (annual antirrábica boosters
+    // + routine controls make quarterly activity the expected floor). The period
+    // selector changes N and the caption follows (window: "period").
+    base: "desierto-veterinario",
+    level: "province",
+    periodPreset: "90d",
+    // A province-level access overview is a national question — frame the
+    // country so the longest-silent jurisdictions are comparable at a glance.
+    framing: { kind: "national" },
+    // Vet-delivered intervention KPIs — the coverage measures that stall when a
+    // territory has no registered veterinary activity.
+    metrics: ["cobertura", "esterilizacion"],
   },
 ] as const;
 

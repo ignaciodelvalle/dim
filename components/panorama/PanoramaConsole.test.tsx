@@ -261,6 +261,36 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
   });
 });
 
+describe("PanoramaConsole — Desierto veterinario vista (new-vistas wave)", () => {
+  it("commits the desierto board shallow (preset/layers/period=90d) and fetches its layer", async () => {
+    renderConsole();
+    const pushSpy = vi.spyOn(window.history, "pushState");
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Desierto veterinario/ }));
+
+    // Same preset-commit mechanism as every vista: ONE shallow push, no router.
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+    expect(routerPush).not.toHaveBeenCalled();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("desierto-veterinario");
+    // The vista's N: 90 days without registered vet activity (the period IS N).
+    expect(params.get("period")).toBe("90d");
+    expect(params.get("layers")).toBe("desierto-veterinario");
+
+    await waitFor(() => {
+      const layerCalls = fetchMock.mock.calls
+        .map((c) => String(c[0]))
+        .filter(
+          (u) =>
+            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+        );
+      expect(layerCalls.some((u) => u.includes("/api/panorama/desierto-veterinario"))).toBe(true);
+      for (const u of layerCalls) expect(u).toContain("period=90d");
+    });
+  });
+});
+
 describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () => {
   it("restores a saved board on a bare URL via shallow replaceState + client fetch", async () => {
     window.localStorage.setItem(

@@ -833,10 +833,16 @@ export type ChoroplethRows = {
 };
 
 /** Result envelope for a PROVINCE choropleth loader (filled polygons; U5). No
- * k-anon (province cells are large), so there is no suppressedCount. */
+ * k-anon (province cells are large), so there is USUALLY no suppressedCount —
+ * the optional field exists for the province-grain loaders whose UNIT can still
+ * be small (vet-desert: a scoped province universe under k pets gets no cell;
+ * tendencia: a sub-k delta window suppresses the cell). Absent = 0. */
 export type ProvinceChoroplethRows = {
   cells: ProvinceChoroplethCell[];
   truncated: boolean;
+  /** Cells withheld by the k-anon primitives (suppressSmallCells / suppressDelta).
+   * The use-case envelope surfaces it so the LayerPanel can disclose the count. */
+  suppressedCount?: number;
 };
 
 // ---------------------------------------------------------------------------
@@ -1465,6 +1471,85 @@ export async function loadVetAccessByProvince(
     });
   }
   return { cells, truncated: false };
+}
+
+// metrics:vet-desert (desierto-veterinario) — per-PROVINCE days since the last
+// vet_visit_logged event, capped at the analytic window's length.
+//
+//   value = min(windowDays, days between the last vet visit and `until`)
+//         = windowDays when NO vet visit was ever registered in scope.
+//
+// The recency MAX is deliberately NOT floored at `since`: a province whose last
+// visit predates the window still reads the honest cap (windowDays = "sin
+// actividad en todo el período"), never a fabricated smaller number. `asOf`
+// replays the signal ("as of t" the last visit was ...).
+//
+// k-anon: the unit's ACTIVE-PET UNIVERSE is the protected dimension (same as
+// fetchVetAccessByLocality) — a scoped province universe with < k pets gets NO
+// cell (suppressSmallCells; reported via suppressedCount) so "días sin
+// actividad" can never characterize a handful of identifiable pets. The event
+// recency itself is publishable at unit grain (loadUnitHistory already exposes
+// per-unit daily event counts).
+export async function loadVetDesertByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  since: Date,
+  asOf?: Date,
+  adminProvince?: string,
+  adminLocality?: string,
+): Promise<ProvinceChoroplethRows> {
+  const until = asOf ?? new Date();
+  const dayMs = 86_400_000;
+  // ROUND, not ceil: `until` is sampled milliseconds after the resolver anchored
+  // `since`, so a 90-day window measures 90d + ε — ceil would report "91 días"
+  // for every bare 90d period. Round restores the period the operator selected.
+  const windowDays = Math.max(1, Math.round((until.getTime() - since.getTime()) / dayMs));
+  const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
+
+  // Universe: pets per province (no metric predicate) — the k-anon dimension.
+  const universe = await rollupPetsPerProvince([], scope);
+  const { visible, suppressedCount } = suppressSmallCells(universe, {
+    count: (r) => r.count,
+    key: (r) => r.province,
+    k: 5,
+  });
+
+  // Last vet-attended event per province (≤ until; see the no-floor note above).
+  const conditions: SQL[] = [
+    eq(petEvents.eventType, "vet_visit_logged"),
+    lte(petEvents.occurredAt, until),
+    isNotNull(pets.jurisdictionProvince),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+  const rows = await db
+    .select({
+      province: pets.jurisdictionProvince,
+      lastAt: sql<string | null>`MAX(${petEvents.occurredAt})`,
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(petEvents.petId, pets.id))
+    .where(and(...conditions))
+    .groupBy(pets.jurisdictionProvince)
+    .limit(PER_LAYER_CAP);
+  const lastByProvince = new Map<string, string>();
+  for (const r of rows) {
+    if (r.province && r.lastAt) lastByProvince.set(r.province, r.lastAt);
+  }
+
+  const cells: ProvinceChoroplethCell[] = [];
+  for (const r of visible as unknown as ProvinceRollupRow[]) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    const lastAt = lastByProvince.get(r.province);
+    const days = lastAt
+      ? Math.min(
+          windowDays,
+          Math.max(0, Math.floor((until.getTime() - new Date(lastAt).getTime()) / dayMs)),
+        )
+      : windowDays;
+    cells.push({ provinceCode: code, label: r.province, value: days });
+  }
+  return { cells, truncated: false, suppressedCount };
 }
 
 // metrics:deworming (antiparasitario) — per-PROVINCE deworming coverage RATE via

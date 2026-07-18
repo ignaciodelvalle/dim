@@ -445,6 +445,42 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     },
   },
   {
+    id: "desierto-veterinario",
+    label: "Desierto veterinario (días sin actividad)",
+    description:
+      "Días desde el último evento veterinario registrado en MiMAR por provincia (el tope es el largo del período: sin actividad en todo el período). La ausencia de datos cargados no implica ausencia de veterinarios.",
+    geomType: "choropleth",
+    source: "metrics:vet-desert",
+    // Dark sienna — distinct from acceso-veterinario's mustard (#b6992d) and
+    // zoonosis' brown (#9c755f), the layers it is most likely to be compared with.
+    color: "#8a4f2d",
+    scopeFilterable: true,
+    privacy: "none",
+    // Period-windowed recency signal (vet_visit_logged ≤ asOf, capped at the
+    // window length) — replayable "as of t", unlike the current-state rollups.
+    temporal: true,
+    // A no-target magnitude (days without activity) — sequential fill, where
+    // DARK = many days without registered vet activity = the desert signal.
+    // No divergent anchor: there is no legal/programmatic target for "days
+    // since the last vet visit".
+    dataType: "density",
+    renderPolicy: {
+      province: "choropleth-fill",
+      locality: "choropleth-fill",
+      autoLevel: AUTO_PROVINCE,
+    },
+    suppressionStyle: "hatched",
+    // PROVINCE-GRAIN v1 (PROVINCE_ONLY_CHOROPLETH_IDS): a department-grain
+    // recency signal needs a k-anon'd per-department pet universe — deferred,
+    // same v1 asymmetry the rate layers document. Unit reads "provincia" at
+    // both bands so the caption stays honest (indice-territorial precedent).
+    caption: {
+      unit: { province: "provincia", locality: "provincia" },
+      measure: "días sin actividad veterinaria registrada",
+      window: "period",
+    },
+  },
+  {
     id: "indice-territorial",
     label: "Índice territorial (0-100)",
     description:
@@ -573,6 +609,9 @@ export function isPointsLayer(id: LayerId): boolean {
  */
 export const PROVINCE_ONLY_CHOROPLETH_IDS: ReadonlySet<LayerId> = new Set<LayerId>([
   "indice-territorial",
+  // Vet-desert recency: no k-anon'd per-department pet universe in v1 (see the
+  // registry entry) — the loader always returns province cells.
+  "desierto-veterinario",
 ]);
 
 /** True when the choropleth is province-grain only (never disaggregates to departments). */
