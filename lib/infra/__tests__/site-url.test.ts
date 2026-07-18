@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { resolveSiteUrl } from "@/lib/infra/site-url";
+import { credentialQrUrl, resolveSiteUrl } from "@/lib/infra/site-url";
 
 const CANONICAL = "https://mimar.ar";
 
@@ -42,5 +42,28 @@ describe("resolveSiteUrl", () => {
   it("strips multiple trailing slashes", () => {
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://mimar.gob.ar///");
     expect(resolveSiteUrl()).toBe("https://mimar.gob.ar");
+  });
+});
+
+describe("credentialQrUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("composes host + /p/{token} when the env var is set", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://www.mimar.gob.ar");
+    expect(credentialQrUrl("DIM-XXXX-XXXX")).toBe("https://www.mimar.gob.ar/p/DIM-XXXX-XXXX");
+  });
+
+  it("stays ABSOLUTE when the env var is set-but-empty (the unscannable-QR bug)", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    const url = credentialQrUrl("DIM-XXXX-XXXX");
+    expect(url.startsWith("http")).toBe(true);
+    expect(url).toBe("https://mimar.ar/p/DIM-XXXX-XXXX");
+  });
+
+  it("never doubles the slash when the env var carries a trailing slash", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://mimar.gob.ar/");
+    expect(credentialQrUrl("DIM-PAMP-0001")).toBe("https://mimar.gob.ar/p/DIM-PAMP-0001");
   });
 });

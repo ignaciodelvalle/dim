@@ -36,3 +36,15 @@ export function resolveSiteUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
   return raw.replace(/\/+$/, "") || CANONICAL_SITE_URL;
 }
+
+/**
+ * Absolute URL a credential QR encodes for a pet's public page.
+ *
+ * Always absolute: `resolveSiteUrl()` never returns an empty origin (the
+ * set-but-empty NEXT_PUBLIC_SITE_URL case falls back to the canonical brand
+ * domain), so the QR can never encode a host-less relative URL that a phone
+ * camera cannot resolve — the real past landing-hero bug this module cures.
+ */
+export function credentialQrUrl(publicToken: string): string {
+  return `${resolveSiteUrl()}/p/${publicToken}`;
+}
