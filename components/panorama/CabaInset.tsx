@@ -87,6 +87,18 @@ type Props = {
    */
   uniformFill?: string | null;
   /**
+   * Honesty fix (bivariate/province k-anon gap): true when the CABA-level flat
+   * value (a bivariate risk cell OR a province choropleth value) resolved but is
+   * k-anon SUPPRESSED — `uniformFill` is then null (there is no color to show),
+   * but that must never collapse the inset to nothing: the main map hatches an
+   * equally-protected province rather than hiding it, and the inset owes CABA
+   * the SAME honest "protected" read. When true, `syncFill` hatches every barrio
+   * (never a color) instead of falling through to the empty/no-data fallback —
+   * the panel STAYS visible, just marked protected, exactly mirroring how a
+   * suppressed per-barrio cell reads in the locality join below.
+   */
+  uniformSuppressed?: boolean;
+  /**
    * Adversarial-review fix (2026-07-11, LOW #6 — twin of M1): the EFFECTIVE
    * classed breaks the MAIN division fill renders with (the live-edge breaks,
    * frozen across a time-scrub by SituationalMap's scale-lock). Without them
@@ -140,6 +152,7 @@ export function CabaInset({
   layer,
   visible,
   uniformFill = null,
+  uniformSuppressed = false,
   lockedBreaks = null,
   onDrill,
   scopeLabel = null,
@@ -154,6 +167,8 @@ export function CabaInset({
   layerRef.current = layer;
   const uniformFillRef = useRef<string | null>(uniformFill);
   uniformFillRef.current = uniformFill;
+  const uniformSuppressedRef = useRef<boolean>(uniformSuppressed);
+  uniformSuppressedRef.current = uniformSuppressed;
   const lockedBreaksRef = useRef<readonly number[] | null>(lockedBreaks);
   lockedBreaksRef.current = lockedBreaks;
   const bubbleRef = useRef<Props["bubble"]>(bubble);
@@ -285,12 +300,12 @@ export function CabaInset({
   }, [visible]);
 
   // Recompute the barrio fill whenever the active base layer, the province-level
-  // uniform fill, the main map's effective classed breaks, or the graduated
-  // bubble change.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill + lockedBreaks + bubble are the intended triggers.
+  // uniform fill (or its k-anon suppressed state), the main map's effective
+  // classed breaks, or the graduated bubble change.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: layer + uniformFill + uniformSuppressed + lockedBreaks + bubble are the intended triggers.
   useEffect(() => {
     if (loadedRef.current) syncFill();
-  }, [layer, uniformFill, lockedBreaks, bubble]);
+  }, [layer, uniformFill, uniformSuppressed, lockedBreaks, bubble]);
 
   // Reconcile the single CABA graduated bubble: show it (sized + colored by the
   // parent from the SAME graduated scale the main map uses) when a graduated base
@@ -327,11 +342,26 @@ export function CabaInset({
     syncBubble(map);
     const l = layerRef.current;
     const codes = barrioCodesRef.current;
+    // Honesty fix: the CABA-level flat value resolved (a bivariate risk cell or a
+    // province value) but is k-anon SUPPRESSED — a plain province rate is
+    // "structurally never suppressed today" (SituationalMap comment), but a
+    // BIVARIATE cell propagates suppression from its signal axis (e.g. a
+    // low-count mordeduras province), so this branch IS reachable. Hatch every
+    // barrio — the SAME protected treatment the main map gives a suppressed
+    // province — instead of falling through to the empty/no-data fallback below,
+    // which would read as "no data" when the truth is "protected data".
+    if (uniformSuppressedRef.current && codes.size > 0) {
+      map.setPaintProperty(DATA_FILL, "fill-color", divisionFillColorExpr(new Map()));
+      if (map.getLayer(SUPPRESS_FILL)) {
+        map.setFilter(SUPPRESS_FILL, divisionSuppressedFilter(codes));
+      }
+      return;
+    }
     // #9 — province-level layer: CABA has one province value, not per-barrio data.
     // Fill every barrio uniformly with the parent-evaluated color (same scale as
-    // the main map) so CABA is legible at national zoom; no k-anon hatch (a single
-    // province value is never suppressed). Honest: the chrome labels it a province
-    // value, and every barrio reads identically (no invented per-barrio variation).
+    // the main map) so CABA is legible at national zoom. Honest: the chrome
+    // labels it a province value, and every barrio reads identically (no
+    // invented per-barrio variation).
     const uniform = uniformFillRef.current;
     if (uniform && codes.size > 0) {
       map.setPaintProperty(DATA_FILL, "fill-color", uniform);

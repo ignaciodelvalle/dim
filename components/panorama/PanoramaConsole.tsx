@@ -3012,6 +3012,20 @@ export function PanoramaConsole({
       // stale bare-URL default.
       setCommittedPeriod(preset.periodPreset);
 
+      // riesgo-ppp gap fix: the bivariateMode useState initializer only seeds
+      // from the OPENING preset's `encodings` declaration once, at mount (via
+      // `seededPresetId ?? defaultPresetId`) — an in-session preset click never
+      // ran through it. So navigating to "Riesgo PPP" (or any vista that OWNS
+      // `bivariate`) from another preset left bivariateMode at whatever it was
+      // before, and the vista opened silently on the plain fill — its whole
+      // point ("¿dónde se cruzan mordeduras altas con bajo registro PPP?")
+      // hidden behind a toggle the operator has to find. Mirror the mount-time
+      // seed here so every preset commit (not just the first) opens in the
+      // encoding its vista declares. Symmetric in both directions: switching
+      // to a preset that does NOT declare bivariate turns it back off, same as
+      // the eligibility-reset effect already does when the axes drop out.
+      setBivariateMode(preset.encodings?.includes("bivariate") === true);
+
       // panorama-redesign Fase 1: apply the preset's optional map framing
       // (camera-only — data scope untouched). Framing-less presets clear it.
       // BUG FIX (vista-switch camera yank): a preset's `national` framing is a

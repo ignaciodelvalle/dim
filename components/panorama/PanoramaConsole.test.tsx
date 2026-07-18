@@ -355,6 +355,38 @@ describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivari
       for (const u of layerCalls) expect(u).toContain("period=90d");
     });
   });
+
+  it("opens in its declared bivariate encoding on an IN-SESSION preset click, not just on mount", async () => {
+    // Bug: bivariateMode's useState initializer only seeds from the OPENING
+    // preset's `encodings` declaration once, at mount — an in-session
+    // applyPreset() commit never ran through it, so clicking "Riesgo PPP"
+    // from another vista silently opened on the plain ppp fill, its whole
+    // point ("¿dónde se cruzan mordeduras altas con bajo registro PPP?")
+    // hidden behind a toggle. applyPreset now seeds bivariateMode itself on
+    // every commit, mirroring the mount-time seed.
+    renderConsole();
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Riesgo PPP/ }));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("preset")).toBe("riesgo-ppp");
+      expect(params.get("encoding")).toBe("bivariate");
+    });
+
+    // Symmetric: switching to a preset that does NOT declare bivariate turns
+    // the encoding back off (same as the eligibility-reset effect already
+    // does when the axes themselves drop out) — it must never stick around
+    // into an unrelated vista.
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("preset")).toBe("cumplimiento");
+      expect(params.get("encoding")).toBeNull();
+    });
+  });
 });
 
 describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () => {

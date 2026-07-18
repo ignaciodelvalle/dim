@@ -3385,24 +3385,39 @@ export function SituationalMap({
   // sublabel. Bivariate and province-choropleth both collapse CABA to ONE color.
   let insetUniformFill: string | null = null;
   let insetScopeLabel: string | null = null;
+  // Honesty fix: a suppressed CABA-level value is a DISTINCT state from no color
+  // — the inset must hatch it (below, via CabaInset's uniformSuppressed prop),
+  // never silently vanish. See CabaInset's syncFill for why this is reachable: a
+  // province rate is structurally never suppressed, but a bivariate cell
+  // propagates suppression from its SIGNAL axis (a low-count mordeduras/zoonosis
+  // province), so CABA's risk read can genuinely be k-anon protected.
+  let insetUniformSuppressed = false;
   if (insetBivariateLayer) {
     // CABA's bivariate cell → the SAME palette color the main map paints for AR-C.
-    // A suppressed cell yields null (bivariateCellColor honors k-anon); we then
-    // leave the inset uncolored rather than invent a risk color for a hidden cell.
     const cabaCell = insetBivariateLayer.bivariateCells?.find((c) => isCABA(c.provinceCode));
     if (cabaCell) {
-      const color = bivariateCellColor(cabaCell);
-      if (color !== null) {
-        insetUniformFill = color;
+      if (cabaCell.suppressed) {
+        insetUniformSuppressed = true;
         insetScopeLabel = "riesgo";
+      } else {
+        const color = bivariateCellColor(cabaCell);
+        if (color !== null) {
+          insetUniformFill = color;
+          insetScopeLabel = "riesgo";
+        }
       }
     }
   } else if (insetProvinceLayer) {
     const cabaFeature = insetProvinceLayer.features.features.find((f) =>
       isCABA(String((f.properties as { provinceCode?: string } | null)?.provinceCode ?? "")),
     );
-    const cabaValue = (cabaFeature?.properties as { value?: number } | null)?.value;
-    if (typeof cabaValue === "number") {
+    const cabaProps = cabaFeature?.properties as { value?: number; suppressed?: boolean } | null;
+    if (cabaProps?.suppressed === true) {
+      // Defensive: province choropleth cells are structurally never suppressed
+      // today, but honor the flag if that ever changes rather than assuming.
+      insetUniformSuppressed = true;
+      insetScopeLabel = "valor provincial";
+    } else if (typeof cabaProps?.value === "number") {
       // P3: the inset flat fill samples the SAME scale object the main province
       // fill paints (resolveChoroplethEncoding — the identical value object
       // provinceColorExprForLayer resolves). CABA's single province value is
@@ -3416,7 +3431,7 @@ export function SituationalMap({
         lockedSeqBreaks: lockedBreaks,
       });
       if (encoding) {
-        insetUniformFill = colorForValue(encoding.scale, cabaValue);
+        insetUniformFill = colorForValue(encoding.scale, cabaProps.value);
         insetScopeLabel = "valor provincial";
       }
     }
@@ -3464,12 +3479,17 @@ export function SituationalMap({
   }
 
   // The layer the inset renders: the locality layer if present, else the
-  // bivariate/province layer ONLY when a CABA flat fill resolved (avoids an empty
-  // panel). The inset's uniform-fill path reads the flat color, not this layer's
-  // features, so the bivariate layer here just keeps the panel present + visible.
+  // bivariate/province layer when a CABA flat fill resolved OR is suppressed
+  // (avoids an empty panel either way — a k-anon-protected CABA still HAS a
+  // resolved value, just a hidden one, so it must stay present+hatched, never
+  // vanish like true absence). The inset's uniform-fill path reads the flat
+  // color/suppressed flag, not this layer's features, so the bivariate layer
+  // here just keeps the panel present + visible.
   const insetLayer =
     insetLocalityLayer ??
-    (insetUniformFill !== null ? (insetBivariateLayer ?? insetProvinceLayer) : null);
+    (insetUniformFill !== null || insetUniformSuppressed
+      ? (insetBivariateLayer ?? insetProvinceLayer)
+      : null);
   // task #36 fix 1 (+ PBA addendum) — key on SCOPE + CABA-in-viewport, not zoom.
   // National scope shows the AMBA magnifier whenever CABA is in the viewport;
   // CABA and PBA drills keep it; any other province hides it.
@@ -3629,6 +3649,11 @@ export function SituationalMap({
           layer={insetLayer}
           visible={insetVisible}
           uniformFill={insetUniformFill}
+          // Honesty fix: a k-anon-protected CABA-level value (bivariate risk cell
+          // or, defensively, a province value) hatches every barrio instead of
+          // leaving the panel empty/absent — see the insetUniformSuppressed note
+          // above and CabaInset's syncFill.
+          uniformSuppressed={insetUniformSuppressed}
           // P4a — the CABA-scoped projection of the resolved encoding: a per-kind
           // sublabel + (graduated only) CABA's single aggregated bubble. Choropleth
           // keeps its polygon fill (uniformFill / per-barrio join); bubble is null.
