@@ -31,6 +31,7 @@ import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/lib
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { resolveOriginOrg, shouldShowOriginOrgBadge } from "@/lib/infra/origin-org";
+import { reportError } from "@/lib/infra/report-error";
 import { Tier2MedicalView } from "./Tier2MedicalView";
 import { deriveActiveMedications } from "./credential-badges";
 
@@ -66,58 +67,31 @@ export async function CredentialTier2Medical({
   // Run the tier2 queries concurrently — none depends on the others. Each
   // clinical query selects the full overlay shape (id/eventType/occurredAt/
   // payload) and is folded with the pet's event_amended rows (WAVE D1).
-  const [vaccineEvents, sterilRows, medRows, amendmentEvents, dueSoonWindowRule] =
-    await Promise.all([
-      // FULL vaccination history — same input the owner's libreta feeds into
-      // computeVaccinationSummary. Type-narrowed, so it stays cheap at scale.
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(
-          and(eq(petEvents.petId, petId), eq(petEvents.eventType, "vaccination_administered")),
-        ),
-      db
-        .select({ id: petEvents.id })
-        .from(petEvents)
-        .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "sterilization_performed")))
-        .limit(1),
-      // Active medications: started without a referencing stop.
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(
-          and(
-            eq(petEvents.petId, petId),
-            sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
-          ),
-        ),
-      db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "event_amended"))),
-      // Same jurisdiction-resolved window the owner's libreta uses — the two
-      // surfaces MUST share the whole derivation, thresholds included.
-      resolveBusinessRule("due_soon_window", {
-        country: "AR",
-        province: jurisdictionProvince,
-        locality: jurisdictionLocality,
-      }),
-    ]);
+  //
+  // Fail-soft (public-surface resilience): this section streams AFTER the
+  // shell flushed — an uncaught throw here would swap the WHOLE page for the
+  // error boundary client-side. A DB failure instead renders an honest
+  // degraded strip; the credential shell the finder needs stays up.
+  let tier2Queries: Awaited<ReturnType<typeof runTier2Queries>>;
+  try {
+    tier2Queries = await runTier2Queries(petId, jurisdictionProvince, jurisdictionLocality);
+  } catch (err) {
+    reportError("public-credential/tier2-medical", err, { petId });
+    return (
+      <output
+        data-section="tier2-degraded"
+        className="block border-t border-ln-line-2 bg-ln-warn-050 px-4 py-3"
+      >
+        <p className="m-0 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
+          Datos incompletos
+        </p>
+        <p className="mt-1 text-sm text-ln-ink-2">
+          No pudimos cargar la libreta médica. Reintentá en unos segundos.
+        </p>
+      </output>
+    );
+  }
+  const [vaccineEvents, sterilRows, medRows, amendmentEvents, dueSoonWindowRule] = tier2Queries;
 
   // SINGLE SHARED DERIVATION (bug 3): the exact function + inputs the owner
   // libreta uses — corrections folded first, then catalog/due-date classification.
@@ -147,6 +121,64 @@ export async function CredentialTier2Medical({
       />
     </div>
   );
+}
+
+// runTier2Queries — the five concurrent tier2 reads, extracted so the section
+// body can bound them with ONE try/catch (fail-soft above).
+function runTier2Queries(
+  petId: string,
+  jurisdictionProvince: string | null,
+  jurisdictionLocality: string | null,
+) {
+  return Promise.all([
+    // FULL vaccination history — same input the owner's libreta feeds into
+    // computeVaccinationSummary. Type-narrowed, so it stays cheap at scale.
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "vaccination_administered"))),
+    db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "sterilization_performed")))
+      .limit(1),
+    // Active medications: started without a referencing stop.
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          sql`${petEvents.eventType} IN ('medication_started','medication_stopped')`,
+        ),
+      ),
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "event_amended"))),
+    // Same jurisdiction-resolved window the owner's libreta uses — the two
+    // surfaces MUST share the whole derivation, thresholds included.
+    resolveBusinessRule("due_soon_window", {
+      country: "AR",
+      province: jurisdictionProvince,
+      locality: jurisdictionLocality,
+    }),
+  ]);
 }
 
 // ---------------------------------------------------------------------------
@@ -191,7 +223,16 @@ export function CredentialTier2MedicalSkeleton() {
 // ---------------------------------------------------------------------------
 
 export async function CredentialOriginOrg({ petId }: { petId: string }) {
-  const originOrg = await resolveOriginOrg(petId);
+  // Fail-soft: streamed after the shell — a throw would swap the whole page
+  // for the error boundary. The badge is optional decoration (absent for most
+  // pets), so on DB failure it logs and stays absent; nothing real is faked.
+  let originOrg: Awaited<ReturnType<typeof resolveOriginOrg>>;
+  try {
+    originOrg = await resolveOriginOrg(petId);
+  } catch (err) {
+    reportError("public-credential/origin-org", err, { petId });
+    return null;
+  }
   if (!shouldShowOriginOrgBadge(originOrg) || !originOrg) return null;
 
   return (

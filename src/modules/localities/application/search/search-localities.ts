@@ -1,36 +1,52 @@
 // search-localities.ts — use-cases moved verbatim from app/actions/localities.ts
-// (strangler 46/61). Rate-limit state, both search functions, and
-// __resetRateLimitForTests are co-located so the reset helper resets the same
-// state the searches use.
+// (strangler 46/61). Rate limiting and __resetRateLimitForTests are co-located
+// so the reset helper resets the same state the searches use.
 //
 // Auth guard (requireUserOrRedirect) for searchLocalitiesAction is enforced by
 // the caller (shim). This function receives the already-resolved userId.
+//
+// Rate limiting is DB-backed (enforceRateLimit / rate_limit_buckets) — the
+// former in-memory rateLimitMap was per-worker and reset on every cold start,
+// so on Vercel each lambda instance granted a fresh 60/min budget and the
+// limit never actually held. The persistent limiter is atomic and
+// cross-worker, same as every other anonymous public surface (see
+// lib/infra/rate-limit.ts). FAIL-OPEN on limiter infrastructure failure: a
+// broken limiter write must not take down the typeahead — only a genuine
+// RateLimitError throttles.
 
 import { type LocalitySearchResult, searchLocalities } from "@/lib/infra/ar-localidades";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { reportError } from "@/lib/infra/report-error";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 import type { SearchLocalitiesResult } from "./types";
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 60;
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+// Same budget the in-memory limiter enforced: 60 searches per minute per key
+// (userId for the auth-gated variant, one shared sentinel for anonymous use).
+const RATE_LIMIT_ENDPOINT = "localities_search";
+const RATE_LIMIT_CONFIG = { maxPerMinute: 60 } as const;
 
-function checkRateLimit(sessionKey: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(sessionKey);
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimitMap.set(sessionKey, { count: 1, windowStart: now });
+/** True → proceed; false → throttled. Never throws (fail-open on infra error). */
+async function checkRateLimit(identifier: string): Promise<boolean> {
+  try {
+    await enforceRateLimit(RATE_LIMIT_ENDPOINT, identifier, RATE_LIMIT_CONFIG);
+    return true;
+  } catch (err) {
+    if (err instanceof RateLimitError) return false;
+    reportError("localities/rate-limit", err, { identifier });
     return true;
   }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count += 1;
-  return true;
 }
 
 // @no-auth-required: test-only utility, prefixed with `__` to mark non-public surface.
-// Exposed so a test can reset between cases. Not part of the public surface.
+// Exposed so a test can reset between cases. Deletes THIS endpoint's persistent
+// buckets only — the reset resets the same state the searches use.
 export async function __resetRateLimitForTests(): Promise<void> {
-  rateLimitMap.clear();
+  const { db } = await import("@/db");
+  const { sql } = await import("drizzle-orm");
+  await db.execute(
+    sql`delete from rate_limit_buckets where bucket_key like ${`${RATE_LIMIT_ENDPOINT}:%`}`,
+  );
 }
 
 export async function searchLocalitiesAction(
@@ -40,7 +56,7 @@ export async function searchLocalitiesAction(
     query: string;
   },
 ): Promise<SearchLocalitiesResult> {
-  if (!checkRateLimit(userId)) {
+  if (!(await checkRateLimit(userId))) {
     return { error: "rate_limited" };
   }
 
@@ -75,7 +91,7 @@ export async function searchLocalitiesPublicAction(input: {
   provinceCode?: string;
   query: string;
 }): Promise<SearchLocalitiesResult> {
-  if (!checkRateLimit(PUBLIC_RATE_LIMIT_SENTINEL)) {
+  if (!(await checkRateLimit(PUBLIC_RATE_LIMIT_SENTINEL))) {
     return { error: "rate_limited" };
   }
 

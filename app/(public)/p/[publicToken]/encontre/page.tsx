@@ -19,6 +19,7 @@ import { notFound } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
+import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -101,8 +102,9 @@ export default async function FinderInPossessionPage({
           const admin = createAdminClient();
           const { data } = await admin.auth.admin.getUserById(ownerRow.ownerUserId);
           ownerEmail = data?.user?.email ?? null;
-        } catch {
+        } catch (err) {
           // Non-fatal — render without email.
+          reportError("public-encontre/owner-email", err, { publicToken });
         }
       }
     }
@@ -206,8 +208,9 @@ export default async function FinderInPossessionPage({
         displayName: profile?.displayName ?? undefined,
       };
     }
-  } catch {
+  } catch (err) {
     // Non-fatal — anonymous path.
+    reportError("public-encontre/prefill", err, { publicToken });
   }
 
   // Resolve owner first name (for the header copy "X está esperando reencontrarse").

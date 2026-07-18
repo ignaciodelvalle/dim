@@ -8,7 +8,9 @@ vi.mock("@/lib/infra/auth-guards", () => ({
 }));
 
 import { __resetRateLimitForTests, searchLocalitiesAction } from "@/app/actions/localities";
+import { db } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { sql } from "drizzle-orm";
 
 const mockAs = (userId: string) =>
   vi.mocked(requireUserOrRedirect).mockResolvedValue({
@@ -64,5 +66,21 @@ describe("searchLocalitiesAction", () => {
     mockAs("user-f");
     const r = await searchLocalitiesAction({ provinceCode: "AR-B", query: "la plata" });
     expect("results" in r).toBe(true);
+  });
+
+  it("persists the budget in rate_limit_buckets — survives worker restarts", async () => {
+    // The former in-memory rateLimitMap reset on every cold start, so the
+    // limit never held across Vercel lambda instances. The durable limiter
+    // writes each consumed slot to rate_limit_buckets: assert the bucket row
+    // exists with the consumed count (cross-worker state, not process memory).
+    mockAs("user-persist");
+    await searchLocalitiesAction({ provinceCode: "AR-B", query: "la plata" });
+    await searchLocalitiesAction({ provinceCode: "AR-B", query: "la plata" });
+
+    const rows = (await db.execute(
+      sql`select count from rate_limit_buckets where bucket_key like 'localities_search:user-persist:minute:%'`,
+    )) as Array<{ count: number }>;
+    expect(rows).toHaveLength(1);
+    expect(Number(rows[0].count)).toBe(2);
   });
 });
