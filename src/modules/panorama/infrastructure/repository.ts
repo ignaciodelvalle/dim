@@ -24,6 +24,7 @@ import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } fro
 // pooler in production; see db/index.ts, task #74 dual-pool split).
 import {
   type PanoramaCubeRow,
+  type PanoramaKpiCubeRow,
   arLocalities,
   cases,
   analyticsDb as db,
@@ -31,6 +32,8 @@ import {
   organizations,
   panoramaCube,
   panoramaCubeMeta,
+  panoramaKpiCube,
+  panoramaKpiCubeMeta,
   petEvents,
   petIdentifications,
   pets,
@@ -1638,6 +1641,40 @@ export async function readCubeRows(
     .select()
     .from(panoramaCube)
     .where(and(...conditions));
+}
+
+// ---------------------------------------------------------------------------
+// KPI-strip cube reads (migration 0151). Same seam split as the layer cube:
+// the SELECTs live here; the application reader (load-panorama-kpis-cube.ts)
+// does the eligibility / staleness / period gating and reassembles the strip.
+// ---------------------------------------------------------------------------
+
+/** KPI cube build metadata: freshness + status + the period window the strip
+ * was computed for + the strip-level payload fields. */
+export async function readKpiCubeMeta(): Promise<{
+  builtAt: Date | null;
+  status: string;
+  periodSince: Date | null;
+  periodUntil: Date | null;
+  strip: unknown;
+} | null> {
+  const [row] = await db
+    .select({
+      builtAt: panoramaKpiCubeMeta.builtAt,
+      status: panoramaKpiCubeMeta.status,
+      periodSince: panoramaKpiCubeMeta.periodSince,
+      periodUntil: panoramaKpiCubeMeta.periodUntil,
+      strip: panoramaKpiCubeMeta.strip,
+    })
+    .from(panoramaKpiCubeMeta)
+    .where(sql`${panoramaKpiCubeMeta.id} = 1`);
+  return row ?? null;
+}
+
+/** All KPI cube rows for one scope (strip tiles + non-strip aggregates; the
+ * reader partitions by `position`). */
+export async function readKpiCubeRows(scope: string): Promise<PanoramaKpiCubeRow[]> {
+  return db.select().from(panoramaKpiCube).where(eq(panoramaKpiCube.scope, scope));
 }
 
 // ---------------------------------------------------------------------------

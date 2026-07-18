@@ -49,6 +49,12 @@ import { fetchNetGrowth } from "@/lib/metrics/population-control";
 
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+// The reader owns the KPI cube read contract (scope + row ids), mirroring how
+// load-layer-features-cube owns the flag + staleness constants.
+import {
+  KPI_CUBE_BIRTHS_KPI,
+  KPI_CUBE_SCOPE_NATIONAL,
+} from "@/src/modules/panorama/application/load-panorama-kpis-cube";
 
 import type {
   ChoroplethCell,
@@ -338,14 +344,6 @@ export function buildProvinceCubeRows(
 // mirroring the request path's "degraded never cached" invariant — so the
 // reader can never serve a placeholder tile as precomputed truth.
 // ---------------------------------------------------------------------------
-
-/** The only scope the KPI cube stores in v1 (admin national — mirrors the
- * layer cube's admin-only reasoning; drills and govt scopes stay live). */
-export const KPI_CUBE_SCOPE_NATIONAL = "national";
-
-/** The non-strip births aggregate row id (position NULL — never assembled
- * into the served strip). */
-export const KPI_CUBE_BIRTHS_KPI = "births";
 
 /** Strip-level PanoramaKpis fields stored on the meta row (everything except
  * the tiles, which live one-per-row in panorama_kpi_cube). */
