@@ -16,11 +16,9 @@
 // itself makes, since service-dog credentials don't have a dedicated
 // RevocationType in lib/domain/revocation-scope.ts.
 //
-// The action has no /gob-facing revalidatePath (it only revalidates the
-// owner-facing pet pages), so a successful revoke calls router.refresh()
-// to drop the credential from this list.
+// A successful revoke drops the credential from this list via the action's
+// server-side revalidatePath("/gob/rupga") — no client router.refresh().
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { revokeServiceDogCredentialAction } from "@/app/actions/service-dog";
@@ -42,7 +40,10 @@ export function RevokeServiceDogActions({
   actorRole: "admin" | "govt";
   jurisdictions: readonly AdminOrGovtJurisdiction[];
 }) {
-  // Client-side capability check — server always re-validates.
+  const [mode, setMode] = useState<Mode>("idle");
+
+  // Client-side capability check — server always re-validates. Computed AFTER
+  // the hook so the Rules of Hooks hold (unconditional hook, then the gate).
   const canAct = canRevoke(
     { id: "", role: actorRole },
     {
@@ -54,8 +55,6 @@ export function RevokeServiceDogActions({
   );
 
   if (!canAct) return null;
-
-  const [mode, setMode] = useState<Mode>("idle");
 
   if (mode === "done") {
     return (
@@ -95,7 +94,6 @@ function RevokeServiceDogForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -115,7 +113,7 @@ function RevokeServiceDogForm({
       if ("error" in result) {
         setError(result.error);
       } else {
-        router.refresh();
+        // The action revalidates /gob/rupga server-side; just settle the UI.
         onDone();
       }
     });

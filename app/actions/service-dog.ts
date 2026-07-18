@@ -11,6 +11,8 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
+import { revalidatePath } from "next/cache";
+
 import type { ServiceDogVisibility } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { retireServiceDog } from "@/src/modules/pets/application/service-dog/retire-service-dog";
@@ -75,5 +77,12 @@ export async function revokeServiceDogCredentialAction(
   input: RevokeServiceDogInput,
 ): Promise<{ ok: true } | { error: string }> {
   const { user } = await requireUserOrRedirect();
-  return revokeServiceDogCredential(user.id, input);
+  const result = await revokeServiceDogCredential(user.id, input);
+  if ("ok" in result) {
+    // Drop the revoked credential from the /gob/rupga listing (server-side
+    // revalidate, mirroring the org/vet revocation shims) rather than a
+    // client router.refresh() — keeps the nav-pattern fence green.
+    revalidatePath("/gob/rupga");
+  }
+  return result;
 }
