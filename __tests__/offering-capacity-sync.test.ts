@@ -16,7 +16,7 @@
 // updated in the same transaction, so the next cron run will materialize
 // new slots with the correct capacity — no separate fix needed.
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {

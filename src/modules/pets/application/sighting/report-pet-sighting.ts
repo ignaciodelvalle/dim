@@ -40,7 +40,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
+import { attachments, cases, db, notifications, ownerships, pets } from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";

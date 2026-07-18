@@ -18,7 +18,7 @@
 // fixed overlay drawer — SAME component, container classes only (spec).
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import type { GobPetSubView } from "@/lib/infra/gob-pet-subview";
@@ -27,13 +27,7 @@ import type { WelfareInspectorDetail } from "@/lib/infra/welfare-inspector-detai
 import { InspectorPanel } from "./InspectorPanel";
 import { PetSubView } from "./PetSubView";
 import { WelfareInspectorContent } from "./WelfareInspectorContent";
-import {
-  closeInspector,
-  openMascota,
-  popMascota,
-  selectCaso,
-  syncDepthAfterPop,
-} from "./inspector-nav";
+import { closeInspector, openMascota, popMascota, syncDepthAfterPop } from "./inspector-nav";
 
 function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError";

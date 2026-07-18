@@ -9,7 +9,7 @@
 //   - Report text is NOT mutated.
 //   - Returned case_event carries entryType=reporter_comment and the text in notes.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db/schema";
 import { type AddReporterCommentInput, addReporterComment } from "../add-reporter-comment";

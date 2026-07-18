@@ -20,14 +20,9 @@ import {
   pets,
   profiles,
   serviceOfferings,
-  serviceScheduleRules,
   timeSlots,
 } from "@/db";
-import {
-  generateAppointmentToken,
-  generateOfferingToken,
-  generatePublicToken,
-} from "@/lib/infra/publicToken";
+import { generateOfferingToken, generatePublicToken } from "@/lib/infra/publicToken";
 import { bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

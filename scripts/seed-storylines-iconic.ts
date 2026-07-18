@@ -28,7 +28,7 @@
  * Run with:    pnpm tsx scripts/seed-storylines-iconic.ts --stats
  */
 
-import { EVENT_TYPES, type EventType } from "../db/schema";
+import type { EventType } from "../db/schema";
 
 // ===========================================================================
 // Type shapes

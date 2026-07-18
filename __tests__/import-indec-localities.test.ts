@@ -4,7 +4,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { eq, like, or, sql } from "drizzle-orm";
+import { eq, like, or } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";

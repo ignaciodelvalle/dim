@@ -14,7 +14,7 @@
 // DB integration — requires running local Supabase stack (pnpm supabase start).
 
 import { eq, sql } from "drizzle-orm";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";

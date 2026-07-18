@@ -47,7 +47,6 @@ import { replayPetRabiesObservation } from "@/lib/projections/pet-rabies-observa
 import { replayPetStatus } from "@/lib/projections/pet-status";
 import { replayPetTattoo } from "@/lib/projections/pet-tattoo";
 import { replayPetWeight } from "@/lib/projections/pet-weight";
-import type { ProjectionEvent } from "@/lib/projections/types";
 
 // db.transaction callback param — accepted so callers can re-derive inside a
 // per-pet advisory-locked tx (same pattern as scripts/rebuild-projections.ts).

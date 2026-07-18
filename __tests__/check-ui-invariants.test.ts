@@ -291,7 +291,7 @@ describe("ENGLISH_UI_WORDS", () => {
 // Rule 5 — Raw <button> growth guard (countRawButtons + RAW_BUTTON_BASELINE)
 // ---------------------------------------------------------------------------
 
-import { RAW_BUTTON_BASELINE, countRawButtons } from "@/scripts/check-ui-invariants";
+import { RAW_BUTTON_BASELINE } from "@/scripts/check-ui-invariants";
 
 describe("countRawButtons — unit", () => {
   it("counts each line containing <button as one occurrence", () => {

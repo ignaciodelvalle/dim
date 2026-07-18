@@ -10,7 +10,7 @@
 //   R7. coverage: deleteScoped with wrong orgId returns 0 rows (no TOCTOU)
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {

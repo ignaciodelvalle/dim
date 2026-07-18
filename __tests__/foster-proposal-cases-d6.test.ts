@@ -15,7 +15,7 @@
 // revalidatePath so the actions can resolve "the current user".
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
@@ -41,7 +41,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import {
   acceptFosterProposalAction,

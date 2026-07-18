@@ -1,15 +1,13 @@
 // /turnos/buscar/[offeringToken] — Libreta Nacional redesign.
 
-import { eq, sql } from "drizzle-orm";
-import Link from "next/link";
-import { notFound } from "next/navigation";
-
-import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { pluralizeEs } from "@/lib/utils/format";
+import { eq, sql } from "drizzle-orm";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
 export default async function OfferingDetailPage({
   params,

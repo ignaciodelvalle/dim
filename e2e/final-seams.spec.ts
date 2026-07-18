@@ -9,10 +9,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ACCOUNTS,
-  SHARED_PASSWORD,
-  clickContinuar,
   loginAs,
-  pickCard,
   resolveOrgToken,
   submitAndWait,
   walkDenunciaWizard,

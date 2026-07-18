@@ -74,7 +74,7 @@ function log(level: LogLevel, msg: string): void {
 // 3. Imports (DB-touching modules load AFTER env bootstrap)
 // ---------------------------------------------------------------------------
 
-import { generateApprovalRequestToken, generatePublicToken } from "@/lib/infra/publicToken";
+import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";

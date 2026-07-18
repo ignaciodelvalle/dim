@@ -4,7 +4,6 @@
 // Uses a fake TransfersRepository (vi.fn() stubs) — no DB, no Next.js.
 // Each describe block covers one use-case; guards are tested per spec R1-R11.
 
-import { randomUUID } from "node:crypto";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TransfersRepository } from "../../infrastructure/transfers-repository";

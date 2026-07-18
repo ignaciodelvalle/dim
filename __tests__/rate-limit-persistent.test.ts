@@ -2,7 +2,7 @@
 // in-memory test style — uses the real rate_limit_buckets table so we
 // catch UPSERT race semantics that a mock wouldn't.
 
-import { eq, like } from "drizzle-orm";
+import { like } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { db, rateLimitBuckets } from "@/db";

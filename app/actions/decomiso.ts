@@ -34,7 +34,7 @@ import {
   rejectDecomisoHandoffInTx,
   validateRejectDecomisoHandoff,
 } from "@/src/modules/decomiso/application/reject-decomiso-handoff";
-import { ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES } from "@/src/modules/decomiso/domain/types";
+import { ATTACHMENT_BUCKET } from "@/src/modules/decomiso/domain/types";
 
 // ---------------------------------------------------------------------------
 // Re-export public types (callers must not change)

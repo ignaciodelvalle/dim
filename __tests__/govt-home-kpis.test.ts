@@ -5,7 +5,7 @@
 // the jurisdictions_census table rather than the heuristic constants that
 // the previous code used (3_000_000 for admin, localities × 50_000 for govt).
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, jurisdictionsCensus, petEvents, pets } from "@/db";

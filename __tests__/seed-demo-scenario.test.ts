@@ -14,7 +14,7 @@
 //   D1    govt@dim.test profile.id ≠ admin@dim.test profile.id
 
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { afterAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   ALERT_FIRING_OPEN_STATUSES,
@@ -24,7 +24,6 @@ import {
   govtAssignments,
   petEvents,
   pets,
-  profiles,
 } from "@/db";
 
 // Must match FOCAL_LOCALITY in scripts/seed-demo-scenario.ts (issue #758).

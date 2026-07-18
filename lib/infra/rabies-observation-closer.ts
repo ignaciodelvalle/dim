@@ -8,7 +8,6 @@
 
 import { db } from "@/db";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
-import { closeCase } from "@/lib/infra/case-helpers";
 import {
   type CloseRabiesObservationsStats,
   closeEligibleObservations,

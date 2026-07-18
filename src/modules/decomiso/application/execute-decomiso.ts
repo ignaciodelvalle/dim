@@ -17,8 +17,6 @@
 //   8. Build notifications (returned post-tx).
 //   9. Audit log: decomiso_executed.
 
-import { randomUUID } from "node:crypto";
-
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
@@ -26,7 +24,6 @@ import {
   auditLog,
   cases,
   type db,
-  notifications,
   organizationMemberships,
   organizations,
   ownerships,
@@ -36,11 +33,7 @@ import {
 } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import {
-  findOpenCaseForPetAndKind,
-  closeCase as libCloseCase,
-  openCase as libOpenCase,
-} from "@/lib/infra/case-helpers";
+import { findOpenCaseForPetAndKind, openCase as libOpenCase } from "@/lib/infra/case-helpers";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
 

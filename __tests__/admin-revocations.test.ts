@@ -9,7 +9,7 @@
 // user creation, app.allow_audit_mutation GUC for cleanup.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, ne, or, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {

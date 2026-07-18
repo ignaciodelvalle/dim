@@ -6,7 +6,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
+import { LnCallout } from "@/components/ui/DocElements";
 import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { caseEvents, cases } from "@/db/schema";
 import { readPoint } from "@/lib/domain/location";

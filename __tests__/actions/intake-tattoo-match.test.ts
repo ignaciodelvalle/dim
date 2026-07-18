@@ -10,10 +10,10 @@
 //
 // DB-integration tests need a running local Supabase stack (pnpm supabase start).
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, ownerships, petIdentifications, pets } from "@/db";
+import { db, petIdentifications, pets } from "@/db";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import {
   generateTattooAckToken,

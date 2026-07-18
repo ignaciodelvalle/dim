@@ -7,7 +7,7 @@
 // OrgMascotasBulkList client component so multi-select + bulk vaccination
 // can be wired with useState/useTransition.
 
-import { db, ownerships, petEvents, pets } from "@/db";
+import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { pluralizeEs } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";

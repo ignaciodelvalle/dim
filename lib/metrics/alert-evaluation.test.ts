@@ -67,10 +67,7 @@ describe("isBreaching", () => {
 // These type assertions are checked at compile time via the type alias declarations below.
 // No runtime code — only type-level verification.
 
-import type {
-  EvaluatedSubscription,
-  evaluateAlertSubscriptions as _EvalFn,
-} from "./alert-evaluation";
+import type { evaluateAlertSubscriptions as _EvalFn } from "./alert-evaluation";
 
 // Verify the return type shape.
 type _EvalReturn = Awaited<ReturnType<typeof _EvalFn>>;

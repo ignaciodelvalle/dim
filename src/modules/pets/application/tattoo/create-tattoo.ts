@@ -6,7 +6,7 @@
 // The outer shim (app/actions/tattoo.ts) gates via requireAlivePetAccess.
 // Tests call createTattooForUser directly with a known userId.
 
-import { attachments, db, petEvents, petIdentifications } from "@/db";
+import { attachments, db, petIdentifications } from "@/db";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";

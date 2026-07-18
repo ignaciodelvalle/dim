@@ -8,9 +8,9 @@
 //     param) returns only open cases and an explicit status=closed still works.
 
 import { sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { cases, db } from "@/db";
+import { db } from "@/db";
 import { buildAdminCaseFilterClauses, listCasesForAdmin } from "@/lib/infra/case-queries";
 
 // ---------------------------------------------------------------------------

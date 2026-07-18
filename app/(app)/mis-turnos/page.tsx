@@ -1,7 +1,7 @@
 // /mis-turnos — Libreta Nacional redesign.
 // AppointmentCard (component) is unchanged.
 
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { AppointmentCard } from "@/components/AppointmentCard";

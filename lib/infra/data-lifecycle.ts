@@ -16,9 +16,9 @@
 // even on large tables. Rows accumulate slowly enough that a single daily pass
 // is sufficient for all three targets.
 
-import { and, lt, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
-import { cronRuns, db, notifications } from "@/db";
+import { db } from "@/db";
 import { RATE_LIMIT_CLEANUP_BATCH_SIZE, cleanupExpiredBuckets } from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------

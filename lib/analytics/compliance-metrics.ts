@@ -45,7 +45,7 @@ import { and, count, eq, gte, inArray, lte, sql } from "drizzle-orm";
 // reach the ByProvince fetchers it composes — otherwise those reads bypass the
 // long-timeout builder handle and drift onto the request-path pool (dual-pool
 // drift, task #34).
-import { analyticsDb as db, petEvents, petIdentifications, pets } from "@/db";
+import { analyticsDb as db, petEvents, pets } from "@/db";
 import {
   type Cell,
   type MetricResult,

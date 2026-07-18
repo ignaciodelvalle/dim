@@ -4,7 +4,7 @@
 // Auth (requireUserOrRedirect + optional requireOrgAccessByToken) is handled
 // by the caller (action).
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db, notifications, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";

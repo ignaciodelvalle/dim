@@ -11,11 +11,10 @@
 // in chip-match.test.ts) to avoid the Next.js request context requirement.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { and, eq } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
-import { generatePublicToken } from "@/lib/infra/publicToken";
 import { createSymptomObservedWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

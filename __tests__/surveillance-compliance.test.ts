@@ -9,7 +9,7 @@
 // jurisdiction-scope case (govt sees only its assigned localities).
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, inArray, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, eventNotificationOutbox, ownerships, petEvents, pets } from "@/db";

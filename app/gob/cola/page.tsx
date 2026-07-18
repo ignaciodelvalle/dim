@@ -1,15 +1,9 @@
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { and, eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
-import {
-  APPROVAL_REQUEST_TYPES,
-  type ApprovalRequestType,
-  approvalRequests,
-  db,
-  profiles,
-} from "@/db";
+import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";

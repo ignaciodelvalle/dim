@@ -80,7 +80,6 @@ vi.mock("../application/search-foster-volunteers", () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { db } from "@/db";
 import { createClient } from "@/lib/supabase/server";
 import {
   requireCapability,

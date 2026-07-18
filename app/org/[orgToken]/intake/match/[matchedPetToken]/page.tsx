@@ -12,7 +12,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OpBreach, OpCrumbs } from "@/components/ui/dashboard";
+import { OpCrumbs } from "@/components/ui/dashboard";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { validateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";

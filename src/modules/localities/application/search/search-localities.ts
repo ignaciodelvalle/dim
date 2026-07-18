@@ -14,7 +14,7 @@
 // broken limiter write must not take down the typeahead — only a genuine
 // RateLimitError throttles.
 
-import { type LocalitySearchResult, searchLocalities } from "@/lib/infra/ar-localidades";
+import { searchLocalities } from "@/lib/infra/ar-localidades";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";

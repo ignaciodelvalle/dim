@@ -16,7 +16,7 @@
 // The parent (server component) fetches data and passes it as props.
 
 import Link from "next/link";
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 
 import type { BulkResult } from "@/app/actions/bulk-actions";
 import {

@@ -12,7 +12,7 @@
 // These tests also verify the mis-mascotas redirect is no longer /pro.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizationMemberships, organizations, profiles } from "@/db";

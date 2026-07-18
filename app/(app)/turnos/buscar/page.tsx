@@ -1,14 +1,12 @@
 // /turnos/buscar — Libreta Nacional redesign.
 // SearchFiltersForm (client component) unchanged.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
-import Link from "next/link";
-
-import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
 import { pluralizeEs } from "@/lib/utils/format";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import Link from "next/link";
 
 import { SearchFiltersForm } from "./SearchFiltersForm";
 

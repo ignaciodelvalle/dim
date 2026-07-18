@@ -7,7 +7,6 @@ import {
   COLOR_DIVERGENT_NEUTRAL,
   COLOR_NO_DATA,
   COLOR_SUPPRESSED,
-  type ColorRamp,
   RAMP_BLUE,
 } from "@/lib/analytics/viz-scales";
 import {

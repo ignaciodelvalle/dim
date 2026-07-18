@@ -15,7 +15,7 @@
 //   no_show     = appointments with status='no_show'
 //   geo_reach   = distinct jurisdictionLocality values among attended appointments
 
-import { and, count, countDistinct, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 // POOL: analyticsDb (session pooler), NOT the OLTP transaction pooler — these are
 // read-only multi-statement dashboard aggregates. supavisor transaction mode (6543)

@@ -4,7 +4,7 @@
 import Link from "next/link";
 
 import { LnButton } from "@/components/ui/Button";
-import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
+import { LnCallout } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, welfareReports } from "@/db";
 import { createClient } from "@/lib/supabase/server";

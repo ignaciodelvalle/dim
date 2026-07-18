@@ -1,15 +1,7 @@
 import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
-import {
-  OpBreach,
-  OpButton,
-  OpCard,
-  OpCardBody,
-  OpCardHead,
-  OpKpi,
-  OpPill,
-} from "@/components/ui/dashboard";
+import { OpBreach, OpButton, OpCard, OpCardBody, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
 import { searchUsers } from "@/lib/infra/admin-search";

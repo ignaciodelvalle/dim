@@ -21,7 +21,6 @@ import {
   type ExportSlice,
   anonymizeRows,
   rowsToCsv,
-  rowsToJson,
 } from "@/lib/analytics/govt-exports";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 

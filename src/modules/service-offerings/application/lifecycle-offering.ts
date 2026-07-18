@@ -9,7 +9,7 @@
 // These use-cases receive a pre-authorized (orgId, offeringPublicToken) pair.
 
 import { appointments, db, serviceOfferings, timeSlots } from "@/db";
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 
 import type { ServiceOfferingResult } from "../domain/types";
 

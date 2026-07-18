@@ -7,7 +7,7 @@
 // PROJECTION: pets.estimatedWeightKg updated ONLY on non-noop.
 // No outbox. No audit_log.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import { type CreateWeightInput, createWeight } from "./weight-use-case";

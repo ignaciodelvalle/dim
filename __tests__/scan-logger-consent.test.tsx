@@ -10,7 +10,6 @@
 //   - Lost pets render the visible es-AR consent copy with the pet's name and
 //     an explicit share button + a decline button (GPS only on explicit grant).
 
-import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 

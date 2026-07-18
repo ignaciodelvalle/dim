@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";

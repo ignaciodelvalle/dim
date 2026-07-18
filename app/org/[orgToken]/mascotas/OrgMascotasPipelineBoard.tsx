@@ -11,7 +11,7 @@
 
 import Link from "next/link";
 
-import { PIPELINE_COLUMNS, groupIntoPipelineColumns } from "@/lib/infra/pet-pipeline";
+import { groupIntoPipelineColumns } from "@/lib/infra/pet-pipeline";
 import { speciesLabel } from "@/lib/utils/format";
 import type { PetCardData } from "./OrgMascotasBulkList";
 

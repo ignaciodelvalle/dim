@@ -5,7 +5,7 @@
 // All DB/repo/library calls are mocked. No Postgres required.
 // Rate-limit path is exercised via the action tests (actions-create-parity.test.ts).
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";

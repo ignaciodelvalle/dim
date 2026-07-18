@@ -10,7 +10,7 @@
 //
 // dispatchJobs is pure (no DB / no Next.js), so these tests run without mocks.
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { DAILY_JOB_ORDER, type DispatchJob, dispatchJobs } from "@/lib/infra/cron-dispatcher";
 

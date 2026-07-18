@@ -2,7 +2,7 @@
 // Spec 2026-05-19-govt-business-rules-poc-design §5 + §4.5.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, govtBusinessRules, notifications, ownerships, pets, profiles } from "@/db";

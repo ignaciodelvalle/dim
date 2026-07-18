@@ -19,14 +19,7 @@ import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
-import {
-  LnGroupLabel,
-  LnSheetAccordion,
-  LnSheetBody,
-  LnSheetFooter,
-  LnSheetHeader,
-  LnSubCard,
-} from "@/components/ui/Sheet";
+import { LnGroupLabel, LnSheetBody, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggleGroup } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
