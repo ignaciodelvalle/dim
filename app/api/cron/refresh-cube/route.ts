@@ -20,7 +20,9 @@
 // should be faster (gru1 + session pooler), but the pin makes the cap a
 // non-issue either way.
 //
-// Returns: { ok, status, rowCount, durationMs, watermark, builtAt, perMetric }
+// Returns: { ok, status, rowCount, durationMs, watermark, builtAt, perMetric, kpi }
+// `kpi` is the KPI-strip cube phase (migration 0151) — an independent failure
+// domain: `ok` (and the cron_runs status) is true only when BOTH cubes swapped.
 
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -53,10 +55,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // structured error result, last-good cube preserved, reader falls to live) —
   // the retry just avoids wasting the whole 15-min cycle on one cold query.
   let result = await refreshCube();
-  if (result.status !== "ok" && /57014|statement timeout/i.test(result.error ?? "")) {
+  // The KPI-strip phase (own failure domain inside the builder) participates in
+  // the retry too: a cold-query timeout in its fan-out is exactly as retryable
+  // as one in the layer loaders.
+  const timedOut = (r: typeof result) =>
+    /57014|statement timeout/i.test(`${r.error ?? ""} ${r.kpi.error ?? ""}`);
+  if ((result.status !== "ok" || result.kpi.status !== "ok") && timedOut(result)) {
     result = await refreshCube();
   }
-  const cronStatus = result.status === "ok" ? "ok" : "failed";
+  // A run is 'ok' only when BOTH cubes swapped — a KPI-only failure is a real
+  // (alertable) partial failure, even though its reader degrades to live.
+  const cronStatus = result.status === "ok" && result.kpi.status === "ok" ? "ok" : "failed";
 
   await db
     .update(cronRuns)
@@ -70,24 +79,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               rowCount: result.rowCount,
               durationMs: result.durationMs,
               perMetric: result.perMetric,
+              kpi: result.kpi,
             }
-          : { error: result.error ?? "unknown" },
+          : { error: result.error ?? "unknown", kpi: result.kpi },
     })
     .where(eq(cronRuns.id, run.id));
 
   return NextResponse.json(
     {
-      ok: result.status === "ok",
+      ok: cronStatus === "ok",
       status: result.status,
       rowCount: result.rowCount,
       durationMs: result.durationMs,
       watermark: result.watermark,
       builtAt: result.builtAt,
       perMetric: result.perMetric,
+      kpi: result.kpi,
       ...(result.error ? { error: result.error } : {}),
     },
     {
-      status: result.status === "ok" ? 200 : 500,
+      status: cronStatus === "ok" ? 200 : 500,
       headers: { "cache-control": "no-store" },
     },
   );
