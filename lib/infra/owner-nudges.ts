@@ -224,9 +224,12 @@ export function derivePetHealthStatus(
       kind: "scan_activity",
       label:
         recentScanCount === 1
-          ? "Tu credencial fue escaneada 1 vez"
-          : `Tu credencial fue escaneada ${recentScanCount} veces`,
-      actionHref: `/mis-mascotas/${pet.publicToken}`,
+          ? `Tu credencial fue escaneada 1 vez en los últimos ${SCAN_ACTIVITY_WINDOW_DAYS} días`
+          : `Tu credencial fue escaneada ${recentScanCount} veces en los últimos ${SCAN_ACTIVITY_WINDOW_DAYS} días`,
+      // The libreta is where the individual scan entries live (each
+      // credential_scanned event renders as a ledger card) — landing on the
+      // bare profile told the owner nothing about the scans (PO QA 2026-07-19).
+      actionHref: `/mis-mascotas/${pet.publicToken}/libreta`,
       tone: "neutral",
     });
   }
