@@ -12,8 +12,8 @@
 //     caller from pet_identifications) so no legacy column is needed.
 //   - No outbox. No audit_log.
 
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
 import { validateEventPayload } from "@/lib/events/event-schemas";
-import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";

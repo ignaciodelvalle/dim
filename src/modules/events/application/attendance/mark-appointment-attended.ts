@@ -17,11 +17,11 @@ import {
   reminders,
   serviceOfferings,
 } from "@/db";
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { matchesDbError } from "@/lib/infra/db-errors";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 import type { AttendancePayload, AttendanceResult, AuthorDescriptor } from "./types";
 

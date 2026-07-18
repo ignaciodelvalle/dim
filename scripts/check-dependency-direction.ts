@@ -34,16 +34,20 @@ import { globSync, readFileSync } from "node:fs";
 //   transfers ──▶  organizations   (shared kernel)
 //   surveillance ▶ organizations   (shared kernel)
 //   events    ──▶  surveillance    (trigger enqueue side-effect)
-//   events    ──▶  pets            (chipImplantSiteFromLocation domain helper)
-//   pets      ──▶  adoption        (NewNotification type from eligibility use-case)
 //   welfare      ──▶ cases         (shared kernel — the OpenedReason union)
 //   transfers    ──▶ cases         (shared kernel)
 //   surveillance ──▶ cases         (shared kernel)
 //
-// NOTE — pets→adoption is a grandfathered edge where a lower-tier module
-// reaches into an upper-tier feature module. It is baselined to keep the guard
-// green today. It is a candidate for clean-up (extract the type to a shared
-// location or invert the dependency) but that refactor is NOT in scope here.
+// REMOVED 2026-07-18 (Tren 2b hardening):
+//   events──▶pets was chipImplantSiteFromLocation — neither module owned it
+//   more than the other (both write petIdentifications from the same raw
+//   value), so it moved to lib/domain/microchip-implant-site.ts, outside the
+//   module graph. See lib/domain/microchip-implant-site.ts.
+//   pets──▶adoption was NewNotification/UseCaseResult imported from
+//   set-adoption-eligibility.ts. pets now declares its own local copies in
+//   src/modules/pets/domain/types.ts — the same "mirror the shape, don't
+//   import the module" convention already used by foster/transfers/welfare/
+//   surveillance/organizations/events/decomiso.
 // ---------------------------------------------------------------------------
 export const ALLOWED_EDGES = new Set<string>([
   "adoption:organizations",
@@ -51,8 +55,6 @@ export const ALLOWED_EDGES = new Set<string>([
   "transfers:organizations",
   "surveillance:organizations",
   "events:surveillance",
-  "events:pets",
-  "pets:adoption", // grandfathered — see note above
   // Edges surfaced by the strangler migration (2026-06-30) — real dependencies
   // that previously lived in app/actions/ (un-checked) and became visible when
   // the logic moved into src/modules/. All intentional:

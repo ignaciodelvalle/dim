@@ -2,7 +2,7 @@
 // legacy pets.* column shapes.
 //
 // Writers (microchip-use-case.ts, backfill 0082) map legacy → canonical using
-// chipImplantSiteFromLocation() in src/modules/pets/domain/pet-rules.ts.
+// chipImplantSiteFromLocation() in lib/domain/microchip-implant-site.ts.
 // This module provides the INVERSE direction so readers can convert canonical
 // rows back to the same field format that event-projections (lib/projections/
 // pet-microchip.ts, pet-tattoo.ts) output, enabling apples-to-apples
@@ -32,7 +32,7 @@
 // the derived value. The harness handles this by using a dedicated compare
 // kind "implantSite" for that column.
 
-import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
 
 /**
  * Convert a canonical implantation_site enum value back to the

@@ -48,12 +48,11 @@ function parseEstimatedWeightKg(raw: string | null): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-import type { NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";
 import { recordMovementWriter } from "./application/movement/record-movement";
 import { registerPet } from "./application/register-pet";
 import { updatePet } from "./application/update-pet";
 import { parsePetForm } from "./domain/pet-form";
-import type { NewPetFormState } from "./domain/types";
+import type { NewNotification, NewPetFormState } from "./domain/types";
 import { PetsRepository } from "./infrastructure/pets-repository";
 
 // Species accepted by the credential (must match parsePetForm / the register

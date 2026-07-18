@@ -119,3 +119,35 @@ export type UpdatePetInput = {
   uploadMimeType: string | null;
   uploadSize: number | null;
 };
+
+// ---------------------------------------------------------------------------
+// Use-case result + notification shapes
+// ---------------------------------------------------------------------------
+//
+// Mirrors the adoption module's UseCaseResult / NewNotification shapes (same
+// convention as foster/transfers/welfare/surveillance/organizations/events —
+// every module declares its own local copy instead of importing another
+// module's application layer, keeping src/modules/** an acyclic graph; see
+// scripts/check-dependency-direction.ts). 2026-07-18: register-pet.ts and
+// update-pet.ts used to import these from adoption/application/
+// set-adoption-eligibility, which was the last thing creating the
+// pets→adoption edge.
+
+export type UseCaseResult<T> =
+  | { ok: true; value?: T; notifications: NewNotification[] }
+  | { ok: false; error: string };
+
+// Minimal notification shape (matches notifications.$inferInsert).
+export type NewNotification = {
+  userId: string;
+  notificationType: string;
+  title: string;
+  body: string;
+  severity: "info" | "success" | "warning" | "error";
+  // Tab filter category for /notificaciones — see adoption's copy of this type.
+  category?: string | null;
+  ctaLabel?: string | null;
+  ctaUrl?: string | null;
+  relatedPetId?: string | null;
+  relatedEventId?: string | null;
+};

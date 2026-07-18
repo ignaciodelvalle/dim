@@ -32,6 +32,7 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
 import { validateMicrochipId } from "@/lib/domain/microchip-validation";
 import { EventPayloadValidationError, validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
@@ -45,7 +46,6 @@ import { lookupByTattoo, normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 import { generateUniqueToken } from "@/lib/infra/unique-token";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { parseDateInput } from "@/lib/utils/format";
-import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 import { and, eq, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
