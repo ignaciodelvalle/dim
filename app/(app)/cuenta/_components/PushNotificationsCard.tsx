@@ -147,12 +147,12 @@ export function PushNotificationsCard() {
     <LnCard className="mb-8">
       <LnCardHead title="Notificaciones push" />
       <LnCardBody>
-        <p className="mb-3 text-[13px] leading-[1.5] text-[var(--color-ln-ink-2)]">
+        <p className="mb-3 text-[var(--text-md)] leading-[1.5] text-[var(--color-ln-ink-2)]">
           Recibí un aviso al instante en este dispositivo si alguien reporta un avistaje o hallazgo
           de tu mascota, o si hay novedades de una custodia — incluso con MiMAR cerrado.
         </p>
         {status === "unsupported" ? (
-          <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+          <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
             Este navegador no soporta notificaciones push.
           </p>
         ) : (
@@ -168,7 +168,7 @@ export function PushNotificationsCard() {
           />
         )}
         {error && (
-          <p role="alert" className="mt-2 text-[12.5px] text-[var(--color-ln-err)]">
+          <p role="alert" className="mt-2 text-[var(--text-sm)] text-[var(--color-ln-err)]">
             {error}
           </p>
         )}

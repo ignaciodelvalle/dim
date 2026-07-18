@@ -43,7 +43,7 @@ export function DegradedCredentialCard({
       <div className="mx-auto max-w-[460px] px-4 py-6 pb-14">
         <div
           data-section="degraded-credential"
-          className="overflow-hidden rounded-[var(--radius-input)] border border-ln-warn-100 bg-ln-card shadow-[0_6px_18px_rgba(20,40,60,.08)]"
+          className="overflow-hidden rounded-[var(--radius-input)] border border-ln-warn-100 bg-ln-card shadow-[var(--shadow-md)]"
         >
           {/* Warn-toned strip — visually distinct from the healthy card's band. */}
           <div aria-hidden="true" className="h-[8px] bg-ln-warn-050" />
@@ -63,7 +63,7 @@ export function DegradedCredentialCard({
                 Credencial pública
               </span>
             </div>
-            <span className="rounded-full border border-ln-warn-100 bg-ln-warn-050 px-2 py-[3px] font-[var(--font-ln-mono)] text-xs font-semibold tracking-[.08em] text-ln-warn">
+            <span className="rounded-full border border-ln-warn-100 bg-ln-warn-050 px-2 py-0.5 font-[var(--font-ln-mono)] text-xs font-semibold tracking-[.08em] text-ln-warn">
               DATOS INCOMPLETOS
             </span>
           </div>
