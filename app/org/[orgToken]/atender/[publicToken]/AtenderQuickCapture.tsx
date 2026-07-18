@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { CaptureConfidenceCard } from "@/components/ui/CaptureConfidenceCard";
+import { OpButton } from "@/components/ui/dashboard";
 import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
 
 import { ATENDER_EVENTOS } from "./atender-eventos";
@@ -98,13 +99,9 @@ export function AtenderQuickCapture({
           placeholder='ej: "le di la antirrábica hoy"'
           className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)]"
         />
-        <button
-          type="submit"
-          disabled={!text.trim()}
-          className="px-5 py-2.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-ok)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        <OpButton type="submit" variant="ok" disabled={!text.trim()}>
           Identificar →
-        </button>
+        </OpButton>
       </form>
 
       {unmatched && (

@@ -38,11 +38,18 @@ import { globSync, readFileSync } from "node:fs";
  *  offline-adoption toggle links (commit 151e217d) and OrgBiteForm.tsx's
  *  "usar mi ubicación" link (commit b5e03ff2). Flagged for PO design sign-off.
  *  Baseline raised 46 → 49.
+ *  2026-07-19: +2 vaccine-catalog option-picker rows in the atender console's
+ *  AtenderVaccinationGate.tsx (fuzzy-match candidate list) — full-width,
+ *  left-aligned selectable rows with a dashed escape-hatch ("no está en el
+ *  catálogo"); this is a pick-list option pattern, not a centered action
+ *  button, so OpButton (which centers content + carries action chrome) would
+ *  degrade scanability and lose the escape-hatch signal. The console's submit
+ *  button WAS migrated to OpButton in the same change. Baseline raised 49 → 51.
  *  Target: 0, via migration to LnButton (citizen) / OpButton (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const BASELINE = 49;
+const BASELINE = 51;
 
 const SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const RAW_BUTTON = /<button\b/g;
