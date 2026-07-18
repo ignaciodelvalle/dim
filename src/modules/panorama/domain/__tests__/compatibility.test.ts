@@ -280,3 +280,26 @@ describe("checkCompatibility — hint strings", () => {
     expect(allowed.hint).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Declared bivariate pair exception (new-vistas wave)
+// ---------------------------------------------------------------------------
+
+describe("checkCompatibility — declared bivariate pair exception", () => {
+  it("allows the riesgo-ppp pair to co-activate in either order (ppp × mordeduras)", () => {
+    expect(checkCompatibility(["ppp"], "mordeduras", PANORAMA_LAYERS).allowed).toBe(true);
+    expect(checkCompatibility(["mordeduras"], "ppp", PANORAMA_LAYERS).allowed).toBe(true);
+  });
+
+  it("still blocks a second base OUTSIDE a declared pair", () => {
+    // Same shapes as the pair (rate + density) but not vetted — blocked.
+    expect(checkCompatibility(["ppp"], "denuncias", PANORAMA_LAYERS).allowed).toBe(false);
+    expect(checkCompatibility(["esterilizacion"], "mordeduras", PANORAMA_LAYERS).allowed).toBe(
+      false,
+    );
+    // A third base over an active pair is still a base conflict.
+    expect(checkCompatibility(["ppp", "mordeduras"], "cobertura", PANORAMA_LAYERS).allowed).toBe(
+      false,
+    );
+  });
+});

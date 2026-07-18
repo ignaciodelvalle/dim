@@ -167,6 +167,39 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
           ],
           "vista": "Pérdidas y reunificación",
         },
+        {
+          "kpis": [
+            "Cobertura antirrábica (perros, 12m)",
+            "Cobertura de esterilización",
+          ],
+          "layers": [
+            "Desierto veterinario (días sin actividad)",
+          ],
+          "vista": "Desierto veterinario",
+        },
+        {
+          "kpis": [
+            "Mordeduras / 10k hab.",
+            "Pérdidas activas",
+            "Denuncias activas",
+          ],
+          "layers": [
+            "Tendencia de eventos (Δ vs período anterior)",
+          ],
+          "vista": "Tendencia",
+        },
+        {
+          "kpis": [
+            "Mordeduras / 10k hab.",
+            "Registro PPP",
+            "Microchip",
+          ],
+          "layers": [
+            "Registro PPP (C7)",
+            "Mordeduras / antirrábica",
+          ],
+          "vista": "Riesgo PPP",
+        },
       ]
     `);
   });

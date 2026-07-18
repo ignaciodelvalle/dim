@@ -15,7 +15,96 @@
 // components/panorama/bivariate-fill.ts; the palette hexes live there (colors are
 // a presentation concern) — this module reasons only in class indices.
 
-import type { FeatureCollection } from "./types";
+import type { FeatureCollection, LayerId } from "./types";
+
+// ---------------------------------------------------------------------------
+// Declared bivariate PAIRS — the axis combinations the join supports
+// ---------------------------------------------------------------------------
+
+/**
+ * One supported bivariate axis pair: a coverage-style RATE choropleth (the x
+ * axis, joined by provinceCode/value) crossed with a per-unit COUNT overlay
+ * (the y axis, joined by province/count). Carries the es-AR presentation
+ * vocabulary so every surface (map label, legend card, popup rows, mode
+ * switcher) names the SAME axes.
+ *
+ * WHY a declared table and not a shape predicate (the P2 constraint, kept): a
+ * broad "any rate × any count" rule would offer the toggle for hand-edited
+ * combos nobody vetted for tercile sanity. A pair is added HERE deliberately,
+ * with its copy, and everything downstream generalizes from it.
+ */
+export type BivariatePair = {
+  /** The RATE choropleth layer (x axis — joined by provinceCode + value). */
+  coverage: LayerId;
+  /** The per-unit COUNT layer (y axis — joined by province + count). */
+  signal: LayerId;
+  /** Map-layer label while the encoding paints (also the legend subtitle). */
+  mapLabel: string;
+  /** Popup row label for the x axis ("Cobertura" / "Registro PPP"). */
+  coverageLabel: string;
+  /** Popup row label for the y axis ("Señales" / "Mordeduras"). */
+  signalLabel: string;
+  /** Legend x-axis caption. */
+  coverageAxis: string;
+  /** Legend y-axis caption. */
+  signalAxis: string;
+  /** Legend card title. */
+  legendTitle: string;
+  /** ModeSwitcher sub copy — what the risk read crosses, honestly. */
+  switcherSub: string;
+  /** Legend risk-corner tooltip — names the corner in this pair's vocabulary. */
+  riskCornerNote: string;
+};
+
+/** The vetted pairs. Order matters only for documentation. */
+export const BIVARIATE_PAIRS: readonly BivariatePair[] = [
+  {
+    coverage: "cobertura",
+    signal: "zoonosis",
+    mapLabel: "Riesgo de brotes (cobertura × señales)",
+    coverageLabel: "Cobertura",
+    signalLabel: "Señales",
+    coverageAxis: "Cobertura →",
+    signalAxis: "Señales ↑",
+    legendTitle: "Riesgo de brotes",
+    switcherSub: "Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas",
+    riskCornerNote: "Riesgo alto: cobertura baja · señales altas",
+  },
+  {
+    coverage: "ppp",
+    signal: "mordeduras",
+    mapLabel: "Riesgo PPP (registro × mordeduras)",
+    coverageLabel: "Registro PPP",
+    signalLabel: "Mordeduras",
+    coverageAxis: "Registro PPP →",
+    signalAxis: "Mordeduras ↑",
+    legendTitle: "Riesgo PPP",
+    switcherSub: "Cómo se pinta la vista — el riesgo cruza registro PPP bajo × mordeduras altas",
+    riskCornerNote: "Riesgo alto: registro PPP bajo · mordeduras altas",
+  },
+];
+
+/**
+ * The declared pair the ACTIVE layer set matches, or null. The set must be
+ * EXACTLY the pair (both axes active, nothing else) — a third stacked layer
+ * would paint marks the 3×3 read does not encode.
+ */
+export function bivariatePairFor(layers: readonly LayerId[]): BivariatePair | null {
+  const active = new Set(layers);
+  if (active.size !== 2) return null;
+  for (const pair of BIVARIATE_PAIRS) {
+    if (active.has(pair.coverage) && active.has(pair.signal)) return pair;
+  }
+  return null;
+}
+
+/** True when {a, b} is exactly a declared pair's axis set (order-free). Used by
+ *  the F2 compatibility exception that lets a pair's two layers co-activate. */
+export function isDeclaredBivariatePair(a: LayerId, b: LayerId): boolean {
+  return BIVARIATE_PAIRS.some(
+    (p) => (p.coverage === a && p.signal === b) || (p.coverage === b && p.signal === a),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Terciles

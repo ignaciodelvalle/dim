@@ -23,6 +23,7 @@
 // enforced by the biome noRestrictedImports override for src/modules/*/domain/**).
 // DERIVATION ONLY: this file computes; it never reads component state.
 
+import { bivariatePairFor } from "./bivariate";
 import { roleOf } from "./compatibility";
 import { PANORAMA_LAYERS, getLayer, isTemporalLayer } from "./layers";
 import { percapitaEligibleFor } from "./percapita";
@@ -238,33 +239,37 @@ export function isMetaLayer<T extends MetaLayerLike>(
 }
 
 /** The base (rate|density) layer among the active set, or null. F2 guarantees at
- *  most one base is active, so the first match IS the base. */
+ *  most one base is active — EXCEPT a declared bivariate pair (ppp × mordeduras),
+ *  where a density point overlay legally stacks over a rate choropleth SURFACE.
+ *  The surface (geomType choropleth) is the encoding-driving base then, so a
+ *  choropleth base wins over a point base deterministically (never the active
+ *  list's iteration order, which follows the registry, not the activation). */
 function baseLayerOf(layers: readonly LayerId[]): PanoramaLayer | null {
+  let pointBase: PanoramaLayer | null = null;
   for (const id of layers) {
     const layer = getLayer(id);
-    if (layer && roleOf(layer) === "base") return layer;
+    if (!layer || roleOf(layer) !== "base") continue;
+    if (layer.geomType === "choropleth") return layer;
+    if (pointBase === null) pointBase = layer;
   }
-  return null;
+  return pointBase;
 }
 
 /**
  * Bivariate eligibility. The "riesgo de brotes" 3×3 encoding crosses a coverage
  * axis with an outbreak-signal axis at province framing.
  *
- * P2 CONSTRAINT (zero-UX-change): the bivariate JOIN (`buildBivariateCells`) is
- * still hardcoded to read cobertura × zoonosis, and the old gate was exactly the
- * `brotes-activos` preset — i.e. the active set {cobertura, zoonosis}. So
- * eligibility is pinned to that exact pair. A broader "any rate-with-target base
- * × any signal" predicate would offer the toggle for hand-edited combos (e.g.
- * esterilización × zoonosis, reachable in two clicks) the join CANNOT render —
- * a byte-identity + correctness regression. P3 generalizes the join and this
- * predicate together; until then this names the two layer ids the join supports
- * (layer ids, not a preset id — design §2.1). See the P2 review (2026-07-12).
+ * GENERALIZED to the declared-pair table (new-vistas wave; the P3 the P2 review
+ * anticipated): eligibility is `bivariatePairFor(layers) !== null` at province
+ * framing. Still NEVER a shape predicate — a broad "any rate × any count" rule
+ * would offer the toggle for hand-edited combos nobody vetted (the original P2
+ * concern, kept). The join reads the pair the console resolves, so an offered
+ * toggle is by construction one the join can render. Layer ids, not preset ids
+ * (design §2.1).
  */
 export function bivariateEligibleFor(layers: readonly LayerId[], level: AggregationLevel): boolean {
   if (level !== "province") return false;
-  const active = new Set(layers);
-  return active.size === 2 && active.has("cobertura") && active.has("zoonosis");
+  return bivariatePairFor(layers) !== null;
 }
 
 /** Resolve the base layer's encoding kind (design §3 — P2 resolves kind only). */

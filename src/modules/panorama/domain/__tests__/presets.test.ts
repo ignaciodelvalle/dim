@@ -9,6 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { isDeclaredBivariatePair } from "@/src/modules/panorama/domain/bivariate";
 import { checkCompatibility } from "@/src/modules/panorama/domain/compatibility";
 import { roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS } from "@/src/modules/panorama/domain/layers";
@@ -28,8 +29,8 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 10 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(10);
+  it("contains exactly 11 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(11);
   });
 
   it("all preset ids are unique", () => {
@@ -37,7 +38,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 10 expected preset ids are present", () => {
+  it("all 11 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
@@ -51,6 +52,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     // New-vistas wave (PO 2026-07-18): the vet-activity recency vista.
     expect(ids.has("desierto-veterinario")).toBe(true);
     expect(ids.has("tendencia")).toBe(true);
+    expect(ids.has("riesgo-ppp")).toBe(true);
   });
 
   it("every preset has a non-empty label", () => {
@@ -115,13 +117,30 @@ describe("PANORAMA_PRESETS — layer id validity", () => {
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — role constraints", () => {
-  it("every preset has exactly 1 base layer", () => {
+  it("every preset has exactly 1 base layer (declared bivariate pairs: 2)", () => {
     for (const p of PANORAMA_PRESETS) {
       const ids = presetLayerIds(p);
       const baseLayers = ids.filter((id) => {
         const layer = PANORAMA_LAYERS.find((l) => l.id === id);
         return layer ? roleOf(layer) === "base" : false;
       });
+      // new-vistas wave: a preset whose overlay slot rides a DECLARED bivariate
+      // pair with a BASE-ROLE overlay (riesgo-ppp: mordeduras, density, over
+      // ppp) legally carries a second base-role layer — exactly the F2
+      // exception checkCompatibility admits. brotes-activos is also a declared
+      // pair but its overlay (zoonosis) is signal-role, so it keeps the 1-base
+      // contract.
+      const signalLayer =
+        p.signal !== undefined ? PANORAMA_LAYERS.find((l) => l.id === p.signal) : undefined;
+      if (
+        p.signal !== undefined &&
+        signalLayer !== undefined &&
+        roleOf(signalLayer) === "base" &&
+        isDeclaredBivariatePair(p.base, p.signal)
+      ) {
+        expect(baseLayers.sort()).toEqual([p.base, p.signal].sort());
+        continue;
+      }
       expect(baseLayers).toHaveLength(1);
       expect(baseLayers[0]).toBe(p.base);
     }
@@ -136,7 +155,14 @@ describe("PANORAMA_PRESETS — role constraints", () => {
       });
       expect(signalLayers.length).toBeLessThanOrEqual(1);
       if (p.signal !== undefined) {
-        expect(signalLayers[0]).toBe(p.signal);
+        const overlay = PANORAMA_LAYERS.find((l) => l.id === p.signal);
+        // A declared-pair BASE-ROLE overlay (riesgo-ppp: mordeduras) never
+        // occupies the signal-role slot — nothing to assert against it.
+        if (overlay !== undefined && roleOf(overlay) === "base") {
+          expect(isDeclaredBivariatePair(p.base, p.signal)).toBe(true);
+        } else {
+          expect(signalLayers[0]).toBe(p.signal);
+        }
       }
     }
   });
@@ -271,6 +297,7 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
       "mortalidad",
       "desierto-veterinario",
       "tendencia",
+      "riesgo-ppp",
     ] as const) {
       expect(getPreset(id)!.framing).toEqual({ kind: "national" });
     }

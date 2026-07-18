@@ -42,7 +42,11 @@ import {
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
-import { type BivariateCell, riskLabel } from "@/src/modules/panorama/domain/bivariate";
+import {
+  type BivariateCell,
+  type BivariatePair,
+  riskLabel,
+} from "@/src/modules/panorama/domain/bivariate";
 
 import {
   type DivisionLevel,
@@ -199,6 +203,12 @@ export type ActiveLayer = {
    * a province-level choropleth layer. Absent → normal single-value rendering.
    */
   bivariateCells?: BivariateCell[];
+  /**
+   * new-vistas wave: the declared axis pair behind `bivariateCells` — carries
+   * the es-AR axis vocabulary (popup row labels, legend axes/title) so every
+   * surface names the SAME crossed axes. Absent → the original brotes wording.
+   */
+  bivariatePair?: BivariatePair;
   /**
    * panorama-percapita: this graduated layer's `count` props carry PER-10K RATES
    * (the console's projectPerCapita swap), not raw counts. The graduated scale
@@ -2310,7 +2320,9 @@ export function SituationalMap({
       // single value, so the color can't be reverse-engineered into a hidden one.
       if (l.bivariateCells) {
         const cell = l.bivariateCells.find((c) => c.provinceCode === code);
-        if (cell) return bivariateReadouts(cell);
+        // Axis labels follow the declared pair (Registro PPP × Mordeduras vs
+        // the default Cobertura × Señales) so the rows name the crossed axes.
+        if (cell) return bivariateReadouts(cell, l.bivariatePair);
         continue;
       }
       let value: number | null = null;

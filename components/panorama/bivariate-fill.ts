@@ -150,6 +150,16 @@ function fmtPct(value: number): string {
   return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
 }
 
+/** Axis row labels for the popup — defaults keep the original brotes wording;
+ *  a declared pair (BivariatePair) supplies its own (e.g. Registro PPP ×
+ *  Mordeduras) so the readout names the axes actually crossed. */
+export type BivariateReadoutLabels = { coverageLabel: string; signalLabel: string };
+
+const DEFAULT_READOUT_LABELS: BivariateReadoutLabels = {
+  coverageLabel: "Cobertura",
+  signalLabel: "Señales",
+};
+
 /**
  * Build the pinned-popup rows for a bivariate cell: BOTH raw values with their
  * class, plus the combined risk band — e.g.
@@ -157,16 +167,19 @@ function fmtPct(value: number): string {
  * A suppressed cell shows the protected state on every value row (never a class),
  * so the popup can no more infer a hidden value than the color can.
  */
-export function bivariateReadouts(cell: BivariateCell): LayerReadout[] {
+export function bivariateReadouts(
+  cell: BivariateCell,
+  labels: BivariateReadoutLabels = DEFAULT_READOUT_LABELS,
+): LayerReadout[] {
   if (cell.suppressed) {
     return [
-      { label: "Cobertura", valueText: null, state: "suppressed" },
-      { label: "Señales", valueText: null, state: "suppressed" },
+      { label: labels.coverageLabel, valueText: null, state: "suppressed" },
+      { label: labels.signalLabel, valueText: null, state: "suppressed" },
     ];
   }
   const rows: LayerReadout[] = [];
   rows.push({
-    label: "Cobertura",
+    label: labels.coverageLabel,
     valueText:
       cell.coverageValue != null
         ? `${fmtPct(cell.coverageValue)}${cell.coverageClass !== null ? ` (${coverageClassLabel(cell.coverageClass)})` : ""}`
@@ -174,7 +187,7 @@ export function bivariateReadouts(cell: BivariateCell): LayerReadout[] {
     state: cell.coverageValue == null ? "nodata" : undefined,
   });
   rows.push({
-    label: "Señales",
+    label: labels.signalLabel,
     valueText:
       cell.signalValue != null
         ? `${cell.signalValue.toLocaleString("es-AR")}${cell.signalClass !== null ? ` (${signalClassLabel(cell.signalClass)})` : ""}`

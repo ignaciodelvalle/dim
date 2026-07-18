@@ -23,7 +23,8 @@ export type PresetId =
   | "mortalidad"
   | "perdidas-reunificacion"
   | "desierto-veterinario"
-  | "tendencia";
+  | "tendencia"
+  | "riesgo-ppp";
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -80,6 +81,10 @@ export type PanoramaPreset = {
   /**
    * Optional overlay signal layer (dataType "signal").
    * At most 1 signal per preset — enforced by the F2 compatibility model.
+   * EXCEPTION (new-vistas wave): the overlay slot of a DECLARED bivariate pair
+   * (bivariate.ts BIVARIATE_PAIRS) may name a density layer — riesgo-ppp stacks
+   * mordeduras (density) over the ppp rate surface; the F2 exception in
+   * checkCompatibility admits exactly these vetted pairs.
    */
   signal?: LayerId;
   /**
@@ -315,6 +320,30 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     framing: { kind: "national" },
     // The event families the delta is most often ABOUT — the headline movers.
     metrics: ["mordeduras", "perdidas", "denuncias"],
+  },
+  {
+    id: "riesgo-ppp",
+    label: "Riesgo PPP",
+    description: "¿Dónde se cruzan mordeduras altas con bajo registro PPP?",
+    // base: ppp (registry-adoption rate surface). The overlay is mordeduras —
+    // a DENSITY layer riding the signal slot via the declared bivariate pair
+    // (see the `signal` JSDoc exception; bivariate.ts BIVARIATE_PAIRS).
+    base: "ppp",
+    signal: "mordeduras",
+    // The question is "¿dónde muerden más?" over the registry backdrop — rank
+    // by the mordeduras overlay, not the ppp base (brotes-activos precedent).
+    rankBy: "mordeduras",
+    level: "province",
+    periodPreset: "90d",
+    // A cross-province risk read — frame the country (brotes-activos precedent).
+    framing: { kind: "national" },
+    // The two crossed axes + the compliance sibling that shares the Ley Prov
+    // 14.107 family with ppp.
+    metrics: ["mordeduras", "ppp", "microchip"],
+    // The vista OWNS the bivariate encoding — navigating here opens in it (the
+    // encoding-seeding rule kept from the a948c975 revert), and the badge stays
+    // "Riesgo PPP" while it is selected (?encoding=bivariate round-trips).
+    encodings: ["bivariate"],
   },
 ] as const;
 

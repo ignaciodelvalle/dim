@@ -178,13 +178,13 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
         {bivariateLayer !== null && (
           <div className={CARD}>
             <div className="mb-1.5 font-medium text-ln-op-ink-2">
-              Riesgo de brotes
+              {bivariateLayer.bivariatePair?.legendTitle ?? "Riesgo de brotes"}
               <span className="font-normal text-ln-op-mute"> — {bivariateLayer.label}</span>
             </div>
             <div className="flex items-stretch gap-1.5">
               <div className="flex flex-col items-center justify-center">
                 <span className="whitespace-nowrap text-[var(--text-xs)] text-ln-op-mute [writing-mode:vertical-rl] [transform:rotate(180deg)]">
-                  Señales ↑
+                  {bivariateLayer.bivariatePair?.signalAxis ?? "Señales ↑"}
                 </span>
               </div>
               <div>
@@ -197,13 +197,18 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                         sw.risk ? "ring-1 ring-ln-op-danger" : "border border-ln-op-line-2"
                       }`}
                       style={{ background: sw.color }}
-                      title={sw.risk ? "Riesgo alto: cobertura baja · señales altas" : undefined}
+                      title={
+                        sw.risk
+                          ? (bivariateLayer.bivariatePair?.riskCornerNote ??
+                            "Riesgo alto: cobertura baja · señales altas")
+                          : undefined
+                      }
                       aria-hidden="true"
                     />
                   ))}
                 </div>
                 <div className="mt-0.5 text-center text-[var(--text-xs)] text-ln-op-mute">
-                  Cobertura →
+                  {bivariateLayer.bivariatePair?.coverageAxis ?? "Cobertura →"}
                 </div>
               </div>
             </div>
