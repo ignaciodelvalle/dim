@@ -1042,7 +1042,9 @@ function FormerOwnerCustodyReadOnlyView({
 
       <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-stripe)] px-4 py-3.5">
         <h1 className="text-lg font-semibold text-[var(--color-ln-ink)]">{pet.name}</h1>
-        {breedLine && <p className="text-[var(--text-md)] text-[var(--color-ln-mute)]">{breedLine}</p>}
+        {breedLine && (
+          <p className="text-[var(--text-md)] text-[var(--color-ln-mute)]">{breedLine}</p>
+        )}
       </div>
     </div>
   );
