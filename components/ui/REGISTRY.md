@@ -93,6 +93,12 @@ see the variant-map note below).
 | `OpKpi` / `OpKpiSm` | `dashboard/OpKpi.tsx` | Operator KPI tile (value + tone + trend). | Don't build a KPI tile from scratch — see the `dataviz` skill for chart tiles. |
 | `KpiStrip` | `dashboard/KpiStrip.tsx` | Row of KPIs. | — |
 
+## Captura rápida
+
+| Component | File | Use for | DON'T |
+|---|---|---|---|
+| `CaptureConfidenceCard` | `CaptureConfidenceCard.tsx` | Presentational confirm/edit card for a fuzzy-matched capture result (event type + fields + confidence). Shared by the atender console, the notification quick-reply, and a future OCR pipeline. ZERO matching logic inside — caller resolves the match (e.g. `lib/reference/vaccine-fuzzy-match.ts`, `lib/events/event-capture-matcher.ts`) and only passes the resolved `fields`/`confidence` in. | Don't embed matching/scoring logic in this component. Don't render confidence as color only — it always carries text (WCAG). |
+
 ## Empty & loading states
 
 | Component | File | Use for | DON'T |
