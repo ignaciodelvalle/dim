@@ -8,13 +8,17 @@
 // by stubbing the DB import so the module can be loaded without a Postgres
 // connection.
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Stub the DB module before importing the module under test so the Drizzle
-// client is never initialised.
+// client is never initialised. `mockSelect` is hoisted so the tests can assert
+// on WHETHER the query path was reached — the whole point of the guard tests
+// is call-count observability, not just the (always-empty) result.
+const { mockSelect } = vi.hoisted(() => ({ mockSelect: vi.fn() }));
+
 vi.mock("@/db", () => ({
   db: {
-    select: vi.fn().mockReturnValue({
+    select: mockSelect.mockReturnValue({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           orderBy: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
@@ -52,31 +56,38 @@ vi.mock("@/db", () => ({
 import { searchUsers } from "@/lib/infra/admin-search";
 
 describe("searchUsers — jurisdiction scope guard", () => {
-  it("returns empty array immediately for a govt viewer with zero assignments", async () => {
+  beforeEach(() => {
+    mockSelect.mockClear();
+  });
+
+  it("returns empty array immediately for a govt viewer with zero assignments — WITHOUT querying", async () => {
     const result = await searchUsers("juan", { role: "govt", jurisdictions: [] });
     expect(result).toEqual([]);
+    // The guard's security property: the DB is never consulted.
+    expect(mockSelect).not.toHaveBeenCalled();
   });
 
-  it("returns empty array for empty query with zero govt assignments (landing page case)", async () => {
+  it("returns empty array for empty query with zero govt assignments (landing page case) — WITHOUT querying", async () => {
     const result = await searchUsers("", { role: "govt", jurisdictions: [] });
     expect(result).toEqual([]);
+    expect(mockSelect).not.toHaveBeenCalled();
   });
 
-  it("does not apply the zero-jurisdiction guard for admin scope", async () => {
-    // Admin with no jurisdictions should still reach the DB query.
-    // The mock will return [] but the code must NOT short-circuit.
+  it("does not apply the zero-jurisdiction guard for admin scope — the query path IS reached", async () => {
+    // Admin with no jurisdictions must still reach the DB query. The mock
+    // returns [], so only the select call count proves no short-circuit.
     const result = await searchUsers("", { role: "admin" });
-    // Result is empty because the mock returns [], not because of the guard.
-    expect(Array.isArray(result)).toBe(true);
+    expect(result).toEqual([]);
+    expect(mockSelect).toHaveBeenCalledTimes(1);
   });
 
-  it("proceeds to DB query for govt viewer with at least one jurisdiction", async () => {
-    // One valid assignment — the guard must NOT short-circuit.
+  it("proceeds to the DB query for a govt viewer with at least one jurisdiction", async () => {
     const result = await searchUsers("juan", {
       role: "govt",
       jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
     });
-    // DB mock returns [], but code reached the query path (no early return).
-    expect(Array.isArray(result)).toBe(true);
+    expect(result).toEqual([]);
+    // No early return: the search query actually executed.
+    expect(mockSelect).toHaveBeenCalledTimes(1);
   });
 });

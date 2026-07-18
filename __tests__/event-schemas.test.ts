@@ -636,12 +636,10 @@ describe("PayloadSchemas — drift catches", () => {
     ).toThrow(EventPayloadValidationError);
   });
 
-  it("registry contains exactly the implemented set (no orphans)", () => {
-    for (const t of IMPLEMENTED_EVENT_TYPES) {
-      expect(PayloadSchemas[t]).toBeDefined();
-    }
-    for (const t of UNIMPLEMENTED) {
-      expect(PayloadSchemas[t]).toBeUndefined();
-    }
-  });
+  // (test-suite audit 2026-07) The former "registry contains exactly the
+  // implemented set" case was a self-lookup tautology — IMPLEMENTED_EVENT_TYPES
+  // IS Object.keys(PayloadSchemas), so PayloadSchemas[t] can never be undefined
+  // for it. The real orphan check lives in "PayloadSchemas — coverage" above
+  // (lines ~27-40): schema-set equality against EVENT_TYPES minus UNIMPLEMENTED
+  // plus the no-orphan-keys sweep.
 });

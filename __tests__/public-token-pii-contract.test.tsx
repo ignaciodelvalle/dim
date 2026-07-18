@@ -431,6 +431,31 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     expect(html).toContain('data-situation="perdida"');
   });
 
+  it("DECEASED credential: masthead reflects fallecida and NO finder CTAs render", async () => {
+    // A deceased pet's public credential is a memorial, not a search surface:
+    // the masthead must stamp data-situation="fallecida" (public-safe situation
+    // set) and neither finder flow — "la encontré" nor "la vi" — may render a
+    // link. Both CTA hrefs only ever exist inside the lost branch; this pins
+    // that a status regression can't resurrect them on a deceased render.
+    const pet = { ...ACTIVE_PET, status: "deceased" };
+    mockDbSelect.mockImplementation(
+      buildSequencedSelectChain([[{ pet, photo: null }], [], [], [], []]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: BASE_PET.publicToken }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    expect(html).toContain("Credencial pública"); // sanity: card rendered
+    expect(html).toContain('data-situation="fallecida"');
+    // No finder CTAs: the lost branch (and only the lost branch) carries them.
+    expect(html).not.toContain("/encontre");
+    expect(html).not.toContain("/sighting");
+    expect(html).not.toContain('data-testid="lost-credential-spy"');
+  });
+
   it("NEVER tints the public masthead for medical/household states (R3.3 — Tier-0 leak guard)", async () => {
     // A pet in treatment AND pregnant, but active and not under observation or
     // custody: the owner credential would show a situation band — the PUBLIC

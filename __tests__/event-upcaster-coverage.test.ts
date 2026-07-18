@@ -23,7 +23,6 @@
 
 import { describe, expect, it } from "vitest";
 
-import { EVENT_TYPES } from "@/db/schema";
 import { PayloadSchemas } from "@/lib/events/event-schemas";
 import { registeredUpcasterTypes, upcastPayload } from "@/lib/events/event-upcasters";
 
@@ -130,17 +129,10 @@ describe("upcaster coverage — every versioned schema must have a registered up
     expect(missing).toHaveLength(0);
   });
 
-  // All EVENT_TYPES that have NO schema are explicitly not-needing-an-upcaster
-  // (they are pre-schema or legacy types). This documents the known set.
-  it("documents event types without a schema (not-needing-upcaster — pre-schema or legacy)", () => {
-    const withoutSchema = EVENT_TYPES.filter((t) => !(t in PayloadSchemas));
-    // This is informational only — it does NOT fail CI. If a type is added to
-    // PayloadSchemas, the coverage test above will pick it up automatically.
-    expect(withoutSchema).toBeDefined();
-    // Snapshot: currently empty because PayloadSchemas covers all EVENT_TYPES
-    // in the registry. If a type is added to EVENT_TYPES without a schema,
-    // it will show up here (soft — no failure).
-  });
+  // (test-suite audit 2026-07) The former "documents event types without a
+  // schema" case was informational-only (a filter + toBeDefined() that could
+  // never fail) — deleted. Schema coverage is enforced for real by
+  // __tests__/event-schemas.test.ts "PayloadSchemas — coverage".
 });
 
 // ---------------------------------------------------------------------------

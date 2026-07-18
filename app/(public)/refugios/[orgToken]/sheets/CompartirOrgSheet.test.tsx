@@ -4,70 +4,27 @@
 // app/(app)/mis-mascotas/[publicToken]/SheetMounter.tsx). Asserts closing
 // calls closeSheetNav with a URL that strips only `sheet` while preserving
 // unrelated params, and that router.push/replace/refresh are never invoked.
+// Boilerplate lives in __tests__/helpers/sheet-nav-harness.tsx.
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, vi } from "vitest";
 
-const { routerPush, routerReplace, routerRefresh, closeSheetNav } = vi.hoisted(() => ({
-  routerPush: vi.fn(),
-  routerReplace: vi.fn(),
-  routerRefresh: vi.fn(),
-  closeSheetNav: vi.fn(),
-}));
+vi.mock("next/navigation", async () => {
+  const h = await import("@/__tests__/helpers/sheet-nav-harness");
+  return h.sheetNavigationMock("/refugios/refugio-abc", "sheet=compartir-org&foo=bar");
+});
+vi.mock("@/lib/ui/sheet-nav", async () => {
+  const h = await import("@/__tests__/helpers/sheet-nav-harness");
+  return h.sheetNavModuleMock();
+});
 
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/refugios/refugio-abc",
-  useSearchParams: () => new URLSearchParams("sheet=compartir-org&foo=bar"),
-  useRouter: () => ({ push: routerPush, replace: routerReplace, refresh: routerRefresh }),
-}));
-
-vi.mock("@/lib/ui/sheet-nav", () => ({
-  closeSheetNav,
-}));
-
+import { testSheetClosesViaCleanNav } from "@/__tests__/helpers/sheet-nav-harness";
 import { CompartirOrgSheet } from "./CompartirOrgSheet";
 
-beforeEach(() => {
-  window.matchMedia =
-    window.matchMedia ??
-    ((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(() => false),
-    }));
-  globalThis.ResizeObserver =
-    globalThis.ResizeObserver ??
-    (class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    } as unknown as typeof ResizeObserver);
-});
-
-afterEach(() => {
-  cleanup();
-  closeSheetNav.mockClear();
-  routerPush.mockClear();
-  routerReplace.mockClear();
-  routerRefresh.mockClear();
-});
-
 describe("<CompartirOrgSheet> — close (router-hot-path fix)", () => {
-  it("clicking Cerrar calls closeSheetNav with `sheet` stripped, preserving other params, and never touches the router", () => {
-    render(<CompartirOrgSheet orgToken="refugio-abc" orgDisplayName="Refugio Abc" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Cerrar" }));
-
-    expect(closeSheetNav).toHaveBeenCalledWith("/refugios/refugio-abc?foo=bar");
-    expect(routerPush).not.toHaveBeenCalled();
-    expect(routerReplace).not.toHaveBeenCalled();
-    expect(routerRefresh).not.toHaveBeenCalled();
+  testSheetClosesViaCleanNav({
+    render: () => <CompartirOrgSheet orgToken="refugio-abc" orgDisplayName="Refugio Abc" />,
+    expectedCloseUrl: "/refugios/refugio-abc?foo=bar",
   });
 });
