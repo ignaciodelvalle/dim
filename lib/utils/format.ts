@@ -228,6 +228,30 @@ export function formatDateTimeNumericAr(value: Date | string | null | undefined)
   return `${part("day")}/${part("month")}/${part("year")} ${part("hour")}:${part("minute")}`;
 }
 
+// Compact "DD/MM" AR-pinned date that appends the year ONLY when it differs
+// from the CURRENT Argentine calendar year — "18/07" this year, "18/07/2027"
+// any other (medianos-sesión-2, finding #1). A bare "Próxima 18/7" is fine
+// 364 days out of 365, but silently WRONG the one day a due date crosses into
+// next year — it reads as "today" when the real date is a year out. Compares
+// AR-calendar years via `isoDateInAr` (never a raw UTC year: `Date#getFullYear`
+// runs in the machine's local zone, which flips the day near AR midnight on
+// both SSR and hydration — the same #418 class every formatter here guards
+// against). `now` is injectable so tests can pin the comparison year.
+export function formatDateArOmitCurrentYear(
+  value: Date | string | null | undefined,
+  now: Date = new Date(),
+): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const parts = AR_ISO_DATETIME_PARTS_FORMAT.formatToParts(date);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  const base = `${part("day")}/${part("month")}`;
+  const dateYear = isoDateInAr(date).slice(0, 4);
+  const nowYear = isoDateInAr(now).slice(0, 4);
+  return dateYear === nowYear ? base : `${base}/${dateYear}`;
+}
+
 // ---------------------------------------------------------------------------
 // Browser-independent dd/mm/aaaa date entry (operator filter surfaces)
 // ---------------------------------------------------------------------------
