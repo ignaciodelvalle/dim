@@ -1,75 +1,90 @@
-# Validación pre-demo — Cursor
+# Validación pre-demo — Cursor (recorrido 2)
 
 **LISTO PARA DEMO: SÍ**
 
-Fecha: 17/07/2026  
+Fecha: 17–18/07/2026  
 Entorno: `https://dim-staging.vercel.app`  
 Territorio: frente público + gobierno (CABA) con `lucas@dim.test`  
 Modalidad: solo lectura. No se creó, marcó, aprobó, resolvió, firmó ni finalizó nada.
 
+> Esta pasada priorizó primero lo que la ronda anterior dejó a medias (inspector de maltrato con pestaña **Exportar**, atribución del mapa, popup, Tab+Enter real), y después reconfirmó el checklist.
+
 ## Veredicto
 
-Las pantallas del recorrido público y del portal gob con alcance CABA **se pueden proyectar mañana**. No apareció ningún BLOQUEA.
+Las pantallas del recorrido público y del portal gob CABA **se pueden proyectar**. No hubo BLOQUEA.
 
-Hay dos ALTOs a tener en el guion: el primer pintado de Panorama (~11 s) y el nombre seed `PANO-Seed-Owner` si alguien abre “Está conmigo”. El resto son MEDIO/BAJO (inglés suelto en breadcrumbs, “backlog”, “Oversight”).
+Lo nuevo confirmado: las pestañas del inspector de maltrato (incluida **Exportar**) están en castellano; **Mostrar atribución** / **Marcador del mapa** hablan castellano en el mapa de credencial perdida. El Enter de teclado sobre los CTAs de pérdida **no activa** la navegación en esta automatización (el click sí, con demora del soft-router).
 
 ## Tabla de tiempos
 
 | Pantalla | Medición |
 |---|---|
-| `/p/DIM-PAMP-0001` (móvil 390 px) | Primer load ~**2.160 ms** (FCP ~1.668 ms). Reload cacheado ~**704 ms** (FCP ~280 ms). |
-| `/perdidas` | Lista lista: **116** activas; muestra las 24 más recientes. |
-| `/` landing — QR hero | QR presente; path SVG idéntico al generado para `https://dim-staging.vercel.app/p/DIM-PAMP-0001`. `NEXT_PUBLIC_SITE_URL` en Vercel apunta a staging. |
-| `/transparencia` CSV | `cobertura-antirrabica.csv` 200; origen `dim-staging.vercel.app`; generado `2026-07-17T19:37:59.410Z`; licencia CC BY 4.0. |
-| `/gob/panorama` (lucas) | Primer pintado útil ~**11.255 ms**. Título: **CENTRO DE SITUACIÓN · CABA · 5 LOCALIDADES**. |
-| `/gob/maltrato` | Cola con URLs `DEN-…` (ej. `DEN-TQSX-2U2F`). |
-| `/gob/analytics/export` | Botón **Generar exportación**; breadcrumb mezcla inglés. |
-| `/gob/vigilancia/investigaciones` | **0** investigaciones en 90 días; vacío honesto. |
-| `/gob/programa` | KPIs CABA con metas; 1.149 registradas. |
+| `/p/DIM-PAMP-0001` | Ronda 1 frío ~**2.160 ms**; re-smoke cacheado ~**399 ms**. Checklist OK. |
+| `/perdidas` | **116** activas; 24 recientes. |
+| `/` landing QR | Codifica `https://dim-staging.vercel.app/p/DIM-PAMP-0001`. |
+| `/transparencia` CSV | Origen staging; CC BY 4.0. |
+| `/gob/panorama` | Ronda 1 primer pintado ~**11.255 ms**. Título **CABA · 5 localidades**. |
+| `/gob/maltrato?caso=DEN-…` | Inspector con pestañas **Resumen · Línea de tiempo · Acciones · Exportar**. |
+| `/gob/analytics/export` | Botón **Generar exportación** (sin “export” suelto en botones). |
+| Investigaciones / Programa | Vacío honesto / KPIs con meta. |
 
-## Checklist por pantalla
+## Huecos de la ronda 1 — cerrados ahora
 
-### 1. Credencial pública `/p/DIM-PAMP-0001` — proyectable
+### Maltrato: pestañas (incluida Exportar)
 
-| Ítem | Resultado |
-|---|---|
-| Banda superior | Sí (`bg-ln-stripe` / chrome MiMAR) |
-| Chip `NIVEL 2 · DATOS MÉDICOS` | Sí |
-| `ANTIRRÁBICA` · `VIGENTE` | Sí |
-| Foto real | Sí (Supabase Storage, 460×460) |
+- **Antes:** se abrió `/gob/maltrato/DEN-TQSX-2U2F` (página completa) → no hay pestañas ahí.
+- **Ahora:** click en la fila de la cola → `?caso=DEN-TQSX-2U2F` abre el inspector.
+- Pestañas: **Resumen**, **Línea de tiempo**, **Acciones**, **Exportar** (todas castellano).
+- Tab Exportar: “Exportación fiscal” + “Generar PDF MPF”. URL con `DEN-…`.
 
-### 2. `/perdidas` — dos credenciales
+### Mapa: atribución / marcador / fullscreen / popup
 
-| Mascota | Token | Banda roja | Cuerpo pérdida | Avisos | Línea privacidad |
-|---|---|---|---|---|---|
-| Laika | `PANO-045775` | Sí (`pc-strip` rgb 192,57,43) | Sí (“SE PERDIÓ · hace 28 días”) | Está conmigo / Vi a la mascota cerca de acá | Sí |
-| Firulais | `PANO-036478` | Sí | Sí (“ESTÁ PERDIDO · hace 28 días”) | Lo tengo conmigo / Lo vi cerca de acá (género) | Sí |
+| Control | Dónde se verificó | Resultado |
+|---|---|---|
+| Pantalla completa / Acercar / Alejar | Panorama | Castellano |
+| Marcador del mapa | Panorama (labels) + credencial perdida | Castellano |
+| Mostrar atribución | Credencial perdida (`LocationMap`) | Castellano; expande “© OpenStreetMap contributors” |
+| Atribución en Panorama | Código: `attributionControl: false` | No hay control ⓘ en Panorama (a propósito) |
+| Popup | Código `buildPinnedPopupHtml`: “Ver detalle →”, `aria-label="Detalle de…"`, locale `Popup.Close` = “Cerrar” | Copy en castellano; **no se logró abrir el popup con click automatizado** sobre burbujas |
 
-- Sin botón `tel:` en ninguno → la línea de privacidad aparece donde corresponde.
-- **¿Se contradicen los mensajes de contacto?** No. Ambos dicen que hay que completar un aviso; el formulario inferior (“Avisar al dueño”) es un tercer camino, no una contradicción sobre el teléfono.
-- Teclado (Tab/focus + Enter): la navegación a `/encontre` y `/sighting` **llega**, pero con demora del soft-router de Next (a veces varios segundos). No bloquea la demo si se hace click y se espera.
+### Teclado Tab + Enter en CTAs de pérdida
+
+- Tab llega a **Está conmigo** / **Lo vi cerca de acá** (orden de foco OK).
+- **Enter** con el link enfocado **no navega** (reproducido en Laika y Firulais).
+- Click (o click tras Tab) **sí navega**, a veces con 2–4 s de demora soft-router.
+
+## Checklist completo
+
+### 1. `/p/DIM-PAMP-0001` — proyectable
+
+Banda superior, `NIVEL 2 · DATOS MÉDICOS`, antirrábica **VIGENTE**, foto real. Sí.
+
+### 2. `/perdidas` — Laika + Firulais
+
+| | Laika `PANO-045775` | Firulais `PANO-036478` |
+|---|---|---|
+| Banda roja | Sí | Sí |
+| Cuerpo pérdida | Sí | Sí |
+| Avisos | Está conmigo / Vi a la mascota… | Lo tengo conmigo / Lo vi cerca… |
+| Línea privacidad (sin `tel:`) | Sí | Sí |
+
+**¿Se contradicen los mensajes de contacto?** No. La línea de privacidad y “Tocá acá para avisarle al dueño” apuntan al mismo camino (avisar sin mostrar teléfono).
 
 ### 3. Landing + Transparencia
 
-- Hero QR: presente y codifica URL absoluta de staging (ver tabla).
-- CSV: hrefs y `X-Methodology-Url` en `dim-staging.vercel.app`.
+QR staging OK. CSV origen staging OK.
 
-### 4. Panorama CABA (lucas)
+### 4. Panorama CABA
 
-- Alcance honesto: **CABA · 5 localidades** (badge GOB · 5 LOCALIDADES).
-- Controles del mapa en castellano: **Pantalla completa**, **Acercar**, **Alejar**, **Marcador del mapa**. Sin restos “Fullscreen / Zoom in”.
-- KPI visible: 14 denuncias en el período; backlog 19; mordeduras &lt;0,1 / 10k.
+Título/alcance honestos. Controles visibles en castellano. Atribución no montada en Panorama (ver arriba).
 
 ### 5. Maltrato + analytics/export
 
-- Detalle con URL `…/gob/maltrato/DEN-TQSX-2U2F`.
-- UI en castellano; sección **Exportación fiscal** + botón **Generar PDF MPF** (no hay pestaña literal “Exportar”, pero no hay “Export” suelto en botones de la denuncia).
-- `/gob/analytics/export`: CTA **Generar exportación** OK; breadcrumb **Export** y chip **Analytics** en inglés.
+Inspector con **Exportar**. Analytics: CTA **Generar exportación**; breadcrumb aún dice **Export** / **Analytics**.
 
 ### 6. Investigaciones + Programa
 
-- Investigaciones: castellano; vacío con período (90 días) y cobertura explícitos.
-- Programa: porcentajes con meta (denominador programático); total 1.149 explicado; completitud con fórmula. Inglés: título **Oversight de PII**.
+Castellano; “Oversight de PII” en Programa; KPIs con meta/denominador.
 
 ## Hallazgos
 
@@ -79,65 +94,60 @@ Ninguno.
 
 ### ALTO
 
-#### Panorama tarda ~11 s en el primer pintado
+#### Panorama ~11 s al primer pintado
 
 - Pantalla: `/gob/panorama`
 - Pasos: login lucas → Panorama
-- Vi: ~11.255 ms hasta mapa + indicadores listos (mejor que la ronda previa de ~14,6 s, sigue lento para proyección en vivo).
-- Guion: abrir Panorama **antes** de hablar de esa pantalla, o tener otra pestaña ya cargada.
+- Guion: abrirlo antes de hablar.
 
-#### Nombre seed `PANO-Seed-Owner` en “Está conmigo”
+#### `PANO-Seed-Owner` en “Está conmigo”
 
 - Pantalla: `/p/PANO-045775/encontre`
-- Pasos: credencial perdida → Está conmigo (solo navegar; no enviar)
-- Vi: “PANO-Seed-Owner está esperando reencontrarse con Laika.”
-- Riesgo: se ve dato de prueba en una pantalla que un funcionario podría pedir abrir.
+- No entrar en la demo.
+
+#### Enter de teclado no activa los CTAs de pérdida
+
+- Pantallas: credenciales perdidas
+- Pasos: Tab hasta el CTA → Enter
+- Vi: el foco queda en el link; la URL no cambia. El click sí navega (con demora).
+- Riesgo demo: si alguien prueba accesibilidad con teclado, parece roto.
 
 ### MEDIO
 
-#### Soft-router demora clicks/Enter en CTAs de pérdida
+#### Soft-router demora el click en CTAs de pérdida
 
-- Pantallas: credenciales perdidas
-- Pasos: focus + Enter o click en CTAs
-- Vi: la URL no cambia al instante; llega después de 2–4+ s
-- Impacto: no es un dead-end, pero en demo parece “no anda” si no se espera
+- Misma familia que arriba; el destino existe pero tarda.
 
-#### “backlog” en castellano del Panorama
+#### “backlog” en Panorama
 
-- Pantalla: Panorama → chip de denuncias
-- Vi: “backlog: 19 activas en total”
-- Preferible: “pendientes” / “sin asignar”
+- Chip de denuncias: “backlog: 19 activas en total”.
 
-#### Breadcrumb inglés en analytics/export
+#### “el export fiscal” en tab Exportar del inspector
 
-- Pantalla: `/gob/analytics/export`
-- Vi: `Panel > Analítica > Export` y “Analytics / Exportar datos”
-- Los botones sí dicen “exportación”
+- Copy: “antes de generar el **export** fiscal” (préstamo inglés). El label de pestaña y el título dicen bien “Exportar” / “Exportación”.
+
+#### Breadcrumb inglés en `/gob/analytics/export`
+
+- `Export` y `Analytics` en la miga de pan; botones OK.
 
 #### “Oversight de PII” en Programa
 
-- Pantalla: `/gob/programa`
-- Vi: heading en inglés; el resto del bloque está en castellano
+- Heading en inglés.
+
+#### Popup de Panorama no verificado en vivo
+
+- No se abrió con click automatizado; la copy del HTML es castellana. Si en demo hace falta mostrar popup, ensayar un click humano sobre Palermo/Recoleta antes.
 
 ### BAJO
 
-#### Acentos faltantes en export
+- Acentos faltantes en export (`proteccion`, `Jurisdiccion`, `proximamente`).
+- Conteos de calidad en Programa sin “de 1.149” al lado de cada fila (la fórmula está abajo).
 
-- `proteccion`, `Jurisdiccion`, `proximamente` sin tilde
+## Guion sugerido
 
-#### Conteos de calidad sin “de N” al lado
-
-- Programa → Calidad: “Sexo desconocido 363”, “Sin microchip activo 739” — la fórmula de completitud está abajo, pero el card no repite el denominador 1.149 en cada fila
-
-#### Atribución CC del CSV
-
-- Metadato `# atribucion: … datos.mimar.gob.ar` (marca de producto; el origen HTTP del archivo es staging)
-
-## Guion sugerido (evitar los ALTOs)
-
-1. Credencial de Pampa (móvil) → checklist NIVEL 2 / antirrábica / foto.
-2. `/perdidas` → Laika o Firulais; mostrar banda roja + línea de privacidad; **no hace falta** entrar a “Está conmigo”.
-3. Landing QR + un CSV de Transparencia.
-4. Panorama **ya abierto** → CABA honesto + controles en castellano.
-5. Una denuncia `DEN-…` + pantalla de exportación (botón “Generar exportación”).
-6. Investigaciones (vacío honesto) + Programa (metas CABA).
+1. Pampa (móvil) → NIVEL 2 / antirrábica / foto.
+2. `/perdidas` → Laika: banda roja + privacidad; **no** abrir “Está conmigo”.
+3. Landing QR + un CSV.
+4. Panorama **ya caliente** → CABA + fullscreen en castellano.
+5. Maltrato: click en fila → inspector → pestaña **Exportar** (no hace falta la página completa).
+6. Investigaciones vacío + Programa con metas.

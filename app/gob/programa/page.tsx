@@ -419,7 +419,7 @@ export default async function GobProgramaPage({
 
       {/* PII oversight — scoped to actors in the govt's jurisdiction */}
       <OpCard aria-labelledby={panelPiiId}>
-        <OpCardHead title={<span id={panelPiiId}>Oversight de PII — tu jurisdicción</span>} />
+        <OpCardHead title={<span id={panelPiiId}>Supervisión de PII — tu jurisdicción</span>} />
         <OpCardBody>
           {piiOversight.length === 0 ? (
             <p className="text-[13px] text-ln-op-mute">

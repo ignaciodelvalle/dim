@@ -69,7 +69,7 @@ export default async function GobAnalyticsExportPage({
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" className="text-sm text-ln-op-mute">
         <Link href="/gob/analytics" className="hover:underline text-ln-op-azul">
-          Analytics
+          Analítica
         </Link>
         <span aria-hidden="true" className="mx-1">
           /

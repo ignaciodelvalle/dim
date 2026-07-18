@@ -69,6 +69,8 @@ const STATIC_SEGMENT_LABELS: Record<string, string> = {
   // "investigaciones" is 16 chars — isLikelyId() would misclassify it as a
   // token. List it here so /gob/vigilancia/investigaciones resolves correctly.
   investigaciones: "Investigaciones",
+  analytics: "Analítica",
+  export: "Exportación",
 };
 
 /** Localized label for a path segment. The static map wins over the nav-preset

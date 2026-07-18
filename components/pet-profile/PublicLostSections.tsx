@@ -26,7 +26,6 @@ import {
 } from "@/lib/utils/format";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import Link from "next/link";
 
 // Live mini-map of the last-seen point. Loaded via next/dynamic (maplibre-gl must
 // not run on the server) — same pattern as LostLastSeenCard (owner side).
@@ -162,21 +161,26 @@ export function PublicLostSections({
               <Icon name="mail" size="sm" decorative /> Escribir por email
             </a>
           )}
+          {/* Plain anchors ON PURPOSE (not next/link): the finder is an
+              anonymous one-shot visitor with no client state worth keeping —
+              a hard navigation renders the form instantly server-side and is
+              immune to the soft-router stall family (QA: 2-4s delays and
+              harness Enter-activation misses on the Link version). */}
           {finderFormHref && (
-            <Link
+            <a
               href={finderFormHref}
               className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-azul px-5 text-sm font-semibold text-white hover:bg-ln-azul-700"
             >
               <Icon name="ubicacion" size="sm" decorative /> {foundPossessivePhrase(petSex)}
-            </Link>
+            </a>
           )}
           {sightingFormHref && (
-            <Link
+            <a
               href={sightingFormHref}
               className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-card border border-ln-line px-5 text-sm font-semibold text-ln-ink hover:bg-ln-stripe"
             >
               <Icon name="ojo" size="sm" decorative /> {sightingPhrase(petSex)}
-            </Link>
+            </a>
           )}
         </div>
 
