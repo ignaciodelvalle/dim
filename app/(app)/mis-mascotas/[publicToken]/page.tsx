@@ -51,7 +51,6 @@
 // and the `ppp.attested` prop below read the same fixed whitelist.
 // ---------------------------------------------------------------------------
 
-import type { PetState } from "@/components/EventCatcher";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
@@ -73,7 +72,6 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
-import type { Pet } from "@/db";
 import {
   fetchActiveRemindersForPet,
   fetchComplianceStatesForPets,
@@ -125,24 +123,26 @@ import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { resolveCaptureIntentUrl } from "./anotar/handoff";
 
 // ---------------------------------------------------------------------------
-// Pet state derivation — maps pets fields to the visual state ring convention.
-// The same mapping lives in EventCatcher.tsx; when lib/pet-state.ts is
-// extracted (follow-up) both will share it.
+// Pet-state standardization (PO 2026-07-16): the masthead band (chromeSituation
+// below) is the single state authority on this page. The old page-local
+// derivePetState/derivePetStateLabel helpers (a third, unused state mapping)
+// were removed — derivePetSituation (lib/ui/pet-situation.ts) is the one
+// derivation every surface reads.
 // ---------------------------------------------------------------------------
 
-function derivePetState(pet: Pet): PetState {
-  if (pet.status === "lost") return "urgent";
-  if (pet.rabiesObservationStatus === "in_progress") return "attention";
-  if (pet.pregnancyStatus === "in_progress") return "info";
-  return "ok";
-}
-
-function derivePetStateLabel(pet: Pet): string | null {
-  if (pet.status === "lost") return "Perdida";
-  if (pet.rabiesObservationStatus === "in_progress") return "Obs. antirrábica";
-  if (pet.pregnancyStatus === "in_progress") return "Gestación";
-  return null;
-}
+// Workflow kinds that REPEAT a state/case this profile already renders through
+// its authoritative surfaces — the masthead band, LostCaseBlock, the rabies
+// banner, and the open-cases badges (PetOpenCasesSection) in the alert strip.
+// They are filtered out of this page's "Ciclos abiertos" so the same custody
+// episode / lost state / bite observation never announces itself twice with no
+// new datum or action (their CTAs point at this very page or at the same
+// /casos/[code] link the CaseBadge already carries). /inicio and the
+// /mis-mascotas inbox keep showing them — the filter is profile-local.
+const REDUNDANT_PROFILE_WORKFLOW_KINDS: ReadonlySet<string> = new Set([
+  "pet_lost", // masthead + LostCaseBlock own the lost state
+  "bite_observation_open", // RabiesObservationBanner + open-cases badge own it
+  "case_generic_open", // PetOpenCasesSection already lists the same open case
+]);
 
 // ---------------------------------------------------------------------------
 // Page
@@ -930,7 +930,12 @@ export default async function PetDetailPage({
           nudges={thisPetNudges}
           reminders={petActiveReminders}
           appointments={petUpcomingAppointments}
-          workflows={petOpenWorkflows}
+          workflows={petOpenWorkflows.filter(
+            // Pet-state standardization (PO 2026-07-16): drop the rows that
+            // repeat a state/case the profile already shows in its
+            // authoritative surfaces — see REDUNDANT_PROFILE_WORKFLOW_KINDS.
+            (w) => !REDUNDANT_PROFILE_WORKFLOW_KINDS.has(w.kind),
+          )}
         />
       )}
 
