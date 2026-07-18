@@ -136,29 +136,19 @@ export function CredentialFace({
   // derived from the SAME complianceState the panel renders below (the
   // provenance-gated ComplianceObligationsPanel), so the glanceable line and
   // the expanded grid can never tell different stories. `summary.label` is the
-  // "N de M al día" the projection already computes; the "· falta X" tail names
-  // the first still-open obligation (a booked turno / declared-only card is not
-  // "falta"). The trailing stamp reuses LnVstamp only where the tone maps
-  // cleanly (ok/due/over); neutral/reserved lean on the text alone (icon +
-  // shape + text, never color-only — WCAG, matching the panel header).
-  const compliancePending = complianceState.cards.find(
-    (c) => c.tone !== "ok" && c.tone !== "reserved",
-  );
-  // A card that is "neutral" AND "declarado" HAS a record — the owner declared
-  // it (or an org registered it without a matrícula) — it just isn't
-  // professional/institutional-verified yet. That is a materially different
-  // claim from a genuinely absent obligation (medianos-sesión-2 finding #4: the
-  // panel said "falta vacuna antirrábica" for a dose that was Declarada ·
-  // Vigente, which reads as "you have nothing" when the owner DOES have a
-  // current dose on record). A due/overdue declared card keeps "falta X" —
-  // it's genuinely due regardless of who declared it.
-  const pendingIsDeclaredOnly =
-    compliancePending?.tone === "neutral" && compliancePending.provenance === "declarado";
-  const complianceSummary = compliancePending
-    ? pendingIsDeclaredOnly
-      ? `${complianceState.summary.label} · ${compliancePending.label.toLowerCase()} sin verificar`
-      : `${complianceState.summary.label} · falta ${compliancePending.label.toLowerCase()}`
-    : complianceState.summary.label;
+  // "N de M al día" the projection already computes.
+  //
+  // Cumplimiento dedup (PO 2026-07-18): this summary line used to append
+  // "· falta X" (or "· X sin verificar" for a declared-only card — the
+  // medianos-sesión-2 finding #4 wording) naming the specific pending
+  // obligation. Immediately below, ComplianceObligationsPanel renders that
+  // SAME obligation's card with its own label + precise state ("Faltan
+  // datos" / "Atestación requerida" / etc.) — the PPP case named twice,
+  // back to back. The summary now owns only the COUNT; the cards below own
+  // the per-obligation WHICH + STATE (they already carry that distinction —
+  // see pet-compliance.ts's `declarado` vs genuinely-absent split — so no
+  // information is lost by dropping the tail here).
+  const complianceSummary = complianceState.summary.label;
   const complianceStamp =
     complianceState.worstTone === "ok" ||
     complianceState.worstTone === "due" ||
