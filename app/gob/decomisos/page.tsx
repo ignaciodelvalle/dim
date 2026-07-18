@@ -109,7 +109,9 @@ export default async function DecomisosDashboardPage() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Decomisos</p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Ley 14.346
+          </p>
           <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Decomisos</h1>
           <p className="text-[13px] text-ln-op-mute">
             {session.profile.role === "admin"
