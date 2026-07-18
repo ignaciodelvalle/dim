@@ -41,14 +41,6 @@ type DocumentChromeProps = {
   /** Active pet situation — recolors the band (data-situation CSS variants)
    *  and renders the state chip on BOTH faces. Null = default blue band. */
   situation?: ChromeSituation | null;
-  /**
-   * Carousel position dots (CarouselBandDots), rendered in the band on BOTH
-   * faces (tarjeta-todo). Mounted OUTSIDE the aria-hidden band wrapper — same
-   * pattern as the turn button and the state chip — so the dots keep their
-   * accessible names. Null/absent (single-pet owners, non-owner viewers) →
-   * no dots.
-   */
-  bandDots?: ReactNode;
   children: ReactNode;
 };
 
@@ -57,7 +49,6 @@ export function DocumentChrome({
   onFlip,
   isLibretaActive,
   situation,
-  bandDots,
   children,
 }: DocumentChromeProps) {
   const isCredencial = face === "credencial";
@@ -85,24 +76,6 @@ export function DocumentChrome({
           <Icon name={situation.icon} size="sm" decorative />
           {situation.label}
         </span>
-      )}
-      {/* Carousel dots — in the band (tarjeta-todo → PO 2026-07-18 dedicated-
-          slot fix). The old placement (`left-1/2` + a `translate-x-3` nudge
-          right-of-center) was an uncalibrated eyeball offset — at
-          OWNER_CAROUSEL_CAP (8 dots, ~170px wide) on a 320–360px viewport it
-          pushed the strip past the card's right edge, where `.ln-face`'s
-          `overflow:hidden` clipped it against the QR poke corner. That
-          clipped fragment is what read as "outside the credential" (PO QA).
-          `.ln-band-dots` (globals.css) TRUE-centers the strip instead — no
-          directional offset to miscalibrate — in the band's own vertical
-          safe zone below the turn button and above the photo/QR poke-up (see
-          that rule's comment for the clearance math). Outside the
-          aria-hidden wrapper, like the chip and the turn button, so the
-          group keeps its accessible name. */}
-      {bandDots && (
-        <div data-section="band-dots" className="ln-band-dots">
-          {bandDots}
-        </div>
       )}
       {/* Turn button sits over the band but outside the aria-hidden wrapper so
           it keeps its accessible name. */}

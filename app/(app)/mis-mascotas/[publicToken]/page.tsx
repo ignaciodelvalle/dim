@@ -53,13 +53,13 @@
 
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
-import { CarouselBandDots } from "@/components/pet-profile/CarouselBandDots";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
 import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetCredentialCarousel } from "@/components/pet-profile/PetCredentialCarousel";
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
+import { PetSwitcherDots } from "@/components/pet-profile/PetSwitcherDots";
 import {
   appointments,
   attachments,
@@ -741,15 +741,6 @@ export default async function PetDetailPage({
     currentToken: pet.publicToken,
   });
 
-  // Carousel position dots — rendered INSIDE the document band on both faces
-  // (tarjeta-todo: pure-design position signal, no page text; the honest-cap
-  // "mostrando N de M" disclosure lives in the group's aria-label). Threaded
-  // through PetDetailTabsPanel → FlipCard → DocumentChrome, mounted outside
-  // the aria-hidden band wrapper like the turn button and state chip.
-  const bandDots = showCarousel ? (
-    <CarouselBandDots pets={carouselPets} currentToken={pet.publicToken} liveTotal={liveTotal} />
-  ) : null;
-
   // The credential document — server-rendered per route. A swipe/key/dot is a
   // NAVIGATION to the neighbor's route, not a client pane slide, so this same
   // node renders whether or not the carousel gesture shell wraps it.
@@ -764,7 +755,6 @@ export default async function PetDetailPage({
         initialFace={activeFace}
         isOwner={isOwner}
         situation={chromeSituation}
-        bandDots={bandDots}
         emergencyContacts={
           // owner-ia-redesign P2: pet-level override with account fallback.
           // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
@@ -880,13 +870,23 @@ export default async function PetDetailPage({
       {/* owns identity/credential + avisos + capture, per the new AGENTS.md */}
       {/* rule 5 block order (design.md ADR-1/ADR-6).                        */}
       {/*                                                                    */}
-      {/* owner-ia-redesign P4 / tarjeta-todo — when the owner has more than  */}
-      {/* one live pet, the document is wrapped by the INVISIBLE carousel     */}
-      {/* gesture shell (constrained swipe + keyboard + prefetch); the        */}
-      {/* position dots render inside the document band (bandDots above).    */}
-      {/* Non-owner viewers, and owners with a single live pet, get the bare  */}
-      {/* document (no shell, no dots).                                       */}
+      {/* owner-ia-redesign P4 — when the owner has more than one live pet,   */}
+      {/* the document is wrapped by the INVISIBLE carousel gesture shell     */}
+      {/* (constrained swipe + keyboard + prefetch). Non-owner viewers, and   */}
+      {/* owners with a single live pet, get the bare document (no shell).    */}
+      {/*                                                                    */}
+      {/* PO correction (2026-07-18, reversing tarjeta-todo's dots-in-band    */}
+      {/* placement): "El carousel lo quiero FUERA de la credencial. No       */}
+      {/* tiene nada que ver la navegación en la app con la credencial        */}
+      {/* digital de una mascota." The credential is ONE pet's document;      */}
+      {/* switching between pets is APP-LEVEL navigation, a different layer   */}
+      {/* — PetSwitcherDots mounts here, ABOVE the card, never touching the   */}
+      {/* credential's frame/band. Same gate as the swipe shell (owner + >1   */}
+      {/* live pet); single-pet owners and non-owners get no nav element.     */}
       {/* ------------------------------------------------------------------ */}
+      {showCarousel && (
+        <PetSwitcherDots pets={carouselPets} currentToken={pet.publicToken} liveTotal={liveTotal} />
+      )}
       {showCarousel ? (
         <PetCredentialCarousel pets={carouselPets} currentToken={pet.publicToken}>
           {documentNode}

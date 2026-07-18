@@ -113,12 +113,6 @@ type Props = {
    * band tint + state chip. Null = default blue band.
    */
   situation?: ChromeSituation | null;
-  /**
-   * Carousel position dots (CarouselBandDots) for the document band
-   * (tarjeta-todo) — threaded to FlipCard so BOTH faces carry them. Null for
-   * single-pet owners and non-owner viewers.
-   */
-  bandDots?: ReactNode;
 };
 
 // ---------------------------------------------------------------------------
@@ -132,7 +126,6 @@ export function PetDetailTabsPanel({
   isOwner,
   emergencyContacts,
   situation,
-  bandDots,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -286,7 +279,6 @@ export function PetDetailTabsPanel({
         activeFace={activeFace}
         onFlip={switchFace}
         situation={situation}
-        bandDots={bandDots}
       />
     </div>
   );
