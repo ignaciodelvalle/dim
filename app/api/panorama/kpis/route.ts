@@ -99,7 +99,12 @@ export async function GET(request: Request) {
   //    - fetcher rejected (getPanoramaKpis throws) → 503 JSON error envelope.
   //    Either way the lambda answers cleanly instead of crashing mid-response.
   try {
-    const { value: result, cacheHit } = await loadCachedPanoramaKpis({
+    const {
+      value: result,
+      cacheHit,
+      source,
+      cubeBuiltAt,
+    } = await loadCachedPanoramaKpis({
       actor,
       jurisdictions: scoped,
       period,
@@ -108,8 +113,16 @@ export async function GET(request: Request) {
       asOf,
       label: "GET /api/panorama/kpis",
     });
+    // `x-kpi-source` mirrors the layer route's `x-layer-source` (cube | live);
+    // a cube hit also declares its build timestamp so a client can surface the
+    // same freshness stamp the layer path threads via resolveCubeFreshness.
     return NextResponse.json(result, {
-      headers: { "cache-control": "no-store", "x-kpi-cache": cacheHit ? "hit" : "miss" },
+      headers: {
+        "cache-control": "no-store",
+        "x-kpi-cache": cacheHit ? "hit" : "miss",
+        "x-kpi-source": source,
+        ...(cubeBuiltAt ? { "x-kpi-cube-built-at": cubeBuiltAt.toISOString() } : {}),
+      },
     });
   } catch (err) {
     console.error("[GET /api/panorama/kpis] failed:", err);

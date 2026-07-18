@@ -27,6 +27,7 @@ import { isIncrementalCacheMissing, warnIncrementalCacheMissingOnce } from "./da
 import { withDbBudget } from "./db-budget";
 import { type PanoramaKpis, degradedPanoramaKpis, getPanoramaKpis } from "./get-panorama-kpis";
 import { type CachedKpisResult, getCachedPanoramaKpis, kpiCacheKey } from "./kpis-cache";
+import { loadPanoramaKpisFromCube } from "./load-panorama-kpis-cube";
 
 // Time budget for the KPI fan-out. The fan-out runs on the ANALYTICS pool
 // (session pooler — measured ~1.7s worst case: universal scope, 3y window), so
@@ -138,10 +139,25 @@ export type LoadCachedPanoramaKpisParams = {
   label: string;
 };
 
+/** Which path served the strip (echoed by the API as `x-kpi-source`, mirroring
+ * the layer route's `x-layer-source`). */
+export type KpiSource = "cube" | "live";
+
+/** CachedKpisResult plus the serving path and, for a cube hit, the cube's
+ * build timestamp. Additive over CachedKpisResult so pre-existing callers
+ * destructuring { value, cacheHit } are untouched. */
+export type LoadedKpisResult = CachedKpisResult & {
+  source: KpiSource;
+  /** Present when source === 'cube' — the cube's freshness timestamp. */
+  cubeBuiltAt?: Date;
+};
+
 /**
- * Resolve the headline KPIs for a scope, served from the short-TTL per-lambda
- * cache when a fresh entry exists, otherwise computed under a time budget and
- * cached iff the result is a real (non-degraded) strip.
+ * Resolve the headline KPIs for a scope. The CUBE COMPOSES IN FRONT (migration
+ * 0151, behind CUBE_READS): an eligible admin-national request with the default
+ * period is served from the precomputed strip; everything else — and any cube
+ * read error — takes the existing cached-live path UNTOUCHED (L1 per-lambda
+ * cache → budget → L2 Data Cache → fan-out), identical to CUBE_READS off.
  *
  * The cache key is derived from the FULL authorization scope — two operators
  * with different scopes can NEVER share an entry (kpis-cache scope-isolation
@@ -152,9 +168,30 @@ export type LoadCachedPanoramaKpisParams = {
  * budget) so an API caller can answer 503; a page caller adds its own `.catch`
  * to degrade instead. A budget timeout resolves the degraded strip.
  */
-export function loadCachedPanoramaKpis(
+export async function loadCachedPanoramaKpis(
   params: LoadCachedPanoramaKpisParams,
-): Promise<CachedKpisResult> {
+): Promise<LoadedKpisResult> {
+  try {
+    const cube = await loadPanoramaKpisFromCube({
+      actor: params.actor,
+      jurisdictions: params.jurisdictions,
+      period: params.period,
+      adminProvince: params.adminProvince,
+      adminLocality: params.adminLocality,
+      asOf: params.asOf,
+    });
+    if (cube) {
+      return { value: cube.value, cacheHit: false, source: "cube", cubeBuiltAt: cube.builtAt };
+    }
+  } catch {
+    // Cube read failed → fall through to live (identical to CUBE_READS off).
+  }
+  const live = await loadLivePanoramaKpis(params);
+  return { ...live, source: "live" };
+}
+
+/** The pre-cube live path, verbatim (L1 → budget → L2 → fan-out). */
+function loadLivePanoramaKpis(params: LoadCachedPanoramaKpisParams): Promise<CachedKpisResult> {
   const cacheKey = kpiCacheKey({
     role: params.actor.role,
     jurisdictions: params.jurisdictions,

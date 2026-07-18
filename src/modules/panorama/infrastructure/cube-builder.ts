@@ -34,13 +34,27 @@ import postgres from "postgres";
 import {
   panoramaCube,
   panoramaCubeMeta,
+  panoramaKpiCube,
+  panoramaKpiCubeMeta,
   petEvents,
   runWithAnalyticsReadHandle,
   statementTimeoutOptions,
 } from "@/db";
 import * as schema from "@/db/schema";
-import type { NewPanoramaCubeRow } from "@/db/schema";
-import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import type { NewPanoramaCubeRow, NewPanoramaKpiCubeRow } from "@/db/schema";
+import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import { buildProjectionContext } from "@/lib/metrics";
+import { fetchNetGrowth } from "@/lib/metrics/population-control";
+
+import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { getPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+// The reader owns the KPI cube read contract (scope + row ids), mirroring how
+// load-layer-features-cube owns the flag + staleness constants.
+import {
+  KPI_CUBE_BIRTHS_KPI,
+  KPI_CUBE_SCOPE_NATIONAL,
+} from "@/src/modules/panorama/application/load-panorama-kpis-cube";
 
 import type {
   ChoroplethCell,
@@ -75,6 +89,16 @@ export type CubeBuildMetricStat = {
   suppressed: number;
 };
 
+/** KPI-strip cube phase outcome (independent failure domain from the layer
+ * cube: a KPI failure never rolls back the layer swap, and vice versa — the
+ * reader of each falls back to live on its own meta gate). */
+export type CubeKpiBuildStat = {
+  status: "ok" | "error";
+  rowCount: number;
+  durationMs: number;
+  error?: string;
+};
+
 export type CubeBuildResult = {
   status: "ok" | "error";
   rowCount: number;
@@ -82,6 +106,8 @@ export type CubeBuildResult = {
   watermark: Date | null;
   builtAt: Date;
   perMetric: CubeBuildMetricStat[];
+  /** KPI-strip cube phase (cube-the-KPI-strip train). */
+  kpi: CubeKpiBuildStat;
   error?: string;
 };
 
@@ -297,6 +323,82 @@ export function buildProvinceCubeRows(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// KPI-strip cube phase (migration 0151 — cube the KPI strip).
+//
+// SAME AMENDMENT PHILOSOPHY as the layer cube: REUSE the live use-case. The
+// builder runs getPanoramaKpis — the EXACT ~20-fetcher fan-out the request path
+// runs — as the admin-national actor with the panorama DEFAULT period (the
+// console's landing view, the most common and most expensive request), and
+// stores the FINISHED PanoramaKpi tiles as jsonb. The reader reassembles the
+// strip from the stored tiles, so cube-vs-live drift is structurally
+// impossible (parity is near-tautology).
+//
+// BIRTHS (the known cube gap): pregnancy/litter aggregates were not cubed
+// anywhere. fetchNetGrowth (altas / registeredBirths / deaths / net) is cubed
+// as a position-NULL row — parity-tested but NOT part of the served strip (no
+// strip tile renders births today; a future tile can read it cube-first).
+//
+// HONESTY FENCE: the cube must only ever hold a FULLY-REAL strip. A degraded
+// or partially-unavailable fan-out (any tile.unavailable) fails the phase —
+// mirroring the request path's "degraded never cached" invariant — so the
+// reader can never serve a placeholder tile as precomputed truth.
+// ---------------------------------------------------------------------------
+
+/** Strip-level PanoramaKpis fields stored on the meta row (everything except
+ * the tiles, which live one-per-row in panorama_kpi_cube). */
+export type KpiCubeStripMeta = Pick<
+  PanoramaKpis,
+  "recalculatedFor" | "dataAsOf" | "coverageDenominator"
+>;
+
+export type KpiCubeBuild = {
+  rows: NewPanoramaKpiCubeRow[];
+  period: AnalyticsPeriod;
+  strip: KpiCubeStripMeta;
+};
+
+/**
+ * Assemble the KPI cube rows by REUSING the live fan-out. Throws on a degraded
+ * or partial strip (the honesty fence above) — the caller records the phase as
+ * an error and the last-good KPI cube stays untouched.
+ */
+async function buildKpiCube(): Promise<KpiCubeBuild> {
+  const period = resolveAnalyticsPeriod({ period: PANORAMA_DEFAULT_PRESET });
+  const strip = await getPanoramaKpis(ADMIN, NO_JURISDICTIONS, period);
+  if (strip.degraded || strip.kpis.length === 0 || strip.kpis.some((k) => k.unavailable)) {
+    throw new Error(
+      "panorama KPI fan-out produced a degraded or partial strip — not cubeable (the cube must hold a fully-real strip)",
+    );
+  }
+
+  // Births — the known cube gap. Same admin-national ctx + period as the strip.
+  const births = await fetchNetGrowth(buildProjectionContext(ADMIN, NO_JURISDICTIONS, period));
+
+  const rows: NewPanoramaKpiCubeRow[] = strip.kpis.map((tile, position) => ({
+    scope: KPI_CUBE_SCOPE_NATIONAL,
+    kpi: tile.id,
+    position,
+    payload: tile,
+  }));
+  rows.push({
+    scope: KPI_CUBE_SCOPE_NATIONAL,
+    kpi: KPI_CUBE_BIRTHS_KPI,
+    position: null,
+    payload: births,
+  });
+
+  return {
+    rows,
+    period,
+    strip: {
+      recalculatedFor: strip.recalculatedFor,
+      dataAsOf: strip.dataAsOf,
+      coverageDenominator: strip.coverageDenominator ?? null,
+    },
+  };
+}
+
 /** Chunked multi-row insert (bounds the bind-parameter count well under 65535). */
 async function insertRows(
   tx: PostgresJsDatabase<typeof schema>,
@@ -306,6 +408,24 @@ async function insertRows(
   for (let i = 0; i < rows.length; i += CHUNK) {
     await tx.insert(panoramaCube).values(rows.slice(i, i + CHUNK));
   }
+}
+
+/** Best-effort stamp of the KPI cube meta as 'error' (reader falls back to the
+ * live strip) + the structured phase stat for the cron telemetry. */
+async function stampKpiError(
+  writeDb: PostgresJsDatabase<typeof schema>,
+  t0: number,
+  error: string,
+): Promise<CubeKpiBuildStat> {
+  try {
+    await writeDb
+      .update(panoramaKpiCubeMeta)
+      .set({ status: "error" })
+      .where(sql`${panoramaKpiCubeMeta.id} = 1` as SQL);
+  } catch {
+    // best-effort; the phase already failed.
+  }
+  return { status: "error", rowCount: 0, durationMs: Date.now() - t0, error };
 }
 
 /**
@@ -386,6 +506,18 @@ export async function refreshCube(): Promise<CubeBuildResult> {
     const allRows = built.flatMap((b) => b.rows);
     const perMetric = built.map((b) => b.stat);
 
+    // ---- KPI-STRIP READ PHASE — same dedicated read handle, OWN failure
+    // domain: a KPI fan-out failure records kpi.status='error' (reader falls
+    // back to the live strip) without failing the layer build. ----
+    const kpiT0 = Date.now();
+    let kpiBuild: KpiCubeBuild | null = null;
+    let kpiError: string | null = null;
+    try {
+      kpiBuild = await runWithAnalyticsReadHandle(readDb, () => buildKpiCube());
+    } catch (err) {
+      kpiError = err instanceof Error ? err.message : String(err);
+    }
+
     // ---- WRITE PHASE — atomic full swap in one transaction. ----
     await writeDb.transaction(async (tx) => {
       await tx.delete(panoramaCube);
@@ -403,6 +535,41 @@ export async function refreshCube(): Promise<CubeBuildResult> {
         .where(sql`${panoramaCubeMeta.id} = 1` as SQL);
     });
 
+    // ---- KPI-STRIP WRITE PHASE — its OWN transaction, AFTER the layer swap
+    // committed (independent failure domains: a KPI write failure can never
+    // roll back the layer cube, and the layer swap above never waits on the
+    // KPI rows). MVCC gives KPI readers the entire old strip or the entire
+    // new one, never a half-swap. ----
+    let kpi: CubeKpiBuildStat;
+    if (kpiBuild) {
+      const b = kpiBuild;
+      try {
+        await writeDb.transaction(async (tx) => {
+          await tx.delete(panoramaKpiCube);
+          await tx.insert(panoramaKpiCube).values(b.rows);
+          await tx
+            .update(panoramaKpiCubeMeta)
+            .set({
+              builtAt,
+              watermark,
+              status: "ok",
+              rowCount: b.rows.length,
+              durationMs: Date.now() - kpiT0,
+              periodSince: b.period.since,
+              periodUntil: b.period.until,
+              strip: b.strip,
+            })
+            .where(sql`${panoramaKpiCubeMeta.id} = 1` as SQL);
+        });
+        kpi = { status: "ok", rowCount: b.rows.length, durationMs: Date.now() - kpiT0 };
+      } catch (err) {
+        kpiError = err instanceof Error ? err.message : String(err);
+        kpi = await stampKpiError(writeDb, kpiT0, kpiError);
+      }
+    } else {
+      kpi = await stampKpiError(writeDb, kpiT0, kpiError ?? "unknown");
+    }
+
     return {
       status: "ok",
       rowCount: allRows.length,
@@ -410,6 +577,7 @@ export async function refreshCube(): Promise<CubeBuildResult> {
       watermark,
       builtAt,
       perMetric,
+      kpi,
     };
   } catch (err) {
     // Read-phase failure → nothing was written; write-phase failure → transaction
@@ -425,6 +593,10 @@ export async function refreshCube(): Promise<CubeBuildResult> {
     } catch {
       // best-effort; the build already failed.
     }
+    // The KPI phase either never ran (layer read phase threw first) or its
+    // swap never happened (layer write threw). Stamp its meta too so the KPI
+    // reader's gate falls back to live rather than trusting a stale 'ok'.
+    const kpi = await stampKpiError(writeDb, t0, `layer build failed: ${message}`);
     return {
       status: "error",
       rowCount: 0,
@@ -432,6 +604,7 @@ export async function refreshCube(): Promise<CubeBuildResult> {
       watermark,
       builtAt,
       perMetric: [],
+      kpi,
       error: message,
     };
   } finally {
