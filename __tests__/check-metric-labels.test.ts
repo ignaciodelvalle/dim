@@ -11,7 +11,12 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { METRIC_LABEL_ALLOWLIST, scanForLabelConflicts } from "@/scripts/check-metric-labels";
+import {
+  INLINE_CATALOG_LABEL_BASELINE,
+  METRIC_LABEL_ALLOWLIST,
+  scanForInlineCatalogLabels,
+  scanForLabelConflicts,
+} from "@/scripts/check-metric-labels";
 
 const tempDirs: string[] = [];
 
@@ -114,6 +119,68 @@ describe("scanForLabelConflicts", () => {
     const byLabel = scanForLabelConflicts([fileA]);
     const entries = byLabel.get("Total registradas");
     expect(entries?.[0].definition).toBe("Total de mascotas activas o extraviadas.");
+  });
+});
+
+describe("scanForInlineCatalogLabels (registry-import fence)", () => {
+  const LABELS = ["Penetración de microchip", "Cobertura de esterilización (stock)"] as const;
+
+  it("flags a .tsx that retypes a catalogued label as an inline string literal", () => {
+    const file = writeFixture(
+      "PageA.tsx",
+      `<OpKpi label="Penetración de microchip" value={pct} />`,
+    );
+    const hits = scanForInlineCatalogLabels([file], LABELS);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].label).toBe("Penetración de microchip");
+    expect(hits[0].count).toBe(1);
+  });
+
+  it("counts repeated inline occurrences, across quote styles", () => {
+    const file = writeFixture(
+      "PageA.tsx",
+      [
+        `<OpKpi label="Penetración de microchip" value={a} />`,
+        `const t = 'Penetración de microchip';`,
+        "const u = `Penetración de microchip`;",
+      ].join("\n"),
+    );
+    const hits = scanForInlineCatalogLabels([file], LABELS);
+    expect(hits).toHaveLength(1);
+    expect(hits[0].count).toBe(3);
+  });
+
+  it("does not flag a file that renders the label via an imported constant", () => {
+    // NOTE: the fixture's import specifier must stay a PURE module —
+    // __tests__/db-reachability.ts scans raw source text (string literals
+    // included), so a fixture importing a db-reaching module would silently
+    // reclassify THIS test into the serial "db" project.
+    const file = writeFixture(
+      "PageA.tsx",
+      [
+        `import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";`,
+        `<OpKpi label={KPI_CATALOG.microchip_penetration.label} value={pct} />`,
+      ].join("\n"),
+    );
+    expect(scanForInlineCatalogLabels([file], LABELS)).toHaveLength(0);
+  });
+
+  it("does not flag a partial/superstring match — only the exact quoted label", () => {
+    const file = writeFixture(
+      "PageA.tsx",
+      `<OpKpi label="Penetración de microchip (histórico)" value={pct} />`,
+    );
+    expect(scanForInlineCatalogLabels([file], LABELS)).toHaveLength(0);
+  });
+});
+
+describe("INLINE_CATALOG_LABEL_BASELINE", () => {
+  it("uses repo-relative posix paths with positive grandfathered counts", () => {
+    for (const [file, count] of Object.entries(INLINE_CATALOG_LABEL_BASELINE)) {
+      expect(file).not.toMatch(/\\/);
+      expect(file).toMatch(/^(app|components)\//);
+      expect(count).toBeGreaterThan(0);
+    }
   });
 });
 
