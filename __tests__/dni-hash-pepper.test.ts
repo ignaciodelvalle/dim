@@ -14,7 +14,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { hashDni } from "@/lib/utils/dni-hash";
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 const DNI = "30123456";
 const HEX_64 = /^[0-9a-f]{64}$/;
@@ -66,5 +66,64 @@ describe("dni-hash pepper fail-closed", () => {
     vi.stubEnv("NODE_ENV", "test");
     vi.stubEnv("DNI_HASH_PEPPER", "");
     expect(hashDni(DNI)).toMatch(HEX_64);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Invariant #5 output contracts (mutation-survivor closure, 2026-07 audit).
+//
+// These assert LITERALS, never values derived from the module under test:
+// a mutant that changes the slice bounds, swaps HMAC for a plain hash, drops
+// the pepper, or hashes the pepper with the DNI as key must FAIL here. Before
+// this block a raw-DNI leak in dniLast4 (e.g. returning the full DNI) shipped
+// green through the whole suite.
+// ---------------------------------------------------------------------------
+
+describe("dniLast4 — display contract (no plaintext DNI, invariant #5)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns exactly the last 4 digits as a literal", () => {
+    expect(dniLast4("30123456")).toBe("3456");
+    expect(dniLast4("7654321")).toBe("4321"); // 7-digit DNI
+    expect(dniLast4("99000111")).toBe("0111"); // preserves leading zero in the tail
+  });
+
+  it("never returns more than 4 characters for any realistic DNI (7-8 digits)", () => {
+    for (const dni of ["1234567", "12345678", "7000001", "45999888", "30123456"]) {
+      const out = dniLast4(dni);
+      expect(out).toHaveLength(4);
+      expect(dni.endsWith(out)).toBe(true);
+      // The full DNI must never come back — that IS the plaintext leak.
+      expect(out).not.toBe(dni);
+    }
+  });
+});
+
+describe("hashDni — pinned HMAC vector (mutation gate)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // HMAC-SHA256("30123456", "dim-test-pepper-v1") — computed independently with
+  // node:crypto. A LITERAL, so any change to the algorithm, key/message order,
+  // or pepper resolution fails this test loudly.
+  const PINNED_VECTOR = "e78b8a5b794fa9033d0f5ffdb43d1e3d648ce0ab442f4fc92a74cd114c6f344a";
+
+  it("matches the known vector under the fixed test pepper", () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("DNI_HASH_PEPPER", "dim-test-pepper-v1");
+    expect(hashDni("30123456")).toBe(PINNED_VECTOR);
+  });
+
+  it("produces a DIFFERENT hash when the pepper differs (pepper actually participates)", () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("DNI_HASH_PEPPER", "another-pepper");
+    const other = hashDni("30123456");
+    expect(other).toMatch(HEX_64);
+    expect(other).not.toBe(PINNED_VECTOR);
+    // Independently-computed literal for the alternate pepper.
+    expect(other).toBe("b4b5282d64f8a97ab32d638ac284e7c412736aaf7e02890db3b92d37bccf9785");
   });
 });

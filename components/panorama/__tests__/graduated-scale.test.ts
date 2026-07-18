@@ -40,6 +40,13 @@ describe("graduatedSampleValues — data-driven bins (#6)", () => {
     expect(graduatedSampleValues(1)).toEqual([1]);
   });
 
+  it("lists every integer up to the tiny-range boundary (max = 6) as a literal", () => {
+    // Mutation gate: the `m <= 6` boundary and the `i + 1` offset must both be
+    // exact — a mutant shifting either survives range-shape assertions but not
+    // this literal.
+    expect(graduatedSampleValues(6)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
   it("uses nice-rounded breakpoints for larger ranges and ends at the observed max", () => {
     const s = graduatedSampleValues(340);
     expect(s[0]).toBe(1);
