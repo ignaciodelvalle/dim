@@ -25,7 +25,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
     typeof window !== "undefined"
       ? `${window.location.origin}/refugios/${orgToken}`
       : `https://mimar.ar/refugios/${orgToken}`;
-  const shareText = `Conocé ${orgDisplayName} en MiMAR. Tienen mascotas en adopción y servicios para la comunidad.`;
+  const shareText = `Conocé ${orgDisplayName} en miMAR. Tienen mascotas en adopción y servicios para la comunidad.`;
 
   async function copy() {
     try {

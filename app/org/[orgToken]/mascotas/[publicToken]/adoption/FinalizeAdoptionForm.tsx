@@ -131,7 +131,7 @@ export function FinalizeAdoptionForm({
               <LnField
                 label="DNI"
                 required
-                hint="Si la persona ya tiene cuenta MiMAR con ese DNI, la usamos. Si no, creamos un perfil preliminar que podrá reclamar más adelante."
+                hint="Si la persona ya tiene cuenta miMAR con ese DNI, la usamos. Si no, creamos un perfil preliminar que podrá reclamar más adelante."
               >
                 {({ id, describedBy, invalid }) => (
                   <LnInput

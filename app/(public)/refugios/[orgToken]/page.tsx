@@ -56,7 +56,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { orgToken } = await params;
   const org = await queryOrgPublicProfile(orgToken);
-  if (!org) return { title: "Refugio no disponible — MiMAR" };
+  if (!org) return { title: "Refugio no disponible — miMAR" };
 
   const locality = org.jurisdictionLocality ?? org.jurisdictionProvince ?? "Argentina";
   const description =
@@ -66,21 +66,21 @@ export async function generateMetadata({
   const logoAbsolute = orgLogoUrl(org.logoStoragePath);
 
   return {
-    title: `${org.displayName} — Refugio en MiMAR`,
+    title: `${org.displayName} — Refugio en miMAR`,
     description,
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title: `${org.displayName} — Refugio en MiMAR`,
+      title: `${org.displayName} — Refugio en miMAR`,
       description,
       url: canonicalUrl,
-      siteName: "MiMAR",
+      siteName: "miMAR",
       images: logoAbsolute ? [{ url: logoAbsolute }] : [`${SITE_URL}/og-default-org.jpg`],
       type: "profile",
       locale: "es_AR",
     },
     twitter: {
       card: "summary",
-      title: `${org.displayName} — Refugio en MiMAR`,
+      title: `${org.displayName} — Refugio en miMAR`,
       description,
     },
   };

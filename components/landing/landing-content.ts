@@ -1,4 +1,4 @@
-// Landing content model — MiMAR public landing ("una mascota, muchas manos").
+// Landing content model — miMAR public landing ("una mascota, muchas manos").
 //
 // Ported from docs/design_handoff_landing/landing2/data2.js (prototype content
 // model). Copy is es-AR (voseo); identifiers in English. Event types are the

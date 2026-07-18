@@ -393,7 +393,7 @@ function ResultStep({
     return (
       <section className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
         <p className="font-medium text-[var(--color-ln-seal)]">
-          Esta mascota figura como fallecida en MiMAR.
+          Esta mascota figura como fallecida en miMAR.
         </p>
         <p className="text-[var(--color-ln-seal)]">Si creés que es un error, contactá a soporte.</p>
         <button

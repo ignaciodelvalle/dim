@@ -200,7 +200,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                     <div className="lp-hcard-trim">
                       <span className="lp-hcard-brand">
                         <i />
-                        MiMAR
+                        miMAR
                       </span>
                       <span className="lp-hcard-trim-r">
                         <span key={index} className="lp-hcard-badge">

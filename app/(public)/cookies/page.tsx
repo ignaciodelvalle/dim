@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Política de cookies — MiMAR",
-  description: "Política de uso de cookies de MiMAR — Mi Mascota Argentina.",
+  title: "Política de cookies — miMAR",
+  description: "Política de uso de cookies de miMAR — Mi Mascota Argentina.",
 };
 
 export default function CookiesPage() {
@@ -23,17 +23,17 @@ export default function CookiesPage() {
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Las cookies son pequeños archivos de texto que un sitio web almacena en tu dispositivo
-            para recordar información entre visitas. MiMAR usa un número mínimo de cookies, todas
+            para recordar información entre visitas. miMAR usa un número mínimo de cookies, todas
             estrictamente necesarias para el funcionamiento del servicio.
           </p>
         </section>
 
         <section aria-labelledby="cuales-heading" className="space-y-3">
           <h2 id="cuales-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
-            ¿Qué cookies usa MiMAR?
+            ¿Qué cookies usa miMAR?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR utiliza <strong>Supabase Auth</strong> para la autenticación. Supabase gestiona la
+            miMAR utiliza <strong>Supabase Auth</strong> para la autenticación. Supabase gestiona la
             sesión del usuario mediante cookies seguras (<code>HttpOnly</code>, <code>Secure</code>,{" "}
             <code>SameSite</code>). Estas cookies son necesarias para mantener tu sesión iniciada
             mientras navegás el portal.
@@ -77,11 +77,11 @@ export default function CookiesPage() {
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Podés eliminar las cookies de autenticación en cualquier momento desde la configuración
-            de tu navegador, o cerrando sesión desde MiMAR. Al eliminar la cookie de sesión, tu
+            de tu navegador, o cerrando sesión desde miMAR. Al eliminar la cookie de sesión, tu
             sesión quedará cerrada y deberás iniciar sesión nuevamente para acceder a tu portal.
           </p>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            Las páginas públicas de MiMAR (credenciales, adopciones, denuncias) no requieren cookies
+            Las páginas públicas de miMAR (credenciales, adopciones, denuncias) no requieren cookies
             para funcionar.
           </p>
         </section>

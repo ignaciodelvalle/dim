@@ -35,7 +35,7 @@ export default async function RupgaPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Credenciales RUPGA
+          miMAR Gobierno · Credenciales RUPGA
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Credenciales RUPGA

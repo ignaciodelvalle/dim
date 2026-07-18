@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Accesibilidad — MiMAR",
-  description: "Declaración de accesibilidad de MiMAR — Mi Mascota Argentina.",
+  title: "Accesibilidad — miMAR",
+  description: "Declaración de accesibilidad de miMAR — Mi Mascota Argentina.",
 };
 
 export default function AccesibilidadPage() {
@@ -26,7 +26,7 @@ export default function AccesibilidadPage() {
             Nuestro compromiso
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR está diseñado apuntando al nivel de conformidad <strong>WCAG 2.1 AA</strong> (Web
+            miMAR está diseñado apuntando al nivel de conformidad <strong>WCAG 2.1 AA</strong> (Web
             Content Accessibility Guidelines, versión 2.1, nivel de éxito AA). Esto significa que
             buscamos activamente que el producto sea usable por personas con distintas capacidades,
             pero{" "}
@@ -132,7 +132,7 @@ export default function AccesibilidadPage() {
             Reportar un problema de accesibilidad
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            Si encontrás una barrera de accesibilidad en MiMAR, podés reportarla a través de nuestro{" "}
+            Si encontrás una barrera de accesibilidad en miMAR, podés reportarla a través de nuestro{" "}
             <Link
               href="/sugerencias"
               className="text-[var(--color-ln-azul)] underline hover:no-underline"

@@ -9,7 +9,7 @@ import {
 } from "@/lib/reference/legal-knowledge-base";
 
 export const metadata: Metadata = {
-  title: "Marco legal — MiMAR",
+  title: "Marco legal — miMAR",
   description:
     "Qué leyes argentinas rigen la tenencia, la salud y el bienestar de tu mascota, explicadas en lenguaje simple.",
 };
@@ -63,7 +63,7 @@ function LegalEntryFicha({ entry }: { entry: LegalKnowledgeEntry }) {
           </div>
           <div>
             <dt className="font-semibold text-[var(--color-ln-ink)]">
-              ¿Qué obligación implica en MiMAR?
+              ¿Qué obligación implica en miMAR?
             </dt>
             <dd className="leading-relaxed text-[var(--color-ln-ink-2)]">
               {entry.mimarObligation}
@@ -126,7 +126,7 @@ export default function LeyesPage() {
             La tenencia de una mascota en la Argentina no es solo una decisión personal: hay leyes
             nacionales, provinciales y municipales que definen identificación, vacunación, bienestar
             y datos personales. Acá te contamos, en lenguaje simple, qué dice cada norma y cómo se
-            refleja en MiMAR. Esta página es informativa — no reemplaza el asesoramiento legal ni la
+            refleja en miMAR. Esta página es informativa — no reemplaza el asesoramiento legal ni la
             consulta con la autoridad de tu jurisdicción.
           </p>
         </header>
@@ -163,7 +163,7 @@ export default function LeyesPage() {
               Zoonosis y salud pública
             </a>
             )— se transmite en el ciclo perro-oveja, típico de zonas de cría rural. Ahí la
-            credencial QR de MiMAR tiene una ventaja concreta:{" "}
+            credencial QR de miMAR tiene una ventaja concreta:{" "}
             <strong>se lee desde cualquier teléfono con cámara, sin instalar ninguna app</strong>.
             Quien encuentre al animal escanea el código y accede a los datos básicos de la mascota —
             sin descargar ni configurar nada.

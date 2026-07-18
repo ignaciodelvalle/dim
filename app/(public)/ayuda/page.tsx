@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Ayuda — MiMAR",
-  description: "Centro de ayuda de MiMAR — Mi Mascota Argentina.",
+  title: "Ayuda — miMAR",
+  description: "Centro de ayuda de miMAR — Mi Mascota Argentina.",
 };
 
 export default function AyudaPage() {
@@ -138,7 +138,7 @@ export default function AyudaPage() {
             >
               Adoptar
             </Link>{" "}
-            para ver los animales disponibles publicados por refugios registrados en MiMAR. Podés
+            para ver los animales disponibles publicados por refugios registrados en miMAR. Podés
             filtrar por especie, tamaño, energía y ubicación. La postulación para adoptar llega
             directamente al refugio.
           </p>

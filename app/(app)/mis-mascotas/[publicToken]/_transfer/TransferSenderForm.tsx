@@ -63,7 +63,7 @@ export function TransferSenderForm({
 
       <LnField
         label="Email del receptor"
-        hint="Si todavía no tiene cuenta en MiMAR, le enviamos un link de signup."
+        hint="Si todavía no tiene cuenta en miMAR, le enviamos un link de signup."
         required
         error={error ?? undefined}
       >

@@ -143,7 +143,7 @@ export function Step4Subject({
               className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
-              Código MiMAR o microchip{" "}
+              Código miMAR o microchip{" "}
               <span className="text-[var(--color-ln-faint)] normal-case tracking-normal font-normal">
                 (opcional)
               </span>

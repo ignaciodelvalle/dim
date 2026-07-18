@@ -76,7 +76,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
             <div className="chapita-cut chapita-card gap-[4mm] p-[4mm]">
               <QrBlock qrSvg={qrSvg} size="40mm" />
               <div className="min-w-0">
-                <p className="chapita-card-brand">MiMAR · Credencial</p>
+                <p className="chapita-card-brand">miMAR · Credencial</p>
                 <p className="chapita-card-name mt-[1mm] truncate">{petName}</p>
                 <p className="chapita-card-token">{publicToken}</p>
                 <p className="chapita-card-hint mt-[2mm]">

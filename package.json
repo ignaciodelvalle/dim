@@ -1,7 +1,7 @@
 {
   "name": "dim",
   "version": "0.1.0",
-  "description": "MiMAR — Mi Mascota Argentina. Argentina's digital pet credential (internal codename: DIM).",
+  "description": "miMAR — Mi Mascota Argentina. Argentina's digital pet credential (internal codename: DIM).",
   "private": true,
   "type": "module",
   "scripts": {
@@ -39,7 +39,8 @@
     "lint:uuid": "tsx scripts/check-uuid-literals.ts",
     "lint:plural": "tsx scripts/check-pluralize-es.ts",
     "lint:dupes": "tsx scripts/check-duplication.ts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm lint:tokens && pnpm lint:locality && pnpm lint:timezone && pnpm lint:ui && pnpm lint:professionalism && pnpm lint:authz && pnpm lint:events && pnpm lint:authz-scoping && pnpm lint:authz-subsumption && pnpm lint:authz-orgtoken && pnpm lint:deps && pnpm lint:rls && pnpm lint:actions && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons && pnpm lint:nav && pnpm lint:notifications && pnpm lint:db-budget && pnpm lint:metric-labels && pnpm lint:opened-reason && pnpm lint:file-size && pnpm lint:maplibre && pnpm lint:hard-nav && pnpm lint:tablist && pnpm lint:eyebrow && pnpm lint:uuid && pnpm lint:plural && pnpm lint:dupes && pnpm build",
+    "lint:brand": "tsx scripts/check-brand-casing.ts",
+    "verify": "pnpm typecheck && pnpm lint && pnpm lint:tokens && pnpm lint:locality && pnpm lint:timezone && pnpm lint:ui && pnpm lint:professionalism && pnpm lint:authz && pnpm lint:events && pnpm lint:authz-scoping && pnpm lint:authz-subsumption && pnpm lint:authz-orgtoken && pnpm lint:deps && pnpm lint:rls && pnpm lint:actions && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons && pnpm lint:nav && pnpm lint:notifications && pnpm lint:db-budget && pnpm lint:metric-labels && pnpm lint:opened-reason && pnpm lint:file-size && pnpm lint:maplibre && pnpm lint:hard-nav && pnpm lint:tablist && pnpm lint:eyebrow && pnpm lint:uuid && pnpm lint:plural && pnpm lint:dupes && pnpm lint:brand && pnpm build",
     "format": "biome format --write .",
     "db:start": "supabase start",
     "db:stop": "supabase stop",

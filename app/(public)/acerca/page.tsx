@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Acerca de MiMAR",
-  description: "Información institucional sobre MiMAR — Mi Mascota Argentina.",
+  title: "Acerca de miMAR",
+  description: "Información institucional sobre miMAR — Mi Mascota Argentina.",
 };
 
 export default function AcercaPage() {
@@ -14,15 +14,15 @@ export default function AcercaPage() {
           className="text-[30px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
           style={{ fontFamily: "var(--font-ln-serif)" }}
         >
-          Acerca de MiMAR
+          Acerca de miMAR
         </h1>
 
         <section aria-labelledby="que-es-heading" className="space-y-3">
           <h2 id="que-es-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
-            ¿Qué es MiMAR?
+            ¿Qué es miMAR?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            <strong>MiMAR (Mi Mascota Argentina)</strong> es un sistema de credencial digital
+            <strong>miMAR (Mi Mascota Argentina)</strong> es un sistema de credencial digital
             sanitaria para mascotas. El nombre interno del proyecto es{" "}
             <strong>DIM — Documento de Identificación para Mascotas</strong>, y surge como evolución
             de un proyecto universitario de la UTN iniciado en 2021.
@@ -66,7 +66,7 @@ export default function AcercaPage() {
             ¿Qué hace?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR funciona como una <strong>libreta sanitaria digital portable</strong>: cada evento
+            miMAR funciona como una <strong>libreta sanitaria digital portable</strong>: cada evento
             en la vida de la mascota (vacuna, desparasitación, visita al vet, cambio de estado)
             queda registrado de forma inmutable y ordenada. El objetivo es que cualquier
             veterinario, refugio o autoridad pueda ver el historial de un animal escaneando su QR,
@@ -87,7 +87,7 @@ export default function AcercaPage() {
             Transparencia de datos y metodología
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR publica datos abiertos de salud y bienestar animal por provincia, bajo licencia{" "}
+            miMAR publica datos abiertos de salud y bienestar animal por provincia, bajo licencia{" "}
             <strong>CC BY 4.0</strong> (Ley 27.275 de Acceso a la Información Pública), junto con la
             metodología que los produce. Podés consultarlos y descargarlos en{" "}
             <Link

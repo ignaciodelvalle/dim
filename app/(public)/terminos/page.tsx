@@ -2,8 +2,8 @@ import { LEGAL_VERSION, LEGAL_VERSION_LABEL } from "@/lib/reference/legal-versio
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Términos de uso — MiMAR",
-  description: "Condiciones de uso del servicio MiMAR — Mi Mascota Argentina.",
+  title: "Términos de uso — miMAR",
+  description: "Condiciones de uso del servicio miMAR — Mi Mascota Argentina.",
 };
 
 export default function TerminosPage() {
@@ -28,7 +28,7 @@ export default function TerminosPage() {
             Descripción del servicio
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR (Mi Mascota Argentina) es una plataforma digital que permite a dueños de mascotas
+            miMAR (Mi Mascota Argentina) es una plataforma digital que permite a dueños de mascotas
             gestionar la credencial sanitaria de sus animales, reportar pérdidas, denunciar maltrato
             y conectar con refugios. El uso del servicio implica la aceptación de estos términos.
           </p>
@@ -42,7 +42,7 @@ export default function TerminosPage() {
             Podés registrarte gratuitamente como dueño, veterinario, refugio o representante de un
             organismo público. Sos responsable de la veracidad de los datos que ingresás y de
             mantener la confidencialidad de tu contraseña. Las cuentas institucionales (gobierno,
-            veterinarios, refugios) son habilitadas por MiMAR previa verificación.
+            veterinarios, refugios) son habilitadas por miMAR previa verificación.
           </p>
         </section>
 
@@ -62,7 +62,7 @@ export default function TerminosPage() {
             Denuncias de maltrato animal
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
-            Las denuncias se envían a la autoridad sanitaria jurisdiccional competente. MiMAR actúa
+            Las denuncias se envían a la autoridad sanitaria jurisdiccional competente. miMAR actúa
             como intermediario técnico; no investiga los hechos ni tiene facultades sancionatorias.
             Las denuncias falsas o maliciosas pueden comprometer recursos de las autoridades. La
             plataforma opera en el marco de la <strong>Ley 14.346</strong> (penalización del
@@ -73,7 +73,7 @@ export default function TerminosPage() {
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Responsabilidad</h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR pone a disposición la infraestructura técnica pero no garantiza la resolución de
+            miMAR pone a disposición la infraestructura técnica pero no garantiza la resolución de
             ningún caso (pérdida, denuncia, adopción). La plataforma puede tener interrupciones de
             servicio. En ningún caso seremos responsables por daños indirectos derivados del uso o
             imposibilidad de uso del servicio.

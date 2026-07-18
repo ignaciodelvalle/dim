@@ -43,7 +43,7 @@ export default async function OrgConfigPage({
 
       <p className="text-sm text-ln-op-mute">
         El tipo de organización, la jurisdicción y el estado de verificación son gestionados por el
-        equipo de MiMAR.
+        equipo de miMAR.
       </p>
     </div>
   );

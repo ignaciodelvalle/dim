@@ -36,8 +36,8 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
 
   async function handleShare() {
     const shareData = {
-      title: `Credencial de ${petName} — MiMAR`,
-      text: `La libreta sanitaria digital de ${petName} en MiMAR.`,
+      title: `Credencial de ${petName} — miMAR`,
+      text: `La libreta sanitaria digital de ${petName} en miMAR.`,
       url: credentialUrl,
     };
 

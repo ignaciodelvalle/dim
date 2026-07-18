@@ -50,7 +50,7 @@ export default async function RenunciarPage() {
       </div>
 
       <LnCallout tone="warn" title="Esta acción es irreversible" className="mb-6">
-        Al renunciar perdés acceso a las funciones veterinarias en MiMAR.
+        Al renunciar perdés acceso a las funciones veterinarias en miMAR.
       </LnCallout>
 
       <VetSelfResignForm />

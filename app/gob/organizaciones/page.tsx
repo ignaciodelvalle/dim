@@ -42,7 +42,7 @@ export default async function OrganizacionesPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Organizaciones
+          miMAR Gobierno · Organizaciones
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Organizaciones</h1>
         <p className="text-[13px] text-ln-op-ink-2">

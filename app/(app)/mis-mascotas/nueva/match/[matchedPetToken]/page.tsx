@@ -90,7 +90,7 @@ export default async function VecinoMatchPage({
           Coincidencia de microchip
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-          El chip que ingresaste ya está registrado en MiMAR. Confirmá si es el mismo animal.
+          El chip que ingresaste ya está registrado en miMAR. Confirmá si es el mismo animal.
         </p>
       </div>
 

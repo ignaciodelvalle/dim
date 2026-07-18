@@ -193,7 +193,7 @@ export default async function AdminPoblacionPage({
               "Altas nuevas en el período + nacimientos registrados − muertes registradas (nacional).",
             formula: "COUNT(altas) + COUNT(live_birth events) − COUNT(death_recorded events)",
             caveat:
-              "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en MiMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento — callejero e ilegítimos son invisibles.",
+              "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en miMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento — callejero e ilegítimos son invisibles.",
           }}
         />
       </section>

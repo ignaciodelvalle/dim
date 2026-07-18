@@ -27,7 +27,7 @@ export default async function GobServiciosPage() {
       <div className="space-y-4">
         <header className="space-y-1">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            MiMAR Gobierno · Servicios
+            miMAR Gobierno · Servicios
           </p>
           <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Servicios pendientes
@@ -79,7 +79,7 @@ export default async function GobServiciosPage() {
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Servicios
+          miMAR Gobierno · Servicios
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Servicios pendientes

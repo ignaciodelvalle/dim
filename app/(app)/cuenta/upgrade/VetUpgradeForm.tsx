@@ -34,7 +34,7 @@ export function VetUpgradeForm({ dniVerified }: Props) {
   if (state.ok) {
     return (
       <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-3 py-2 text-[var(--color-ln-warn)]">
-        Solicitud enviada — pendiente de revisión por el equipo de MiMAR.
+        Solicitud enviada — pendiente de revisión por el equipo de miMAR.
       </p>
     );
   }
@@ -81,7 +81,7 @@ export function VetUpgradeForm({ dniVerified }: Props) {
             Antes de enviar tu solicitud, declará tu DNI.
           </p>
           <p className="text-xs text-[var(--color-ln-warn)]">
-            MiMAR requiere que declares tu DNI antes de procesar solicitudes de rol profesional.
+            miMAR requiere que declares tu DNI antes de procesar solicitudes de rol profesional.
           </p>
           <a
             href={state.prereqUrl ?? DNI_PREREQ_URL}

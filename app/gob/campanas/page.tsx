@@ -54,7 +54,7 @@ export default async function GobCampanasPage({
       <div className="space-y-4">
         <header className="space-y-1">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            MiMAR Gobierno · Campañas
+            miMAR Gobierno · Campañas
           </p>
           <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Performance de campañas

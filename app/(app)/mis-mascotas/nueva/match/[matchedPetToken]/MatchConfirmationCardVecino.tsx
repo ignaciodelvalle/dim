@@ -72,7 +72,7 @@ export function MatchConfirmationCardVecino({
           Posible coincidencia detectada
         </p>
         <p className="text-sm text-[var(--color-ln-warn)]">
-          El microchip que ingresaste ya figura en MiMAR asociado a la siguiente mascota.
+          El microchip que ingresaste ya figura en miMAR asociado a la siguiente mascota.
         </p>
       </div>
 

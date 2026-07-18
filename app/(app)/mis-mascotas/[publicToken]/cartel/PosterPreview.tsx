@@ -7,7 +7,7 @@
 // without a photo loses most of its value — tester fix #3b) and the print CTA
 // is demoted to secondary styling. Printing is never blocked.
 // Poster body: sex-correct PERDIDO/PERDIDA (or SE BUSCA) header, photo,
-// identity, optional location, inline-editable extra text, QR, MiMAR footer.
+// identity, optional location, inline-editable extra text, QR, miMAR footer.
 // All inline-editable fields are local state only — they never persist.
 
 import { AR_TIME_ZONE, lastSeenHeadingLabel, lostPosterHeadline } from "@/lib/utils/format";
@@ -233,7 +233,7 @@ export function PosterPreview({
         {/* Footer */}
         <footer className="text-center pt-4 border-t border-[var(--color-ln-line)]">
           <p className="text-xs text-[var(--color-ln-mute)] uppercase tracking-widest">
-            MiMAR · Documento de Identificación para Mascotas
+            miMAR · Documento de Identificación para Mascotas
           </p>
         </footer>
       </main>

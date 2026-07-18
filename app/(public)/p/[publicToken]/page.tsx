@@ -124,12 +124,12 @@ export async function generateMetadata({
     );
   } catch (err) {
     reportError("public-credential/metadata", err, { publicToken });
-    return { title: "Credencial | MiMAR" };
+    return { title: "Credencial | miMAR" };
   }
-  if (!row) return { title: "Credencial | MiMAR" };
+  if (!row) return { title: "Credencial | miMAR" };
 
   const isLost = row.status === "lost";
-  const title = isLost ? `SE BUSCA: ${row.name} | MiMAR` : `${row.name} | Credencial MiMAR`;
+  const title = isLost ? `SE BUSCA: ${row.name} | miMAR` : `${row.name} | Credencial miMAR`;
   const description = isLost
     ? `${row.name} (${speciesLabel(row.species)}) está perdida. Si la viste, tocá para avisarle a su familia.`
     : `Credencial pública de ${row.name} (${speciesLabel(row.species)}), verificable por QR.`;
@@ -531,7 +531,7 @@ export default async function PublicCredentialPage({
             </div>
             <div className="min-w-0 flex-1">
               <span className="font-[var(--font-ln-serif)] text-[13px] font-semibold text-ln-ink">
-                MiMAR
+                miMAR
               </span>
               <span className="block font-[var(--font-ln-mono)] text-[8px] uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
@@ -760,7 +760,7 @@ export default async function PublicCredentialPage({
 
           {/* Credential footer */}
           <div className="px-4 py-3 text-center font-[var(--font-ln-mono)] text-[9.5px] leading-[1.7] tracking-[.02em] text-ln-faint">
-            CREDENCIAL PÚBLICA · MiMAR · Registro Nacional de Mascotas
+            CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
             <br />
             {pet.publicToken.toUpperCase()} · República Argentina
           </div>

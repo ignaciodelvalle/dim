@@ -35,18 +35,18 @@ export type ExportFooterInput = {
 };
 
 /**
- * Build the export footer string. Always includes data-as-of, source (MiMAR),
+ * Build the export footer string. Always includes data-as-of, source (miMAR),
  * scope and period; appends the suppressed-cell count so the provenance is
  * complete (PO recommendation: always include the suppressed count for audit).
  *
  * Example:
- *   "Datos al 4 jul 2026 · MiMAR · Nacional · últimos 90 días · 3 celdas protegidas por privacidad"
+ *   "Datos al 4 jul 2026 · miMAR · Nacional · últimos 90 días · 3 celdas protegidas por privacidad"
  */
 export function buildExportFooter(input: ExportFooterInput): string {
   const asOfDate = input.asOf ?? input.now ?? new Date();
   const parts = [
     `Datos al ${formatAsOfDate(asOfDate)}`,
-    "MiMAR",
+    "miMAR",
     input.scopeLabel,
     input.periodLabel,
   ];

@@ -16,7 +16,7 @@ import { ScrollReset } from "./ScrollReset";
  *   - `operator` → left navy control-room rail + topbar. gob / admin / org.
  *                  No stripe, no footer (D7/D9). Absorbs OpShell/OpRail/OpTopbar.
  *   - `landing`  → minimal trust chrome for token-landing surfaces (D13):
- *                  brand + stripe + "Credencial verificada por MiMAR", and NO
+ *                  brand + stripe + "Credencial verificada por miMAR", and NO
  *                  browse nav / footer. Protects the scan→action moment.
  *
  * STRANGLER (Phase A): this component defines the structural contract for all
@@ -162,9 +162,9 @@ function LandingShell({ returnSlot, children }: LandingProps) {
       {/* pt-safe: QR-scan landings open full-screen in the installed PWA too —
           keep the trust header clear of the notch/status bar. */}
       <header className="pt-safe flex items-center gap-3 border-b border-ln-line bg-white px-4 py-3 md:px-6">
-        <span className="text-lg font-bold text-ln-azul">MiMAR</span>
+        <span className="text-lg font-bold text-ln-azul">miMAR</span>
         <span className="hidden text-xs text-ln-mute sm:inline">
-          Credencial verificada por MiMAR
+          Credencial verificada por miMAR
         </span>
         {/* Discreet "back to my app" — present only for logged-in viewers (D13). */}
         {returnSlot && <div className="ml-auto">{returnSlot}</div>}

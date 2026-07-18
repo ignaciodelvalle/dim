@@ -194,7 +194,7 @@ export async function generateExportAction(formData: FormData): Promise<Generate
       try {
         const resend = new Resend(resendKey);
         const { error: emailError } = await resend.emails.send({
-          from: "MiMAR Analytics <noreply@dim.ar>",
+          from: "miMAR Analytics <noreply@dim.ar>",
           to: recipientEmail,
           subject: "Tu export de analytics está listo",
           html: `

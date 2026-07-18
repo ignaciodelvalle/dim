@@ -53,7 +53,7 @@ export default async function AdminDashboardPage() {
       {/* Page header */}
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Plataforma {"·"} ADMIN {"·"} Universal
+          miMAR Plataforma {"·"} ADMIN {"·"} Universal
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Panel de administración

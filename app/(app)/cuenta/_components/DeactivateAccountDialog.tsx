@@ -62,7 +62,7 @@ export function DeactivateAccountDialog() {
             Desactivar mi cuenta
           </p>
           <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">
-            Desactiva tu cuenta de MiMAR — acción irreversible desde este panel
+            Desactiva tu cuenta de miMAR — acción irreversible desde este panel
           </p>
         </div>
         <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-err)] text-base">

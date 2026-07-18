@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Sugerencias — MiMAR",
-  description: "Enviá tus sugerencias para mejorar MiMAR — Mi Mascota Argentina.",
+  title: "Sugerencias — miMAR",
+  description: "Enviá tus sugerencias para mejorar miMAR — Mi Mascota Argentina.",
 };
 
 /**
@@ -26,7 +26,7 @@ export default function SugerenciasPage() {
           </p>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             Estamos preparando un espacio formal para recibir ideas y comentarios. Muy pronto vas a
-            poder enviarnos tus sugerencias directamente desde tu cuenta de MiMAR.
+            poder enviarnos tus sugerencias directamente desde tu cuenta de miMAR.
           </p>
         </div>
         <Link

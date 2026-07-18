@@ -9,7 +9,7 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { PrivacyActions } from "./PrivacyActions";
 
 export const metadata = {
-  title: "Privacidad y datos personales — MiMAR",
+  title: "Privacidad y datos personales — miMAR",
 };
 
 export default async function PrivacidadPage() {

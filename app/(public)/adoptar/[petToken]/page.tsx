@@ -54,8 +54,8 @@ export async function generateMetadata({
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(eq(pets.publicToken, petToken))
     .limit(1);
-  if (!row) return { title: "Adopción — MiMAR" };
-  const title = `Adoptá a ${row.name} — MiMAR`;
+  if (!row) return { title: "Adopción — miMAR" };
+  const title = `Adoptá a ${row.name} — miMAR`;
   const desc =
     row.story?.slice(0, 150) ??
     `Conocé a ${row.name}, ${speciesLabel(row.species).toLowerCase()} en adopción${
@@ -490,7 +490,7 @@ export default async function AdoptarFichaPage({
               detail={isSterilized ? undefined : undefined}
             />
             <HealthRow
-              label="Microchip MiMAR"
+              label="Microchip miMAR"
               ok={hasMicrochip}
               detail={microchipMasked ?? undefined}
             />

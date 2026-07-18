@@ -203,7 +203,7 @@ export function PanoramaInformeSituacion({ model }: Props) {
           )}
           <p>{model.kAnonDisclosure}</p>
           <p>
-            Fuente: MiMAR — Centro de Situación Nacional. Toda vista es una proyección del registro
+            Fuente: miMAR — Centro de Situación Nacional. Toda vista es una proyección del registro
             de eventos.
           </p>
         </footer>

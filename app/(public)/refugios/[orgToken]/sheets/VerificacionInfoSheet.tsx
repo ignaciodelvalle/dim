@@ -37,13 +37,13 @@ export function VerificacionInfoSheet({ verifiedByName, verifiedAt }: Props) {
     >
       <div className="space-y-4 text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
         <p>
-          <span className="font-semibold text-[var(--color-ln-ink)]">Verificado por MiMAR</span>{" "}
+          <span className="font-semibold text-[var(--color-ln-ink)]">Verificado por miMAR</span>{" "}
           significa que el equipo confirmó que este refugio existe, tiene personería jurídica activa
           o un convenio con autoridad sanitaria, y que el contacto que figura responde.
         </p>
         <p>
-          Las postulaciones de adopción que mandás desde MiMAR llegan directo al equipo del refugio.
-          Coordinan los próximos pasos por email con cada candidato. MiMAR no interviene en la
+          Las postulaciones de adopción que mandás desde miMAR llegan directo al equipo del refugio.
+          Coordinan los próximos pasos por email con cada candidato. miMAR no interviene en la
           decisión final ni en la entrega del animal.
         </p>
         <p>

@@ -329,7 +329,7 @@ export function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
   // Unowned animal, location, or general — degrade gracefully.
   let descriptor: string;
   if (subject.kind === "unowned_animal") {
-    descriptor = "Animal sin identificar (no registrado en MiMAR)";
+    descriptor = "Animal sin identificar (no registrado en miMAR)";
   } else if (subject.kind === "location" && subject.locationLabel) {
     descriptor = `Ubicación: ${subject.locationLabel}`;
   } else if (subject.kind === "location") {

@@ -5,7 +5,7 @@ import { Icon } from "@/components/Icon";
 import { DATASET_DESCRIPTORS, DATASET_IDS, OPEN_DATA_LICENSE } from "@/lib/open-data/datasets";
 
 export const metadata: Metadata = {
-  title: "Transparencia activa — MiMAR",
+  title: "Transparencia activa — miMAR",
   description:
     "Datos abiertos de salud y bienestar animal por provincia, publicados bajo la Ley 27.275. Descargá los conjuntos en CSV o JSON, con su metodología y licencia.",
 };
@@ -69,7 +69,7 @@ export default function TransparenciaPage() {
             Transparencia activa
           </h1>
           <p className="text-md leading-relaxed text-[var(--color-ln-ink-2)]">
-            En el marco de la <strong>Ley 27.275 de acceso a la información pública</strong>, MiMAR
+            En el marco de la <strong>Ley 27.275 de acceso a la información pública</strong>, miMAR
             publica de forma abierta y reutilizable los indicadores de salud y bienestar animal que
             produce. Son datos <strong>agregados por provincia</strong>: no contienen datos
             personales, ni información de una mascota individual, ni ubicaciones exactas.

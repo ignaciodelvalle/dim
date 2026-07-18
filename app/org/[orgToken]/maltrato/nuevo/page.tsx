@@ -59,7 +59,7 @@ export default async function OrgNuevaDenunciaPage({
           }
           detail={
             !organization.verified
-              ? `${organization.displayName} todavía no fue verificada por MiMAR. El canal profesional de reporte se habilita una vez que la verificación esté aprobada.`
+              ? `${organization.displayName} todavía no fue verificada por miMAR. El canal profesional de reporte se habilita una vez que la verificación esté aprobada.`
               : `Tu rol actual dentro de la organización (${membership?.role ?? "—"}) no habilita este canal. Pediselo a un coordinador o admin de la organización para que lo emita en tu nombre.`
           }
         />

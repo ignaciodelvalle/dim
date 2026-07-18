@@ -550,7 +550,7 @@ export function ApplicationForm({
             />
             <span className="text-[13px]" style={{ color: "var(--color-ln-ink-2)" }}>
               Acepto compartir con el refugio mi historial de adopciones, fosters y mascotas en
-              MiMAR para que tomen una mejor decisión.{" "}
+              miMAR para que tomen una mejor decisión.{" "}
               <button
                 type="button"
                 onClick={() => setPrivacyModalOpen(true)}
@@ -592,7 +592,7 @@ export function ApplicationForm({
             </p>
             <p>
               <strong style={{ color: "var(--color-ln-ink)" }}>Qué compartirías:</strong> la lista
-              de tus adopciones previas en MiMAR (con outcome — exitosa, revertida, etc.), tus
+              de tus adopciones previas en miMAR (con outcome — exitosa, revertida, etc.), tus
               fosters previos, tus mascotas registradas actualmente. NO compartirías: tus
               notificaciones, otras postulaciones, denuncias, dirección exacta.
             </p>

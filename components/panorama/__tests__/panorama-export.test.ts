@@ -18,13 +18,13 @@ describe("buildExportFooter — auditable provenance (§3.6)", () => {
 
   it("includes data-as-of, source, scope, period and the suppressed-cell count", () => {
     expect(buildExportFooter(base)).toBe(
-      "Datos al 4 jul 2026 · MiMAR · Nacional · últimos 90 días · 3 celdas protegidas por privacidad",
+      "Datos al 4 jul 2026 · miMAR · Nacional · últimos 90 días · 3 celdas protegidas por privacidad",
     );
   });
 
   it("omits the suppressed-cell segment when nothing is suppressed", () => {
     expect(buildExportFooter({ ...base, suppressedCount: 0 })).toBe(
-      "Datos al 4 jul 2026 · MiMAR · Nacional · últimos 90 días",
+      "Datos al 4 jul 2026 · miMAR · Nacional · últimos 90 días",
     );
   });
 

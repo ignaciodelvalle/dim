@@ -239,7 +239,7 @@ export function WelfareReportForm({
 
       {/* Conditional subject fields */}
       {subjectKind === "registered_pet" && (
-        <LnField label="Código MiMAR de la mascota">
+        <LnField label="Código miMAR de la mascota">
           {({ id, describedBy }) => (
             <LnInput
               id={id}
