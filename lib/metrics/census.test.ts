@@ -206,17 +206,19 @@ describe("funnelPercents", () => {
 
 describe("estimateDogPopulation", () => {
   it("applies the dogs-per-inhabitant factor and rounds to a whole dog", () => {
-    // 2.000.000 hab × 0,152 = 304.000 perros estimados.
-    expect(estimateDogPopulation(2_000_000)).toBe(304_000);
+    // 2.000.000 hab × 0,158 = 316.000 perros estimados.
+    expect(estimateDogPopulation(2_000_000)).toBe(316_000);
   });
 
-  it("reproduces the ~475k CABA anchor from the human census (3,12 M hab)", () => {
-    // CABA INDEC 2022 = 3.120.612 hab → ≈ 474.333 perros (the EAH ~475k anchor).
-    expect(estimateDogPopulation(3_120_612)).toBe(
-      Math.round(3_120_612 * ESTIMATED_DOGS_PER_INHABITANT),
+  it("reproduces the ~493k EAH CABA 2022 anchor from the human census (3,12 M hab)", () => {
+    // CABA INDEC 2022 (definitivo) = 3.121.707 hab → ≈ 493.230 perros, the
+    // GCBA EAH 2022 anchor (493.676 perros censados) this factor is derived
+    // from — see ESTIMATED_DOGS_PER_INHABITANT's doc comment.
+    expect(estimateDogPopulation(3_121_707)).toBe(
+      Math.round(3_121_707 * ESTIMATED_DOGS_PER_INHABITANT),
     );
-    expect(estimateDogPopulation(3_120_612)).toBeGreaterThan(470_000);
-    expect(estimateDogPopulation(3_120_612)).toBeLessThan(480_000);
+    expect(estimateDogPopulation(3_121_707)).toBeGreaterThan(490_000);
+    expect(estimateDogPopulation(3_121_707)).toBeLessThan(497_000);
   });
 
   it("returns null when there is no usable human population (no census row)", () => {
@@ -232,21 +234,21 @@ describe("estimateDogPopulation", () => {
 
 describe("computeCensusCoverage", () => {
   it("returns the estimated canine denominator and the registry-of-census %", () => {
-    // 2.000.000 hab → 304.000 perros estimados; 15.200 registrados → 5,0%.
+    // 2.000.000 hab → 316.000 perros estimados; 15.200 registrados → 4,8%.
     const cov = computeCensusCoverage(15_200, 2_000_000);
-    expect(cov).toEqual({ censusDenominator: 304_000, censusCoveragePct: 5 });
+    expect(cov).toEqual({ censusDenominator: 316_000, censusCoveragePct: 4.8 });
   });
 
   it("rounds the coverage percentage to one decimal", () => {
-    // 100.000 hab → 15.200 perros estimados; 1.000 registrados → 6,578… → 6,6%.
+    // 100.000 hab → 15.800 perros estimados; 1.000 registrados → 6,329… → 6,3%.
     const cov = computeCensusCoverage(1_000, 100_000);
-    expect(cov?.censusDenominator).toBe(15_200);
-    expect(cov?.censusCoveragePct).toBe(6.6);
+    expect(cov?.censusDenominator).toBe(15_800);
+    expect(cov?.censusCoveragePct).toBe(6.3);
   });
 
   it("returns 0% coverage when the registry is empty but a census estimate exists", () => {
     const cov = computeCensusCoverage(0, 1_000_000);
-    expect(cov).toEqual({ censusDenominator: 152_000, censusCoveragePct: 0 });
+    expect(cov).toEqual({ censusDenominator: 158_000, censusCoveragePct: 0 });
   });
 
   it("returns null when no census estimate is available (no census row → graceful)", () => {

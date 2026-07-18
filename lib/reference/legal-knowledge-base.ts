@@ -72,7 +72,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
       },
       {
         id: "ley-14107-pba",
-        lawLabel: "Ley Provincial 14.107 / 2010",
+        lawLabel: "Ley Provincial 14.107 / 2009",
         jurisdictionBadge: "Buenos Aires",
         plainMeaning:
           "Si vivís en la Provincia de Buenos Aires y tu perro es de una raza del Anexo I, el microchip no es opcional: es obligatorio antes de los 6 meses.",
@@ -82,12 +82,17 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
           "Dueños de perros de las razas listadas en el Anexo I, con residencia en la Provincia de Buenos Aires.",
         mimarObligation:
           "MiMAR marca automáticamente a tu mascota como raza potencialmente peligrosa según la lista de esta ley, cuando tu jurisdicción es la Provincia de Buenos Aires.",
-        sourceLabel: "Ley 14.107/2010 — texto completo",
+        sourceLabel: "Ley 14.107/2009 — texto completo",
         sourceUrl: "https://normas.gba.gob.ar/documentos/0PNzEIAB.html",
       },
       {
+        // Year convention: sanción (01/12/2011), not publicación (27/01/2012
+        // BOCBA). Chosen for consistency with how this file cites every other
+        // law by sanction year (e.g. Ley 14.346/1954, Ley 22.953/1983).
+        // Verified 2026-07-18 against the research package
+        // (umbrales-legales-jurisdiccion.md) — do not revert to "/2012".
         id: "ley-caba-4078",
-        lawLabel: "Ley CABA 4078 / 2012",
+        lawLabel: "Ley CABA 4078 / 2011",
         jurisdictionBadge: "CABA",
         plainMeaning:
           "En CABA, si tu perro es de una de las 17 razas listadas (o cruza de más de 20 kg), necesitás anotarlo antes de los 3 meses y tener un seguro vigente.",
@@ -97,7 +102,7 @@ export const LEGAL_KNOWLEDGE_GROUPS: LegalKnowledgeGroup[] = [
           "Dueños de las 17 razas listadas (o cruzas de más de 20 kg) residentes en CABA.",
         mimarObligation:
           "El registro de raza peligrosa en MiMAR guarda el dato de la póliza de responsabilidad civil que exige esta ley, y permite a las autoridades verificar el cumplimiento por jurisdicción.",
-        sourceLabel: "Ley CABA 4078/2012 — texto completo",
+        sourceLabel: "Ley CABA 4078/2011 — texto completo",
         sourceUrl: "https://boletinoficial.buenosaires.gob.ar/normativaba/norma/302801",
       },
       {

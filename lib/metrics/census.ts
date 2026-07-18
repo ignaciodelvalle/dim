@@ -62,21 +62,40 @@ export const DORMANT_MONTHS_DEFAULT = 12;
  * from the human census.
  *
  * WHY A FACTOR: `jurisdictions_census.population` holds INDEC 2022 **human**
- * totals (migration 0067), NOT a dog census. Coverage metrics are dogs-based, so
- * expressing "el padrón cubre X% de la población canina estimada" requires a
- * dog-ownership factor applied to the human population.
+ * totals (migration 0067/0153), NOT a dog census. Coverage metrics are
+ * dogs-based, so expressing "el padrón cubre X% de la población canina
+ * estimada" requires a dog-ownership factor applied to the human population.
  *
- * VALUE / PROVENANCE: 0.152 dogs/inhabitant, anchored to the CABA Encuesta Anual
- * de Hogares dog-ownership estimate (~475.000 perros over ~3,12 M habitantes ≈
- * 0,152) and applied nationally as a FIRST-PASS proxy. This is an explicit
- * ASSUMPTION, not a measured national figure — urban/rural ratios differ. When a
- * per-jurisdiction canine census becomes available, replace this factor with a
- * real dog-population column and drop the derivation.
+ * NO OFFICIAL NATIONAL FIGURE EXISTS: neither INDEC, SENASA nor the Ministerio
+ * de Salud publish a verifiable national dog-population count (verified
+ * 2026-07-18 research pass — datos-investigados-2026-07-18/poblacion-canina-denominador.md).
+ * The widely-repeated "~10 millones de perros" / "1 perro cada 10 habitantes"
+ * figures are press claims with NO primary citation and are NOT attributable to
+ * OMS/OPS — that attribution could not be verified against any primary source
+ * and must never be used here.
+ *
+ * VALUE / PROVENANCE: 0.158 dogs/inhabitant — dogs-per-inhabitant ratio from the
+ * GCBA Encuesta Anual de Hogares (EAH) 2022, módulo Tenencia responsable de
+ * perros y gatos: 493.676 perros over CABA's 3.121.707 habitantes (INDEC Censo
+ * 2022) = 0,158 (≈16 perros cada 100 hab., the research package's headline
+ * "0,16 perros/hab."). This is the highest-confidence CITABLE anchor available
+ * (an official household survey, not a press estimate) — see
+ * poblacion-canina-denominador.md option A. Applied nationally as a FIRST-PASS
+ * proxy; this is an explicit ASSUMPTION, not a measured national figure — CABA
+ * (the capital) is documented to have atypically LOW dog ownership vs the rest
+ * of the country, so this ratio is a defensible FLOOR, likely an
+ * underestimate nationally. The OPS/PANAFTOSA 2026 methodology (the field's
+ * current authority) explicitly discourages extrapolating national dog
+ * populations from fixed ratios and recommends household sampling instead —
+ * this factor is a stopgap until a per-jurisdiction canine census or a
+ * PANAFTOSA-method estimate becomes available, at which point this constant
+ * should be replaced with a real dog-population column and the derivation
+ * dropped.
  *
  * Every surface that uses it MUST name it as "estimada" so the number is never
  * read as a hard count (design rule: name your denominator).
  */
-export const ESTIMATED_DOGS_PER_INHABITANT = 0.152;
+export const ESTIMATED_DOGS_PER_INHABITANT = 0.158;
 
 /**
  * Registry-coverage-of-census shape: the SECOND denominator that turns a bare
