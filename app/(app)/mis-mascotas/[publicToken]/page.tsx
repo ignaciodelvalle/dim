@@ -53,6 +53,7 @@
 
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
+import { CarouselBandDots } from "@/components/pet-profile/CarouselBandDots";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
 import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
@@ -740,9 +741,18 @@ export default async function PetDetailPage({
     currentToken: pet.publicToken,
   });
 
-  // The credential document — server-rendered per route. A swipe/arrow/dot is a
+  // Carousel position dots — rendered INSIDE the document band on both faces
+  // (tarjeta-todo: pure-design position signal, no page text; the honest-cap
+  // "mostrando N de M" disclosure lives in the group's aria-label). Threaded
+  // through PetDetailTabsPanel → FlipCard → DocumentChrome, mounted outside
+  // the aria-hidden band wrapper like the turn button and state chip.
+  const bandDots = showCarousel ? (
+    <CarouselBandDots pets={carouselPets} currentToken={pet.publicToken} liveTotal={liveTotal} />
+  ) : null;
+
+  // The credential document — server-rendered per route. A swipe/key/dot is a
   // NAVIGATION to the neighbor's route, not a client pane slide, so this same
-  // node renders whether or not the carousel chrome wraps it.
+  // node renders whether or not the carousel gesture shell wraps it.
   const documentNode = (
     <Suspense
       fallback={
@@ -754,6 +764,7 @@ export default async function PetDetailPage({
         initialFace={activeFace}
         isOwner={isOwner}
         situation={chromeSituation}
+        bandDots={bandDots}
         emergencyContacts={
           // owner-ia-redesign P2: pet-level override with account fallback.
           // Resolution is pure (lib/domain/emergency-contacts.ts) — the pet's
@@ -869,17 +880,15 @@ export default async function PetDetailPage({
       {/* owns identity/credential + avisos + capture, per the new AGENTS.md */}
       {/* rule 5 block order (design.md ADR-1/ADR-6).                        */}
       {/*                                                                    */}
-      {/* owner-ia-redesign P4 — when the owner has more than one live pet,  */}
-      {/* the document is wrapped by the credential carousel shell (position */}
-      {/* dots + desktop arrows + constrained swipe). Non-owner viewers, and */}
-      {/* owners with a single live pet, get the bare document (no chrome).  */}
+      {/* owner-ia-redesign P4 / tarjeta-todo — when the owner has more than  */}
+      {/* one live pet, the document is wrapped by the INVISIBLE carousel     */}
+      {/* gesture shell (constrained swipe + keyboard + prefetch); the        */}
+      {/* position dots render inside the document band (bandDots above).    */}
+      {/* Non-owner viewers, and owners with a single live pet, get the bare  */}
+      {/* document (no shell, no dots).                                       */}
       {/* ------------------------------------------------------------------ */}
       {showCarousel ? (
-        <PetCredentialCarousel
-          pets={carouselPets}
-          currentToken={pet.publicToken}
-          liveTotal={liveTotal}
-        >
+        <PetCredentialCarousel pets={carouselPets} currentToken={pet.publicToken}>
           {documentNode}
         </PetCredentialCarousel>
       ) : (

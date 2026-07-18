@@ -41,6 +41,14 @@ type DocumentChromeProps = {
   /** Active pet situation — recolors the band (data-situation CSS variants)
    *  and renders the state chip on BOTH faces. Null = default blue band. */
   situation?: ChromeSituation | null;
+  /**
+   * Carousel position dots (CarouselBandDots), rendered in the band on BOTH
+   * faces (tarjeta-todo). Mounted OUTSIDE the aria-hidden band wrapper — same
+   * pattern as the turn button and the state chip — so the dots keep their
+   * accessible names. Null/absent (single-pet owners, non-owner viewers) →
+   * no dots.
+   */
+  bandDots?: ReactNode;
   children: ReactNode;
 };
 
@@ -49,6 +57,7 @@ export function DocumentChrome({
   onFlip,
   isLibretaActive,
   situation,
+  bandDots,
   children,
 }: DocumentChromeProps) {
   const isCredencial = face === "credencial";
@@ -76,6 +85,15 @@ export function DocumentChrome({
           <Icon name={situation.icon} size="sm" decorative />
           {situation.label}
         </span>
+      )}
+      {/* Carousel dots — in the band, right-of-center (tarjeta-todo), in the
+          free strip between the turn button (ends ~y54) and the photo/QR
+          poke-ups (start y64). Outside the aria-hidden wrapper, like the chip
+          and the turn button, so the group keeps its accessible name. */}
+      {bandDots && (
+        <div data-section="band-dots" className="absolute left-1/2 top-[52px] z-[4] translate-x-3">
+          {bandDots}
+        </div>
       )}
       {/* Turn button sits over the band but outside the aria-hidden wrapper so
           it keeps its accessible name. */}

@@ -58,6 +58,9 @@ type FlipCardProps = {
   /** Pet situation for the chrome band — threaded to BOTH DocumentChrome faces
    *  so flipping the card never loses the state (pet-state-header). */
   situation?: ChromeSituation | null;
+  /** Carousel band dots (tarjeta-todo) — threaded to BOTH DocumentChrome
+   *  faces so flipping the card never loses the position indicator. */
+  bandDots?: ReactNode;
 };
 
 function prefersReducedMotion(): boolean {
@@ -68,7 +71,7 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCardProps) {
+export function FlipCard({ front, back, activeFace, onFlip, situation, bandDots }: FlipCardProps) {
   // `displayedFace` lags `activeFace` during the turn — it swaps at the edge-on
   // midpoint so the content change is invisible. Initialised to activeFace so
   // the FIRST render (server + client hydration) is identical and deterministic.
@@ -162,6 +165,7 @@ export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCar
                 onFlip={onFlip}
                 isLibretaActive={isLibretaActive}
                 situation={situation}
+                bandDots={bandDots}
               >
                 {front}
               </DocumentChrome>
@@ -179,6 +183,7 @@ export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCar
                 onFlip={onFlip}
                 isLibretaActive={isLibretaActive}
                 situation={situation}
+                bandDots={bandDots}
               >
                 {back}
               </DocumentChrome>
