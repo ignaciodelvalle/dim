@@ -22,6 +22,7 @@ import {
   WELFARE_REPORT_STATUSES,
   type WelfareReportKind,
   type WelfareReportSeverity,
+  welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
 import { and, count, desc } from "drizzle-orm";
 
@@ -233,7 +234,12 @@ export default async function GobMaltratoPage({
             }}
           />
           <OpKpi
-            label="En investigación"
+            // ONE status vocabulary (UI/UX audit 2026-07): the tile label comes
+            // from the SAME domain label registry the rows render with
+            // (welfareReportStatusLabel), so the stat can never say
+            // "En investigación" while the row pill says "En curso" for the
+            // same status='in_progress'. Never an inline synonym here.
+            label={welfareReportStatusLabel("in_progress")}
             value={String(metrics.inProgressCount)}
             tone="neutral"
             info={{
