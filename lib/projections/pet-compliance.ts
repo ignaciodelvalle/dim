@@ -193,7 +193,24 @@ function declaradaCard(
   hint: string,
   detail: string | null = null,
 ): ObligationCard {
-  return { key, label, state: DECLARADA_STATE, tone: "neutral", detail, legalFootnote, hint };
+  // provenance: "declarado" — something IS on record, it just isn't
+  // professional/institutional-verified (medianos-sesión-2 finding #4). Without
+  // this, every declared-only card (sterilization, microchip, and the rabies
+  // fallback below) was indistinguishable from a genuinely absent obligation to
+  // any surface deriving wording from `tone` alone — the credential-face summary
+  // (CredentialFace.tsx) read a Declarada card as "falta X" (missing), the exact
+  // contradiction its own doc comment warns against ("a declared-only card is
+  // not 'falta'").
+  return {
+    key,
+    label,
+    state: DECLARADA_STATE,
+    tone: "neutral",
+    detail,
+    legalFootnote,
+    hint,
+    provenance: "declarado",
+  };
 }
 
 // The latest rabies vaccination event (by occurredAt), if any.

@@ -144,8 +144,20 @@ export function CredentialFace({
   const compliancePending = complianceState.cards.find(
     (c) => c.tone !== "ok" && c.tone !== "reserved",
   );
+  // A card that is "neutral" AND "declarado" HAS a record — the owner declared
+  // it (or an org registered it without a matrícula) — it just isn't
+  // professional/institutional-verified yet. That is a materially different
+  // claim from a genuinely absent obligation (medianos-sesión-2 finding #4: the
+  // panel said "falta vacuna antirrábica" for a dose that was Declarada ·
+  // Vigente, which reads as "you have nothing" when the owner DOES have a
+  // current dose on record). A due/overdue declared card keeps "falta X" —
+  // it's genuinely due regardless of who declared it.
+  const pendingIsDeclaredOnly =
+    compliancePending?.tone === "neutral" && compliancePending.provenance === "declarado";
   const complianceSummary = compliancePending
-    ? `${complianceState.summary.label} · falta ${compliancePending.label.toLowerCase()}`
+    ? pendingIsDeclaredOnly
+      ? `${complianceState.summary.label} · ${compliancePending.label.toLowerCase()} sin verificar`
+      : `${complianceState.summary.label} · falta ${compliancePending.label.toLowerCase()}`
     : complianceState.summary.label;
   const complianceStamp =
     complianceState.worstTone === "ok" ||
