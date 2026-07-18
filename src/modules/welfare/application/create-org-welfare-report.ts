@@ -393,6 +393,11 @@ export async function createOrgWelfareReport(
       await repo.insertNotifications(
         pendingNotifications as Parameters<typeof repo.insertNotifications>[0],
       );
+      // Web Push leg — urgent-only filtering happens inside the seam (the
+      // critical-report fan-out above is severity "urgent"); best-effort,
+      // never throws into the action path. Runs AFTER the tx committed.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error("[welfare] notifications insert failed (action did succeed)", e);
     }
