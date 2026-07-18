@@ -69,4 +69,26 @@ describe("PanoramaKpiTile — v+1 rail (meta-progress meters + sparklines)", () 
     expect(html).toContain("Tasa de reunificación");
     expect(html).toContain("45,2%");
   });
+
+  // Per-tile degradation: a tile whose PRIMARY fetcher rejected renders an honest
+  // self-contained "no disponible" card — its label (so the operator knows WHICH
+  // metric failed) but NO numbers (parity: never a stale/wrong figure).
+  it("renders an honest 'no disponible' card for an unavailable tile", () => {
+    const UNAVAILABLE_KPI: PanoramaKpi = {
+      id: "mordeduras",
+      label: "Mordeduras / 10k hab.",
+      value: "—",
+      tone: "neutral",
+      href: "/gob/vigilancia",
+      source: "govt-home-kpis.fetchBitesPer10k",
+      info: { definition: "def" },
+      unavailable: true,
+    };
+    const html = renderToStaticMarkup(<PanoramaKpiTile kpi={UNAVAILABLE_KPI} />);
+    expect(html).toContain("Mordeduras / 10k hab.");
+    expect(html).toContain("No disponible en este momento.");
+    // No numbers, and no OpKpi delta/sparkline/bar chrome leaked in.
+    expect(html).not.toContain("width:");
+    expect(html).not.toContain('data-icon-name="chevron');
+  });
 });

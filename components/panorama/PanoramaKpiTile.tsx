@@ -29,6 +29,28 @@ type Props = {
 };
 
 export function PanoramaKpiTile({ kpi }: Props) {
+  // Per-tile degradation (2026-07): this tile's PRIMARY fetcher rejected while its
+  // siblings succeeded. Render a self-contained "no disponible" card — same OpKpi
+  // footprint (min-h-[112px]) and label, dashed border to signal the degraded
+  // state, NO numbers (parity: an unavailable tile never shows a stale figure).
+  // The operator still sees WHICH metric failed via the label.
+  if (kpi.unavailable) {
+    return (
+      <div
+        aria-label={`${kpi.label}: no disponible`}
+        className="flex min-h-[112px] flex-col rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card p-[14px_16px]"
+      >
+        <span className="mb-2 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {kpi.label}
+        </span>
+        <span className="font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] text-ln-op-mute">
+          —
+        </span>
+        <p className="mt-auto pt-1.5 text-[11px] text-ln-op-mute">No disponible en este momento.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1">
       <OpKpi

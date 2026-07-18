@@ -746,12 +746,55 @@ describe("getPanoramaKpis", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // NEVER-CRASH FAN-OUT (task #74): a failing fetcher must throw a typed error
-  // WITHOUT abandoning its siblings (the source of the prod unhandledRejection).
+  // NEVER-CRASH FAN-OUT (task #74) + PER-TILE DEGRADATION (2026-07): a failing
+  // fetcher must degrade ONLY its own tile (honest "no disponible") while the
+  // siblings render — WITHOUT abandoning any promise (the prod unhandledRejection).
+  // The whole strip only collapses to the empty degraded state when ALL fail.
   // ---------------------------------------------------------------------------
 
-  it("throws PanoramaKpisUnavailableError when a fetcher rejects (does not build a partial strip)", async () => {
+  it("degrades ONLY the affected tile when a fetcher rejects (per-tile, not all-or-nothing)", async () => {
     vi.mocked(fetchBitesPer10k).mockRejectedValue(new Error("pooler timeout"));
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));
+    // The mordeduras tile (primary = fetchBitesPer10k) is unavailable — "—", no numbers.
+    expect(byId.mordeduras.unavailable).toBe(true);
+    expect(byId.mordeduras.value).toBe("—");
+    expect(byId.mordeduras.delta).toBeUndefined();
+    expect(byId.mordeduras.sparkline).toBeUndefined();
+    // …but it keeps its metadata so the operator sees WHICH metric failed.
+    expect(byId.mordeduras.label).toBe("Mordeduras / 10k hab.");
+    // Every OTHER tile still renders its real numbers (parity intact).
+    expect(byId.cobertura.unavailable).toBeFalsy();
+    expect(byId.cobertura.value).toBe("72,4%");
+    expect(byId.esterilizacion.unavailable).toBeFalsy();
+  });
+
+  it("drops only the enrichment (delta/sparkline) when a prior/trend fetcher rejects — tile survives", async () => {
+    // The bites PRIOR-window run [8] and trend [14] are enrichments; the current
+    // window [3] still resolves. The mordeduras tile renders its value but sheds
+    // the delta / sparkline rather than degrading.
+    vi.mocked(fetchBitesTrend).mockRejectedValue(new Error("trend timeout"));
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const mordeduras = kpis.find((k) => k.id === "mordeduras");
+    expect(mordeduras?.unavailable).toBeFalsy();
+    expect(mordeduras?.value).not.toBe("—");
+    expect(mordeduras?.sparkline).toBeUndefined();
+  });
+
+  it("throws PanoramaKpisUnavailableError only when EVERY tile's primary rejects", async () => {
+    // Reject every PRIMARY tile fetcher → no tile can be built → the strip
+    // collapses to the empty degraded state (throw → caller degrades).
+    const boom = () => Promise.reject(new Error("all down"));
+    vi.mocked(fetchRabiesCoverage).mockImplementation(boom);
+    vi.mocked(fetchSterilizationCoverage).mockImplementation(boom);
+    vi.mocked(fetchMicrochipPenetration).mockImplementation(boom);
+    vi.mocked(fetchDangerousBreedCompliance).mockImplementation(boom);
+    vi.mocked(fetchPerdidasMetrics).mockImplementation(boom);
+    vi.mocked(fetchReunificationRate).mockImplementation(boom);
+    vi.mocked(fetchBitesPer10k).mockImplementation(boom);
+    vi.mocked(loadZoonosisSignalScopeTotal).mockImplementation(boom);
+    vi.mocked(fetchOpenWelfareReportsCount).mockImplementation(boom);
+    vi.mocked(loadMortalityByProvince).mockImplementation(boom);
     await expect(getPanoramaKpis({ role: "admin" }, [], period)).rejects.toBeInstanceOf(
       PanoramaKpisUnavailableError,
     );
@@ -763,15 +806,17 @@ describe("getPanoramaKpis", () => {
     try {
       // One fetcher rejects immediately; a sibling rejects a tick LATER. With
       // Promise.all the late sibling would be abandoned → unhandledRejection.
-      // With allSettled both are awaited before we throw, so nothing dangles.
+      // With allSettled both are awaited before we build, so nothing dangles —
+      // even though the strip now degrades per-tile instead of throwing.
       vi.mocked(fetchRabiesCoverage).mockRejectedValue(new Error("first"));
       vi.mocked(fetchActiveZoonosis).mockImplementation(
         () => new Promise((_, reject) => setTimeout(() => reject(new Error("late sibling")), 20)),
       );
 
-      await expect(getPanoramaKpis({ role: "admin" }, [], period)).rejects.toBeInstanceOf(
-        PanoramaKpisUnavailableError,
-      );
+      const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+      // cobertura degraded (its primary rejected); the strip is partial, not empty.
+      expect(kpis.find((k) => k.id === "cobertura")?.unavailable).toBe(true);
+      expect(kpis.some((k) => !k.unavailable)).toBe(true);
 
       // Give the late sibling time to reject and flush microtasks.
       await new Promise((r) => setTimeout(r, 60));

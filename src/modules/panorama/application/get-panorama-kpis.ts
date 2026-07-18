@@ -147,6 +147,16 @@ export type PanoramaKpi = {
    * mordeduras, zoonosis). Same visual language as /gob home's KPI tiles.
    */
   sparkline?: number[];
+  /**
+   * Per-tile degradation (2026-07): TRUE when THIS tile's backing PRIMARY fetcher
+   * rejected while others succeeded. The tile renders an honest, self-contained
+   * "no disponible" placeholder (value "—", neutral, no numbers) instead of
+   * dragging the WHOLE strip to the empty degraded state. Parity invariant: an
+   * unavailable tile is ABSENT of numbers — it never shows a stale/wrong figure.
+   * Absent/false → a real tile with parity-true numbers. The strip only collapses
+   * to the empty `degraded` payload when EVERY tile is unavailable.
+   */
+  unavailable?: boolean;
 };
 
 /**
@@ -321,7 +331,10 @@ function coberturaSub(
     registryDenominator: number;
     censusCoveragePct: number | null;
   },
-  coverageSigned: { current: number },
+  // Per-tile degradation: the signed-only fetcher is an ENRICHMENT — if it
+  // rejected while the primary coverage succeeded, drop the "firmado por
+  // matrícula" segment rather than fail the whole tile (null → omit it).
+  coverageSigned: { current: number } | null,
 ): string {
   const registry = `${formatCount(coverage.registryDenominator)} ${
     coverage.registryDenominator === 1 ? "perro" : "perros"
@@ -330,8 +343,11 @@ function coberturaSub(
     coverage.censusCoveragePct !== null
       ? `el padrón cubre ${formatPercent(coverage.censusCoveragePct)} de la población canina estimada`
       : "sin estimación censal";
-  const signed = `${formatPercent(coverageSigned.current)} firmado por matrícula`;
-  return `${registry} · ${census} · ${signed} · meta ${coverage.target}%`;
+  const signed =
+    coverageSigned !== null
+      ? `${formatPercent(coverageSigned.current)} firmado por matrícula`
+      : null;
+  return [registry, census, signed, `meta ${coverage.target}%`].filter(Boolean).join(" · ");
 }
 
 /**
@@ -501,44 +517,72 @@ export async function getPanoramaKpis(
     loadMortalityByProvince(actor, jurisdictions, adminProvince, adminLocality),
   ]);
 
-  // Any fetcher rejected → the strip cannot be built with parity. Log every
-  // failure and throw a typed error; callers degrade. (Every sibling has already
-  // settled above, so this throw abandons nothing.)
+  // PER-TILE DEGRADATION (2026-07, replacing the historical all-or-nothing throw):
+  // a single fetcher rejection used to degrade the WHOLE strip to empty. Now each
+  // tile is built from its PRIMARY fetcher; a tile whose primary rejected becomes
+  // an honest "no disponible" placeholder (post-pass below) while its siblings
+  // render their parity-true numbers. Log every failure. allSettled already
+  // awaited EVERY fetcher (never-crash fan-out, task #74), so nothing dangles.
   const rejections = settled.filter((r): r is PromiseRejectedResult => r.status === "rejected");
-  if (rejections.length > 0) {
-    for (const r of rejections) {
-      console.error("[panorama-kpis] fetcher failed:", r.reason);
-    }
-    throw new PanoramaKpisUnavailableError(rejections.length);
+  for (const r of rejections) {
+    console.error("[panorama-kpis] fetcher failed:", r.reason);
   }
 
-  // All fulfilled — narrow each settled result back to its fetcher's value type.
-  const value = <T>(r: PromiseSettledResult<T>): T => (r as PromiseFulfilledResult<T>).value;
-  const coverage = value(settled[0]);
-  const analytics = value(settled[1]);
-  const perdidas = value(settled[2]);
-  const bites = value(settled[3]);
-  const zoonosis = value(settled[4]);
-  const welfare = value(settled[5]);
-  const sterilization = value(settled[6]);
-  const priorCoverage = value(settled[7]);
-  const priorBites = value(settled[8]);
-  const ingestAt = value(settled[9]);
+  const fulfilled = <T>(r: PromiseSettledResult<T>): r is PromiseFulfilledResult<T> =>
+    r.status === "fulfilled";
+  // ENRICHMENT accessor: the settled value or null. Used for the adornments
+  // (deltas, sparklines, the signed sub-line, the zoonosis composite) — a
+  // rejected enrichment drops just that adornment, never the tile. PRIMARY values
+  // fall back to a neutral shape ONLY so the literal below computes without
+  // throwing; the post-pass then REPLACES any tile whose primary rejected with the
+  // unavailable placeholder, so a fallback value is never shown as a real figure.
+  const opt = <T>(r: PromiseSettledResult<T>): T | null => (fulfilled(r) ? r.value : null);
+
+  const coverage = opt(settled[0]) ?? {
+    current: 0,
+    target: 0,
+    registryDenominator: 0,
+    censusDenominator: 0,
+    censusCoveragePct: null,
+    partidos: 0,
+    hasData: false,
+  };
+  const analytics = opt(settled[1]); // footer denominator — nullable, guarded in the return.
+  const perdidas = opt(settled[2]) ?? { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
+  const bites = opt(settled[3]) ?? { rate: 0, delta: 0, reports: 0 };
+  // Zoonosis composite (activas hoy) — an ENRICHMENT for the sub/secondary; the
+  // PRIMARY value is the scope-signal total [16]. Null → drop sub/secondary.
+  const zoonosis = opt(settled[4]);
+  const welfare = opt(settled[5]) ?? { count: 0, inPeriod: 0 };
+  const sterilization = opt(settled[6]) ?? { rate: 0, sterilized: 0, total: 0, byProvince: [] };
+  const priorCoverage = opt(settled[7]); // enrichment (delta)
+  const priorBites = opt(settled[8]); // enrichment (delta)
+  const ingestAt = opt(settled[9]);
   // task #78 Part 3: signed-only coverage (firmado por matrícula) for the sub-line.
-  const coverageSigned = value(settled[10]);
+  const coverageSigned = opt(settled[10]); // enrichment (sub segment)
   // v+1 rail: meta-progress meters + sparklines.
-  const reunification = value(settled[11]);
-  const microchip = value(settled[12]);
-  const rabiesVaxTrend = value(settled[13]);
-  const bitesTrend = value(settled[14]);
-  const zoonosisTrend = value(settled[15]);
+  const reunification = opt(settled[11]) ?? {
+    ratePct: 0,
+    recovered: 0,
+    lostEpisodes: 0,
+    medianDaysToRecovery: 0,
+  };
+  const microchip = opt(settled[12]) ?? {
+    ratePct: 0,
+    chipped: 0,
+    active: 0,
+    byLocality: { value: [] as never, suppressedCount: 0 },
+  };
+  const rabiesVaxTrend = opt(settled[13]); // enrichment (sparkline)
+  const bitesTrend = opt(settled[14]); // enrichment (sparkline)
+  const zoonosisTrend = opt(settled[15]); // enrichment (sparkline)
   // Coherence hybrid (round 2, H1): the scope-wide outbreak_signal totals — the
   // PRIMARY zoonosis number (== Σ map cells) and its prior-window comparison.
-  const zoonosisSignals = value(settled[16]);
-  const priorZoonosisSignals = value(settled[17]);
+  const zoonosisSignals = opt(settled[16]) ?? 0;
+  const priorZoonosisSignals = opt(settled[17]); // enrichment (delta)
   // Orphaned-layer wiring: PPP registry adoption + mortality (both current-state).
-  const ppp = value(settled[18]);
-  const mortalityProv = value(settled[19]);
+  const ppp = opt(settled[18]) ?? { ratePct: 0, attested: 0, flaggedCount: 0 };
+  const mortalityProv = opt(settled[19]) ?? { cells: [], truncated: false };
   // Mortality KPI value = the scope total, i.e. Σ of the province choropleth cells
   // (each cell value is a raw deceased count — density metric). Guarantees the
   // headline number equals the sum of what the mortality map paints.
@@ -573,8 +617,10 @@ export async function getPanoramaKpis(
       source: "govt-home-kpis.fetchRabiesCoverage",
       // H9: cobertura is a PERCENTAGE — its period delta is percentage POINTS, not
       // a relative % of a % (which read as the implausible "+76%" the QA flagged).
-      delta: deltaOf(coverage.current, priorCoverage.current, "pts"),
-      sparkline: rabiesVaxTrend.points.map((p) => p.y),
+      // Enrichment guards: a rejected prior-window / trend fetcher drops the delta
+      // / sparkline adornment rather than the whole tile (per-tile degradation).
+      delta: priorCoverage ? deltaOf(coverage.current, priorCoverage.current, "pts") : undefined,
+      sparkline: rabiesVaxTrend ? rabiesVaxTrend.points.map((p) => p.y) : undefined,
       info: {
         definition:
           "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón registrado es el primer denominador; el segundo es la población canina estimada. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
@@ -704,8 +750,8 @@ export async function getPanoramaKpis(
       tone: "warn",
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchBitesPer10k",
-      delta: deltaOf(bites.rate, priorBites.rate),
-      sparkline: bitesTrend.points.map((p) => p.y),
+      delta: priorBites ? deltaOf(bites.rate, priorBites.rate) : undefined,
+      sparkline: bitesTrend ? bitesTrend.points.map((p) => p.y) : undefined,
       info: {
         definition:
           "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy).",
@@ -725,13 +771,21 @@ export async function getPanoramaKpis(
       id: "zoonosis",
       label: "Señales de zoonosis (período)",
       value: formatCount(zoonosisSignals),
-      sub: `${zoonosis.rabies} rabia · ${zoonosis.lepto} lepto · ${zoonosis.hidat} hidat.`,
-      secondary: `activas hoy: ${formatCount(zoonosis.count)} (rabia + mordeduras + 30d)`,
+      // Enrichment guard: the "activas hoy" composite [4] adorns the sub/secondary;
+      // if it rejected while the PRIMARY signal total [16] succeeded, drop the
+      // breakdown rather than show a fabricated "0 rabia · 0 lepto · 0 hidat".
+      sub: zoonosis
+        ? `${zoonosis.rabies} rabia · ${zoonosis.lepto} lepto · ${zoonosis.hidat} hidat.`
+        : undefined,
+      secondary: zoonosis
+        ? `activas hoy: ${formatCount(zoonosis.count)} (rabia + mordeduras + 30d)`
+        : undefined,
       tone: zoonosisSignals > 0 ? "danger" : "neutral",
       href: "/gob/vigilancia",
       source: "repository.loadZoonosisSignalScopeTotal",
-      delta: deltaOf(zoonosisSignals, priorZoonosisSignals),
-      sparkline: zoonosisTrend.points.map((p) => p.y),
+      delta:
+        priorZoonosisSignals != null ? deltaOf(zoonosisSignals, priorZoonosisSignals) : undefined,
+      sparkline: zoonosisTrend ? zoonosisTrend.points.map((p) => p.y) : undefined,
       info: {
         definition:
           "PRIMARIO: señales de zoonosis (eventos outbreak_signal) registradas en el período y alcance seleccionados — la MISMA población que dibuja el mapa y lista Registros; se mueve con la línea de tiempo. SECUNDARIO (activas hoy): total de señales zoonóticas activas de estado actual: mascotas con observación rábica en curso + casos bite_incident abiertos (deduplicados) + leptospirosis/hidatidosis de los últimos 30 días — un stock que no depende del período.",
@@ -791,6 +845,50 @@ export async function getPanoramaKpis(
     },
   ];
 
+  // PER-TILE DEGRADATION post-pass: replace any tile whose PRIMARY fetcher rejected
+  // with an honest "no disponible" placeholder — same id/label/href/source/info
+  // (so the operator still sees WHICH metric failed and what it would measure), but
+  // NO numbers (value "—", neutral, `unavailable`). This runs AFTER the literal
+  // build so the metadata is single-sourced from the tile definitions above; a
+  // fulfilled primary keeps its real, parity-true numbers untouched.
+  const PRIMARY_INDEX: Partial<Record<PanoramaKpiId, number>> = {
+    cobertura: 0,
+    esterilizacion: 6,
+    microchip: 12,
+    ppp: 18,
+    perdidas: 2,
+    reunificacion: 11,
+    mordeduras: 3,
+    zoonosis: 16,
+    denuncias: 5,
+    mortalidad: 19,
+  };
+  const degradedKpis: PanoramaKpi[] = kpis.map((tile) => {
+    const idx = PRIMARY_INDEX[tile.id];
+    // `settled[idx]` is the heterogeneous tuple's union; only `.status` is common,
+    // so check it directly (the generic `fulfilled` guard can't unify the union).
+    if (idx === undefined || settled[idx].status === "fulfilled") return tile;
+    return {
+      id: tile.id,
+      label: tile.label,
+      href: tile.href,
+      source: tile.source,
+      info: tile.info,
+      currentState: tile.currentState,
+      value: "—",
+      tone: "neutral",
+      unavailable: true,
+    };
+  });
+
+  // Strip-level empty state ONLY when EVERY tile is unavailable (all primaries
+  // rejected): throw the typed error so callers convert it to the empty degraded
+  // payload, exactly as the historical all-or-nothing path did. A PARTIAL failure
+  // keeps the surviving tiles and their real numbers.
+  if (degradedKpis.every((k) => k.unavailable)) {
+    throw new PanoramaKpisUnavailableError(rejections.length);
+  }
+
   // Fence honesty (cowork round 2): a NON-admin operator whose scope resolved to
   // ZERO jurisdictions (fenced out of the requested province) has NO data in
   // scope — the fetchers legitimately return 0, but "0%"/"0" reads as a real
@@ -799,7 +897,7 @@ export async function getPanoramaKpis(
   // recalc caption already says so. Admin universal ([] = national) is exempt.
   const noScopeData = actor.role !== "admin" && jurisdictions.length === 0;
   const displayKpis = noScopeData
-    ? kpis.map((k) => ({
+    ? degradedKpis.map((k) => ({
         ...k,
         value: "—",
         sub: undefined,
@@ -810,7 +908,7 @@ export async function getPanoramaKpis(
         currentState: undefined,
         tone: "neutral" as const,
       }))
-    : kpis;
+    : degradedKpis;
 
   return {
     kpis: displayKpis,
@@ -819,10 +917,14 @@ export async function getPanoramaKpis(
     // Context denominator ("N mascotas en cobertura") — a footer caption, not a
     // headline tile (metric-honesty demotion 2026-07-09). Same fetcher
     // (fetchAnalyticsMetrics.totalPets) as before; only its placement changed.
-    coverageDenominator: {
-      totalPets: analytics.totalPets,
-      href: "/gob/analytics",
-    },
+    // Per-tile degradation: null when the analytics fetcher itself rejected — the
+    // footer caption is omitted rather than showing a fabricated denominator.
+    coverageDenominator: analytics
+      ? {
+          totalPets: analytics.totalPets,
+          href: "/gob/analytics",
+        }
+      : null,
   };
 }
 
