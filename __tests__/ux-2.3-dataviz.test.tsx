@@ -258,7 +258,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
 
   it("renders the ⓘ button when info prop is provided", () => {
     const html = renderToStaticMarkup(kpiWithInfo);
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
   });
 
   it("renders aria-label on the ⓘ button", () => {
@@ -278,7 +278,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
 
   it("does NOT render ⓘ button when info prop is omitted", () => {
     const html = renderToStaticMarkup(<OpKpi label="Total" value={42} />);
-    expect(html).not.toContain("ⓘ");
+    expect(html).not.toContain('data-icon-name="info"');
     expect(html).not.toContain("Información sobre este indicador");
   });
 
@@ -299,7 +299,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
       />,
     );
     // Button renders regardless of open state.
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
     expect(html).toContain("Trazabilidad de disposición");
   });
 
@@ -316,7 +316,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
         }}
       />,
     );
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
     expect(html).toContain("Muertes notificables");
   });
 
@@ -334,7 +334,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
         }}
       />,
     );
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
     expect(html).toContain("Cumplimiento observación 10d");
   });
 
@@ -349,7 +349,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
         }}
       />,
     );
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
     expect(html).toContain("SLA notificación ENO");
   });
 
@@ -365,7 +365,7 @@ describe("OpKpi info prop — ⓘ tooltip rendering (UX 2.3 item 3)", () => {
         }}
       />,
     );
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
     expect(html).toContain("Densidad ATM/AMR");
   });
 });

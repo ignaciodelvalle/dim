@@ -4,7 +4,7 @@
 //   1. Cast variant = CastFila (Pampa + 4 hands; the orbit was NOT built)
 //   2. Public lookup = DIM public token / DEN denuncia code ONLY (no ISO chip)
 //   3. Beta = subtle chip in the trust row (NOT a full-width banner)
-//   4. Hero triad copy EXACT: "Gratis para siempre. Sin papeleo. Código abierto."
+//   4. Hero triad copy EXACT: "Gratis para siempre. Sin papeleo. Datos abiertos."
 //   5. Estado map = silhouette cartogram tinted celeste (single hue steps)
 // Plus structural invariants: 6 chapters + scroll-spy rail, 5 FAQ objections,
 // Empezar has EXACTLY 2 doors (no government door), real scannable QR.
@@ -60,7 +60,7 @@ describe("landing hero — credential + lost demo", () => {
   it("renders the EXACT PO-locked triad copy", () => {
     const html = renderHero();
     expect(html).toContain("Gratis para siempre.");
-    expect(html).toContain("Sin papeleo. Código abierto.");
+    expect(html).toContain("Sin papeleo. Datos abiertos.");
     // The old P4-1 variant must not resurface.
     expect(html).not.toContain("Tarda menos de un minuto");
   });
@@ -171,7 +171,7 @@ describe("life moments + FAQ + trust row", () => {
     expect(html).toContain("¿Cuánto cuesta?");
     expect(html).toContain('data-section="trust-row"');
     expect(html).toContain("Ley 25.326");
-    expect(html).toContain("Código abierto");
+    expect(html).toContain("Datos abiertos");
     expect(html).toContain(">beta<");
   });
 });

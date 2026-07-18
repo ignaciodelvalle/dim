@@ -95,7 +95,7 @@ describe("OpKpi — Fase 0 full-prop contract", () => {
 
   it("renders the ⓘ info button when info prop is provided", () => {
     const html = renderToStaticMarkup(FASE0_KPI);
-    expect(html).toContain("ⓘ");
+    expect(html).toContain('data-icon-name="info"');
     expect(html).toContain("Información sobre este indicador");
   });
 
@@ -116,7 +116,7 @@ describe("OpKpi — Fase 0 full-prop contract", () => {
 
   it("does NOT render ⓘ button when info prop is omitted", () => {
     const html = renderToStaticMarkup(<OpKpi label="Total" value={42} tone="neutral" />);
-    expect(html).not.toContain("ⓘ");
+    expect(html).not.toContain('data-icon-name="info"');
   });
 
   it("renders warn-tone card class when tone='warn'", () => {
