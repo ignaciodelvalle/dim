@@ -64,11 +64,12 @@ Don't add `Co-Authored-By` trailers. Don't include AI attribution.
 Run these locally before pushing. Don't outsource this to CI:
 
 ```bash
-pnpm verify            # one shot: typecheck + lint + lint:tokens + build
-pnpm test              # Vitest (needs db:start running) — run separately
+pnpm verify            # one shot: typecheck + ~30 fitness fences + build
+pnpm test              # Vitest, both projects (db project needs db:start)
+pnpm test:unit         # parallel no-DB project only (~30s, no Docker needed)
 ```
 
-`pnpm verify` is the static gate (tsc + Biome + design tokens + UI invariants + authz guards + dep-direction + RLS coverage + action line-budget ratchet + `next build`). **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test` (needs the local Supabase stack via `pnpm db:start`).
+`pnpm verify` is the static gate: tsc + Biome + the full fitness-fence chain (design tokens, UI invariants, authz guards, dep-direction, RLS coverage, file-size/uuid/plural/eyebrow ratchets, jscpd duplication ceiling, and the rest of the `lint:*` scripts in package.json — that list is the source of truth) + `next build`. **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test`: the `unit` project runs in parallel with no database; the serial `db` project needs the local Supabase stack via `pnpm db:start`.
 
 If a step fails on your branch but passes on `develop`, your branch is the source. Fix it before opening the PR.
 
