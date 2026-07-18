@@ -55,14 +55,14 @@ describe("VaccinationForm — vaccine combobox (Cowork B10)", () => {
     render(React.createElement(VaccinationForm, { action: noopAction, species: "dog" }));
 
     // No suggestion before focus.
-    expect(screen.queryByRole("button", { name: /Antirrábica/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Antirrábica/i })).toBeNull();
 
     fireEvent.focus(screen.getByPlaceholderText(/Empezá a tipear/i));
 
     // Canonical dog vaccines are present — Antirrábica leads the catalog.
-    expect(screen.getByRole("button", { name: /Antirrábica/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Antirrábica/i })).toBeInTheDocument();
     // Dog list is filtered by species (never the cat-only ones).
-    expect(screen.queryByRole("button", { name: /Triple felina/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Triple felina/i })).toBeNull();
   });
 
   it("filters as you type and lets you pick a suggestion", () => {
@@ -72,13 +72,13 @@ describe("VaccinationForm — vaccine combobox (Cowork B10)", () => {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: "anti" } });
 
-    const option = screen.getByRole("button", { name: /Antirrábica/i });
+    const option = screen.getByRole("option", { name: /Antirrábica/i });
     // onMouseDown drives the selection (fires before the input's onBlur closes it).
     fireEvent.mouseDown(option);
 
     expect(input.value).toBe("Antirrábica");
     // List closes after a pick.
-    expect(screen.queryByRole("button", { name: /Antirrábica/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Antirrábica/i })).toBeNull();
   });
 
   it("still allows free text that is not in the catalog", () => {
@@ -108,7 +108,7 @@ describe("VaccinationForm — vaccine combobox keyboard support (Cowork B10 a11y
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(input.value).toBe("Antirrábica");
-    expect(screen.queryByRole("button", { name: /Antirrábica/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Antirrábica/i })).toBeNull();
   });
 
   it("ArrowDown moves the active option and Enter selects it", () => {
@@ -140,11 +140,11 @@ describe("VaccinationForm — vaccine combobox keyboard support (Cowork B10 a11y
 
     const input = screen.getByPlaceholderText(/Empezá a tipear/i) as HTMLInputElement;
     fireEvent.focus(input);
-    expect(screen.getByRole("button", { name: /Antirrábica/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Antirrábica/i })).toBeInTheDocument();
 
     fireEvent.keyDown(input, { key: "Escape" });
 
-    expect(screen.queryByRole("button", { name: /Antirrábica/i })).toBeNull();
+    expect(screen.queryByRole("option", { name: /Antirrábica/i })).toBeNull();
     expect(input.value).toBe("");
   });
 

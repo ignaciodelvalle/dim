@@ -43,7 +43,7 @@ afterEach(() => {
 describe("LocationFields L1 — anonymous vs authed locality search", () => {
   it("uses the PUBLIC search action when allowAnonymous (signup)", async () => {
     render(<LocationFields mode="l1" allowAnonymous />);
-    const input = screen.getByRole("textbox");
+    const input = screen.getByRole("combobox");
     fireEvent.change(input, { target: { value: "Pal" } });
 
     await waitFor(() => expect(searchPublic).toHaveBeenCalled());
@@ -53,7 +53,7 @@ describe("LocationFields L1 — anonymous vs authed locality search", () => {
 
   it("uses the AUTH search action by default (authed surfaces)", async () => {
     render(<LocationFields mode="l1" />);
-    const input = screen.getByRole("textbox");
+    const input = screen.getByRole("combobox");
     fireEvent.change(input, { target: { value: "Pal" } });
 
     await waitFor(() => expect(searchAuth).toHaveBeenCalled());
