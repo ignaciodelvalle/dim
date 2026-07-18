@@ -16,18 +16,26 @@
 //   (d) IDEMPOTENCY — running the builder twice yields the same rows and advances
 //       the meta build timestamp.
 
-import { asc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, panoramaCube, panoramaCubeMeta } from "@/db";
-import type { DashboardActor } from "@/lib/metrics";
+import { db, panoramaCube, panoramaCubeMeta, panoramaKpiCube, panoramaKpiCubeMeta } from "@/db";
+import type { AnalyticsPeriod, DashboardActor } from "@/lib/metrics";
+import { buildProjectionContext } from "@/lib/metrics";
+import { fetchNetGrowth } from "@/lib/metrics/population-control";
 
 import type { LayerId } from "../../domain/types";
 import type { AggregationLevel } from "../../domain/types";
 import { refreshCube } from "../../infrastructure/cube-builder";
 import { getLayerFeatures } from "../get-layer-features";
 import type { LayerFeaturesResult } from "../get-layer-features";
+import { getPanoramaKpis } from "../get-panorama-kpis";
 import { loadLayerFeaturesFromCube } from "../load-layer-features-cube";
+import {
+  KPI_CUBE_BIRTHS_KPI,
+  KPI_CUBE_SCOPE_NATIONAL,
+  loadPanoramaKpisFromCube,
+} from "../load-panorama-kpis-cube";
 
 const ADMIN: DashboardActor = { role: "admin" };
 // Choropleth layers ignore the period entirely (current-state) — any `since` works.
@@ -64,6 +72,9 @@ beforeAll(async () => {
   const r = await refreshCube();
   expect(r.status).toBe("ok");
   expect(r.rowCount).toBeGreaterThan(0);
+  // The KPI-strip phase (migration 0151) rides the same refresh run.
+  expect(r.kpi.status).toBe("ok");
+  expect(r.kpi.rowCount).toBeGreaterThan(0);
 }, 240_000);
 
 afterAll(() => {
@@ -234,6 +245,119 @@ describe("staleness gate falls back to live", () => {
     // restore a fresh build for any later reads
     await db.update(panoramaCubeMeta).set({ builtAt: new Date() });
   });
+});
+
+// ---------------------------------------------------------------------------
+// KPI-strip cube (migration 0151) — the honesty fence for the whole feature:
+// for the seeded dataset, a cube-read strip must equal the live-read strip.
+// ---------------------------------------------------------------------------
+
+/** The period the KPI cube was built for (stored on its meta row). Passing it
+ * VERBATIM to the live fan-out makes the comparison window-identical — the only
+ * residual nondeterminism is the handful of now-anchored fixed windows inside
+ * the fetchers (e.g. perdidas "recuperadas 30d"), whose boundary would have to
+ * cross a seeded event within the seconds between build and assertion. */
+async function storedKpiPeriod(): Promise<AnalyticsPeriod> {
+  const [meta] = await db.select().from(panoramaKpiCubeMeta);
+  expect(meta?.periodSince).toBeTruthy();
+  expect(meta?.periodUntil).toBeTruthy();
+  return {
+    since: meta.periodSince as Date,
+    until: meta.periodUntil as Date,
+  };
+}
+
+describe("KPI strip cube == live parity (admin national, panorama default period)", () => {
+  it("cube-served strip equals the live fan-out field-for-field", async () => {
+    const period = await storedKpiPeriod();
+    const [cube, live] = await Promise.all([
+      loadPanoramaKpisFromCube({ actor: ADMIN, jurisdictions: [], period }),
+      getPanoramaKpis(ADMIN, [], period),
+    ]);
+    expect(cube, "cube must serve the eligible admin-national request").not.toBeNull();
+    const served = (cube as NonNullable<typeof cube>).value;
+
+    // Envelope parity: tiles (order included — display order is contract),
+    // caption, freshness, and the footer denominator. `toEqual` treats an
+    // undefined property and an absent one as equal, which is exactly the
+    // jsonb round-trip's behavior (undefined fields are dropped at store).
+    expect(served.kpis).toEqual(live.kpis);
+    expect(served.recalculatedFor).toBe(live.recalculatedFor);
+    expect(served.dataAsOf).toBe(live.dataAsOf);
+    expect(served.coverageDenominator).toEqual(live.coverageDenominator ?? null);
+    // A cube strip is never the degraded payload (builder honesty fence).
+    expect(served.degraded).toBeUndefined();
+    expect(served.kpis.some((k) => k.unavailable)).toBe(false);
+  }, 180_000);
+
+  it("births row (the cubed pregnancy/litter gap) equals live fetchNetGrowth", async () => {
+    const period = await storedKpiPeriod();
+    const [row] = await db
+      .select()
+      .from(panoramaKpiCube)
+      .where(
+        and(
+          eq(panoramaKpiCube.scope, KPI_CUBE_SCOPE_NATIONAL),
+          eq(panoramaKpiCube.kpi, KPI_CUBE_BIRTHS_KPI),
+        ),
+      );
+    expect(row, "the builder must store a births row").toBeTruthy();
+    // position NULL = not a strip tile — never assembled into the served strip.
+    expect(row.position).toBeNull();
+    const live = await fetchNetGrowth(buildProjectionContext(ADMIN, [], period));
+    expect(row.payload).toEqual(live);
+    // And indeed the served strip carries no births tile (no such tile exists).
+    const cube = await loadPanoramaKpisFromCube({ actor: ADMIN, jurisdictions: [], period });
+    expect(
+      (cube as NonNullable<typeof cube>).value.kpis.some(
+        (k) => (k.id as string) === KPI_CUBE_BIRTHS_KPI,
+      ),
+    ).toBe(false);
+  }, 60_000);
+});
+
+describe("KPI cube eligibility + staleness gates fall back to live (null)", () => {
+  it("ineligible requests: flag off / non-admin / drill / scrub / scoped / period mismatch", async () => {
+    const period = await storedKpiPeriod();
+    const eligible = { actor: ADMIN, jurisdictions: [], period };
+
+    process.env.CUBE_READS = "";
+    expect(await loadPanoramaKpisFromCube(eligible)).toBeNull();
+    process.env.CUBE_READS = "1";
+
+    expect(await loadPanoramaKpisFromCube({ ...eligible, actor: { role: "govt" } })).toBeNull();
+    expect(
+      await loadPanoramaKpisFromCube({ ...eligible, adminProvince: DRILL_PROVINCE }),
+    ).toBeNull();
+    expect(await loadPanoramaKpisFromCube({ ...eligible, asOf: new Date() })).toBeNull();
+    expect(
+      await loadPanoramaKpisFromCube({
+        ...eligible,
+        jurisdictions: [{ province: "La Pampa", locality: "Santa Rosa" }],
+      }),
+    ).toBeNull();
+    // A different preset (12m vs the stored 3y) misses the period gate.
+    const twelveMonths: AnalyticsPeriod = {
+      since: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000),
+      until: new Date(),
+    };
+    expect(await loadPanoramaKpisFromCube({ ...eligible, period: twelveMonths })).toBeNull();
+  }, 60_000);
+
+  it("meta status != 'ok' → null; built_at older than STALE_MAX → null", async () => {
+    const period = await storedKpiPeriod();
+    const eligible = { actor: ADMIN, jurisdictions: [], period };
+
+    await db.update(panoramaKpiCubeMeta).set({ status: "error" });
+    expect(await loadPanoramaKpisFromCube(eligible)).toBeNull();
+    await db.update(panoramaKpiCubeMeta).set({ status: "ok" });
+
+    const old = new Date(Date.now() - 7 * 60 * 60 * 1000); // 7h > 6h STALE_MAX
+    await db.update(panoramaKpiCubeMeta).set({ builtAt: old });
+    expect(await loadPanoramaKpisFromCube(eligible)).toBeNull();
+    // restore a fresh stamp for any later reads
+    await db.update(panoramaKpiCubeMeta).set({ builtAt: new Date() });
+  }, 60_000);
 });
 
 describe("builder idempotency", () => {
