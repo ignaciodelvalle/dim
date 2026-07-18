@@ -54,6 +54,9 @@ async function flushNotifications(pending: import("./types").NewNotification[]):
   try {
     // biome-ignore lint/suspicious/noExplicitAny: NewNotification is structurally compatible with notifications.$inferInsert
     await db.insert(notifications).values(pending as any[]);
+    // Web Push leg (ADR 2026-07-18 §4): urgent-only, best-effort, never throws.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications(pending);
   } catch (e) {
     console.error("notifications insert failed (writer succeeded)", e);
   }

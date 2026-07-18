@@ -18,6 +18,7 @@ import { redirect } from "next/navigation";
 import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
+import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   getOrgMembershipsCached,
@@ -87,6 +88,9 @@ export default async function AuthenticatedLayout({
       // secondary/overflow content.
       tabBar={<CitizenTabBar nav={shell.nav} />}
     >
+      {/* Web Push v1: registers /sw.js for the owner portal only. No-op unless
+          NEXT_PUBLIC_PUSH_ENABLED is set and the browser supports push. */}
+      <ServiceWorkerRegistrar />
       {children}
     </AppShell>
   );

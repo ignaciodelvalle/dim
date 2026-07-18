@@ -31,6 +31,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
 import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
+import { PushNotificationsCard } from "./_components/PushNotificationsCard";
 
 // Role display labels
 const ROLE_LABELS: Record<string, string> = {
@@ -408,6 +409,10 @@ export default async function CuentaPage() {
           description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
         />
       </div>
+
+      {/* Web Push v1 (feature-flagged): renders nothing unless
+          NEXT_PUBLIC_PUSH_ENABLED + VAPID public key are configured. */}
+      <PushNotificationsCard />
 
       {/* ------------------------------------------------------------------ */}
       {/* Zona de riesgo — personal accounts only. Visually separated:        */}

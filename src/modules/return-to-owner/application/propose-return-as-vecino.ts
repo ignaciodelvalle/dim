@@ -155,6 +155,9 @@ export async function proposeReturnAsVecinoUseCase({
   if (pendingNotifications.length > 0) {
     try {
       await db.insert(notifications).values(pendingNotifications);
+      // Web Push leg (ADR 2026-07-18 §4): urgent custodia, best-effort, never throws.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error("notifications insert failed (action did succeed)", e);
     }

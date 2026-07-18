@@ -44,6 +44,31 @@ an explicit empty string is a footgun, see below):
 
 - `NEXT_PUBLIC_SITE_URL` · `CRON_SECRET` · `DNI_HASH_PEPPER`
 
+### Web Push (VAPID) — optional feature flag, default OFF
+
+Owner-side Web Push (PWA push v1, `lib/infra/web-push.ts` + `public/sw.js`) is
+fully disabled unless ALL of these are set. Absent vars are safe everywhere —
+every push code path is a silent no-op without them.
+
+| Key | Side | What it is |
+|---|---|---|
+| `NEXT_PUBLIC_PUSH_ENABLED` | client + server | Kill switch. `1` or `true` to enable; anything else (or unset) disables SW registration, the /cuenta card, AND the server send path. |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | client + server | VAPID public key (base64url). Safe to expose — the browser needs it to subscribe. |
+| `VAPID_PRIVATE_KEY` | server only | VAPID private key. Secret — Vercel env / password manager, never committed. |
+
+Optional: `VAPID_SUBJECT` (a `mailto:` or `https:` contact URL per RFC 8292).
+Falls back to `NEXT_PUBLIC_SITE_URL`, so staging/prod need nothing extra.
+
+Generate the key pair **once per environment** and keep it stable — rotating
+the VAPID keys silently invalidates every stored `push_subscriptions` row
+(browsers reject pushes signed by an unknown key until users re-subscribe):
+
+```bash
+npx web-push generate-vapid-keys
+# → publicKey  → NEXT_PUBLIC_VAPID_PUBLIC_KEY
+# → privateKey → VAPID_PRIVATE_KEY
+```
+
 ---
 
 ## The rule: never hand-edit `.env.local` into a broken state

@@ -81,6 +81,9 @@ async function flushNotifications(pending: NewNotification[]): Promise<void> {
     await db
       .insert(notifications)
       .values(pending as unknown as (typeof notifications.$inferInsert)[]);
+    // Web Push leg (ADR 2026-07-18 §4): urgent-only, best-effort, never throws.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications(pending as unknown as (typeof notifications.$inferInsert)[]);
   } catch (e) {
     console.error("[pets/actions] notifications insert failed (action did succeed):", e);
   }
