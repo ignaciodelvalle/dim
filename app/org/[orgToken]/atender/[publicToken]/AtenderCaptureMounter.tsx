@@ -9,25 +9,43 @@
 // performs the full-document redirect returned by the action (N3 contract),
 // landing back on this surface with ?firmado=1.
 //
-// Only clinical event kinds are exposed — no custody/transfer/adoption.
-
+// Slot prefill (#5): AtenderQuickCapture and PendingSignaturesCard both land
+// here via extra searchParams (vaccineName, product, text, chipNumber,
+// occurredAt…) — read once and threaded into each form's own `defaults`
+// prop, the SAME mechanism VaccinationForm's `initialVaccineName` already
+// used for a single field before this change.
+//
+// The vaccine catalog HARD GATE (#5, PO decision) wraps VaccinationForm via
+// AtenderVaccinationGate — VaccinationForm itself is untouched.
+//
+// chip/esterilizacion (#3) are reachable ONLY through PendingSignaturesCard's
+// "Confirmar y firmar" CTA — never the ¿Qué querés registrar? grid, which
+// stays the original 5 clinical kinds. They let a matriculated vet sign an
+// owner-DECLARED chip/esterilización event in-system, not log a fresh one
+// from atender. `confirmEventId` travels as a bound server-action argument
+// (not a form field) so the client cannot forge which declared event a
+// signature targets.
 import { useSearchParams } from "next/navigation";
 
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 
 import { DewormingForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/antiparasitario/DewormingForm";
 import { ClinicalInfoForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/clinico/ClinicalInfoForm";
+import { SterilizationForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/esterilizacion/SterilizationForm";
 import { MedicationStartForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/medicacion-inicio/MedicationStartForm";
+import { MicrochipForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip/MicrochipForm";
 import { NoteForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/nota/NoteForm";
-import { VaccinationForm } from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vacuna/VaccinationForm";
 
 import {
   atenderClinicalInfoAction,
   atenderDewormingAction,
   atenderMedicationStartAction,
+  atenderMicrochipAction,
   atenderNoteAction,
+  atenderSterilizationAction,
   atenderVaccinationAction,
 } from "../actions";
+import { AtenderVaccinationGate } from "./AtenderVaccinationGate";
 
 // ATENDER_EVENTOS + AtenderEvento moved to ./atender-eventos (server-safe) so
 // the Server Component page.tsx can import the array without the client-boundary
@@ -44,6 +62,7 @@ export function AtenderCaptureMounter({
 }) {
   const searchParams = useSearchParams();
   const evento = searchParams.get("evento");
+  const sp = (key: string) => searchParams.get(key) ?? null;
 
   if (!evento) return null;
 
@@ -52,26 +71,57 @@ export function AtenderCaptureMounter({
   if (evento === "vacuna") {
     const action = atenderVaccinationAction.bind(null, orgToken, publicToken);
     form = (
-      <VaccinationForm
+      <AtenderVaccinationGate
         action={action}
         species={species}
-        defaults={{ occurredAt: null, notes: null }}
+        initialVaccineName={sp("vaccineName") ?? undefined}
       />
     );
   } else if (evento === "desparasitacion") {
     const action = atenderDewormingAction.bind(null, orgToken, publicToken);
     form = (
-      <DewormingForm action={action} defaults={{ product: null, occurredAt: null, notes: null }} />
+      <DewormingForm
+        action={action}
+        defaults={{ product: sp("product"), occurredAt: sp("occurredAt"), notes: null }}
+      />
     );
   } else if (evento === "cirugia") {
     const action = atenderClinicalInfoAction.bind(null, orgToken, publicToken);
-    form = <ClinicalInfoForm action={action} defaults={{ occurredAt: null, notes: null }} />;
+    form = (
+      <ClinicalInfoForm action={action} defaults={{ occurredAt: sp("occurredAt"), notes: null }} />
+    );
   } else if (evento === "medicacion") {
     const action = atenderMedicationStartAction.bind(null, orgToken, publicToken);
-    form = <MedicationStartForm action={action} species={species} />;
+    form = (
+      <MedicationStartForm
+        action={action}
+        species={species}
+        defaultOccurredAt={sp("occurredAt") ?? undefined}
+      />
+    );
   } else if (evento === "nota") {
     const action = atenderNoteAction.bind(null, orgToken, publicToken);
-    form = <NoteForm action={action} defaults={{ text: null, occurredAt: null }} />;
+    form = (
+      <NoteForm action={action} defaults={{ text: sp("text"), occurredAt: sp("occurredAt") }} />
+    );
+  } else if (evento === "chip") {
+    const action = atenderMicrochipAction.bind(null, orgToken, publicToken, sp("confirmEventId"));
+    form = (
+      <MicrochipForm
+        action={action}
+        defaults={{ chipNumber: sp("chipNumber"), occurredAt: sp("occurredAt"), notes: null }}
+      />
+    );
+  } else if (evento === "esterilizacion") {
+    const action = atenderSterilizationAction.bind(
+      null,
+      orgToken,
+      publicToken,
+      sp("confirmEventId"),
+    );
+    form = (
+      <SterilizationForm action={action} defaults={{ occurredAt: sp("occurredAt"), notes: null }} />
+    );
   } else {
     return null;
   }

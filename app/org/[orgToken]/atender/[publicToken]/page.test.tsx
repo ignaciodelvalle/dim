@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 const fixturePet = {
@@ -41,6 +42,13 @@ const resolveAtenderPetMock = vi.fn();
 
 vi.mock("../atender-access", () => ({
   resolveAtenderPet: (...args: unknown[]) => resolveAtenderPetMock(...args),
+}));
+
+// #3 declared-events card — mocked so this host-contract test stays scoped to
+// the #43 provenance copy and never needs a real DB connection for the
+// fixture's non-UUID pet id.
+vi.mock("../atender-declared-events", () => ({
+  fetchPendingDeclaredEvents: vi.fn().mockResolvedValue([]),
 }));
 
 import AtenderSignPage from "./page";
