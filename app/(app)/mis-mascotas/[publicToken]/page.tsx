@@ -869,7 +869,7 @@ export default async function PetDetailPage({
       {accessPath === "org" && organization && (
         <Link
           href={`/org/${organization.publicToken}/mascotas`}
-          className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
           data-section="back-link"
         >
           ← Animales en custodia
@@ -878,7 +878,7 @@ export default async function PetDetailPage({
 
       {/* Org-mediated access notice */}
       {accessPath === "org" && organization && (
-        <div className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3.5 py-2.5 text-[13px] text-[var(--color-ln-ink-2)]">
+        <div className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-3.5 py-2.5 text-[var(--text-md)] text-[var(--color-ln-ink-2)]">
           Estás viendo {pet.name} como miembro de <strong>{organization.displayName}</strong>.
           Cualquier evento que registres queda atribuido a la organización.
         </div>
@@ -1021,7 +1021,7 @@ function FormerOwnerCustodyReadOnlyView({
     >
       <Link
         href="/mis-mascotas"
-        className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+        className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
         data-section="back-link"
       >
         ← Mis mascotas
@@ -1031,10 +1031,10 @@ function FormerOwnerCustodyReadOnlyView({
         className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-1.5"
         data-section="former-owner-custody-banner"
       >
-        <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
+        <p className="font-semibold text-[var(--text-md)] text-[var(--color-ln-warn)]">
           Custodia oficial en curso
         </p>
-        <p className="text-[13px] text-[var(--color-ln-warn)]">
+        <p className="text-[var(--text-md)] text-[var(--color-ln-warn)]">
           Tu mascota está bajo custodia oficial — acceso de solo lectura mientras dure el proceso.
           Caso {casePublicCode}.
         </p>
@@ -1042,7 +1042,7 @@ function FormerOwnerCustodyReadOnlyView({
 
       <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-stripe)] px-4 py-3.5">
         <h1 className="text-lg font-semibold text-[var(--color-ln-ink)]">{pet.name}</h1>
-        {breedLine && <p className="text-[13px] text-[var(--color-ln-mute)]">{breedLine}</p>}
+        {breedLine && <p className="text-[var(--text-md)] text-[var(--color-ln-mute)]">{breedLine}</p>}
       </div>
     </div>
   );
@@ -1077,10 +1077,10 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
 
   return (
     <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
-      <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
+      <p className="font-semibold text-[var(--text-md)] text-[var(--color-ln-warn)]">
         Vigilancia por mordedura
       </p>
-      <p className="text-[13px] text-[var(--color-ln-warn)]">
+      <p className="text-[var(--text-md)] text-[var(--color-ln-warn)]">
         {biteDate
           ? `Por la mordedura del ${formatDateShort(biteDate)}, `
           : "Por una mordedura reportada recientemente, "}
@@ -1103,7 +1103,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         >
           <button
             type="submit"
-            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-white px-3 py-1.5 font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-white px-3 py-1.5 font-[var(--font-ln-sans)] text-[var(--text-md)] font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
           >
             Confirmar fin de observación
           </button>
@@ -1122,7 +1122,7 @@ function TransitBanner({
 }) {
   return (
     <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
-      <p className="text-[13px] text-[var(--color-ln-warn)]">
+      <p className="text-[var(--text-md)] text-[var(--color-ln-warn)]">
         Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
         viaja con la mascota.
       </p>
@@ -1130,7 +1130,7 @@ function TransitBanner({
         <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
         <Link
           href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
-          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] px-2.5 py-[5px] text-[13px] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] px-2.5 py-1.5 text-[var(--text-md)] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
         >
           Buscar nuevo hogar
         </Link>

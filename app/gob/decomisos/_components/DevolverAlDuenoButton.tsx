@@ -61,17 +61,17 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
       />
       {/* Modal */}
       <div className="relative z-10 w-full max-w-md rounded-[var(--radius-lg)] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
-        <h3 className="text-[15px] font-semibold text-ln-op-ink">
+        <h3 className="text-[var(--text-base)] font-semibold text-ln-op-ink">
           Devolver al dueño — {casePublicCode}
         </h3>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           Esto cierra el episodio de custodia y le restituye al dueño anterior el acceso completo
           sobre la mascota — una transferencia real de responsabilidad legal. Esta acción no se
           puede deshacer.
         </p>
 
         {error && (
-          <p className="text-[13px] text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
+          <p className="text-[var(--text-md)] text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
             {error}
           </p>
         )}
