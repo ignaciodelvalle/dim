@@ -8,6 +8,7 @@
 
 import { Icon } from "@/components/Icon";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
+import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
@@ -79,6 +80,8 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
           <LnTimelineSection events={groupedEvents[group]} publicToken={publicToken} />
         </section>
       ))}
+
+      <PaperLibretaRoadmapCta />
     </div>
   );
 }
@@ -364,6 +367,8 @@ function ChronologicalView({
           <LnTimelineSection events={otherEvents} publicToken={publicToken} />
         </section>
       )}
+
+      <PaperLibretaRoadmapCta />
     </div>
   );
 }
@@ -378,6 +383,37 @@ function EmptyLibreta() {
       variant="dashed"
       title="Todavía no hay registros en esta libreta."
       description="Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá."
+      action={<PaperLibretaRoadmapCta />}
     />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Roadmap placeholder — "cargar la libreta de papel" (PO-approved pattern:
+// visible, disabled, reads as "coming", never as broken — precedent: the
+// "Informe de situación (en desarrollo)" stub in panorama's SituationalMap,
+// PO re-ratified visible-in-prod). Placed in the LIBRETA (not the alta/
+// registration flow — explicit PO decision) at the exact spot an owner
+// looking at a thin history would wish for backfill: the bottom of both
+// rendered libreta views (agrupada + cronológica), AND as the empty state's
+// action slot for a pet with zero digital entries yet. Disabled semantics
+// (aria-disabled, not a dead link) — no href, no onClick.
+// ---------------------------------------------------------------------------
+
+function PaperLibretaRoadmapCta() {
+  const label = "Cargar la libreta de papel (en desarrollo)";
+  return (
+    <div
+      data-testid="paper-libreta-roadmap-cta"
+      className="mt-2 flex flex-col items-start gap-1.5 rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] px-3.5 py-3"
+    >
+      <LnButton type="button" variant="ghost" size="sm" disabled aria-disabled="true" title={label}>
+        <Icon name="libreta" size="sm" decorative />
+        {label}
+      </LnButton>
+      <p className="text-xs text-[var(--color-ln-mute)]">
+        Vas a poder pasar la historia en papel a la credencial digital.
+      </p>
+    </div>
   );
 }

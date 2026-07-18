@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import type { EventType } from "@/db/schema";
 import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
@@ -134,17 +135,34 @@ export function CaptureBox({
         <label htmlFor="capture-text" className="sr-only">
           ¿Qué pasó?
         </label>
-        <textarea
-          id="capture-text"
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            if (unmatched) setUnmatched(false);
-          }}
-          rows={3}
-          placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
-          className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-        />
+        <div className="flex items-start gap-2">
+          <textarea
+            id="capture-text"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (unmatched) setUnmatched(false);
+            }}
+            rows={3}
+            placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
+            className="w-full flex-1 px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          />
+          {/* Roadmap placeholder — voice dictation (PO-approved pattern:
+              visible, disabled, reads as "coming", never as broken —
+              precedent: "Informe de situación (en desarrollo)" in panorama's
+              SituationalMap). Disabled semantics only: no submit, no focus
+              trap, doesn't touch the textarea's onChange/value wiring. */}
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            aria-label="Dictado por voz (próximamente)"
+            title="Dictado por voz (próximamente)"
+            className="mt-0.5 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-faint)] cursor-not-allowed disabled:opacity-60"
+          >
+            <Icon name="mic" size="sm" decorative />
+          </button>
+        </div>
         <button
           type="submit"
           disabled={pending || !text.trim()}
