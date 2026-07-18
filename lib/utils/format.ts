@@ -1116,6 +1116,36 @@ export function formatDelta(
   return `${fmt.format(value)}${unit}`;
 }
 
+// ---------------------------------------------------------------------------
+// Spanish pluralization (Wave M)
+// ---------------------------------------------------------------------------
+//
+// Dozens of surfaces inlined `${n} evento${n === 1 ? "" : "s"}`-shaped
+// ternaries — each one a chance to pick the wrong suffix ("señals",
+// "animals") or drift in wording. This is the ONE place count-agreement
+// lives; scripts/check-pluralize-es.ts bans new ad-hoc ternaries.
+
+/**
+ * Pluralize a Spanish noun by count: returns `singular` when `n === 1`, else
+ * the plural form.
+ *
+ * Default plural (when `plural` is omitted) follows the regular rules:
+ *   - ends in "z"  → "-ces"  ("vez" → "veces")
+ *   - ends in a vowel (incl. accented) → "+s" ("evento" → "eventos")
+ *   - otherwise → "+es" ("señal" → "señales", "mes" → "meses")
+ *
+ * Pass `plural` explicitly for irregulars the rules cannot derive — accent
+ * shifts ("camión" → "camiones"), invariants ("lunes" → "lunes"), or
+ * multi-word phrases ("regla provincial" → "reglas provinciales").
+ */
+export function pluralizeEs(n: number, singular: string, plural?: string): string {
+  if (n === 1) return singular;
+  if (plural !== undefined) return plural;
+  if (/z$/i.test(singular)) return `${singular.slice(0, -1)}ces`;
+  if (/[aeiouáéíóú]$/i.test(singular)) return `${singular}s`;
+  return `${singular}es`;
+}
+
 export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);
@@ -1128,10 +1158,10 @@ export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): stri
     months += 12;
   }
   if (years > 0) {
-    return `${years} año${years === 1 ? "" : "s"}`;
+    return `${years} ${pluralizeEs(years, "año")}`;
   }
   if (months > 0) {
-    return `${months} mes${months === 1 ? "" : "es"}`;
+    return `${months} ${pluralizeEs(months, "mes")}`;
   }
   return "menos de un mes";
 }

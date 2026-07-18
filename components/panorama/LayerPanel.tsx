@@ -16,6 +16,7 @@
 // wrapper ("Personalizar") is owned by the parent console — this component
 // renders only the grouped list.
 
+import { pluralizeEs } from "@/lib/utils/format";
 import { type LayerRole, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { PANORAMA_LAYERS, isTemporalLayer } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
@@ -157,7 +158,7 @@ export function LayerPanel({
                           className="rounded-full border border-ln-op-line bg-ln-op-card px-1.5 py-0.5 text-xs text-ln-op-mute"
                           title="Celdas ocultas por privacidad (k-anonimato, k=5)"
                         >
-                          {st.suppressedCount} suprimido{st.suppressedCount === 1 ? "" : "s"}
+                          {st.suppressedCount} {pluralizeEs(st.suppressedCount, "suprimido")}
                         </span>
                       )}
                       {active && !st?.loading && (st.noLocalityCount ?? 0) > 0 && (

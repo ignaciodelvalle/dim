@@ -46,6 +46,8 @@
 
 import { globSync, readFileSync } from "node:fs";
 
+import { KPI_CATALOG } from "../lib/metrics/kpi-catalog";
+
 // ---------------------------------------------------------------------------
 // Allowlist — "label" strings whose static definition legitimately differs
 // ONLY by admin (national) vs gob (jurisdiction-scoped) wording. Each entry
@@ -203,7 +205,114 @@ export function scanForLabelConflicts(files: string[]): Map<string, LabelHit[]> 
   return byLabel;
 }
 
+// ---------------------------------------------------------------------------
+// Registry-import fence (Wave M) — catalogued labels must come FROM the
+// catalog, not be retyped inline.
+// ---------------------------------------------------------------------------
+//
+// The label-conflict scan above catches the moment two render sites DIVERGE.
+// This second fence removes the precondition: a .tsx that renders a label
+// already catalogued in lib/metrics/kpi-catalog.ts must import it (the
+// catalog entry's `label`, or a lib-level label constant like
+// RABIES_COVERAGE_LABEL_ES that the catalog cross-references) instead of
+// retyping the string. An inline retype is exactly how the 42%/54% drift
+// started: copy the string today, edit one copy tomorrow.
+//
+// Detection: an exact quoted occurrence ("...", '...', or `...`) of a
+// catalogued label string in a scanned .tsx file. Current inliners are
+// grandfathered below at their measured count (2026-07-18) — burn them down
+// by importing the label; never add new ones.
+
+/** Per-file inline-catalog-label counts measured 2026-07-18. A count ABOVE
+ *  the baseline (or any brand-new file) fails. Migrating a file to import its
+ *  label from the registry lets its entry be removed — the ratchet only
+ *  tightens. */
+export const INLINE_CATALOG_LABEL_BASELINE: Record<string, number> = {
+  "app/admin/poblacion/page.tsx": 1,
+  "app/admin/programa/page.tsx": 1,
+  "app/gob/page.tsx": 5,
+  "app/gob/poblacion/page.tsx": 1,
+  "app/gob/programa/page.tsx": 1,
+  "components/admin/AlertInboxTable.tsx": 1,
+  "components/admin/AlertSubscriptionForm.tsx": 1,
+};
+
+export type InlineLabelHit = { file: string; label: string; count: number };
+
+/** Count exact quoted occurrences of each catalogued label per file. Pure —
+ * label set is injected so unit tests stay hermetic. */
+export function scanForInlineCatalogLabels(
+  files: string[],
+  labels: readonly string[],
+): InlineLabelHit[] {
+  const hits: InlineLabelHit[] = [];
+  for (const file of files) {
+    const relPath = normalizeRelPath(file);
+    const content = readFileSync(file, "utf8");
+    for (const label of labels) {
+      let count = 0;
+      for (const quoted of [`"${label}"`, `'${label}'`, `\`${label}\``]) {
+        count += content.split(quoted).length - 1;
+      }
+      if (count > 0) hits.push({ file: relPath, label, count });
+    }
+  }
+  return hits;
+}
+
+function runInlineLabelScan(): number {
+  const catalogLabels = Object.values(KPI_CATALOG).map((d) => d.label);
+  const hits = scanForInlineCatalogLabels(SCAN_FILES, catalogLabels);
+
+  const perFile = new Map<string, InlineLabelHit[]>();
+  for (const hit of hits) {
+    const list = perFile.get(hit.file) ?? [];
+    list.push(hit);
+    perFile.set(hit.file, list);
+  }
+
+  let failures = 0;
+  let grandfathered = 0;
+  for (const [file, fileHits] of perFile) {
+    const total = fileHits.reduce((sum, h) => sum + h.count, 0);
+    const allowed = INLINE_CATALOG_LABEL_BASELINE[file] ?? 0;
+    if (total > allowed) {
+      failures += 1;
+      for (const h of fileHits) {
+        console.error(
+          `${file}: inlines catalogued KPI label ${JSON.stringify(h.label)} ×${h.count} (baseline allows ${allowed} total) — import the label from lib/metrics/kpi-catalog.ts (KPI_CATALOG entry or its lib-level label constant) instead of retyping the string.`,
+        );
+      }
+    } else {
+      grandfathered += total;
+    }
+  }
+
+  const stale = Object.keys(INLINE_CATALOG_LABEL_BASELINE).filter((f) => !perFile.has(f));
+  if (stale.length > 0) {
+    console.warn(
+      `[info] ${stale.length} baselined file(s) no longer inline any catalog label — remove from INLINE_CATALOG_LABEL_BASELINE to tighten the ratchet: ${stale.join(", ")}`,
+    );
+  }
+
+  if (failures === 0) {
+    console.log(
+      `✓ catalog-label imports clean — ${grandfathered} grandfathered inline literal(s) across ${Object.keys(INLINE_CATALOG_LABEL_BASELINE).length} baselined file(s); new inline retypes of catalogued labels fail.`,
+    );
+  }
+  return failures;
+}
+
 function runScan(): void {
+  // FAIL CLOSED: an empty glob means the scan ran from the wrong directory —
+  // that must never read as "no conflicts".
+  if (SCAN_FILES.length === 0) {
+    console.error("✗ check-metric-labels: no .tsx files matched under app/ + components/.");
+    process.exit(1);
+  }
+
+  const inlineFailures = runInlineLabelScan();
+
   const byLabel = scanForLabelConflicts(SCAN_FILES);
   let hits = 0;
   let allowlistedCount = 0;
@@ -230,6 +339,14 @@ function runScan(): void {
     console.error(
       `\n✗ ${hits} KPI label/definition conflict(s). Same label, different truths — the exact "Cobertura antirrábica 42% vs 54%" shape (critique-govt-2026-07-03.md). Either unify the definition text, give the KPI a distinct label, or — if the difference is a legitimate admin(national) vs gob(jurisdiction-scope) wording variant — add the label to METRIC_LABEL_ALLOWLIST in scripts/check-metric-labels.ts with a justification comment.`,
     );
+  }
+
+  if (hits > 0 || inlineFailures > 0) {
+    if (inlineFailures > 0) {
+      console.error(
+        `\n✗ ${inlineFailures} file(s) inline a catalogued KPI label above baseline (registry-import fence).`,
+      );
+    }
     process.exit(1);
   }
 

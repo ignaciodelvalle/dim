@@ -23,6 +23,7 @@ import {
   selectionHasRupga,
 } from "@/lib/infra/approval-queue-breakdown";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { pluralizeEs } from "@/lib/utils/format";
 
 export type QueueItem = {
   publicToken: string;
@@ -182,8 +183,8 @@ export function BulkApprovalQueueList({
             {mode === "none" && (
               <div className="flex items-center justify-between gap-3">
                 <p className="text-sm">
-                  <span className="font-medium">{selected.size}</span> seleccionada
-                  {selected.size === 1 ? "" : "s"}
+                  <span className="font-medium">{selected.size}</span>{" "}
+                  {pluralizeEs(selected.size, "seleccionada")}
                 </p>
                 <div className="flex items-center gap-2">
                   <button
@@ -213,7 +214,7 @@ export function BulkApprovalQueueList({
 
             {mode === "approve" && (
               <ConfirmRow
-                title={`Aprobar ${selected.size} solicitud${selected.size === 1 ? "" : "es"}`}
+                title={`Aprobar ${selected.size} ${pluralizeEs(selected.size, "solicitud")}`}
                 placeholder="Notas (opcional)"
                 value={decisionNotes}
                 onChange={setDecisionNotes}
@@ -244,7 +245,7 @@ export function BulkApprovalQueueList({
 
             {mode === "reject" && (
               <ConfirmRow
-                title={`Rechazar ${selected.size} solicitud${selected.size === 1 ? "" : "es"}`}
+                title={`Rechazar ${selected.size} ${pluralizeEs(selected.size, "solicitud")}`}
                 placeholder="Motivo del rechazo (mínimo 5 caracteres) *"
                 value={decisionNotes}
                 onChange={setDecisionNotes}
