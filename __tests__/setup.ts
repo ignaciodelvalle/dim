@@ -1,18 +1,20 @@
-// Vitest setup. Loads .env.local for things like keys, and then FORCES the
-// Postgres + Supabase URLs back to the local stack regardless of what's in
-// .env.local. The integration tests must always run against the local
-// Supabase + local Drizzle DB; pointing them at a remote project is a
-// production incident waiting to happen (the seed/teardown helpers issue
-// real auth.admin.createUser / deleteUser calls).
+// Vitest setup for the "db" project ONLY (serial, DB-integration tests).
+//
+// Loads env (via ./setup-env) and then FORCES the Postgres + Supabase URLs back
+// to the local stack regardless of what's in .env.local. The integration tests
+// must always run against the local Supabase + local Drizzle DB; pointing them
+// at a remote project is a production incident waiting to happen (the
+// seed/teardown helpers issue real auth.admin.createUser / deleteUser calls).
 //
 // Symptom this prevents: server actions create auth users on a remote
 // project while drizzle queries hit local Postgres, so profile lookups
 // fail with `PROFILE_UPDATE_FAILED: profile row not found`.
+//
+// The "unit" project loads only ./setup-env (no URL forcing) — safe because its
+// files provably never reach the database client. See __tests__/db-reachability.ts.
 
-import { config as loadEnv } from "dotenv";
-
-loadEnv({ path: ".env.local" });
-loadEnv({ path: ".env" });
+// Env loading (.env.local, .env) — shared with the "unit" project.
+import "./setup-env";
 
 // Local Supabase defaults (supabase start). Override only if .env values
 // are remote or missing — keep custom local ports if a dev set them.
