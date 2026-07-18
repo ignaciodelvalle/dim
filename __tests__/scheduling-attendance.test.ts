@@ -40,6 +40,7 @@ import {
 } from "@/lib/infra/publicToken";
 import { cancelAppointmentByOrg } from "@/src/modules/events/application/attendance/cancel-appointment-by-org";
 import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
+import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -732,6 +733,55 @@ describe("cancelAppointmentByOwnerAction (capacity freeing + provider notificati
       ),
     );
     expect(notifCountAfter).toBe(notifCountBefore + 1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bug fix — the owner-cancel provider notification's ctaUrl pointed at
+// "/org/agenda", a route that does not exist (real route needs the org
+// token: /org/{orgToken}/agenda). Exercise the real use-case (not a DB-path
+// simulation) so a regression back to the bare route is caught.
+// ---------------------------------------------------------------------------
+
+describe("cancelAppointmentByOwner (real use-case) — provider CTA URL", () => {
+  it("notifies org members with a ctaUrl that includes the org's public token", async () => {
+    const [orgRow] = await db
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    expect(orgRow?.publicToken).toBeTruthy();
+
+    const slotId = await createSlot(offeringOrgId, 13);
+    const { id: apptId, token: apptToken } = await createAppointment(
+      slotId,
+      petId,
+      ownerUserId,
+      orgId,
+      offeringOrgId,
+    );
+
+    const result = await cancelAppointmentByOwner(apptToken, ownerUserId);
+    expect(result).toMatchObject({ ok: true });
+
+    const [notif] = await db
+      .select({ ctaUrl: notifications.ctaUrl })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, orgMemberUserId),
+          eq(notifications.notificationType, "appointment_cancelled_by_owner"),
+        ),
+      )
+      .orderBy(sql`${notifications.createdAt} DESC`)
+      .limit(1);
+
+    expect(notif?.ctaUrl).toBe(`/org/${orgRow!.publicToken}/agenda`);
+    expect(notif?.ctaUrl).not.toBe("/org/agenda");
+
+    // Cleanup: this test's appointment isn't referenced by afterAll's cleanup
+    // list, so drop it explicitly to avoid leaking a row across test runs.
+    await db.delete(appointments).where(eq(appointments.id, apptId));
   });
 });
 
