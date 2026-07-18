@@ -85,8 +85,11 @@ export const CASE_NORMATIVES: CaseNormativesEntry[] = [
         scope: "Análogo CABA — observación en Instituto Pasteur o domicilio",
       },
       {
-        id: "ley_caba_4078_2012_res_93_apra_2021",
-        label: "Ley CABA 4078/2012 + Res. 93/APRA/2021",
+        // Sanción 01/12/2011 (BOCBA publicación 27/01/2012) — sanction-year
+        // convention, consistent with lib/reference/legal-knowledge-base.ts.
+        // Verified 2026-07-18 against the research package.
+        id: "ley_caba_4078_2011_res_93_apra_2021",
+        label: "Ley CABA 4078/2011 + Res. 93/APRA/2021",
         scope: "Notif <48hs para PPP (perros potencialmente peligrosos)",
       },
     ],
