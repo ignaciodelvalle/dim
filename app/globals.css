@@ -1180,6 +1180,18 @@ body {
   font-style: italic;
 }
 
+/* curiosity-hook microcopy — sits between the credential and the state dots,
+   pointing at the same real QR the card already renders (PO-locked wording,
+   landing microcopy train). */
+.lp .lp-hcard-hint {
+  margin: 14px 0 0;
+  font-family: var(--font-ln-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--color-ln-mute);
+  text-align: center;
+}
+
 /* state dots — tap one to take control of the cycle */
 .lp .lp-hdots {
   display: flex;
