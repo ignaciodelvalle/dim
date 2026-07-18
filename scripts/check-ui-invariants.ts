@@ -139,6 +139,27 @@ function looksLikeJsxText(line: string, token: string): boolean {
   return false;
 }
 
+// Case-insensitive twin of looksLikeJsxText — used ONLY by the English-word rule
+// (Rule 4). A visible-copy leak reads the same regardless of case, so ">Panel<"
+// vs ">panel<" must both be catchable; the SCREAMING-enum rule stays strictly
+// case-sensitive (enum codes are always upper). `word` is a plain literal here
+// (no regex metachars in the denylist), so no escaping is needed.
+function looksLikeJsxTextCI(line: string, word: string): boolean {
+  if (new RegExp(`>\\s*${word}\\s*<`, "i").test(line)) return true;
+  if (new RegExp(`\\{["'\`]${word}["'\`]\\}`, "i").test(line)) return true;
+  return false;
+}
+
+// Extract the quoted VALUE assigned to a specific object key on a line, e.g.
+// `label: "Bandeja de salida"` → "Bandeja de salida". Scanning by key (label /
+// title) — not every string on the line — keeps route values (`href: "/gob/
+// outbox"`, `matchPrefix: "/gob/outbox"`) OUT of the English-word check: a URL
+// segment named after an internal concept is not user copy.
+function valueForKey(line: string, key: string): string | null {
+  const m = line.match(new RegExp(`\\b${key}\\s*:\\s*["'\`]([^"'\`\\n]*)["'\`]`));
+  return m ? m[1] : null;
+}
+
 // Allowlist for rule 2 — "relativePath:TOKEN" pairs
 export const SCREAMING_ENUM_ALLOWLIST = new Set<string>([
   // (empty — the repo should be clean after UX 3.4 localization)
@@ -247,18 +268,40 @@ export const ACCENT_ALLOWLIST = new Set<string>([
 // Denylist is opt-in: only words explicitly added here are flagged.
 // Borrowed/product vocabulary (Outreach, etc.) simply stays off the list.
 //
-// Detection patterns (same as looksLikeJsxText):
+// Detection patterns (case-insensitive via looksLikeJsxTextCI — a leak reads the
+// same whether the code shipped "Dashboard", "dashboard", or "DASHBOARD"):
 //   >Word<     direct JSX text child
 //   {"Word"}   JSX expression string literal child
+// PLUS two scope extensions (see scanRegistryLabels / metadata title pass): the
+// operator breadcrumb/nav label registries and page metadata `title:` values,
+// which are string VALUES (never JSX text) and so slip past looksLikeJsxTextCI.
+//
+// Word-boundary matching keeps the Spanish cognate "Exportación" clean while the
+// bare English "Export" fails (there is no \b between "Export" and "ación").
 //
 // Allowlist: "relativePath:word" for any intentional use of a denylisted word.
 export const ENGLISH_UI_WORDS: Array<{ word: string; suggestion: string; re: RegExp }> = [
-  {
-    word: "Enrollment",
-    suggestion: "Inscripciones",
-    re: /\bEnrollment\b/g,
-  },
+  { word: "Enrollment", suggestion: "Inscripciones", re: /\bEnrollment\b/gi },
+  // Operator-tier English leaks caught across ≥5 independent July-2026 reviews
+  // (recorrido80 x2, staging x2, demo-validation). Spanish equivalents in the
+  // suggestion; the check is denylist-only so borrowed product terms stay off it.
+  { word: "Dashboard", suggestion: "Panel / Tablero", re: /\bDashboard\b/gi },
+  { word: "backlog", suggestion: "Pendientes / Cola", re: /\bbacklog\b/gi },
+  { word: "outbox", suggestion: "Bandeja de salida", re: /\boutbox\b/gi },
+  { word: "oversight", suggestion: "Supervisión", re: /\boversight\b/gi },
+  { word: "export", suggestion: "Exportar / Exportación", re: /\bexport\b/gi },
+  { word: "fullscreen", suggestion: "Pantalla completa", re: /\bfullscreen\b/gi },
+  { word: "hoarding", suggestion: "Acumulación", re: /\bhoarding\b/gi },
+  { word: "medium", suggestion: "Media (severidad)", re: /\bmedium\b/gi },
+  { word: "high", suggestion: "Alta (severidad)", re: /\bhigh\b/gi },
+  { word: "low", suggestion: "Baja (severidad)", re: /\blow\b/gi },
+  { word: "critical", suggestion: "Crítica (severidad)", re: /\bcritical\b/gi },
 ];
+
+// Curated registries whose LABELS are English-checked as string values (arm B).
+// operator-breadcrumbs is lib/ (outside STANDARD_FILES) and nav-presets stores
+// its labels as object values (not JSX text), so both need the value-side scan.
+const REGISTRY_LABEL_FILES = ["lib/ui/operator-breadcrumbs.ts", "components/layout/nav-presets.ts"];
 
 // Lines that should be excluded from English-word rule matching
 // (same exclusion strategy as the screaming enum rule).
@@ -412,7 +455,7 @@ function runScan(): void {
       for (const { word, suggestion, re } of ENGLISH_UI_WORDS) {
         re.lastIndex = 0;
         for (const match of line.matchAll(re)) {
-          if (!looksLikeJsxText(line, word)) continue;
+          if (!looksLikeJsxTextCI(line, word)) continue;
           const key = `${relPath}:${word}`;
           if (ENGLISH_UI_WORD_ALLOWLIST.has(key)) continue;
           console.error(
@@ -420,6 +463,42 @@ function runScan(): void {
           );
           hits += 1;
         }
+      }
+    });
+  }
+
+  // --- Rule 4 (scope extension): English words in registry LABELS + metadata
+  // titles. These are string VALUES, not JSX text, so the value side is scanned
+  // with the same denylist (word-boundary). Arm B: the operator breadcrumb / nav
+  // label registries. Arm C: page `metadata.title` (and any `title:` copy) across
+  // the app + component tiers. ---
+  const metadataScanFiles = new Set<string>([...REGISTRY_LABEL_FILES]);
+  for (const file of STANDARD_FILES) metadataScanFiles.add(normalizeRelPath(file));
+  for (const relPath of metadataScanFiles) {
+    let content: string;
+    try {
+      content = readFileSync(relPath, "utf8");
+    } catch {
+      continue; // registry file path drift — skip rather than crash CI.
+    }
+    const isRegistryLabelFile = REGISTRY_LABEL_FILES.includes(relPath);
+    content.split(/\r?\n/).forEach((line, i) => {
+      // Arm B scans `label:` values in the curated registry files; Arm C scans
+      // `title:` values (page metadata + any title copy) everywhere. Key-scoped
+      // extraction keeps route/href/matchPrefix strings out of the check.
+      const value = isRegistryLabelFile ? valueForKey(line, "label") : valueForKey(line, "title");
+      if (value === null) return;
+      for (const { word, suggestion, re } of ENGLISH_UI_WORDS) {
+        re.lastIndex = 0;
+        if (!re.test(value)) continue;
+        const key = `${relPath}:${word}`;
+        if (ENGLISH_UI_WORD_ALLOWLIST.has(key)) continue;
+        console.error(
+          `${relPath}:${i + 1}: raw English word "${word}" in ${
+            isRegistryLabelFile ? "nav/breadcrumb label" : "metadata title"
+          } "${value}" — use "${suggestion}" instead`,
+        );
+        hits += 1;
       }
     });
   }
