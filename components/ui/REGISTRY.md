@@ -120,8 +120,34 @@ see the variant-map note below).
 
 A component's variant → className mapping lives in **one** typed lookup, keyed by
 a union type, so every call site is exhaustive and the classes live in exactly
-one place. This is the house version of `class-variance-authority`.
+one place. This is the house version of `class-variance-authority` — the library
+itself is deliberately **not** a dependency; the pattern needs no runtime.
 
+**Canonical shape** (any `components/ui` primitive with 2+ visual variants MUST
+follow this — new primitives included, no switch/ternary class branching):
+
+```tsx
+type WidgetVariant = "primary" | "secondary";
+
+// 1. One base string: geometry, typography, focus/disabled states.
+const base = "inline-flex items-center rounded-[3px] ...";
+
+// 2. One typed Record per axis (variant, size, tone…). The union type makes
+//    the map exhaustive: adding a variant without classes fails typecheck.
+const variants: Record<WidgetVariant, string> = {
+  primary: "bg-[var(--color-ln-azul)] text-white ...",
+  secondary: "border border-[var(--color-ln-line-strong)] ...",
+};
+
+// 3. Merge with the array-filter-join idiom (the house cn(); clsx and
+//    tailwind-merge are also deliberately not dependencies).
+className={[base, variants[variant], className].filter(Boolean).join(" ")}
+```
+
+- **Reference implementations:** `Button.tsx` (`variants` + `sizes`, two axes),
+  `SuccessScreen.tsx` (`ACTION_VARIANT_CLASSES` — converted from an ad-hoc
+  `switch` to this shape as the reference refactor), `LinkButton.tsx`
+  (`SHAPE_CLASSES` / `FILL_CLASSES`), `Badge.tsx`, `Alert.tsx`.
 - **House example:** `OP_TONE_CLASSES` — a `Record<PetSituationTone, string>`
   mapping each situation tone to its border/background classes
   (`app/org/[orgToken]/mascotas/[publicToken]/page.tsx`). Its exhaustiveness is
@@ -136,7 +162,9 @@ one place. This is the house version of `class-variance-authority`.
 
 When you add a variant: extend the union type **and** the map. Never scatter
 `tone === "warn" ? "..." : "..."` ternaries across JSX — that's how a tone ends
-up styled three different ways.
+up styled three different ways. Boolean modifiers (`block`, `disabled`) may stay
+inline in the merge array; anything that is an enumerated visual axis goes in a
+Record.
 
 ## Enforcement — fences that keep this registry honest
 

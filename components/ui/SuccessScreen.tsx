@@ -42,6 +42,22 @@ export type LnSuccessScreenProps = {
   next: SuccessAction[];
 };
 
+type SuccessActionVariant = NonNullable<SuccessAction["variant"]>;
+
+// CVA-style variant convention (see components/ui/REGISTRY.md): one base
+// string + one typed Record keyed by the variant union, merged with the
+// array-filter-join idiom. Reference implementation for the pattern.
+const ACTION_BASE =
+  "block w-full px-4 py-3.5 rounded-[3px] font-semibold text-sm text-center transition-colors";
+
+const ACTION_VARIANT_CLASSES: Record<SuccessActionVariant, string> = {
+  primary:
+    "bg-[var(--color-ln-azul)] text-white border border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
+  secondary:
+    "border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]",
+  tertiary: "text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)] font-medium",
+};
+
 export function LnSuccessScreen({
   title,
   code,
@@ -124,7 +140,7 @@ export function LnSuccessScreen({
         <div className="space-y-3">
           {next.map((action, idx) => {
             const variant = action.variant ?? (idx === 0 ? "primary" : "secondary");
-            const cls = actionClass(variant);
+            const cls = [ACTION_BASE, ACTION_VARIANT_CLASSES[variant]].join(" ");
             const key = action.label;
             if ("href" in action) {
               return (
@@ -166,17 +182,4 @@ export function LnSuccessScreen({
       </div>
     </div>
   );
-}
-
-function actionClass(variant: NonNullable<SuccessAction["variant"]>): string {
-  const base =
-    "block w-full px-4 py-3.5 rounded-[3px] font-semibold text-sm text-center transition-colors";
-  switch (variant) {
-    case "primary":
-      return `${base} bg-[var(--color-ln-azul)] text-white border border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]`;
-    case "secondary":
-      return `${base} border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]`;
-    case "tertiary":
-      return `${base} text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)] font-medium`;
-  }
 }
