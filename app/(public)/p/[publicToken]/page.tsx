@@ -19,6 +19,7 @@ import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { PublicLostSections, formatLostSince } from "@/components/pet-profile/PublicLostSections";
 import { LnVstamp } from "@/components/ui/StatusFlag";
 import {
+  type Pet,
   attachments,
   cases,
   db,
@@ -45,6 +46,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { BRANDING } from "@/lib/ui/branding";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
 import { sexLabel, situationLabelForSex, speciesLabel, statusLabel } from "@/lib/utils/format";
+import { withDbBudget, withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import Image from "next/image";
@@ -55,6 +57,7 @@ import {
   CredentialTier2Medical,
   CredentialTier2MedicalSkeleton,
 } from "./CredentialStreamedSections";
+import { DegradedCredentialCard } from "./DegradedCredentialCard";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { type CredentialEvent, deriveRabiesSemaphore, isRabiesAtRisk } from "./credential-badges";
@@ -93,15 +96,29 @@ export async function generateMetadata({
   params: Promise<{ publicToken: string }>;
 }) {
   const { publicToken } = await params;
-  const [row] = await db
-    .select({
-      name: pets.name,
-      species: pets.species,
-      status: pets.status,
-    })
-    .from(pets)
-    .where(eq(pets.publicToken, publicToken))
-    .limit(1);
+  // Budgeted + fail-soft: a DB failure here must not 500 the QR page — the
+  // page body has its own degraded render, so metadata degrades to the
+  // generic title instead of taking the whole response down with it.
+  let row: { name: string; species: Pet["species"]; status: Pet["status"] } | undefined;
+  try {
+    [row] = await withDbBudgetOrThrow(
+      (async () =>
+        db
+          .select({
+            name: pets.name,
+            species: pets.species,
+            status: pets.status,
+          })
+          .from(pets)
+          .where(eq(pets.publicToken, publicToken))
+          .limit(1))(),
+      METADATA_BUDGET_MS,
+      "GET /p/[publicToken] metadata",
+    );
+  } catch (err) {
+    reportError("public-credential/metadata", err, { publicToken });
+    return { title: "Credencial | MiMAR" };
+  }
   if (!row) return { title: "Credencial | MiMAR" };
 
   const isLost = row.status === "lost";
@@ -140,6 +157,17 @@ export async function generateMetadata({
 // limiting never blocks that case even at these raised limits.
 const PUBLIC_TOKEN_PAGE_LIMIT = { maxPerMinute: 60, maxPerHour: 400 } as const;
 
+// DB time budgets (public-surface resilience). The QR credential is the one
+// page an anonymous finder in the street depends on — it must NEVER hang with
+// a degraded DB or crash on a DB failure. Every read is bounded (withDbBudget
+// family) and every failure path renders <DegradedCredentialCard> instead of
+// the 500 error boundary. Budgets are generous for the shared micro DB under
+// load, short enough that the finder gets an honest degraded card, not a spin.
+const RATE_LIMIT_BUDGET_MS = 1500;
+const METADATA_BUDGET_MS = 2500;
+const PET_ROW_BUDGET_MS = 3000;
+const VIEW_DATA_BUDGET_MS = 5000;
+
 async function callerIpFromHeaders(): Promise<string> {
   try {
     const reqHeaders = await headers();
@@ -158,136 +186,92 @@ export default async function PublicCredentialPage({
 
   // V1-1: rate-limit per IP before touching any pet data. Renders a soft
   // throttle notice (not a hard 500) so the page gracefully degrades.
+  // FAIL-OPEN on limiter infrastructure failure (budgeted, like /api/health):
+  // the limiter is itself a DB write — when the DB is degraded it must not be
+  // the thing that crashes the page before the degraded render can happen.
   const ip = await callerIpFromHeaders();
   try {
-    await enforceRateLimit("public_token_page", ip, PUBLIC_TOKEN_PAGE_LIMIT);
+    await withDbBudget(
+      enforceRateLimit("public_token_page", ip, PUBLIC_TOKEN_PAGE_LIMIT).then(() => null),
+      RATE_LIMIT_BUDGET_MS,
+      "GET /p/[publicToken] rate-limit",
+      null,
+    );
   } catch (err) {
     if (err instanceof RateLimitError) {
       return <ThrottleNotice />;
     }
-    throw err;
+    reportError("public-credential/rate-limit", err, { publicToken });
+    // fall through — the pet-row read below has its own degraded path.
   }
 
-  const [result] = await db
-    .select({ pet: pets, photo: attachments })
-    .from(pets)
-    .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, publicToken))
-    .limit(1);
+  // Pet row — the ONE read the degraded card depends on for name/status. On
+  // failure or budget exhaustion, degrade honestly (never notFound(): a DB
+  // outage is not "this token does not exist").
+  let result: { pet: Pet; photo: typeof attachments.$inferSelect | null } | undefined;
+  try {
+    [result] = await withDbBudgetOrThrow(
+      (async () =>
+        db
+          .select({ pet: pets, photo: attachments })
+          .from(pets)
+          .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+          .where(eq(pets.publicToken, publicToken))
+          .limit(1))(),
+      PET_ROW_BUDGET_MS,
+      "GET /p/[publicToken] pet-row",
+    );
+  } catch (err) {
+    reportError("public-credential/pet-row", err, { publicToken });
+    return <DegradedCredentialCard publicToken={publicToken} />;
+  }
 
   if (!result) notFound();
   const { pet, photo } = result;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
-  // WAVE D1 (Invariant #3): every clinical badge below folds `event_amended`
-  // corrections via overlayAmendments so a stranger scanning the QR sees the
-  // CORRECTED value — same projection the authenticated libreta applies. This
-  // shell-side cache now serves only the service-dog rabies warning; the
-  // streamed Tier-2 section fetches its own copy (#16a) — at most one extra
-  // query, only for the rare tier2-AND-bannered-service-dog pet.
-  let amendmentEventsCache: CredentialEvent[] | null = null;
-  const getAmendmentEvents = async (): Promise<CredentialEvent[]> => {
-    if (amendmentEventsCache === null) {
-      amendmentEventsCache = await db
-        .select({
-          id: petEvents.id,
-          eventType: petEvents.eventType,
-          occurredAt: petEvents.occurredAt,
-          payload: petEvents.payload,
-        })
-        .from(petEvents)
-        .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "event_amended")));
-    }
-    return amendmentEventsCache;
-  };
-
   // ---------------------------------------------------------------------------
-  // Stage 1 — independent reads keyed only off pet.id, run concurrently.
-  // These were previously four sequential awaits (canonical ids, vaccination
-  // existence, latest-vaccination provenance, open custody episode). None
-  // depends on another's result, so a single Promise.all collapses four
-  // round-trips into one. This is the hottest public path (every QR scan), so
-  // the round-trip reduction is the biggest win here. The lost / tier2 / service
-  // -dog reads stay in later conditional stages because they gate on derived
-  // flags (isLost, tier2Active, species).
+  // Every remaining DB read (Stage 1 fan-out, amendments, service-dog row,
+  // lost-mode context, tattoo photo) now lives in loadCredentialViewData —
+  // same queries, only the await boundary moved — so ONE budget bounds the
+  // whole fan-out. On failure or budget exhaustion the page renders the honest
+  // degraded card (name + token + lost CTAs) instead of the 500 boundary.
   // ---------------------------------------------------------------------------
-  const [
+  let data: CredentialViewData;
+  try {
+    data = await withDbBudgetOrThrow(
+      loadCredentialViewData(pet),
+      VIEW_DATA_BUDGET_MS,
+      "GET /p/[publicToken] view-data",
+    );
+  } catch (err) {
+    reportError("public-credential/view-data", err, { publicToken });
+    return (
+      <DegradedCredentialCard
+        publicToken={publicToken}
+        petName={pet.name}
+        petSex={pet.sex}
+        isLost={pet.status === "lost"}
+        allowFinderForm={pet.allowFinderFormWhenLost}
+      />
+    );
+  }
+  const {
     canonicalIds,
-    vaccinationExists,
+    hasVaccinations,
     latestVaccinationRows,
     openCustodyEpisodeRows,
-    rabiesVaccinationRows,
-  ] = await Promise.all([
-    // Canonical identifier rows — boolean indicators + lost-branch display.
-    fetchActiveIdentifications(pet.id),
-    // Tier 0 vaccination rollup — only a boolean is needed, so LIMIT 1 instead
-    // of fetching the pet's entire vaccination history just to test existence.
-    db
-      .select({ id: petEvents.id })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
-      .limit(1),
-    // A.4: most recent vaccination's provenance to compute the confidence tier.
-    db
-      .select({
-        authorRole: petEvents.authorRole,
-        authorVerified: petEvents.authorVerified,
-        authorOrganizationId: petEvents.authorOrganizationId,
-        payload: petEvents.payload,
-      })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
-      .orderBy(desc(petEvents.occurredAt))
-      .limit(1),
-    // DC13: open custody_episode opened by a sanitary_authority org.
-    db
-      .select({
-        caseId: cases.id,
-        authorityName: organizations.displayName,
-      })
-      .from(cases)
-      .innerJoin(
-        organizations,
-        and(
-          eq(organizations.id, cases.openedByOrganizationId),
-          eq(organizations.orgType, "sanitary_authority"),
-        ),
-      )
-      .where(
-        and(
-          eq(cases.primaryPetId, pet.id),
-          eq(cases.caseKind, "custody_episode"),
-          eq(cases.status, "open"),
-        ),
-      )
-      .limit(1),
-    // pet-state-header R4: vaccination rows for the rabies semaphore —
-    // HOISTED out of the showServiceDogBanner guard so one bounded fetch
-    // serves BOTH the semaphore and the service-dog rabies warning (net zero
-    // extra vaccination queries when the banner already fired).
-    db
-      .select({
-        id: petEvents.id,
-        eventType: petEvents.eventType,
-        occurredAt: petEvents.occurredAt,
-        payload: petEvents.payload,
-      })
-      .from(petEvents)
-      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
-      .orderBy(desc(petEvents.occurredAt))
-      .limit(50),
-  ]);
-
-  // Corrections fold into the semaphore + banner (WAVE D1) — one fetch, cached
-  // for any later consumer (the streamed Tier-2 section fetches its own copy).
-  const rabiesEvents = [...rabiesVaccinationRows, ...(await getAmendmentEvents())];
+    rabiesEvents,
+    serviceDog,
+    lostContext,
+    lostTattooPhotoUrl,
+  } = data;
 
   // Tri-state antirrábica vigencia for the identity grid (R4). One boolean of
   // the single legally-mandated vaccine — no dates, no vet, no other vaccine
   // (privacy proportionality argued in the spec).
   const rabiesSemaphore = deriveRabiesSemaphore(rabiesEvents, new Date());
 
-  const hasVaccinations = vaccinationExists.length > 0;
   const hasMicrochip = canonicalIds.microchip !== null;
   const hasTattoo = canonicalIds.tattoo !== null;
 
@@ -349,11 +333,7 @@ export default async function PublicCredentialPage({
   // in to full_banner visibility AND the credential is vigente AND in
   // service AND the type is one of the five ANDIS-recognized categories
   // ('otro' explicitly never banners). The 60-day rabies expiry sub-warning
-  // is computed below.
-  const [serviceDog] =
-    pet.species === "dog"
-      ? await db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1)
-      : [];
+  // is computed below. (Row fetched in loadCredentialViewData.)
   const showServiceDogBanner =
     serviceDog &&
     serviceDog.credentialStatus === "vigente" &&
@@ -371,173 +351,20 @@ export default async function PublicCredentialPage({
   // hoisted rabiesEvents fetch (pet-state-header R4) — no extra query.
   const rabiesAtRisk = showServiceDogBanner ? isRabiesAtRisk(rabiesEvents, new Date()) : false;
 
-  // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
-  // the owner's disclosure preference (disclose_*_when_lost columns on pets).
-  // Active pets expose NO owner PII — leave lostContext null.
-  //
-  // lost_description is always visible if present — these are animal details,
-  // not owner contact info, so no disclosure pref gates them (spec §8.4 / §10).
-  let lostContext: {
-    ownerFirstName: string | null;
-    phone: string | null;
-    email: string | null;
-    locationText: string | null;
-    lostLat: number | null;
-    lostLng: number | null;
-    lostDescription: {
-      accessoriesWhenLost: string | null;
-      behaviorNotes: string | null;
-      lastSeenContext: string | null;
-    } | null;
-    lostSince: Date | null;
-  } | null = null;
-
-  if (isLost) {
-    // S4 defense-in-depth: only FETCH what the owner opted to disclose. Location
-    // (free-text + lat/lng) and phone are pulled from Postgres only when their
-    // disclosure flag is set — not fetched-then-redacted. Mirrors the query-level
-    // split in lost-listing-read.ts. lost_description (animal identity) and
-    // lostSince are always shown, so they are always fetched.
-    const showLocation = pet.discloseLastLocationWhenLost;
-    const showPhone = pet.disclosePhoneWhenLost;
-
-    const [ownerRows, latestLostEventRows] = await Promise.all([
-      db
-        .select({
-          displayName: profiles.displayName,
-          // phone never leaves the DB unless the owner disclosed it.
-          phone: showPhone ? profiles.phone : sql<string | null>`null`,
-          ownerUserId: ownerships.ownerUserId,
-        })
-        .from(ownerships)
-        .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
-        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-        .limit(1),
-      // Last-known location from the most recent status_changed → lost event.
-      // Filtering on payload->>'to_status' = 'lost' so a later "found" event
-      // (to_status='active') does not eclipse the actual lost-event payload.
-      // Location keys/columns are projected as SQL NULL when not disclosed, so
-      // the raw payload and coordinates never enter server memory.
-      db
-        .select({
-          lostDescriptionJson: sql`${petEvents.payload}->'lost_description'`,
-          locationText: showLocation
-            ? sql<
-                string | null
-              >`coalesce(${petEvents.payload}->>'location_description', ${petEvents.payload}->>'last_known_location')`
-            : sql<string | null>`null`,
-          locationLat: showLocation ? petEvents.locationLat : sql<number | null>`null`,
-          locationLng: showLocation ? petEvents.locationLng : sql<number | null>`null`,
-          occurredAt: petEvents.occurredAt,
-        })
-        .from(petEvents)
-        .where(
-          and(
-            eq(petEvents.petId, pet.id),
-            eq(petEvents.eventType, "status_changed"),
-            sql`${petEvents.payload}->>'to_status' = 'lost'`,
-          ),
-        )
-        .orderBy(desc(petEvents.occurredAt))
-        .limit(1),
-    ]);
-    const [ownerRow] = ownerRows;
-    const [latestLostEvent] = latestLostEventRows;
-
-    const textLocation =
-      typeof latestLostEvent?.locationText === "string" && latestLostEvent.locationText.length > 0
-        ? latestLostEvent.locationText
-        : null;
-    // Fallback: precise lat/lng captured on the event row itself (null unless disclosed).
-    const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
-    const geoLocation =
-      !textLocation && eventPoint
-        ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`
-        : null;
-
-    // Split display_name on first whitespace to get just the first name. We
-    // never expose the full legal name on a public credential.
-    // Guard at resolution: only derive when the owner opted in.
-    const firstName =
-      pet.discloseFirstNameWhenLost && ownerRow?.displayName
-        ? ownerRow.displayName.trim().split(/\s+/)[0]
-        : null;
-
-    // Email is stored in auth.users (not profiles). Only fetch it when the
-    // owner has opted in — avoids an unnecessary admin API call on every
-    // credential page load.
-    let ownerEmail: string | null = null;
-    if (pet.discloseEmailWhenLost && ownerRow?.ownerUserId) {
-      try {
-        const adminClient = createAdminClient();
-        const { data } = await adminClient.auth.admin.getUserById(ownerRow.ownerUserId);
-        ownerEmail = data?.user?.email ?? null;
-      } catch (err) {
-        // Non-fatal: if email fetch fails, fall through to null (same as
-        // if the pref were false). The credential renders without email.
-        reportError("public-credential/owner-email", err, { publicToken });
-        ownerEmail = null;
-      }
-    }
-
-    // lost_description (spec §8.4) — animal-identity details, always shown if
-    // present, no disclosure pref gates them.
-    const lostDesc = latestLostEvent?.lostDescriptionJson as
-      | {
-          accessories_when_lost?: string | null;
-          behavior_notes?: string | null;
-          last_seen_context?: string | null;
-        }
-      | null
-      | undefined;
-
-    const lostDescription =
-      lostDesc &&
-      (lostDesc.accessories_when_lost || lostDesc.behavior_notes || lostDesc.last_seen_context)
-        ? {
-            accessoriesWhenLost: lostDesc.accessories_when_lost ?? null,
-            behaviorNotes: lostDesc.behavior_notes ?? null,
-            lastSeenContext: lostDesc.last_seen_context ?? null,
-          }
-        : null;
-
-    lostContext = {
-      ownerFirstName: firstName ?? null,
-      phone: ownerRow?.phone ?? null,
-      email: ownerEmail,
-      locationText: textLocation ?? geoLocation,
-      lostLat: eventPoint?.lat ?? null,
-      lostLng: eventPoint?.lng ?? null,
-      lostDescription,
-      lostSince: latestLostEvent?.occurredAt ?? null,
-    };
-  }
+  // Tier 1 reveal (lostContext) is resolved inside loadCredentialViewData —
+  // only when the pet is marked lost, each field gated by the owner's
+  // disclose_*_when_lost preference. Active pets expose NO owner PII.
 
   // Lost-mode extras — pet-state-header R3.1 retired the LostPublicCredential
   // full-page takeover: lost pets render the SAME single card below, with these
   // sections in the body. lostSince falls back to now() when the lost event row
   // is missing (shouldn't happen, but defensive).
-  let lostTattooPhotoUrl: string | null = null;
   let lostSpecialConditions: ReturnType<typeof resolveLostSpecialConditions> = null;
   let lostIdentityLine = "";
   if (isLost && lostContext) {
     lostIdentityLine = [speciesLabel(pet.species), pet.color, pet.distinguishingFeatures]
       .filter(Boolean)
       .join(" · ");
-
-    // Tattoo photo — only resolved in lost mode. Active credentials never
-    // query this attachment to keep the data surface minimal (D3 closed
-    // 2026-05-22 — code + location + photo are gated by lost status, mirroring
-    // how the chip number is gated).
-    // Photo ID is sourced from the canonical tattoo row (ARCH-Q).
-    if (canonicalIds.tattoo?.photoId) {
-      const [tattooPhoto] = await db
-        .select({ storagePath: attachments.storagePath })
-        .from(attachments)
-        .where(eq(attachments.id, canonicalIds.tattoo.photoId))
-        .limit(1);
-      lostTattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
-    }
 
     // Welfare-safety disclosure: permanent conditions (blind, deaf, medicated,
     // etc.) on the LOST credential. Gated ONLY by discloseConditionsPublicly —
@@ -934,6 +761,296 @@ export default async function PublicCredentialPage({
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// loadCredentialViewData — ALL post-pet-row DB reads in one budgeted unit.
+// The page wraps this call in withDbBudgetOrThrow so a degraded DB yields the
+// honest degraded card instead of a hang or a 500. The queries are byte-for-
+// byte the former inline stages — only the await boundary moved.
+// ---------------------------------------------------------------------------
+
+type CredentialViewData = Awaited<ReturnType<typeof loadCredentialViewData>>;
+
+async function loadCredentialViewData(pet: Pet) {
+  // WAVE D1 (Invariant #3): every clinical badge folds `event_amended`
+  // corrections via overlayAmendments so a stranger scanning the QR sees the
+  // CORRECTED value — same projection the authenticated libreta applies. This
+  // shell-side cache now serves only the service-dog rabies warning; the
+  // streamed Tier-2 section fetches its own copy (#16a) — at most one extra
+  // query, only for the rare tier2-AND-bannered-service-dog pet.
+  let amendmentEventsCache: CredentialEvent[] | null = null;
+  const getAmendmentEvents = async (): Promise<CredentialEvent[]> => {
+    if (amendmentEventsCache === null) {
+      amendmentEventsCache = await db
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          payload: petEvents.payload,
+        })
+        .from(petEvents)
+        .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "event_amended")));
+    }
+    return amendmentEventsCache;
+  };
+
+  // ---------------------------------------------------------------------------
+  // Stage 1 — independent reads keyed only off pet.id, run concurrently.
+  // These were previously four sequential awaits (canonical ids, vaccination
+  // existence, latest-vaccination provenance, open custody episode). None
+  // depends on another's result, so a single Promise.all collapses four
+  // round-trips into one. This is the hottest public path (every QR scan), so
+  // the round-trip reduction is the biggest win here. The lost / tier2 / service
+  // -dog reads stay in later conditional stages because they gate on derived
+  // flags (isLost, tier2Active, species).
+  // ---------------------------------------------------------------------------
+  const [
+    canonicalIds,
+    vaccinationExists,
+    latestVaccinationRows,
+    openCustodyEpisodeRows,
+    rabiesVaccinationRows,
+  ] = await Promise.all([
+    // Canonical identifier rows — boolean indicators + lost-branch display.
+    fetchActiveIdentifications(pet.id),
+    // Tier 0 vaccination rollup — only a boolean is needed, so LIMIT 1 instead
+    // of fetching the pet's entire vaccination history just to test existence.
+    db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .limit(1),
+    // A.4: most recent vaccination's provenance to compute the confidence tier.
+    db
+      .select({
+        authorRole: petEvents.authorRole,
+        authorVerified: petEvents.authorVerified,
+        authorOrganizationId: petEvents.authorOrganizationId,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1),
+    // DC13: open custody_episode opened by a sanitary_authority org.
+    db
+      .select({
+        caseId: cases.id,
+        authorityName: organizations.displayName,
+      })
+      .from(cases)
+      .innerJoin(
+        organizations,
+        and(
+          eq(organizations.id, cases.openedByOrganizationId),
+          eq(organizations.orgType, "sanitary_authority"),
+        ),
+      )
+      .where(
+        and(
+          eq(cases.primaryPetId, pet.id),
+          eq(cases.caseKind, "custody_episode"),
+          eq(cases.status, "open"),
+        ),
+      )
+      .limit(1),
+    // pet-state-header R4: vaccination rows for the rabies semaphore —
+    // HOISTED out of the showServiceDogBanner guard so one bounded fetch
+    // serves BOTH the semaphore and the service-dog rabies warning (net zero
+    // extra vaccination queries when the banner already fired).
+    db
+      .select({
+        id: petEvents.id,
+        eventType: petEvents.eventType,
+        occurredAt: petEvents.occurredAt,
+        payload: petEvents.payload,
+      })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "vaccination_administered")))
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(50),
+  ]);
+
+  // Corrections fold into the semaphore + banner (WAVE D1) — one fetch, cached
+  // for any later consumer (the streamed Tier-2 section fetches its own copy).
+  const rabiesEvents = [...rabiesVaccinationRows, ...(await getAmendmentEvents())];
+
+  // Service-dog row — only queried for dogs (Ley 26.858 scope).
+  const [serviceDog] =
+    pet.species === "dog"
+      ? await db.select().from(petServiceDog).where(eq(petServiceDog.petId, pet.id)).limit(1)
+      : [];
+
+  const isLost = pet.status === "lost";
+
+  // Tier 1 reveal: only when the pet is marked lost. Each field is gated by
+  // the owner's disclosure preference (disclose_*_when_lost columns on pets).
+  // Active pets expose NO owner PII — leave lostContext null.
+  //
+  // lost_description is always visible if present — these are animal details,
+  // not owner contact info, so no disclosure pref gates them (spec §8.4 / §10).
+  let lostContext: {
+    ownerFirstName: string | null;
+    phone: string | null;
+    email: string | null;
+    locationText: string | null;
+    lostLat: number | null;
+    lostLng: number | null;
+    lostDescription: {
+      accessoriesWhenLost: string | null;
+      behaviorNotes: string | null;
+      lastSeenContext: string | null;
+    } | null;
+    lostSince: Date | null;
+  } | null = null;
+
+  if (isLost) {
+    // S4 defense-in-depth: only FETCH what the owner opted to disclose. Location
+    // (free-text + lat/lng) and phone are pulled from Postgres only when their
+    // disclosure flag is set — not fetched-then-redacted. Mirrors the query-level
+    // split in lost-listing-read.ts. lost_description (animal identity) and
+    // lostSince are always shown, so they are always fetched.
+    const showLocation = pet.discloseLastLocationWhenLost;
+    const showPhone = pet.disclosePhoneWhenLost;
+
+    const [ownerRows, latestLostEventRows] = await Promise.all([
+      db
+        .select({
+          displayName: profiles.displayName,
+          // phone never leaves the DB unless the owner disclosed it.
+          phone: showPhone ? profiles.phone : sql<string | null>`null`,
+          ownerUserId: ownerships.ownerUserId,
+        })
+        .from(ownerships)
+        .innerJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
+        .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
+        .limit(1),
+      // Last-known location from the most recent status_changed → lost event.
+      // Filtering on payload->>'to_status' = 'lost' so a later "found" event
+      // (to_status='active') does not eclipse the actual lost-event payload.
+      // Location keys/columns are projected as SQL NULL when not disclosed, so
+      // the raw payload and coordinates never enter server memory.
+      db
+        .select({
+          lostDescriptionJson: sql`${petEvents.payload}->'lost_description'`,
+          locationText: showLocation
+            ? sql<
+                string | null
+              >`coalesce(${petEvents.payload}->>'location_description', ${petEvents.payload}->>'last_known_location')`
+            : sql<string | null>`null`,
+          locationLat: showLocation ? petEvents.locationLat : sql<number | null>`null`,
+          locationLng: showLocation ? petEvents.locationLng : sql<number | null>`null`,
+          occurredAt: petEvents.occurredAt,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            eq(petEvents.eventType, "status_changed"),
+            sql`${petEvents.payload}->>'to_status' = 'lost'`,
+          ),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(1),
+    ]);
+    const [ownerRow] = ownerRows;
+    const [latestLostEvent] = latestLostEventRows;
+
+    const textLocation =
+      typeof latestLostEvent?.locationText === "string" && latestLostEvent.locationText.length > 0
+        ? latestLostEvent.locationText
+        : null;
+    // Fallback: precise lat/lng captured on the event row itself (null unless disclosed).
+    const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
+    const geoLocation =
+      !textLocation && eventPoint
+        ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`
+        : null;
+
+    // Split display_name on first whitespace to get just the first name. We
+    // never expose the full legal name on a public credential.
+    // Guard at resolution: only derive when the owner opted in.
+    const firstName =
+      pet.discloseFirstNameWhenLost && ownerRow?.displayName
+        ? ownerRow.displayName.trim().split(/\s+/)[0]
+        : null;
+
+    // Email is stored in auth.users (not profiles). Only fetch it when the
+    // owner has opted in — avoids an unnecessary admin API call on every
+    // credential page load.
+    let ownerEmail: string | null = null;
+    if (pet.discloseEmailWhenLost && ownerRow?.ownerUserId) {
+      try {
+        const adminClient = createAdminClient();
+        const { data } = await adminClient.auth.admin.getUserById(ownerRow.ownerUserId);
+        ownerEmail = data?.user?.email ?? null;
+      } catch (err) {
+        // Non-fatal: if email fetch fails, fall through to null (same as
+        // if the pref were false). The credential renders without email.
+        reportError("public-credential/owner-email", err, { publicToken: pet.publicToken });
+        ownerEmail = null;
+      }
+    }
+
+    // lost_description (spec §8.4) — animal-identity details, always shown if
+    // present, no disclosure pref gates them.
+    const lostDesc = latestLostEvent?.lostDescriptionJson as
+      | {
+          accessories_when_lost?: string | null;
+          behavior_notes?: string | null;
+          last_seen_context?: string | null;
+        }
+      | null
+      | undefined;
+
+    const lostDescription =
+      lostDesc &&
+      (lostDesc.accessories_when_lost || lostDesc.behavior_notes || lostDesc.last_seen_context)
+        ? {
+            accessoriesWhenLost: lostDesc.accessories_when_lost ?? null,
+            behaviorNotes: lostDesc.behavior_notes ?? null,
+            lastSeenContext: lostDesc.last_seen_context ?? null,
+          }
+        : null;
+
+    lostContext = {
+      ownerFirstName: firstName ?? null,
+      phone: ownerRow?.phone ?? null,
+      email: ownerEmail,
+      locationText: textLocation ?? geoLocation,
+      lostLat: eventPoint?.lat ?? null,
+      lostLng: eventPoint?.lng ?? null,
+      lostDescription,
+      lostSince: latestLostEvent?.occurredAt ?? null,
+    };
+  }
+
+  // Tattoo photo — only resolved in lost mode. Active credentials never
+  // query this attachment to keep the data surface minimal (D3 closed
+  // 2026-05-22 — code + location + photo are gated by lost status, mirroring
+  // how the chip number is gated).
+  // Photo ID is sourced from the canonical tattoo row (ARCH-Q).
+  let lostTattooPhotoUrl: string | null = null;
+  if (isLost && lostContext && canonicalIds.tattoo?.photoId) {
+    const [tattooPhoto] = await db
+      .select({ storagePath: attachments.storagePath })
+      .from(attachments)
+      .where(eq(attachments.id, canonicalIds.tattoo.photoId))
+      .limit(1);
+    lostTattooPhotoUrl = petPhotoUrl(tattooPhoto?.storagePath);
+  }
+
+  return {
+    canonicalIds,
+    hasVaccinations: vaccinationExists.length > 0,
+    latestVaccinationRows,
+    openCustodyEpisodeRows,
+    rabiesEvents,
+    serviceDog,
+    lostContext,
+    lostTattooPhotoUrl,
+  };
 }
 
 // ---------------------------------------------------------------------------
