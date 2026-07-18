@@ -80,6 +80,18 @@ export type PetAccessSuccess = {
   error: null;
 };
 
+// Structural discriminator for a denied access (external audit 2026-07). A page
+// must be able to tell "you have no session" apart from "you have a session but
+// no permission" WITHOUT string-matching the human `error` message:
+//   - "no-session"            → the caller has no valid Supabase session. A page
+//       should redirect to /login (with returnTo), not render a misleading 404.
+//   - "not-found-or-forbidden" → the session resolved, but the pet doesn't exist
+//       for this caller, they lack access, the pet is deceased, or they lack the
+//       write capability. Pages fail closed to notFound() (no information leak);
+//       an erased account (valid JWT, no rights) is deliberately in this bucket
+//       so it 404s like any other permission denial rather than looping /login.
+export type PetAccessFailureReason = "no-session" | "not-found-or-forbidden";
+
 export type PetAccessFailure = {
   ok: false;
   supabase: SupabaseServerClient;
@@ -92,6 +104,7 @@ export type PetAccessFailure = {
   // The error branch returns early before any event insert reads this field;
   // it is functionally dead in the failure case but keeps types simple.
   eventAuthorship: PetEventAuthorship;
+  reason: PetAccessFailureReason;
   error: string;
 };
 
@@ -112,6 +125,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       organization: null,
       membership: null,
       eventAuthorship: OWNER_AUTHORSHIP,
+      reason: "no-session",
       error: "Sesión expirada.",
     };
   }
@@ -138,6 +152,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
       organization: null,
       membership: null,
       eventAuthorship: OWNER_AUTHORSHIP,
+      reason: "not-found-or-forbidden",
       error: "Tu cuenta fue eliminada.",
     };
   }
@@ -234,6 +249,7 @@ export async function requirePetAccess(publicToken: string): Promise<PetAccessRe
     organization: null,
     membership: null,
     eventAuthorship: OWNER_AUTHORSHIP,
+    reason: "not-found-or-forbidden",
     error: "Mascota no encontrada o sin permisos.",
   };
 }
@@ -255,6 +271,7 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
       organization: null,
       membership: null,
       eventAuthorship: OWNER_AUTHORSHIP,
+      reason: "not-found-or-forbidden",
       error: "Esta mascota está registrada como fallecida y no acepta nuevos eventos.",
     };
   }
@@ -270,6 +287,7 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
         organization: null,
         membership: null,
         eventAuthorship: OWNER_AUTHORSHIP,
+        reason: "not-found-or-forbidden",
         error:
           "Necesitás el permiso 'Registrar eventos clínicos' (event.write). Pediselo a un administrador.",
       };

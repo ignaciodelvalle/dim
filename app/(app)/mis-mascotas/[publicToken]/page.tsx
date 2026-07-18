@@ -170,8 +170,26 @@ export default async function PetDetailPage({
     redirect(fromLostRedirectTarget);
   }
 
+  // Auth chain (external audit 2026-07): an expired/absent session must NOT
+  // render a 404 — it must bounce to /login carrying returnTo so the visitor
+  // lands back on this pet after signing in. requirePetAccess exposes a
+  // structural `reason` so we branch WITHOUT string-matching the error message:
+  //   - "no-session"            → redirect to login (returnTo = this pet's path)
+  //   - "not-found-or-forbidden" → notFound() (unchanged — no information leak;
+  //       covers no-such-pet, out-of-scope, and erased accounts alike)
+  // NOTE on the split-brain race (documented): middleware swallows a stale
+  // refresh-token AuthApiError and continues, and the (app) layout's
+  // requireUserOrRedirect runs a SECOND concurrent getUser() that can race this
+  // page's getUser() and rotate the refresh token — the loser gets null. That
+  // race is supabase-ssr behavior and is NOT fixed here; this branch only makes
+  // its worst case a login-with-returnTo instead of a bare 404.
   const access = await requirePetAccess(publicToken);
-  if (!access.ok) notFound();
+  if (!access.ok) {
+    if (access.reason === "no-session") {
+      redirect(`/login?returnTo=${encodeURIComponent(`/mis-mascotas/${publicToken}`)}`);
+    }
+    notFound();
+  }
   const { supabase, user, pet, accessPath, organization } = access;
 
   const isOwner = accessPath === "owner";

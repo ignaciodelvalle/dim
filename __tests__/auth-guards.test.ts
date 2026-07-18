@@ -97,6 +97,16 @@ describe("requireUserOrRedirect", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/login");
   });
 
+  it("preserves returnTo on the /login redirect when no session and a path is given", async () => {
+    mockGetUser.mockResolvedValue(noSession());
+    await expect(requireUserOrRedirect("/mis-mascotas/DIM-ABCD-1234")).rejects.toThrow(
+      "NEXT_REDIRECT:/login?returnTo=",
+    );
+    expect(mockRedirect).toHaveBeenCalledWith(
+      `/login?returnTo=${encodeURIComponent("/mis-mascotas/DIM-ABCD-1234")}`,
+    );
+  });
+
   it("returns the supabase client and user when a session exists", async () => {
     mockGetUser.mockResolvedValue(userSession("user-abc", "alice@dim.local"));
     mockGetProfileCached.mockResolvedValue({
@@ -129,6 +139,25 @@ describe("requireUserOrRedirect", () => {
       deletedAt: new Date("2026-07-04"),
     });
     await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
+    expect(mockRedirect).toHaveBeenCalledWith("/login");
+  });
+
+  // An erased account can never come back, so returnTo is intentionally dropped:
+  // it bounces to plain /login (which renders the "cuenta eliminada" notice),
+  // NOT to a returnTo that would loop it back into a surface it can't reach.
+  it("ignores returnTo for an erased account and redirects to plain /login", async () => {
+    mockGetUser.mockResolvedValue(userSession("user-erased", "erased@dim.local"));
+    mockGetProfileCached.mockResolvedValue({
+      id: "user-erased",
+      role: "owner",
+      displayName: "erased:abc",
+      accountType: "personal",
+      deactivatedAt: null,
+      deletedAt: new Date("2026-07-04"),
+    });
+    await expect(requireUserOrRedirect("/mis-mascotas/DIM-ABCD-1234")).rejects.toThrow(
+      "NEXT_REDIRECT:/login",
+    );
     expect(mockRedirect).toHaveBeenCalledWith("/login");
   });
 
