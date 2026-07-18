@@ -5,7 +5,7 @@
 // which owns the ?tab= sync + tablist wiring) and `onFlip` toggles it.
 //
 // SINGLE PAINTED FACE (paint-bug fix). The two faces are BOTH mounted (so the
-// tabpanel a11y wiring + the eager Libreta fetch stay intact), but only the
+// face a11y wiring + the eager Libreta fetch stay intact), but only the
 // active one is painted — the inactive face is `display:none`. There is NO
 // preserve-3d / backface-visibility stacking: two faces painting inside a
 // 3D context failed to COMPOSITE in Chromium with the credential's tall,
@@ -31,15 +31,22 @@ import { type ChromeSituation, DocumentChrome } from "./DocumentChrome";
 
 export type FlipCardFace = "credencial" | "libreta";
 
-// Stable ids shared with PetDetailTabsPanel's tablist so each tab controls its
-// panel (aria-controls ↔ id) and the panel is labelled by its tab.
-export const PET_FACE_TAB_ID: Record<FlipCardFace, string> = {
-  credencial: "pet-tab-credencial",
-  libreta: "pet-tab-libreta",
-};
+// Stable face ids — PetDetailTabsPanel moves focus onto the newly-shown face
+// after a user-initiated flip (single-flip-control a11y: the band turn button
+// is the only switcher, so the reader must land on the content that appeared).
 export const PET_FACE_PANEL_ID: Record<FlipCardFace, string> = {
   credencial: "pet-face-credencial",
   libreta: "pet-face-libreta",
+};
+
+// Accessible face names (es-AR UI copy) — the faces are labelled <section>
+// regions now, not tabpanels: the tablist was removed (tarjeta-todo,
+// re-affirming PO decision #645) and a tabpanel without tabs is broken ARIA.
+// A named region also makes the back face discoverable from the screen-reader
+// landmark/region list even before the first flip.
+const PET_FACE_LABEL: Record<FlipCardFace, string> = {
+  credencial: "Credencial · frente del documento",
+  libreta: "Libreta · dorso del documento",
 };
 
 type FlipCardProps = {
@@ -142,10 +149,9 @@ export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCar
       <div className="ln-doc-stage">
         <div className="ln-doc-wrap">
           <div ref={turnElRef} className="ln-doc-turn w-full">
-            <div
+            <section
               id={PET_FACE_PANEL_ID.credencial}
-              role="tabpanel"
-              aria-labelledby={PET_FACE_TAB_ID.credencial}
+              aria-label={PET_FACE_LABEL.credencial}
               tabIndex={-1}
               data-section="flip-front"
               aria-hidden={!isCredencialShown}
@@ -159,11 +165,10 @@ export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCar
               >
                 {front}
               </DocumentChrome>
-            </div>
-            <div
+            </section>
+            <section
               id={PET_FACE_PANEL_ID.libreta}
-              role="tabpanel"
-              aria-labelledby={PET_FACE_TAB_ID.libreta}
+              aria-label={PET_FACE_LABEL.libreta}
               tabIndex={-1}
               data-section="flip-back"
               aria-hidden={isCredencialShown}
@@ -177,7 +182,7 @@ export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCar
               >
                 {back}
               </DocumentChrome>
-            </div>
+            </section>
           </div>
         </div>
       </div>

@@ -122,7 +122,11 @@ describe("<FlipCard> — hydration-safe single tree (prefers-reduced-motion via 
     expect(noReduce).not.toContain("data-reduced-motion");
   });
 
-  it("wires each face as a tabpanel controlled by its tab (aria-labelledby ↔ id)", () => {
+  it("wires each face as a labelled region — no tabpanel semantics without a tablist", () => {
+    // Single flip control (tarjeta-todo): the Credencial/Libreta tablist is
+    // gone, so the faces are named <section> regions (a tabpanel without tabs
+    // is broken ARIA). The stable ids stay — PetDetailTabsPanel focuses the
+    // newly-shown face by id after a flip.
     const html = renderToStaticMarkup(
       <FlipCard
         front={<div>F</div>}
@@ -131,11 +135,13 @@ describe("<FlipCard> — hydration-safe single tree (prefers-reduced-motion via 
         onFlip={() => {}}
       />,
     );
+    expect(html).toContain("<section");
     expect(html).toContain('id="pet-face-credencial"');
-    expect(html).toContain('aria-labelledby="pet-tab-credencial"');
+    expect(html).toContain('aria-label="Credencial · frente del documento"');
     expect(html).toContain('id="pet-face-libreta"');
-    expect(html).toContain('aria-labelledby="pet-tab-libreta"');
-    expect(html).toContain('role="tabpanel"');
+    expect(html).toContain('aria-label="Libreta · dorso del documento"');
+    expect(html).not.toContain('role="tabpanel"');
+    expect(html).not.toContain("aria-labelledby");
   });
 });
 

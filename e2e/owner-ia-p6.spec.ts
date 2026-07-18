@@ -404,11 +404,12 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     await expect(page.getByText(/como miembro de/i), "org access notice present").toBeVisible();
     await expect(page.getByTestId("pet-carousel-chrome")).toHaveCount(0);
 
-    // Reveal the (deferred) Libreta face, then assert the owner-only Emergencia
-    // block never rendered for an org viewer.
-    const libretaTab = page.getByRole("tab", { name: /Libreta/i });
-    if (await libretaTab.count()) {
-      await libretaTab.first().click();
+    // Reveal the (deferred) Libreta face via the band turn button (the single
+    // flip control — the tablist is gone, tarjeta-todo), then assert the
+    // owner-only Emergencia block never rendered for an org viewer.
+    const turnButton = page.getByRole("button", { name: "Girar a Libreta" });
+    if (await turnButton.count()) {
+      await turnButton.first().click();
       await page.waitForLoadState("domcontentloaded");
       await page.waitForTimeout(500);
     }

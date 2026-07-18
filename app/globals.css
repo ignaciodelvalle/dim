@@ -2678,79 +2678,9 @@ body {
   --ln-note-ink: #5a4a1f; /* handwritten-note ink — no token equivalent */
 }
 
-/* ---- Segmented Credencial / Libreta control ------------------------------ */
-.ln-facetabs {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-.ln-facetabs-inner {
-  display: inline-flex;
-  gap: 4px;
-  padding: 5px;
-  background: var(--color-ln-card);
-  border: 1px solid var(--color-ln-line);
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-.ln-facetab {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font-family: var(--font-ln-sans);
-  color: var(--color-ln-mute);
-  padding: 9px 18px 9px 14px;
-  border-radius: 10px;
-  text-align: left;
-  transition: background 0.18s ease, color 0.18s ease;
-}
-.ln-facetab:hover:not(.is-active) {
-  background: var(--color-ln-stripe);
-  color: var(--color-ln-ink-2);
-}
-.ln-facetab-ic {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  background: var(--color-ln-stripe);
-  color: var(--color-ln-ink-2);
-  flex-shrink: 0;
-}
-.ln-facetab-t {
-  line-height: 1.1;
-}
-.ln-facetab-t b {
-  font-weight: 600;
-  font-size: 13.5px;
-  display: block;
-}
-.ln-facetab-t span {
-  font-family: var(--font-ln-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-ln-faint);
-}
-.ln-facetab.is-active {
-  background: var(--color-ln-azul);
-  color: #fff;
-}
-.ln-facetab.is-active .ln-facetab-ic {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-}
-.ln-facetab.is-active .ln-facetab-t span {
-  color: rgba(255, 255, 255, 0.72);
-}
-.ln-facetab:focus-visible {
-  outline: 2px solid var(--color-ln-azul);
-  outline-offset: 2px;
-}
+/* (The segmented Credencial/Libreta control above the card was removed —
+   tarjeta-todo, re-affirming PO decision #645: the band's .ln-turn button is
+   the single flip control, promoted below.) */
 
 /* ---- The document (one two-sided sheet + peeking back pages) -------------- */
 .ln-doc-stage {
@@ -2854,28 +2784,32 @@ body {
   color: rgba(255, 255, 255, 0.6);
   margin-top: 3px;
 }
+/* The SINGLE flip control (tarjeta-todo — the segmented switcher above the
+   card is gone), promoted accordingly: a larger hit target (~40px tall, up
+   from ~34) and a stronger fill/border so the affordance reads without any
+   supporting text. */
 .ln-turn {
   position: absolute;
-  right: 18px;
-  top: 16px;
+  right: 16px;
+  top: 14px;
   display: inline-flex;
   align-items: center;
   gap: 9px;
   cursor: pointer;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.55);
   color: #fff;
-  padding: 8px 14px 8px 11px;
+  padding: 10px 16px 10px 13px;
   border-radius: var(--radius-pill);
   font-family: var(--font-ln-sans);
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: 13.5px;
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
   transition: background 0.18s ease;
 }
 .ln-turn:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.32);
 }
 .ln-turn:focus-visible {
   outline: 2px solid #fff;

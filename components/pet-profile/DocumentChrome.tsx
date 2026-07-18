@@ -8,10 +8,13 @@
 // server-rendered CredentialFace and the client LibretaFace share the exact
 // same document shell without either owning the flip mechanics.
 //
-// The turn button is the SECOND flip trigger (the segmented Credencial/Libreta
-// control above the card is the first); both call the same onFlip so the
-// aria-selected tablist stays in sync. The band icon spins 180° on hover as a
-// tactile "turn" cue (disabled under prefers-reduced-motion via CSS).
+// The turn button is the ONLY flip trigger (tarjeta-todo, re-affirming PO
+// decision #645 — the segmented Credencial/Libreta control above the card was
+// removed): it carries the full accessible-nav contract (descriptive
+// "Girar a …" name + aria-pressed toggle state), and its band styling was made
+// more prominent (larger hit target — see .ln-turn) to match its promotion to
+// sole switcher. The band icon spins 180° on hover as a tactile "turn" cue
+// (disabled under prefers-reduced-motion via CSS).
 
 import { Icon } from "@/components/Icon";
 import type { PetSituationKey, PetSituationTone } from "@/lib/ui/pet-situation";

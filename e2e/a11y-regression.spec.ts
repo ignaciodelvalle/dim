@@ -111,49 +111,44 @@ test.describe("a11y regression — authenticated owner surfaces (axe, WCAG 2.1 A
 });
 
 // ---------------------------------------------------------------------------
-// Keyboard navigation — pet-profile Credencial/Libreta tablist (WAI-ARIA tabs)
+// Keyboard navigation — pet-profile single flip control (tarjeta-todo: the
+// Credencial/Libreta tablist is gone; the band "Girar" button is the ONLY
+// switcher and must carry the full keyboard contract).
 // ---------------------------------------------------------------------------
 
-test.describe("a11y regression — pet-profile tabs keyboard nav", () => {
+test.describe("a11y regression — pet-profile flip keyboard nav", () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, ACCOUNTS.owner);
   });
 
-  test("Tab reaches the tablist, Arrow roves + activates, Enter flips the face", async ({
+  test("the band Girar button is keyboard-operable, toggles aria-pressed, and moves focus to the shown face", async ({
     page,
   }) => {
     await page.goto(`/mis-mascotas/${PET_TOKEN}`);
     await page.waitForLoadState("networkidle");
 
-    const tablist = page.getByRole("tablist", { name: /cara del documento/i });
-    await expect(tablist, "pet-profile Credencial/Libreta tablist").toBeVisible();
+    // No tablist remains — the band button is the single switcher (history:
+    // removed by decision #645, restored by the July redesign, removed again).
+    await expect(page.getByRole("tablist", { name: /cara del documento/i })).toHaveCount(0);
 
-    const credTab = page.locator("#pet-tab-credencial");
-    const libTab = page.locator("#pet-tab-libreta");
+    const turnToLibreta = page.getByRole("button", { name: "Girar a Libreta" });
+    await expect(turnToLibreta, "band turn button present").toBeVisible();
+    await expect(turnToLibreta).toHaveAttribute("aria-pressed", "false");
 
-    // Roving tabindex: only the active tab is in the Tab order (reachable by
-    // Tab), the other is -1 — the WAI-ARIA tabs contract.
-    await expect(credTab).toHaveAttribute("aria-selected", "true");
-    await expect(credTab).toHaveAttribute("tabindex", "0");
-    await expect(libTab).toHaveAttribute("tabindex", "-1");
-
-    // Tab reaches the active tab (keyboard-only, no mouse).
-    await credTab.focus();
-    await expect(credTab).toBeFocused();
-
-    // ArrowRight roves to Libreta AND activates it (roving auto-activation);
-    // the credential flips to the Libreta face (?tab=libreta).
-    await page.keyboard.press("ArrowRight");
-    await expect(libTab).toHaveAttribute("aria-selected", "true");
-    await expect(libTab).toHaveAttribute("tabindex", "0");
-    await expect(libTab).toBeFocused();
-    await expect(page).toHaveURL(/[?&]tab=libreta\b/);
-
-    // Enter on a focused tab flips the face: focus Credencial and press Enter,
-    // the credential returns to the Credencial face and ?tab is cleared.
-    await credTab.focus();
+    // Keyboard-only activation: focus the button and press Enter — the card
+    // flips (?tab=libreta) and focus lands on the newly-shown back face.
+    await turnToLibreta.focus();
+    await expect(turnToLibreta).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(credTab).toHaveAttribute("aria-selected", "true");
+    await expect(page).toHaveURL(/[?&]tab=libreta\b/);
+    await expect(page.locator("#pet-face-libreta")).toBeFocused();
+
+    // The back-face button announces the toggled state and flips back.
+    const turnToCredencial = page.getByRole("button", { name: "Girar a Credencial" });
+    await expect(turnToCredencial).toHaveAttribute("aria-pressed", "true");
+    await turnToCredencial.focus();
+    await page.keyboard.press("Enter");
     await expect(page).not.toHaveURL(/[?&]tab=libreta\b/);
+    await expect(page.locator("#pet-face-credencial")).toBeFocused();
   });
 });

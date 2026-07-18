@@ -1,9 +1,16 @@
 "use client";
 
 // PetDetailTabsPanel — client component driving the two-face flip system
-// (two-face redesign, 2026-07-01, design ADR-1/ADR-6; wave-3 P2, PO decision
-// #645, removed the Credencial|Libreta tab title bar — the "Girar" button
-// rendered by FlipCard is now the ONLY face switcher).
+// (two-face redesign, 2026-07-01, design ADR-1/ADR-6).
+//
+// SINGLE FLIP CONTROL (tarjeta-todo, PO 2026-07-19 — re-affirming PO decision
+// #645): the band "Dar vuelta / Ver credencial" button that DocumentChrome
+// renders on both faces is the ONLY face switcher. The segmented
+// Credencial|Libreta tablist the July redesign restored above the card was
+// removed again — this time WITH the a11y contract the band button now fully
+// owns: descriptive accessible name ("Girar a Libreta/Credencial"),
+// aria-pressed toggle state, keyboard reachability (it is a real button), and
+// focus moved onto the newly-shown face after a flip (see focus effect below).
 //
 // - Reads the active face from ?tab= (default: credencial).
 // - Syncs hash fragments: legacy anchors (#libreta, #vacunas, #historial,
@@ -18,20 +25,12 @@
 //   component (and thus the Libreta face) is rendered.
 
 import { usePathname, useSearchParams } from "next/navigation";
-import {
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
-import { Icon } from "@/components/Icon";
 import type { ChromeSituation } from "@/components/pet-profile/DocumentChrome";
-import { FlipCard, PET_FACE_PANEL_ID, PET_FACE_TAB_ID } from "@/components/pet-profile/FlipCard";
+import { FlipCard, PET_FACE_PANEL_ID } from "@/components/pet-profile/FlipCard";
 import {
   LibretaFace,
   type LibretaFaceEmergencyContacts,
@@ -236,17 +235,17 @@ export function PetDetailTabsPanel({
   // a flip and restore the previous face via popstate → useSearchParams()
   // reactivity above. `?lente=` is no longer written (dead param, ADR-10).
   //
-  // `focusAfter` records where focus should land once the flip lands (the
-  // active-face effect below performs the move once `activeFace` catches up):
-  // "panel" for a deliberate flip (click / band turn button) so the reader is
-  // taken to the newly-shown content; "tab" for arrow-key roving so focus stays
-  // on the tablist. The move is only performed for user-initiated flips — never
-  // on mount / deep-link / browser-back (which leave `focusAfter` null).
-  const focusAfterRef = useRef<"panel" | "tab" | null>(null);
+  // `focusPanelAfterFlipRef` records that focus should land on the newly-shown
+  // face once the flip lands (the active-face effect below performs the move
+  // once `activeFace` catches up), so a keyboard/screen-reader user who
+  // activates the band turn button is taken to the content that appeared. The
+  // move only happens for user-initiated flips — never on mount / deep-link /
+  // browser-back (which leave the flag unset).
+  const focusPanelAfterFlipRef = useRef(false);
 
-  function goToFace(target: TabKey, focusAfter: "panel" | "tab" = "panel") {
+  function goToFace(target: TabKey) {
     if (target === activeFace) return;
-    focusAfterRef.current = focusAfter;
+    focusPanelAfterFlipRef.current = true;
     const params = new URLSearchParams(searchParams.toString());
     if (target === "credencial") {
       params.delete("tab");
@@ -258,77 +257,22 @@ export function PetDetailTabsPanel({
     pushTabUrl(qs ? `${pathname}?${qs}` : pathname);
   }
 
-  // Move focus after a user-initiated flip settles (see focusAfterRef).
+  // Move focus onto the shown face after a user-initiated flip settles.
   useEffect(() => {
-    const mode = focusAfterRef.current;
-    if (!mode) return;
-    focusAfterRef.current = null;
-    const id = mode === "panel" ? PET_FACE_PANEL_ID[activeFace] : PET_FACE_TAB_ID[activeFace];
-    document.getElementById(id)?.focus();
+    if (!focusPanelAfterFlipRef.current) return;
+    focusPanelAfterFlipRef.current = false;
+    document.getElementById(PET_FACE_PANEL_ID[activeFace])?.focus();
   }, [activeFace]);
 
-  // Two flip triggers, kept in sync (both write ?tab= through goToFace): the
-  // segmented Credencial/Libreta control below, and the band turn button that
-  // DocumentChrome renders inside each face (FlipCard.onFlip → switchFace).
+  // THE flip trigger (single control): the band turn button DocumentChrome
+  // renders inside each face (FlipCard.onFlip → switchFace). It writes ?tab=
+  // through goToFace like every previous trigger did.
   function switchFace() {
     goToFace(activeFace === "credencial" ? "libreta" : "credencial");
   }
 
-  // Roving tablist keyboard nav (WAI-ARIA tabs pattern): Arrow/Home/End move
-  // focus between the two tabs and auto-activate; focus stays on the tabs.
-  function onTablistKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
-    let target: TabKey | null = null;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === "End") target = "libreta";
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp" || e.key === "Home")
-      target = "credencial";
-    if (!target) return;
-    e.preventDefault();
-    if (target !== activeFace) goToFace(target, "tab");
-    else document.getElementById(PET_FACE_TAB_ID[target])?.focus();
-  }
-
-  function faceTab(face: TabKey, label: string, eyebrow: string, icon: string) {
-    const isActive = activeFace === face;
-    return (
-      <button
-        type="button"
-        id={PET_FACE_TAB_ID[face]}
-        role="tab"
-        aria-selected={isActive}
-        aria-controls={PET_FACE_PANEL_ID[face]}
-        tabIndex={isActive ? 0 : -1}
-        className={`ln-facetab${isActive ? " is-active" : ""}`}
-        onClick={() => goToFace(face, "panel")}
-      >
-        <span className="ln-facetab-ic">
-          <Icon name={icon} size="sm" decorative />
-        </span>
-        <span className="ln-facetab-t">
-          <b>{label}</b>
-          <span>{eyebrow}</span>
-        </span>
-      </button>
-    );
-  }
-
   return (
     <div id="tab-panel" className="ln-doc-root">
-      {/* Recto/verso — explicit two-sided control (the "Una sola libreta"
-          redesign restored a visible segmented switcher alongside the band
-          turn button; aria-selected + the tabpanel wiring stay synced across
-          both triggers). */}
-      <div className="ln-facetabs">
-        <div
-          className="ln-facetabs-inner"
-          role="tablist"
-          aria-label="Cara del documento"
-          onKeyDown={onTablistKeyDown}
-        >
-          {faceTab("credencial", "Credencial", "Frente", "credential")}
-          {faceTab("libreta", "Libreta", "Dorso", "libreta")}
-        </div>
-      </div>
-
       <FlipCard
         front={credencialContent}
         back={renderBackContent()}

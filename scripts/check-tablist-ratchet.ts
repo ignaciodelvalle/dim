@@ -35,7 +35,11 @@ export const TABLIST_OWNER_FILES = new Set<string>([
 // baseline (or any brand-new file) fails.
 export const TABLIST_BASELINE: Record<string, number> = {
   "app/gob/maltrato/_inspector/WelfareInspectorContent.tsx": 1,
-  "components/pet-profile/PetDetailTabsPanel.tsx": 1,
+  // components/pet-profile/PetDetailTabsPanel.tsx left the baseline
+  // (tarjeta-todo 2026-07-18): its hand-rolled tablist was removed for good —
+  // the band turn button is the single flip control. Ratchet tightened so the
+  // tablist cannot quietly return a THIRD time (history: removed by PO
+  // decision #645, restored by the July redesign, removed again).
   "components/panorama/PanoramaDock.tsx": 1,
 };
 
