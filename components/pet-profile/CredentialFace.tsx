@@ -31,7 +31,7 @@ import type { LnHeroProps } from "@/components/ui/Hero";
 import { LnMemorialChip, LnVstamp } from "@/components/ui/StatusFlag";
 import type { ComplianceState } from "@/lib/projections/pet-compliance";
 import type { PetSituation } from "@/lib/ui/pet-situation";
-import { registeredAdjective, situationLabelForSex } from "@/lib/utils/format";
+import { registeredAdjective } from "@/lib/utils/format";
 
 export type CredentialFacePppInfo = {
   attested: boolean;
@@ -76,11 +76,14 @@ export type CredentialFaceProps = {
   /**
    * Pet SITUATION skin (state-language, #42). When the pet is in a non-default
    * situation (perdida, observación antirrábica, en tratamiento, preñada, en
-   * adopción / tránsito), the credential ADOPTS that situation's skin: the band
-   * gets its tint + ONE status line carries it, and the passive "Inscripta"
-   * registration badge is DEMOTED to a quiet secondary marker. The caller must
-   * pass `null` for the default (`al-dia`) and for deceased pets (the memorial
-   * skin above owns that state) so the two skins never stack.
+   * adopción / tránsito), the credential ADOPTS that situation's skin: the face
+   * gets its tint (`data-situation` CSS variants) and the passive "Inscripta"
+   * registration badge is DEMOTED to a quiet secondary marker. The situation's
+   * TEXT lives exclusively in the masthead band chip (DocumentChrome) — the
+   * single state authority (PO 2026-07-16); this face never repeats the label.
+   * The caller must pass `null` for the default (`al-dia`) and for deceased
+   * pets (the memorial skin above owns that state) so the two skins never
+   * stack.
    */
   situation?: PetSituation | null;
   /** Prioritized alert strip node. `null`/absent → no "Avisos" section. */
@@ -125,13 +128,9 @@ export function CredentialFace({
   // stray al-dia never tints the credential green as if it were an alert).
   const activeSituation = situation && !situation.isDefault ? situation : null;
 
-  // Gender-agree the two credential-state words that are adjectives
-  // ("Inscripto/a" and the situation skin's "Perdido/a"/"Fallecido/a") with
-  // the pet's recorded sex. QA histórico 2026-07-08 #2.
+  // Gender-agree the "Inscripto/a" registration adjective with the pet's
+  // recorded sex. QA histórico 2026-07-08 #2.
   const registeredWord = registeredAdjective(petSex);
-  const situationLabel = activeSituation
-    ? situationLabelForSex(activeSituation.label, petSex)
-    : null;
 
   // 3b improvement B — mobile compliance disclosure. The collapsed summary is
   // derived from the SAME complianceState the panel renders below (the
@@ -203,18 +202,12 @@ export function CredentialFace({
         </div>
       )}
 
-      {/* Situation skin (#42) — ONE status line carrying the pet's current
-          situation via color + icon + label (never color alone). The band tint
-          and face accent are driven by `data-situation` in globals.css; this is
-          the single textual carrier. Rendered once, right under the band, so it
-          reads as the credential adopting the situation's skin — not as a badge
-          stacked next to "Inscripta". */}
-      {activeSituation && (
-        <div className={`ln-sit ln-sit--${activeSituation.tone}`} data-section="pet-situation">
-          <Icon name={activeSituation.icon} size="sm" decorative />
-          <span className="ln-sit-label">{situationLabel}</span>
-        </div>
-      )}
+      {/* Situation skin (#42, standardized 2026-07-16): the face carries the
+          situation's TINT only (`data-situation` CSS variants). Its text lives
+          exclusively in the masthead band chip (DocumentChrome) — the single
+          state authority. The old `.ln-sit` status line repeated the identical
+          icon + label right under that chip, which is exactly the "estado
+          repetido varias veces" the PO flagged, so it was removed. */}
 
       {/* Identity row — the photo pokes up into the band (negative margin).
           `data-swipe-zone` marks this header/identity band as one of the

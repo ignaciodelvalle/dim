@@ -170,8 +170,12 @@ describe("CredentialFace — Inscripto/a gender agreement", () => {
     );
     expect(html).toContain("Inscripto");
     expect(html).not.toContain("Inscripta");
-    // The situation label itself must also agree — "Perdido", not "Perdida".
-    expect(html).toContain("Perdido");
+    // Pet-state standardization (PO 2026-07-16): the situation LABEL must NOT
+    // render here — the masthead band chip (DocumentChrome) is the single
+    // textual carrier of the state. The face keeps only its data-situation
+    // tint hook and the demoted registration marker asserted above.
+    expect(html).not.toContain("Perdido");
     expect(html).not.toContain("Perdida");
+    expect(html).toContain('data-situation="perdida"');
   });
 });

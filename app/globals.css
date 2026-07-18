@@ -3233,61 +3233,10 @@ body {
   box-shadow: 0 0 0 3px var(--color-ln-memorial-chip-bg);
 }
 
-/* The single status line — the situation's textual carrier. */
-.ln-sit {
-  position: relative;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 14px 16px 0;
-  padding: 9px 14px;
-  border: 1px solid var(--sit-line);
-  border-left-width: 3px;
-  border-radius: var(--radius-sm);
-  background: var(--sit-soft);
-  color: var(--sit-ink);
-  font-family: var(--font-ln-sans);
-  font-size: 14px;
-  font-weight: 600;
-}
-.ln-sit svg {
-  flex-shrink: 0;
-  color: var(--sit-ink);
-}
-.ln-sit-label {
-  letter-spacing: 0.01em;
-}
-.ln-sit--alerta {
-  --sit-ink: var(--color-ln-err);
-  --sit-soft: var(--color-ln-err-050);
-  --sit-line: var(--color-ln-err-100);
-  --sit-detail: var(--color-ln-err);
-}
-.ln-sit--vigilancia {
-  --sit-ink: var(--color-ln-azul);
-  --sit-soft: var(--color-ln-celeste-050);
-  --sit-line: var(--color-ln-celeste-100);
-  --sit-detail: var(--color-ln-ink-2);
-}
-.ln-sit--tratamiento {
-  --sit-ink: var(--color-ln-warn);
-  --sit-soft: var(--color-ln-warn-050);
-  --sit-line: var(--color-ln-warn-100);
-  --sit-detail: var(--color-ln-warn);
-}
-.ln-sit--gestacion {
-  --sit-ink: var(--color-ln-rosa);
-  --sit-soft: var(--color-ln-rosa-bg);
-  --sit-line: var(--color-ln-rosa-bd);
-  --sit-detail: var(--color-ln-ink-2);
-}
-.ln-sit--accion {
-  --sit-ink: var(--color-ln-ink-2);
-  --sit-soft: var(--color-ln-stripe);
-  --sit-line: var(--color-ln-line-strong);
-  --sit-detail: var(--color-ln-mute);
-}
+/* The `.ln-sit` status line was removed (pet-state standardization,
+   PO 2026-07-16): the masthead band chip (DocumentChrome) is the single
+   textual carrier of the situation; the face keeps only its
+   `data-situation` tint. */
 
 /* Demoted registration marker — quiet mono footnote when a situation is active,
    replacing the prominent "Inscripta" badge next to the name. */
