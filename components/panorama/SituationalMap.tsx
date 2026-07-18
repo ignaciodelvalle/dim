@@ -2400,6 +2400,10 @@ export function SituationalMap({
           // Same demotion as divisionReadouts: a locality-choropleth-as-circles rate
           // value is a raw count, so its label must say "(conteo)" (QA ronda 2026-07-16).
           demotedToCount: isDrilledChoropleth && l.dataType === "rate",
+          // panorama-percapita (F2): the graduated point's `count` is a per-10k RATE
+          // here, so the readout formats it as one — "<0,01" for a positive-but-tiny
+          // rate, never a fake "0".
+          perCapita: l.perCapita === true,
         }),
       );
     }

@@ -23,6 +23,7 @@ import {
   censusMetaOf,
   enrichPerCapita,
   isPercapitaEligible,
+  per10kDisplayValue,
   perCapitaRate,
   percapitaEligibleFor,
   percapitaFooterLabel,
@@ -137,11 +138,19 @@ describe("percapitaEligibleFor — the view-level gate predicate", () => {
   });
 });
 
-describe("perCapitaRate — value10k = count / population * 10_000", () => {
-  it("computes the per-10k rate, rounded to 2 decimals", () => {
-    expect(perCapitaRate(154, 482_019)).toBe(3.19);
-    expect(perCapitaRate(100, 17_569_053)).toBe(0.06);
+describe("perCapitaRate — value10k = count / population * 10_000 (UNROUNDED, F2)", () => {
+  it("computes the raw per-10k rate (no 2-decimal round that would fake a zero)", () => {
+    expect(perCapitaRate(154, 482_019)).toBeCloseTo(3.1949, 4);
+    expect(perCapitaRate(100, 17_569_053)).toBeCloseTo(0.0569, 4);
     expect(perCapitaRate(0, 190_641)).toBe(0);
+  });
+
+  it("NEVER collapses a tiny-but-real count over a large province to 0 (the F2 fix)", () => {
+    // 1..8 events over Buenos Aires (17,5 M hab.) rounded to 2 decimals was 0 —
+    // a fabricated "no incidence". The rate must stay strictly positive.
+    for (let count = 1; count <= 8; count++) {
+      expect(perCapitaRate(count, 17_569_053)).toBeGreaterThan(0);
+    }
   });
 
   it("returns null — never 0 — for a missing count (suppressed upstream)", () => {
@@ -158,12 +167,37 @@ describe("perCapitaRate — value10k = count / population * 10_000", () => {
   });
 });
 
+describe("per10kDisplayValue — honest small-rate display (F2)", () => {
+  it("shows a positive-but-tiny rate as '<0,01' instead of a fake '0,00'", () => {
+    // count 1 over Buenos Aires (17,5 M) ≈ 0,00057 → would round to 0,00 and read
+    // as "no incidence"; the honest display says "below 0,01".
+    expect(per10kDisplayValue(perCapitaRate(1, 17_500_000))).toBe("<0,01");
+    expect(per10kDisplayValue(0.0009)).toBe("<0,01");
+  });
+
+  it("renders a real es-AR value with exactly 2 decimals", () => {
+    expect(per10kDisplayValue(3.1949)).toBe("3,19");
+    expect(per10kDisplayValue(0.5026)).toBe("0,50");
+    expect(per10kDisplayValue(0.01)).toBe("0,01");
+  });
+
+  it("keeps a genuine zero (count 0) as 0,00 — that IS no incidence", () => {
+    expect(per10kDisplayValue(0)).toBe("0,00");
+  });
+
+  it("is null-safe (no rate → empty string, callers render their own no-data copy)", () => {
+    expect(per10kDisplayValue(null)).toBe("");
+    expect(per10kDisplayValue(undefined)).toBe("");
+    expect(per10kDisplayValue(Number.NaN)).toBe("");
+  });
+});
+
 describe("enrichPerCapita — the census join (server-side, name-normalized)", () => {
   it("joins by province name and carries population, per10k and census metadata", () => {
     const out = enrichPerCapita(fc([provinceFeature("Córdoba", 200)]), LOOKUP);
     const p = out.features[0].properties;
     expect(p.population).toBe(3_978_984);
-    expect(p.per10k).toBe(0.5);
+    expect(p.per10k).toBeCloseTo(0.5026, 4);
     expect(p.censusYear).toBe(2022);
     expect(p.censusSource).toBe("INDEC Censo 2022");
     // The raw count is untouched — the projection (not the join) swaps values.
@@ -172,7 +206,7 @@ describe("enrichPerCapita — the census join (server-side, name-normalized)", (
 
   it("joins accent/case-insensitively (mirrors the bivariate normName rule)", () => {
     const out = enrichPerCapita(fc([provinceFeature("cordoba", 200)]), LOOKUP);
-    expect(out.features[0].properties.per10k).toBe(0.5);
+    expect(out.features[0].properties.per10k).toBeCloseTo(0.5026, 4);
   });
 
   it("surfaces an unmatched province as no-data (null), NEVER 0", () => {
@@ -206,7 +240,7 @@ describe("projectPerCapita — the client projection the map paints", () => {
     const enriched = enrichPerCapita(fc([provinceFeature("Córdoba", 200)]), LOOKUP);
     const out = projectPerCapita(enriched);
     const p = out.features[0].properties;
-    expect(p.count).toBe(0.5);
+    expect(p.count).toBeCloseTo(0.5026, 4);
     expect(p.perCapita).toBe(true);
     expect(p.suppressed).toBe(false);
   });

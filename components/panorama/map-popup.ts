@@ -11,6 +11,7 @@
 
 import { escapeHtml } from "@/lib/utils/escape-html";
 import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
+import { per10kDisplayValue } from "@/src/modules/panorama/domain/percapita";
 
 /** The taxonomy the readout formatter branches on (subset of ActiveLayer.dataType). */
 export type ReadoutDataType = "rate" | "density" | "signal" | "reference" | undefined;
@@ -74,9 +75,18 @@ export function countReadoutLabel(label: string, demotedToCount: boolean): strin
   return demotedToCount ? `${label}${COUNT_READOUT_SUFFIX}` : label;
 }
 
-/** Format a value with its unit. Rate layers read as a percentage ("64,4%");
- * every other type is a plain es-AR-grouped count ("1.234"). */
-export function formatValueWithUnit(value: number, dataType: ReadoutDataType): string {
+/** Format a value with its unit. Per-cápita density values read through the
+ * honest small-rate display ("<0,01" for a positive-but-tiny per-10k rate, F2);
+ * rate layers read as a percentage ("64,4%"); every other type is a plain
+ * es-AR-grouped count ("1.234"). */
+export function formatValueWithUnit(
+  value: number,
+  dataType: ReadoutDataType,
+  perCapita = false,
+): string {
+  if (perCapita) {
+    return per10kDisplayValue(value);
+  }
   if (dataType === "rate") {
     return `${value.toLocaleString("es-AR", { maximumFractionDigits: 1 })}%`;
   }
@@ -110,6 +120,12 @@ export function buildLayerReadout(input: {
    * nodata) so the demoted layer's name is consistent across the readout.
    */
   demotedToCount?: boolean;
+  /**
+   * True when this readout's value is a per-10k RATE (the console's per-cápita
+   * projection). Formatting then routes through per10kDisplayValue so a tiny-but-
+   * real rate reads "<0,01" instead of a fake "0" (F2).
+   */
+  perCapita?: boolean;
 }): LayerReadout {
   const label = countReadoutLabel(input.label, input.demotedToCount === true);
   if (input.suppressed === true) {
@@ -118,7 +134,7 @@ export function buildLayerReadout(input: {
   if (input.value === null) {
     return { label, valueText: null, state: "nodata" };
   }
-  const valueText = formatValueWithUnit(input.value, input.dataType);
+  const valueText = formatValueWithUnit(input.value, input.dataType, input.perCapita === true);
   // P2: the isMeta predicate reads the ONE shared registry helper (the gate's
   // encoding.kind source) instead of a local copy of the rate+target check.
   const metaText = isMetaLayer(input)

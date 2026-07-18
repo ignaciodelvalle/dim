@@ -110,9 +110,13 @@ export function percapitaEligibleFor(layers: readonly LayerId[], level: Aggregat
 // ---------------------------------------------------------------------------
 
 /**
- * value10k = count / population × 10.000, rounded to 2 decimals (small-count /
- * large-province rates like 0,06 must not collapse to 0 — a 1-decimal round
- * would misread "some incidence" as "none").
+ * value10k = count / population × 10.000 — the RAW, UNROUNDED rate.
+ *
+ * F2: a 2-decimal round here collapsed a tiny-but-real rate (1..8 events over
+ * Buenos Aires's 17,5 M hab. ≈ 0,0006..0,0046) to 0 — a fabricated "no
+ * incidence". A positive count must NEVER project to 0, so the math stays exact
+ * and the SCALE (buildGraduatedScale) is the only place a max is quantized (for
+ * binning), while {@link per10kDisplayValue} owns the honest small-rate LABEL.
  *
  * Returns null — NEVER 0 — when either arm is unusable: a null count (k-anon
  * suppressed upstream) or a missing/non-positive population (no census row).
@@ -126,7 +130,24 @@ export function perCapitaRate(
   if (typeof population !== "number" || !Number.isFinite(population) || population <= 0) {
     return null;
   }
-  return Math.round((count / population) * 10_000 * 100) / 100;
+  return (count / population) * 10_000;
+}
+
+/**
+ * Honest es-AR display string for a per-10k rate (F2). The map paints the RAW
+ * rate (see perCapitaRate), but a 2-decimal readout of a very small positive
+ * rate rounds to "0,00" and reads as "no incidence". This display:
+ *  - null / non-finite → "" (the caller renders its own no-data copy);
+ *  - 0 < v < 0,005     → "<0,01" (positive, but below the 2-decimal grid);
+ *  - otherwise         → es-AR with EXACTLY 2 decimals (a genuine 0 → "0,00").
+ */
+export function per10kDisplayValue(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  if (value > 0 && value < 0.005) return "<0,01";
+  return value.toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 // ---------------------------------------------------------------------------

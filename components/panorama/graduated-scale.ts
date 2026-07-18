@@ -121,6 +121,11 @@ function round2(v: number): number {
  * exactly at the observed max; the penultimate step is skipped when it would
  * crowd the max (within half a step), so the legend never shows two
  * near-identical top bubbles.
+ *
+ * F1 defense (a): the 2-decimal `round2` collapses a sub-0.005 nice step to 0
+ * for a very small max (e.g. max 0.01 → step 0.002 → round2 → 0). A 0 sample
+ * would seed a DUPLICATE `[0, …]` interpolate stop (see buildGraduatedScale) and
+ * a "0" legend label, so samples are filtered to strictly-positive and deduped.
  */
 function fractionalSampleValues(max: number): number[] {
   if (!(max > 0) || !Number.isFinite(max)) return [];
@@ -128,7 +133,7 @@ function fractionalSampleValues(max: number): number[] {
   const out: number[] = [];
   for (let v = step; v < max - step / 2; v += step) out.push(round2(v));
   out.push(round2(max));
-  return [...new Set(out)].sort((a, b) => a - b);
+  return [...new Set(out)].filter((v) => v > 0).sort((a, b) => a - b);
 }
 
 /**
@@ -159,8 +164,18 @@ export function buildGraduatedScale(
   }));
   // Stops start at 0 → floor radius (covers coalesced null / zero counts) so the
   // interpolate always has ≥ 2 strictly-ascending input values.
+  //
+  // F1 defense (b): a STRUCTURAL guard for all callers — never push a stop whose
+  // input is ≤ the previous input. MapLibre's `interpolate` throws on a duplicate
+  // or out-of-order input, and a fractional sampler that ever emitted a repeated
+  // value (or one equal to the seeded 0) would take the graduated layer down.
   const radiusStops: Array<[number, number]> = [[0, BUBBLE_R_MIN]];
-  for (const v of samples) radiusStops.push([v, roundR(bubbleRadius(v, max))]);
+  let prevInput = 0;
+  for (const v of samples) {
+    if (v <= prevInput) continue;
+    radiusStops.push([v, roundR(bubbleRadius(v, max))]);
+    prevInput = v;
+  }
   return { maxValue: max, bins, radiusStops };
 }
 

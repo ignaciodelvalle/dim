@@ -142,3 +142,40 @@ describe("buildGraduatedScale — fractional mode (panorama-percapita)", () => {
     expect(plain.maxValue).toBe(340);
   });
 });
+
+describe("buildGraduatedScale — fractional near-zero regression (F1)", () => {
+  // Repro: a per-10k max ≲ 0.011 made the first nice decimal step round to 0
+  // (round2(0.002) → 0), so fractionalSampleValues emitted a 0 sample. The scale
+  // then seeded radiusStops [[0, MIN]] and pushed another [0, r] → a DUPLICATE
+  // input value, which MapLibre's `interpolate` rejects ("strictly ascending"),
+  // so the graduated layer failed to add and the per-cápita map read as broken.
+  for (const max of [0.006, 0.008, 0.01]) {
+    it(`emits only positive samples and strictly-ascending stops for max=${max}`, () => {
+      const scale = buildGraduatedScale(max, { fractional: true });
+      // No fabricated 0 sample and no "0" legend label.
+      for (const b of scale.bins) {
+        expect(b.value).toBeGreaterThan(0);
+        expect(b.label).not.toBe("0");
+      }
+      // Distinct bin values (no two near-identical collapsing bubbles).
+      const values = scale.bins.map((b) => b.value);
+      expect(new Set(values).size).toBe(values.length);
+      // The MapLibre contract: interpolate inputs are strictly ascending from 0.
+      expect(scale.radiusStops[0]).toEqual([0, BUBBLE_R_MIN]);
+      for (let i = 1; i < scale.radiusStops.length; i++) {
+        expect(scale.radiusStops[i][0]).toBeGreaterThan(scale.radiusStops[i - 1][0]);
+      }
+    });
+  }
+
+  it("structural guard: buildGraduatedScale never emits a stop whose input ≤ the previous", () => {
+    // Defense (b) — independent of the sampler, for every future caller.
+    const inputs = buildGraduatedScale(0.01, { fractional: true }).radiusStops.map((s) => s[0]);
+    for (let i = 1; i < inputs.length; i++) expect(inputs[i]).toBeGreaterThan(inputs[i - 1]);
+  });
+
+  it("leaves the integer scale byte-identical (the guard is a no-op for ascending samples)", () => {
+    expect(buildGraduatedScale(4)).toEqual(buildGraduatedScale(4, { fractional: false }));
+    expect(buildGraduatedScale(4).radiusStops.map((s) => s[0])).toEqual([0, 1, 2, 3, 4]);
+  });
+});

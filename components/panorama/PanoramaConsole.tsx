@@ -4515,6 +4515,19 @@ export function PanoramaConsole({
     percapitaMode && percapitaEligible && percapitaCensusMeta === null
       ? "Sin datos del censo para esta vista — se muestra el conteo."
       : null;
+  // panorama-percapita (F3): a per-cápita-eligible layer that resolved to its
+  // NEAR-band event-points mark serves REAL dots UN-enriched (get-layer-features
+  // skips the census join for points-mode results), so census metadata is absent
+  // for a reason that is NOT "no census data" and is NOT a department drill.
+  // Explain the points view explicitly instead of the misleading no-census/drill
+  // copy. Derived client-side from the SAME render mode the map paints — no new
+  // prop threaded.
+  const percapitaPointsNote =
+    percapitaMode &&
+    percapitaLayersEligible &&
+    activeLayers.some((l) => isPercapitaEligible(l.id as LayerId) && l.renderMode === "points")
+      ? "En la vista de puntos se muestran eventos individuales — la tasa per cápita aplica a la vista agregada por provincia."
+      : null;
   const modeOptions: ModeOption[] = capabilities.mapModes.map((id) => ({
     id,
     label: MODE_LABELS[id] ?? id,
@@ -4581,7 +4594,7 @@ export function PanoramaConsole({
           ? "Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo)."
           : bivariateEligible && bivariateRefusalNote
             ? bivariateRefusalNote
-            : (percapitaDrillNote ?? percapitaNoCensusNote)
+            : (percapitaPointsNote ?? percapitaDrillNote ?? percapitaNoCensusNote)
       }
     />
   );

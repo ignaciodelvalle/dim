@@ -122,6 +122,33 @@ describe("formatValueWithUnit", () => {
     expect(formatValueWithUnit(1234, "density")).toBe("1.234");
     expect(formatValueWithUnit(5, undefined)).toBe("5");
   });
+
+  it("per-cápita branch: a tiny-but-real rate reads '<0,01', never a fake 0 (F2)", () => {
+    // A per-10k density value ≈ 0,00057 (count 1 over Buenos Aires) must not paint
+    // "0" in the popup — the honest small-rate display takes over.
+    expect(formatValueWithUnit(0.00057, "density", true)).toBe("<0,01");
+    expect(formatValueWithUnit(0.5026, "density", true)).toBe("0,50");
+    // Non-per-cápita density formatting is byte-identical (no forced decimals).
+    expect(formatValueWithUnit(1234, "density", false)).toBe("1.234");
+  });
+});
+
+describe("buildLayerReadout — per-cápita display (F2)", () => {
+  it("renders a positive-but-tiny per-10k rate as '<0,01' in the pinned readout", () => {
+    const readout = buildLayerReadout({
+      label: "Denuncias de bienestar (por 10.000 hab.)",
+      value: 0.00057,
+      dataType: "density",
+      perCapita: true,
+    });
+    expect(readout.valueText).toBe("<0,01");
+    expect(readout.state).toBeUndefined();
+  });
+
+  it("leaves a non-per-cápita density readout byte-identical", () => {
+    const readout = buildLayerReadout({ label: "Zoonosis", value: 1234, dataType: "density" });
+    expect(readout.valueText).toBe("1.234");
+  });
 });
 
 describe("formatMetaGap", () => {

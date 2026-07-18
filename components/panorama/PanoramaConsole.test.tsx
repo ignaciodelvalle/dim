@@ -2451,4 +2451,67 @@ describe("PanoramaConsole — per-cápita encoding (panorama-percapita v1)", () 
       screen.getByText("Sin datos del censo para esta vista — se muestra el conteo."),
     ).toBeInTheDocument();
   });
+
+  it("explains the POINTS view (not 'sin datos del censo') when an eligible layer serves near-band event dots (F3)", async () => {
+    // A per-cápita-eligible layer (denuncias) that resolves to its NEAR-band
+    // event-points mark carries NO per-unit counts to normalize — the server
+    // serves real dots un-enriched (get-layer-features skips the census join for
+    // points-mode results). The fallback note must name the POINTS view, never
+    // the misleading "no census data" / department-drill cause.
+    setUrl(
+      "/gob/panorama?period=3y&preset=bienestar&layers=denuncias,decomisos&encoding=percapita",
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input);
+        const body = url.includes("/api/panorama/kpis")
+          ? INITIAL_KPIS
+          : url.includes("mode=points")
+            ? {
+                mode: "points",
+                features: {
+                  type: "FeatureCollection",
+                  features: [
+                    {
+                      type: "Feature",
+                      geometry: { type: "Point", coordinates: [-58.4, -34.6] },
+                      properties: { place: "Evento", locality: "X", province: "CABA" },
+                    },
+                  ],
+                },
+                truncated: false,
+                sinUbicacionCount: 0,
+              }
+            : OK_ENVELOPE;
+        return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+      }),
+    );
+
+    render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        initialLevel="locality"
+        initialDivisionProvince="AR-C"
+      />,
+    );
+
+    // Zoom into the NEAR band (≥ Z_POINTS) so denuncias resolves to real dots.
+    await act(async () => {
+      (mapProps!.onZoom as (z: number) => void)(11);
+    });
+
+    // The points-mode note wins over the no-census / drill copy…
+    expect(
+      await screen.findByText(
+        "En la vista de puntos se muestran eventos individuales — la tasa per cápita aplica a la vista agregada por provincia.",
+      ),
+    ).toBeInTheDocument();
+    // …and the misleading no-census note is NOT shown.
+    expect(
+      screen.queryByText("Sin datos del censo para esta vista — se muestra el conteo."),
+    ).not.toBeInTheDocument();
+  });
 });
