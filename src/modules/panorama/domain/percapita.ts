@@ -16,12 +16,40 @@
 //
 // PRIVACY (v1): the k=5 numerator suppression is applied UPSTREAM (repository
 // rollups); a suppressed count reaches this module as null and STAYS null — no
-// rate is ever derived from a hidden count. No denominator-privacy floor is
-// needed at province grain: every census population is > 190.000 (smallest:
-// Tierra del Fuego, 190.641), so a per-10k rate can never be inverted into a
-// small-cell count. PHASE 2 (department grain) MUST revisit this: department
-// populations go down to ~3 digits, where a rate over a tiny denominator can
-// leak a k-suppressed numerator — add a denominator floor there.
+// rate is ever derived from a hidden count. Every census population is >
+// 190.000 (smallest: Tierra del Fuego, 190.641) — comfortably above
+// MIN_PERCAPITA_DENOMINATOR below — so this floor is currently a no-op at
+// province grain (regression-tested: province rates are byte-for-byte
+// unchanged by its introduction).
+//
+// PHASE 2 (department grain) IS BLOCKED ON DATA: `jurisdictions_census` holds
+// ONLY the 24 province rows (Censo 2022) — no department/locality
+// populations exist yet (a separate workstream loads them; see AGENTS.md
+// jurisdiction-compliance track). Department grain also stays OFF in the UI
+// here: `AggregationLevel` (types.ts) has no "department" member and
+// `percapitaEligibleFor` below still hard-gates `level !== "province"`. This
+// module only builds the DENOMINATOR PRIVACY FLOOR (MIN_PERCAPITA_DENOMINATOR
+// + isBelowPercapitaFloor) so that whichever future change wires department
+// cells through `enrichPerCapita` inherits the floor "for free" — a
+// data-arrival + flag-flip, not a re-derivation of this reasoning.
+//
+// THE FLOOR'S RATIONALE — why a denominator (not just the k=5 numerator) needs
+// its own guard: department populations "go down to ~3 digits" (per the
+// AGENTS.md gap note), and a rate's SENSITIVITY to one single case grows as
+// its denominator shrinks (Δrate for +1 case = 10.000 / population). Below
+// MIN_PERCAPITA_DENOMINATOR = 10.000, a single case moves the published rate
+// by MORE than a full point (>1,00 por 10.000 hab.) — a jump precise and
+// visible enough to read as "a case happened here" even for a numerator that
+// individually cleared the k=5 bar, and precise enough that a DIFFERENCING
+// attacker (subtracting visible per-cápita counts, reconstructed from the
+// rate + the public census population, from an unsuppressed group/regional
+// total — the same subtraction `complementarySuppress` in lib/metrics/
+// anonymity.ts defends against at the COUNT level) can isolate a neighboring
+// k-suppressed sibling's exact count with far less ambiguity than the raw
+// suppression band (1..4) allows. The floor is DEFENSE IN DEPTH at the
+// PRIMITIVE (perCapitaRate): it protects every future consumer, not only the
+// one call site (enrichPerCapita) that remembers to check the upstream
+// `suppressed` flag first.
 //
 // Pure module — NO @/db, NO next, NO React (hexagonal domain purity, enforced
 // by the biome noRestrictedImports override for src/modules/*/domain/**).
@@ -106,6 +134,41 @@ export function percapitaEligibleFor(layers: readonly LayerId[], level: Aggregat
 }
 
 // ---------------------------------------------------------------------------
+// The denominator privacy floor
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimum population a per-cápita denominator may have before its rate is
+ * SUPPRESSED regardless of the numerator's own k-anon status. See the module
+ * header for the full rationale; in short: below 10.000 hab. a single case
+ * moves the published rate by more than a full point (10.000 / population >
+ * 1,00), precise enough to defeat the numerator-side k=5 suppression via
+ * differencing against an unsuppressed group/regional total.
+ *
+ * No-op today: every province population is > 190.000 (min: Tierra del Fuego,
+ * 190.641). Exists so department grain (phase 2, BLOCKED on census data — see
+ * module header) is safe the moment it ships, without re-deriving this rule.
+ */
+export const MIN_PERCAPITA_DENOMINATOR = 10_000;
+
+/**
+ * True when a population is present but too small to safely publish a
+ * per-cápita rate over (see {@link MIN_PERCAPITA_DENOMINATOR}). A null/
+ * missing/non-positive population is NOT "below the floor" — that is the
+ * separate "no census match" no-data case ({@link perCapitaRate} already
+ * returns null for it); this predicate answers "is a rate meaningful in
+ * principle, but not privacy-safe to show."
+ */
+export function isBelowPercapitaFloor(population: number | null | undefined): boolean {
+  return (
+    typeof population === "number" &&
+    Number.isFinite(population) &&
+    population > 0 &&
+    population < MIN_PERCAPITA_DENOMINATOR
+  );
+}
+
+// ---------------------------------------------------------------------------
 // The math
 // ---------------------------------------------------------------------------
 
@@ -118,9 +181,11 @@ export function percapitaEligibleFor(layers: readonly LayerId[], level: Aggregat
  * and the SCALE (buildGraduatedScale) is the only place a max is quantized (for
  * binning), while {@link per10kDisplayValue} owns the honest small-rate LABEL.
  *
- * Returns null — NEVER 0 — when either arm is unusable: a null count (k-anon
- * suppressed upstream) or a missing/non-positive population (no census row).
- * A fabricated 0 would claim "no incidence" where the truth is "no data".
+ * Returns null — NEVER 0 — when any arm is unusable: a null count (k-anon
+ * suppressed upstream), a missing/non-positive population (no census row), or
+ * a population below {@link MIN_PERCAPITA_DENOMINATOR} (the denominator
+ * privacy floor — a rate over a tiny population is suppressed the same as a
+ * rate over a hidden count, never fabricated as 0).
  */
 export function perCapitaRate(
   count: number | null | undefined,
@@ -130,6 +195,7 @@ export function perCapitaRate(
   if (typeof population !== "number" || !Number.isFinite(population) || population <= 0) {
     return null;
   }
+  if (isBelowPercapitaFloor(population)) return null;
   return (count / population) * 10_000;
 }
 
@@ -210,7 +276,16 @@ export type PerCapitaProps = {
  *
  * Honesty rules:
  *  - unmatched province → population null, per10k null (no-data, never 0);
- *  - suppressed / null count → per10k null (no rate from a hidden count).
+ *  - suppressed / null count → per10k null (no rate from a hidden count);
+ *  - population below {@link MIN_PERCAPITA_DENOMINATOR} (the denominator
+ *    privacy floor — currently a no-op at province grain, live once a future
+ *    change wires department cells through here) → per10k null AND the
+ *    outgoing `suppressed` flag is forced true, so the map paints the SAME
+ *    k-anon hatch treatment ("datos protegidos") a numerator-suppressed cell
+ *    gets. A floor-suppressed unit must never render as a plain blank
+ *    no-data cell — that would read as "no incidence" rather than
+ *    "protected", the same honesty rule per10kDisplayValue's "<0,01" already
+ *    enforces on the LABEL side.
  */
 export function enrichPerCapita(
   features: FeatureCollection,
@@ -226,16 +301,24 @@ export function enrichPerCapita(
       const p = f.properties as ProvinceCountProps;
       if (p.level !== "province" || typeof p.province !== "string") return f;
       const population = byNorm.get(normalizeProvinceName(p.province)) ?? null;
-      const suppressed = p.suppressed === true;
+      const numeratorSuppressed = p.suppressed === true;
+      const belowFloor = isBelowPercapitaFloor(population);
       const count = typeof p.count === "number" ? p.count : null;
-      const per10k = suppressed ? null : perCapitaRate(count, population);
+      const per10k = numeratorSuppressed ? null : perCapitaRate(count, population);
       const enriched: PerCapitaProps = {
         population,
         per10k,
         censusYear: lookup.year,
         censusSource: lookup.source,
       };
-      return { ...f, properties: { ...f.properties, ...enriched } };
+      return {
+        ...f,
+        properties: {
+          ...f.properties,
+          ...enriched,
+          suppressed: numeratorSuppressed || belowFloor,
+        },
+      };
     }),
   };
 }

@@ -18,10 +18,12 @@ import { describe, expect, it } from "vitest";
 import { PANORAMA_LAYERS, getLayer } from "../layers";
 import {
   type CensusLookup,
+  MIN_PERCAPITA_DENOMINATOR,
   PERCAPITA_ELIGIBLE_IDS,
   PERCAPITA_UNIT_LABEL,
   censusMetaOf,
   enrichPerCapita,
+  isBelowPercapitaFloor,
   isPercapitaEligible,
   per10kDisplayValue,
   perCapitaRate,
@@ -165,6 +167,48 @@ describe("perCapitaRate — value10k = count / population * 10_000 (UNROUNDED, F
     expect(perCapitaRate(10, -5)).toBeNull();
     expect(perCapitaRate(10, Number.NaN)).toBeNull();
   });
+
+  it("suppresses a rate over a denominator below MIN_PERCAPITA_DENOMINATOR (the privacy floor)", () => {
+    // A hypothetical department-scale population (3-4 digits) — below the
+    // floor even though the count itself clears k=5.
+    expect(perCapitaRate(50, MIN_PERCAPITA_DENOMINATOR - 1)).toBeNull();
+    expect(perCapitaRate(6, 999)).toBeNull();
+  });
+
+  it("computes normally once the denominator is exactly at or above the floor", () => {
+    expect(perCapitaRate(50, MIN_PERCAPITA_DENOMINATOR)).toBeCloseTo(50, 4);
+    expect(perCapitaRate(50, MIN_PERCAPITA_DENOMINATOR + 1)).toBeGreaterThan(0);
+  });
+
+  it("REGRESSION — every real province population stays untouched by the floor", () => {
+    // Smallest province (Tierra del Fuego, 190.641) is ~19x the floor; the
+    // floor must be a complete no-op at province grain.
+    const provincePopulations = [17_569_053, 3_120_612, 3_978_984, 190_641, 482_019];
+    for (const population of provincePopulations) {
+      expect(isBelowPercapitaFloor(population)).toBe(false);
+      expect(perCapitaRate(154, population)).not.toBeNull();
+    }
+  });
+});
+
+describe("isBelowPercapitaFloor — the floor predicate", () => {
+  it("is true only for a present, positive population under the floor", () => {
+    expect(isBelowPercapitaFloor(1)).toBe(true);
+    expect(isBelowPercapitaFloor(999)).toBe(true);
+    expect(isBelowPercapitaFloor(MIN_PERCAPITA_DENOMINATOR - 1)).toBe(true);
+  });
+
+  it("is false at/above the floor, and false for null/missing (a different no-data case)", () => {
+    expect(isBelowPercapitaFloor(MIN_PERCAPITA_DENOMINATOR)).toBe(false);
+    expect(isBelowPercapitaFloor(MIN_PERCAPITA_DENOMINATOR + 1)).toBe(false);
+    expect(isBelowPercapitaFloor(190_641)).toBe(false);
+    // Null/undefined/0/negative are "no census match", not "below floor" —
+    // perCapitaRate already nulls those independently.
+    expect(isBelowPercapitaFloor(null)).toBe(false);
+    expect(isBelowPercapitaFloor(undefined)).toBe(false);
+    expect(isBelowPercapitaFloor(0)).toBe(false);
+    expect(isBelowPercapitaFloor(-100)).toBe(false);
+  });
 });
 
 describe("per10kDisplayValue — honest small-rate display (F2)", () => {
@@ -222,6 +266,73 @@ describe("enrichPerCapita — the census join (server-side, name-normalized)", (
     const p = out.features[0].properties;
     expect(p.per10k).toBeNull();
     expect(p.suppressed).toBe(true);
+  });
+
+  describe("the denominator privacy floor (forward-compatible with department grain)", () => {
+    // Hypothetical department-scale (3-4 digit) populations — v1 has NO
+    // department census rows, so these units are made-up for the floor test
+    // only; they exercise the SAME enrichPerCapita path a future department
+    // wiring would use, without turning department grain on anywhere.
+    const TINY_LOOKUP: CensusLookup = {
+      populations: {
+        "Departamento Chico": 8_000, // below MIN_PERCAPITA_DENOMINATOR
+        "Departamento Grande": 25_000, // above the floor
+      },
+      year: 2022,
+      source: "INDEC Censo 2022",
+    };
+
+    it("a visible (k>=5) count over a below-floor population reads suppressed, never a number", () => {
+      // count=50 clears k=5 easily — the numerator was never at risk. The
+      // floor suppresses it anyway because the DENOMINATOR is too small.
+      const out = enrichPerCapita(fc([provinceFeature("Departamento Chico", 50)]), TINY_LOOKUP);
+      const p = out.features[0].properties;
+      expect(p.per10k).toBeNull();
+      expect(p.suppressed).toBe(true); // hatch treatment, not blank no-data
+      expect(p.population).toBe(8_000); // population itself is still shown
+    });
+
+    it("a count over an above-floor population still computes normally", () => {
+      const out = enrichPerCapita(fc([provinceFeature("Departamento Grande", 50)]), TINY_LOOKUP);
+      const p = out.features[0].properties;
+      expect(p.per10k).toBeCloseTo(20, 4); // 50 / 25_000 * 10_000
+      expect(p.suppressed).toBe(false);
+    });
+
+    it("DIFFERENCING CASE — the floor stops a visible sibling's rate from reconstructing a k-suppressed neighbor", () => {
+      // Two departments in the same regional group. "Vecino Chico" has a
+      // k-suppressed count (null, suppressed upstream) — its true count is
+      // some value in 1..4 (the k=5 band), unknown to an outside observer.
+      // "Vecino Grande" is fully visible (count=6, population=8_000, BELOW
+      // the floor). WITHOUT the floor, Vecino Grande's rate would publish
+      // 7.5 per 10k, which (combined with its public census population)
+      // exactly reconstructs its count = 6 — no leak there alone, since 6 was
+      // already a visible raw count. But a regional TOTAL published elsewhere
+      // (e.g. a province-level rollup, unsuppressed per the accepted §U5
+      // disclosure) minus every OTHER visible sibling's rate-derived count
+      // narrows in on Vecino Chico's hidden count with full precision applied
+      // to every visible small-population sibling in the group — the floor
+      // removes that precision at the source by never publishing a rate for
+      // ANY tiny-denominator cell, suppressed or not.
+      const group = fc([
+        provinceFeature("Vecino Chico", null, true), // k-suppressed (1..4, hidden)
+        provinceFeature("Vecino Grande", 6, false), // visible, but tiny population
+      ]);
+      const lookup: CensusLookup = {
+        populations: { "Vecino Chico": 4_500, "Vecino Grande": 8_000 },
+        year: 2022,
+        source: "INDEC Censo 2022",
+      };
+      const out = enrichPerCapita(group, lookup);
+      const [chico, grande] = out.features.map((f) => f.properties);
+      // The suppressed sibling never had a rate.
+      expect(chico.per10k).toBeNull();
+      expect(chico.suppressed).toBe(true);
+      // The floor ALSO nulls the visible sibling's rate — no precise
+      // denominator-based inversion survives to feed a differencing attack.
+      expect(grande.per10k).toBeNull();
+      expect(grande.suppressed).toBe(true);
+    });
   });
 
   it("passes non-province features through untouched", () => {
