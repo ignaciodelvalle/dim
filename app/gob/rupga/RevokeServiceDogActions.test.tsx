@@ -17,9 +17,8 @@ vi.mock("@/app/actions/service-dog", () => ({
   revokeServiceDogCredentialAction: (...args: unknown[]) => revokeActionMock(...args),
 }));
 
-const refreshMock = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: refreshMock }),
+  useRouter: () => ({}),
 }));
 
 import type { ServiceDogCredentialSearchResult } from "@/lib/infra/admin-search";
@@ -41,7 +40,6 @@ const VALID_MOTIVO = "El titular no cumplió con la renovación anual de la cert
 
 beforeEach(() => {
   revokeActionMock.mockReset();
-  refreshMock.mockReset();
 });
 
 afterEach(() => {
@@ -75,8 +73,10 @@ describe("<RevokeServiceDogActions> — RUPGA credential revocation console", ()
         motivo: VALID_MOTIVO,
       });
     });
+    // Success settles the UI to the "done" state; the list drops the credential
+    // via the action's server-side revalidatePath("/gob/rupga"), not a client
+    // router.refresh().
     await waitFor(() => {
-      expect(refreshMock).toHaveBeenCalledTimes(1);
       expect(screen.getByText(/Credencial revocada/)).toBeInTheDocument();
     });
   });
@@ -134,6 +134,5 @@ describe("<RevokeServiceDogActions> — RUPGA credential revocation console", ()
       expect(screen.getByText("La credencial ya está revocada.")).toBeInTheDocument();
     });
     expect(screen.queryByText(/Credencial revocada/)).toBeNull();
-    expect(refreshMock).not.toHaveBeenCalled();
   });
 });
