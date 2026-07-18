@@ -58,7 +58,10 @@ import {
 import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
+import {
+  excludeResolvedLostEpisodeSql,
+  excludeStaleWelcomeSql,
+} from "@/lib/infra/notification-reconcile";
 import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
   type ComplianceEvent,
@@ -303,6 +306,7 @@ export async function fetchUnreadNotifications(
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
         excludeResolvedLostEpisodeSql,
+        excludeStaleWelcomeSql,
       ),
     )
     .orderBy(desc(notifications.createdAt))
@@ -324,6 +328,7 @@ export async function countUnreadNotifications(userId: string): Promise<number> 
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
         excludeResolvedLostEpisodeSql,
+        excludeStaleWelcomeSql,
       ),
     );
   return row?.n ?? 0;
@@ -1593,6 +1598,7 @@ export async function fetchUnreadNotificationCount(
       AND archived_at IS NULL
       AND read_at IS NULL
       AND ${excludeResolvedLostEpisodeSql}
+      AND ${excludeStaleWelcomeSql}
       ${category ? sql`AND category = ${category}` : sql``}
   `);
   return Number(rows[0]?.n ?? "0");
@@ -1615,6 +1621,7 @@ export async function fetchNotificationCategoryCounts(
     WHERE user_id = ${userId}
       AND archived_at IS NULL
       AND ${excludeResolvedLostEpisodeSql}
+      AND ${excludeStaleWelcomeSql}
     GROUP BY category, severity
   `);
 

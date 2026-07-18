@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   LOST_ACTIVE_NOTIFICATION_TYPES,
   isResolvedLostEpisodeNotification,
+  isStaleWelcomeNotification,
 } from "@/lib/infra/notification-reconcile";
 
 describe("isResolvedLostEpisodeNotification", () => {
@@ -64,6 +65,31 @@ describe("isResolvedLostEpisodeNotification", () => {
         notificationType: "pet_found_report",
         petStatus: null,
       }),
+    ).toBe(false);
+  });
+});
+
+// Tester fix #8: the welcome notification's "Registrá tu primera mascota" CTA
+// is moot once the user owns a pet — reconciled at read time, no migration.
+describe("isStaleWelcomeNotification", () => {
+  it("hides the welcome once the user actively owns a pet", () => {
+    expect(
+      isStaleWelcomeNotification({ notificationType: "welcome", activeOwnedPetCount: 1 }),
+    ).toBe(true);
+    expect(
+      isStaleWelcomeNotification({ notificationType: "welcome", activeOwnedPetCount: 3 }),
+    ).toBe(true);
+  });
+
+  it("keeps the welcome while the user owns no pet", () => {
+    expect(
+      isStaleWelcomeNotification({ notificationType: "welcome", activeOwnedPetCount: 0 }),
+    ).toBe(false);
+  });
+
+  it("never touches other notification types", () => {
+    expect(
+      isStaleWelcomeNotification({ notificationType: "vaccine_due", activeOwnedPetCount: 5 }),
     ).toBe(false);
   });
 });

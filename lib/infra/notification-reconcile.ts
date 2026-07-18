@@ -19,6 +19,10 @@
 import { notifications } from "@/db";
 import { sql } from "drizzle-orm";
 
+// NOTE: `ownerships` is referenced by raw table name inside
+// excludeStaleWelcomeSql's correlated EXISTS (same pattern as `pets rp`
+// below) so the fragment composes into both query-builder and raw SQL uses.
+
 /**
  * Notification types that are only meaningful while the related pet is `lost`.
  * A sighting report, a zone broadcast, and a stranger-in-possession alert all
@@ -76,5 +80,41 @@ export const excludeResolvedLostEpisodeSql = sql`(
     SELECT 1 FROM pets rp
     WHERE rp.id = ${notifications.relatedPetId}
       AND rp.status = 'lost'
+  )
+)`;
+
+// ---------------------------------------------------------------------------
+// Stale welcome reconcile — ciclo-perdido tester fix #8
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure projection rule for the onboarding `welcome` notification: its CTA
+ * ("Registrá tu primera mascota" → /mis-mascotas/nueva) is moot the moment
+ * the user actively owns a pet. Reconciled at READ time — same append-only
+ * rationale as the lost-episode rule above; no migration, old rows untouched.
+ */
+export function isStaleWelcomeNotification(input: {
+  notificationType: string;
+  activeOwnedPetCount: number;
+}): boolean {
+  if (input.notificationType !== "welcome") return false;
+  return input.activeOwnedPetCount > 0;
+}
+
+/**
+ * Read-time filter mirroring `isStaleWelcomeNotification`. Keep a row UNLESS
+ * it is a `welcome` notification whose user has at least one ACTIVE owner
+ * tenure (role='owner', ended_at IS NULL — matches the partial index on
+ * ownerships). Composes into every owner-inbox WHERE alongside
+ * `excludeResolvedLostEpisodeSql` so the list, tab counts, and unread badge
+ * agree.
+ */
+export const excludeStaleWelcomeSql = sql`(
+  ${notifications.notificationType} <> 'welcome'
+  OR NOT EXISTS (
+    SELECT 1 FROM ownerships wo
+    WHERE wo.owner_user_id = ${notifications.userId}
+      AND wo.role = 'owner'
+      AND wo.ended_at IS NULL
   )
 )`;
