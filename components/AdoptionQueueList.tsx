@@ -30,6 +30,7 @@ import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import { toggleSelection } from "@/lib/domain/bulk-select";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // SLA constant
@@ -81,10 +82,11 @@ const STATUS_CHIPS: Array<{ value: AdoptionQueueStatus; label: string }> = [
 // Age utilities
 // ---------------------------------------------------------------------------
 
-/** Returns days elapsed since submittedAt (floored). */
-export function ageDays(submittedAt: string): number {
-  const diffMs = Date.now() - new Date(submittedAt).getTime();
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+/** AR-calendar days since submittedAt — a submission from yesterday evening
+ * reads "1 día" this morning, never "hoy" (calendarDaysAgoInAr rationale).
+ * `now` is injectable so tests can pin the boundary deterministically. */
+export function ageDays(submittedAt: string, now: Date = new Date()): number {
+  return calendarDaysAgoInAr(new Date(submittedAt), now);
 }
 
 function ageLabel(days: number): string {

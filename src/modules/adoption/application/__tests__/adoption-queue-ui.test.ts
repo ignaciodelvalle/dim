@@ -13,32 +13,37 @@ import { ADOPTION_SLA_WARNING_DAYS, ageDays } from "@/components/AdoptionQueueLi
 // ageDays
 // ---------------------------------------------------------------------------
 
+// ageDays is now ARGENTINE-CALENDAR-day based (calendarDaysAgoInAr), not an
+// elapsed-ms floor. The old suite asserted the broken elapsed behavior with
+// the real wall clock (e.g. "25 hours ago is 1 day" — near midnight AR that
+// is TWO calendar days) and was time-of-day flaky; fixtures now pin `now`
+// mid-day AR and assert calendar semantics.
 describe("ageDays", () => {
-  it("returns 0 for a timestamp in the last 24 hours", () => {
-    const now = new Date();
-    const iso = now.toISOString();
-    expect(ageDays(iso)).toBe(0);
+  const NOW = new Date("2026-07-04T15:00:00Z"); // 12:00 AR on 2026-07-04
+
+  it("returns 0 for a timestamp earlier the same AR day", () => {
+    expect(ageDays("2026-07-04T10:00:00Z", NOW)).toBe(0); // 07:00 AR same day
   });
 
-  it("returns 1 for a timestamp 25 hours ago", () => {
-    const d = new Date(Date.now() - 25 * 60 * 60 * 1000);
-    expect(ageDays(d.toISOString())).toBe(1);
+  it("returns 1 for yesterday EVENING in AR, even though under 24h elapsed", () => {
+    // 20:00 AR on 07-03, viewed 12:00 AR on 07-04 = 16 elapsed hours. The
+    // old floor(elapsed/24h) said 0 ("hoy"); it was submitted AYER.
+    expect(ageDays("2026-07-03T23:00:00Z", NOW)).toBe(1);
+  });
+
+  it("returns 2 for 25 hours ago when that crosses two AR midnights", () => {
+    // 25h before 00:30 AR lands at 23:30 AR two days back — the old elapsed
+    // math said 1.
+    const lateNow = new Date("2026-07-04T03:30:00Z"); // 00:30 AR on 07-04
+    expect(ageDays("2026-07-03T02:30:00Z", lateNow)).toBe(2); // 23:30 AR 07-02
   });
 
   it("returns correct days for 7-day-old timestamp (SLA threshold)", () => {
-    const d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000 - 1000);
-    expect(ageDays(d.toISOString())).toBe(7);
+    expect(ageDays("2026-06-27T15:00:00Z", NOW)).toBe(7);
   });
 
   it("returns correct days for 30-day-old timestamp", () => {
-    const d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000 - 1000);
-    expect(ageDays(d.toISOString())).toBe(30);
-  });
-
-  it("floors fractional days (does not round up)", () => {
-    // 1 day + 23 hours = 1.958 days → should be 1, not 2
-    const d = new Date(Date.now() - (24 + 23) * 60 * 60 * 1000);
-    expect(ageDays(d.toISOString())).toBe(1);
+    expect(ageDays("2026-06-04T15:00:00Z", NOW)).toBe(30);
   });
 });
 
@@ -51,14 +56,19 @@ describe("ADOPTION_SLA_WARNING_DAYS", () => {
     expect(ADOPTION_SLA_WARNING_DAYS).toBeGreaterThan(0);
   });
 
+  // Fixed `now` (12:00 AR): with real Date.now() these boundary probes were
+  // time-of-day flaky under calendar-day semantics (a probe crossing an AR
+  // midnight gains a day).
+  const NOW = new Date("2026-07-04T15:00:00Z");
+
   it("applications at exactly the threshold are considered stale", () => {
-    const d = new Date(Date.now() - ADOPTION_SLA_WARNING_DAYS * 24 * 60 * 60 * 1000 - 1000);
-    expect(ageDays(d.toISOString())).toBeGreaterThanOrEqual(ADOPTION_SLA_WARNING_DAYS);
+    const d = new Date(NOW.getTime() - ADOPTION_SLA_WARNING_DAYS * 24 * 60 * 60 * 1000);
+    expect(ageDays(d.toISOString(), NOW)).toBeGreaterThanOrEqual(ADOPTION_SLA_WARNING_DAYS);
   });
 
   it("applications just under the threshold are NOT stale", () => {
-    const d = new Date(Date.now() - (ADOPTION_SLA_WARNING_DAYS - 1) * 24 * 60 * 60 * 1000 + 60_000);
-    expect(ageDays(d.toISOString())).toBeLessThan(ADOPTION_SLA_WARNING_DAYS);
+    const d = new Date(NOW.getTime() - (ADOPTION_SLA_WARNING_DAYS - 1) * 24 * 60 * 60 * 1000);
+    expect(ageDays(d.toISOString(), NOW)).toBeLessThan(ADOPTION_SLA_WARNING_DAYS);
   });
 });
 

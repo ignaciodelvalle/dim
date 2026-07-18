@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  calendarDaysAgoInAr,
   eventTypeLabel,
   formatCount,
   formatDateShort,
@@ -17,7 +18,9 @@ import {
   parseArDatetimeLocal,
   parseDateInput,
   rabiesObservationOutcomeLabel,
+  relativeDayLabel,
   relativeDaysShort,
+  relativeTime,
   todayIsoInAr,
 } from "./format";
 
@@ -73,6 +76,75 @@ describe("relativeDaysShort", () => {
     const out = relativeDaysShort(daysAgo(20624));
     expect(out).not.toMatch(/hace \d+d/);
     expect(out).not.toContain("20624");
+  });
+});
+
+// Calendar-day relative labels — "hoy"/"ayer" are CALENDAR words, so they must
+// compare Argentine calendar days, not elapsed 24h blocks.
+describe("calendarDaysAgoInAr", () => {
+  it("counts AR calendar days, not elapsed 24h blocks", () => {
+    const now = new Date("2026-07-04T13:00:00Z"); // 10:00 AR on 07-04
+    const yesterdayEvening = new Date("2026-07-03T23:00:00Z"); // 20:00 AR 07-03
+    // 14 elapsed hours — but ONE calendar day ago.
+    expect(calendarDaysAgoInAr(yesterdayEvening, now)).toBe(1);
+    // Same AR day, hours apart → 0.
+    expect(calendarDaysAgoInAr(new Date("2026-07-04T03:30:00Z"), now)).toBe(0);
+    // 25 elapsed hours crossing two AR midnights → 2.
+    const lateNow = new Date("2026-07-04T03:30:00Z"); // 00:30 AR
+    expect(calendarDaysAgoInAr(new Date("2026-07-03T02:30:00Z"), lateNow)).toBe(2);
+    // Future date → negative.
+    expect(calendarDaysAgoInAr(new Date("2026-07-05T15:00:00Z"), now)).toBe(-1);
+  });
+});
+
+describe("relativeDayLabel", () => {
+  const now = new Date("2026-07-04T13:00:00Z"); // 10:00 AR on 07-04
+
+  it("labels the same AR day 'hoy' regardless of hour", () => {
+    expect(relativeDayLabel(new Date("2026-07-04T03:00:00Z"), now)).toBe("hoy"); // 00:00 AR
+    expect(relativeDayLabel("2026-07-04", now)).toBe("hoy"); // pre-computed AR day string
+  });
+
+  it("labels 20:00-yesterday viewed at 10:00-today 'ayer' (14h elapsed)", () => {
+    expect(relativeDayLabel(new Date("2026-07-03T23:00:00Z"), now)).toBe("ayer");
+    expect(relativeDayLabel("2026-07-03", now)).toBe("ayer");
+  });
+
+  it("falls back to a compact d/M chip beyond ayer", () => {
+    expect(relativeDayLabel("2026-07-01", now)).toBe("1/7");
+  });
+});
+
+describe("relativeDaysShort — calendar-day semantics", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("says 'hace 1d', not 'hoy', for yesterday evening viewed this morning", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T13:00:00Z")); // 10:00 AR
+    expect(relativeDaysShort(new Date("2026-07-03T23:00:00Z"))).toBe("hace 1d"); // 20:00 AR ayer
+  });
+});
+
+describe("relativeTime — calendar-day semantics", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("says 'ayer' for yesterday evening viewed this morning (14h elapsed)", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T13:00:00Z")); // 10:00 AR
+    expect(relativeTime(new Date("2026-07-03T23:00:00Z"))).toBe("ayer");
+  });
+
+  it("keeps hour granularity within the same AR day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T13:00:00Z")); // 10:00 AR
+    expect(relativeTime(new Date("2026-07-04T05:00:00Z"))).toBe("hace 8 h"); // 02:00 AR hoy
+  });
+
+  it("never says 'ayer' for something two AR days back at 24-48h elapsed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-04T03:30:00Z")); // 00:30 AR
+    // 25h ago = 23:30 AR two days back — old elapsed math said "ayer".
+    expect(relativeTime(new Date("2026-07-03T02:30:00Z"))).toBe("hace 2 días");
   });
 });
 

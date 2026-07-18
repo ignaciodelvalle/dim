@@ -41,11 +41,21 @@ describe("formatRelative — pure given a fixed now", () => {
   });
 
   it("a value straddling a day boundary is stable when now is frozen", () => {
-    // ~47h before now: floor(47/24) = 1 → "ayer". A drifting clock could push
-    // this to "hace 2 días" mid-session; a frozen now must not.
+    // ~47h before now = 10:00 AR two calendar days back. The old elapsed
+    // floor(47/24)=1 called this "ayer" — WRONG: "ayer" is a calendar word,
+    // and this date is the day BEFORE yesterday in Argentina. Calendar-day
+    // semantics (calendarDaysAgoInAr) say "hace 2 días". The determinism
+    // property (frozen now → stable label) is unchanged.
     const date = new Date("2026-07-02T13:00:00Z");
     expect(formatRelative(date, NOW)).toBe(formatRelative(date, NOW));
-    expect(formatRelative(date, NOW)).toBe("ayer");
+    expect(formatRelative(date, NOW)).toBe("hace 2 días");
+  });
+
+  it("counts calendar days in AR, not 24h blocks (the libreta 'hoy' repro)", () => {
+    // 20:00 AR yesterday viewed at 09:00 AR today is only 13 elapsed hours —
+    // the old floor(elapsed/24h)=0 labeled it "hoy". It happened AYER.
+    const yesterdayEvening = new Date("2026-07-03T23:00:00Z"); // 20:00 AR 07-03
+    expect(formatRelative(yesterdayEvening, NOW)).toBe("ayer");
   });
 });
 

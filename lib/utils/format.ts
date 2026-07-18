@@ -618,21 +618,51 @@ export function eventTypeLabel(eventType: EventType): string {
   return EVENT_TYPE_LABELS[eventType];
 }
 
+/**
+ * Whole ARGENTINE calendar days elapsed from `date` to `now` (negative when
+ * `date` is in the future). Compares `isoDateInAr` day strings — NOT elapsed
+ * milliseconds: an event at 20:00 yesterday viewed at 10:00 today is only 14
+ * elapsed hours, but it IS one calendar day ago. Elapsed-floor day math calls
+ * that "hoy" (and calls 24–48h elapsed "ayer" even when it is two calendar
+ * days back near midnight) — the exact bug class this helper replaces.
+ */
+export function calendarDaysAgoInAr(date: Date, now: Date = new Date()): number {
+  const utcMidnightOfArDay = (d: Date) => Date.parse(`${isoDateInAr(d)}T00:00:00Z`);
+  return Math.round((utcMidnightOfArDay(now) - utcMidnightOfArDay(date)) / 86_400_000);
+}
+
+/**
+ * Calendar-day chip for a date (or a pre-computed AR "YYYY-MM-DD" day string):
+ * "hoy", "ayer", or a compact "d/M" — the gob activity-feed dayChip pattern,
+ * centralised. Day identity is the ARGENTINE calendar day (calendarDaysAgoInAr).
+ */
+export function relativeDayLabel(date: Date | string, now: Date = new Date()): string {
+  const day = typeof date === "string" ? date : isoDateInAr(date);
+  if (day === todayIsoInAr(now)) return "hoy";
+  if (day === isoDateInAr(new Date(now.getTime() - 86_400_000))) return "ayer";
+  const [, m, d] = day.split("-");
+  return `${Number(d)}/${Number(m)}`;
+}
+
 export function relativeTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  const diffMs = Date.now() - date.getTime();
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);
   if (diffSec < 60) return "ahora";
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `hace ${diffMin} min`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `hace ${diffHr} h`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay === 1) return "ayer";
-  if (diffDay < 7) return `hace ${diffDay} días`;
-  if (diffDay < 30) return `hace ${Math.floor(diffDay / 7)} sem`;
+  // Day-level labels are ARGENTINE-calendar-based (calendarDaysAgoInAr): the
+  // old elapsed math said "hace 14 h" for 20:00-yesterday viewed at 10:00
+  // today, and "ayer" for anything 24–48h old even when that lands two
+  // calendar days back. Hour granularity applies only within the same AR day.
+  const dayDiff = calendarDaysAgoInAr(date, now);
+  if (dayDiff <= 0) return `hace ${Math.floor(diffMin / 60)} h`;
+  if (dayDiff === 1) return "ayer";
+  if (dayDiff < 7) return `hace ${dayDiff} días`;
+  if (dayDiff < 30) return `hace ${Math.floor(dayDiff / 7)} sem`;
   return formatDate(date);
 }
 
@@ -656,7 +686,9 @@ export function relativeDaysShort(value: Date | string | null | undefined): stri
   const date = value instanceof Date ? value : new Date(value);
   const t = date.getTime();
   if (Number.isNaN(t) || t === 0) return "—";
-  const days = Math.floor((Date.now() - t) / 86_400_000);
+  // AR-calendar days, not elapsed-ms floor — 20:00 yesterday viewed at 10:00
+  // today is "hace 1d", never "hoy" (calendarDaysAgoInAr rationale).
+  const days = calendarDaysAgoInAr(date);
   if (days <= 0) return "hoy";
   if (days <= RELATIVE_DAYS_ABSOLUTE_THRESHOLD) return `hace ${days}d`;
   return formatDate(date);

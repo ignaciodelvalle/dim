@@ -40,6 +40,7 @@ import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
+import { calendarDaysAgoInAr } from "@/lib/utils/format";
 import {
   isValidReferenceCodeFormat,
   normalizeReferenceCode,
@@ -311,9 +312,8 @@ export async function loadWelfareInspectorDetail(
   const isTerminal =
     report.status === "closed" || report.status === "invalid" || report.status === "duplicate";
 
-  const ageInDays = Math.floor(
-    (Date.now() - new Date(report.createdAt).getTime()) / (24 * 60 * 60 * 1000),
-  );
+  // AR-calendar days, not elapsed-ms floor (calendarDaysAgoInAr rationale).
+  const ageInDays = calendarDaysAgoInAr(new Date(report.createdAt));
 
   const timelineEvents = await fetchWelfareTimeline(report.id);
 
