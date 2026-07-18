@@ -32,10 +32,11 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { findOpenCaseForPetAndKind } from "@/lib/infra/case-helpers";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 
 export type PetAccessPath = "owner" | "org";
 
@@ -294,4 +295,119 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
     }
   }
   return access;
+}
+
+// ---------------------------------------------------------------------------
+// Former-owner READ-ONLY access during an open custody episode (PO decision
+// 2026-07-18): "El ex-dueño conserva LECTURA durante el proceso [de custodia
+// oficial / decomiso]. Si lo pierde [definitivamente], también los permisos.
+// Si se lo devuelve, nunca se le fue."
+//
+// Deliberately a SIBLING resolver, not a third branch of requirePetAccess:
+//   - requirePetAccess / requireAlivePetAccess remain the WRITE boundary.
+//     Every event-writing server action gates on one of those two, and
+//     NEITHER of them calls into this function — so a former owner who lost
+//     ownership keeps failing "not-found-or-forbidden" on every write path,
+//     with ZERO changes to those call sites. The read grant below can never
+//     leak write capability by construction (no capability check to forget).
+//   - Only the pet profile page (the one read surface a former owner should
+//     see) calls this, AFTER requirePetAccess has already failed for them.
+//
+// "Immediate former owner" derivation — no new table, no migration:
+//   Ownership rows for a pet form a chronological chain. Exactly one write
+//   path ends an INDIVIDUAL's (ownerUserId-based) ownership row and opens a
+//   custody_episode in the same breath: executeDecomiso (ends every active
+//   ownership row for the pet, any role, in one UPDATE, then opens the
+//   episode). Every subsequent step in the SAME custody chain — org-to-org
+//   handoff (acceptDecomisoHandoffInTx), reassignment, reject — only ever
+//   touches ownerOrganizationId-scoped shelter_custody rows; none of them
+//   re-ends an individual's row, and a handoff that opens a NEW episode for
+//   the receiver always closes the previous one first (findOpenCaseForPet-
+//   AndKind returns at most one open custody_episode per pet — see the
+//   double-seizure guard in validateExecuteDecomiso). So the MOST RECENTLY
+//   ENDED ownership row with a non-null ownerUserId is unambiguously the
+//   immediate former owner for whichever custody_episode is open right now,
+//   no matter how many org-to-org handoffs happened along the way.
+//
+// Severing on permanent loss and continuity on return both fall out of this
+// same derivation for free, no extra bookkeeping needed:
+//   - adoption_finalized / death_recorded close the custody_episode (cascade
+//     or direct close) with no new custody_episode opened → findOpenCaseFor-
+//     PetAndKind returns null → this resolver returns { ok: false } → read
+//     access is gone, matching "si lo pierde, también los permisos."
+//   - IF a return-to-owner path re-opens (or reactivates) the ex-owner's
+//     'owner' ownership row and closes the episode, Path 1 of
+//     requirePetAccess grants FULL access again automatically — this
+//     resolver is never even reached at that point. NOTE: no such
+//     decomiso-specific return path exists in the codebase today (the
+//     existing return-to-owner module is scoped to lost_pet_episode, where
+//     the owner's row never ends in the first place) — see the decomiso
+//     report for this fork instead of a guessed implementation here.
+export type FormerOwnerReadAccess =
+  | {
+      ok: true;
+      pet: Pet;
+      accessPath: "former-owner-during-custody";
+      readOnly: true;
+      custodyCase: { id: string; publicCode: string };
+    }
+  | { ok: false };
+
+export async function getFormerOwnerReadAccess(
+  publicToken: string,
+  userId: string,
+): Promise<FormerOwnerReadAccess> {
+  const [petRow] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
+  if (!petRow) return { ok: false };
+
+  // Must be a CURRENTLY OPEN custody_episode for this pet — the derivation
+  // below is only meaningful while the custody process is still running.
+  const custodyCase = await findOpenCaseForPetAndKind(petRow.id, "custody_episode");
+  if (!custodyCase) return { ok: false };
+
+  // The caller's own most-recently-ended individual ownership row on this pet.
+  const [callerLastEnded] = await db
+    .select({ endedAt: ownerships.endedAt })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, petRow.id),
+        eq(ownerships.ownerUserId, userId),
+        isNotNull(ownerships.endedAt),
+      ),
+    )
+    .orderBy(desc(ownerships.endedAt))
+    .limit(1);
+  if (!callerLastEnded?.endedAt) return { ok: false };
+
+  // The pet's overall most-recently-ended individual ownership row (any
+  // user). The caller only qualifies as the IMMEDIATE former owner if
+  // theirs is it — otherwise they're a stale prior owner from an earlier,
+  // unrelated tenure (e.g. the pet was legitimately transferred away long
+  // before this custody episode ever opened), and a different user is the
+  // true immediate former owner tied to the CURRENT episode.
+  const [mostRecentEnded] = await db
+    .select({ endedAt: ownerships.endedAt })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, petRow.id),
+        isNotNull(ownerships.ownerUserId),
+        isNotNull(ownerships.endedAt),
+      ),
+    )
+    .orderBy(desc(ownerships.endedAt))
+    .limit(1);
+  if (!mostRecentEnded?.endedAt) return { ok: false };
+  if (callerLastEnded.endedAt.getTime() !== mostRecentEnded.endedAt.getTime()) {
+    return { ok: false };
+  }
+
+  return {
+    ok: true,
+    pet: petRow,
+    accessPath: "former-owner-during-custody",
+    readOnly: true,
+    custodyCase: { id: custodyCase.id, publicCode: custodyCase.publicCode },
+  };
 }

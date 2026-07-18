@@ -89,7 +89,7 @@ import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-fa
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
-import { requirePetAccess } from "@/lib/infra/pet-access";
+import { getFormerOwnerReadAccess, requirePetAccess } from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
@@ -171,6 +171,25 @@ export default async function PetDetailPage({
   if (!access.ok) {
     if (access.reason === "no-session") {
       redirect(`/login?returnTo=${encodeURIComponent(`/mis-mascotas/${publicToken}`)}`);
+    }
+    // Former-owner READ-ONLY fallback (PO decision 2026-07-18): a session
+    // that resolved but has no write-side access might still be the
+    // IMMEDIATE former owner of a pet currently under an open custody
+    // episode (decomiso) — "el ex-dueño conserva lectura durante el
+    // proceso." That grant is read-only and lives entirely outside
+    // requirePetAccess's write boundary; see getFormerOwnerReadAccess in
+    // lib/infra/pet-access.ts for the derivation and why it can never leak
+    // write capability (no write-side call site reaches it).
+    if (access.user) {
+      const formerOwnerAccess = await getFormerOwnerReadAccess(publicToken, access.user.id);
+      if (formerOwnerAccess.ok) {
+        return (
+          <FormerOwnerCustodyReadOnlyView
+            pet={formerOwnerAccess.pet}
+            casePublicCode={formerOwnerAccess.custodyCase.publicCode}
+          />
+        );
+      }
     }
     notFound();
   }
@@ -963,6 +982,68 @@ export default async function PetDetailPage({
             the credencial aha page owns the post-create moment; nothing
             produced ?recienCreado=true anymore, so the modal was dead code
             stacking a third celebration screen when it did fire. */}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Former-owner READ-ONLY custody view (PO decision 2026-07-18)
+//
+// A deliberately minimal, self-contained render — NOT a stripped-down
+// CredentialFace/Libreta. This view never touches the carousel/compliance
+// machinery those components own; it renders directly from the bare `pets`
+// row getFormerOwnerReadAccess already resolved. No edit affordances, no
+// action row, no Anotar — read-only means read-only.
+// ---------------------------------------------------------------------------
+
+function FormerOwnerCustodyReadOnlyView({
+  pet,
+  casePublicCode,
+}: {
+  pet: {
+    name: string;
+    species: string;
+    breed: string | null;
+    sex: "male" | "female" | "unknown" | null;
+    dateOfBirth: string | null;
+  };
+  casePublicCode: string;
+}) {
+  const age = ageFromDateOfBirth(pet.dateOfBirth);
+  const breedLine = [pet.breed, pet.sex ? sexLabel(pet.sex) : null, age, speciesLabel(pet.species)]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div
+      className="mx-auto max-w-4xl pb-12 px-4 md:px-8"
+      style={{ fontFamily: "var(--font-ln-sans)" }}
+    >
+      <Link
+        href="/mis-mascotas"
+        className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+        data-section="back-link"
+      >
+        ← Mis mascotas
+      </Link>
+
+      <section
+        className="mb-3.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-1.5"
+        data-section="former-owner-custody-banner"
+      >
+        <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
+          Custodia oficial en curso
+        </p>
+        <p className="text-[13px] text-[var(--color-ln-warn)]">
+          Tu mascota está bajo custodia oficial — acceso de solo lectura mientras dure el proceso.
+          Caso {casePublicCode}.
+        </p>
+      </section>
+
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-stripe)] px-4 py-3.5">
+        <h1 className="text-lg font-semibold text-[var(--color-ln-ink)]">{pet.name}</h1>
+        {breedLine && <p className="text-[13px] text-[var(--color-ln-mute)]">{breedLine}</p>}
+      </div>
     </div>
   );
 }
