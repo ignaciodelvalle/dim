@@ -30,8 +30,45 @@
 
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+// ---------------------------------------------------------------------------
+// Mocks for driving the REAL executeDecomisoAction (validation suite below).
+// The DB-level suites drive transactions directly and never hit these; the
+// validation suite invokes the real action, so only the session boundary and
+// the storage client are stubbed — everything else (org resolution, receiver
+// lookup, domain validation) runs for real against the fixtures.
+// ---------------------------------------------------------------------------
+
+vi.mock("@/lib/infra/auth-guards", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/auth-guards")>();
+  return {
+    ...actual,
+    // Lazy: reads the fixture ids assigned in beforeAll at call time.
+    requireDecomisoPrincipal: vi.fn(async () => ({
+      user: { id: govtUserId },
+      profile: { id: govtUserId, role: "govt" as const },
+      jurisdictions: [{ province: "CABA", locality: "Buenos Aires" }],
+    })),
+  };
+});
+
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminClient: vi.fn(() => ({
+    storage: {
+      from: vi.fn(() => ({
+        upload: vi.fn(async () => ({ error: null })),
+        remove: vi.fn(async () => ({ data: null, error: null })),
+      })),
+    },
+  })),
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
+import { executeDecomisoAction } from "@/app/actions/decomiso";
 import {
   auditLog,
   cases,
@@ -486,15 +523,36 @@ describe("executeDecomisoAction — happy path (unowned_animal)", () => {
 // ---------------------------------------------------------------------------
 
 describe("executeDecomisoAction — unowned_animal validation", () => {
-  it("unownedAnimal.species absent → action returns error before DB tx", async () => {
-    // The action validates `unownedAnimal.species.trim()` before entering
-    // the tx. We verify the domain logic directly (same approach as the
-    // registered_pet suite's <2 attachments test).
-    const species = "".trim();
-    expect(species.length).toBe(0);
-    // The action would return: { error: "Indicá al menos la especie del animal sin registrar." }
-    // We assert the condition that triggers it.
-    expect(!species).toBe(true);
+  it("empty unownedAnimal.species → the REAL action returns the species-required error", async () => {
+    // Drives the actual action end-to-end (mocked session + storage only):
+    // auth → govt-org resolution (real DB) → motive/receiver/attachment
+    // validation → tx → validateUnownedAnimal rejects → tx rolls back →
+    // the wrapped error surfaces to the caller.
+    const attachment = () =>
+      new File([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])], "acta.jpg", { type: "image/jpeg" });
+
+    const strayCountBefore = (
+      await db.select({ id: pets.id }).from(pets).where(eq(pets.name, "Animal sin registrar"))
+    ).length;
+
+    const result = await executeDecomisoAction({
+      subjectKind: "unowned_animal",
+      unownedAnimal: { species: "", sex: "unknown" },
+      seizureMotive: "maltrato_fisico",
+      intendedReceiverOrganizationId: receiverOrgId,
+      attachmentFiles: [attachment(), attachment()],
+    });
+
+    expect(result).toEqual({
+      error:
+        "No se pudo ejecutar el decomiso: Indicá al menos la especie del animal sin registrar.",
+    });
+
+    // The rejected tx must not have leaked a stray pet record.
+    const strayCountAfter = (
+      await db.select({ id: pets.id }).from(pets).where(eq(pets.name, "Animal sin registrar"))
+    ).length;
+    expect(strayCountAfter).toBe(strayCountBefore);
   });
 });
 

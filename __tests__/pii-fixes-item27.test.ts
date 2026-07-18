@@ -15,7 +15,7 @@
 //
 // Tests 2.x are integration-level (requires local Postgres + seeds).
 
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -26,53 +26,156 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { db, ownerships, petEvents, pets } from "@/db";
+import { db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
 import { queryLostListing } from "@/src/modules/lost/infrastructure/lost-listing-read";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
-// 1. Adoption — shape guard (unit-level, no DB)
+// 1. Adoption — shape guard (REAL repository + seeded fixture)
+//
+// The previous version of this test stubbed findApplicationForReview to
+// return an already-stripped shape and then asserted on its own stub — the
+// real projection never ran, so a regression re-adding `payload` to the
+// SELECT would have shipped green. This version seeds a real application
+// event whose payload is loaded with PII markers and drives the REAL query.
 // ---------------------------------------------------------------------------
 
-describe("Item 27 — adoption findApplicationForReview shape guard", () => {
-  it("repository returns { id, applicantUserId } — not the raw payload", async () => {
-    // Import the repository type to inspect the return type via mock.
-    // We test the SHAPE CONTRACT: the repository must not return .payload.
-    const { AdoptionRepository } = await import(
-      "@/src/modules/adoption/infrastructure/adoption-repository"
-    );
+const ORG_TOKEN_I27 = "DIM-I27-ORG1";
+const PET_TOKEN_ADOPTION = "DIM-I27-ADP1";
+// v4-shaped (zod's uuid format requires the version/variant nibbles).
+const APPLICANT_ID = "00000000-0000-4000-8000-0000000c0001";
+const PII_PHONE = "+5491133344455";
+const PII_DNI_MARKER = "30111222";
 
-    // Build a mock that returns a realistic projected shape (post-fix).
-    const mockResult = {
-      application: { id: "evt-1", applicantUserId: "user-abc" },
-      pet: { id: "pet-1", name: "Luna", publicToken: "DIM-XXXX-0001" },
-    };
+let orgIdI27: string;
+let petIdAdoption: string;
+let applicationEventId: string;
 
-    const originalFn = AdoptionRepository.findApplicationForReview;
-    AdoptionRepository.findApplicationForReview = vi.fn().mockResolvedValue(mockResult);
-
-    try {
-      const result = await AdoptionRepository.findApplicationForReview("evt-1", "org-1");
-      if ("error" in result) throw new Error("Expected success result");
-
-      const { application } = result;
-
-      // Must have the projected fields.
-      expect(application).toHaveProperty("id", "evt-1");
-      expect(application).toHaveProperty("applicantUserId", "user-abc");
-
-      // Must NOT have the raw payload or any PII fields from it.
-      expect(application).not.toHaveProperty("payload");
-      expect(application).not.toHaveProperty("housing_type");
-      expect(application).not.toHaveProperty("daily_routine");
-      expect(application).not.toHaveProperty("notes");
-      expect(application).not.toHaveProperty("phone");
-      expect(application).not.toHaveProperty("dni");
-      expect(application).not.toHaveProperty("motivation");
-      expect(application).not.toHaveProperty("prior_pets");
-    } finally {
-      AdoptionRepository.findApplicationForReview = originalFn;
+async function cleanupAdoptionFixture() {
+  await withMutationOverride(async (tx) => {
+    const rows = await tx
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, PET_TOKEN_ADOPTION));
+    for (const { id } of rows) {
+      await tx.delete(petEvents).where(eq(petEvents.petId, id));
+      await tx.delete(ownerships).where(eq(ownerships.petId, id));
+      await tx.delete(pets).where(eq(pets.id, id));
     }
+    await tx.delete(organizations).where(eq(organizations.publicToken, ORG_TOKEN_I27));
+    await tx.delete(profiles).where(eq(profiles.id, APPLICANT_ID));
+  });
+}
+
+describe("Item 27 — adoption findApplicationForReview shape guard (real repository)", () => {
+  beforeAll(async () => {
+    await cleanupAdoptionFixture();
+
+    const [org] = await db
+      .insert(organizations)
+      .values({
+        publicToken: ORG_TOKEN_I27,
+        legalName: "Refugio Item 27 SRL",
+        displayName: "Refugio Item 27",
+        orgType: "shelter",
+        email: "refugio-i27@dim-test.local",
+        verified: true,
+        status: "active",
+      })
+      .returning({ id: organizations.id });
+    orgIdI27 = org.id;
+
+    await db
+      .insert(profiles)
+      .values({ id: APPLICANT_ID, displayName: "Postulante I27" })
+      .onConflictDoNothing({ target: profiles.id });
+
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: PET_TOKEN_ADOPTION,
+        name: "AdoptableI27",
+        species: "dog",
+        sex: "unknown",
+        potentiallyDangerousBreed: false,
+      })
+      .returning({ id: pets.id });
+    petIdAdoption = pet.id;
+
+    await db.insert(ownerships).values({
+      petId: petIdAdoption,
+      ownerOrganizationId: orgIdI27,
+      role: "shelter_custody",
+    });
+
+    // Application payload deliberately LOADED with PII-looking markers: the
+    // repository must project only applicant_user_id out of it.
+    const payload = validateEventPayload("adoption_application_submitted", {
+      applicant_user_id: APPLICANT_ID,
+      related_organization_id: orgIdI27,
+      housing_type: "casa_con_patio",
+      other_pets: "Un gato",
+      daily_routine: "Trabajo remoto, paseos 3 veces al día",
+      notes: `Contacto directo: ${PII_PHONE}, DNI ${PII_DNI_MARKER}`,
+      profile_sharing_consent_at: new Date().toISOString(),
+      motivation: "Siempre quisimos un perro",
+      prior_pets: "yes_before",
+    });
+    const [evt] = await db
+      .insert(petEvents)
+      .values({
+        petId: petIdAdoption,
+        eventType: "adoption_application_submitted",
+        occurredAt: new Date(),
+        recordedAt: new Date(),
+        authorRole: "owner",
+        recordedByUserId: null,
+        payload,
+      })
+      .returning({ id: petEvents.id });
+    applicationEventId = evt.id;
+  });
+
+  afterAll(async () => {
+    await cleanupAdoptionFixture();
+  });
+
+  it("returns EXACTLY { id, applicantUserId } + the pet projection — never the payload", async () => {
+    const result = await AdoptionRepository.findApplicationForReview(applicationEventId, orgIdI27);
+    expect("error" in result).toBe(false);
+    if ("error" in result) return;
+
+    // toEqual against exact literal shapes: any extra key (payload, notes,
+    // housing_type, …) fails, not just the specific keys we thought to list.
+    expect(result.application).toEqual({
+      id: applicationEventId,
+      applicantUserId: APPLICANT_ID,
+    });
+    expect(result.pet).toEqual({
+      id: petIdAdoption,
+      name: "AdoptableI27",
+      publicToken: PET_TOKEN_ADOPTION,
+    });
+
+    // Belt-and-braces: none of the PII markers stored in the payload appear
+    // anywhere in the serialized result.
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(PII_PHONE);
+    expect(serialized).not.toContain(PII_DNI_MARKER);
+    expect(serialized).not.toContain("casa_con_patio");
+    expect(serialized).not.toContain("paseos 3 veces");
+  });
+
+  it("scopes by organization: a different org id gets the not-found error, not the row", async () => {
+    const result = await AdoptionRepository.findApplicationForReview(
+      applicationEventId,
+      "00000000-0000-4000-8000-0000000c0999",
+    );
+    expect(result).toEqual({
+      error: "Postulación no encontrada o no pertenece a tu organización.",
+    });
   });
 });
 
