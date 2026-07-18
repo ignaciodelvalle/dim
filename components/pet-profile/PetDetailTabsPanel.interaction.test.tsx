@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
 //
-// PetDetailTabsPanel interaction test — router-hot-path fix for the two face
-// switchers restored by the "Una sola libreta" redesign: the band "Girar" turn
-// button (DocumentChrome) and the segmented Credencial/Libreta tablist. Both
-// write ?tab= through the same goToFace (native History API). Same
-// defect class as SheetHost.interaction.test.tsx's sheets: Next 15.5.x's
-// App Router can silently drop a router.replace transition's own fetch in
-// production (see lib/ui/sheet-nav.ts's module docblock). The Girar click
-// path writes the URL via pushTabUrl (native History API) instead of
-// router.replace — this file exercises the real click-driven path (RTL +
-// jsdom) the way a production user would, and explicitly asserts that
-// browser back restores the previous face (a popstate → useSearchParams()
-// reactivity property that must not be assumed — see task contract). It
-// also asserts the button's aria-pressed state, since the flip control now
-// carries the full accessible-nav contract the removed tablist used to own.
+// PetDetailTabsPanel interaction test — the band "Girar" turn button
+// (DocumentChrome) is the SINGLE face switcher (tarjeta-todo, re-affirming PO
+// decision #645; the segmented tablist the July redesign restored is gone
+// again). It writes ?tab= through goToFace (native History API). Same defect
+// class as SheetHost.interaction.test.tsx's sheets: Next 15.5.x's App Router
+// can silently drop a router.replace transition's own fetch in production
+// (see lib/ui/sheet-nav.ts's module docblock). The Girar click path writes
+// the URL via pushTabUrl (native History API) instead of router.replace —
+// this file exercises the real click-driven path (RTL + jsdom) the way a
+// production user would, and explicitly asserts that browser back restores
+// the previous face (a popstate → useSearchParams() reactivity property that
+// must not be assumed — see task contract). It also asserts the button's
+// aria-pressed state and that focus lands on the newly-shown face after a
+// flip, since the flip control now carries the FULL accessible-nav contract
+// the removed tablist used to own.
 //
 // next/navigation is mocked the same way as SheetHost.interaction.test.tsx:
 // jsdom's real history.pushState/replaceState is wrapped to notify
@@ -195,49 +196,57 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
     });
   });
 
-  it("renders the segmented Credencial/Libreta tablist in sync with the band turn button", () => {
-    // The "Una sola libreta" redesign restored a visible segmented control
-    // alongside the band turn button; both write ?tab= through the same
-    // goToFace, so aria-selected on the tablist tracks the active face.
+  it("renders NO tablist and NO tabs — the band button is the single flip control", () => {
+    // History guard: the tablist was removed by PO decision #645, restored by
+    // the July redesign, and removed again by tarjeta-todo. It must not
+    // quietly return a third time (lint:tablist ratchets the same invariant
+    // at the source level).
     renderPanel("credencial");
 
-    const tabs = screen.getAllByRole("tab");
-    expect(tabs).toHaveLength(2);
-    const [credencialTab, libretaTab] = tabs;
-    expect(credencialTab).toHaveAttribute("aria-selected", "true");
-    expect(libretaTab).toHaveAttribute("aria-selected", "false");
-
-    // Clicking the Libreta tab flips the face via the History API (no router).
-    fireEvent.click(libretaTab);
-    expect(window.location.search).toBe("?tab=libreta");
-    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
-    expect(routerPush).not.toHaveBeenCalled();
-    expect(routerReplace).not.toHaveBeenCalled();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryAllByRole("tab")).toHaveLength(0);
+    // The single switcher is reachable and carries the full contract:
+    // descriptive target-naming label + pressed state.
+    const turn = screen.getByRole("button", { name: "Girar a Libreta" });
+    expect(turn).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("wires each tab to its face panel (aria-controls ↔ id) with roving tabIndex", () => {
+  it("labels both faces as named regions so the back face is discoverable by name", () => {
     renderPanel("credencial");
-    const [credencialTab, libretaTab] = screen.getAllByRole("tab");
 
-    // aria-controls points at the tabpanel FlipCard renders for that face.
-    expect(credencialTab).toHaveAttribute("aria-controls", "pet-face-credencial");
-    expect(libretaTab).toHaveAttribute("aria-controls", "pet-face-libreta");
-    // Roving tabIndex: only the active tab is in the tab order.
-    expect(credencialTab).toHaveAttribute("tabindex", "0");
-    expect(libretaTab).toHaveAttribute("tabindex", "-1");
+    // The shown face exposes its accessible region name…
+    expect(
+      screen.getByRole("region", { name: "Credencial · frente del documento" }),
+    ).toBeInTheDocument();
+    // …and the hidden back face (aria-hidden + display:none until flipped)
+    // carries the same named-region wiring, ready for when it is shown.
+    const back = document.getElementById("pet-face-libreta");
+    expect(back?.tagName).toBe("SECTION");
+    expect(back).toHaveAttribute("aria-label", "Libreta · dorso del documento");
+
+    // Flip: the back face becomes the exposed named region.
+    fireEvent.click(screen.getByRole("button", { name: "Girar a Libreta" }));
+    expect(
+      screen.getByRole("region", { name: "Libreta · dorso del documento" }),
+    ).toBeInTheDocument();
   });
 
-  it("ArrowRight on the tablist moves to and activates the Libreta face", () => {
+  it("moves focus onto the newly-shown face after a Girar flip (single-control a11y)", async () => {
     renderPanel("credencial");
-    const tablist = screen.getByRole("tablist");
 
-    fireEvent.keyDown(tablist, { key: "ArrowRight" });
-    expect(window.location.search).toBe("?tab=libreta");
-    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("aria-selected", "true");
-    // Roving tabIndex follows the active tab.
-    expect(screen.getAllByRole("tab")[1]).toHaveAttribute("tabindex", "0");
-    expect(routerPush).not.toHaveBeenCalled();
-    expect(routerReplace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Girar a Libreta" }));
+
+    // Focus lands on the back-face container (tabIndex=-1, focused by id) so a
+    // keyboard/screen-reader user is taken to the content that appeared.
+    await waitFor(() => {
+      expect(document.activeElement?.id).toBe("pet-face-libreta");
+    });
+
+    // And flipping back returns focus to the front face.
+    fireEvent.click(screen.getByRole("button", { name: "Girar a Credencial" }));
+    await waitFor(() => {
+      expect(document.activeElement?.id).toBe("pet-face-credencial");
+    });
   });
 });
 

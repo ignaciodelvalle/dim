@@ -151,10 +151,11 @@ async function gotoPublicResilient(page: Page, url: string) {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Owner login → /inicio lands on the most-urgent pet's profile; carousel
-//    chrome visible when the owner has >1 live pet.
+// 1. Owner login → /inicio lands on the most-urgent pet's profile; band dots
+//    (tarjeta-todo: the dots live INSIDE the document band) visible when the
+//    owner has >1 live pet.
 // ---------------------------------------------------------------------------
-test("1 — owner /inicio redirects into the most-urgent pet profile with carousel chrome", async ({
+test("1 — owner /inicio redirects into the most-urgent pet profile with band dots", async ({
   browser,
 }) => {
   const { context, page } = await openAs(browser, CAROUSEL_OWNER);
@@ -166,12 +167,13 @@ test("1 — owner /inicio redirects into the most-urgent pet profile with carous
     expect(url, "final URL is a real pet profile route").toMatch(PROFILE_RE);
     expect(tokenFromUrl(url), "resolved a concrete DIM token").toBeTruthy();
 
-    const chrome = page.getByTestId("pet-carousel-chrome");
-    await expect(chrome, "carousel chrome present for >1 live pet").toBeVisible();
-    const dots = chrome.getByRole("button", { name: /Mascota \d+ de \d+/ });
+    // Both faces mount the dots; scope to the visible (front) face.
+    const dotsGroup = page.locator("[data-section='flip-front']").getByTestId("pet-carousel-dots");
+    await expect(dotsGroup, "band dots present for >1 live pet").toBeVisible();
+    const dots = dotsGroup.getByRole("button", { name: /Mascota \d+ de \d+/ });
     expect(await dots.count(), "position dots rendered").toBeGreaterThan(1);
     await expect(
-      chrome.locator("button[aria-current='true']"),
+      dotsGroup.locator("button[aria-current='true']"),
       "the current pet has an active dot",
     ).toHaveCount(1);
   } finally {
@@ -180,11 +182,10 @@ test("1 — owner /inicio redirects into the most-urgent pet profile with carous
 });
 
 // ---------------------------------------------------------------------------
-// 2. Arrow navigation moves to the neighbor's REAL route and prev returns.
+// 2. Keyboard ←/→ moves to the neighbor's REAL route and back (the desktop
+//    arrow buttons died with the top chrome strip — tarjeta-todo).
 // ---------------------------------------------------------------------------
-test("2 — desktop next/prev arrows navigate to the neighbor pet route and back", async ({
-  browser,
-}) => {
+test("2 — keyboard arrows navigate to the neighbor pet route and back", async ({ browser }) => {
   const { context, page } = await openAs(browser, CAROUSEL_OWNER);
   try {
     await page.goto("/inicio");
@@ -192,12 +193,8 @@ test("2 — desktop next/prev arrows navigate to the neighbor pet route and back
     const startToken = tokenFromUrl(page.url());
     expect(startToken).toBeTruthy();
 
-    const chrome = page.getByTestId("pet-carousel-chrome");
-    const next = chrome.getByRole("button", { name: /Mascota siguiente/i });
-    await expect(next, "next arrow present (desktop)").toBeVisible();
-    await expect(next).toBeEnabled();
-
-    await next.click();
+    // The window-level listener handles ←/→ (no focus target needed).
+    await page.keyboard.press("ArrowRight");
     await page.waitForURL(
       (u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken,
       { timeout: 20_000 },
@@ -206,14 +203,13 @@ test("2 — desktop next/prev arrows navigate to the neighbor pet route and back
     expect(neighborToken, "URL changed to a different, real pet route").not.toBe(startToken);
     expect(neighborToken).toBeTruthy();
     await expect(page.locator("#main-content")).toHaveCount(1);
-    await expect(page.getByTestId("pet-carousel-chrome")).toBeVisible();
+    await expect(
+      page.locator("[data-section='flip-front']").getByTestId("pet-carousel-dots"),
+    ).toBeVisible();
 
-    const prev = page
-      .getByTestId("pet-carousel-chrome")
-      .getByRole("button", { name: /Mascota anterior/i });
-    await prev.click();
+    await page.keyboard.press("ArrowLeft");
     await page.waitForURL((u) => tokenFromUrl(u.href) === startToken, { timeout: 20_000 });
-    expect(tokenFromUrl(page.url()), "prev arrow returned to the original pet").toBe(startToken);
+    expect(tokenFromUrl(page.url()), "ArrowLeft returned to the original pet").toBe(startToken);
   } finally {
     await context.close();
   }
@@ -402,13 +398,14 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     );
 
     await expect(page.getByText(/como miembro de/i), "org access notice present").toBeVisible();
-    await expect(page.getByTestId("pet-carousel-chrome")).toHaveCount(0);
+    await expect(page.getByTestId("pet-carousel-dots")).toHaveCount(0);
 
-    // Reveal the (deferred) Libreta face, then assert the owner-only Emergencia
-    // block never rendered for an org viewer.
-    const libretaTab = page.getByRole("tab", { name: /Libreta/i });
-    if (await libretaTab.count()) {
-      await libretaTab.first().click();
+    // Reveal the (deferred) Libreta face via the band turn button (the single
+    // flip control — the tablist is gone, tarjeta-todo), then assert the
+    // owner-only Emergencia block never rendered for an org viewer.
+    const turnButton = page.getByRole("button", { name: "Girar a Libreta" });
+    if (await turnButton.count()) {
+      await turnButton.first().click();
       await page.waitForLoadState("domcontentloaded");
       await page.waitForTimeout(500);
     }
@@ -434,7 +431,7 @@ test("9 — public /p/{flagship} renders with no auth, no carousel chrome, no co
     await expect(page.getByText("Credencial pública", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-    await expect(page.getByTestId("pet-carousel-chrome")).toHaveCount(0);
+    await expect(page.getByTestId("pet-carousel-dots")).toHaveCount(0);
 
     // No contact PII on an ACTIVE credential: no lost-mode owner disclosure, and
     // no phone-number pattern anywhere in the body.

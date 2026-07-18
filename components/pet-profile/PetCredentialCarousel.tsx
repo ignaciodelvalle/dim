@@ -2,8 +2,13 @@
 
 // PetCredentialCarousel — the owner credential carousel shell (owner-ia-redesign
 // P4, "the heart"). The pet profile SWIPES between the owner's live pets,
-// urgent-first. This shell is deliberately THIN: it owns only the navigation
-// CHROME (position dots + desktop arrows), the gesture handling, and the
+// urgent-first. This shell is now INVISIBLE (tarjeta-todo: the profile is the
+// card and nothing else): the old top chrome — position dots, desktop arrows,
+// the "Mostrando N de M" cap paragraph — is gone. The dots moved INTO the
+// document band (CarouselBandDots, mounted by DocumentChrome; the cap
+// disclosure lives in that group's aria-label), the arrows died with the
+// strip (keyboard ←/→, swipe, and the dots still navigate), and this shell
+// keeps only the gesture handling, the window keyboard listener, and the
 // one-neighbor-each-side prefetch. The credential document itself stays
 // SERVER-RENDERED per route and is passed in as `children` — a swipe is a real
 // NAVIGATION to the neighbor's route (`/mis-mascotas/[token]`), NOT a
@@ -12,12 +17,12 @@
 //
 // GESTURE SURFACE IS CONSTRAINED (the top P4 UX risk — vertical scroll of the
 // long document must never fight the swipe). The horizontal swipe is captured
-// ONLY when the gesture STARTS inside a `[data-swipe-zone]` element: the chrome
-// bar (dots/arrows, below) and the credential's identity band (CredentialFace's
-// identity `.ln-sec`, marked there). Everywhere else — compliance, avisos, the
-// libreta face, the owner activity — pointer gestures pass straight through to
-// normal scrolling, because we never preventDefault and only act on a completed,
-// horizontal-dominant gesture that began in a zone.
+// ONLY when the gesture STARTS inside a `[data-swipe-zone]` element: the
+// band dots strip (CarouselBandDots) and the credential's identity band
+// (CredentialFace's identity `.ln-sec`, marked there). Everywhere else —
+// compliance, avisos, the libreta face — pointer gestures pass straight
+// through to normal scrolling, because we never preventDefault and only act on
+// a completed, horizontal-dominant gesture that began in a zone.
 //
 // REDUCED MOTION is a non-issue by construction: there is NO custom slide/
 // transform animation here to gate — navigation hands off to Next's router, and
@@ -33,8 +38,6 @@ import {
   useRef,
 } from "react";
 
-import { Icon } from "@/components/Icon";
-import { LnStatusDot } from "@/components/ui/Chip";
 import { type CarouselPet, computeCarouselNeighbors } from "@/lib/domain/owner-carousel";
 
 // A completed horizontal gesture must clear this distance (and dominate the
@@ -55,23 +58,15 @@ function routeForToken(token: string): string {
 }
 
 type Props = {
-  /** Ranked, capped live pets (urgent-first) — one dot each, in this order. */
+  /** Ranked, capped live pets (urgent-first) — drives the neighbor order. */
   pets: CarouselPet[];
   /** The pet whose profile is currently rendered. */
   currentToken: string;
-  /**
-   * Total live pets in the household (D2). The swipe/dots are capped at
-   * OWNER_CAROUSEL_CAP, so when the owner has MORE live pets than dots this drives
-   * an honest "Mostrando N de M" line — the /mis-mascotas index lists all M, and
-   * the carousel must not silently show a smaller set. Defaults to `pets.length`
-   * (no cap reached → nothing to disclose).
-   */
-  liveTotal?: number;
   /** The server-rendered credential document for the current route. */
   children: ReactNode;
 };
 
-export function PetCredentialCarousel({ pets, currentToken, liveTotal, children }: Props) {
+export function PetCredentialCarousel({ pets, currentToken, children }: Props) {
   const router = useRouter();
 
   const tokens = pets.map((p) => p.token);
@@ -169,89 +164,17 @@ export function PetCredentialCarousel({ pets, currentToken, liveTotal, children 
     gestureRef.current = null;
   }
 
-  const total = pets.length;
-  // D2: disclose the cap honestly. When the household has more live pets than the
-  // swipe shows (OWNER_CAROUSEL_CAP), the dots would otherwise imply the owner has
-  // only `total` pets — contradicting the /mis-mascotas index that lists them all.
-  const householdTotal = liveTotal ?? total;
-  const isCapped = householdTotal > total;
-
   return (
     // Pointer handlers are the touch/mouse swipe surface (not click targets);
-    // keyboard nav is the window ←/→ listener above.
+    // keyboard nav is the window ←/→ listener above. No visible chrome of its
+    // own (tarjeta-todo) — the position dots render inside the document band
+    // (CarouselBandDots via DocumentChrome).
     <div
       onPointerDown={onPointerDown}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onPointerLeave={onPointerLeave}
     >
-      {/* Navigation chrome — arrows (desktop) flanking the position dots. The
-          whole strip is a swipe zone so a drag across the dots navigates too. */}
-      <nav
-        aria-label="Tus mascotas"
-        data-swipe-zone
-        data-testid="pet-carousel-chrome"
-        className="mb-3 flex items-center justify-center gap-2"
-      >
-        <button
-          type="button"
-          onClick={() => navigate(prevToken)}
-          disabled={!prevToken}
-          aria-label="Mascota anterior"
-          className="hidden h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] text-[var(--color-ln-mute)] transition-colors hover:text-[var(--color-ln-ink)] disabled:cursor-not-allowed disabled:opacity-40 md:inline-flex"
-        >
-          <Icon name="chevron-right" size="sm" decorative className="rotate-180" />
-        </button>
-
-        <ul className="flex items-center gap-1.5">
-          {pets.map((p, i) => {
-            const isCurrent = p.token === currentToken;
-            return (
-              <li key={p.token}>
-                <button
-                  type="button"
-                  onClick={() => navigate(p.token)}
-                  aria-current={isCurrent ? "true" : undefined}
-                  aria-label={`Mascota ${i + 1} de ${total}${isCurrent ? " (actual)" : ""}`}
-                  data-current={isCurrent ? "true" : undefined}
-                  className={[
-                    "grid h-7 w-7 place-items-center rounded-full transition-colors",
-                    isCurrent
-                      ? "ring-2 ring-[var(--color-ln-azul)]"
-                      : "opacity-70 hover:opacity-100",
-                  ].join(" ")}
-                >
-                  <LnStatusDot status={p.status} size={isCurrent ? "md" : "sm"} />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-
-        <button
-          type="button"
-          onClick={() => navigate(nextToken)}
-          disabled={!nextToken}
-          aria-label="Mascota siguiente"
-          className="hidden h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] text-[var(--color-ln-mute)] transition-colors hover:text-[var(--color-ln-ink)] disabled:cursor-not-allowed disabled:opacity-40 md:inline-flex"
-        >
-          <Icon name="chevron-right" size="sm" decorative />
-        </button>
-      </nav>
-
-      {/* D2: honest cap disclosure — only when the household exceeds the dots. */}
-      {isCapped && (
-        <p className="mb-3 text-center text-sm text-[var(--color-ln-mute)]">
-          Mostrando {total} de {householdTotal} mascotas.{" "}
-          <a
-            href="/mis-mascotas"
-            className="text-[var(--color-ln-azul)] no-underline hover:underline"
-          >
-            Ver todas
-          </a>
-        </p>
-      )}
-
       {children}
     </div>
   );

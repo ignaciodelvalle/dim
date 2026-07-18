@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 //
-// PetCredentialCarousel interaction tests (owner-ia-redesign P4). Renders the
-// real shell in jsdom and drives the chrome: position dots (count / cap / tint /
-// current emphasis, in ranked order), keyboard ←/→ navigation (with end-clamp),
-// tap-to-jump, and the one-neighbor-each-side prefetch. next/navigation is
-// mocked to observe router.push / router.prefetch — the exact calls the swipe /
-// arrow / key / dot paths make.
+// PetCredentialCarousel interaction tests (owner-ia-redesign P4; slimmed by
+// tarjeta-todo). The shell is INVISIBLE now — the position dots moved into the
+// document band (CarouselBandDots.test.tsx covers them) and the desktop
+// arrows died with the top chrome strip. This file drives what the shell
+// still owns: keyboard ←/→ navigation (with end-clamp and the tab/dialog
+// guards), the constrained pointer swipe (zone-gated, sheet-gated), and the
+// one-neighbor-each-side prefetch. next/navigation is mocked to observe
+// router.push / router.prefetch — the exact calls the swipe / key paths make.
 //
-// Owner-only gating (no chrome for a non-owner) is proven purely in
-// lib/domain/owner-carousel.test.ts (shouldShowCarousel): the page never mounts
-// this component for a non-owner, so there is no chrome to render.
+// Owner-only gating (no shell for a non-owner) is proven purely in
+// lib/domain/owner-carousel.test.ts (shouldShowCarousel): the page never
+// mounts this component for a non-owner.
 
 import "@testing-library/jest-dom/vitest";
 
@@ -30,19 +32,15 @@ const PETS: CarouselPet[] = [
   { token: "DIM-OKAY-0003", status: "ok" },
 ];
 
-function renderCarousel(currentToken: string, pets: CarouselPet[] = PETS, liveTotal?: number) {
+function renderCarousel(currentToken: string, pets: CarouselPet[] = PETS) {
   return render(
-    <PetCredentialCarousel pets={pets} currentToken={currentToken} liveTotal={liveTotal}>
-      <div data-testid="document">documento</div>
+    <PetCredentialCarousel pets={pets} currentToken={currentToken}>
+      {/* The real document marks its identity band as the swipe zone
+          (CredentialFace) — this stub plays that role. */}
+      <div data-testid="document" data-swipe-zone>
+        documento
+      </div>
     </PetCredentialCarousel>,
-  );
-}
-
-function dots(container: HTMLElement): HTMLButtonElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLButtonElement>(
-      '[data-testid="pet-carousel-chrome"] ul li button',
-    ),
   );
 }
 
@@ -52,39 +50,18 @@ afterEach(() => {
   prefetch.mockClear();
 });
 
-describe("PetCredentialCarousel — position dots", () => {
-  it("renders one dot per pet, in the ranked order given", () => {
-    const { container } = renderCarousel("DIM-PREG-0002");
-    const rendered = dots(container);
-    expect(rendered).toHaveLength(PETS.length);
-    // Tint follows status IN ORDER: lost (err) → pregnant (rosa) → ok (ok).
-    expect(rendered[0].innerHTML).toContain("bg-[var(--color-ln-err)]");
-    expect(rendered[1].innerHTML).toContain("bg-[var(--color-ln-rosa)]");
-    expect(rendered[2].innerHTML).toContain("bg-[var(--color-ln-ok)]");
+describe("PetCredentialCarousel — invisible shell (tarjeta-todo)", () => {
+  it("renders no chrome of its own — no nav strip, no arrows, no cap text", () => {
+    const { container, queryByText } = renderCarousel("DIM-PREG-0002");
+    expect(container.querySelector("nav")).toBeNull();
+    expect(container.querySelector("[data-testid='pet-carousel-chrome']")).toBeNull();
+    expect(queryByText(/Mostrando/)).toBeNull();
+    expect(queryByText(/Mascota anterior|Mascota siguiente/)).toBeNull();
   });
 
-  it("caps at the 8 dots it is given (cap is enforced upstream in rankOwnerCarousel)", () => {
-    const eight: CarouselPet[] = Array.from({ length: 8 }, (_, i) => ({
-      token: `DIM-PET-000${i}`,
-      status: "ok",
-    }));
-    const { container } = renderCarousel("DIM-PET-0000", eight);
-    expect(dots(container)).toHaveLength(8);
-  });
-
-  it("emphasizes exactly the current pet's dot (aria-current)", () => {
-    const { container } = renderCarousel("DIM-PREG-0002");
-    const current = dots(container).filter((d) => d.getAttribute("aria-current") === "true");
-    expect(current).toHaveLength(1);
-    expect(current[0]).toHaveAttribute("data-current", "true");
-    // The emphasized dot is the SECOND one (the current token's rank position).
-    expect(dots(container)[1]).toHaveAttribute("aria-current", "true");
-  });
-
-  it("tapping a dot navigates to that pet's real route", () => {
-    const { container } = renderCarousel("DIM-PREG-0002");
-    fireEvent.click(dots(container)[2]);
-    expect(push).toHaveBeenCalledWith("/mis-mascotas/DIM-OKAY-0003");
+  it("renders the server document as children", () => {
+    const { getByTestId } = renderCarousel("DIM-PREG-0002");
+    expect(getByTestId("document")).toHaveTextContent("documento");
   });
 });
 
@@ -110,7 +87,7 @@ describe("PetCredentialCarousel — keyboard navigation (clamp at ends, no wrap)
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("ignores arrow keys originating from a roving tablist (Credencial/Libreta faces)", () => {
+  it("ignores arrow keys originating from a roving tablist", () => {
     const { container } = renderCarousel("DIM-PREG-0002");
     const tab = document.createElement("button");
     tab.setAttribute("role", "tab");
@@ -120,40 +97,45 @@ describe("PetCredentialCarousel — keyboard navigation (clamp at ends, no wrap)
   });
 });
 
-describe("PetCredentialCarousel — pointer swipe gated under open sheets", () => {
-  function chromeOf(container: HTMLElement): HTMLElement {
-    return container.querySelector<HTMLElement>('[data-testid="pet-carousel-chrome"]')!;
-  }
-
+describe("PetCredentialCarousel — pointer swipe (zone-gated, sheet-gated)", () => {
   it("navigates on a horizontal swipe that starts in a swipe zone (no sheet open)", () => {
-    const { container } = renderCarousel("DIM-PREG-0002");
-    const chrome = chromeOf(container);
+    const { getByTestId } = renderCarousel("DIM-PREG-0002");
+    const zone = getByTestId("document");
     // Swipe left (dx negative, clears the 48px threshold) → NEXT (less urgent).
-    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
-    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    fireEvent.pointerDown(zone, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(zone, { clientX: 40, clientY: 100 });
     expect(push).toHaveBeenCalledWith("/mis-mascotas/DIM-OKAY-0003");
   });
 
+  it("ignores the same gesture when it starts OUTSIDE a swipe zone", () => {
+    const { container, getByTestId } = renderCarousel("DIM-PREG-0002");
+    const outside = document.createElement("div");
+    container.firstElementChild?.appendChild(outside);
+    fireEvent.pointerDown(outside, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(getByTestId("document"), { clientX: 40, clientY: 100 });
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("does NOT navigate on the same swipe while a dialog/sheet is open", () => {
-    const { container } = renderCarousel("DIM-PREG-0002");
+    const { getByTestId } = renderCarousel("DIM-PREG-0002");
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
     document.body.appendChild(dialog);
-    const chrome = chromeOf(container);
-    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
-    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    const zone = getByTestId("document");
+    fireEvent.pointerDown(zone, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(zone, { clientX: 40, clientY: 100 });
     expect(push).not.toHaveBeenCalled();
     dialog.remove();
   });
 
   it("does NOT navigate while a Vaul drawer is mounted", () => {
-    const { container } = renderCarousel("DIM-PREG-0002");
+    const { getByTestId } = renderCarousel("DIM-PREG-0002");
     const drawer = document.createElement("div");
     drawer.setAttribute("data-vaul-drawer", "");
     document.body.appendChild(drawer);
-    const chrome = chromeOf(container);
-    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
-    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    const zone = getByTestId("document");
+    fireEvent.pointerDown(zone, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(zone, { clientX: 40, clientY: 100 });
     expect(push).not.toHaveBeenCalled();
     drawer.remove();
   });
@@ -164,27 +146,15 @@ describe("PetCredentialCarousel — pointer swipe gated under open sheets", () =
     // element already carries implicit ARIA dialog semantics. The gate selector
     // used to miss it entirely, so a swipe over an open ConfirmDialog could
     // still navigate to a neighbor pet mid-confirmation.
-    const { container } = renderCarousel("DIM-PREG-0002");
+    const { getByTestId } = renderCarousel("DIM-PREG-0002");
     const dialog = document.createElement("dialog");
     dialog.setAttribute("open", "");
     document.body.appendChild(dialog);
-    const chrome = chromeOf(container);
-    fireEvent.pointerDown(chrome, { clientX: 200, clientY: 100 });
-    fireEvent.pointerUp(chrome, { clientX: 40, clientY: 100 });
+    const zone = getByTestId("document");
+    fireEvent.pointerDown(zone, { clientX: 200, clientY: 100 });
+    fireEvent.pointerUp(zone, { clientX: 40, clientY: 100 });
     expect(push).not.toHaveBeenCalled();
     dialog.remove();
-  });
-});
-
-describe("PetCredentialCarousel — desktop arrows", () => {
-  it("disables the previous arrow at the first pet and the next arrow at the last", () => {
-    const first = renderCarousel("DIM-LOST-0001");
-    expect(first.getByLabelText("Mascota anterior")).toBeDisabled();
-    expect(first.getByLabelText("Mascota siguiente")).not.toBeDisabled();
-    cleanup();
-    const last = renderCarousel("DIM-OKAY-0003");
-    expect(last.getByLabelText("Mascota siguiente")).toBeDisabled();
-    expect(last.getByLabelText("Mascota anterior")).not.toBeDisabled();
   });
 });
 
@@ -200,32 +170,5 @@ describe("PetCredentialCarousel — prefetch exactly one neighbor each side", ()
     renderCarousel("DIM-LOST-0001");
     expect(prefetch).toHaveBeenCalledTimes(1);
     expect(prefetch).toHaveBeenCalledWith("/mis-mascotas/DIM-PREG-0002");
-  });
-});
-
-describe("PetCredentialCarousel — cap disclosure (D2)", () => {
-  it("shows an honest 'Mostrando N de M' when the household exceeds the dots", () => {
-    // 3 dots shown, 14 live pets in the household → the swipe must not imply
-    // the owner has only 3 pets (it silently disagreed with /mis-mascotas).
-    const { getByText } = renderCarousel("DIM-PREG-0002", PETS, 14);
-    expect(getByText(/Mostrando 3 de 14 mascotas/)).toBeInTheDocument();
-    expect(getByText("Ver todas")).toHaveAttribute("href", "/mis-mascotas");
-  });
-
-  it("shows no disclosure when the dots already cover the whole household", () => {
-    const { queryByText } = renderCarousel("DIM-PREG-0002", PETS, 3);
-    expect(queryByText(/Mostrando/)).toBeNull();
-  });
-
-  it("shows no disclosure when liveTotal is omitted (defaults to the dot count)", () => {
-    const { queryByText } = renderCarousel("DIM-PREG-0002");
-    expect(queryByText(/Mostrando/)).toBeNull();
-  });
-});
-
-describe("PetCredentialCarousel — renders the document", () => {
-  it("renders the server document as children below the chrome", () => {
-    const { getByTestId } = renderCarousel("DIM-PREG-0002");
-    expect(getByTestId("document")).toHaveTextContent("documento");
   });
 });

@@ -104,6 +104,32 @@ describe("mergeFutureLedger", () => {
     expect(item?.action).toBeUndefined();
   });
 
+  it("reminder rows carry their source reminderId (powers Posponer/Registrar)", () => {
+    const result = mergeFutureLedger(
+      [
+        {
+          reminderId: "r1",
+          title: "Antiparasitario",
+          dueAt: new Date("2026-08-01"),
+          variant: "upcoming",
+        },
+      ],
+      [
+        {
+          publicToken: "apt1",
+          offeringDisplayName: "Control clínico",
+          slotStartsAt: new Date("2026-08-05"),
+        },
+      ],
+      [{ reminderId: "m1", drugName: "Amoxicilina", dueAt: new Date("2026-08-10") }],
+    );
+    const reminder = result.find((r) => r.kind === "reminder");
+    expect(reminder?.reminderId).toBe("r1");
+    // Non-reminder rows never carry it — Posponer/Registrar are reminder-only.
+    expect(result.find((r) => r.kind === "appointment")?.reminderId).toBeUndefined();
+    expect(result.find((r) => r.kind === "medication")?.reminderId).toBeUndefined();
+  });
+
   it("medication doses carry a mark-dose action", () => {
     const [item] = mergeFutureLedger(
       [],

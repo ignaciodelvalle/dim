@@ -16,6 +16,14 @@ export type FutureLedgerItem = {
   label: string;
   dueAt: Date;
   action?: FutureLedgerAction;
+  /**
+   * The source reminder id — present on `kind: "reminder"` rows only. Powers
+   * the per-row "Posponer 7 días" / "Registrar" actions (tarjeta-todo: the
+   * libreta's PRÓXIMO section absorbed the actions of the deleted under-card
+   * RemindersSection, so reminder rows must reach the same server action and
+   * the canonical reminder-linked vaccine URL).
+   */
+  reminderId?: string;
 };
 
 export type FutureReminderInput = {
@@ -66,6 +74,7 @@ export function mergeFutureLedger(
       label: r.title,
       dueAt: r.dueAt,
       action: isRabiesDueOrOver ? { type: "programar-turno" } : undefined,
+      reminderId: r.reminderId,
     };
   });
 

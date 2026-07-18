@@ -116,3 +116,50 @@ describe("<DocumentChrome> — situation band", () => {
     expect(html).not.toContain("ln-band-chip");
   });
 });
+
+// tarjeta-todo: the carousel position dots render in the band via the
+// `bandDots` slot — outside the aria-hidden band wrapper (same established
+// pattern as the turn button and the state chip), on BOTH faces.
+describe("<DocumentChrome> — band dots slot (tarjeta-todo)", () => {
+  it("renders the bandDots node OUTSIDE the aria-hidden band wrapper", () => {
+    const html = renderToStaticMarkup(
+      <DocumentChrome
+        face="credencial"
+        onFlip={() => {}}
+        isLibretaActive={false}
+        bandDots={<nav aria-label="Tus mascotas">DOTS</nav>}
+      >
+        <div>BODY</div>
+      </DocumentChrome>,
+    );
+    expect(html).toContain('data-section="band-dots"');
+    expect(html).toContain('aria-label="Tus mascotas"');
+    // The aria-hidden band div must CLOSE before the dots wrapper opens — the
+    // dots are a sibling overlay (accessible), not band content.
+    const bandEnd = html.indexOf("</div>", html.indexOf("ln-band-title"));
+    const dotsAt = html.indexOf('data-section="band-dots"');
+    expect(dotsAt).toBeGreaterThan(bandEnd);
+  });
+
+  it("renders no dots wrapper when the slot is absent (single pet / non-owner)", () => {
+    const html = renderToStaticMarkup(
+      <DocumentChrome face="credencial" onFlip={() => {}} isLibretaActive={false}>
+        <div>BODY</div>
+      </DocumentChrome>,
+    );
+    expect(html).not.toContain('data-section="band-dots"');
+  });
+
+  it("renders the dots on BOTH faces via FlipCard (flip never loses the position)", () => {
+    const html = renderToStaticMarkup(
+      <FlipCard
+        front={<div>F</div>}
+        back={<div>B</div>}
+        activeFace="credencial"
+        onFlip={() => {}}
+        bandDots={<nav aria-label="Tus mascotas">DOTS</nav>}
+      />,
+    );
+    expect(html.split('data-section="band-dots"').length - 1).toBe(2);
+  });
+});
