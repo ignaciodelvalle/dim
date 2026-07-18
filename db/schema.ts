@@ -3448,6 +3448,60 @@ export const panoramaCubeMeta = pgTable("panorama_cube_meta", {
 export type PanoramaCubeMeta = typeof panoramaCubeMeta.$inferSelect;
 
 // ============================================================================
+// Panorama KPI-strip cube — migration 0151
+// ============================================================================
+// Precomputed KPI strip. Built by the TS cube-builder REUSING getPanoramaKpis
+// (the exact live fan-out) for the admin-national scope + panorama default
+// period, so cube-vs-live drift is structurally impossible. Rows store the
+// FINISHED PanoramaKpi tile objects as jsonb — re-deriving tile formatting from
+// numeric columns would fork the presentation logic the strip single-sources.
+// Read only via analyticsDb (service-role); deny-all RLS to PostgREST.
+
+/** One row per (scope, kpi). Strip tiles carry `position`; non-strip cubed
+ * aggregates (kpi='births' — fetchNetGrowth) carry position = NULL. */
+export const panoramaKpiCube = pgTable(
+  "panorama_kpi_cube",
+  {
+    /** 'national' (v1). Future: per-province drill scopes without a migration. */
+    scope: text("scope").notNull(),
+    /** PanoramaKpiId for strip tiles, or a non-strip aggregate id ('births'). */
+    kpi: text("kpi").notNull(),
+    /** Strip display order (0-based); NULL = not a strip tile (births). */
+    position: integer("position"),
+    /** Strip tiles: the PanoramaKpi object exactly as getPanoramaKpis built it.
+     * births: the raw NetGrowthResult. */
+    payload: jsonb("payload").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.scope, table.kpi] }),
+  }),
+);
+
+export type PanoramaKpiCubeRow = typeof panoramaKpiCube.$inferSelect;
+export type NewPanoramaKpiCubeRow = typeof panoramaKpiCube.$inferInsert;
+
+/** KPI cube build metadata singleton (one row, id = 1). The reader gates on
+ * status + built_at freshness AND the stored period window (KPIs are
+ * period-sensitive, unlike the current-state choropleth cube). */
+export const panoramaKpiCubeMeta = pgTable("panorama_kpi_cube_meta", {
+  id: integer("id").primaryKey().default(1),
+  builtAt: timestamp("built_at", { withTimezone: true }),
+  watermark: timestamp("watermark", { withTimezone: true }),
+  /** 'pending' | 'ok' | 'error'. */
+  status: text("status").notNull().default("pending"),
+  rowCount: integer("row_count"),
+  durationMs: integer("duration_ms"),
+  /** The AnalyticsPeriod the strip was computed for (panorama default preset). */
+  periodSince: timestamp("period_since", { withTimezone: true }),
+  periodUntil: timestamp("period_until", { withTimezone: true }),
+  /** Strip-level PanoramaKpis fields (recalculatedFor, dataAsOf,
+   * coverageDenominator) — everything except the tiles. */
+  strip: jsonb("strip"),
+});
+
+export type PanoramaKpiCubeMeta = typeof panoramaKpiCubeMeta.$inferSelect;
+
+// ============================================================================
 // Cases (expedientes) — coordinación liviana sobre el event log
 // ============================================================================
 // Wrapping object over `pet_events` + `welfare_reports`. Each event row can
