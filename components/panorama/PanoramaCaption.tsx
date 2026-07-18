@@ -23,13 +23,16 @@ type Props = {
   level: AggregationLevel;
   /** The active period window (feeds the "últimos N días" phrase for windowed layers). */
   period: PanoramaPeriod;
+  /** panorama-percapita: the map paints per-10k rates — the caption's measure
+   *  gains "por 10.000 habitantes" so it never claims raw counts. */
+  perCapita?: boolean;
 };
 
-export function PanoramaCaption({ layer, level, period }: Props) {
+export function PanoramaCaption({ layer, level, period, perCapita }: Props) {
   if (layer === null) return null;
   return (
     <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
-      {captionFor(layer, level, period)}
+      {captionFor(layer, level, period, { perCapita: perCapita === true })}
     </p>
   );
 }

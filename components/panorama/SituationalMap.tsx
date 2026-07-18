@@ -193,6 +193,13 @@ export type ActiveLayer = {
    * a province-level choropleth layer. Absent → normal single-value rendering.
    */
   bivariateCells?: BivariateCell[];
+  /**
+   * panorama-percapita: this graduated layer's `count` props carry PER-10K RATES
+   * (the console's projectPerCapita swap), not raw counts. The graduated scale
+   * then builds in FRACTIONAL mode — per-10k maxima are routinely < 1 and the
+   * integer flooring would collapse the scale (no legend, floor-size bubbles).
+   */
+  perCapita?: boolean;
 };
 
 /**
@@ -1769,7 +1776,11 @@ export function SituationalMap({
       locked: lockedGraduatedMaxRef.current,
     });
     lockedGraduatedMaxRef.current = gradLock.locked;
-    const gradScale = buildGraduatedScale(gradLock.domain);
+    // panorama-percapita: per-10k rate domains are fractional (often < 1) — the
+    // eligibility gate guarantees EVERY active graduated layer is per-cápita
+    // while the encoding is on, so one flag flips the whole shared scale.
+    const gradFractional = active.some((l) => l.renderMode === "graduated" && l.perCapita === true);
+    const gradScale = buildGraduatedScale(gradLock.domain, { fractional: gradFractional });
 
     // The division-fill legend descriptor for the active locality choropleth (at
     // most one base layer is active at a time). Collected during the loop and

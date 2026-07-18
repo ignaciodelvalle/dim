@@ -2284,3 +2284,171 @@ describe("PanoramaConsole — embedded drill: masthead pill + level reset (live-
     pushSpy.mockRestore();
   });
 });
+
+// ---------------------------------------------------------------------------
+// panorama-percapita — the "por 10.000 hab." encoding (province grain, v1)
+// ---------------------------------------------------------------------------
+
+/** An ENRICHED province cell exactly as get-layer-features serves it for a
+ * per-cápita-eligible layer (population/per10k/census metadata on the props). */
+function enrichedProvinceFeature(
+  province: string,
+  count: number | null,
+  per10k: number | null,
+  suppressed = false,
+) {
+  return {
+    type: "Feature" as const,
+    geometry: { type: "Point" as const, coordinates: [-58.4, -34.6] },
+    properties: {
+      place: province,
+      province,
+      locality: null,
+      departmentCode: null,
+      level: "province",
+      count,
+      suppressed,
+      population: suppressed ? null : 100_000,
+      per10k,
+      censusYear: 2022,
+      censusSource: "INDEC Censo 2022",
+    },
+  };
+}
+
+const PERCAPITA_ENVELOPE = {
+  features: {
+    type: "FeatureCollection" as const,
+    features: [
+      enrichedProvinceFeature("Buenos Aires", 30, 3),
+      enrichedProvinceFeature("Córdoba", 10, 1),
+      // A k-anon suppressed cell: count hidden upstream → per10k null too.
+      enrichedProvinceFeature("La Pampa", null, null, true),
+    ],
+  },
+  truncated: false,
+  suppressedCount: 0,
+  noLocalityCount: 0,
+  level: "province" as const,
+};
+
+/** fetch stub: denuncias serves the ENRICHED province envelope; kpis and every
+ * other layer keep the shared defaults. */
+function stubPercapitaFetch(): void {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("/api/panorama/kpis")
+        ? INITIAL_KPIS
+        : url.includes("/api/panorama/denuncias")
+          ? PERCAPITA_ENVELOPE
+          : OK_ENVELOPE;
+      return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+    }),
+  );
+}
+
+describe("PanoramaConsole — per-cápita encoding (panorama-percapita v1)", () => {
+  it("offers the per-cápita mode on bienestar + the disabled department roadmap option", async () => {
+    setUrl("/gob/panorama?period=3y");
+    stubPercapitaFetch();
+    renderRedesignConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Bienestar y fiscalización/ }));
+
+    const toggle = await screen.findByRole("button", { name: "Per cápita (por 10.000 hab.)" });
+    expect(toggle).toBeEnabled();
+
+    // The PO-ratified visible-roadmap affordance: department grain is phase 2 —
+    // a DISABLED option naming the missing prerequisite, never a silent absence.
+    const roadmap = screen.getByRole("button", {
+      name: "Per cápita por departamento (en desarrollo)",
+    });
+    expect(roadmap).toBeDisabled();
+    expect(roadmap).toHaveAttribute("title", "Requiere censo departamental");
+  });
+
+  it("selecting per-cápita re-encodes map + caption + footer together, and the URL reproduces it", async () => {
+    setUrl("/gob/panorama?period=3y");
+    stubPercapitaFetch();
+    renderRedesignConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Bienestar y fiscalización/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Per cápita (por 10.000 hab.)" }));
+
+    // MAP: the base layer is projected — label gains the unit, counts become
+    // per-10k rates, the suppressed cell STAYS suppressed (no rate from a
+    // hidden count), and the fractional-scale flag rides the layer.
+    await waitFor(() => {
+      const layers = (mapProps?.layers ?? []) as Array<{
+        id: string;
+        label: string;
+        perCapita?: boolean;
+        features: {
+          features: Array<{ properties: { count: number | null; suppressed: boolean } }>;
+        };
+      }>;
+      const denuncias = layers.find((l) => l.id === "denuncias");
+      expect(denuncias).toBeDefined();
+      expect(denuncias?.perCapita).toBe(true);
+      expect(denuncias?.label).toBe("Denuncias de bienestar (por 10.000 hab.)");
+      const counts = denuncias?.features.features.map((f) => f.properties.count);
+      expect(counts).toEqual([3, 1, null]);
+      const suppressed = denuncias?.features.features.map((f) => f.properties.suppressed);
+      expect(suppressed).toEqual([false, false, true]);
+    });
+
+    // CAPTION: the measure names the denominator (label = map = caption canon).
+    expect(screen.getByText(/denuncias de bienestar por 10\.000 habitantes/)).toBeInTheDocument();
+    // FOOTER: year + source from the census table's own metadata, not hardcoded.
+    expect(
+      screen.getByText("Tasas por 10.000 habitantes — Censo 2022 (INDEC)"),
+    ).toBeInTheDocument();
+    // URL: the selection is a shareable coordinate (Copiar vista contract).
+    await waitFor(() => {
+      expect(window.location.search).toContain("encoding=percapita");
+    });
+  });
+
+  it("a ?encoding=percapita deep link reproduces the per-cápita view", async () => {
+    setUrl(
+      "/gob/panorama?period=3y&preset=bienestar&layers=denuncias,decomisos&encoding=percapita",
+    );
+    stubPercapitaFetch();
+    renderRedesignConsole();
+
+    await waitFor(() => {
+      const layers = (mapProps?.layers ?? []) as Array<{
+        id: string;
+        label: string;
+        perCapita?: boolean;
+      }>;
+      const denuncias = layers.find((l) => l.id === "denuncias");
+      expect(denuncias?.perCapita).toBe(true);
+      expect(denuncias?.label).toBe("Denuncias de bienestar (por 10.000 hab.)");
+    });
+  });
+
+  it("stays on counts (mode suspended) when the payload carries no census data", async () => {
+    // Default fetch stub: denuncias serves UN-enriched features (no census in
+    // the environment) → the selection must NOT fabricate rates; the honest
+    // no-census note appears and the map keeps counts.
+    setUrl(
+      "/gob/panorama?period=3y&preset=bienestar&layers=denuncias,decomisos&encoding=percapita",
+    );
+    renderRedesignConsole();
+
+    await waitFor(() => {
+      const layers = (mapProps?.layers ?? []) as Array<{ id: string; perCapita?: boolean }>;
+      const denuncias = layers.find((l) => l.id === "denuncias");
+      expect(denuncias).toBeDefined();
+      expect(denuncias?.perCapita).toBeUndefined();
+    });
+    expect(
+      screen.getByText("Sin datos del censo para esta vista — se muestra el conteo."),
+    ).toBeInTheDocument();
+  });
+});

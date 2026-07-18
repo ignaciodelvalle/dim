@@ -36,6 +36,18 @@ describe("captionFor", () => {
     expect(captionFor(layer("mordeduras"), "province", period90d)).not.toContain("Meta");
   });
 
+  it("panorama-percapita: the perCapita option renames the measure per 10.000 habitantes", () => {
+    // The caption is part of the unit canon (label = map = caption): while the
+    // per-cápita encoding paints rates, the caption must not claim raw counts.
+    expect(captionFor(layer("denuncias"), "province", period90d, { perCapita: true })).toBe(
+      "Cada burbuja es una provincia. Tamaño = denuncias de bienestar por 10.000 habitantes, últimos 90 días.",
+    );
+    // Without the option the caption is byte-identical to before.
+    expect(captionFor(layer("denuncias"), "province", period90d)).toBe(
+      "Cada burbuja es una provincia. Tamaño = denuncias de bienestar, últimos 90 días.",
+    );
+  });
+
   it("appends the Meta clause with the layer's complianceTarget when set", () => {
     expect(captionFor(layer("esterilizacion"), "province", period90d)).toContain("Meta 70%.");
   });

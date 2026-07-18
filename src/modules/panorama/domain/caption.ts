@@ -55,13 +55,20 @@ export function captionFor(
   layer: PanoramaLayer,
   level: AggregationLevel,
   period: PanoramaPeriod,
+  /** panorama-percapita: while the per-cápita encoding paints per-10k rates the
+   *  caption must not claim raw counts — the measure gains the denominator. */
+  opts?: { perCapita?: boolean },
 ): string {
   const mode = layer.renderPolicy[level];
   const when = windowPhrase(layer.caption.window, period);
   const { subject, encoding } = markWords(mode);
+  const measure =
+    opts?.perCapita === true
+      ? `${layer.caption.measure} por 10.000 habitantes`
+      : layer.caption.measure;
 
   if (mode === "clustered-points") {
-    return `Puntos individuales: ${layer.caption.measure}, ${when}.`;
+    return `Puntos individuales: ${measure}, ${when}.`;
   }
 
   // A NATIONAL_DEPARTMENT_GRAIN layer (zoonosis) renders one graduated symbol per
@@ -85,9 +92,9 @@ export function captionFor(
   // numerator/denominator per department); then this branch collapses back into
   // the % + Meta copy below.
   if (layer.dataType === "rate" && level !== "province") {
-    return `Cada ${subject} es una ${unit}. ${encoding} = ${layer.caption.measure} — conteo por unidad (no porcentaje), ${when}.`;
+    return `Cada ${subject} es una ${unit}. ${encoding} = ${measure} — conteo por unidad (no porcentaje), ${when}.`;
   }
 
-  const base = `Cada ${subject} es una ${unit}. ${encoding} = ${layer.caption.measure}, ${when}.`;
+  const base = `Cada ${subject} es una ${unit}. ${encoding} = ${measure}, ${when}.`;
   return layer.complianceTarget !== undefined ? `${base} Meta ${layer.complianceTarget}%.` : base;
 }

@@ -39,7 +39,7 @@ import {
 } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegends } from "@/components/panorama/MapLegends";
-import { ModeSwitcher } from "@/components/panorama/ModeSwitcher";
+import { type ModeOption, ModeSwitcher } from "@/components/panorama/ModeSwitcher";
 import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
@@ -127,6 +127,14 @@ import {
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
 import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
+import {
+  censusMetaOf,
+  isPercapitaEligible,
+  percapitaEligibleFor,
+  percapitaFooterLabel,
+  percapitaLayerLabel,
+  projectPerCapita,
+} from "@/src/modules/panorama/domain/percapita";
 import {
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
@@ -1642,6 +1650,23 @@ export function PanoramaConsole({
     return openingPreset?.encodings?.includes("bivariate") === true;
   });
 
+  // panorama-percapita: the "por 10.000 hab." encoding selection. Same P5
+  // contract as bivariateMode — shallow-synced to `?encoding=` so "Copiar
+  // vista" reproduces it — but DELIBERATELY seeded ONLY from an explicit URL
+  // selection, never from the opening preset's declaration: bienestar (the
+  // preset that declares `percapita`) is ALSO the first-visit DEFAULT preset,
+  // so the bivariate "opens in its declared encoding" rule would silently flip
+  // the flagship national landing to normalized rates — a product change the
+  // PO did not ratify. The declaration still does its two jobs (the URL parses
+  // `?encoding=percapita`; derivePreset keeps the vista badge honest); the
+  // encoding itself stays one explicit click away. The selection is a MODE;
+  // whether it APPLIES (province grain, eligible set, census present) is
+  // derived below — a drill below province falls back to counts with an
+  // EXPLICIT note, never silently.
+  const [percapitaMode, setPercapitaMode] = useState(
+    () => searchParams.get("encoding") === "percapita",
+  );
+
   // P5 gift (#32): presentation mode — `?presentation=1` hides the chrome
   // projections (masthead, top-left cluster, rail, dock) and keeps the map +
   // legends + caption. A ViewState with chrome hidden, nothing else. Read once
@@ -2593,6 +2618,38 @@ export function PanoramaConsole({
     if (!bivariateEligible && bivariateMode) setBivariateMode(false);
   }, [bivariateEligible, bivariateMode]);
 
+  // panorama-percapita: the per-cápita eligibility splits in TWO on purpose.
+  //  - LAYER-SET eligibility (percapitaLayersEligible): every aggregating active
+  //    layer is a per-cápita-eligible count layer. Losing THIS resets the mode
+  //    (the bivariate reset rule — a foreign layer set must not re-engage later).
+  //  - LEVEL eligibility (percapitaEligible): province grain only, v1 has no
+  //    department denominator. Losing ONLY the level (a drill) KEEPS the mode and
+  //    falls back to counts with an EXPLICIT note by the switcher — the
+  //    PO-ratified visible-roadmap pattern, never a silent swap.
+  const percapitaLayersEligible = percapitaEligibleFor(
+    PANORAMA_LAYERS.filter((l) => states[l.id]?.active).map((l) => l.id),
+    "province",
+  );
+  const percapitaEligible = percapitaLayersEligible && level === "province";
+  // Census metadata read from the ACTIVE eligible layer's enriched features
+  // (get-layer-features carries population/per10k/censusYear/censusSource on the
+  // province props). Null while eligible = the payload has no census (stale
+  // cache within its TTL, or an unseeded census table) → honest fallback note.
+  const percapitaCensusMeta = useMemo(() => {
+    if (!percapitaEligible) return null;
+    for (const l of activeLayers) {
+      if (!isPercapitaEligible(l.id as LayerId)) continue;
+      const meta = censusMetaOf(l.features);
+      if (meta) return meta;
+    }
+    return null;
+  }, [percapitaEligible, activeLayers]);
+  const percapitaActive = percapitaMode && percapitaEligible && percapitaCensusMeta !== null;
+
+  useEffect(() => {
+    if (!percapitaLayersEligible && percapitaMode) setPercapitaMode(false);
+  }, [percapitaLayersEligible, percapitaMode]);
+
   // Scale-lock honesty (WARNING 6): opening via a shared ?asOf link mounts the map
   // mid-scrub, so the color/size scale locks to THAT day's domain — it never saw
   // the live edge to anchor against. Disclose that anchor until the operator
@@ -2618,6 +2675,24 @@ export function PanoramaConsole({
     // province caches (refs), mirroring the activeLayers memo's `void` idiom.
     void levelVersion;
     void asOfVersion;
+    // panorama-percapita: project the eligible count layers into their per-10k
+    // encoding — a PURE client swap over the already-enriched features (zero
+    // refetch on toggle, so no new fetch dispatch and no cube-stamp concern).
+    // The label gains the unit, so every surface that names the layer (legend,
+    // popup readout, table header) switches units together with the marks.
+    // Mutually exclusive with bivariate by construction (disjoint eligible sets).
+    if (percapitaActive) {
+      return activeLayers.map((l) =>
+        isPercapitaEligible(l.id as LayerId) && l.level === "province"
+          ? {
+              ...l,
+              label: percapitaLayerLabel(l.label),
+              features: projectPerCapita(l.features),
+              perCapita: true,
+            }
+          : l,
+      );
+    }
     if (!bivariateActive) return activeLayers;
     const cov = provinceDataRef.current.get("cobertura");
     const sig = provinceDataRef.current.get("zoonosis");
@@ -2631,7 +2706,7 @@ export function PanoramaConsole({
           : l,
       );
     // levelVersion/asOfVersion bump when the province caches (refs) change.
-  }, [activeLayers, bivariateActive, levelVersion, asOfVersion]);
+  }, [activeLayers, bivariateActive, percapitaActive, levelVersion, asOfVersion]);
 
   // H12 (cowork QA): on a direct-URL entry the map paints its bubbles 2-4s late,
   // so the operator stares at a blank canvas wondering if it is empty or broken.
@@ -3164,7 +3239,11 @@ export function PanoramaConsole({
         preset: activePresetId,
         // P5: the encoding selection is part of the canonical value — it feeds
         // the gate, explainViewState, and the URL boundary (?encoding=).
-        encoding: bivariateMode ? ("bivariate" as const) : null,
+        encoding: bivariateMode
+          ? ("bivariate" as const)
+          : percapitaMode
+            ? ("percapita" as const)
+            : null,
       }),
     [
       derivedProvince,
@@ -3175,6 +3254,7 @@ export function PanoramaConsole({
       verifiedOnly,
       activePresetId,
       bivariateMode,
+      percapitaMode,
     ],
   );
 
@@ -3263,8 +3343,9 @@ export function PanoramaConsole({
     if (verifiedOnly) params.set("verified", "1");
     else params.delete("verified");
     // P5 (PO 2026-07-14): the encoding selection is a shareable coordinate —
-    // "Copiar vista" reproduces the bivariate view.
+    // "Copiar vista" reproduces the bivariate / per-cápita view.
     if (bivariateMode) params.set("encoding", "bivariate");
+    else if (percapitaMode) params.set("encoding", "percapita");
     else params.delete("encoding");
     if (params.toString() !== before) {
       const qsStr = params.toString();
@@ -3280,6 +3361,7 @@ export function PanoramaConsole({
     activePresetId,
     verifiedOnly,
     bivariateMode,
+    percapitaMode,
     capasDetail,
     scrubDetail,
   ]);
@@ -3390,10 +3472,13 @@ export function PanoramaConsole({
     }
     if (saved.period !== null) nextParams.set("period", saved.period);
     // P5: restore the encoding selection with the board (tolerant — older boards
-    // lack the field; only the known selectable value applies).
+    // lack the field; only known selectable values apply).
     if (saved.encoding === "bivariate") {
       nextParams.set("encoding", "bivariate");
       setBivariateMode(true);
+    } else if (saved.encoding === "percapita") {
+      nextParams.set("encoding", "percapita");
+      setPercapitaMode(true);
     }
 
     // The restored period differs from the server-rendered one → the seeded
@@ -4198,6 +4283,15 @@ export function PanoramaConsole({
           provincia.
         </p>
       )}
+      {/* panorama-percapita: the map paints per-10k rates while this table (and
+          the Estadísticas ranking) keeps raw counts — name the split so the two
+          numbers are never mistaken for a contradiction (same disclosure pattern
+          as the reference-layer / rate-count notes above). */}
+      {percapitaActive && (
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+          El mapa pinta tasas por 10.000 habitantes; esta tabla y el ranking muestran conteos.
+        </p>
+      )}
       {mapTableRows.length > 0 && (
         <p className="text-[var(--text-xs)] font-medium text-ln-op-ink-2">Valor por unidad</p>
       )}
@@ -4396,6 +4490,7 @@ export function PanoramaConsole({
   const MODE_LABELS: Record<string, string> = {
     auto: "Capas",
     bivariate: "Riesgo (bivariado)",
+    percapita: "Per cápita (por 10.000 hab.)",
   };
   // Item 2: distinct es-AR copy per refusal reason. "count" → not enough
   // comparable jurisdictions (privacy suppression or missing data); "tercile" →
@@ -4407,7 +4502,20 @@ export function PanoramaConsole({
       : bivariateDegenerateReason === "tercile"
         ? "Los valores de esta vista son demasiado parecidos para cortar en niveles de riesgo honestos."
         : null;
-  const modeOptions = capabilities.mapModes.map((id) => ({
+  // panorama-percapita: honest per-cápita notes.
+  //  - Drilled below province while the selection is on → EXPLICIT count
+  //    fallback (requirement: a note, not a silent swap).
+  //  - Eligible but the payload carries no census (stale cache / unseeded
+  //    table) → honest no-data note instead of an inert toggle.
+  const percapitaDrillNote =
+    percapitaMode && percapitaLayersEligible && level !== "province"
+      ? "Per cápita se calcula por provincia — en esta vista se muestra el conteo por unidad (no hay censo departamental todavía)."
+      : null;
+  const percapitaNoCensusNote =
+    percapitaMode && percapitaEligible && percapitaCensusMeta === null
+      ? "Sin datos del censo para esta vista — se muestra el conteo."
+      : null;
+  const modeOptions: ModeOption[] = capabilities.mapModes.map((id) => ({
     id,
     label: MODE_LABELS[id] ?? id,
     disabled: id === "bivariate" ? scrubbing || bivariateDegenerate : false,
@@ -4418,27 +4526,62 @@ export function PanoramaConsole({
           : (bivariateRefusalNote ?? undefined)
         : undefined,
   }));
+  // panorama-percapita: while the selection is ON but the view dropped below
+  // province (a drill), the gate no longer offers "percapita" — keep the segment
+  // VISIBLE but disabled so the fallback is explicit, never a silent vanish.
+  if (percapitaMode && percapitaLayersEligible && !capabilities.mapModes.includes("percapita")) {
+    modeOptions.push({
+      id: "percapita",
+      label: MODE_LABELS.percapita,
+      disabled: true,
+      title: "Per cápita se calcula por provincia",
+    });
+  }
+  // The PO-ratified visible-roadmap affordance: department-grain per-cápita is
+  // PHASE 2 (needs an INDEC department-population import) — shown as a disabled
+  // option, never a silent absence.
+  if (modeOptions.some((o) => o.id === "percapita")) {
+    modeOptions.push({
+      id: "percapita-departamento",
+      label: "Per cápita por departamento (en desarrollo)",
+      disabled: true,
+      title: "Requiere censo departamental",
+    });
+  }
   // The ACTIVE segment mirrors what the MAP paints: "auto" when the operator
-  // hasn't selected the bivariate; "bivariate" while it actually renders; and
-  // NO segment while the selection is suspended (mode on, mid-scrub/degenerate)
-  // — the note below explains why. Preserves the pre-#24 visual semantics.
-  const modeValue = bivariateActive ? "bivariate" : bivariateMode ? "" : "auto";
+  // hasn't selected an encoding; the encoding id while it actually renders; and
+  // NO segment while the selection is suspended (mode on, mid-scrub/degenerate/
+  // drilled) — the note below explains why. Preserves the pre-#24 visual semantics.
+  const modeValue = bivariateActive
+    ? "bivariate"
+    : percapitaActive
+      ? "percapita"
+      : bivariateMode || percapitaMode
+        ? ""
+        : "auto";
   const bivariateControl = (
     <ModeSwitcher
       options={modeOptions}
       value={modeValue}
-      onChange={(id) => setBivariateMode(id === "bivariate")}
+      onChange={(id) => {
+        setBivariateMode(id === "bivariate");
+        setPercapitaMode(id === "percapita");
+      }}
       heading="Modo del mapa"
-      sub="Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas"
+      sub={
+        bivariateEligible
+          ? "Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas"
+          : "Cómo se pinta la vista — per cápita normaliza por población del censo"
+      }
       note={
         // Same visibility as pre-#24: the note explains the disabled segment
-        // even before the operator selects it (only while bivariate is offered
+        // even before the operator selects it (only while an encoding is offered
         // at all — ModeSwitcher hides itself when mapModes is just ["auto"]).
         bivariateEligible && scrubbing
           ? "Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo)."
           : bivariateEligible && bivariateRefusalNote
             ? bivariateRefusalNote
-            : null
+            : (percapitaDrillNote ?? percapitaNoCensusNote)
       }
     />
   );
@@ -4466,7 +4609,9 @@ export function PanoramaConsole({
   const informeCaption = bivariateActive
     ? "Riesgo combinado por provincia: cobertura antirrábica (terciles) × señales de zoonosis (terciles). El rincón de riesgo — cobertura baja · señales altas — resalta en rosa."
     : captionLayer
-      ? captionFor(captionLayer, level, captionPeriod)
+      ? percapitaActive && percapitaCensusMeta
+        ? `${captionFor(captionLayer, level, captionPeriod, { perCapita: true })} ${percapitaFooterLabel(percapitaCensusMeta)}.`
+        : captionFor(captionLayer, level, captionPeriod)
       : null;
   const informeModel = useMemo(
     () =>
@@ -5117,7 +5262,22 @@ export function PanoramaConsole({
                   color.
                 </p>
               ) : (
-                <PanoramaCaption layer={captionLayer} level={level} period={captionPeriod} />
+                <>
+                  <PanoramaCaption
+                    layer={captionLayer}
+                    level={level}
+                    period={captionPeriod}
+                    perCapita={percapitaActive}
+                  />
+                  {/* panorama-percapita: the honest denominator footer — year +
+                      source read from the census table's own metadata (carried
+                      on the enriched features), never hardcoded. */}
+                  {percapitaActive && percapitaCensusMeta && (
+                    <p className="text-xs leading-snug text-ln-op-mute" aria-live="polite">
+                      {percapitaFooterLabel(percapitaCensusMeta)}
+                    </p>
+                  )}
+                </>
               )}
               {/* WARNING 6: honest note when the color scale is anchored to a
                   shared link's day rather than the live edge. */}
