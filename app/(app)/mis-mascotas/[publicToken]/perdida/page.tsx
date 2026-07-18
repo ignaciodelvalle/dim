@@ -20,6 +20,7 @@ import { redirect } from "next/navigation";
 import { fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
+import { lostLabel, markLostActionLabel } from "@/lib/utils/format";
 import { setPetLostAction, updateLostLastSeenAction } from "@/src/modules/events/actions";
 import { MarkLostWizard } from "./MarkLostWizard";
 import { UpdateLastSeenForm } from "./UpdateLastSeenForm";
@@ -86,18 +87,19 @@ export default async function MarkPetLostPage({
       {/* Header */}
       <div className="mb-6">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Marcar como perdida
+          {markLostActionLabel(pet.sex)}
         </h1>
         <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
-          Al marcar a {pet.name} como perdida, su credencial pública mostrará el aviso de búsqueda.
-          En el último paso elegís qué datos tuyos compartir. Vas a poder ajustar qué se ve, o
-          revertir el estado, desde su perfil.
+          Al marcar a {pet.name} como {lostLabel(pet.sex).toLowerCase()}, su credencial pública
+          mostrará el aviso de búsqueda. En el último paso elegís qué datos tuyos compartir. Vas a
+          poder ajustar qué se ve, o revertir el estado, desde su perfil.
         </p>
       </div>
 
       <MarkLostWizard
         action={boundAction}
         petName={pet.name}
+        petSex={pet.sex}
         petPublicToken={pet.publicToken}
         petHasMicrochip={canonicalIds.microchip !== null}
         petHasTattoo={canonicalIds.tattoo !== null}

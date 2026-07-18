@@ -140,9 +140,12 @@ describe("reportPetSighting — real notification wiring (active owner)", () => 
     const n = rows[0];
     // STRING LITERALS — the columns are unchecked text; a typo'd value is the
     // exact silent failure the swallowed insert (ARCH-P) would hide.
-    expect(n.notificationType).toBe("pet_found_report");
+    // Taxonomy (tester fix #1): a sighting is its OWN type, never
+    // pet_found_report, and warning severity (high-but-distinct from the
+    // urgent possession/found alerts).
+    expect(n.notificationType).toBe("pet_sighting");
     expect(n.category).toBe("perdidas");
-    expect(n.severity).toBe("urgent");
+    expect(n.severity).toBe("warning");
     expect(n.title).toBe("Avistaje de WiringTestDog");
     expect(n.ctaLabel).toBe("Ver mascota");
     expect(n.ctaUrl).toBe("/mis-mascotas/DIM-WIRE-SIGHT-1");
@@ -182,7 +185,7 @@ describe("reportPetSighting — after an ownership transfer", () => {
     // New owner received the sighting notification with the same literal contract.
     const owner2Rows = await notificationsFor(OWNER_2_ID);
     expect(owner2Rows).toHaveLength(1);
-    expect(owner2Rows[0].notificationType).toBe("pet_found_report");
+    expect(owner2Rows[0].notificationType).toBe("pet_sighting");
     expect(owner2Rows[0].category).toBe("perdidas");
     expect(owner2Rows[0].body).toContain('Mensaje: "Ahora lo vi cerca del lago."');
 

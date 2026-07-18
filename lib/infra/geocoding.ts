@@ -103,10 +103,62 @@ async function fetchWithTimeout(url: string): Promise<Response> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Corner ("esquina") query normalization — ciclo-perdido tester fix #4
+// ---------------------------------------------------------------------------
+//
+// The sighting form's placeholder promises corners ("calle y altura, esquina,
+// plaza…") but Nominatim does not parse the Spanish conjunction: "Gorriti y
+// Serrano" returns zero results, while the provider's intersection syntax
+// "Gorriti & Serrano" resolves. Detect "X y Z" / "X e Z" queries ("e" is the
+// conjunction before i/hi words: "Callao e Hipólito Yrigoyen") and build
+// "&"-joined candidates in BOTH street orders — Nominatim's intersection
+// matching is order-sensitive on some data. Any ", locality" suffix the user
+// typed is preserved on each candidate.
+//
+// "X entre Y y Z" is a between-streets reference, not a corner — left alone.
+// Pure and exported for unit tests.
+export function intersectionQueryCandidates(query: string): string[] {
+  const trimmed = query.trim();
+  const commaIdx = trimmed.indexOf(",");
+  const head = (commaIdx === -1 ? trimmed : trimmed.slice(0, commaIdx)).trim();
+  const suffix = commaIdx === -1 ? "" : trimmed.slice(commaIdx);
+  if (/\bentre\b/i.test(head)) return [];
+  const m = head.match(/^(.+?)\s+(?:y|e)\s+(.+)$/i);
+  if (!m) return [];
+  const a = m[1].trim();
+  const b = m[2].trim();
+  if (a.length < 2 || b.length < 2) return [];
+  return [`${a} & ${b}${suffix}`, `${b} & ${a}${suffix}`];
+}
+
+/**
+ * Forward geocode. Sends the user's query as typed; when that yields ZERO
+ * results and the query looks like a street corner ("Gorriti y Serrano"),
+ * retries with the provider's intersection syntax in both orderings
+ * (best-effort: a failure or rate-limit during the retries returns the
+ * original empty answer instead of surfacing an error).
+ */
 export async function geocodeAddress(query: string, bias?: GeocodeBias): Promise<GeocodeResult[]> {
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
 
+  const results = await geocodeQuery(trimmed, bias);
+  if (results.length > 0) return results;
+
+  for (const candidate of intersectionQueryCandidates(trimmed)) {
+    try {
+      const alt = await geocodeQuery(candidate, bias);
+      if (alt.length > 0) return alt;
+    } catch {
+      // Best-effort fallback: the original query already answered (empty).
+      break;
+    }
+  }
+  return results;
+}
+
+async function geocodeQuery(trimmed: string, bias?: GeocodeBias): Promise<GeocodeResult[]> {
   if (!consumeToken()) {
     console.warn("[geocoding] rate limit hit (forward)");
     throw new Error("rate_limited");

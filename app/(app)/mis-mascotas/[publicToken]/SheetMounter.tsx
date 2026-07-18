@@ -41,6 +41,7 @@ import { Sheet } from "@/components/ui/VaulSheet";
 import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { markLostActionLabel } from "@/lib/utils/format";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useActionState, useCallback } from "react";
 
@@ -92,6 +93,9 @@ type MarkLostData = {
 type Props = {
   petToken: string;
   petName: string;
+  /** Pet sex ('male' | 'female' | 'unknown') — flexes the mark-lost sheet
+   * title and the lost share copy (ciclo-perdido sweep fix #2). */
+  petSex: string | null;
   species: string;
   /** ISO string of pet.tier2PublicEnabledUntil — null when not set. */
   tier2PublicEnabledUntil: string | null;
@@ -140,6 +144,7 @@ type Props = {
 export function SheetMounter({
   petToken,
   petName,
+  petSex,
   species,
   tier2PublicEnabledUntil,
   tier2PublicPermanent,
@@ -316,6 +321,7 @@ export function SheetMounter({
         <MergedShareSheet
           petPublicToken={petToken}
           petName={petName}
+          petSex={petSex}
           createShareAction={shareAction}
           tier2={{
             isActive,
@@ -391,7 +397,7 @@ export function SheetMounter({
     return (
       <Sheet
         id="marcar-perdida"
-        title="Marcar como perdida"
+        title={markLostActionLabel(petSex)}
         open
         onClose={close}
         side="right"
@@ -400,6 +406,7 @@ export function SheetMounter({
         <MarkLostWizard
           action={action}
           petName={petName}
+          petSex={petSex}
           petPublicToken={petToken}
           petHasMicrochip={markLostData.petHasMicrochip}
           petHasTattoo={markLostData.petHasTattoo}

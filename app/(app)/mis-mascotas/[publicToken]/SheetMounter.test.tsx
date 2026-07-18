@@ -35,6 +35,7 @@ import { SheetMounter } from "./SheetMounter";
 const baseProps = {
   petToken: "abc123",
   petName: "Firulais",
+  petSex: "male",
   species: "dog",
   tier2PublicEnabledUntil: null,
   tier2PublicPermanent: false,

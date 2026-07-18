@@ -217,6 +217,20 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
     expect(result.error).toContain("nombre");
   });
 
+  it("a validation-rejected submission does NOT consume the rate-limit budget (tester fix #6)", async () => {
+    vi.resetModules();
+    buildMockDb(true);
+    mockEnforceRateLimit.mockClear();
+
+    const { notifyOwnerOfFoundPetAction } = await import("@/app/actions/public");
+    const fd = makeFormData({ finderContact: "1111" }); // no name → rejected
+
+    const result = await notifyOwnerOfFoundPetAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
   it("returns ok:false when finderContact is missing", async () => {
     vi.resetModules();
     buildMockDb(true);

@@ -43,6 +43,33 @@ export type LostEpisode = {
 };
 
 // ---------------------------------------------------------------------------
+// publicSightingMapCenter — ciclo-perdido tester fix #5
+// ---------------------------------------------------------------------------
+
+/**
+ * Initial map center for the PUBLIC sighting form (/p/[token]/sighting):
+ * the pet's last-known lost location instead of the microcentro default.
+ *
+ * PRIVACY GATE: the public form may only use location data the owner chose to
+ * publish. When `discloseLastLocationWhenLost` is false — or there simply is
+ * no recorded point — this returns null and the map keeps its neutral
+ * default. Pure and exported for unit tests (both branches).
+ */
+export function publicSightingMapCenter(input: {
+  discloseLastLocationWhenLost: boolean;
+  lastSeenLat: string | null | undefined;
+  lastSeenLng: string | null | undefined;
+}): { lat: number; lng: number } | null {
+  if (!input.discloseLastLocationWhenLost) return null;
+  if (input.lastSeenLat == null || input.lastSeenLng == null) return null;
+  const lat = Number(input.lastSeenLat);
+  const lng = Number(input.lastSeenLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+// ---------------------------------------------------------------------------
 // fetchLostEpisodeForPet
 // ---------------------------------------------------------------------------
 

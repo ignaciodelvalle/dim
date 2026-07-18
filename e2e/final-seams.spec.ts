@@ -100,7 +100,8 @@ test.describe("Final seams cross-POV", () => {
         await page.waitForLoadState("networkidle").catch(() => {});
       } else {
         await expect(
-          page.getByRole("heading", { name: "Marcar como perdida", exact: true }),
+          // Sex-flexed since the ciclo-perdido sweep — tolerate all forms.
+          page.getByRole("heading", { name: /^Marcar como perdid(?:o|a|o\/a)$/ }),
         ).toBeVisible({ timeout: 15_000 });
         await page.getByRole("button", { name: /^continuar →$/i }).click();
         const hasDetails = await page
@@ -112,7 +113,7 @@ test.describe("Final seams cross-POV", () => {
           .getByRole("switch", { name: "Tu teléfono" })
           .click()
           .catch(() => {});
-        await page.getByRole("button", { name: /^marcar como perdida$/i }).click();
+        await page.getByRole("button", { name: /^marcar como perdid(?:o|a|o\/a)$/i }).click();
         const successBanner = page.getByText(/activamos la búsqueda de/i);
         await expect(successBanner).toBeVisible({ timeout: 20_000 });
         const successText = (await successBanner.textContent()) ?? "";

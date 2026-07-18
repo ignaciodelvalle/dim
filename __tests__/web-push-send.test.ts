@@ -203,7 +203,7 @@ describe("sendWebPush", () => {
 });
 
 // ---------------------------------------------------------------------------
-// sendPushForNotifications — the urgent-only seam filter
+// sendPushForNotifications — the seam filter (urgent, plus pet_sighting)
 // ---------------------------------------------------------------------------
 
 describe("sendPushForNotifications", () => {
@@ -233,6 +233,26 @@ describe("sendPushForNotifications", () => {
       url: "/mis-mascotas/DIM-PAMP-0001",
       tag: "found:abc",
     });
+  });
+
+  it("pushes a warning-severity pet_sighting row (taxonomy: avistaje ≠ hallazgo)", async () => {
+    enablePushEnv();
+    mockSubs = [activeSub("sub-1")];
+
+    await sendPushForNotifications([
+      {
+        userId: USER_ID,
+        severity: "warning",
+        notificationType: "pet_sighting",
+        title: "Avistaje de Pampa",
+      },
+      // A warning row of any OTHER type still does not push.
+      { userId: USER_ID, severity: "warning", notificationType: "vaccine_due", title: "Vacuna" },
+    ]);
+
+    expect(sendNotificationMock).toHaveBeenCalledTimes(1);
+    const [, body] = sendNotificationMock.mock.calls[0] as [unknown, string];
+    expect(JSON.parse(body).title).toBe("Avistaje de Pampa");
   });
 
   it("skips rows without a severity (defaults are not urgent)", async () => {

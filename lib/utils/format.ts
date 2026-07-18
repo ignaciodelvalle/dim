@@ -504,6 +504,117 @@ export function sightingPhrase(sex: string | null | undefined): string {
 }
 
 /**
+ * Owner-side action label / sheet title: "Marcar como perdido" / "Marcar como
+ * perdida" / "Marcar como perdido/a". Ciclo-perdido sweep (tester ronda
+ * 2026-07-16): the mark-lost sheet title, the perdida page heading, and the
+ * cartel guard CTA all hardcoded the feminine form. The "/a" neutral matches
+ * the roleLabel "Dueño/a" convention.
+ */
+export function markLostActionLabel(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Marcar como perdido";
+    case "female":
+      return "Marcar como perdida";
+    default:
+      return "Marcar como perdido/a";
+  }
+}
+
+/** Sighting-form question, e.g. "¿Cuándo lo viste?" / "¿Cuándo la viste?".
+ * Neutral sidesteps the lo/la pronoun when sex is unknown. */
+export function sightedWhenQuestion(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "¿Cuándo lo viste?";
+    case "female":
+      return "¿Cuándo la viste?";
+    default:
+      return "¿Cuándo viste a la mascota?";
+  }
+}
+
+/** "si lo viste" / "si la viste" / "si viste a la mascota" — share-message
+ * fragment; must agree with the pet, never default to feminine. */
+export function lostSeenCallout(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "si lo viste";
+    case "female":
+      return "si la viste";
+    default:
+      return "si viste a la mascota";
+  }
+}
+
+/**
+ * Generic lost-mode share message (WhatsApp / native share) for surfaces with
+ * NO disclosure data (MergedShareSheet): names only the pet, flexed by sex.
+ * e.g. "Rocco está perdido. Mirá su credencial y avisanos si lo viste:"
+ */
+export function lostShareMessage(petName: string, sex: string | null | undefined): string {
+  return `${petName} ${lostThirdPersonPhrase(sex)}. Mirá su credencial y avisanos ${lostSeenCallout(sex)}:`;
+}
+
+/**
+ * Bandeja / workflow-item title for an active lost episode, e.g.
+ * "Rocco está reportado como perdido" / "Michi está reportada como perdida".
+ * Neutral rewords to avoid the participle: "Se reportó la pérdida de X".
+ */
+export function lostReportedTitle(petName: string, sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return `${petName} está reportado como perdido`;
+    case "female":
+      return `${petName} está reportada como perdida`;
+    default:
+      return `Se reportó la pérdida de ${petName}`;
+  }
+}
+
+/**
+ * Cartel/A4 poster headline. Sex-correct where known; the neutral form is the
+ * classic street-poster "SE BUSCA" (tester fix #3a) rather than a slashed
+ * "PERDIDO/A" — a poster headline must read at a glance.
+ */
+export function lostPosterHeadline(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "PERDIDO";
+    case "female":
+      return "PERDIDA";
+    default:
+      return "SE BUSCA";
+  }
+}
+
+/** "Última vez visto" / "Última vez vista" section heading (cartel + public
+ * credential). Slashed inclusive form when sex is unknown. */
+export function lastSeenHeadingLabel(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Última vez visto";
+    case "female":
+      return "Última vez vista";
+    default:
+      return "Última vez visto/a";
+  }
+}
+
+/** Cartel guard prompt when the pet is not lost yet, e.g. "Marcalo como
+ * perdido primero para generar el cartel." Neutral rewords around the clitic. */
+export function markLostFirstPrompt(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "Marcalo como perdido primero para generar el cartel.";
+    case "female":
+      return "Marcala como perdida primero para generar el cartel.";
+    default:
+      return "Reportá su pérdida primero para generar el cartel.";
+  }
+}
+
+/**
  * Registration badge word on the pet credential, e.g. "Rocco **Inscripto**"
  * / "Michi **Inscripta**". QA histórico 2026-07-08 #2: the badge was
  * hardcoded feminine ("Inscripta"), disagreeing with a male pet's name
@@ -921,6 +1032,10 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   lost_episode_resolved_broadcast: "Mascota encontrada — difusión",
   lost_episode_resolved_owner: "Mascota encontrada",
   lost_pet_broadcast: "Alerta de mascota perdida",
+  // Taxonomy (tester fix #1): a sighting is NOT a hallazgo. New sighting rows
+  // carry pet_sighting; pet_found_report stays mapped so pre-taxonomy rows
+  // (old sightings AND found reports) keep rendering a sane label.
+  pet_sighting: "Avistaje reportado",
   pet_found_report: "Reporte de mascota encontrada",
   pet_in_possession: "Mascota en posesión",
   // Org

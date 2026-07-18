@@ -48,6 +48,9 @@ export type WebPushPayload = {
 export type PushCandidateRow = {
   userId: string;
   severity?: "info" | "success" | "warning" | "urgent" | null;
+  /** Row's notification_type; lets the filter keep pushing types that are
+   * time-sensitive without being severity 'urgent' (pet_sighting). */
+  notificationType?: string | null;
   title: string;
   body?: string | null;
   ctaUrl?: string | null;
@@ -154,15 +157,20 @@ export async function sendWebPush(userId: string, payload: WebPushPayload): Prom
 /**
  * THE SEAM HOOK. Call after a successful insert into `notifications` with the
  * rows that were written. Filters to severity === 'urgent' (v1 scope:
- * avistajes / hallazgos / custodia) and fires best-effort Web Push per row.
+ * hallazgos / custodia) PLUS the 'pet_sighting' type — a sighting is
+ * warning-severity in the Bandeja (taxonomy: avistaje ≠ hallazgo, it must not
+ * style like "someone HAS the pet") but is still a time-sensitive lost-mode
+ * signal the owner wants pushed.
  *
- * Never throws; cheap no-op when push is disabled or no row is urgent.
+ * Never throws; cheap no-op when push is disabled or no row qualifies.
  */
 export async function sendPushForNotifications(rows: PushCandidateRow[]): Promise<void> {
   if (!isWebPushEnabled()) return;
 
-  const urgent = rows.filter((row) => row.severity === "urgent");
-  for (const row of urgent) {
+  const pushable = rows.filter(
+    (row) => row.severity === "urgent" || row.notificationType === "pet_sighting",
+  );
+  for (const row of pushable) {
     await sendWebPush(row.userId, {
       title: row.title,
       body: row.body ?? null,

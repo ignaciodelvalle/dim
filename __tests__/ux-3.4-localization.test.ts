@@ -197,6 +197,7 @@ const REAL_NOTIFICATION_TYPES = [
   "outbreak_signal_detected",
   "pet_found_report",
   "pet_in_possession",
+  "pet_sighting",
   "pet_transfer_accepted",
   "pet_transfer_cancelled",
   "pet_transfer_expired",

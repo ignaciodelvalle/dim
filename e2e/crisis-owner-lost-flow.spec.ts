@@ -58,7 +58,8 @@ test("owner marks a pet lost — public credential flips to lost state for a str
   try {
     await page.goto(`/mis-mascotas/${token}/perdida`, { waitUntil: "domcontentloaded" });
     await expect(
-      page.getByRole("heading", { name: "Marcar como perdida", exact: true }),
+      // Sex-flexed since the ciclo-perdido sweep — tolerate all forms.
+      page.getByRole("heading", { name: /^Marcar como perdid(?:o|a|o\/a)$/ }),
     ).toBeVisible();
 
     // Step 1 — ¿Dónde la viste? Location is optional — skip straight through.
@@ -79,7 +80,7 @@ test("owner marks a pet lost — public credential flips to lost state for a str
     // Enable ONLY the phone channel; leave name + last-seen location off.
     await expect(page.getByText(/qué se muestra al público/i)).toBeVisible();
     await page.getByRole("switch", { name: "Tu teléfono" }).click();
-    await page.getByRole("button", { name: /^marcar como perdida$/i }).click();
+    await page.getByRole("button", { name: /^marcar como perdid(?:o|a|o\/a)$/i }).click();
 
     await expect(
       page.getByText(new RegExp(`activamos la búsqueda de ${petName}`, "i")),

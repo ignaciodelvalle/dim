@@ -16,7 +16,10 @@ import {
   fetchUnreadNotificationCount,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
+import {
+  excludeResolvedLostEpisodeSql,
+  excludeStaleWelcomeSql,
+} from "@/lib/infra/notification-reconcile";
 import {
   decodeCursor,
   encodeCursor,
@@ -116,6 +119,9 @@ export default async function NotificacionesPage({
     // Reconcile against current state: drop lost-active alerts (sighting,
     // broadcast, possession) once the subject pet is no longer lost (PO QA §2).
     excludeResolvedLostEpisodeSql,
+    // Drop the onboarding welcome ("Registrá tu primera mascota") once the
+    // user actually owns a pet (tester fix #8 — read-time, no migration).
+    excludeStaleWelcomeSql,
     // Keyset predicate: only rows older than the cursor.
     keysetWhere(notifications.createdAt, notifications.id, cursor),
   ].filter(Boolean);

@@ -10,10 +10,18 @@ import { describe, expect, it } from "vitest";
 import {
   foundParticiple,
   foundPossessivePhrase,
+  lastSeenHeadingLabel,
   lostBannerHeadline,
   lostFirstPersonLine,
+  lostPosterHeadline,
+  lostReportedTitle,
+  lostSeenCallout,
+  lostShareMessage,
   lostThirdPersonPhrase,
+  markLostActionLabel,
+  markLostFirstPrompt,
   registeredAdjective,
+  sightedWhenQuestion,
   sightingPhrase,
   situationLabelForSex,
 } from "@/lib/utils/format";
@@ -134,5 +142,110 @@ describe("situationLabelForSex", () => {
   });
   it("never regenders Preñada — pregnancy is exclusively a female state", () => {
     expect(situationLabelForSex("Preñada", "male")).toBe("Preñada");
+  });
+});
+
+// Ciclo-perdido sweep (external tester ronda 2026-07-16, fix #2): the WhatsApp
+// share message, the mark-lost sheet title, the sighting-form question, the
+// bandeja "está reportada como perdida" body, and the cartel guard all
+// hardcoded feminine forms. Every surface now routes through these helpers.
+describe("markLostActionLabel", () => {
+  it("genders by sex", () => {
+    expect(markLostActionLabel("male")).toBe("Marcar como perdido");
+    expect(markLostActionLabel("female")).toBe("Marcar como perdida");
+  });
+  it("inclusive form for unknown/null/garbage", () => {
+    expect(markLostActionLabel("unknown")).toBe("Marcar como perdido/a");
+    expect(markLostActionLabel(null)).toBe("Marcar como perdido/a");
+    expect(markLostActionLabel("nonsense")).toBe("Marcar como perdido/a");
+  });
+});
+
+describe("sightedWhenQuestion", () => {
+  it("genders the clitic by sex", () => {
+    expect(sightedWhenQuestion("male")).toBe("¿Cuándo lo viste?");
+    expect(sightedWhenQuestion("female")).toBe("¿Cuándo la viste?");
+  });
+  it("neutral rewording for unknown/null", () => {
+    expect(sightedWhenQuestion("unknown")).toBe("¿Cuándo viste a la mascota?");
+    expect(sightedWhenQuestion(null)).toBe("¿Cuándo viste a la mascota?");
+  });
+});
+
+describe("lostSeenCallout", () => {
+  it("genders the clitic by sex", () => {
+    expect(lostSeenCallout("male")).toBe("si lo viste");
+    expect(lostSeenCallout("female")).toBe("si la viste");
+  });
+  it("neutral rewording for unknown/null", () => {
+    expect(lostSeenCallout("unknown")).toBe("si viste a la mascota");
+    expect(lostSeenCallout(null)).toBe("si viste a la mascota");
+  });
+});
+
+describe("lostShareMessage", () => {
+  it("composes a fully-agreeing message per sex", () => {
+    expect(lostShareMessage("Rocco", "male")).toBe(
+      "Rocco está perdido. Mirá su credencial y avisanos si lo viste:",
+    );
+    expect(lostShareMessage("Michi", "female")).toBe(
+      "Michi está perdida. Mirá su credencial y avisanos si la viste:",
+    );
+  });
+  it("neutral phrasing throughout for unknown", () => {
+    expect(lostShareMessage("Firu", null)).toBe(
+      "Firu se perdió. Mirá su credencial y avisanos si viste a la mascota:",
+    );
+  });
+});
+
+describe("lostReportedTitle", () => {
+  it("genders participles by sex", () => {
+    expect(lostReportedTitle("Rocco", "male")).toBe("Rocco está reportado como perdido");
+    expect(lostReportedTitle("Michi", "female")).toBe("Michi está reportada como perdida");
+  });
+  it("rewords to avoid the participle for unknown/null", () => {
+    expect(lostReportedTitle("Firu", "unknown")).toBe("Se reportó la pérdida de Firu");
+    expect(lostReportedTitle("Firu", null)).toBe("Se reportó la pérdida de Firu");
+  });
+});
+
+describe("lostPosterHeadline", () => {
+  it("sex-correct headline where known", () => {
+    expect(lostPosterHeadline("male")).toBe("PERDIDO");
+    expect(lostPosterHeadline("female")).toBe("PERDIDA");
+  });
+  it("SE BUSCA for unknown/null/garbage — never a slashed headline", () => {
+    expect(lostPosterHeadline("unknown")).toBe("SE BUSCA");
+    expect(lostPosterHeadline(null)).toBe("SE BUSCA");
+    expect(lostPosterHeadline("nonsense")).toBe("SE BUSCA");
+  });
+});
+
+describe("lastSeenHeadingLabel", () => {
+  it("genders by sex", () => {
+    expect(lastSeenHeadingLabel("male")).toBe("Última vez visto");
+    expect(lastSeenHeadingLabel("female")).toBe("Última vez vista");
+  });
+  it("inclusive form for unknown/null", () => {
+    expect(lastSeenHeadingLabel("unknown")).toBe("Última vez visto/a");
+    expect(lastSeenHeadingLabel(null)).toBe("Última vez visto/a");
+  });
+});
+
+describe("markLostFirstPrompt", () => {
+  it("genders the clitic by sex", () => {
+    expect(markLostFirstPrompt("male")).toBe(
+      "Marcalo como perdido primero para generar el cartel.",
+    );
+    expect(markLostFirstPrompt("female")).toBe(
+      "Marcala como perdida primero para generar el cartel.",
+    );
+  });
+  it("neutral rewording for unknown/null", () => {
+    expect(markLostFirstPrompt("unknown")).toBe(
+      "Reportá su pérdida primero para generar el cartel.",
+    );
+    expect(markLostFirstPrompt(null)).toBe("Reportá su pérdida primero para generar el cartel.");
   });
 });

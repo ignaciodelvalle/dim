@@ -147,8 +147,11 @@ describe("PublicLostSections — fill photo containment (QA round 2 #0)", () => 
       />,
     );
     expect(noChannels).toContain("no tiene canales de contacto");
-    // Honest empty-state for the missing sighting location also renders.
-    expect(noChannels).toContain("Sin ubicación de avistaje registrada");
+    // Tester fix #7: with no disclosable location the whole "Última vez"
+    // section is hidden — no misleading "Sin ubicación de avistaje registrada"
+    // line when the owner may simply have chosen not to publish the location.
+    expect(noChannels).not.toContain("Sin ubicación de avistaje registrada");
+    expect(noChannels).not.toContain("Última vez vista");
 
     const withPhone = renderSectionsWithTattooPhoto();
     expect(withPhone).not.toContain("no tiene canales de contacto");

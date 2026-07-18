@@ -58,7 +58,10 @@ import {
 import { excludeAuthorityOnlyClause } from "@/lib/events/events";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
-import { excludeResolvedLostEpisodeSql } from "@/lib/infra/notification-reconcile";
+import {
+  excludeResolvedLostEpisodeSql,
+  excludeStaleWelcomeSql,
+} from "@/lib/infra/notification-reconcile";
 import { batchFetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import {
   type ComplianceEvent,
@@ -67,6 +70,7 @@ import {
   type ReservedRabiesTurno,
   deriveComplianceState,
 } from "@/lib/projections/pet-compliance";
+import { lostReportedTitle } from "@/lib/utils/format";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // ---------------------------------------------------------------------------
@@ -302,6 +306,7 @@ export async function fetchUnreadNotifications(
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
         excludeResolvedLostEpisodeSql,
+        excludeStaleWelcomeSql,
       ),
     )
     .orderBy(desc(notifications.createdAt))
@@ -323,6 +328,7 @@ export async function countUnreadNotifications(userId: string): Promise<number> 
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
         excludeResolvedLostEpisodeSql,
+        excludeStaleWelcomeSql,
       ),
     );
   return row?.n ?? 0;
@@ -456,6 +462,7 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
     kind: "pet_lost" | "dangerous_breed_pending_attestation";
     pet_id: string;
     pet_name: string;
+    pet_sex: string | null;
     pet_public_token: string;
     since_ts: string;
   }>(sql`
@@ -464,6 +471,7 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
       'pet_lost'::text AS kind,
       p.id::text        AS pet_id,
       p.name            AS pet_name,
+      p.sex::text       AS pet_sex,
       p.public_token    AS pet_public_token,
       p.updated_at::text AS since_ts
     FROM pets p
@@ -481,6 +489,7 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
       'dangerous_breed_pending_attestation'::text AS kind,
       p.id::text        AS pet_id,
       p.name            AS pet_name,
+      p.sex::text       AS pet_sex,
       p.public_token    AS pet_public_token,
       p.created_at::text AS since_ts
     FROM pets p
@@ -503,7 +512,9 @@ async function fetchPetAlerts(userId: string, petIdFilter?: string): Promise<Wor
       return {
         id: `pet_lost:${r.pet_id}`,
         kind: "pet_lost" as const,
-        title: `${r.pet_name} está reportada como perdida`,
+        // Sex-flexed (ciclo-perdido sweep fix #2): "está reportada como
+        // perdida" called a male pet feminine.
+        title: lostReportedTitle(r.pet_name, r.pet_sex),
         subtitle: "Avisanos cuando aparezca",
         ctaUrl: `/mis-mascotas/${r.pet_public_token}`,
         since: new Date(r.since_ts),
@@ -1587,6 +1598,7 @@ export async function fetchUnreadNotificationCount(
       AND archived_at IS NULL
       AND read_at IS NULL
       AND ${excludeResolvedLostEpisodeSql}
+      AND ${excludeStaleWelcomeSql}
       ${category ? sql`AND category = ${category}` : sql``}
   `);
   return Number(rows[0]?.n ?? "0");
@@ -1609,6 +1621,7 @@ export async function fetchNotificationCategoryCounts(
     WHERE user_id = ${userId}
       AND archived_at IS NULL
       AND ${excludeResolvedLostEpisodeSql}
+      AND ${excludeStaleWelcomeSql}
     GROUP BY category, severity
   `);
 

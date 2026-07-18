@@ -2,12 +2,15 @@
 
 // PosterPreview — A4 printable lost-pet poster.
 //
-// Controls (no-print): print button, B&W toggle, back link.
-// Poster body: PERDIDA header, photo, identity, optional location,
-// inline-editable reward + extra text, QR, MiMAR footer.
+// Controls (no-print): print button, B&W toggle, back link. When the pet has
+// no photo, a strong pre-print warning renders in the controls area (a poster
+// without a photo loses most of its value — tester fix #3b) and the print CTA
+// is demoted to secondary styling. Printing is never blocked.
+// Poster body: sex-correct PERDIDO/PERDIDA (or SE BUSCA) header, photo,
+// identity, optional location, inline-editable extra text, QR, MiMAR footer.
 // All inline-editable fields are local state only — they never persist.
 
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, lastSeenHeadingLabel, lostPosterHeadline } from "@/lib/utils/format";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -16,7 +19,10 @@ export type PosterPreviewProps = {
   petName: string;
   species: string;
   breed: string | null;
+  /** DISPLAY label ("Macho"/"Hembra") — rendered in the identity line. */
   sex: string;
+  /** Raw sex enum ('male' | 'female' | 'unknown') — drives the headline. */
+  sexRaw: string | null;
   age: string | null;
   color: string | null;
   distinguishingFeatures: string | null;
@@ -39,6 +45,7 @@ export function PosterPreview({
   species,
   breed,
   sex,
+  sexRaw,
   age,
   color,
   distinguishingFeatures,
@@ -90,10 +97,33 @@ export function PosterPreview({
         <button
           type="button"
           onClick={() => window.print()}
-          className="px-4 py-2 text-sm font-medium rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+          className={
+            photoUrl
+              ? "px-4 py-2 text-sm font-medium rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              : // Demoted (secondary) when there is no photo — the warning below
+                // is the primary message. Printing is still possible.
+                "px-4 py-2 text-sm font-medium rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+          }
         >
           Imprimir cartel
         </button>
+
+        {/* Pre-print warning — a cartel without a photo barely works (tester
+            fix #3b). Full-width row under the controls; hidden when printing. */}
+        {!photoUrl && (
+          <p
+            role="alert"
+            className="w-full basis-full rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-3 py-2 text-sm text-[var(--color-ln-warn)]"
+          >
+            Sin foto, el cartel pierde casi todo su valor — agregá una antes de imprimir.{" "}
+            <Link
+              href={`/mis-mascotas/${publicToken}?sheet=editar-mascota`}
+              className="font-semibold underline underline-offset-2"
+            >
+              Agregar foto
+            </Link>
+          </p>
+        )}
       </header>
 
       {/* ── A4 poster ── */}
@@ -101,9 +131,12 @@ export function PosterPreview({
         className={`mx-auto w-[210mm] min-h-[297mm] bg-white p-[1cm] space-y-4 print:w-full print:min-h-screen print:p-0 print:space-y-3${grayscale ? " print:grayscale" : ""}`}
         data-testid="poster-body"
       >
-        {/* PERDIDA banner */}
+        {/* Headline banner — sex-correct PERDIDO/PERDIDA; SE BUSCA when the
+            sex is not recorded (never a slashed headline on a street poster). */}
         <div className="bg-[var(--color-ln-seal)] text-white text-center py-3 rounded-[var(--radius-sm)]">
-          <p className="text-4xl font-black tracking-widest uppercase">PERDIDA</p>
+          <p className="text-4xl font-black tracking-widest uppercase">
+            {lostPosterHeadline(sexRaw)}
+          </p>
         </div>
 
         {/* Photo */}
@@ -150,7 +183,7 @@ export function PosterPreview({
           <div className="text-sm text-[var(--color-ln-ink)] space-y-0.5">
             {placeName && (
               <p>
-                <span className="font-semibold">Última vez vista:</span> {placeName}
+                <span className="font-semibold">{lastSeenHeadingLabel(sexRaw)}:</span> {placeName}
               </p>
             )}
             {lostSinceLabel && (

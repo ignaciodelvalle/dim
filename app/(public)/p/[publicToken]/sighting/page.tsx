@@ -11,6 +11,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { db, pets } from "@/db";
+import { fetchLostEpisodeForPet, publicSightingMapCenter } from "@/lib/infra/lost-mode";
 import { sightingPhrase } from "@/lib/utils/format";
 
 import { PetSightingForm } from "./PetSightingForm";
@@ -26,11 +27,13 @@ export default async function PetSightingPage({
 
   const [pet] = await db
     .select({
+      id: pets.id,
       name: pets.name,
       sex: pets.sex,
       status: pets.status,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
+      discloseLastLocationWhenLost: pets.discloseLastLocationWhenLost,
     })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
@@ -59,6 +62,17 @@ export default async function PetSightingPage({
     );
   }
 
+  // Center the map on the pet's last-known lost location (tester fix #5).
+  // PRIVACY: only when the owner disclosed the last location publicly —
+  // publicSightingMapCenter returns null otherwise and the map keeps its
+  // neutral default. The episode fetch is skipped entirely when undisclosed.
+  const episode = pet.discloseLastLocationWhenLost ? await fetchLostEpisodeForPet(pet.id) : null;
+  const defaultCenter = publicSightingMapCenter({
+    discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
+    lastSeenLat: episode?.lastSeenLat ?? null,
+    lastSeenLng: episode?.lastSeenLng ?? null,
+  });
+
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="min-h-screen bg-[var(--color-ln-warn-050)] px-4 py-6">
@@ -82,8 +96,10 @@ export default async function PetSightingPage({
           <PetSightingForm
             publicToken={publicToken}
             petName={pet.name}
+            petSex={pet.sex}
             biasProvince={pet.jurisdictionProvince}
             biasLocality={pet.jurisdictionLocality}
+            defaultCenter={defaultCenter}
           />
         </section>
       </div>

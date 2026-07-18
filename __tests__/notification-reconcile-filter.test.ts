@@ -92,6 +92,15 @@ beforeAll(async () => {
     category: "health",
     relatedPetId: petId,
   });
+  // A welcome notification for a user who OWNS a pet — must be reconciled
+  // away by excludeStaleWelcomeSql (tester fix #8), so every count below
+  // stays as if this row did not exist.
+  await db.insert(notifications).values({
+    userId,
+    notificationType: "welcome",
+    title: "¡Hola! Bienvenido a MiMAR",
+    severity: "info",
+  });
 });
 
 afterAll(async () => {
@@ -104,10 +113,12 @@ afterAll(async () => {
 });
 
 describe("notification reconcile filter", () => {
-  it("counts the sighting alert while the pet is still lost", async () => {
+  it("counts the sighting alert while the pet is still lost (stale welcome already hidden)", async () => {
     const counts = await fetchNotificationCategoryCounts(userId);
     expect(counts.perdidas).toBe(2); // sighting + recovery
     expect(counts.health).toBe(1);
+    // 3, not 4 — the seeded 'welcome' row is reconciled away because this
+    // user has an active owner tenure (tester fix #8).
     expect(counts.all).toBe(3);
     expect(await countUnreadNotifications(userId)).toBe(3);
     expect(await fetchUnreadNotificationCount(userId, "perdidas")).toBe(2);
@@ -124,5 +135,48 @@ describe("notification reconcile filter", () => {
     expect(counts.all).toBe(2);
     expect(await countUnreadNotifications(userId)).toBe(2);
     expect(await fetchUnreadNotificationCount(userId, "perdidas")).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stale-welcome reconcile — the KEEP branch (tester fix #8)
+// ---------------------------------------------------------------------------
+//
+// A user with NO pets must still see their welcome notification (the trigger
+// inserts it on signup): the filter only hides it once a pet is registered.
+
+describe("stale-welcome reconcile — user without pets keeps the welcome", () => {
+  const EMAIL_NO_PETS = "notif-reconcile-nopets@dim-test.local";
+  let noPetsUserId: string;
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL_NO_PETS);
+    const { data, error } = await admin.auth.admin.createUser({
+      email: EMAIL_NO_PETS,
+      password: "NotifReconcileNoPets_2026!",
+      email_confirm: true,
+    });
+    if (error || !data.user) throw new Error(`createUser: ${error?.message}`);
+    noPetsUserId = data.user.id;
+    // Deterministic fixture: drop whatever the trigger inserted, seed exactly
+    // one welcome row.
+    await db.delete(notifications).where(eq(notifications.userId, noPetsUserId));
+    await db.insert(notifications).values({
+      userId: noPetsUserId,
+      notificationType: "welcome",
+      title: "¡Hola! Bienvenido a MiMAR",
+      severity: "info",
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(notifications).where(eq(notifications.userId, noPetsUserId));
+    await admin.auth.admin.deleteUser(noPetsUserId);
+  });
+
+  it("keeps the welcome visible while the user owns no pet", async () => {
+    const counts = await fetchNotificationCategoryCounts(noPetsUserId);
+    expect(counts.all).toBe(1);
+    expect(await countUnreadNotifications(noPetsUserId)).toBe(1);
   });
 });
