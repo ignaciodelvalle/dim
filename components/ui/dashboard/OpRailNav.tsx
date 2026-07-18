@@ -71,6 +71,17 @@ function NavLink({
       // self-DoS is gone.
       prefetch={false}
       aria-current={active ? "page" : undefined}
+      // Guaranteed accessible name sourced from the nav-presets label (a11y
+      // audit 2026-07): the name survives ANY visual treatment of the link
+      // (icon-only compaction, CSS truncation) and folds the badge count into
+      // prose instead of the bare "Cola 3" a screen reader would otherwise
+      // announce. WCAG 2.5.3 label-in-name holds: the visible label is the
+      // prefix of the accessible name. Guarded by OpRailNav.a11y.test.tsx.
+      aria-label={
+        item.badge != null && item.badge > 0
+          ? `${item.label} — ${item.badge} pendientes`
+          : item.label
+      }
       className={[
         "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
         "text-[12.5px] no-underline transition-colors",
