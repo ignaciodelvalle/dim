@@ -297,6 +297,28 @@ describe("GET /api/cron/reconcile-pet-status", () => {
     warnSpy.mockRestore();
   });
 
+  it("ignores non-status column drift (contract: status family only)", async () => {
+    // A pet whose ONLY drift is in legacy microchip columns must NOT count as
+    // divergent — the header contract scopes this cron to status + deceasedAt.
+    // (Staging 2026-07-18: microchip-column drift made the pets.status card
+    // claim divergence that wasn't there and kept cron_health red.)
+    const { dbMock } = buildDbMock([[PET_CLEAN], []]);
+    vi.doMock("@/db", () => ({ db: dbMock, cronRuns: CRON_RUNS_TABLE, pets: PETS_TABLE }));
+    vi.doMock("@/lib/infra/rederive-pet-cache", () => ({
+      rederivePetCache: vi.fn().mockResolvedValue({
+        status: { stored: "active", derived: "active", matches: true },
+        deceasedAt: { stored: null, derived: null, matches: true },
+        microchipId: { stored: "900123", derived: null, matches: false },
+        microchipCountryCode: { stored: "900", derived: null, matches: false },
+      }),
+    }));
+    const res = await callRoute({ "x-cron-secret": "test-secret" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: true, scanned: 1, divergent: 0 });
+    expect(body.sample).toHaveLength(0);
+  });
+
   it("counts two drifted pets and limits sample to MAX_SAMPLE", async () => {
     const PET2 = { id: "pet-uuid-3", publicToken: "DIM-CCCC-3333", status: "active" };
     mockDriftedRun([[PET_DRIFTED, PET2], []], PET_DRIFTED.id);

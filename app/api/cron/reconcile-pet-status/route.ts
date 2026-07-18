@@ -51,7 +51,19 @@ import { and, asc, desc, eq, gt, isNotNull } from "drizzle-orm";
 import { cronRuns, db, pets } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
-import { driftedColumns, hasDrift, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+import { type RederivePetCacheReport, rederivePetCache } from "@/lib/infra/rederive-pet-cache";
+
+// The status projection's column family — the ONLY columns this cron's
+// divergence verdict may consider (see header contract).
+const STATUS_FAMILY = ["status", "deceasedAt"] as const;
+
+/** Drifted column names, restricted to the status family. */
+function statusFamilyDrift(report: RederivePetCacheReport): string[] {
+  return STATUS_FAMILY.filter((c) => {
+    const r = report[c];
+    return r !== undefined && !r.matches;
+  });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -163,9 +175,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         try {
           const report = await rederivePetCache(pet.id);
-          if (hasDrift(report)) {
+          // CONTRACT (header): only status + deceasedAt count as divergence
+          // here — this cron backs the "Deriva de caché · pets.status" card
+          // and the health verdict. rederivePetCache reports EVERY cached
+          // column, and counting the rest (e.g. legacy microchip columns vs
+          // the canonical identifier rows) made the card claim status drift
+          // that wasn't there (staging 2026-07-18: 463 "divergent" pets whose
+          // status matched perfectly). Full multi-column drift belongs to the
+          // ops script / fitness test, which own that wider report.
+          const statusFamily = statusFamilyDrift(report);
+          if (statusFamily.length > 0) {
             divergent += 1;
-            const drifted = driftedColumns(report);
 
             if (sample.length < MAX_SAMPLE) {
               const statusReport = report.status;
@@ -174,7 +194,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                 publicToken: pet.publicToken,
                 cached: statusReport ? String(statusReport.stored ?? "") : pet.status,
                 derived: statusReport ? String(statusReport.derived ?? "") : null,
-                driftedColumns: Object.keys(drifted),
+                driftedColumns: statusFamily,
               });
             }
           }
