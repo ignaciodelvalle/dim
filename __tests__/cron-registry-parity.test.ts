@@ -172,4 +172,20 @@ describe("cronDisplayLabel — es-AR operator labels", () => {
       expect(WRAPPER_CRON_NAMES).toContain(name);
     }
   });
+
+  // FULL-COVERAGE sweep (fences wave S #7): the operator sees a label for EVERY
+  // cron_runs row on /admin/sistema + the CronsDownBanner. Those rows come from
+  // the runtime-DISPATCHED fleet (DAILY_JOB_ORDER — what actually runs, not just
+  // what's registered) PLUS the wrapper/dispatcher telemetry names. Sweeping the
+  // union directly closes the "a job runs but resolves to its raw snake_case key"
+  // gap without relying on the registry⇄DAILY_JOB_ORDER parity holding.
+  it("every dispatched job + wrapper resolves to a non-raw, underscore-free label", () => {
+    const everyVisibleName = new Set<string>([...DAILY_JOB_ORDER, ...WRAPPER_CRON_NAMES]);
+    for (const name of everyVisibleName) {
+      const label = cronDisplayLabel(name);
+      expect(label, `${name} has no es-AR display label (would leak the raw key)`).not.toBe(name);
+      expect(label.length).toBeGreaterThan(0);
+      expect(label, `${name} label still contains a snake_case underscore`).not.toMatch(/_/);
+    }
+  });
 });
