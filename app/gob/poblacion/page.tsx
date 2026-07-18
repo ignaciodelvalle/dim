@@ -249,7 +249,7 @@ export default async function GobPoblacionPage({
         {/* KPI 4: Net registry inflow — directional, neutral tone.
             demo-review M2: this read "Balance poblacional +3.619", which a
             funcionario reads as "the population grew by 3,619" — but "altas"
-            is pets.created_at (new REGISTRATIONS in MiMAR, including
+            is pets.created_at (new REGISTRATIONS in miMAR, including
             pre-existing animals just now onboarded), not new animals born.
             Relabeled to name what's actually summed; the caveat now says so
             explicitly instead of only warning about the natality undercount. */}
@@ -267,7 +267,7 @@ export default async function GobPoblacionPage({
               "Altas nuevas en el período + nacimientos registrados − muertes registradas.",
             formula: "COUNT(altas) + COUNT(live_birth events) − COUNT(death_recorded events)",
             caveat:
-              "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en MiMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento — callejero y camadas sin registro son invisibles. Un valor positivo refleja sobre todo ritmo de adopción del sistema, no necesariamente más mascotas vivas.",
+              "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en miMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento — callejero y camadas sin registro son invisibles. Un valor positivo refleja sobre todo ritmo de adopción del sistema, no necesariamente más mascotas vivas.",
           }}
         />
       </section>

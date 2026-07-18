@@ -31,7 +31,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "MiMAR — credencial pública de mascota";
+export const alt = "miMAR — credencial pública de mascota";
 
 // Literal hex, not CSS vars: satori (next/og's renderer) has no DOM/CSSOM to
 // resolve var(--color-ln-*) against, so it must get literal values. This is
@@ -83,7 +83,7 @@ export default async function Image({
         fontFamily: "sans-serif",
       }}
     >
-      {/* MiMAR guilloché stripe */}
+      {/* miMAR guilloché stripe */}
       <div
         style={{
           display: "flex",
@@ -176,7 +176,7 @@ export default async function Image({
           backgroundColor: CARD,
         }}
       >
-        <span style={{ display: "flex", fontSize: 30, fontWeight: 700, color: AZUL }}>MiMAR</span>
+        <span style={{ display: "flex", fontSize: 30, fontWeight: 700, color: AZUL }}>miMAR</span>
         <span style={{ display: "flex", fontSize: 22, color: MUTE }}>
           Credencial digital de mascotas
         </span>

@@ -73,7 +73,7 @@ export function SignupForm({
             Contanos quién sos
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
-            Tu nombre aparecerá en tu perfil y en las comunicaciones de MiMAR.
+            Tu nombre aparecerá en tu perfil y en las comunicaciones de miMAR.
           </p>
         </div>
 

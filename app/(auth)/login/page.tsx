@@ -112,7 +112,7 @@ export default async function LoginPage({
           </h1>
           {/* 24.1 Subcopy: tied to the heading via aria-labelledby on the form below. */}
           <p className="text-sm text-[var(--color-ln-ink-2)]" aria-describedby="auth-heading">
-            {intentCopy ? intentCopy.subcopy : "Bienvenido de vuelta a MiMAR"}
+            {intentCopy ? intentCopy.subcopy : "Bienvenido de vuelta a miMAR"}
           </p>
         </div>
         {/* Erased account (Ley 25.326 art. 16): the account was deleted at the
@@ -127,7 +127,7 @@ export default async function LoginPage({
             <p className="font-medium text-[var(--color-ln-err)]">Esta cuenta fue eliminada.</p>
             <p>
               Eliminaste tu cuenta y tus datos personales a tu pedido. No podés volver a acceder con
-              ella. Si querés usar MiMAR de nuevo, creá una cuenta nueva.
+              ella. Si querés usar miMAR de nuevo, creá una cuenta nueva.
             </p>
             <form action={logoutAction}>
               <button
@@ -151,7 +151,7 @@ export default async function LoginPage({
             </p>
             <p>
               No podés acceder al portal. Si creés que se trata de un error, contactá al equipo de
-              MiMAR.
+              miMAR.
             </p>
             <form action={logoutAction}>
               <button

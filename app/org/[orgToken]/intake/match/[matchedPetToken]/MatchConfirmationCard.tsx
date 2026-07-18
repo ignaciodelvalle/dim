@@ -86,7 +86,7 @@ export function MatchConfirmationCard({
     <div className="space-y-6">
       <OpBreach
         title="Posible coincidencia detectada"
-        detail="El microchip ya figura en MiMAR asociado a la siguiente mascota."
+        detail="El microchip ya figura en miMAR asociado a la siguiente mascota."
       />
 
       <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card overflow-hidden">

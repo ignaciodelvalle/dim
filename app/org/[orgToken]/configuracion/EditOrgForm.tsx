@@ -68,7 +68,7 @@ export function EditOrgForm({ organization }: Props) {
       {/* Hidden field so the action knows which org to update */}
       <input type="hidden" name="orgToken" value={organization.publicToken} />
 
-      <LnField label="Nombre público" required hint="Nombre que verán los demás usuarios de MiMAR.">
+      <LnField label="Nombre público" required hint="Nombre que verán los demás usuarios de miMAR.">
         {({ id, describedBy, invalid }) => (
           <LnInput
             id={id}

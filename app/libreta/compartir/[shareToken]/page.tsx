@@ -249,7 +249,7 @@ export default async function PublicLibretaPage({
         />
 
         <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-          <p>Generada por MiMAR · {formatDateTime(new Date())}</p>
+          <p>Generada por miMAR · {formatDateTime(new Date())}</p>
           {share.expiresAt && <p>El enlace vence el {formatDateTime(share.expiresAt)}.</p>}
           <p className="mt-1 text-xs">Token: {shareToken}</p>
         </footer>

@@ -88,7 +88,7 @@ export function OrgCreateForm({ dniVerified }: Props) {
             Antes de crear una organización, declará tu DNI.
           </p>
           <p className="text-xs text-[var(--color-ln-warn)]">
-            MiMAR requiere que declares tu DNI antes de crear una organización.
+            miMAR requiere que declares tu DNI antes de crear una organización.
           </p>
           <a
             href={state.prereqUrl ?? DNI_PREREQ_URL}

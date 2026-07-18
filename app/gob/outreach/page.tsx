@@ -45,7 +45,7 @@ export default async function GobOutreachPage() {
       <div className="space-y-4">
         <header className="space-y-1">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            MiMAR Gobierno · Alcance comunitario
+            miMAR Gobierno · Alcance comunitario
           </p>
           <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Pipelines de alcance comunitario
@@ -110,7 +110,7 @@ export default async function GobOutreachPage() {
           info={{
             definition:
               "Mascotas activas en tu jurisdicción cuya última vacuna antirrábica registrada supera los 365 días o que nunca vacunaron.",
-            caveat: "Solo considera mascotas con eventos registrados en MiMAR.",
+            caveat: "Solo considera mascotas con eventos registrados en miMAR.",
           }}
         />
         <OpKpi
@@ -294,7 +294,7 @@ export default async function GobOutreachPage() {
             <LnEmptyState
               icon="award"
               title="Sin esterilizaciones registradas en tu jurisdicción"
-              description="No hay esterilizaciones registradas en MiMAR en los últimos 30 días para tu cobertura."
+              description="No hay esterilizaciones registradas en miMAR en los últimos 30 días para tu cobertura."
             />
           ) : (
             <table className="w-full text-sm border-collapse">

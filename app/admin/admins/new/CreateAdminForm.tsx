@@ -108,7 +108,7 @@ export function CreateAdminForm() {
             required
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Admin MiMAR"
+            placeholder="Admin miMAR"
             maxLength={100}
             className="w-full text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />

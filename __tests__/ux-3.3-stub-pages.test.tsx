@@ -64,7 +64,7 @@ describe("AccesibilidadPage — honest accessibility statement (UX 3.3)", () => 
 
   it("does NOT make the old unqualified conformance claim", () => {
     // The old false claim was exactly:
-    // "MiMAR está construido siguiendo las pautas WCAG 2.1"
+    // "miMAR está construido siguiendo las pautas WCAG 2.1"
     expect(html).not.toContain("está construido siguiendo las pautas WCAG 2.1");
   });
 
@@ -106,7 +106,7 @@ import { AppFooter } from "@/components/layout/AppFooter";
 
 vi.mock("@/lib/ui/branding", () => ({
   BRANDING: {
-    appName: "MiMAR",
+    appName: "miMAR",
     appNameLong: "Mi Mascota Argentina",
     tagline: "Credencial digital sanitaria",
     logoSrc: "/logo-mimar.svg",

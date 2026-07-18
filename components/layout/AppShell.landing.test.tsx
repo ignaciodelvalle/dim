@@ -30,7 +30,7 @@ describe("AppShell variant=landing — single main-content landmark", () => {
     );
     expect(countMatches(html, /id="main-content"/g)).toBe(1);
     expect(countMatches(html, /<main\b/g)).toBe(1);
-    expect(html).toContain("Credencial verificada por MiMAR");
+    expect(html).toContain("Credencial verificada por miMAR");
     expect(html).toContain("page-body");
   });
 

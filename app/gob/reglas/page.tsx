@@ -67,7 +67,7 @@ async function GovtReglasReadOnlyView({
     <div className="space-y-6 max-w-3xl">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Reglas
+          miMAR Gobierno · Reglas
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Reglas que aplican a tu jurisdicción

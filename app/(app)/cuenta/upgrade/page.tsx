@@ -1,4 +1,4 @@
-// Tu rol en MiMAR — Libreta Nacional redesign.
+// Tu rol en miMAR — Libreta Nacional redesign.
 
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
@@ -57,7 +57,7 @@ export default async function UpgradePage() {
       {/* Header */}
       <div className="mb-7">
         <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Tu rol en MiMAR
+          Tu rol en miMAR
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Ampliá tus permisos registrando tu matrícula profesional o creando una organización.
@@ -75,7 +75,7 @@ export default async function UpgradePage() {
               // dead-end sentence: create their consultorio (task #17).
               <div className="space-y-3">
                 <p className="text-[13px] text-[var(--color-ln-mute)]">
-                  Ya sos veterinario/a verificado/a en MiMAR.
+                  Ya sos veterinario/a verificado/a en miMAR.
                 </p>
                 <Link
                   href="/cuenta/crear-consultorio"
@@ -159,7 +159,7 @@ export default async function UpgradePage() {
           <LnCardHead title="Crear Organización" />
           <LnCardBody>
             <p className="mb-4 text-[13px] text-[var(--color-ln-ink-2)]">
-              Refugios, clínicas y redes de rescate pueden crear su panel organizacional en MiMAR.
+              Refugios, clínicas y redes de rescate pueden crear su panel organizacional en miMAR.
             </p>
 
             {adminMembership ? (

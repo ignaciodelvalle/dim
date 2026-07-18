@@ -89,7 +89,7 @@ export default async function CrearConsultorioPage() {
           Crear consultorio
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-          Completá los datos de tu consultorio para empezar a ofrecer servicios en MiMAR.
+          Completá los datos de tu consultorio para empezar a ofrecer servicios en miMAR.
         </p>
       </div>
 

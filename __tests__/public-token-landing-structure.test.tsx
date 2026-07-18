@@ -134,7 +134,7 @@ vi.mock("@/lib/utils/format", () => ({
 // LostPublicCredential deps (lost render path).
 vi.mock("@/lib/reference/lookups", () => ({ tattooLocationLabel: vi.fn(() => null) }));
 vi.mock("@/lib/ui/branding", () => ({
-  BRANDING: { appName: "MiMAR", appNameLong: "Mi Mascota Argentina Registrada" },
+  BRANDING: { appName: "miMAR", appNameLong: "Mi Mascota Argentina Registrada" },
 }));
 vi.mock("@/lib/domain/location", () => ({ readPoint: vi.fn(() => null) }));
 vi.mock("@/lib/infra/origin-org", () => ({

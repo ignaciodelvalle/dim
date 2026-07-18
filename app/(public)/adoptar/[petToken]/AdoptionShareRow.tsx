@@ -18,7 +18,7 @@ export function AdoptionShareRow({ fichaUrl, petName }: Props) {
   const [copied, setCopied] = useState(false);
 
   function shareWhatsApp() {
-    const text = encodeURIComponent(`¡Mirá a ${petName}, está en adopción en MiMAR! ${fichaUrl}`);
+    const text = encodeURIComponent(`¡Mirá a ${petName}, está en adopción en miMAR! ${fichaUrl}`);
     window.open(`https://wa.me/?text=${text}`, "_blank", "noopener");
   }
 

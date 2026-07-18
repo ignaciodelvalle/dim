@@ -122,7 +122,7 @@ export default async function GobiernoDashboardPage({
   const header = (
     <header className="space-y-2">
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        MiMAR Gobierno · {roleLabel} · {scopeLabel}
+        miMAR Gobierno · {roleLabel} · {scopeLabel}
       </p>
       <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
         Panel de jurisdicción

@@ -132,7 +132,7 @@ vi.mock("@/lib/utils/format", () => ({
 }));
 vi.mock("@/lib/reference/lookups", () => ({ tattooLocationLabel: vi.fn(() => null) }));
 vi.mock("@/lib/ui/branding", () => ({
-  BRANDING: { appName: "MiMAR", appNameLong: "Mi Mascota Argentina Registrada" },
+  BRANDING: { appName: "miMAR", appNameLong: "Mi Mascota Argentina Registrada" },
 }));
 vi.mock("@/lib/infra/origin-org", () => ({
   resolveOriginOrg: vi.fn(async () => null),

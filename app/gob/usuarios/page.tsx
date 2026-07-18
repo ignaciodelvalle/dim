@@ -93,7 +93,7 @@ export default async function UsuariosPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          {base === "/admin" ? "Admin · Usuarios" : "MiMAR Gobierno · Usuarios"}
+          {base === "/admin" ? "Admin · Usuarios" : "miMAR Gobierno · Usuarios"}
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Usuarios</h1>
         <p className="text-[13px] text-ln-op-ink-2">
@@ -135,7 +135,7 @@ export default async function UsuariosPage({
               "Porcentaje de chips registrados en la cobertura que cumplen con la norma ISO 11784/11785 (identificación electrónica de animales). Meta interna: 80%.",
             formula:
               "COUNT(pet_identifications WHERE kind='microchip_iso' AND status='active' AND is_valid_iso=true) / COUNT(pet_identifications WHERE kind='microchip_iso' AND status='active') × 100",
-            caveat: `Meta recomendada: ${TARGETS.MICROCHIP_PENETRATION_PCT}%. Solo cuenta microchips con registro ISO activo en MiMAR.`,
+            caveat: `Meta recomendada: ${TARGETS.MICROCHIP_PENETRATION_PCT}%. Solo cuenta microchips con registro ISO activo en miMAR.`,
           }}
         />
       </section>

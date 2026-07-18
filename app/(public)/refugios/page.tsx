@@ -72,7 +72,7 @@ const loadVerifiedOrgsCached = unstable_cache(
 );
 
 export const metadata: Metadata = {
-  title: "Refugios y redes de rescate — MiMAR",
+  title: "Refugios y redes de rescate — miMAR",
   description:
     "Refugios y redes de rescate verificados en el Registro Nacional de Mascotas. Encontrá una organización en tu provincia.",
 };

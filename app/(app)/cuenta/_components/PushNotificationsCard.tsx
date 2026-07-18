@@ -82,7 +82,7 @@ export function PushNotificationsCard() {
       if (permission !== "granted") {
         setStatus("off");
         setError(
-          "El navegador tiene bloqueadas las notificaciones para MiMAR. Habilitalas en la configuración del sitio y volvé a intentar.",
+          "El navegador tiene bloqueadas las notificaciones para miMAR. Habilitalas en la configuración del sitio y volvé a intentar.",
         );
         return;
       }
@@ -149,7 +149,7 @@ export function PushNotificationsCard() {
       <LnCardBody>
         <p className="mb-3 text-[var(--text-md)] leading-[1.5] text-[var(--color-ln-ink-2)]">
           Recibí un aviso al instante en este dispositivo si alguien reporta un avistaje o hallazgo
-          de tu mascota, o si hay novedades de una custodia — incluso con MiMAR cerrado.
+          de tu mascota, o si hay novedades de una custodia — incluso con miMAR cerrado.
         </p>
         {status === "unsupported" ? (
           <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">

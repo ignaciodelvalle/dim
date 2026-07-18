@@ -213,7 +213,7 @@ export function LocalityPickerAcross({
         <p className="text-xs text-ln-mute  mt-1">
           Sin resultados.{" "}
           <a
-            href={`mailto:ignaciodelvalle2014@gmail.com?subject=MiMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
+            href={`mailto:ignaciodelvalle2014@gmail.com?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
             className="underline"
           >
             Sugerí esta localidad

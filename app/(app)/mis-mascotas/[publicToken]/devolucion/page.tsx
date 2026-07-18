@@ -271,7 +271,7 @@ export default async function DevolucionPage({
         </h1>
         <LnCallout tone="warn" title="Sin propuestas activas.">
           No hay propuestas de devolución pendientes para {pet.name} y no encontramos una adopción
-          registrada a tu nombre. Si recibiste esta mascota de un refugio fuera de MiMAR, contactá
+          registrada a tu nombre. Si recibiste esta mascota de un refugio fuera de miMAR, contactá
           al refugio directamente.
         </LnCallout>
         <div className="mt-6 flex justify-start">

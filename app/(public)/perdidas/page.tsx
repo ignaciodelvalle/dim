@@ -50,7 +50,7 @@ export async function generateMetadata({
   bits.push("perdidas");
   if (filters.locality) bits.push(`en ${filters.locality}`);
   else if (filters.province) bits.push(`en ${filters.province}`);
-  const title = `${bits.join(" ")} — MiMAR`;
+  const title = `${bits.join(" ")} — miMAR`;
   return {
     title,
     description:

@@ -62,7 +62,7 @@ export default async function GobAnalyticsPage({
           action={
             <a
               className="text-sm text-[var(--color-ln-azul)] underline underline-offset-4"
-              href="mailto:hola@mimar.ar?subject=MiMAR%20%E2%80%94%20Acceso%20a%20analytics"
+              href="mailto:hola@mimar.ar?subject=miMAR%20%E2%80%94%20Acceso%20a%20analytics"
             >
               Solicitar acceso
             </a>

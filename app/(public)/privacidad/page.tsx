@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Política de privacidad — MiMAR",
+  title: "Política de privacidad — miMAR",
   description:
-    "Cómo MiMAR recopila, usa y protege tus datos personales, en cumplimiento de la Ley 25.326.",
+    "Cómo miMAR recopila, usa y protege tus datos personales, en cumplimiento de la Ley 25.326.",
 };
 
 export default function PrivacidadPage() {
@@ -30,9 +30,9 @@ export default function PrivacidadPage() {
             Marco legal aplicable
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
-            MiMAR trata los datos personales de sus usuarios conforme a la{" "}
+            miMAR trata los datos personales de sus usuarios conforme a la{" "}
             <strong>Ley 25.326 de Protección de Datos Personales</strong> de la República Argentina
-            y su decreto reglamentario 1558/2001. MiMAR cumple las obligaciones de registro ante la
+            y su decreto reglamentario 1558/2001. miMAR cumple las obligaciones de registro ante la
             Agencia de Acceso a la Información Pública (AAIP) / Dirección Nacional de Protección de
             Datos Personales (DNPDP) conforme lo establece la normativa vigente.
           </p>

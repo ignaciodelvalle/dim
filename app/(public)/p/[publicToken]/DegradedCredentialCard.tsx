@@ -57,7 +57,7 @@ export function DegradedCredentialCard({
             </div>
             <div className="min-w-0 flex-1">
               <span className="font-[var(--font-ln-serif)] text-sm font-semibold text-ln-ink">
-                MiMAR
+                miMAR
               </span>
               <span className="block font-[var(--font-ln-mono)] text-xs uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
@@ -117,7 +117,7 @@ export function DegradedCredentialCard({
           )}
 
           <div className="px-4 py-3 text-center font-[var(--font-ln-mono)] text-xs leading-[1.7] tracking-[.02em] text-ln-faint">
-            CREDENCIAL PÚBLICA · MiMAR · Registro Nacional de Mascotas
+            CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
             <br />
             {publicToken.toUpperCase()} · República Argentina
           </div>

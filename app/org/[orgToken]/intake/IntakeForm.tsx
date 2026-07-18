@@ -186,7 +186,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
         <p className="text-[13px] text-ln-op-ink-2">
           Si la mascota tiene microchip o tatuaje, ingrésalos. Si el chip coincide con una mascota
-          perdida en MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
+          perdida en miMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
@@ -492,7 +492,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2 space-y-2">
             <p>
               <strong>Posible coincidencia por tatuaje.</strong> El código que ingresaste coincide
-              con una mascota ya registrada en MiMAR. Verificá con la foto antes de continuar.
+              con una mascota ya registrada en miMAR. Verificá con la foto antes de continuar.
             </p>
             <p>
               <a

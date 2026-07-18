@@ -293,7 +293,7 @@ export async function GET(
 </head>
 <body>
   <header class="cover">
-    <div class="meta">Libreta Sanitaria Digital · MiMAR</div>
+    <div class="meta">Libreta Sanitaria Digital · miMAR</div>
     <h1>${petName}</h1>
     <div class="meta">${htmlEscape(speciesLabel(petRow.species))} ${petRow.breed ? `· ${htmlEscape(petRow.breed)}` : ""} · ${htmlEscape(sexLabel(petRow.sex))}</div>
     ${ownerEsc ? `<div class="owner-line">Dueño/a: <strong>${ownerEsc}</strong></div>` : ""}
@@ -304,7 +304,7 @@ export async function GET(
   </main>
 
   <footer>
-    <span>Generada por MiMAR · ${htmlEscape(generatedAt)}</span>
+    <span>Generada por miMAR · ${htmlEscape(generatedAt)}</span>
     <span>Documento no persistido · generado al vuelo</span>
   </footer>
 

@@ -12,7 +12,7 @@ import type { Metadata } from "next";
 import { OpButton } from "@/components/ui/dashboard";
 
 export const metadata: Metadata = {
-  title: "Integración Mi Argentina — MiMAR",
+  title: "Integración Mi Argentina — miMAR",
 };
 
 export default function IntegracionMiArgPage() {
@@ -58,7 +58,7 @@ export default function IntegracionMiArgPage() {
 
           <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 space-y-1">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
-              Mascotas registradas en MiMAR
+              Mascotas registradas en miMAR
             </p>
             <ul className="space-y-0.5 text-[13px] text-ln-op-ink">
               <li>• Duque — Labrador Retriever — Microchip 858000011223</li>

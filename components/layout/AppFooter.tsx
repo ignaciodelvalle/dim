@@ -34,7 +34,7 @@ const DEFAULT_COLUMNS: Column[] = [
   {
     title: "Información",
     links: [
-      { href: "/acerca", label: "Acerca de MiMAR" },
+      { href: "/acerca", label: "Acerca de miMAR" },
       { href: "/ayuda", label: "Ayuda" },
       { href: "/accesibilidad", label: "Accesibilidad" },
       // /sugerencias — no feedback channel exists yet; link hidden to avoid dead end.

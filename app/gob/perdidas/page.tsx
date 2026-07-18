@@ -152,7 +152,7 @@ export default async function GobPerdidasPage({
           Tu cuenta no tiene localidades asignadas. Un administrador debe asignarte al menos una
           para ver casos.{" "}
           <a
-            href="mailto:hola@mimar.ar?subject=MiMAR%20%E2%80%94%20Asignaci%C3%B3n%20de%20localidad"
+            href="mailto:hola@mimar.ar?subject=miMAR%20%E2%80%94%20Asignaci%C3%B3n%20de%20localidad"
             className="underline underline-offset-4"
           >
             Solicitar asignación

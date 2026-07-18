@@ -43,7 +43,7 @@ export function LandingFooter() {
           <span>argentina.gob.ar/salud</span>
           <span className="lp-spacer" />
           <span>
-            MiMAR opera bajo la Ley 14.346 (protección animal) y la Ley 25.326 (protección de datos
+            miMAR opera bajo la Ley 14.346 (protección animal) y la Ley 25.326 (protección de datos
             personales).
           </span>
         </div>

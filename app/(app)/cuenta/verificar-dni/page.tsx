@@ -56,7 +56,7 @@ export default async function VerificarDniPage({
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Ingresá tu número de DNI para continuar. Este dato queda registrado en tu perfil y es
-          requerido antes de enviar una solicitud de rol en MiMAR.
+          requerido antes de enviar una solicitud de rol en miMAR.
         </p>
       </div>
 
