@@ -91,3 +91,27 @@ describe("pet-state single authority — masthead is the only in-document carrie
     expect(html).toContain('data-section="band-situation-chip"');
   });
 });
+
+// Cumplimiento dedup (PO 2026-07-18): "estado de cumplimiento" / "Cumplimiento"
+// and the "N de M al día" counter also repeated across the profile — divider,
+// mobile disclosure-row title, AND the bare panel's own header (label + counter
+// badge) all fired at once. The standard: the "Cumplimiento" divider is the ONE
+// label surface, and each breakpoint variant carries the counter exactly once
+// (desktop summary row / mobile disclosure row — both exist in the static
+// markup, CSS shows one at a time).
+describe("cumplimiento single authority — one label, one counter per variant", () => {
+  it("renders the section label once and never the old 'Estado de cumplimiento' header", () => {
+    const html = renderDocument("custodia-oficial", "male");
+    expect(countOccurrences(html, "Cumplimiento")).toBe(1); // the divider label
+    expect(countOccurrences(html, "Estado de cumplimiento")).toBe(0);
+  });
+
+  it("renders the 'N de M al día' counter once per breakpoint variant (2 in static markup)", () => {
+    const state = complianceState();
+    const html = renderDocument("custodia-oficial", "male");
+    // Desktop summary row + mobile disclosure row — exactly one each; the bare
+    // panel's third (header badge) copy must stay gone.
+    expect(state.summary.label).toMatch(/\d+ de \d+ al día/);
+    expect(countOccurrences(html, state.summary.label)).toBe(2);
+  });
+});

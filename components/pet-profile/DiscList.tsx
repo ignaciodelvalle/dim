@@ -37,7 +37,7 @@ export function DiscRow({
 }: {
   /** Leading credential icon (an Icon.tsx name, e.g. "shield"). */
   icon: string;
-  /** es-AR row title (e.g. "Estado de cumplimiento"). */
+  /** es-AR row title (e.g. "Obligaciones"). */
   title: string;
   /** es-AR one-line summary (e.g. "3 de 4 al día · falta esterilización"). */
   summary: string;

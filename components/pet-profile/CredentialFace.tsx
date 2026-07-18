@@ -293,9 +293,25 @@ export function CredentialFace({
             </span>
           </div>
           <div className="ln-sec">
-            {/* Desktop (≥md) has the room: the full provenance-gated grid stays
-                inline, exactly as before. */}
+            {/* Cumplimiento dedup (PO 2026-07-18): the "Cumplimiento" divider
+                above is the ONE surface owning the section label, and each
+                breakpoint variant renders the "N de M al día" counter exactly
+                once. The bare panel itself is headerless — it used to repeat
+                "Estado de cumplimiento" + the counter a second (and on mobile a
+                third) time. */}
+
+            {/* Desktop (≥md) has the room: one summary row (counter + stamp)
+                above the full provenance-gated grid, inline. */}
             <div className="hidden md:block">
+              <div
+                data-section="compliance-summary"
+                className="mb-2.5 flex items-center justify-between gap-3"
+              >
+                <p className="m-0 text-[var(--text-sm)] font-medium text-[var(--color-ln-ink-2)]">
+                  {complianceSummary}
+                </p>
+                {complianceStamp && <LnVstamp variant={complianceStamp} />}
+              </div>
               <ComplianceObligationsPanel
                 state={complianceState}
                 petPublicToken={petPublicToken}
@@ -310,11 +326,12 @@ export function CredentialFace({
                 (the disclosure wraps the identical ComplianceObligationsPanel,
                 same tone/gate). The disclosure is a native <details>, so it is
                 keyboard-operable with no client JS (CredentialFace stays a
-                server component). */}
+                server component). Titled "Obligaciones" — a NAME, not a repeat
+                of the divider's "Cumplimiento" label family. */}
             <DiscList className="md:hidden">
               <DiscRow
                 icon="shield"
-                title="Estado de cumplimiento"
+                title="Obligaciones"
                 summary={complianceSummary}
                 trailing={complianceStamp ? <LnVstamp variant={complianceStamp} /> : undefined}
               >

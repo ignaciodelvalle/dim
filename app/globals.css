@@ -3436,32 +3436,9 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   padding: 2px 0 12px;
 }
 
-/* ---- Compliance header (bare — the divider already labels it) ------------ */
-.ln-comply-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-.ln-comply-head h3 {
-  font-family: var(--font-ln-serif);
-  font-weight: 600;
-  font-size: 19px;
-  letter-spacing: -0.01em;
-  margin: 0;
-  color: var(--color-ln-ink);
-}
-.ln-comply-head h3 .ln-eyebrow {
-  display: block;
-  font-family: var(--font-ln-mono);
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--color-ln-mute);
-  margin-bottom: 3px;
-}
+/* The `.ln-comply-head` bare-mode header was removed (cumplimiento dedup,
+   PO 2026-07-18): the sheet's "Cumplimiento" divider owns the section label
+   and the caller's summary row owns the "N de M al día" counter. */
 
 /* ---- Back face · Libreta ledger ------------------------------------------ */
 .ln-lib-head {
