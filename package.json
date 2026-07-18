@@ -72,6 +72,8 @@
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",
     "probe:load": "tsx scripts/load-probe.ts",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:db": "vitest run --project db",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test"
