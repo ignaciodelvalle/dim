@@ -5,8 +5,12 @@ import { DateInputAr } from "@/components/ui/DateInputAr";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { AUDIT_ACTION_LABELS, auditActionLabel } from "@/lib/ui/audit-action-labels";
-import { parseAuditActions, parseAuditDateRange } from "@/lib/ui/audit-filters";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import {
+  buildAuditActionOptions,
+  parseAuditActions,
+  parseAuditDateRange,
+} from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { formatDateTime } from "@/lib/utils/format";
@@ -144,10 +148,16 @@ export default async function AdminAuditoriaPage({
     }
   }
 
-  // Known action codes+labels for the dropdown — derived from AUDIT_ACTION_LABELS.
-  const actionOptions = Object.entries(AUDIT_ACTION_LABELS).sort((a, b) =>
-    a[1].localeCompare(b[1], "es-AR"),
-  );
+  // Known action codes+labels for the dropdown, deduped by visible label so
+  // aliased codes (old/new revocation codes, etc.) render one row each.
+  const actionOptions = buildAuditActionOptions();
+  // A single-code filter may belong to an aliased option (its `value` carries
+  // every code sharing that label, comma-joined) — match by membership, not
+  // equality, so the <select> still preselects the right row.
+  const selectedActionOption =
+    actionFilters.length === 1
+      ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
+      : undefined;
 
   const hasFilters =
     actionFilters.length > 0 || actorFilter !== null || since !== null || until !== null;
@@ -266,13 +276,13 @@ export default async function AdminAuditoriaPage({
             <select
               id="audit-action"
               name="action"
-              defaultValue={actionFilters.length === 1 ? actionFilters[0] : ""}
+              defaultValue={selectedActionOption?.value ?? ""}
               className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
             >
               <option value="">Todas las acciones</option>
-              {actionOptions.map(([code, label]) => (
-                <option key={code} value={code}>
-                  {label}
+              {actionOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
