@@ -23,6 +23,7 @@ import { windows } from "@/lib/metrics/period";
 import { formatDate, speciesLabel } from "@/lib/utils/format";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
+import { DevolverAlDuenoButton } from "./_components/DevolverAlDuenoButton";
 import { ReasignarButton } from "./_components/ReasignarButton";
 
 // Human-readable labels for the seizure_motive enum (event-schemas.ts).
@@ -179,6 +180,12 @@ export default async function DecomisosDashboardPage() {
           {rows.map(({ c, petName, petToken, petSpecies, receiverName }) => {
             const days = daysElapsed(c.openedAt);
             const canReassign = c.status === "open" && Boolean(c.receiverOrganizationId);
+            // The episode is still in the OPENING govt org's direct custody
+            // while status='open' (any accept/handoff closes THIS case and
+            // opens a new one for the receiver — see accept-decomiso-handoff.ts).
+            // Subject-kind (registered pet with a former owner) is validated
+            // server-side; unowned strays fail cleanly with a clear error.
+            const canReturnToOwner = c.status === "open";
 
             return (
               <li key={c.id}>
@@ -252,6 +259,9 @@ export default async function DecomisosDashboardPage() {
                             casePublicCode={c.publicCode}
                             currentReceiverName={receiverName ?? "el refugio actual"}
                           />
+                        )}
+                        {canReturnToOwner && (
+                          <DevolverAlDuenoButton casePublicCode={c.publicCode} />
                         )}
                       </div>
                     </div>
