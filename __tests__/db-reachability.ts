@@ -200,8 +200,15 @@ export function reachesDb(file: string): boolean {
 // postgres.js client and drives scripts/migrate.ts in a subprocess.
 // (Bare `child_process`/`execSync` is intentionally NOT a signal — plenty of
 // pure tests spawn non-DB subprocesses.)
+//
+// SUPABASE SIGNALS (Wave M hardening, Tren 1 review finding): a test can also
+// reach the backend through its OWN supabase-js client — createClient() fed by
+// the SUPABASE_URL env vars, or auth.admin.* calls — none of which touches
+// `db/index.ts`. Any of those in a test's own source classifies it "db" so it
+// runs under the URL-forcing setup. Over-including a genuinely-pure file this
+// way only costs it parallelism, never safety.
 const DIRECT_DB_SIGNAL_RE =
-  /(?:from|import|require\()\s*['"]postgres['"]|process\.env\.DATABASE_URL|scripts\/(?:migrate|db-bootstrap)\b/;
+  /(?:from|import|require\()\s*['"]postgres['"]|process\.env\.DATABASE_URL|scripts\/(?:migrate|db-bootstrap)\b|process\.env\.(?:NEXT_PUBLIC_)?SUPABASE_URL|process\.env\.SUPABASE_SERVICE_ROLE_KEY|auth\.admin\./;
 
 const signalCache = new Map<string, boolean>();
 
