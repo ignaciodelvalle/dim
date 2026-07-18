@@ -159,7 +159,7 @@ describe("scanForInlineCatalogLabels (registry-import fence)", () => {
       "PageA.tsx",
       [
         `import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";`,
-        `<OpKpi label={KPI_CATALOG.microchip_penetration.label} value={pct} />`,
+        "<OpKpi label={KPI_CATALOG.microchip_penetration.label} value={pct} />",
       ].join("\n"),
     );
     expect(scanForInlineCatalogLabels([file], LABELS)).toHaveLength(0);
