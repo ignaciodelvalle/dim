@@ -162,4 +162,49 @@ describe("<DocumentChrome> — band dots slot (tarjeta-todo)", () => {
     );
     expect(html.split('data-section="band-dots"').length - 1).toBe(2);
   });
+
+  // PO 2026-07-18 dedup/geometry fix: the dots used an uncalibrated
+  // `translate-x-3` right-of-center nudge that overflowed the card's right
+  // edge at OWNER_CAROUSEL_CAP (8 dots) on a narrow viewport, where
+  // `.ln-face`'s overflow:hidden clipped the strip against the QR poke
+  // corner — the exact "outside the credential" the PO reported. The fix is
+  // a dedicated CSS class (`.ln-band-dots`, globals.css) that TRUE-centers
+  // the strip with no directional offset to miscalibrate.
+  it("positions the dots with the dedicated in-band class, not an ad-hoc offset", () => {
+    const html = renderToStaticMarkup(
+      <DocumentChrome
+        face="credencial"
+        onFlip={() => {}}
+        isLibretaActive={false}
+        bandDots={<nav aria-label="Tus mascotas">DOTS</nav>}
+      >
+        <div>BODY</div>
+      </DocumentChrome>,
+    );
+    expect(html).toContain('class="ln-band-dots"');
+    // The old right-of-center nudge must not resurface.
+    expect(html).not.toContain("translate-x-3");
+  });
+
+  it("renders the dots wrapper INSIDE the credential card boundary (.ln-face), not as a page-level sibling", () => {
+    const html = renderToStaticMarkup(
+      <DocumentChrome
+        face="credencial"
+        onFlip={() => {}}
+        isLibretaActive={false}
+        bandDots={<nav aria-label="Tus mascotas">DOTS</nav>}
+      >
+        <div>BODY</div>
+      </DocumentChrome>,
+    );
+    // `.ln-face` is the outermost element DocumentChrome renders; the dots
+    // section must appear after its opening tag and before its closing tag —
+    // i.e. genuinely nested inside the card, not a sibling bolted outside it.
+    const faceOpen = html.indexOf('class="ln-face"');
+    const dotsAt = html.indexOf('data-section="band-dots"');
+    const faceCloseSearch = html.lastIndexOf("</div>");
+    expect(faceOpen).toBeGreaterThanOrEqual(0);
+    expect(dotsAt).toBeGreaterThan(faceOpen);
+    expect(dotsAt).toBeLessThan(faceCloseSearch);
+  });
 });

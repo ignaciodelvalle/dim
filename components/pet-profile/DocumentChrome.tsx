@@ -86,12 +86,21 @@ export function DocumentChrome({
           {situation.label}
         </span>
       )}
-      {/* Carousel dots — in the band, right-of-center (tarjeta-todo), in the
-          free strip between the turn button (ends ~y54) and the photo/QR
-          poke-ups (start y64). Outside the aria-hidden wrapper, like the chip
-          and the turn button, so the group keeps its accessible name. */}
+      {/* Carousel dots — in the band (tarjeta-todo → PO 2026-07-18 dedicated-
+          slot fix). The old placement (`left-1/2` + a `translate-x-3` nudge
+          right-of-center) was an uncalibrated eyeball offset — at
+          OWNER_CAROUSEL_CAP (8 dots, ~170px wide) on a 320–360px viewport it
+          pushed the strip past the card's right edge, where `.ln-face`'s
+          `overflow:hidden` clipped it against the QR poke corner. That
+          clipped fragment is what read as "outside the credential" (PO QA).
+          `.ln-band-dots` (globals.css) TRUE-centers the strip instead — no
+          directional offset to miscalibrate — in the band's own vertical
+          safe zone below the turn button and above the photo/QR poke-up (see
+          that rule's comment for the clearance math). Outside the
+          aria-hidden wrapper, like the chip and the turn button, so the
+          group keeps its accessible name. */}
       {bandDots && (
-        <div data-section="band-dots" className="absolute left-1/2 top-[52px] z-[4] translate-x-3">
+        <div data-section="band-dots" className="ln-band-dots">
           {bandDots}
         </div>
       )}
