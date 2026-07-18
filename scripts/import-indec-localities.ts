@@ -109,8 +109,42 @@ function normalizeCategory(raw: string): ArgentineLocalityCategory | null {
   return null;
 }
 
+// Boundary guard: keep encoding filth out of the catalog at ingest time.
+//
+// The INDEC feed (and any vendored CSV that passed through a mis-encoded editor)
+// can carry (a) a U+00AD SOFT HYPHEN colada mid-word - invisible, but it corrupts
+// equality + search on the name ("Agustin Roca" with a hidden soft hyphen, cowork
+// demo 2026-07-18); and (b) the classic UTF-8-read-as-CP1252 double-encoding
+// artifacts (two-byte sequences that render as A-tilde + a symbol). We REPAIR the
+// known double-encodings back to the real accented letter, STRIP the stray soft
+// hyphen and any U+FFFD replacement char, then NFC-normalize - so the persisted
+// name is what a Spanish reader expects and the encoding-fitness test never has to
+// catch it downstream. Order matters: repair the two-byte sequences (some contain
+// a U+00AD byte) BEFORE stripping soft hyphens. All non-ASCII targets are written
+// as \u escapes so THIS file stays clean under the soft-hyphen scan (scripts/ is scanned).
+const MOJIBAKE_REPAIRS: Array<[RegExp, string]> = [
+  [/\u00C3\u00A1/g, "\u00E1"],
+  [/\u00C3\u00A9/g, "\u00E9"],
+  [/\u00C3\u00AD/g, "\u00ED"],
+  [/\u00C3\u00B3/g, "\u00F3"],
+  [/\u00C3\u00BA/g, "\u00FA"],
+  [/\u00C3\u00B1/g, "\u00F1"],
+  [/\u00C3\u00A0/g, "\u00E0"],
+  [/\u00C3\u00BC/g, "\u00FC"],
+  [/\u00C2\u00BF/g, "\u00BF"],
+  [/\u00C2\u00B0/g, "\u00B0"],
+];
+
+export function sanitizeLocalityText(raw: string): string {
+  let s = raw;
+  for (const [bad, good] of MOJIBAKE_REPAIRS) s = s.replace(bad, good);
+  // Strip stray U+00AD soft hyphens and any U+FFFD replacement chars.
+  s = s.replace(/[\u00AD\uFFFD]/g, "");
+  return s.normalize("NFC").trim();
+}
+
 function slugify(s: string): string {
-  return s
+  return sanitizeLocalityText(s)
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
@@ -265,9 +299,14 @@ export async function runImport(options?: {
 
     for (const [idx, row] of records.entries()) {
       const indecId = row.id;
-      const localityName = row.nombre;
+      // Sanitize the human-readable names at the ingest boundary: repair mojibake
+      // + strip stray soft hyphens (U+00AD) so no encoding filth is ever persisted.
+      const localityName = row.nombre ? sanitizeLocalityText(row.nombre) : row.nombre;
       const codProv = row.provincia_id;
-      const departamentoNombre = row.departamento_nombre || null;
+      const rawDepartamentoNombre = row.departamento_nombre || null;
+      const departamentoNombre = rawDepartamentoNombre
+        ? sanitizeLocalityText(rawDepartamentoNombre)
+        : null;
       const departamentoCode = row.departamento_id || null;
       const rawCategory = row.categoria ?? "Localidad simple";
 
