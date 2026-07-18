@@ -75,3 +75,33 @@ export function decisionsAuditDrillHref(now: number = Date.now()): string {
   const from = new Date(now - 7 * DAY_MS).toISOString().slice(0, 10);
   return `/admin/auditoria?action=${DECISION_AUDIT_ACTIONS.join(",")}&from=${from}`;
 }
+
+/** One <option> for the auditoría action filter: a UNIQUE visible label and the
+ *  action code(s) it selects. `value` is a comma-separated list of every code
+ *  that shares this label — parseAuditActions() already splits on comma, so
+ *  selecting the option filters by all of them at once. */
+export type AuditActionOption = { value: string; label: string };
+
+/**
+ * Build the auditoría action-filter options, UNIQUE by visible label.
+ *
+ * AUDIT_ACTION_LABELS legitimately maps several ALIAS codes to one label — an old
+ * and a new code for the same real action (revocation_org / revocation_org_verified,
+ * self_resignation_govt / govt_self_deactivated, "microchip.replace" /
+ * microchip_replaced). Emitting one <option> per code (the old inline
+ * `Object.entries(AUDIT_ACTION_LABELS)`) rendered visibly DUPLICATE dropdown
+ * rows (admin QA). This builder groups by label so each label appears once, with
+ * `value` carrying every aliased code (comma-joined) so filtering still matches
+ * all of them. Sorted by label (es-AR).
+ */
+export function buildAuditActionOptions(): AuditActionOption[] {
+  const codesByLabel = new Map<string, string[]>();
+  for (const [code, label] of Object.entries(AUDIT_ACTION_LABELS)) {
+    const codes = codesByLabel.get(label);
+    if (codes) codes.push(code);
+    else codesByLabel.set(label, [code]);
+  }
+  return [...codesByLabel.entries()]
+    .map(([label, codes]) => ({ label, value: [...codes].sort().join(",") }))
+    .sort((a, b) => a.label.localeCompare(b.label, "es-AR"));
+}

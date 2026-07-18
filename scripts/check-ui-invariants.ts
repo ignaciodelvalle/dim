@@ -4,7 +4,9 @@
 //   1. Touch target ≥ 44px  — flags h-9/min-h-9/min-w-9 inside className on tsx files
 //   2. No raw SCREAMING_CASE enum in JSX text  — catches un-localized event codes
 //   3. es-AR missing accents  — known missing-accent regressions in Spanish copy
-//   4. No raw English UI words in JSX text  — catches un-translated visible copy (denylist-based)
+//   4. No raw English UI words in JSX text (+ nav labels / metadata titles)  — un-translated copy
+//   5. Raw <button> growth guard (operator tier) — ratchet toward OpButton
+//   6. No snake_case internal token in JSX text  — catches raw payload/enum codes
 //
 // Run: pnpm tsx scripts/check-ui-invariants.ts
 // Or:  pnpm lint:ui
@@ -139,6 +141,27 @@ function looksLikeJsxText(line: string, token: string): boolean {
   return false;
 }
 
+// Case-insensitive twin of looksLikeJsxText — used ONLY by the English-word rule
+// (Rule 4). A visible-copy leak reads the same regardless of case, so ">Panel<"
+// vs ">panel<" must both be catchable; the SCREAMING-enum rule stays strictly
+// case-sensitive (enum codes are always upper). `word` is a plain literal here
+// (no regex metachars in the denylist), so no escaping is needed.
+function looksLikeJsxTextCI(line: string, word: string): boolean {
+  if (new RegExp(`>\\s*${word}\\s*<`, "i").test(line)) return true;
+  if (new RegExp(`\\{["'\`]${word}["'\`]\\}`, "i").test(line)) return true;
+  return false;
+}
+
+// Extract the quoted VALUE assigned to a specific object key on a line, e.g.
+// `label: "Bandeja de salida"` → "Bandeja de salida". Scanning by key (label /
+// title) — not every string on the line — keeps route values (`href: "/gob/
+// outbox"`, `matchPrefix: "/gob/outbox"`) OUT of the English-word check: a URL
+// segment named after an internal concept is not user copy.
+function valueForKey(line: string, key: string): string | null {
+  const m = line.match(new RegExp(`\\b${key}\\s*:\\s*["'\`]([^"'\`\\n]*)["'\`]`));
+  return m ? m[1] : null;
+}
+
 // Allowlist for rule 2 — "relativePath:TOKEN" pairs
 export const SCREAMING_ENUM_ALLOWLIST = new Set<string>([
   // (empty — the repo should be clean after UX 3.4 localization)
@@ -247,18 +270,40 @@ export const ACCENT_ALLOWLIST = new Set<string>([
 // Denylist is opt-in: only words explicitly added here are flagged.
 // Borrowed/product vocabulary (Outreach, etc.) simply stays off the list.
 //
-// Detection patterns (same as looksLikeJsxText):
+// Detection patterns (case-insensitive via looksLikeJsxTextCI — a leak reads the
+// same whether the code shipped "Dashboard", "dashboard", or "DASHBOARD"):
 //   >Word<     direct JSX text child
 //   {"Word"}   JSX expression string literal child
+// PLUS two scope extensions (see scanRegistryLabels / metadata title pass): the
+// operator breadcrumb/nav label registries and page metadata `title:` values,
+// which are string VALUES (never JSX text) and so slip past looksLikeJsxTextCI.
+//
+// Word-boundary matching keeps the Spanish cognate "Exportación" clean while the
+// bare English "Export" fails (there is no \b between "Export" and "ación").
 //
 // Allowlist: "relativePath:word" for any intentional use of a denylisted word.
 export const ENGLISH_UI_WORDS: Array<{ word: string; suggestion: string; re: RegExp }> = [
-  {
-    word: "Enrollment",
-    suggestion: "Inscripciones",
-    re: /\bEnrollment\b/g,
-  },
+  { word: "Enrollment", suggestion: "Inscripciones", re: /\bEnrollment\b/gi },
+  // Operator-tier English leaks caught across ≥5 independent July-2026 reviews
+  // (recorrido80 x2, staging x2, demo-validation). Spanish equivalents in the
+  // suggestion; the check is denylist-only so borrowed product terms stay off it.
+  { word: "Dashboard", suggestion: "Panel / Tablero", re: /\bDashboard\b/gi },
+  { word: "backlog", suggestion: "Pendientes / Cola", re: /\bbacklog\b/gi },
+  { word: "outbox", suggestion: "Bandeja de salida", re: /\boutbox\b/gi },
+  { word: "oversight", suggestion: "Supervisión", re: /\boversight\b/gi },
+  { word: "export", suggestion: "Exportar / Exportación", re: /\bexport\b/gi },
+  { word: "fullscreen", suggestion: "Pantalla completa", re: /\bfullscreen\b/gi },
+  { word: "hoarding", suggestion: "Acumulación", re: /\bhoarding\b/gi },
+  { word: "medium", suggestion: "Media (severidad)", re: /\bmedium\b/gi },
+  { word: "high", suggestion: "Alta (severidad)", re: /\bhigh\b/gi },
+  { word: "low", suggestion: "Baja (severidad)", re: /\blow\b/gi },
+  { word: "critical", suggestion: "Crítica (severidad)", re: /\bcritical\b/gi },
 ];
+
+// Curated registries whose LABELS are English-checked as string values (arm B).
+// operator-breadcrumbs is lib/ (outside STANDARD_FILES) and nav-presets stores
+// its labels as object values (not JSX text), so both need the value-side scan.
+const REGISTRY_LABEL_FILES = ["lib/ui/operator-breadcrumbs.ts", "components/layout/nav-presets.ts"];
 
 // Lines that should be excluded from English-word rule matching
 // (same exclusion strategy as the screaming enum rule).
@@ -272,6 +317,52 @@ const ENGLISH_WORD_EXCLUSIONS = [
 // Add with justification comment for each intentional borrowed term.
 export const ENGLISH_UI_WORD_ALLOWLIST = new Set<string>([
   // (empty — no intentional denylisted words in the repo at time of writing)
+]);
+
+// ---------------------------------------------------------------------------
+// Rule 6 — No snake_case internal token in JSX text
+// ---------------------------------------------------------------------------
+// Sibling of Rule 2 (SCREAMING_CASE), for the LOWERCASE payload/enum codes that
+// leak verbatim into visible copy: `outbreak_signal`, `scan_event_purged`, cron
+// codenames, and payload fragments like `pregnancy_status='in_progress'` rendered
+// as text instead of going through a label map (mined across the July-2026
+// reviews). Same precision philosophy as Rule 2 — flag ONLY when the token (or a
+// key='value' payload fragment) is the ENTIRE JSX text node / quoted child, so an
+// identifier, a `case "in_progress":`, or a snake_case substring inside a longer
+// sentence (`"...(outbreak_signal) con estado..."`) is never touched.
+//
+// Baseline: current legit hits are grandfathered via SNAKE_CASE_ALLOWLIST
+// ("relativePath:token"); anything new fails. Allowlist a hit ONLY when the raw
+// token is intentional developer-facing copy (a formula string, a debug readout).
+export const SNAKE_CASE_TOKEN = /\b[a-z]+_[a-z0-9_]+\b/g;
+
+// A payload fragment shown literally as text: `key='in_progress'` / `key="value"`,
+// the snake_case value being the giveaway. Matched only in JSX text position.
+export const SNAKE_CASE_PAYLOAD_FRAGMENT = /\b[a-z][a-z0-9]*_?[a-z0-9_]*\s*=\s*["'][a-z0-9_]+["']/;
+
+// Same line-type exclusions as the SCREAMING-enum rule (skip TS statements +
+// attribute values) so identifiers and code never enter the scan.
+const SNAKE_CASE_EXCLUSIONS = JSX_TEXT_EXCLUSIONS;
+
+// Allowlist for rule 6 — "relativePath:token" pairs (token = the snake_case
+// literal, or "payload-fragment" for a grandfathered key='value' text node).
+export const SNAKE_CASE_ALLOWLIST = new Set<string>([
+  // All four grandfathered hits render the token DELIBERATELY as a technical
+  // reference inside a <code>/<span class="font-mono"> element — a real DB table
+  // name, event code, rule flag, or CSV column shown verbatim in a transparency /
+  // developer-facing explanation, not a leaked UI label. Keep new ones out.
+  // components/panorama/PanoramaShell.tsx — <code>ar_localities</code> (the padrón
+  // source table, in the data-provenance note).
+  "components/panorama/PanoramaShell.tsx:ar_localities",
+  // app/org/[orgToken]/mascotas/[publicToken]/transfer/page.tsx — <code>
+  // custody_transferred</code>, the append-only event the transfer emits.
+  "app/org/[orgToken]/mascotas/[publicToken]/transfer/page.tsx:custody_transferred",
+  // app/gob/reglas/.../nueva/PppWeightThresholdForm.tsx — <span font-mono>
+  // ppp_breed_list</span>, the rule flag name in the threshold explainer.
+  "app/gob/reglas/[country]/[province]/[locality]/nueva/PppWeightThresholdForm.tsx:ppp_breed_list",
+  // app/(public)/transparencia/page.tsx — <code>codigo_iso</code>, the CSV column
+  // name in the open-data column glossary.
+  "app/(public)/transparencia/page.tsx:codigo_iso",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -412,7 +503,7 @@ function runScan(): void {
       for (const { word, suggestion, re } of ENGLISH_UI_WORDS) {
         re.lastIndex = 0;
         for (const match of line.matchAll(re)) {
-          if (!looksLikeJsxText(line, word)) continue;
+          if (!looksLikeJsxTextCI(line, word)) continue;
           const key = `${relPath}:${word}`;
           if (ENGLISH_UI_WORD_ALLOWLIST.has(key)) continue;
           console.error(
@@ -420,6 +511,42 @@ function runScan(): void {
           );
           hits += 1;
         }
+      }
+    });
+  }
+
+  // --- Rule 4 (scope extension): English words in registry LABELS + metadata
+  // titles. These are string VALUES, not JSX text, so the value side is scanned
+  // with the same denylist (word-boundary). Arm B: the operator breadcrumb / nav
+  // label registries. Arm C: page `metadata.title` (and any `title:` copy) across
+  // the app + component tiers. ---
+  const metadataScanFiles = new Set<string>([...REGISTRY_LABEL_FILES]);
+  for (const file of STANDARD_FILES) metadataScanFiles.add(normalizeRelPath(file));
+  for (const relPath of metadataScanFiles) {
+    let content: string;
+    try {
+      content = readFileSync(relPath, "utf8");
+    } catch {
+      continue; // registry file path drift — skip rather than crash CI.
+    }
+    const isRegistryLabelFile = REGISTRY_LABEL_FILES.includes(relPath);
+    content.split(/\r?\n/).forEach((line, i) => {
+      // Arm B scans `label:` values in the curated registry files; Arm C scans
+      // `title:` values (page metadata + any title copy) everywhere. Key-scoped
+      // extraction keeps route/href/matchPrefix strings out of the check.
+      const value = isRegistryLabelFile ? valueForKey(line, "label") : valueForKey(line, "title");
+      if (value === null) return;
+      for (const { word, suggestion, re } of ENGLISH_UI_WORDS) {
+        re.lastIndex = 0;
+        if (!re.test(value)) continue;
+        const key = `${relPath}:${word}`;
+        if (ENGLISH_UI_WORD_ALLOWLIST.has(key)) continue;
+        console.error(
+          `${relPath}:${i + 1}: raw English word "${word}" in ${
+            isRegistryLabelFile ? "nav/breadcrumb label" : "metadata title"
+          } "${value}" — use "${suggestion}" instead`,
+        );
+        hits += 1;
       }
     });
   }
@@ -439,6 +566,42 @@ function runScan(): void {
           if (isInsidePath(line, match.index ?? 0, bad)) continue;
           console.error(
             `${file}:${i + 1}:${(match.index ?? 0) + 1}: missing accent "${bad}" → "${good}" in Spanish copy`,
+          );
+          hits += 1;
+        }
+      }
+    });
+  }
+
+  // --- Rule 6: snake_case internal token in JSX text ---
+  for (const file of STANDARD_FILES) {
+    const relPath = normalizeRelPath(file);
+    const lines = readFileSync(file, "utf8").split(/\r?\n/);
+    lines.forEach((line, i) => {
+      // Quick bail + skip TS statements / attribute values.
+      if (!line.includes("_")) return;
+      if (SNAKE_CASE_EXCLUSIONS.some((re) => re.test(line))) return;
+
+      // Arm A — bare token as the ENTIRE JSX text node / quoted child.
+      for (const match of line.matchAll(SNAKE_CASE_TOKEN)) {
+        const token = match[0];
+        if (!looksLikeJsxText(line, token)) continue;
+        const key = `${relPath}:${token}`;
+        if (SNAKE_CASE_ALLOWLIST.has(key)) continue;
+        console.error(
+          `${file}:${i + 1}:${(match.index ?? 0) + 1}: raw snake_case token "${token}" rendered as JSX text — map through a label function`,
+        );
+        hits += 1;
+      }
+
+      // Arm B — a key='value' payload fragment shown literally between tags.
+      const fragMatch = line.match(SNAKE_CASE_PAYLOAD_FRAGMENT);
+      if (fragMatch) {
+        const frag = fragMatch[0];
+        const asText = new RegExp(`>\\s*${frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<`);
+        if (asText.test(line) && !SNAKE_CASE_ALLOWLIST.has(`${relPath}:payload-fragment`)) {
+          console.error(
+            `${file}:${i + 1}: raw payload fragment "${frag}" rendered as JSX text — show a localized status label, not the internal key=value`,
           );
           hits += 1;
         }
