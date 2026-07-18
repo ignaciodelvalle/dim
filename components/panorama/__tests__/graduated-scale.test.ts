@@ -92,3 +92,53 @@ describe("graduatedMaxCount", () => {
     expect(graduatedMaxCount([])).toBe(0);
   });
 });
+
+describe("buildGraduatedScale — fractional mode (panorama-percapita)", () => {
+  it("supports sub-1 maxima instead of flooring them to an empty scale", () => {
+    // A per-10k rate over a large province is routinely < 1 (e.g. 12 denuncias
+    // over 17,5 M hab. ≈ 0,01). The integer scale floors that to 0 → no legend,
+    // every bubble at the floor radius — the per-cápita map would read broken.
+    const scale = buildGraduatedScale(0.8, { fractional: true });
+    expect(scale.maxValue).toBeCloseTo(0.8);
+    expect(scale.bins.length).toBeGreaterThanOrEqual(2);
+    const values = scale.bins.map((b) => b.value);
+    // Ascending, distinct, ending exactly at the observed max.
+    for (let i = 1; i < values.length; i++) expect(values[i]).toBeGreaterThan(values[i - 1]);
+    expect(values[values.length - 1]).toBeCloseTo(0.8);
+    // The top legend bubble is the map's top bubble.
+    expect(scale.bins[scale.bins.length - 1].r).toBeCloseTo(BUBBLE_R_MAX);
+  });
+
+  it("labels fractional bins in es-AR with decimals (no fabricated integers)", () => {
+    const scale = buildGraduatedScale(0.8, { fractional: true });
+    expect(scale.bins[0].label).toMatch(/\d,\d/);
+  });
+
+  it("keeps nice decimal steps and the exact max for mid-range maxima", () => {
+    const scale = buildGraduatedScale(3.19, { fractional: true });
+    const values = scale.bins.map((b) => b.value);
+    expect(values[values.length - 1]).toBeCloseTo(3.19);
+    for (const v of values) expect(v).toBeGreaterThan(0);
+    for (let i = 1; i < values.length; i++) expect(values[i]).toBeGreaterThan(values[i - 1]);
+  });
+
+  it("produces strictly-ascending interpolate stops from 0", () => {
+    const scale = buildGraduatedScale(0.42, { fractional: true });
+    expect(scale.radiusStops[0]).toEqual([0, BUBBLE_R_MIN]);
+    for (let i = 1; i < scale.radiusStops.length; i++) {
+      expect(scale.radiusStops[i][0]).toBeGreaterThan(scale.radiusStops[i - 1][0]);
+    }
+  });
+
+  it("degrades to an empty legend when there is no data", () => {
+    const scale = buildGraduatedScale(0, { fractional: true });
+    expect(scale.bins).toEqual([]);
+  });
+
+  it("does NOT change the integer scale for existing callers", () => {
+    const plain = buildGraduatedScale(340);
+    const explicit = buildGraduatedScale(340, { fractional: false });
+    expect(explicit).toEqual(plain);
+    expect(plain.maxValue).toBe(340);
+  });
+});

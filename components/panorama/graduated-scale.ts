@@ -93,18 +93,68 @@ export function graduatedSampleValues(max: number): number[] {
 }
 
 /**
+ * A "nice" step (1, 2, 5 × 10ⁿ) at or just below `rough`, WITHOUT the ≥1 clamp
+ * — n may be negative, so fractional domains (per-10k rates like 0,8) get honest
+ * decimal breakpoints (0,2 / 0,4 / …) instead of collapsing to integers.
+ */
+function niceStepFractional(rough: number): number {
+  if (!(rough > 0) || !Number.isFinite(rough)) return 1;
+  const exp = Math.floor(Math.log10(rough));
+  const base = 10 ** exp;
+  const frac = rough / base;
+  let nice: number;
+  if (frac < 1.5) nice = 1;
+  else if (frac < 3) nice = 2;
+  else if (frac < 7) nice = 5;
+  else nice = 10;
+  return nice * base;
+}
+
+/** Round to 2 decimals (kills float noise like 0.30000000000000004 in samples). */
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
+/**
+ * Ascending decimal sample values spanning (0, max] — the fractional-mode
+ * counterpart of {@link graduatedSampleValues}. Nice decimal steps, ending
+ * exactly at the observed max; the penultimate step is skipped when it would
+ * crowd the max (within half a step), so the legend never shows two
+ * near-identical top bubbles.
+ */
+function fractionalSampleValues(max: number): number[] {
+  if (!(max > 0) || !Number.isFinite(max)) return [];
+  const step = niceStepFractional(max / 4);
+  const out: number[] = [];
+  for (let v = step; v < max - step / 2; v += step) out.push(round2(v));
+  out.push(round2(max));
+  return [...new Set(out)].sort((a, b) => a - b);
+}
+
+/**
  * Build the full graduated scale from the observed maximum count across the
  * active graduated layers. Returns an empty scale when there is no data.
+ *
+ * `opts.fractional` (panorama-percapita): the per-cápita encoding feeds per-10k
+ * RATES, routinely fractional (12 events over 17,5 M hab. ≈ 0,01) — the default
+ * integer flooring would yield an empty scale and floor-size every bubble.
+ * Fractional mode keeps the real max and derives nice DECIMAL bins, labeled
+ * es-AR with up to 2 decimals. Integer counts (every existing caller) are
+ * byte-identical without the flag.
  */
-export function buildGraduatedScale(maxValue: number): GraduatedScale {
-  const max = Math.floor(maxValue);
+export function buildGraduatedScale(
+  maxValue: number,
+  opts?: { fractional?: boolean },
+): GraduatedScale {
+  const fractional = opts?.fractional === true;
+  const max = fractional ? round2(maxValue) : Math.floor(maxValue);
   if (max <= 0) {
     return { maxValue: 0, bins: [], radiusStops: [[0, BUBBLE_R_MIN]] };
   }
-  const samples = graduatedSampleValues(max);
+  const samples = fractional ? fractionalSampleValues(max) : graduatedSampleValues(max);
   const bins: GraduatedBin[] = samples.map((v) => ({
     value: v,
-    label: v.toLocaleString("es-AR"),
+    label: v.toLocaleString("es-AR", { maximumFractionDigits: 2 }),
     r: roundR(bubbleRadius(v, max)),
   }));
   // Stops start at 0 → floor radius (covers coalesced null / zero counts) so the
