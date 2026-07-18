@@ -307,7 +307,8 @@ export const EVENT_TYPES = [
   "rabies_observation_ended",
   // Medication adherence — dual-write with reminder.completedAt.
   "medication_dose_taken",
-  // Schema-ready, UI deferred — these require a non-owner reporting flow:
+  // Non-owner reporting flow — writers live in src/modules/welfare (abandonment/maltreatment)
+  // and src/modules/events/application/surveillance (symptom_observed).
   "symptom_observed",
   "abandonment_reported",
   "maltreatment_reported",
