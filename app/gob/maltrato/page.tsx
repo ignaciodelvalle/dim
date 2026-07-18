@@ -273,7 +273,18 @@ export default async function GobMaltratoPage({
               {TABS.map((tab) => (
                 <UrlTabsContent key={tab.value} value={tab.value}>
                   <OpCard className="mt-4">
-                    <OpCardHead title={`Denuncias (${totalCount})`} />
+                    {/* "(N en total)" — not a bare "(N)" (UI/UX audit 2026-07,
+                        number coherence): under "Todas" this count includes
+                        TERMINAL rows (cerrada/duplicada/sin sustento), so a bare
+                        number read as if it were the dashboard's "denuncias
+                        activas" figure (which counts non-terminal only) and the
+                        two "disagreed". The count must keep matching the list it
+                        heads (which legitimately shows closed rows), so we label
+                        it with the SAME "en total" vocabulary the pagination
+                        footer inside this card already uses, instead of
+                        narrowing it to active-only and desyncing it from the
+                        rows below. */}
+                    <OpCardHead title={`Denuncias (${totalCount} en total)`} />
                     <OpCardBody>
                       {rows.length === 0 ? (
                         <p className="text-sm text-ln-op-mute py-4 text-center">

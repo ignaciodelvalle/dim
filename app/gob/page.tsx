@@ -327,8 +327,23 @@ export default async function GobiernoDashboardPage({
         />
         <OpKpi
           label="Mordeduras / 10k hab."
-          value={formatRate(bitesPer10k.rate)}
-          tone="warn"
+          // Honest small-rate display (UI/UX audit 2026-07, number coherence):
+          // fetchBitesPer10k rounds to 1 decimal, so a few reports over a large
+          // population display "0,0" right next to "N reportes" — a fabricated
+          // "no incidence". Mirror of the panorama mordeduras tile's G2 guard
+          // (src/modules/panorama/application/get-panorama-kpis.ts) at this
+          // tile's 1-decimal grid — the same convention as per10kDisplayValue
+          // ("<0,01" at the map's 2-decimal grid) in
+          // src/modules/panorama/domain/percapita.ts.
+          value={
+            bitesPer10k.reports > 0 && formatRate(bitesPer10k.rate) === formatRate(0)
+              ? "<0,1"
+              : formatRate(bitesPer10k.rate)
+          }
+          // Semaphore gate: "Atención" (tone warn) must never fire over a
+          // displayed 0,0 — a genuine zero (0 reports) is a neutral state, not
+          // a warning. With the guard above, a displayed "0,0" ⟺ reports === 0.
+          tone={bitesPer10k.reports > 0 ? "warn" : "neutral"}
           deltaV2={
             bitesPer10k.delta !== 0
               ? {
