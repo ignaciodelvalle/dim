@@ -457,7 +457,11 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
-        {/* DC13: Official custody disclaimer */}
+        {/* DC13: Official custody disclaimer — the masthead situation chip
+            below is the single authority for announcing the custody STATE
+            (pet-state single authority standard, PO decision 2026-07-16,
+            mirrored here from the owner profile fix). This box only adds
+            what the chip can't: who's in charge and what a finder should do. */}
         {isUnderOfficialCustody && (
           <div
             role="alert"
@@ -467,11 +471,8 @@ export default async function PublicCredentialPage({
             <p className="mb-1 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-warn">
               Custodia oficial
             </p>
-            <p className="m-0 text-[13.5px] font-semibold text-ln-ink">
-              Esta mascota está bajo custodia oficial.
-            </p>
             {openCustodyEpisode?.authorityName && (
-              <p className="mt-1 text-sm text-ln-ink-2">
+              <p className="m-0 text-sm text-ln-ink-2">
                 Autoridad a cargo: {openCustodyEpisode.authorityName}
               </p>
             )}
