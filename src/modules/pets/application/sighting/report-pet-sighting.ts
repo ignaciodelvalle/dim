@@ -262,20 +262,24 @@ export async function reportPetSighting(
 
   // Insert notification — best-effort; a failure must not surface an error to the
   // reporter (the sighting was already recorded successfully).
+  const sightingNotification = {
+    userId: owner.userId,
+    notificationType: "pet_found_report",
+    title: `Avistaje de ${pet.name}`,
+    body: bodyParts.join(" "),
+    severity: "urgent" as const,
+    category: "perdidas",
+    relatedPetId: pet.id,
+    ctaLabel: "Ver mascota",
+    // Land on the cockpit (/mis-mascotas/{token}) which now surfaces sighting
+    // and possession reports while the pet is lost (UI-4 fix 7).
+    ctaUrl: `/mis-mascotas/${publicToken}`,
+  };
   try {
-    await db.insert(notifications).values({
-      userId: owner.userId,
-      notificationType: "pet_found_report",
-      title: `Avistaje de ${pet.name}`,
-      body: bodyParts.join(" "),
-      severity: "urgent",
-      category: "perdidas",
-      relatedPetId: pet.id,
-      ctaLabel: "Ver mascota",
-      // Land on the cockpit (/mis-mascotas/{token}) which now surfaces sighting
-      // and possession reports while the pet is lost (UI-4 fix 7).
-      ctaUrl: `/mis-mascotas/${publicToken}`,
-    });
+    await db.insert(notifications).values(sightingNotification);
+    // Web Push leg (ADR 2026-07-18 §4): urgent avistaje, best-effort, never throws.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications([sightingNotification]);
   } catch (e) {
     console.error("notifications insert failed (reportPetSightingAction did succeed)", e);
   }

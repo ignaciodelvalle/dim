@@ -94,18 +94,22 @@ export async function notifyOwnerOfFoundPet(
 
   // Insert notification — best-effort; a failure must not surface an error to the
   // anonymous finder (they already submitted successfully).
+  const foundNotification = {
+    userId: owner.userId,
+    notificationType: "pet_found_report",
+    title: `Alguien encontró a ${pet.name}`,
+    body,
+    severity: "urgent" as const,
+    category: "perdidas",
+    relatedPetId: pet.id,
+    ctaLabel: "Ver mascota",
+    ctaUrl: `/mis-mascotas/${pet.publicToken}`,
+  };
   try {
-    await db.insert(notifications).values({
-      userId: owner.userId,
-      notificationType: "pet_found_report",
-      title: `Alguien encontró a ${pet.name}`,
-      body,
-      severity: "urgent",
-      category: "perdidas",
-      relatedPetId: pet.id,
-      ctaLabel: "Ver mascota",
-      ctaUrl: `/mis-mascotas/${pet.publicToken}`,
-    });
+    await db.insert(notifications).values(foundNotification);
+    // Web Push leg (ADR 2026-07-18 §4): urgent hallazgo, best-effort, never throws.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications([foundNotification]);
   } catch (e) {
     console.error("notifications insert failed (notifyOwnerOfFoundPetAction did succeed)", e);
   }

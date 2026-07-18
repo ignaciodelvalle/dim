@@ -31,6 +31,7 @@
 import "server-only";
 
 import { db as defaultDb, notificationDeadLetter, notifications } from "@/db";
+import { sendPushForNotifications } from "@/lib/infra/web-push";
 import { sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;
@@ -119,6 +120,11 @@ export async function createNotification(
       .returning({ id: notifications.id });
 
     if (inserted.length > 0) {
+      // Web Push leg (ADR 2026-07-18 §4): urgent-only, best-effort, never
+      // throws. Runs only for genuinely NEW rows — a dedupe no-op must not
+      // re-push. Duplicate sends from retries collapse browser-side via the
+      // notification tag (= dedupeKey).
+      await sendPushForNotifications([values]);
       return { status: "inserted", id: inserted[0].id };
     }
     // No row returned → the dedupe_key already existed. Idempotent no-op.
@@ -194,6 +200,13 @@ export async function createNotificationsBulk(
         .returning({ id: notifications.id });
       insertedCount += inserted.length;
       duplicateCount += values.length - inserted.length;
+      // Web Push leg — urgent-only, best-effort. When a chunk mixes new rows
+      // and dedupe no-ops we cannot map returned ids back to inputs, so we
+      // push for every urgent input in a chunk that inserted at least one row;
+      // the browser-side tag (= dedupeKey) collapses any double-display.
+      if (inserted.length > 0) {
+        await sendPushForNotifications(values);
+      }
     } catch (err) {
       for (const v of values) {
         await deadLetter(v, err, client);
