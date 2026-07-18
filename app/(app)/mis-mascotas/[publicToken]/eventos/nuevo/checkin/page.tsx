@@ -21,7 +21,7 @@ export default async function PostAdoptionCheckinPage({
   searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
-  searchParams: Promise<{ notes?: string }>;
+  searchParams: Promise<{ notes?: string; autoconfirm?: string }>;
 }) {
   const { publicToken } = await params;
   const sp = await searchParams;
@@ -89,7 +89,11 @@ export default async function PostAdoptionCheckinPage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <CheckinForm action={boundAction} defaults={{ notes: sp.notes ?? null }} />
+        <CheckinForm
+          action={boundAction}
+          defaults={{ notes: sp.notes ?? null }}
+          autoConfirm={sp.autoconfirm === "1"}
+        />
       </LnSheetCard>
     </LnSheetWrap>
   );

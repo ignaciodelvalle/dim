@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 
 import type { CheckinFormState } from "@/app/actions/checkin";
 import { Icon } from "@/components/Icon";
@@ -18,13 +18,34 @@ const FORM_ID = "checkin-form";
 export function CheckinForm({
   action,
   defaults,
+  autoConfirm,
 }: {
   action: FormAction;
   defaults?: { notes: string | null };
+  /**
+   * Notification quick-reply autoconfirm (capture-console surface #4) — see
+   * VaccinationForm's autoConfirm doc for the full contract. CheckinForm has
+   * no `required` inputs, so `checkValidity()` is trivially true whenever the
+   * page reached this form at all (i.e. an open reminder exists — the page
+   * itself 404s/redirects otherwise). Still routed through the same guard
+   * for consistency and in case a future required field is added here.
+   */
+  autoConfirm?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const autoConfirmSubmitted = useRef(false);
+  useEffect(() => {
+    if (!autoConfirm || autoConfirmSubmitted.current) return;
+    autoConfirmSubmitted.current = true;
+    const form = formRef.current;
+    if (form?.checkValidity()) {
+      form.requestSubmit();
+    }
+  }, [autoConfirm]);
 
   return (
     <>
@@ -35,7 +56,7 @@ export function CheckinForm({
         subtitle="Libreta sanitaria oficial"
       />
       <LnSheetBody>
-        <form id={FORM_ID} action={formAction} className="contents">
+        <form id={FORM_ID} ref={formRef} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           <LnField label="¿Cómo está?">
             {({ id, describedBy, invalid }) => (

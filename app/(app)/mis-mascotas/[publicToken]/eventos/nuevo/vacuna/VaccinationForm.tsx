@@ -31,12 +31,24 @@ export function VaccinationForm({
   initialVaccineName,
   sourceReminderId,
   defaults,
+  autoConfirm,
 }: {
   action: FormAction;
   species: string;
   initialVaccineName?: string;
   sourceReminderId?: string;
   defaults?: { occurredAt: string | null; notes: string | null };
+  /**
+   * Notification quick-reply autoconfirm (capture-console surface #4): when
+   * true AND the required fields (vaccine name, application date) are
+   * already prefilled and valid, submits the form once on mount — no
+   * additional owner tap. Reuses the form's OWN `required` constraint
+   * validation via `formRef.current.checkValidity()`; the quick-reply island
+   * never builds a FormData or calls `action` itself. If validation fails
+   * (e.g. no reminder title AND no matcher-extracted vaccine name), the form
+   * just renders normally in edit mode — never a silent failure.
+   */
+  autoConfirm?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
@@ -69,6 +81,23 @@ export function VaccinationForm({
     resubmitAfterOverride.current = true;
     setOverrideSameDay(true);
   }
+
+  // Notification quick-reply autoconfirm (capture-console surface #4). Runs
+  // ONCE on mount — the ref guard matters because `autoConfirm` itself never
+  // changes after mount, but StrictMode double-invokes effects in dev.
+  // checkValidity() reuses the form's OWN `required` constraints (Vacuna,
+  // Fecha de aplicación) — this is the ONLY validation gate; the island that
+  // sent us here never inspected form validity itself. Invalid → do nothing,
+  // the form just renders normally in edit mode (never a silent failure).
+  const autoConfirmSubmitted = useRef(false);
+  useEffect(() => {
+    if (!autoConfirm || autoConfirmSubmitted.current) return;
+    autoConfirmSubmitted.current = true;
+    const form = formRef.current;
+    if (form?.checkValidity()) {
+      form.requestSubmit();
+    }
+  }, [autoConfirm]);
 
   const sameDayPrompt = !overrideSameDay ? state.sameDayPrompt : undefined;
 
