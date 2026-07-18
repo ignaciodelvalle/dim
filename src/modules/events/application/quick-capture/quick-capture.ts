@@ -25,7 +25,7 @@ import type { QuickCaptureResult } from "./types";
  * manually.
  *
  * @param publicToken  The pet's publicToken (e.g. "DIM-3K4F-9P2X").
- * @param text         Raw free-text from the EventCatcher textarea.
+ * @param text         Raw free-text from the Anotar quick-capture box.
  */
 // @no-auth-required: pure text→URL transformation; reads no data. publicToken is caller-provided and only used to construct the navigation deeplink path.
 export async function quickCapture(publicToken: string, text: string): Promise<QuickCaptureResult> {

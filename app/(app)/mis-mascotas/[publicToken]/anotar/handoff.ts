@@ -1,7 +1,7 @@
-// Pure helpers backing the EventCatcher → CaptureBox handoff. Extracted from
-// CaptureBox.tsx so vitest can parse them without pulling in JSX (the project
-// tsconfig uses jsx: "preserve" for Next.js, which vitest's import-analysis
-// plugin can't handle).
+// Pure helpers backing the Anotar quick-capture handoff (a notification CTA or
+// a home deeplink → CaptureBox). Extracted from CaptureBox.tsx so vitest can
+// parse them without pulling in JSX (the project tsconfig uses jsx: "preserve"
+// for Next.js, which vitest's import-analysis plugin can't handle).
 
 import type { EventType } from "@/db/schema";
 import {
@@ -11,10 +11,9 @@ import {
 } from "@/lib/events/event-capture-matcher";
 import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 
-// Builds the URL EventCatcher (the /inicio multi-pet capture widget) uses to
-// hand off typed text + chosen kind to the capture surface. Pure function,
-// lives outside EventCatcher.tsx so the vitest import-analysis can parse it
-// without JSX.
+// Builds the URL a notification CTA or home deeplink uses to hand off typed
+// text + chosen kind to the capture surface (?sheet=anotar). Pure function,
+// kept out of any JSX module so the vitest import-analysis can parse it.
 //
 // Flow audit 2026-07-03: the target is the PROFILE with ?sheet=anotar — the
 // canonical capture surface — not the standalone /anotar page. From the

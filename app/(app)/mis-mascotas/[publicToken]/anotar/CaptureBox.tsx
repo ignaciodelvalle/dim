@@ -12,7 +12,7 @@ import { goToCaptureUrl } from "@/lib/ui/capture-nav";
 import { todayIsoInAr } from "@/lib/utils/format";
 import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
 
-// Re-exports keep existing callers (tests, EventCatcher) working without churn.
+// Re-exports keep existing callers (tests, deeplink handoff) working without churn.
 export { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey };
 export type { QuickAction } from "./handoff";
 

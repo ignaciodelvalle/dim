@@ -169,7 +169,7 @@ export function SheetMounter({
   // Symptom-specific prefill slots (symptom_observed registry entry).
   const freeText = searchParams.get("freeText") ?? undefined;
   const onsetAt = searchParams.get("onsetAt") ?? undefined;
-  // anotar-specific prefill: forwarded event kind (e.g. from EventCatcher's
+  // anotar-specific prefill: forwarded event kind (e.g. from a notification CTA or
   // handoff, mirrors the `/anotar?kind=` fallback-page contract).
   const kind = searchParams.get("kind") ?? undefined;
 

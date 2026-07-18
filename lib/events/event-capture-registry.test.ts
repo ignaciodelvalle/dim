@@ -72,10 +72,9 @@ describe("EVENT_CAPTURE_REGISTRY", () => {
     expect(entry?.prefillSlots).toEqual(["occurredAt", "notes"]);
   });
 
-  it("medication_started forwards typed text via the EventCatcher chip handoff", () => {
+  it("medication_started forwards typed text via the Anotar chip handoff", () => {
     // medication_started carries notes + occurredAt so the medicacion chip
-    // can preserve typed text from the home EventCatcher into the form.
-    // See docs/eventcatcher-fixes-plan-2026-05-20.md PR 1.
+    // can preserve typed text from the Anotar quick-capture box into the form.
     const entry = EVENT_CAPTURE_REGISTRY.medication_started;
     expect(entry?.prefillSlots).toEqual(["notes", "occurredAt"]);
   });

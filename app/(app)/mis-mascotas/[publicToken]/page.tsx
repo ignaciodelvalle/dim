@@ -179,7 +179,7 @@ export default async function PetDetailPage({
   const isOwner = accessPath === "owner";
 
   // No-flash capture routing (code review 2026-07-03): when a deep link /
-  // notification / home EventCatcher lands on `?sheet=anotar` carrying a
+  // notification or home deeplink lands on `?sheet=anotar` carrying a
   // resolvable intent (a known `kind`, or free text the deterministic matcher
   // recognizes), resolve it HERE and redirect server-side — before any render.
   // The old client-side ResolvedCaptureRedirect wasted a full profile render
