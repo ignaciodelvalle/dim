@@ -150,7 +150,6 @@ describe("deriveComplianceState — rabies state machine", () => {
     expect(rabies?.state).toBe("Declarada");
     expect(rabies?.tone).toBe("neutral");
     expect(rabies?.detail).toBeTruthy();
-    expect(rabies?.provenance).toBe("declarado");
     expect(rabies?.dual?.ownerLabel).toContain("cargada por vos");
     // Currency unknown (no next_due_at) → no currency chip.
     expect(rabies?.dual?.currencyLabel).toBeNull();
@@ -203,7 +202,6 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     // vos" — the dual line says "registrada sin firma de matrícula".
     expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
-    expect(card?.provenance).toBe("declarado");
     expect(card?.dual?.ownerLabel).toContain("sin firma");
     // Currency IS known (future next_due) → shows the "Vigente" chip.
     expect(card?.dual?.currencyLabel).toBe("Vigente");
@@ -264,7 +262,6 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     const card = state.cards.find((c) => c.key === "rabies");
     expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
-    expect(card?.provenance).toBe("declarado");
     // Dual: the owner's dose IS vigente (currency lens) even though it does not
     // count as "al día" (compliance lens) — both truths surfaced at once (#4).
     expect(card?.dual?.currencyLabel).toBe("Vigente");
@@ -280,19 +277,17 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     const card = state.cards.find((c) => c.key === "rabies");
     expect(card?.state).toBe("Vencida");
     expect(card?.tone).toBe("over");
-    expect(card?.provenance).toBe("declarado");
     expect(card?.dual?.currencyLabel).toBe("Vencida");
     expect(card?.dual?.currencyTone).toBe("over");
   });
 
-  it("firmado_matricula: a vet-signed vigente rabies dose tags provenance 'firmado_matricula'", () => {
+  it("a vet-signed vigente rabies dose reads 'Vigente' (ok), no dual block", () => {
     const state = deriveComplianceState(
       baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", VET)] }),
     );
     const card = state.cards.find((c) => c.key === "rabies");
     expect(card?.state).toBe("Vigente");
     expect(card?.tone).toBe("ok");
-    expect(card?.provenance).toBe("firmado_matricula");
     expect(card?.dual).toBeUndefined();
   });
 

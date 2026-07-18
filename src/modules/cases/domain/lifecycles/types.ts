@@ -1,7 +1,7 @@
 // Shared types for case lifecycle declarations. Each
 // `src/modules/cases/domain/lifecycles/<kind>.ts` exports one `CaseLifecycle`
 // whose shape lets the rest of the system answer:
-// "Which events open / close this kind? Which states + phases are admitted?
+// "Which events open / close this kind? Which states are admitted?
 // Is there an auto-close cron? Is reopen allowed?"
 
 import type { EventType } from "@/db/schema";
@@ -29,13 +29,6 @@ export interface CaseLifecycle {
 
   /** Which `status` values the kind is allowed to transition through. */
   statusValues: readonly CaseStatus[];
-
-  /**
-   * Phase identifiers observable in the UI. NOT stored — derived from
-   * the latest relevant event at read time. Listed here so docs/tests
-   * can iterate them and the UI knows the universe.
-   */
-  phases: readonly string[];
 
   /** Events that may open a case of this kind (attachment mode `opens`). */
   opensEvents: readonly OpenTrigger[];

@@ -13,7 +13,6 @@ import type { CaseLifecycle } from "./types";
 export const fosterPlacementLifecycle: CaseLifecycle = {
   kind: "foster_placement",
   statusValues: ["open", "closed"],
-  phases: ["active", "closed_returned", "closed_adopted", "closed_pet_died", "closed_other"],
   opensEvents: [
     {
       eventType: "foster_assigned",

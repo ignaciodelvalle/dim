@@ -12,14 +12,6 @@ import type { CaseLifecycle } from "./types";
 export const custodyDisputeLifecycle: CaseLifecycle = {
   kind: "custody_dispute",
   statusValues: ["open", "escalated", "closed"],
-  phases: [
-    "dispute_open",
-    "dispute_escalated_stale",
-    "closed_ownership_confirmed",
-    "closed_ownership_transferred",
-    "closed_case_dismissed",
-    "closed_other",
-  ],
   opensEvents: [
     {
       eventType: "custody_dispute_raised",

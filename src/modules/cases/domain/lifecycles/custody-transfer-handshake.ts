@@ -14,13 +14,6 @@ import type { CaseLifecycle } from "./types";
 export const custodyTransferHandshakeLifecycle: CaseLifecycle = {
   kind: "custody_transfer_handshake",
   statusValues: ["open", "closed"],
-  phases: [
-    "proposed_awaiting_acceptance",
-    "accepted_finalized",
-    "rejected_by_receiver",
-    "cancelled_by_sender",
-    "auto_expired",
-  ],
   opensEvents: [
     {
       eventType: "custody_transfer_proposed",

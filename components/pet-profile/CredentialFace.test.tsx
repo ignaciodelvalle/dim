@@ -116,7 +116,6 @@ describe("CredentialFace — compliance summary vs. obligation cards (dedup, PO 
     // only where it surfaces in this component changes.
     expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
-    expect(card?.provenance).toBe("declarado");
 
     const html = render(state);
     // The summary tail is gone — neither wording it used to carry appears.
@@ -134,7 +133,6 @@ describe("CredentialFace — compliance summary vs. obligation cards (dedup, PO 
     const state = deriveComplianceState(complianceInput());
     const card = state.cards.find((c) => c.key === "rabies");
     expect(card?.state).toBe("Sin registro");
-    expect(card?.provenance).toBeUndefined();
 
     const html = render(state);
     expect(html).not.toContain("falta vacuna antirrábica");

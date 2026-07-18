@@ -243,7 +243,7 @@ Ownership follows the layered model as designed:
 
 When multiple rules conflict, **more specific wins**: locality > province > country > hardcoded default, resolved by `resolveBusinessRule` in `lib/infra/business-rules-resolver.ts`. A Belgrano rule overrides a CABA rule overrides an Argentina rule overrides the code default.
 
-**In flight — rules-engine v2 (SDD change `jurisdiction-compliance`):** extends the same table and registry (never a parallel system) with legal obligation types (`rabies_vaccination`, `sterilization`, `microchip_identification`), `requirement_level` tiers + legal metadata columns (planned migration 0118), a versioned national legal-baseline dataset with PO sign-off gate, and jurisdiction-aware compliance metrics and nudges. Artifacts in engram under `sdd/jurisdiction-compliance/*`.
+**In flight — rules-engine v2 (SDD change `jurisdiction-compliance`):** extends the same table and registry (never a parallel system) with legal obligation types (`rabies_vaccination`, `sterilization`, `microchip_identification`), `requirement_level` tiers + legal metadata columns (migration number TBD — 0118 is already taken by `event_amended_target_idx`; recount the next free integer at write time per the Definition of Done, never hardcode one from a plan), a versioned national legal-baseline dataset with PO sign-off gate, and jurisdiction-aware compliance metrics and nudges. Artifacts in engram under `sdd/jurisdiction-compliance/*`.
 
 ### Hard constraints
 
@@ -522,7 +522,7 @@ Indexes: partial index on `(user_id) where read_at IS NULL AND archived_at IS NU
 2. **Server actions** — `createPetAction` and `updatePetAction` insert a `ppp_registration_reminder` when a pet's breed is in the dangerous list.
 3. **Future: scheduled jobs** — `vaccine_due` reminders fire from upcoming `Reminder` rows, generating notifications a few days before the due date.
 
-UI for browsing notifications is deferred to a future round; for now the rows materialize correctly in the database and can be inspected in Studio.
+UI for browsing notifications is built — `/notificaciones` (`app/(app)/notificaciones/page.tsx`) lists the inbox with category grouping, keyset pagination, and a mark-all-read action.
 
 ### `PushSubscription` — Web Push (VAPID) endpoints, migration `0152`
 
@@ -1111,8 +1111,8 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Carrusel de credenciales del owner — se hojea entre las mascotas vivas (urgent-first) DENTRO de `/mis-mascotas/[publicToken]`; el índice `/mis-mascotas` es lista de filas + bandeja + In memoriam. La nav owner tiene 2 tabs (Mis mascotas, Denuncias) — no hay tab "Inicio". | `/mis-mascotas/[publicToken]` (`PetCredentialCarousel`) + `lib/domain/owner-carousel.ts` |
 | ✅ | Estado sanitario — nudges per-pet derivados de eventos propios (vacuna vencida, sin microchip, próximo recordatorio, scans de credencial, esterilización) | perfil de mascota + `lib/infra/owner-nudges.ts` (Item 5, owner-data only — sin señales de vigilancia) |
 | ✅ | Movilidad jurisdiccional Fase 1 — semáforo + checklist de requisitos de viaje + export PDF (5 corredores, valores regulatorios citation-pending) | `/mis-mascotas/[publicToken]/viaje` + `lib/projections/travel-compliance.ts` + `lib/reference/cross-border-corridors.ts` |
-| 🟢 | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2, plan pendiente) |
-| 🟢 | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4, plan listo) |
+| ✅ | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2) |
+| ✅ | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4) |
 
 ### Welfare denuncias (Ley 14.346)
 
@@ -1140,8 +1140,8 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Service offerings + scheduling con materialización vía cron | `/org/[orgToken]/servicios` |
 | ✅ | Coverage zones para targeting de lost-pet broadcast | `/org/[orgToken]/cobertura` |
 | ✅ | Members + capability grants | `/org/[orgToken]/miembros` |
-| 🟢 | Surface unificado de mascotas en tránsito (member + voluntary pool + vecino) | `/org/[orgToken]/transitos` (parte del plan foster pool) |
-| 🟢 | Listado de pets no aptas para adopción (con razón estructurada) | `/org/[orgToken]/pets/no-aptas` (parte del plan foster pool) |
+| ✅ | Surface unificado de mascotas en tránsito (member + voluntary pool + vecino) | `/org/[orgToken]/transitos` (parte del plan foster pool) |
+| ✅ | Listado de pets no aptas para adopción (con razón estructurada) | `/org/[orgToken]/pets/no-aptas` (parte del plan foster pool) |
 | ✅ | Bulk operations para refugios high-capacity (200+ animales) | `/org/[orgToken]/mascotas` — multi-select: vacunación, elegibilidad-adopción, publicar/despublicar listado (Sprint 8, #399-401) |
 
 ### Surveillance & health
@@ -1178,11 +1178,11 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 | Estado | Feature | Ruta / surface |
 |---|---|---|
 | ✅ | Admin surface básico (orgs + vet upgrades review) | `/admin/*` parcial |
-| 🟡 | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`), plan parcial existe |
+| ✅ | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`) + fases 10-14 (`2026-05-18-admin-page-next-phases-design.md`), ambos planes archivados |
 | ✅ | `/gob` portal scope-bound por localidad / jurisdicción | `requireAdminOrGovtOrRedirect()` en `lib/infra/auth-guards.ts`; admin ve scope universal, govt filtra por sus `govt_assignments`; todos los helpers de `lib/analytics/govt-dashboards.ts` aceptan el par `actor + jurisdictions` |
 | ✅ | Government dashboards (sanitary / analyst / welfare officer) | `/gob/mortalidad`, `/gob/vigilancia`, `/gob/analytics`, `/gob/poblacion`, `/gob/censo`, `/gob/programa` — UI completa con proyecciones sobre el event log |
 | ✅ | Admin rules console — `govt_business_rules` + registry declarativo de 8 tipos, cascade locality > province > country > default | `/admin/reglas` + `lib/domain/rule-types-registry.ts` + `lib/infra/business-rules-resolver.ts` (migración 0116) |
-| 🟢 | Rules-engine v2: jurisdiction-aware compliance (obligation types + legal baseline versionado + honest compliance surface + métricas jurisdiction-aware) | SDD change `jurisdiction-compliance` — spec/design/tasks en engram (`sdd/jurisdiction-compliance/*`); migración 0118 planeada |
+| 🟢 | Rules-engine v2: jurisdiction-aware compliance (obligation types + legal baseline versionado + honest compliance surface + métricas jurisdiction-aware) | SDD change `jurisdiction-compliance` — spec/design/tasks en engram (`sdd/jurisdiction-compliance/*`); número de migración a determinar (0118 ya está tomado por `event_amended_target_idx`) |
 
 ### Identity & legal
 
@@ -1340,9 +1340,7 @@ If a new feature seems to need an exception, write the exception into the PR des
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - ~~**`/pro` portal**~~ — removed in Sprint 1A Phase B. Independent vets now create a clinic org via `/cuenta/crear-consultorio` and operate from `/org/[orgToken]`.
 - **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/archive/2026-05-17-code-rename-refugio-to-org.md`.
-- **`/gob` portal** — govt scope-bound portal for locality approvals + regional dashboards. Designed in admin page spec v2.2; implementation follows admin page Fase 0.
-- **`/admin` portal** — already partially implemented; needs refinement to split govt-shared surfaces into `/gob`.
-- **Adoption-listing public surface (`/adoptar`)** — projection over (`pets` where current `Ownership` is org-held by `org_type` in (`shelter`, `rescue_network`), not death, not paused). Filters, region, species. UX and listing copy open.
+- **`/gob` portal** and **`/admin` portal** — built. `/gob` is govt scope-bound (locality approvals + regional dashboards via `requireAdminOrGovtOrRedirect()`); `/admin` holds universal-scope surfaces. Admin page spec v2.2 and the fases 10-14 follow-up plan are both archived (implemented). See Feature inventory → Admin & govt.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA interoperability is an open integration question; the goal is to complement it.
 - **Decomiso → temporary welfare-authority custody → refugio chain** — Ley Nacional 14.346 seizures should flow through `custody_transferred` events with a municipal welfare authority holding `shelter_custody` briefly before transferring to a refugio. Schema supports this; the authority-side portal and UX are open.
 - **Bulk operations for high-capacity refugios** — El Campito-scale shelters (200+ animals) need table-shaped UIs for bulk intake, vaccination logging, listing edits. Deferred to a later iteration; schema does not change.

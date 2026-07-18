@@ -298,6 +298,63 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
 }
 
 // ---------------------------------------------------------------------------
+// Shared former-owner derivation.
+//
+// "Immediate former owner" — no new table, no migration:
+//   Ownership rows for a pet form a chronological chain. Exactly one write
+//   path ends an INDIVIDUAL's (ownerUserId-based) ownership row and opens a
+//   custody_episode in the same breath: executeDecomiso (ends every active
+//   ownership row for the pet, any role, in one UPDATE, then opens the
+//   episode). Every subsequent step in the SAME custody chain — org-to-org
+//   handoff (acceptDecomisoHandoffInTx), reassignment, reject — only ever
+//   touches ownerOrganizationId-scoped shelter_custody rows; none of them
+//   re-ends an individual's row, and a handoff that opens a NEW episode for
+//   the receiver always closes the previous one first (findOpenCaseForPet-
+//   AndKind returns at most one open custody_episode per pet — see the
+//   double-seizure guard in validateExecuteDecomiso). So the MOST RECENTLY
+//   ENDED ownership row with a non-null ownerUserId is unambiguously the
+//   immediate former owner for whichever custody_episode is open right now,
+//   no matter how many org-to-org handoffs happened along the way. No role
+//   filter needed (owner / co_owner / foster / caretaker all qualify,
+//   matching Path 1 of requirePetAccess which is equally role-agnostic).
+//
+// SINGLE derivation shared by two call sites that each need a different
+// shape of the answer (docs-sync 2026-07-18 — the two used to be parallel,
+// hand-copied implementations that could silently drift):
+//   - getFormerOwnerReadAccess (below) — answers "does THIS caller qualify
+//     for a read grant on this pet".
+//   - findImmediateFormerOwnerOwnership's other caller,
+//     src/modules/decomiso/application/return-custody-to-owner.ts — needs the
+//     ROW itself (id + owner) with no caller to compare against, in order to
+//     reactivate it.
+export type ImmediateFormerOwnerOwnership = {
+  id: string;
+  ownerUserId: string;
+};
+
+type OwnershipExecutor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function findImmediateFormerOwnerOwnership(
+  petId: string,
+  executor: OwnershipExecutor = db,
+): Promise<ImmediateFormerOwnerOwnership | null> {
+  const [row] = await executor
+    .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, petId),
+        isNotNull(ownerships.ownerUserId),
+        isNotNull(ownerships.endedAt),
+      ),
+    )
+    .orderBy(desc(ownerships.endedAt))
+    .limit(1);
+  if (!row?.ownerUserId) return null;
+  return { id: row.id, ownerUserId: row.ownerUserId };
+}
+
+// ---------------------------------------------------------------------------
 // Former-owner READ-ONLY access during an open custody episode (PO decision
 // 2026-07-18): "El ex-dueño conserva LECTURA durante el proceso [de custodia
 // oficial / decomiso]. Si lo pierde [definitivamente], también los permisos.
@@ -313,24 +370,9 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
 //   - Only the pet profile page (the one read surface a former owner should
 //     see) calls this, AFTER requirePetAccess has already failed for them.
 //
-// "Immediate former owner" derivation — no new table, no migration:
-//   Ownership rows for a pet form a chronological chain. Exactly one write
-//   path ends an INDIVIDUAL's (ownerUserId-based) ownership row and opens a
-//   custody_episode in the same breath: executeDecomiso (ends every active
-//   ownership row for the pet, any role, in one UPDATE, then opens the
-//   episode). Every subsequent step in the SAME custody chain — org-to-org
-//   handoff (acceptDecomisoHandoffInTx), reassignment, reject — only ever
-//   touches ownerOrganizationId-scoped shelter_custody rows; none of them
-//   re-ends an individual's row, and a handoff that opens a NEW episode for
-//   the receiver always closes the previous one first (findOpenCaseForPet-
-//   AndKind returns at most one open custody_episode per pet — see the
-//   double-seizure guard in validateExecuteDecomiso). So the MOST RECENTLY
-//   ENDED ownership row with a non-null ownerUserId is unambiguously the
-//   immediate former owner for whichever custody_episode is open right now,
-//   no matter how many org-to-org handoffs happened along the way.
-//
-// Severing on permanent loss and continuity on return both fall out of this
-// same derivation for free, no extra bookkeeping needed:
+// Severing on permanent loss and continuity on return both fall out of the
+// findImmediateFormerOwnerOwnership derivation for free, no extra
+// bookkeeping needed:
 //   - adoption_finalized / death_recorded close the custody_episode (cascade
 //     or direct close) with no new custody_episode opened → findOpenCaseFor-
 //     PetAndKind returns null → this resolver returns { ok: false } → read
@@ -338,11 +380,9 @@ export async function requireAlivePetAccess(publicToken: string): Promise<PetAcc
 //   - IF a return-to-owner path re-opens (or reactivates) the ex-owner's
 //     'owner' ownership row and closes the episode, Path 1 of
 //     requirePetAccess grants FULL access again automatically — this
-//     resolver is never even reached at that point. NOTE: no such
-//     decomiso-specific return path exists in the codebase today (the
-//     existing return-to-owner module is scoped to lost_pet_episode, where
-//     the owner's row never ends in the first place) — see the decomiso
-//     report for this fork instead of a guessed implementation here.
+//     resolver is never even reached at that point. (This is exactly what
+//     src/modules/decomiso/application/return-custody-to-owner.ts's
+//     returnCustodyToOwnerInTx now does.)
 export type FormerOwnerReadAccess =
   | {
       ok: true;
@@ -365,41 +405,15 @@ export async function getFormerOwnerReadAccess(
   const custodyCase = await findOpenCaseForPetAndKind(petRow.id, "custody_episode");
   if (!custodyCase) return { ok: false };
 
-  // The caller's own most-recently-ended individual ownership row on this pet.
-  const [callerLastEnded] = await db
-    .select({ endedAt: ownerships.endedAt })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, petRow.id),
-        eq(ownerships.ownerUserId, userId),
-        isNotNull(ownerships.endedAt),
-      ),
-    )
-    .orderBy(desc(ownerships.endedAt))
-    .limit(1);
-  if (!callerLastEnded?.endedAt) return { ok: false };
-
   // The pet's overall most-recently-ended individual ownership row (any
-  // user). The caller only qualifies as the IMMEDIATE former owner if
-  // theirs is it — otherwise they're a stale prior owner from an earlier,
+  // user) — the SAME shared derivation returnCustodyToOwnerInTx uses to
+  // reactivate it. The caller only qualifies as the IMMEDIATE former owner
+  // if it's THEIRS — otherwise they're a stale prior owner from an earlier,
   // unrelated tenure (e.g. the pet was legitimately transferred away long
   // before this custody episode ever opened), and a different user is the
   // true immediate former owner tied to the CURRENT episode.
-  const [mostRecentEnded] = await db
-    .select({ endedAt: ownerships.endedAt })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, petRow.id),
-        isNotNull(ownerships.ownerUserId),
-        isNotNull(ownerships.endedAt),
-      ),
-    )
-    .orderBy(desc(ownerships.endedAt))
-    .limit(1);
-  if (!mostRecentEnded?.endedAt) return { ok: false };
-  if (callerLastEnded.endedAt.getTime() !== mostRecentEnded.endedAt.getTime()) {
+  const formerOwner = await findImmediateFormerOwnerOwnership(petRow.id);
+  if (!formerOwner || formerOwner.ownerUserId !== userId) {
     return { ok: false };
   }
 

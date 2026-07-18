@@ -23,17 +23,6 @@ import type { CaseLifecycle } from "./types";
 export const custodyEpisodeLifecycle: CaseLifecycle = {
   kind: "custody_episode",
   statusValues: ["open", "closed"],
-  // Phases are subdivisions of status='open' (lifecycles spec L1).
-  // closed_* entries below describe the closed state and are included
-  // here as documentation of closed_reason discriminators, not open phases.
-  phases: [
-    "intake_pending_acceptance",
-    "active_in_custody",
-    "closed_handoff_completed",
-    "closed_to_adoption",
-    "closed_to_owner_return",
-    "closed_pet_died",
-  ],
   opensEvents: [
     {
       eventType: "shelter_intake_recorded",

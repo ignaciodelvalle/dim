@@ -12,14 +12,6 @@ import type { CaseLifecycle } from "./types";
 export const biteIncidentLifecycle: CaseLifecycle = {
   kind: "bite_incident",
   statusValues: ["open", "escalated", "closed"],
-  phases: [
-    "observation_open",
-    "observation_escalated",
-    "observation_closed_negative",
-    "observation_closed_positive",
-    "observation_closed_dead",
-    "observation_closed_lost_to_followup",
-  ],
   opensEvents: [
     {
       eventType: "incident_reported",

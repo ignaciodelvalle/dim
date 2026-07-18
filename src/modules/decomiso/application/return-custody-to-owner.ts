@@ -37,67 +37,25 @@
 // below (event → reactivate → close govt custody → close case) mirrors
 // acceptDecomisoHandoffInTx's step order for parity, not for correctness.
 
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 
 import { auditLog, cases, type db, ownerships, petEvents, pets } from "@/db";
 import type { Case } from "@/db/schema";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { closeCase as libCloseCase } from "@/lib/infra/case-helpers";
+// Shared former-owner derivation (docs-sync 2026-07-18 — this used to be a
+// hand-copied PARALLEL implementation of getFormerOwnerReadAccess's "most-
+// recently-ended ownership row" query; unified into one function so the two
+// call sites can't drift). See the extensive derivation comment above
+// findImmediateFormerOwnerOwnership in lib/infra/pet-access.ts.
+import {
+  type ImmediateFormerOwnerOwnership,
+  findImmediateFormerOwnerOwnership,
+} from "@/lib/infra/pet-access";
 
 import type { GovtOrg, NewNotification } from "../domain/types";
 
-// ---------------------------------------------------------------------------
-// Shared former-owner derivation
-// ---------------------------------------------------------------------------
-
-export type ImmediateFormerOwnerOwnership = {
-  id: string;
-  ownerUserId: string;
-};
-
-type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
-
-/**
- * Finds the immediate former owner's most-recently-ended ownership row for a
- * pet — the SAME derivation as lib/infra/pet-access.ts's
- * getFormerOwnerReadAccess (see the extensive comment on that function for
- * the full reasoning): exactly one write path, executeDecomiso, ends every
- * active INDIVIDUAL (ownerUserId-keyed) ownership row for a pet in one
- * UPDATE right before opening a custody_episode, and no subsequent step in
- * the same custody chain (org-to-org handoff, reassignment, reject) ever
- * re-ends an individual's row. So the most-recently-ended ownerUserId-keyed
- * row is unambiguously the immediate former owner for whichever
- * custody_episode is open right now, no role filter needed (owner /
- * co_owner / foster / caretaker all qualify, matching Path 1 of
- * requirePetAccess which is equally role-agnostic).
- *
- * This is a PARALLEL implementation, not a call-through: getFormerOwnerReadAccess
- * takes a caller userId and answers "does THIS user qualify for a read
- * grant" — a shape that can't serve this call site, which needs the ROW
- * itself (id + owner) with no caller to compare against, in order to
- * reactivate it. lib/infra/pet-access.ts is out of territory for this change
- * (decomiso return-to-owner) — if that function's derivation ever changes,
- * this query must change in lockstep.
- */
-export async function findImmediateFormerOwnerOwnership(
-  petId: string,
-  executor: Executor,
-): Promise<ImmediateFormerOwnerOwnership | null> {
-  const [row] = await executor
-    .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, petId),
-        isNotNull(ownerships.ownerUserId),
-        isNotNull(ownerships.endedAt),
-      ),
-    )
-    .orderBy(desc(ownerships.endedAt))
-    .limit(1);
-  if (!row?.ownerUserId) return null;
-  return { id: row.id, ownerUserId: row.ownerUserId };
-}
+export type { ImmediateFormerOwnerOwnership };
 
 // ---------------------------------------------------------------------------
 // Types
