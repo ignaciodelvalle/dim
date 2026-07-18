@@ -1507,6 +1507,49 @@ export const notifications = pgTable(
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
 
+// ---------------------------------------------------------------------------
+// Push subscriptions (migration 0152) — Web Push (VAPID) delivery targets.
+//
+// PWA push v1 (ADR 2026-07-18-native-readiness §4): the notifications table
+// stays the source of truth; Web Push is a best-effort second delivery leg for
+// severity='urgent' rows only. Each row is one browser PushSubscription
+// (endpoint + client keys) owned by one user. Revocation is soft (revoked_at)
+// — set when the user toggles push off or the push service answers 410/404 —
+// so the row keeps an auditable trail; hard deletion only via profiles cascade.
+// ---------------------------------------------------------------------------
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    // Push service URL for this browser registration. Globally unique: the
+    // same endpoint re-submitted (same browser, new session) upserts in place.
+    endpoint: text("endpoint").notNull().unique(),
+    // Client public key + auth secret from PushSubscription.getKey(), base64url.
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    // Best-effort browser identification for the user's device list. Optional.
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set on every successful delivery; lets a cleanup cron drop stale rows.
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    // Soft revocation: user toggled off, or the push service returned 410/404.
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => ({
+    // Send-path index: all active subscriptions for one user.
+    userActiveIdx: index("push_subscriptions_user_active_idx")
+      .on(table.userId)
+      .where(sql`${table.revokedAt} IS NULL`),
+  }),
+);
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+
 // ============================================================================
 // NotificationDeadLetter — recoverable failure surface (migration 0124)
 // ============================================================================
