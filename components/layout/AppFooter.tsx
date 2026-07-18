@@ -23,9 +23,12 @@ const DEFAULT_COLUMNS: Column[] = [
       { href: "/perdidas", label: "Mascotas perdidas" },
       { href: "/adoptar", label: "Adoptar" },
       { href: "/denuncias", label: "Denuncias" },
-      // /libreta requires auth — omitted from public footer to avoid dead link.
-      // Authenticated users reach it from their portal sidebar.
-      { href: "/login", label: "Mi libreta" },
+      // Session-aware destination (tester fix #9): with an active session the
+      // old /login target showed the login page instead of the libreta.
+      // /mis-mascotas sits behind the (app) auth guard, so logged-in users
+      // land on their libreta and anonymous visitors are bounced to /login —
+      // the same place the link used to take them.
+      { href: "/mis-mascotas", label: "Mi libreta" },
     ],
   },
   {
