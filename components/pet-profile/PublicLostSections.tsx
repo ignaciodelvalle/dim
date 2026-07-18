@@ -19,6 +19,7 @@ import { lostTimeLabel } from "@/lib/infra/lost-listing";
 import { tattooLocationLabel } from "@/lib/reference/lookups";
 import {
   foundPossessivePhrase,
+  lastSeenHeadingLabel,
   lostBannerHeadline,
   lostFirstPersonLine,
   normalizePhoneForTel,
@@ -245,20 +246,15 @@ export function PublicLostSections({
         </section>
       )}
 
-      {!(lastSeenPlaceName || lastSeenLocality || hasLastSeenCoords) ? (
-        // Honest empty-state: on a lost pet's public credential an absent
-        // sighting location is decision-relevant — say so instead of hiding
-        // the whole section (consistency with the /perdidas board).
+      {/* Last-seen section — rendered ONLY when there is disclosable location
+          data. The old "Sin ubicación de avistaje registrada" empty-state read
+          as a data gap even when the owner HAD a location and simply chose not
+          to publish it (props arrive disclosure-filtered, so this component
+          cannot tell the cases apart) — tester fix #7: hide it entirely. */}
+      {(lastSeenPlaceName || lastSeenLocality || hasLastSeenCoords) && (
         <section className="border-t border-ln-line-2 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
-            Última vez vista
-          </p>
-          <p className="mt-1 text-sm italic text-ln-mute">Sin ubicación de avistaje registrada</p>
-        </section>
-      ) : (
-        <section className="border-t border-ln-line-2 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
-            Última vez vista
+            {lastSeenHeadingLabel(petSex)}
           </p>
           {(lastSeenPlaceName || lastSeenLocality) && (
             <p className="mt-1 text-sm font-medium text-ln-ink">
