@@ -27,7 +27,11 @@
 
 import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 
-import { db, petEvents, pets } from "@/db";
+// POOL: analyticsDb (session pooler), NOT the OLTP transaction pooler — these are
+// read-only multi-statement dashboard aggregates. supavisor transaction mode (6543)
+// has a measured >100x pathology for this fan-out shape (db/index.ts); session mode
+// serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
+import { analyticsDb as db, petEvents, pets } from "@/db";
 import { type DispositionBucket, bucketOf } from "@/lib/domain/disposition";
 import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
 import { petsScopeClause } from "@/lib/metrics/scope";

@@ -17,7 +17,11 @@ import {
   type OrganizationCapability,
   appointments,
   cases,
-  db,
+  // POOL: analyticsDb (session pooler), NOT the OLTP transaction pooler — read-only
+  // multi-statement org-dashboard aggregates. supavisor transaction mode (6543) has a
+  // measured >100x pathology for this fan-out shape (db/index.ts); session mode serves
+  // it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
+  analyticsDb as db,
   fosterProposals,
   organizationCapabilityGrants,
   organizations,

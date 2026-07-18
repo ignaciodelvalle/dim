@@ -34,7 +34,11 @@
 
 import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
-import { type GovtBusinessRuleType, auditLog, db, petEvents } from "@/db";
+// POOL: analyticsDb (session pooler), NOT the OLTP transaction pooler — these are
+// read-only multi-statement dashboard aggregates. supavisor transaction mode (6543)
+// has a measured >100x pathology for this fan-out shape (db/index.ts); session mode
+// serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
+import { type GovtBusinessRuleType, auditLog, analyticsDb as db, petEvents } from "@/db";
 
 // ---------------------------------------------------------------------------
 // Constants

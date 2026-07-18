@@ -25,7 +25,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { desc, eq } from "drizzle-orm";
 
-import { cronRuns, db } from "@/db";
+import { analyticsDb, cronRuns, db } from "@/db";
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { CRON_REGISTRY } from "@/lib/infra/cron-registry";
@@ -82,7 +82,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const now = Date.now();
 
     for (const entry of CRON_REGISTRY) {
-      const [latest] = await db
+      // POOL: the per-cron read loop runs ~22 sequential SELECTs. On the OLTP
+      // transaction pooler (6543) that many-statement shape hits supavisor's
+      // measured >100x pathology (db/index.ts) — the loop stalls past the
+      // function budget and the meta-cron throws → 500 → the fleet-caído banner.
+      // Route the READS through the session pooler (analyticsDb); the telemetry
+      // writes (insert/update below) stay on the OLTP `db`. Each SELECT is a fast
+      // indexed single-row lookup, well within analyticsDb's 15s backstop.
+      const [latest] = await analyticsDb
         .select({
           startedAt: cronRuns.startedAt,
           finishedAt: cronRuns.finishedAt,

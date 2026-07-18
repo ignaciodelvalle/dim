@@ -31,7 +31,12 @@
 
 import { and, count, eq, gte, lte, sql } from "drizzle-orm";
 
-import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
+// POOL: analyticsDb (session pooler), NOT the OLTP transaction pooler — these are
+// read-only multi-statement dashboard aggregates (fetchEnoSla feeds /admin/programa +
+// /gob/programa). supavisor transaction mode (6543) has a measured >100x pathology for
+// this fan-out shape (db/index.ts); session mode serves it normally. Locally analyticsDb
+// falls back to DATABASE_URL (identical dev/test).
+import { analyticsDb as db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { safePayloadUuid } from "@/lib/infra/sql-fragments";
 import {
