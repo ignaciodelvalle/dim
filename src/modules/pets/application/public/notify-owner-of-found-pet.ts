@@ -34,26 +34,6 @@ export async function notifyOwnerOfFoundPet(
 ): Promise<PublicActionState> {
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
-  // Read the trusted caller IP via callerIp() — prefers x-real-ip (edge-set),
-  // falls back to the LAST segment of x-forwarded-for (edge-appended hop).
-  // Never uses the first XFF segment, which is client-controlled and spoofable.
-  const reqHeaders = await headers();
-  const ip = callerIp(reqHeaders);
-  try {
-    await enforceRateLimit(`found_notify:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
-  }
-
   const finderName = String(formData.get("finderName") ?? "").trim();
   const finderContact = String(formData.get("finderContact") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
@@ -81,6 +61,28 @@ export async function notifyOwnerOfFoundPet(
     .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
     .limit(1);
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
+
+  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
+  // rejected form (missing name/contact) must not burn the (IP, token) budget
+  // and block the immediate retry. Reads the trusted caller IP via callerIp()
+  // — prefers x-real-ip (edge-set), falls back to the LAST segment of
+  // x-forwarded-for; never the first XFF segment (client-spoofable).
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`found_notify:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
+  }
 
   // Truncate finder-supplied strings so a notification cannot be used as a
   // payload-size vector. Plenty of room for a useful message.

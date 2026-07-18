@@ -59,23 +59,6 @@ export async function reportPetSighting(
 ): Promise<SightingActionState> {
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
-  const reqHeaders = await headers();
-  const ip = callerIp(reqHeaders);
-  try {
-    await enforceRateLimit(`sighting:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
-  }
-
   const loc = parseLocationFromFormData(formData);
   const description = String(formData.get("description") ?? "").trim();
   const sightedAtIso = String(formData.get("sightedAt") ?? "").trim();
@@ -146,6 +129,27 @@ export async function reportPetSighting(
   const occurredAt = sightedAtIso ? parseArDatetimeLocal(sightedAtIso) : new Date();
   if (!occurredAt) {
     return { ok: false, error: "Fecha y hora del avistaje inválida." };
+  }
+
+  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
+  // validation-rejected submission (missing pin, invalid date) used to burn
+  // the (IP, token) budget and block the immediate retry. The limiter still
+  // guards everything that writes or notifies below.
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`sighting:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
   }
 
   const noteText = safeDescription

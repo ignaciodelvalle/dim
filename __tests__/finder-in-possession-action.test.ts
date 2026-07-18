@@ -383,6 +383,23 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(result.error).toContain("nombre");
   });
 
+  it("a validation-rejected submission does NOT consume the rate-limit budget (tester fix #6)", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    mockEnforceRateLimit.mockClear();
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const { finderName: _dropped, ...noName } = BASE_FIELDS;
+    const fd = makeFormData({ ...noName, canKeepIndefinite: "true" }); // no name → rejected
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
   it("returns ok:false when both phone and email are missing", async () => {
     vi.resetModules();
     buildMockDb("lost");

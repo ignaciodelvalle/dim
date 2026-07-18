@@ -289,6 +289,39 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 
   // --- Rate limiting (persistent DB-backed enforceRateLimit) ---
 
+  it("a validation-rejected submission does NOT consume the rate-limit budget (tester fix #6)", async () => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockClear();
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    // Missing location → validation error BEFORE the limiter is consulted,
+    // so the finder can fix the form and retry immediately.
+    const fd = makeFormData({});
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("a successful submission DOES consume the rate-limit budget", async () => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockClear();
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+    expect(result.ok).toBe(true);
+    expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
+  });
+
   it("returns ok:false when enforceRateLimit throws RateLimitError", async () => {
     vi.resetModules();
     buildMockDb();

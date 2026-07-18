@@ -49,23 +49,6 @@ export async function reportFinderInPossessionAction(
 ): Promise<FinderInPossessionState> {
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
-  const reqHeaders = await headers();
-  const ip = callerIp(reqHeaders);
-  try {
-    await enforceRateLimit(`finder_possession:${publicToken}`, ip, {
-      maxPerMinute: 1,
-      maxPerHour: 10,
-    });
-  } catch (err) {
-    if (err instanceof RateLimitError) {
-      return {
-        ok: false,
-        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
-      };
-    }
-    throw err;
-  }
-
   // Parse form fields.
   const rawFinderName = String(formData.get("finderName") ?? "").trim();
   const rawFinderPhone = String(formData.get("finderPhone") ?? "").trim();
@@ -164,6 +147,27 @@ export async function reportFinderInPossessionAction(
     .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
     .limit(1);
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
+
+  // Rate limit — consumed only AFTER validation passes (tester fix #6): a
+  // rejected form (missing contact, no pin, bad date) must not burn the
+  // (IP, token) budget and block the immediate retry. Still guards every
+  // write/notification below.
+  const reqHeaders = await headers();
+  const ip = callerIp(reqHeaders);
+  try {
+    await enforceRateLimit(`finder_possession:${publicToken}`, ip, {
+      maxPerMinute: 1,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return {
+        ok: false,
+        error: "Ya enviaste un aviso hace poco. Probá de nuevo en unos minutos.",
+      };
+    }
+    throw err;
+  }
 
   // Build the canonical contact string: phone takes precedence; append email
   // when both are provided. The schema's finderContact is a single text field.
