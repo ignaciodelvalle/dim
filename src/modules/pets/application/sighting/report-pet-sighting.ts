@@ -9,7 +9,10 @@
 //   - pet_event note_added (category=otro, kind="sighting", raw description
 //     text) so the owner sees the sighting in the timeline and sightingsCount
 //     can be derived from payload->>'kind' = 'sighting'.
-//   - notification (severity=urgent) to the owner.
+//   - notification (pet_sighting, severity=warning) to the owner. A sighting
+//     is NOT a hallazgo: it gets its own notification type and a high-but-
+//     distinct severity so the Bandeja never styles "someone saw the pet" like
+//     "someone HAS the pet" (external tester fix list #1, ciclo perdido).
 //
 // Rate-limited by (IP, publicToken) per 5 minutes to mitigate abuse. The
 // matching limiter for the "I found her" form lives in app/actions/public.ts.
@@ -262,12 +265,16 @@ export async function reportPetSighting(
 
   // Insert notification — best-effort; a failure must not surface an error to the
   // reporter (the sighting was already recorded successfully).
+  // Taxonomy: a sighting is its own notification type ("pet_sighting"), never
+  // "pet_found_report" — the finder does NOT have the pet. Severity "warning"
+  // keeps it elevated in the Bandeja while visually distinct from the urgent
+  // possession/found alerts (red bar vs amber bar).
   const sightingNotification = {
     userId: owner.userId,
-    notificationType: "pet_found_report",
+    notificationType: "pet_sighting",
     title: `Avistaje de ${pet.name}`,
     body: bodyParts.join(" "),
-    severity: "urgent" as const,
+    severity: "warning" as const,
     category: "perdidas",
     relatedPetId: pet.id,
     ctaLabel: "Ver mascota",
@@ -277,7 +284,8 @@ export async function reportPetSighting(
   };
   try {
     await db.insert(notifications).values(sightingNotification);
-    // Web Push leg (ADR 2026-07-18 §4): urgent avistaje, best-effort, never throws.
+    // Web Push leg (ADR 2026-07-18 §4): avistaje, best-effort, never throws.
+    // pet_sighting rows push despite warning severity (see sendPushForNotifications).
     const { sendPushForNotifications } = await import("@/lib/infra/web-push");
     await sendPushForNotifications([sightingNotification]);
   } catch (e) {

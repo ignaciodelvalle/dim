@@ -29,7 +29,8 @@ import { sql } from "drizzle-orm";
  * the good-news signal that MUST persist after the pet is found.
  */
 export const LOST_ACTIVE_NOTIFICATION_TYPES = [
-  "pet_found_report", // sighting: "Avistaje de {pet}" (report-pet-sighting, notify-owner-of-found-pet)
+  "pet_sighting", // "Avistaje de {pet}" — someone SAW the pet (report-pet-sighting)
+  "pet_found_report", // "Alguien encontró a {pet}" (notify-owner-of-found-pet; also pre-taxonomy sighting rows)
   "lost_pet_broadcast", // zone broadcast to covering org members (lost-pet-broadcast)
   "pet_in_possession", // a finder reports holding the pet (/p/[token]/encontre)
 ] as const;

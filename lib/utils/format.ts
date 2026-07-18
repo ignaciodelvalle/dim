@@ -920,6 +920,10 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   lost_episode_resolved_broadcast: "Mascota encontrada — difusión",
   lost_episode_resolved_owner: "Mascota encontrada",
   lost_pet_broadcast: "Alerta de mascota perdida",
+  // Taxonomy (tester fix #1): a sighting is NOT a hallazgo. New sighting rows
+  // carry pet_sighting; pet_found_report stays mapped so pre-taxonomy rows
+  // (old sightings AND found reports) keep rendering a sane label.
+  pet_sighting: "Avistaje reportado",
   pet_found_report: "Reporte de mascota encontrada",
   pet_in_possession: "Mascota en posesión",
   // Org
