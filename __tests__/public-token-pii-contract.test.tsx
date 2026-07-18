@@ -483,3 +483,71 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     expect(html).not.toContain('data-section="masthead-situation-chip"');
   });
 });
+
+// Custody-state dedup (PO-approved fix, mirrors the owner-profile single-
+// authority standard in components/pet-profile/pet-state-single-authority.test.tsx,
+// PO decision 2026-07-16). Before the fix, the public credential announced
+// "under official custody" TWICE: once via the masthead situation chip, once
+// via a redundant body sentence in the DC13 custody-disclaimer box. The
+// standard: the masthead chip is the single authority for the STATE; the
+// disclaimer box may only add what the chip can't (who's in charge, what a
+// finder should do next).
+function countOccurrences(html: string, needle: string): number {
+  return html.split(needle).length - 1;
+}
+
+describe("/p/[publicToken] — custody state announced exactly once (DC13 dedup)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+    mockGetUserById.mockResolvedValue({ data: { user: { email: EMAIL } } });
+  });
+
+  it("ACTIVE pet under official custody: 'Bajo custodia oficial' renders once (the chip), the redundant sentence is gone, unique authority info remains", async () => {
+    mockDbSelect.mockImplementation(
+      buildSequencedSelectChain([
+        [{ pet: ACTIVE_PET, photo: null }],
+        [],
+        [],
+        [{ caseId: "case-custody-1", authorityName: "Municipalidad de Test" }],
+        [],
+      ]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: ACTIVE_PET.publicToken }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    // The state is announced exactly once, by the masthead chip.
+    expect(countOccurrences(html, "Bajo custodia oficial")).toBe(1);
+    expect(html).toContain('data-section="masthead-situation-chip"');
+    expect(html).toContain('data-situation="custodia-oficial"');
+
+    // The redundant restatement sentence is gone — it carried no info the
+    // chip didn't already give.
+    expect(html).not.toContain("Esta mascota está bajo custodia oficial.");
+
+    // The disclaimer box still renders — but only for its unique content:
+    // who's in charge and what a finder should do.
+    expect(html).toContain('data-section="custody-disclaimer"');
+    expect(html).toContain("Autoridad a cargo: Municipalidad de Test");
+    expect(html).toContain("Comunicate con la autoridad sanitaria competente");
+  });
+
+  it("ACTIVE pet NOT under official custody: neither the chip nor the disclaimer box render", async () => {
+    mockDbSelect.mockImplementation(
+      buildSequencedSelectChain([[{ pet: ACTIVE_PET, photo: null }], [], [], [], []]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: ACTIVE_PET.publicToken }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    expect(html).not.toContain("Bajo custodia oficial");
+    expect(html).not.toContain('data-section="custody-disclaimer"');
+  });
+});
