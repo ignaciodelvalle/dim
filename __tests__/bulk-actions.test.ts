@@ -159,7 +159,11 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe("bulkApproveRequestsAction", () => {
-  it("approves multiple requests and tags every audit row with one bulk_action_id", async () => {
+  // Matrícula (role_upgrade_vet) requests are DELIBERATELY not bulk-approvable
+  // (UI/UX audit 2026-07): each requires the individual verification flow on the
+  // detail page. The bulk path refuses them per-item — see approve-request.ts
+  // (bulkActionId != null + type role_upgrade_vet → refusal).
+  it("refuses vet matrícula requests in bulk — each lands in failed[], no role flip", async () => {
     await resetApplicant(applicant1Id);
     await resetApplicant(applicant2Id);
     const t1 = await seedVetRequest(applicant1Id, "DIM-BULK-APR-1");
@@ -168,24 +172,24 @@ describe("bulkApproveRequestsAction", () => {
 
     const result = await bulkApproveRequestsAction({ requestPublicTokens: [t1, t2] });
 
-    expect(result.succeeded.sort()).toEqual([t1, t2].sort());
-    expect(result.failed).toHaveLength(0);
+    // Both refused (the loop processed both — accumulation, not abort).
+    expect(result.succeeded).toHaveLength(0);
+    expect(result.failed.map((f) => f.id).sort()).toEqual([t1, t2].sort());
+    expect(result.failed.every((f) => f.reason.includes("no se aprueban en lote"))).toBe(true);
 
-    // Both requests flipped to approved.
+    // Neither request advanced and neither applicant became a vet.
     const reqs = await db
-      .select({ token: approvalRequests.publicToken, status: approvalRequests.status })
+      .select({ status: approvalRequests.status })
       .from(approvalRequests)
       .where(inArray(approvalRequests.publicToken, [t1, t2]));
-    expect(reqs.every((r) => r.status === "approved")).toBe(true);
-
-    // Both applicants are now vets (the mutation fired).
+    expect(reqs.every((r) => r.status === "pending")).toBe(true);
     const apps = await db
       .select({ role: profiles.role })
       .from(profiles)
       .where(inArray(profiles.id, [applicant1Id, applicant2Id]));
-    expect(apps.every((a) => a.role === "vet")).toBe(true);
+    expect(apps.every((a) => a.role === "owner")).toBe(true);
 
-    // Both audit rows carry the SAME bulk_action_id == result.bulkActionId.
+    // No approval audit rows were written under this bulk_action_id.
     const audits = await db
       .select({ payload: auditLog.payload })
       .from(auditLog)
@@ -193,7 +197,7 @@ describe("bulkApproveRequestsAction", () => {
     const bulkTagged = audits.filter(
       (a) => (a.payload as { bulk_action_id?: string }).bulk_action_id === result.bulkActionId,
     );
-    expect(bulkTagged.length).toBe(2);
+    expect(bulkTagged.length).toBe(0);
   });
 
   it("partial failure: a non-existent token lands in failed[] without aborting the rest", async () => {
@@ -205,10 +209,13 @@ describe("bulkApproveRequestsAction", () => {
       requestPublicTokens: [t1, "DIM-BULK-DOES-NOT-EXIST"],
     });
 
-    expect(result.succeeded).toEqual([t1]);
-    expect(result.failed).toHaveLength(1);
-    expect(result.failed[0].id).toBe("DIM-BULK-DOES-NOT-EXIST");
-    expect(result.failed[0].reason).toContain("no encontrada");
+    // Both fail — the vet token by bulk-refusal, the unknown token by not-found —
+    // and the loop processed both (no abort on the first failure).
+    expect(result.succeeded).toHaveLength(0);
+    expect(result.failed).toHaveLength(2);
+    const byId = Object.fromEntries(result.failed.map((f) => [f.id, f.reason]));
+    expect(byId[t1]).toContain("no se aprueban en lote");
+    expect(byId["DIM-BULK-DOES-NOT-EXIST"]).toContain("no encontrada");
   });
 
   it("rejects an unauthenticated caller (redirect throws)", async () => {
