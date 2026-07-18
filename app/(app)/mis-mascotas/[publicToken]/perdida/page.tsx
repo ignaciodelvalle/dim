@@ -17,7 +17,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
+import { fetchLatestLostDescription, fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { lostLabel, markLostActionLabel } from "@/lib/utils/format";
@@ -72,7 +72,10 @@ export default async function MarkPetLostPage({
   }
 
   const boundAction = setPetLostAction.bind(null, pet.publicToken);
-  const canonicalIds = await fetchActiveIdentifications(pet.id);
+  const [canonicalIds, priorLostDescription] = await Promise.all([
+    fetchActiveIdentifications(pet.id),
+    fetchLatestLostDescription(pet.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-md px-8 py-7 pb-12">
@@ -107,6 +110,9 @@ export default async function MarkPetLostPage({
         petDistinguishingFeatures={pet.distinguishingFeatures ?? null}
         petJurisdictionProvince={pet.jurisdictionProvince ?? null}
         petJurisdictionLocality={pet.jurisdictionLocality ?? null}
+        priorAccessoriesWhenLost={priorLostDescription?.accessoriesWhenLost ?? null}
+        priorBehaviorNotes={priorLostDescription?.behaviorNotes ?? null}
+        priorLastSeenContext={priorLostDescription?.lastSeenContext ?? null}
       />
     </div>
   );
