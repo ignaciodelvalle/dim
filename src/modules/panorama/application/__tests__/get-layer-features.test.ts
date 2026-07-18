@@ -21,6 +21,7 @@ vi.mock("@/src/modules/panorama/infrastructure/repository", () => ({
   loadDecomisos: vi.fn(),
   loadChoroplethByLevel: vi.fn(),
   loadTerritorialIndexByProvince: vi.fn(),
+  loadCensusLookup: vi.fn(),
 }));
 
 import type {
@@ -31,6 +32,7 @@ import type {
 } from "@/src/modules/panorama/infrastructure/repository";
 import {
   loadBiteEvents,
+  loadCensusLookup,
   loadChoroplethByLevel,
   loadClinics,
   loadDecomisos,
@@ -87,6 +89,7 @@ const mockLoadClinics = vi.mocked(loadClinics);
 const mockLoadDecomisos = vi.mocked(loadDecomisos);
 const mockLoadChoropleth = vi.mocked(loadChoroplethByLevel);
 const mockLoadTerritorialIndex = vi.mocked(loadTerritorialIndexByProvince);
+const mockLoadCensusLookup = vi.mocked(loadCensusLookup);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -1231,5 +1234,101 @@ describe("getLayerFeatures — bitemporal replay basis (task #77)", () => {
     // Final arg is undefined → the loader's own default ("valid") applies.
     const call = mockLoadMordeduras.mock.calls[0];
     expect(call[call.length - 1]).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Per-cápita census enrichment (panorama-percapita v1 — province grain)
+// ---------------------------------------------------------------------------
+
+describe("getLayerFeatures — per-cápita census enrichment (province grain)", () => {
+  const since = new Date("2026-06-01T00:00:00.000Z");
+  const lookup = {
+    populations: { "Buenos Aires": 120_000 },
+    year: 2022,
+    source: "INDEC Censo 2022",
+  };
+
+  it("enriches an ELIGIBLE layer's province cells with population/per10k/census meta", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
+    mockLoadCensusLookup.mockResolvedValue(lookup);
+
+    const result = await getLayerFeatures("perdidas", { role: "admin" }, [], { since }, "province");
+
+    expect(mockLoadCensusLookup).toHaveBeenCalledOnce();
+    const props = result.features.features[0].properties as Record<string, unknown>;
+    // count 12 over 120.000 inhabitants → 1 per 10.000.
+    expect(props.count).toBe(12);
+    expect(props.population).toBe(120_000);
+    expect(props.per10k).toBe(1);
+    expect(props.censusYear).toBe(2022);
+    expect(props.censusSource).toBe("INDEC Censo 2022");
+  });
+
+  it("does NOT enrich at locality level (no department/locality denominator in v1)", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
+    mockLoadCensusLookup.mockResolvedValue(lookup);
+
+    const result = await getLayerFeatures("perdidas", { role: "admin" }, [], { since }, "locality");
+
+    expect(mockLoadCensusLookup).not.toHaveBeenCalled();
+    const props = result.features.features[0].properties as Record<string, unknown>;
+    expect(props.per10k).toBeUndefined();
+  });
+
+  it("does NOT enrich an ineligible layer (zoonosis — department grain, no denominator)", async () => {
+    mockLoadZoonosis.mockResolvedValue(aggRows());
+    mockLoadCensusLookup.mockResolvedValue(lookup);
+
+    const result = await getLayerFeatures("zoonosis", { role: "admin" }, [], { since }, "province");
+
+    expect(mockLoadCensusLookup).not.toHaveBeenCalled();
+    const props = result.features.features[0].properties as Record<string, unknown>;
+    expect(props.per10k).toBeUndefined();
+  });
+
+  it("serves the layer UNENRICHED when the census lookup is unavailable (never fails the fetch)", async () => {
+    mockLoadPerdidas.mockResolvedValue(aggRows());
+    mockLoadCensusLookup.mockResolvedValue(null);
+
+    const result = await getLayerFeatures("perdidas", { role: "admin" }, [], { since }, "province");
+
+    // The layer still renders (count encoding); per-cápita simply has no data.
+    expect(result.features.features).toHaveLength(1);
+    const props = result.features.features[0].properties as Record<string, unknown>;
+    expect(props.count).toBe(12);
+    expect(props.per10k).toBeUndefined();
+  });
+
+  it("does NOT enrich a points-mode result (real dots carry no per-unit counts)", async () => {
+    mockLoadBiteEvents.mockResolvedValue({
+      rows: [
+        {
+          id: "e1",
+          locationLat: "-34.6",
+          locationLng: "-58.4",
+          incidentType: "bite_inflicted",
+          severity: null,
+          occurredAt: "2026-06-10T00:00:00.000Z",
+        },
+      ],
+      truncated: false,
+      noCoordCount: 0,
+    });
+    mockLoadCensusLookup.mockResolvedValue(lookup);
+
+    const result = await getLayerFeatures(
+      "mordeduras",
+      { role: "govt" },
+      [{ province: "Salta", locality: "Salta" }],
+      { since },
+      "province",
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(result.mode).toBe("points");
+    expect(mockLoadCensusLookup).not.toHaveBeenCalled();
   });
 });

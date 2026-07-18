@@ -19,6 +19,7 @@ import {
   type LayerRows,
   type ProvinceChoroplethRows,
   loadBiteEvents,
+  loadCensusLookup,
   loadChoroplethByLevel,
   loadClinics,
   loadDecomisos,
@@ -34,6 +35,7 @@ import {
   loadZoonosisByUnit,
 } from "@/src/modules/panorama/infrastructure/repository";
 
+import { enrichPerCapita, isPercapitaEligible } from "@/src/modules/panorama/domain/percapita";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
@@ -233,7 +235,7 @@ async function choroplethResult(
   );
 }
 
-export async function getLayerFeatures(
+async function resolveLayerFeatures(
   layer: LayerId,
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -585,4 +587,32 @@ export async function getLayerFeatures(
     default:
       return empty();
   }
+}
+
+/**
+ * The use-case entry point: resolve the layer's features, then — for a
+ * per-cápita-ELIGIBLE layer served at PROVINCE grain (panorama-percapita v1) —
+ * join the province cells to `jurisdictions_census` and carry
+ * population/per10k/census metadata ON the feature props. The enrichment rides
+ * the features (not a side channel) so every payload path — Data Cache,
+ * first-visit seed, saved boards — preserves it; the CLIENT projection
+ * (domain/percapita.projectPerCapita) swaps count → per10k only while the
+ * encoding is active, so the same payload serves both encodings with no
+ * refetch on toggle.
+ *
+ * Never fatal: a missing/unavailable census lookup serves the layer unenriched
+ * (the per-cápita encoding then honestly reads as no-data). Points-mode results
+ * are real event dots (no per-unit counts) — never enriched. Locality grain is
+ * never enriched: v1 has no department/locality denominator (phase 2).
+ */
+export async function getLayerFeatures(
+  ...args: Parameters<typeof resolveLayerFeatures>
+): Promise<LayerFeaturesResult> {
+  const [layer, , , , level = "locality"] = args;
+  const result = await resolveLayerFeatures(...args);
+  if (level !== "province" || !isPercapitaEligible(layer)) return result;
+  if (result.mode === "points") return result;
+  const lookup = await loadCensusLookup();
+  if (!lookup) return result;
+  return { ...result, features: enrichPerCapita(result.features, lookup) };
 }

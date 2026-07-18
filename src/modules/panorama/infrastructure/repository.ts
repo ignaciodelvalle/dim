@@ -27,6 +27,7 @@ import {
   arLocalities,
   cases,
   analyticsDb as db,
+  jurisdictionsCensus,
   organizations,
   panoramaCube,
   panoramaCubeMeta,
@@ -63,6 +64,7 @@ import { fetchVetAccessByLocality, perThousand } from "@/lib/metrics/vet-access"
 import { findDisease } from "@/lib/reference/diseases";
 import { PROVINCE_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
 import { isNationalDepartmentGrain } from "@/src/modules/panorama/domain/layers";
+import type { CensusLookup } from "@/src/modules/panorama/domain/percapita";
 
 import {
   type AggregatedPointCell,
@@ -3922,4 +3924,58 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   }));
 
   return { events, trend, byType };
+}
+
+// ---------------------------------------------------------------------------
+// Per-cápita census lookup (panorama-percapita v1 — province grain)
+// ---------------------------------------------------------------------------
+
+/**
+ * Process-lifetime cache for the census lookup. `jurisdictions_census` is a
+ * STATIC reference table (24 INDEC rows, re-seeded only by a migration when a
+ * new national census publishes), so one query per process is enough — the
+ * per-cápita enrichment then costs zero extra queries on every layer fetch.
+ * A failed/empty read is NOT cached: the next fetch retries, so a transient
+ * startup hiccup can't pin "no census" for the process lifetime.
+ */
+let censusLookupCache: CensusLookup | null = null;
+
+/**
+ * Load the province→population census lookup for the per-cápita encoding
+ * (domain/percapita.ts). Keyed by the CANONICAL province display name (the
+ * table PK — the same vocabulary as pets.jurisdiction_province). Year/source
+ * come from the table rows (the newest census year present), so the caption
+ * footer is never hardcoded.
+ *
+ * Returns null — never throws — when the table is empty or unreadable: the
+ * caller serves the layer unenriched and the encoding honestly reads no-data.
+ */
+export async function loadCensusLookup(): Promise<CensusLookup | null> {
+  if (censusLookupCache) return censusLookupCache;
+  try {
+    const rows = await db
+      .select({
+        provinceName: jurisdictionsCensus.provinceName,
+        population: jurisdictionsCensus.population,
+        censusYear: jurisdictionsCensus.censusYear,
+        source: jurisdictionsCensus.source,
+      })
+      .from(jurisdictionsCensus);
+    if (rows.length === 0) return null;
+    const populations: Record<string, number> = {};
+    let year = 0;
+    let source = "";
+    for (const r of rows) {
+      populations[r.provinceName] = r.population;
+      if (r.censusYear > year) {
+        year = r.censusYear;
+        source = r.source;
+      }
+    }
+    censusLookupCache = { populations, year, source };
+    return censusLookupCache;
+  } catch (err) {
+    console.warn("[panorama] census lookup unavailable — per-cápita served as no-data", err);
+    return null;
+  }
 }
