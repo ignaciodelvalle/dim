@@ -31,7 +31,7 @@ import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton, OpStateBadge } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
-import { speciesLabel, todayIsoInAr } from "@/lib/utils/format";
+import { pluralizeEs, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -116,8 +116,8 @@ function calcAge(dob: string): string {
   if (months < 12) return `${Math.max(0, months)} meses`;
   const years = Math.floor(months / 12);
   const remMonths = months % 12;
-  if (remMonths === 0) return `${years} año${years === 1 ? "" : "s"}`;
-  return `${years} año${years === 1 ? "" : "s"} ${remMonths} m`;
+  if (remMonths === 0) return `${years} ${pluralizeEs(years, "año")}`;
+  return `${years} ${pluralizeEs(years, "año")} ${remMonths} m`;
 }
 
 // Derive OpStateBadge state from card data.
@@ -471,8 +471,8 @@ export function OrgMascotasBulkList({
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[13px]">
-                    <span className="font-medium">{selected.size}</span> seleccionada
-                    {selected.size === 1 ? "" : "s"}
+                    <span className="font-medium">{selected.size}</span>{" "}
+                    {pluralizeEs(selected.size, "seleccionada")}
                     {selected.size > BULK_MAX && (
                       <span className="ml-2 text-ln-op-danger text-sm">(máx. {BULK_MAX})</span>
                     )}
@@ -642,7 +642,7 @@ function BulkVaccinationForm({
   return (
     <div className="space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">
-        Vacunar {count} animal{count === 1 ? "" : "es"}
+        Vacunar {count} {pluralizeEs(count, "animal")}
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -789,7 +789,7 @@ function BulkEligibilityForm({
   return (
     <div className="space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">
-        Marcar elegibilidad — {count} animal{count === 1 ? "" : "es"}
+        Marcar elegibilidad — {count} {pluralizeEs(count, "animal")}
       </p>
 
       <div className="flex gap-4">
@@ -902,7 +902,7 @@ function BulkListingForm({
   return (
     <div className="space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">
-        Publicar en adopción — {count} animal{count === 1 ? "" : "es"}
+        Publicar en adopción — {count} {pluralizeEs(count, "animal")}
       </p>
       <p className="text-sm text-ln-op-mute">
         Solo se publicarán las mascotas que cumplan todos los requisitos (apta para adopción, sin

@@ -10,6 +10,7 @@ import { OpCallout, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/
 import { db, serviceOfferings } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { pluralizeEs } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -61,7 +62,7 @@ export default async function ServiciosPage({
           <p className="text-[13px] text-ln-op-mute">
             {offerings.length === 0
               ? "Todavía no hay servicios registrados."
-              : `${offerings.length} servicio${offerings.length === 1 ? "" : "s"} registrado${offerings.length === 1 ? "" : "s"}.`}
+              : `${offerings.length} ${pluralizeEs(offerings.length, "servicio")} ${pluralizeEs(offerings.length, "registrado")}.`}
           </p>
         </div>
         {canCreate && (

@@ -38,6 +38,7 @@ import {
 } from "@/lib/metrics";
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
+import { pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 
@@ -164,7 +165,7 @@ export default async function GobVigilanciaPage({
     mapData,
     (row) => row.code,
     (row) => row.count,
-    (value) => `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
+    (value) => `${value} ${pluralizeEs(value, "caso")} ${pluralizeEs(value, "abierto")}`,
   );
 
   // When a province is drilled into, build the sub-region choropleth.
@@ -199,7 +200,7 @@ export default async function GobVigilanciaPage({
           : {
               code: r.code,
               value: r.count,
-              label: `${r.name}: ${r.count} caso${r.count !== 1 ? "s" : ""}`,
+              label: `${r.name}: ${r.count} ${pluralizeEs(r.count, "caso")}`,
             },
       );
     if (selectedProvinceIso === "AR-C") {

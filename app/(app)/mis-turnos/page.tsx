@@ -10,6 +10,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { pluralizeEs } from "@/lib/utils/format";
 
 export default async function MisTurnosPage() {
   const { user } = await requireUserOrRedirect();
@@ -78,7 +79,7 @@ export default async function MisTurnosPage() {
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             {rows.length === 0
               ? "No hay turnos reservados."
-              : `${rows.length} turno${rows.length === 1 ? "" : "s"} en total.`}
+              : `${rows.length} ${pluralizeEs(rows.length, "turno")} en total.`}
           </p>
         </div>
         <Link href="/turnos/buscar">

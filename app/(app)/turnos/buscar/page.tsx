@@ -8,6 +8,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
+import { pluralizeEs } from "@/lib/utils/format";
 
 import { SearchFiltersForm } from "./SearchFiltersForm";
 
@@ -201,8 +202,10 @@ export default async function BuscarTurnosPage({
                     {` · ${offering.durationMinutes} min`}
                   </p>
                   <p className="mt-1 text-sm text-[var(--color-ln-ok)]">
-                    {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
-                    {slots.length === 1 ? "" : "s"} en 7 días
+                    {`${slots.length} ${pluralizeEs(slots.length, "turno")} ${pluralizeEs(
+                      slots.length,
+                      "disponible",
+                    )} en 7 días`}
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-2.5">

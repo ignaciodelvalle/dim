@@ -6,6 +6,7 @@ import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { pluralizeEs } from "@/lib/utils/format";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { ScrollToSignal } from "../_components/ScrollToSignal";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
@@ -109,7 +110,7 @@ export default async function GobVigilanciaBrotesPage({
         <OpCardHead
           title={
             <span id={panelId}>
-              {signals.length} señal{signals.length !== 1 ? "es" : ""}
+              {signals.length} {pluralizeEs(signals.length, "señal")}
             </span>
           }
         />

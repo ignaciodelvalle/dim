@@ -13,7 +13,7 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
@@ -141,7 +141,7 @@ export default async function GobServicioDetailPage({
           <div className="flex gap-3">
             <dt className="text-sm text-ln-op-mute w-32 shrink-0">Capacidad</dt>
             <dd className="text-[13px] text-ln-op-ink">
-              {offering.slotCapacity} turno{offering.slotCapacity === 1 ? "" : "s"} por slot
+              {offering.slotCapacity} {pluralizeEs(offering.slotCapacity, "turno")} por slot
             </dd>
           </div>
           <div className="flex gap-3">

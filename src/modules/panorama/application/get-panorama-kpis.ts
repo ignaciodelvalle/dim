@@ -42,7 +42,7 @@ import { TARGETS, toneForTarget } from "@/lib/metrics/targets";
 // panorama-only trend query: reusing these three preserves dashboard parity.
 import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
 
-import { formatCount, formatPercent, formatRate } from "@/lib/utils/format";
+import { formatCount, formatPercent, formatRate, pluralizeEs } from "@/lib/utils/format";
 
 // v+1 rail — D4 reunification rate + C1 microchip penetration, the SAME
 // fetchers /gob/perdidas and /gob/programa already call. Adding them here
@@ -219,7 +219,9 @@ export type PanoramaKpis = {
  */
 export class PanoramaKpisUnavailableError extends Error {
   constructor(readonly failedCount: number) {
-    super(`panorama KPI fan-out failed (${failedCount} fetcher${failedCount === 1 ? "" : "s"})`);
+    super(
+      `panorama KPI fan-out failed (${failedCount} ${pluralizeEs(failedCount, "fetcher", "fetchers")})`,
+    );
     this.name = "PanoramaKpisUnavailableError";
   }
 }

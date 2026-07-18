@@ -12,7 +12,7 @@ import Link from "next/link";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 import { db, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { formatDate, speciesLabel } from "@/lib/utils/format";
+import { formatDate, pluralizeEs, speciesLabel } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { IntakeForm } from "./IntakeForm";
@@ -148,7 +148,7 @@ export default async function IntakePage({
               actions={
                 intakeTruncated
                   ? `Últimos ${INTAKE_CAP}`
-                  : `${displayIntakeRows.length} registro${displayIntakeRows.length !== 1 ? "s" : ""}`
+                  : `${displayIntakeRows.length} ${pluralizeEs(displayIntakeRows.length, "registro")}`
               }
             />
             <OpCardBody className="p-0">

@@ -9,7 +9,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, fosterProposals, organizationMemberships, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { formatDate, formatDateShort, speciesLabel } from "@/lib/utils/format";
+import { formatDate, formatDateShort, pluralizeEs, speciesLabel } from "@/lib/utils/format";
 
 import { EndFosterButton } from "./EndFosterButton";
 
@@ -174,7 +174,7 @@ export default async function OrgTransitosPage({
         <OpCard>
           <OpCardHead
             title="Tránsitos en curso"
-            actions={`${fosters.length} activo${fosters.length !== 1 ? "s" : ""}`}
+            actions={`${fosters.length} ${pluralizeEs(fosters.length, "activo")}`}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
@@ -219,7 +219,7 @@ export default async function OrgTransitosPage({
         <OpCard>
           <OpCardHead
             title="Tránsitos finalizados"
-            actions={`${fosters.length} registro${fosters.length !== 1 ? "s" : ""}`}
+            actions={`${fosters.length} ${pluralizeEs(fosters.length, "registro")}`}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">

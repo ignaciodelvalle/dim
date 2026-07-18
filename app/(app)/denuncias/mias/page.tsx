@@ -8,7 +8,7 @@ import { LnCallout, LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { db, welfareReports } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateTime } from "@/lib/utils/format";
+import { formatDateTime, pluralizeEs } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -79,7 +79,7 @@ export default async function MisDenunciasPage() {
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             {reports.length === 0
               ? "Sin denuncias enviadas."
-              : `${reports.length} denuncia${reports.length === 1 ? "" : "s"} enviada${reports.length === 1 ? "" : "s"}.`}
+              : `${reports.length} ${pluralizeEs(reports.length, "denuncia", "denuncias")} ${pluralizeEs(reports.length, "enviada", "enviadas")}.`}
           </p>
         </div>
         <Link href="/denuncias/nueva" className="flex-shrink-0 mt-1">

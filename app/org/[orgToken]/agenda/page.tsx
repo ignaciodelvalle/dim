@@ -14,7 +14,7 @@ import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/u
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { BlockSlotButton } from "./BlockSlotButton";
@@ -281,7 +281,7 @@ export default async function OrgAgendaPage({
         <p className="text-[13px] text-ln-op-mute py-8 text-center">No hay turnos para este día.</p>
       ) : (
         <OpCard>
-          <OpCardHead title={`${rows.length} turno${rows.length === 1 ? "" : "s"}`} />
+          <OpCardHead title={`${rows.length} ${pluralizeEs(rows.length, "turno")}`} />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
               {rows.map(({ appointment, slot, offering, pet, ownerProfile }) => {

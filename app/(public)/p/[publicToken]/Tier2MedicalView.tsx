@@ -18,7 +18,7 @@ import {
   type PermanentCondition,
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
-import { AR_TIME_ZONE, sterilizedLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs, sterilizedLabel } from "@/lib/utils/format";
 
 interface Props {
   /** When the bounded window closes. Null when permanent ("siempre" option). */
@@ -100,12 +100,12 @@ export function Tier2MedicalView({
   const vaccineSubLabel = !hasVaccineRecords
     ? "Sin vacunas registradas"
     : vaccineSummary.expired > 0
-      ? `${vaccineSummary.expired} vencida${vaccineSummary.expired === 1 ? "" : "s"}`
+      ? `${vaccineSummary.expired} ${pluralizeEs(vaccineSummary.expired, "vencida")}`
       : vaccineSummary.dueSoon > 0
         ? `${vaccineSummary.dueSoon} por vencer`
         : vaccineSummary.missing > 0
-          ? `${vaccineSummary.missing} faltante${vaccineSummary.missing === 1 ? "" : "s"}`
-          : `${vaccineSummary.active} vigente${vaccineSummary.active === 1 ? "" : "s"}`;
+          ? `${vaccineSummary.missing} ${pluralizeEs(vaccineSummary.missing, "faltante")}`
+          : `${vaccineSummary.active} ${pluralizeEs(vaccineSummary.active, "vigente")}`;
 
   return (
     <section aria-labelledby="tier2-h" className="px-4 py-[13px]">

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AdoptionListingCard } from "@/components/AdoptionListingCard";
 import { buildSearchParams, parseSearchParams } from "@/lib/infra/adoption-listing";
+import { pluralizeEs } from "@/lib/utils/format";
 import { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 import { AdoptionFiltersBar } from "./AdoptionFiltersBar";
@@ -92,7 +93,7 @@ export default async function AdoptarPage({
           <>
             <p className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
               <strong className="text-[var(--color-ln-ink)] font-semibold">
-                {items.length} mascota{items.length === 1 ? "" : "s"}
+                {items.length} {pluralizeEs(items.length, "mascota")}
               </strong>
               {nextCursor ? " publicadas · mostrando las más recientes" : " publicadas"}
             </p>

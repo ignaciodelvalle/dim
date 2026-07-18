@@ -8,6 +8,7 @@ import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
+import { pluralizeEs } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.
@@ -37,13 +38,13 @@ function formatDueAt(dueAt: Date): string {
 
 function buildStatusText(daysUntilDue: number): string {
   if (daysUntilDue > 0) {
-    return `Vence en ${daysUntilDue} día${daysUntilDue === 1 ? "" : "s"}`;
+    return `Vence en ${daysUntilDue} ${pluralizeEs(daysUntilDue, "día")}`;
   }
   if (daysUntilDue === 0) {
     return "Vence hoy";
   }
   const abs = Math.abs(daysUntilDue);
-  return `Vencida hace ${abs} día${abs === 1 ? "" : "s"}`;
+  return `Vencida hace ${abs} ${pluralizeEs(abs, "día")}`;
 }
 
 // ---------------------------------------------------------------------------

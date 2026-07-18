@@ -10,7 +10,7 @@ import {
 } from "@/lib/infra/lost-listing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { lostLabel, sterilizedLabel } from "@/lib/utils/format";
+import { lostLabel, pluralizeEs, sterilizedLabel } from "@/lib/utils/format";
 import {
   countAllLost,
   countLostInWindow,
@@ -85,8 +85,10 @@ export default async function PerdidasPage({
         <div className="bg-[var(--color-ln-err)]">
           <div className="max-w-6xl mx-auto px-6 py-2.5 text-sm flex items-center gap-3 flex-wrap text-white">
             <span className="font-semibold">
-              {last24h} mascota{last24h === 1 ? "" : "s"} perdida{last24h === 1 ? "" : "s"} en las
-              últimas 24 horas
+              {`${last24h} ${pluralizeEs(last24h, "mascota")} ${pluralizeEs(
+                last24h,
+                "perdida",
+              )} en las últimas 24 horas`}
             </span>
             <span className="opacity-80">·</span>
             <span className="opacity-90">
@@ -155,7 +157,7 @@ export default async function PerdidasPage({
               <strong className="text-[var(--color-ln-ink)] font-semibold">
                 {nextCursor
                   ? `Mostrando las ${items.length} más recientes`
-                  : `${items.length} mascota${items.length === 1 ? "" : "s"}`}
+                  : `${items.length} ${pluralizeEs(items.length, "mascota")}`}
               </strong>
               {nextCursor && !hasActiveFilters ? ` de ${totalActive} activas en total` : ""}
             </p>

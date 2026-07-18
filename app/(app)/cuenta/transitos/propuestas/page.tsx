@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { formatDate, speciesLabel } from "@/lib/utils/format";
+import { formatDate, pluralizeEs, speciesLabel } from "@/lib/utils/format";
 import { desc, eq } from "drizzle-orm";
 
 import { STATUS_LABELS } from "./status-labels";
@@ -61,7 +61,7 @@ export default async function PropuestasInboxPage() {
             title="Activas"
             meta={
               active.length > 0
-                ? `${active.length} pendiente${active.length !== 1 ? "s" : ""}`
+                ? `${active.length} ${pluralizeEs(active.length, "pendiente", "pendientes")}`
                 : undefined
             }
             className="mb-4"

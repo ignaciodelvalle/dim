@@ -39,7 +39,7 @@ import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 export const dynamic = "force-dynamic";
@@ -319,7 +319,7 @@ export default async function GobHistorialPage({
                 const parts: string[] = [];
                 if (query) parts.push(`"${query}"`);
                 if (surface) parts.push(surface);
-                if (count !== null) parts.push(`${count} resultado${count !== 1 ? "s" : ""}`);
+                if (count !== null) parts.push(`${count} ${pluralizeEs(count, "resultado")}`);
                 return parts.length > 0 ? (
                   <>
                     {" "}

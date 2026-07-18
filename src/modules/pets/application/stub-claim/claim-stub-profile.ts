@@ -22,6 +22,7 @@ import { db, notifications, ownerships, petEvents, profiles, reminders } from "@
 import { matchesDbError } from "@/lib/infra/db-errors";
 import { createClient } from "@/lib/supabase/server";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+import { pluralizeEs } from "@/lib/utils/format";
 import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
@@ -215,16 +216,18 @@ export async function claimStubProfile(
         bodyParts.push("Vinculamos tu DNI a tu cuenta. No encontramos mascotas pendientes.");
       } else {
         bodyParts.push(
-          `Tu perfil quedó vinculado a tu DNI y ${ownershipsMoved} mascota${
-            ownershipsMoved === 1 ? "" : "s"
-          } ahora figura${ownershipsMoved === 1 ? "" : "n"} en tu libreta.`,
+          `Tu perfil quedó vinculado a tu DNI y ${ownershipsMoved} ${pluralizeEs(
+            ownershipsMoved,
+            "mascota",
+          )} ahora figura${ownershipsMoved === 1 ? "" : "n"} en tu libreta.`,
         );
       }
       if (remindersBackfilled > 0) {
         bodyParts.push(
-          `Programamos ${remindersBackfilled} recordatorio${
-            remindersBackfilled === 1 ? "" : "s"
-          } de seguimiento post-adopción.`,
+          `Programamos ${remindersBackfilled} ${pluralizeEs(
+            remindersBackfilled,
+            "recordatorio",
+          )} de seguimiento post-adopción.`,
         );
       }
       await tx.insert(notifications).values({

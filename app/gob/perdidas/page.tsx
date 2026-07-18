@@ -20,7 +20,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
 import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
-import { formatPercent } from "@/lib/utils/format";
+import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 const VALID_STATUSES: PetStatusFilter[] = ["all", "lost", "active", "deceased"];
@@ -128,7 +128,7 @@ export default async function GobPerdidasPage({
     lostPets,
     (p) => (p.province ? PROVINCE_ISO_MAP[p.province] : undefined),
     () => 1,
-    (value) => `${value} mascota${value !== 1 ? "s" : ""} perdida${value !== 1 ? "s" : ""}`,
+    (value) => `${value} ${pluralizeEs(value, "mascota")} ${pluralizeEs(value, "perdida")}`,
   );
 
   const panelMapId = "panel-perdidas-mapa-titulo";
