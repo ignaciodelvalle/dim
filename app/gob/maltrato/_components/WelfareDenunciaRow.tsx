@@ -11,6 +11,7 @@ import type {
 
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
+import { isSlaBreached, slaDaysForSeverity } from "../_lib/welfare-sla";
 import { WelfareRowLink } from "./WelfareRowLink";
 
 // Severity → OpPill tone mapping.
@@ -65,8 +66,25 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
   const severityTone = SEVERITY_TONE[report.severity] ?? "neutral";
   const statusTone = STATUS_TONE[report.status] ?? "neutral";
 
+  // Inline SLA badge (UI/UX audit 2026-07): severity-tiered days from
+  // ../_lib/welfare-sla.ts — badge only when BREACHED (still actionable and
+  // older than its tier), so the list stays quiet until the SLA actually slips.
+  const createdAt = new Date(report.createdAt);
+  const slaBreached = isSlaBreached(report.severity, report.status, createdAt);
+
+  // A CRITICAL row is visually escalated with the error tokens (thick danger
+  // left edge) so it reads as "peligro inmediato" before any text is parsed.
+  const isCritical = report.severity === "critical";
+
   return (
-    <li className="overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
+    <li
+      className={[
+        "overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card",
+        isCritical ? "border-l-4 border-l-ln-op-danger" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
       <WelfareRowLink
         casoParam={report.referenceCode}
         href={`/gob/maltrato/${report.referenceCode}`}
@@ -78,6 +96,11 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
                 {welfareReportKindLabel(report.kind)}
               </p>
               <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
+              {slaBreached && (
+                <OpPill tone="danger">
+                  {`SLA vencido (${slaDaysForSeverity(report.severity)} d)`}
+                </OpPill>
+              )}
             </div>
             <p className="text-[11px] text-ln-op-mute">
               {report.jurisdictionLocality && report.jurisdictionProvince
