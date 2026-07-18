@@ -697,7 +697,7 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     renderConsole();
 
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
-    // perdidas (density, EMPTY features) → RankedUnitsPanel's honest empty copy.
+    // perdidas (density, EMPTY features) → PanoramaDataTable's honest empty copy.
     expect(screen.getByText(/Peores/)).toBeVisible();
     expect(screen.getByText("Sin datos suficientes en este alcance.")).toBeVisible();
   });

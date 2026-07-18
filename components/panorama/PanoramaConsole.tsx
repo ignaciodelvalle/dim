@@ -53,7 +53,6 @@ import { PanoramaStatSection } from "@/components/panorama/PanoramaStatSection";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PeriodPanel } from "@/components/panorama/PeriodPanel";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
-import { RankedUnitsPanel } from "@/components/panorama/RankedUnitsPanel";
 import { SavedViewsPopover } from "@/components/panorama/SavedViewsPopover";
 import type {
   ActiveLayer,
@@ -71,6 +70,8 @@ import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {
   activeVistaName,
   countFiltroModifiers,
+  describeCapasMeta,
+  filtroBadgeAriaLabel,
   legendRampTitle,
 } from "@/components/panorama/panorama-labels";
 import {
@@ -99,7 +100,7 @@ import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import {
   BIVARIATE_MIN_UNITS,
-  bivariateViable,
+  bivariateRefusalReason,
   buildBivariateCells,
 } from "@/src/modules/panorama/domain/bivariate";
 import {
@@ -2568,15 +2569,20 @@ export function PanoramaConsole({
   // "baja cobertura / riesgo medio". Detect that from the LIVE province caches and
   // disable the encoding (with an honest note by the toggle) instead of emitting a
   // false risk band. levelVersion/asOfVersion are the recompute triggers (refs).
-  const bivariateDegenerate = useMemo(() => {
+  // Item 2: the encoding can be refused for TWO distinct reasons (too few
+  // comparable units vs. a degenerate/flat distribution). Carry the REASON so the
+  // toggle can explain WHICH one applies instead of the old one-size note. `null`
+  // → viable; "count"/"tercile" → refused (see bivariateRefusalReason).
+  const bivariateDegenerateReason = useMemo<"count" | "tercile" | null>(() => {
     void levelVersion;
     void asOfVersion;
-    if (!bivariateEligible) return false;
+    if (!bivariateEligible) return null;
     const cov = provinceDataRef.current.get("cobertura");
     const sig = provinceDataRef.current.get("zoonosis");
-    if (!cov || !sig || cov.features.length === 0) return false;
-    return !bivariateViable(cov, sig, BIVARIATE_MIN_UNITS);
+    if (!cov || !sig || cov.features.length === 0) return null;
+    return bivariateRefusalReason(cov, sig, BIVARIATE_MIN_UNITS);
   }, [bivariateEligible, levelVersion, asOfVersion]);
+  const bivariateDegenerate = bivariateDegenerateReason !== null;
   const bivariateActive = bivariateMode && bivariateEligible && !scrubbing && !bivariateDegenerate;
 
   // Reset the encoding toggle when its eligibility drops (preset/level/layer
@@ -3579,7 +3585,6 @@ export function PanoramaConsole({
   // Hover sync map↔row: the highlighted unit key mirrors between the panel and
   // the map (feature-state highlight). Row click opens the DetailDrawer.
   const [highlightedUnitKey, setHighlightedUnitKey] = useState<string | null>(null);
-  const [showDataTable, setShowDataTable] = useState(false);
 
   // task #55 — "Informe de situación": the generation stamp is captured ONLY when
   // the operator triggers the print (starts null so SSR + first client render
@@ -4224,16 +4229,21 @@ export function PanoramaConsole({
       ? "por fecha de registro (lo que el Estado conocía)"
       : "por fecha de ocurrencia"
   }`;
+  // Ranking one-list consolidation (PO: "consistente a morir"): the accessible,
+  // header-ed PanoramaDataTable is now the DEFAULT (and only) rendering — the
+  // headerless RankedUnitsPanel + its "Ver tabla completa" toggle are retired. The
+  // table carries the map linkage (highlightedKey/onHover) the list used to own,
+  // so hover-sync survives; the k-anon suppressed-count line stays beneath it.
   const dockRanking =
     effectiveRankingKind !== null && rankingLayer !== null ? (
       <div className="space-y-2">
-        <RankedUnitsPanel
+        <PanoramaDataTable
           rows={rankedRows}
           kind={effectiveRankingKind}
           measureLabel={rankingMeasureLabel}
+          onSelect={onRankedSelect}
           highlightedKey={highlightedUnitKey}
           onHover={setHighlightedUnitKey}
-          onSelect={onRankedSelect}
           dataUnavailable={rankingDataUnavailable}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}
@@ -4250,25 +4260,6 @@ export function PanoramaConsole({
         <p className="text-xs leading-snug text-ln-op-faint">
           Pasá el mouse por una fila para ubicarla en el mapa · click para ver el detalle.
         </p>
-        {rankedRows.length > 0 && (
-          <button
-            type="button"
-            aria-expanded={showDataTable}
-            onClick={() => setShowDataTable((v) => !v)}
-            className="text-xs font-medium text-ln-op-azul hover:underline"
-          >
-            {showDataTable ? "Ocultar tabla" : "Ver tabla completa"}
-          </button>
-        )}
-        {showDataTable && (
-          <PanoramaDataTable
-            rows={rankedRows}
-            kind={effectiveRankingKind}
-            measureLabel={rankingMeasureLabel}
-            onSelect={onRankedSelect}
-            dataUnavailable={rankingDataUnavailable}
-          />
-        )}
       </div>
     ) : (
       <p className="text-xs leading-snug text-ln-op-mute">
@@ -4406,6 +4397,16 @@ export function PanoramaConsole({
     auto: "Capas",
     bivariate: "Riesgo (bivariado)",
   };
+  // Item 2: distinct es-AR copy per refusal reason. "count" → not enough
+  // comparable jurisdictions (privacy suppression or missing data); "tercile" →
+  // the values are too alike to cut into honest risk levels (no amount of data
+  // fixes a flat distribution). Split from the old single "requiere N unidades".
+  const bivariateRefusalNote =
+    bivariateDegenerateReason === "count"
+      ? `El riesgo combinado necesita al menos ${BIVARIATE_MIN_UNITS} jurisdicciones con datos comparables en ambas capas; en esta vista hay menos (por supresión de privacidad o falta de datos).`
+      : bivariateDegenerateReason === "tercile"
+        ? "Los valores de esta vista son demasiado parecidos para cortar en niveles de riesgo honestos."
+        : null;
   const modeOptions = capabilities.mapModes.map((id) => ({
     id,
     label: MODE_LABELS[id] ?? id,
@@ -4414,9 +4415,7 @@ export function PanoramaConsole({
       id === "bivariate"
         ? scrubbing
           ? "Riesgo bivariado — solo al último evento"
-          : bivariateDegenerate
-            ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables`
-            : undefined
+          : (bivariateRefusalNote ?? undefined)
         : undefined,
   }));
   // The ACTIVE segment mirrors what the MAP paints: "auto" when the operator
@@ -4437,8 +4436,8 @@ export function PanoramaConsole({
         // at all — ModeSwitcher hides itself when mapModes is just ["auto"]).
         bivariateEligible && scrubbing
           ? "Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo)."
-          : bivariateEligible && bivariateDegenerate
-            ? `Riesgo bivariado requiere al menos ${BIVARIATE_MIN_UNITS} unidades comparables en la vista.`
+          : bivariateEligible && bivariateRefusalNote
+            ? bivariateRefusalNote
             : null
       }
     />
@@ -4587,6 +4586,9 @@ export function PanoramaConsole({
       label: "Capas del mapa",
       kind: "panel",
       badge: filtroBadge,
+      // Item 3: the badge counts MODIFIERS over the vista, not layers — name that
+      // so the bare number stops reading as a layer count.
+      badgeLabel: filtroBadgeAriaLabel(filtroBadge),
       // Cowork QA ronda 3 §2 (C9, P3.6): the Simple/Detalle toggle was removed
       // from Vista/Período/Exportar/Acerca but still lingered here and on the
       // scrubber — an inconsistent control (same label, different behavior per
@@ -4595,18 +4597,29 @@ export function PanoramaConsole({
       // with no toggle — matching the other rail panels.
       detail: true,
       render: () => (
-        <FiltroPanel
-          states={states}
-          onToggle={onToggle}
-          detail={true}
-          presetId={activePresetId}
-          scrubbing={scrubbing}
-          opacities={opacities}
-          onOpacity={onOpacity}
-          verifiedOnly={verifiedOnly}
-          onToggleVerified={onToggleVerified}
-          lodRollupHints={lodRollupHints}
-        />
+        <div className="space-y-2">
+          {/* Item 3: the panel header surfaces BOTH facts, each labelled — the
+              real active-layer count AND the modifiers-over-the-vista count — so
+              the tab badge's bare number is never read as a layer count. */}
+          <p className="text-[var(--text-xs)] text-ln-op-mute">
+            {describeCapasMeta({
+              activeLayerCount: activeLayers.length,
+              modifierCount: filtroBadge,
+            })}
+          </p>
+          <FiltroPanel
+            states={states}
+            onToggle={onToggle}
+            detail={true}
+            presetId={activePresetId}
+            scrubbing={scrubbing}
+            opacities={opacities}
+            onOpacity={onOpacity}
+            verifiedOnly={verifiedOnly}
+            onToggleVerified={onToggleVerified}
+            lodRollupHints={lodRollupHints}
+          />
+        </div>
       ),
     },
     {
