@@ -15,6 +15,17 @@
 // the public badge" contract is unit-testable without rendering the page.
 
 import { overlayAmendments } from "@/lib/infra/amendment";
+import { parseDateInput } from "@/lib/utils/format";
+
+// A date-only "YYYY-MM-DD" next_due_at (legacy rows written before the
+// noon-UTC normalization) is midnight UTC = 21:00 of the PREVIOUS AR day, so
+// "vencida" flipped 3 hours early. Anchor date-only values at noon UTC
+// (parseDateInput); full ISO timestamps carry their own instant and pass
+// through. Same guard as lib/projections/pet-compliance.ts::parseNextDue.
+function parseNextDue(raw: string): Date | null {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parseDateInput(raw) : new Date(raw);
+  return d && !Number.isNaN(d.getTime()) ? d : null;
+}
 
 /** Minimal event shape overlayAmendments needs. `occurredAt` is required by the
  *  overlay's latest-wins comparison on the `event_amended` rows. */
@@ -119,8 +130,8 @@ export function deriveRabiesSemaphore(
 
   const nextDueRaw = (latest.payload as { next_due_at?: unknown })?.next_due_at;
   if (typeof nextDueRaw !== "string" || !nextDueRaw) return "sin-vencimiento";
-  const nextDueAt = new Date(nextDueRaw);
-  if (Number.isNaN(nextDueAt.getTime())) return "sin-vencimiento";
+  const nextDueAt = parseNextDue(nextDueRaw);
+  if (!nextDueAt) return "sin-vencimiento";
   return nextDueAt >= now ? "vigente" : "vencida";
 }
 
@@ -136,6 +147,6 @@ export function isRabiesAtRisk(events: CredentialEvent[], now: Date): boolean {
   if (!payload?.vaccine_name?.toLowerCase().includes("rabia") || !payload.next_due_at) {
     return false;
   }
-  const nextDueAt = new Date(payload.next_due_at);
-  return !Number.isNaN(nextDueAt.getTime()) && nextDueAt < now;
+  const nextDueAt = parseNextDue(payload.next_due_at);
+  return nextDueAt !== null && nextDueAt < now;
 }

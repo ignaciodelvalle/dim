@@ -21,6 +21,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { matchesDbError } from "@/lib/infra/db-errors";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { parseDateInput } from "@/lib/utils/format";
 import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
 
 import type { AttendancePayload, AttendanceResult, AuthorDescriptor } from "./types";
@@ -75,6 +76,18 @@ export async function markAppointmentAttendedWriter(
     const kindDef = findServiceKind(offering.serviceKind);
     const eventType = kindDef?.emitted_event_type ?? "vet_visit_logged";
 
+    // Normalize the date-only next_due_at ("YYYY-MM-DD" from <input
+    // type="date">) to the canonical noon-UTC ISO instant every other
+    // vaccination/deworming writer stores (vaccination-use-case,
+    // deworming-use-case both persist parseDateInput(...).toISOString()).
+    // Storing the RAW string made read-side consumers parse it at midnight
+    // UTC = 21:00 of the PREVIOUS day in AR.
+    let nextDueAt: Date | null = null;
+    if ((payload.kind === "vaccination" || payload.kind === "deworming") && payload.next_due_at) {
+      nextDueAt = parseDateInput(payload.next_due_at);
+      if (!nextDueAt) return { error: "Fecha de próxima dosis inválida." };
+    }
+
     // Build and validate the raw event payload.
     let rawPayload: Record<string, unknown>;
     if (payload.kind === "vaccination") {
@@ -83,13 +96,13 @@ export async function markAppointmentAttendedWriter(
         brand: payload.brand,
         batch: payload.batch,
         administered_by: payload.administered_by,
-        next_due_at: payload.next_due_at,
+        next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
       };
     } else if (payload.kind === "deworming") {
       rawPayload = {
         product: payload.product,
         type: payload.type,
-        next_due_at: payload.next_due_at,
+        next_due_at: nextDueAt ? nextDueAt.toISOString() : null,
       };
     } else if (payload.kind === "sterilization") {
       rawPayload = {
@@ -213,12 +226,14 @@ export async function markAppointmentAttendedWriter(
       }
 
       // 5. If vaccination with next_due_at, insert a reminder for the owner.
-      if (payload.kind === "vaccination" && payload.next_due_at && appointment.ownerUserId) {
+      // dueAt uses the normalized noon-UTC anchor — new Date("YYYY-MM-DD")
+      // was midnight UTC, i.e. 21:00 of the previous AR day.
+      if (payload.kind === "vaccination" && nextDueAt && appointment.ownerUserId) {
         await tx.insert(reminders).values({
           petId: pet.id,
           userId: appointment.ownerUserId,
           reminderType: "vaccine",
-          dueAt: new Date(payload.next_due_at),
+          dueAt: nextDueAt,
           title: `Próxima dosis: ${payload.vaccine_name}`,
           description: payload.brand ? `Marca: ${payload.brand}` : null,
           sourceEventId: newEvent.id,

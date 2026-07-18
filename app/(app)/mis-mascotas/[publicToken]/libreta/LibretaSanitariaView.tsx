@@ -21,7 +21,17 @@ import {
   libretaConfidenceTier,
 } from "@/lib/infra/libreta-sanitaria";
 import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
-import { eventTypeLabel, formatDate } from "@/lib/utils/format";
+import { AR_TIME_ZONE, eventTypeLabel, formatDate, parseDateInput } from "@/lib/utils/format";
+
+// A date-only "YYYY-MM-DD" next_due_at (legacy rows written before the
+// noon-UTC normalization) is midnight UTC = 21:00 of the PREVIOUS AR day, so
+// the "vencida" status flipped 3 hours early and the printed date was one day
+// off. Anchor date-only values at noon UTC (parseDateInput); full ISO
+// timestamps pass through. Same guard as pet-compliance.ts::parseNextDue.
+function parseNextDue(raw: string): Date | null {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parseDateInput(raw) : new Date(raw);
+  return d && !Number.isNaN(d.getTime()) ? d : null;
+}
 
 type Event = {
   id: string;
@@ -101,21 +111,22 @@ function eventToVaccineRow(event: Event): LnVaccineRow {
   });
 
   const nextDueRaw = p.next_due_at ?? p.next_due ?? null;
-  const nextDue =
-    nextDueRaw && typeof nextDueRaw === "string"
-      ? new Date(nextDueRaw).toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-      : undefined;
+  const nextDueDate =
+    typeof nextDueRaw === "string" && nextDueRaw ? parseNextDue(nextDueRaw) : null;
+  const nextDue = nextDueDate
+    ? nextDueDate.toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: AR_TIME_ZONE,
+      })
+    : undefined;
 
   // Derive vstamp status from next_due_at
   let status: "ok" | "due" | "over" = "ok";
-  if (nextDueRaw) {
-    const next = new Date(nextDueRaw as string);
+  if (nextDueDate) {
     const now = new Date();
-    const daysUntil = (next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    const daysUntil = (nextDueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
     if (daysUntil < 0) status = "over";
     else if (daysUntil < 30) status = "due";
     else status = "ok";
