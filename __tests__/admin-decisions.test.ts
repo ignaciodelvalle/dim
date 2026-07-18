@@ -25,6 +25,7 @@ import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { approveRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/approve-request";
 import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 import { rejectRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/reject-request";
+import { requestInfoForAuthority } from "@/src/modules/organizations/application/admin-decisions/request-info";
 import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -37,12 +38,14 @@ const admin = createClient(SUPABASE_URL, SECRET, {
 });
 
 const VET_EMAIL = "admin-dec-vet@dim-test.local";
+const VET2_EMAIL = "admin-dec-vet2@dim-test.local";
 const ORG_EMAIL = "admin-dec-org@dim-test.local";
 const GOVT_EMAIL = "admin-dec-govt@dim-test.local";
 const ADMIN_EMAIL = "admin-dec-admin@dim-test.local";
 const PASS = "AdminDec_2026!";
 
 let vetApplicantId: string;
+let vet2ApplicantId: string;
 let orgApplicantId: string;
 let govtUserId: string;
 let adminUserId: string;
@@ -101,11 +104,12 @@ async function deleteTestUser(email: string) {
 }
 
 beforeAll(async () => {
-  for (const email of [VET_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
     await deleteTestUser(email);
   }
 
   vetApplicantId = await createTestUser(VET_EMAIL);
+  vet2ApplicantId = await createTestUser(VET2_EMAIL);
   orgApplicantId = await createTestUser(ORG_EMAIL);
   govtUserId = await createTestUser(GOVT_EMAIL);
   adminUserId = await createTestUser(ADMIN_EMAIL);
@@ -119,7 +123,13 @@ beforeAll(async () => {
   await db
     .update(profiles)
     .set({ dniVerified: true })
-    .where(or(eq(profiles.id, vetApplicantId), eq(profiles.id, orgApplicantId)));
+    .where(
+      or(
+        eq(profiles.id, vetApplicantId),
+        eq(profiles.id, vet2ApplicantId),
+        eq(profiles.id, orgApplicantId),
+      ),
+    );
 });
 
 async function createTestUser(email: string): Promise<string> {
@@ -133,7 +143,7 @@ async function createTestUser(email: string): Promise<string> {
 }
 
 afterAll(async () => {
-  for (const email of [VET_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
     await deleteTestUser(email);
   }
 });
@@ -216,6 +226,116 @@ describe("approveRequestForAuthority — role_upgrade_vet", () => {
       .limit(1);
     const result = await approveRequestForAuthority(adminUserId, req.publicToken, null);
     expect("error" in result && result.error).toMatch(/aprobada|estado/i);
+  });
+});
+
+describe("matrícula verification flow (UI/UX audit 2026-07)", () => {
+  let vet2Token: string;
+  let vet2RequestId: string;
+
+  beforeAll(async () => {
+    const submit = await requestVetUpgradeForUser(vet2ApplicantId, {
+      matriculaNumber: "MN-B2000",
+      matriculaJurisdiccion: "Buenos Aires",
+      operationalProvince: "Buenos Aires",
+      operationalLocality: "La Plata",
+    });
+    expect(submit.ok).toBe(true);
+    const [req] = await db
+      .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, vet2ApplicantId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+          eq(approvalRequests.status, "pending"),
+        ),
+      )
+      .limit(1);
+    vet2Token = req.publicToken;
+    vet2RequestId = req.id;
+  });
+
+  it("bulk approve is refused for role_upgrade_vet (bulk reject unaffected)", async () => {
+    // bulkActionId != null marks the bulk path (bulk-approve-requests.ts).
+    const result = await approveRequestForAuthority(
+      adminUserId,
+      vet2Token,
+      null,
+      "test-bulk-action-id",
+    );
+    expect("error" in result && result.error).toMatch(/lote|individual/i);
+
+    // The request must remain pending and decidable.
+    const [row] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, vet2RequestId))
+      .limit(1);
+    expect(row.status).toBe("pending");
+  });
+
+  it("requestInfoForAuthority: validates the message length", async () => {
+    const result = await requestInfoForAuthority(adminUserId, vet2Token, "abc");
+    expect("error" in result && result.error).toMatch(/5 y 1000/);
+  });
+
+  it("requestInfoForAuthority: logs the event + notifies, keeps the request pending", async () => {
+    const message = "Adjuntá una foto del carnet de matrícula, por favor.";
+    const result = await requestInfoForAuthority(adminUserId, vet2Token, message);
+    expect(result).toEqual({ ok: true });
+
+    // Notes-only event: audit row with the message…
+    const [logEntry] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.approvalRequestId, vet2RequestId),
+          eq(auditLog.action, "request_info_requested"),
+        ),
+      )
+      .limit(1);
+    expect(logEntry).toBeDefined();
+    expect((logEntry.payload as { message?: string }).message).toBe(message);
+
+    // …an applicant notification…
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, vet2ApplicantId),
+          eq(notifications.notificationType, "approval_request_info_requested"),
+        ),
+      )
+      .limit(1);
+    expect(notif).toBeDefined();
+    expect(notif.body).toContain(message);
+
+    // …and the request row is UNTOUCHED: still pending, no decision fields.
+    const [row] = await db
+      .select()
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, vet2RequestId))
+      .limit(1);
+    expect(row.status).toBe("pending");
+    expect(row.decidedAt).toBeNull();
+    expect(row.decidedByUserId).toBeNull();
+
+    // Non-terminal: an individual approve afterwards still works, with the
+    // structured verification notes persisted in decision_notes.
+    const structuredNotes =
+      "[Verificación de matrícula] Formato verificado; registro oficial consultado; identidad consistente.";
+    const approve = await approveRequestForAuthority(adminUserId, vet2Token, structuredNotes);
+    expect(approve).toEqual({ ok: true });
+    const [decided] = await db
+      .select({ status: approvalRequests.status, decisionNotes: approvalRequests.decisionNotes })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, vet2RequestId))
+      .limit(1);
+    expect(decided.status).toBe("approved");
+    expect(decided.decisionNotes).toBe(structuredNotes);
   });
 });
 

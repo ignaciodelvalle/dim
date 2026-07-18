@@ -19,8 +19,10 @@ import { LnCheckbox } from "@/components/ui/Field";
 import type { ApprovalRequestType } from "@/db";
 import {
   RUPGA_APPROVAL_WARNING,
+  VET_MATRICULA_BULK_APPROVE_BLOCKED,
   computeApprovalTypeBreakdown,
   selectionHasRupga,
+  selectionHasVetMatricula,
 } from "@/lib/infra/approval-queue-breakdown";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { pluralizeEs } from "@/lib/utils/format";
@@ -128,6 +130,10 @@ export function BulkApprovalQueueList({
   const selectedTypes = items.filter((i) => selected.has(i.publicToken)).map((i) => i.type);
   const typeBreakdown = computeApprovalTypeBreakdown(selectedTypes);
   const hasRupga = selectionHasRupga(selectedTypes);
+  // Vet matrículas are approved individually (verification flow) — a selection
+  // containing one blocks bulk APPROVE (reject stays available). Mirrors the
+  // server-side guard in approveRequestForAuthority.
+  const hasVetMatricula = selectionHasVetMatricula(selectedTypes);
 
   return (
     <div className="space-y-3 pb-32">
@@ -181,34 +187,42 @@ export function BulkApprovalQueueList({
         <div className="fixed bottom-0 left-0 right-0 border-t border-ln-op-line bg-ln-op-card z-50">
           <div className="max-w-5xl mx-auto px-6 py-3 space-y-3">
             {mode === "none" && (
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm">
-                  <span className="font-medium">{selected.size}</span>{" "}
-                  {pluralizeEs(selected.size, "seleccionada")}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={clear}
-                    className="text-xs text-ln-op-mute hover:text-ln-op-ink"
-                  >
-                    Limpiar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("reject")}
-                    className="px-3 py-1.5 rounded text-sm border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg"
-                  >
-                    Rechazar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("approve")}
-                    className="px-3 py-1.5 rounded text-sm bg-ln-op-ok text-white hover:bg-ln-op-ok"
-                  >
-                    Aprobar
-                  </button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm">
+                    <span className="font-medium">{selected.size}</span>{" "}
+                    {pluralizeEs(selected.size, "seleccionada")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={clear}
+                      className="text-xs text-ln-op-mute hover:text-ln-op-ink"
+                    >
+                      Limpiar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("reject")}
+                      className="px-3 py-1.5 rounded text-sm border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg"
+                    >
+                      Rechazar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMode("approve")}
+                      disabled={hasVetMatricula}
+                      className="px-3 py-1.5 rounded text-sm bg-ln-op-ok text-white hover:bg-ln-op-ok disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Aprobar
+                    </button>
+                  </div>
                 </div>
+                {hasVetMatricula && (
+                  <output className="block text-[11px] text-ln-op-mute">
+                    {VET_MATRICULA_BULK_APPROVE_BLOCKED}
+                  </output>
+                )}
               </div>
             )}
 
@@ -220,6 +234,7 @@ export function BulkApprovalQueueList({
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar aprobación"
                 confirmClass="bg-ln-op-ok text-white hover:bg-ln-op-ok"
+                confirmDisabled={hasVetMatricula}
                 pending={pending}
                 onConfirm={runApprove}
                 onCancel={() => setMode("none")}

@@ -21,6 +21,7 @@ import { revalidatePath, revalidateTag } from "next/cache";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { approveRequestForAuthority as _approveRequest } from "@/src/modules/organizations/application/admin-decisions/approve-request";
 import { rejectRequestForAuthority as _rejectRequest } from "@/src/modules/organizations/application/admin-decisions/reject-request";
+import { requestInfoForAuthority as _requestInfo } from "@/src/modules/organizations/application/admin-decisions/request-info";
 
 // ---------------------------------------------------------------------------
 // Type re-exports (erased at runtime — allowed in "use server" files)
@@ -55,6 +56,23 @@ export async function rejectRequestAction(publicToken: string, reason: string) {
     revalidatePath("/gob/cola");
     revalidatePath(`/gob/cola/${publicToken}`);
     revalidatePath("/admin/cola");
+    revalidatePath(`/admin/cola/${publicToken}`);
+  }
+  return result;
+}
+
+/**
+ * "Pedir más información" — NON-terminal (UI/UX audit 2026-07). Records a
+ * notes-only info-request event + applicant notification; the request stays
+ * pending and decidable. No revalidate of the queue lists is needed (nothing
+ * about the row's queue presence changes), but the detail pages re-render so
+ * the operator sees the confirmation state.
+ */
+export async function requestInfoAction(publicToken: string, message: string) {
+  const { user } = await requireAdminOrGovtOrRedirect();
+  const result = await _requestInfo(user.id, publicToken, message);
+  if ("ok" in result) {
+    revalidatePath(`/gob/cola/${publicToken}`);
     revalidatePath(`/admin/cola/${publicToken}`);
   }
   return result;

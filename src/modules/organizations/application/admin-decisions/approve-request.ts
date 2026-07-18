@@ -42,6 +42,18 @@ export async function approveRequestForAuthority(
     return { error: `La solicitud ya está en estado "${request.status}".` };
   }
 
+  // Matrícula approvals are a VERIFICATION flow, not a rubber stamp (UI/UX
+  // audit 2026-07): each one requires the per-request checklist on the detail
+  // page (format / official registry / identity), which a bulk pass cannot
+  // perform. Bulk REJECT stays allowed — only the approval path is individual.
+  // bulkActionId != null is the bulk-path marker (bulk-approve-requests.ts).
+  if (bulkActionId !== null && request.type === "role_upgrade_vet") {
+    return {
+      error:
+        "Las matrículas veterinarias no se aprueban en lote: cada una requiere la verificación individual desde el detalle.",
+    };
+  }
+
   const auth = await loadActorAuthority(actorUserId);
   if (!auth.ok) return { error: auth.error };
   if (!canDecideRequest(auth.profile, request, auth.jurisdictions)) {
