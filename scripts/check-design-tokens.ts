@@ -49,6 +49,10 @@ import { sep } from "node:path";
 const EXCLUDE_PATH_PREFIXES = ["node_modules/"];
 const FILES = globSync("{app,components}/**/*.{ts,tsx}").filter((f) => {
   const p = f.replaceAll("\\", "/");
+  // Test/spec files reference className strings inside assertions (e.g.
+  // toHaveClass("rounded-[3px]")) — that is test surface, not styling drift, so
+  // exclude them (same convention lint:select/lint:buttons use for tests).
+  if (p.includes(".test.") || p.includes(".spec.")) return false;
   return !EXCLUDE_PATH_PREFIXES.some((prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`));
 });
 
