@@ -1328,7 +1328,19 @@ export function PanoramaConsole({
             `/api/panorama/${l.id}${params.toString() ? `?${params.toString()}` : ""}`,
             { headers: { accept: "application/json" }, signal: signalFor(l.id) },
           );
-          if (!res.ok) return;
+          if (!res.ok) {
+            // M1 (panorama honesty audit 2026-07-18): a 503/failure on a
+            // scope/period refetch must CLEAR the loading flag set above and mark
+            // the layer degraded, so degradedLayerLabels surfaces "no pudimos
+            // calcular a tiempo". A bare `return` left the layer spinning forever
+            // over silent stale paint with degraded=false — a failed load reading
+            // as "still loading" (or worse, as fresh).
+            setStates((s) => ({
+              ...s,
+              [l.id]: { ...s[l.id], loading: false, degraded: true },
+            }));
+            return;
+          }
           const body = (await res.json()) as ApiResponse;
           if (currentLevel === "province") {
             provinceDataRef.current.set(l.id, body.features);
@@ -2070,7 +2082,11 @@ export function PanoramaConsole({
             // symptom under load. Keep it active, drop the loading flag, retain
             // the last-known count/envelope.
             if (opts?.preserveOnError) {
-              setStates((s) => ({ ...s, [id]: { ...s[id], loading: false } }));
+              // M2 (panorama honesty audit 2026-07-18): a failed REFRESH keeps the
+              // last-known data + active state, but must SIGNAL the failure — mark
+              // degraded so degradedLayerLabels reads "no pudimos calcular a
+              // tiempo" instead of silently presenting stale numbers as fresh.
+              setStates((s) => ({ ...s, [id]: { ...s[id], loading: false, degraded: true } }));
               return;
             }
             // Initial activation path: the layer had no data — leave it off and
