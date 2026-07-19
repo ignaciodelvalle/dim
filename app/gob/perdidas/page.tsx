@@ -26,13 +26,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { aggregateRowsByDepartment } from "@/lib/analytics/subregion-aggregate";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
-import {
-  TARGETS,
-  buildProjectionContext,
-  resolveAnalyticsPeriod,
-  toneForTarget,
-  windows,
-} from "@/lib/metrics";
+import { TARGETS, buildProjectionContext, toneForTarget, windows } from "@/lib/metrics";
 import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
@@ -78,21 +72,15 @@ export default async function GobPerdidasPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  // H4 fix: the page renders the full <PeriodPicker> (chips include
-  // trailing12m/ytd/custom), so the window must be resolved through the
-  // canonical resolveAnalyticsPeriod (same pattern as /gob/campanas) instead
-  // of a hand-rolled 7d/90d/30d parser — otherwise those chips silently no-op
-  // back to a 30d window. No explicit ?period/?from → keep the page's own
-  // 30d default (matches <PeriodPicker defaultPreset="30d"> below), same as
-  // campanas' identical ternary.
-  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
-  const since = period.since;
-  // G0 (PO decision 2026-07): the LIST defaults to the full currently-lost STOCK
-  // (no window) so its count matches the same-page "Perdidas activas" KPI — both
-  // count status='lost'. The period is an OPTIONAL filter: only an explicit
-  // ?period windows the list by the lost-event date. `since`/`period` above stay
-  // the period-scoped window for the reunification KPIs (unchanged).
-  const listSince = sp.period ? since : undefined;
+  // Perdidas has no period control (PO decision 2026-07-19): it's a
+  // currently-lost STOCK view, not a period-scoped report — a date filter
+  // conceptually doesn't apply. The window is a fixed trailing 30d, used only
+  // to bound the reunification-rate + median-recovery KPIs below.
+  const period = windows.trailing30d();
+  // G0 (PO decision 2026-07): the list always shows the full currently-lost
+  // STOCK (no window) so its count matches the same-page "Perdidas activas"
+  // KPI — both count status='lost'. There is no period control to narrow it.
+  const listSince = undefined;
   const species = sp.species || undefined;
   const statusFilter = parseStatusFilter(sp.status);
   const q = sp.q?.trim() || undefined;
@@ -125,10 +113,10 @@ export default async function GobPerdidasPage({
   const adminLocality = adminSelectedLocality ?? undefined;
 
   // Fetch the display list with all active display filters applied. `listSince`
-  // is undefined by default (full currently-lost stock) and only set when the
-  // operator explicitly picks a period. Scope: filteredJurisdictions for govt
-  // (no-op for admin, whose jurisdictions is already []), plus the admin
-  // province/locality drill-down predicate.
+  // is always undefined (no period control — full currently-lost stock).
+  // Scope: filteredJurisdictions for govt (no-op for admin, whose
+  // jurisdictions is already []), plus the admin province/locality drill-down
+  // predicate.
   const lostPets = await fetchLostPets(actor, filteredJurisdictions, {
     since: listSince,
     species,
@@ -142,20 +130,21 @@ export default async function GobPerdidasPage({
   // (the full set of currently-lost pets, not just the display slice). When
   // no display filters are active the fetched list already represents that
   // full set, so we can pass it to avoid a second DB round-trip. When any
-  // filter is active (q, an explicit period window, species, or a non-"lost"
-  // status tab) the pre-fetched rows are a filtered subset — passing them would
-  // silently scope avgDaysActive to that subset instead of the whole
-  // population. In that case, omit opts.lostPets so fetchPerdidasMetrics
-  // fetches the unfiltered scope internally.
+  // filter is active (q, species, or a non-"lost" status tab) the pre-fetched
+  // rows are a filtered subset — passing them would silently scope
+  // avgDaysActive to that subset instead of the whole population. In that
+  // case, omit opts.lostPets so fetchPerdidasMetrics fetches the unfiltered
+  // scope internally.
   //
   // "No display filters" = q absent, species absent, statusFilter the default
-  // "lost", and NO period window (listSince undefined → the full stock). Only
-  // then are the fetched rows the unfiltered set fetchPerdidasMetrics needs.
-  // Same scope as fetchLostPets above (filteredJurisdictions + admin drill-down)
-  // so the reused `lostPets` rows and this KPI's own internal queries agree on
-  // what "in scope" means — a jurisdiction selection NARROWS the scope itself,
-  // it is not a display filter, so the reused rows remain the full in-scope
-  // population avgDaysActive requires.
+  // "lost" (there's no period window — listSince is always undefined, the
+  // full stock). Only then are the fetched rows the unfiltered set
+  // fetchPerdidasMetrics needs. Same scope as fetchLostPets above
+  // (filteredJurisdictions + admin drill-down) so the reused `lostPets` rows
+  // and this KPI's own internal queries agree on what "in scope" means — a
+  // jurisdiction selection NARROWS the scope itself, it is not a display
+  // filter, so the reused rows remain the full in-scope population
+  // avgDaysActive requires.
   const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
   const metrics = await fetchPerdidasMetrics(actor, filteredJurisdictions, {
     lostPets: noDisplayFilters ? lostPets : undefined,
@@ -163,10 +152,11 @@ export default async function GobPerdidasPage({
     adminLocality,
   });
 
-  // D4 reunification rate (Item 4) — lost episodes returned to active within the
-  // selected period, plus median days-to-recovery. Period-aware: uses the same
-  // `period` window the page's filters use, jurisdiction-scoped via ProjectionContext.
-  // Same scope as above: filteredJurisdictions for govt, admin drill-down opts for admin.
+  // D4 reunification rate (Item 4) — lost episodes returned to active within a
+  // fixed trailing 30d window, plus median days-to-recovery. No period control
+  // on this page (PO decision 2026-07-19): `period` above is always
+  // windows.trailing30d(), jurisdiction-scoped via ProjectionContext. Same
+  // scope as above: filteredJurisdictions for govt, admin drill-down opts for admin.
   const reunificationCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
     adminProvince,
     adminLocality,
@@ -229,11 +219,13 @@ export default async function GobPerdidasPage({
         </div>
       )}
 
-      {/* Unified filter bar — period + jurisdiction + species axis + active-filter chips.
-          Status (tabs) and search (q) keep their own controls below; the bar owns
-          period/jurisdiction/species. */}
+      {/* Unified filter bar — jurisdiction + species axis + active-filter chips.
+          Status (tabs) and search (q) keep their own controls below. Period is
+          OMITTED: perdidas is a currently-lost STOCK view (PO decision
+          2026-07-19), not a period-scoped report — a date filter conceptually
+          doesn't apply, mirrors /gob/maltrato's showPeriod={false}. */}
       <OpFilterBar
-        period={{ defaultPreset: "30d" }}
+        showPeriod={false}
         jurisdiction={{ allowedProvinces, localities }}
         axes={
           [
@@ -248,20 +240,6 @@ export default async function GobPerdidasPage({
         }
       />
 
-      {/* Honesty note (PO audit 2026-07-19): period only drives 2 of the 5 KPIs
-          plus the map/list (both derived from the same lostPets query, windowed
-          by lost-event date only when an explicit ?period is chosen — see the
-          G0 comment above). Without this line the picker reads as a global
-          filter; each affected/unaffected KPI also carries its own ⓘ caveat
-          below — this is the single legible summary. */}
-      <p className="text-xs text-ln-op-mute">
-        El Período de arriba filtra la Tasa de reunificación, la Mediana de recuperación, el mapa y
-        la lista por fecha de pérdida. Sin un período elegido, el mapa y la lista muestran el stock
-        completo de mascotas perdidas. &ldquo;Perdidas activas&rdquo;, &ldquo;Recuperados
-        (30d)&rdquo; y &ldquo;Antigüedad media&rdquo; son fotos del momento actual y no cambian con
-        el período.
-      </p>
-
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
         aria-label="Indicadores de perdidas"
@@ -275,8 +253,6 @@ export default async function GobPerdidasPage({
           info={{
             definition: "Mascotas con estado 'lost' actualmente en la jurisdicción del operador.",
             formula: "COUNT(pets WHERE status='lost') scoped to jurisdiction",
-            caveat:
-              "No se filtra por período: es un conteo instantáneo del stock actual, no cambia según la ventana elegida arriba.",
           }}
         />
         <OpKpi
@@ -286,8 +262,6 @@ export default async function GobPerdidasPage({
           info={{
             definition: "Mascotas que pasaron de estado 'lost' a 'active' en los últimos 30 días.",
             formula: "COUNT(pet_events WHERE event_type='pet_found', últimos 30d) scoped",
-            caveat:
-              "Ventana fija de 30 días — no se ajusta si elegís otro período arriba (a diferencia de la tasa de reunificación).",
           }}
         />
         <OpKpi
@@ -297,10 +271,11 @@ export default async function GobPerdidasPage({
             definition:
               "Promedio de días transcurridos desde la fecha de pérdida (evento pet_lost) hasta hoy, sobre el set actualmente perdido.",
             formula: "AVG(today − lost_at) WHERE status='lost'",
-            caveat: "Snapshot sobre el stock actual: no se filtra por período.",
           }}
         />
-        {/* D4 — reunification rate over the selected period (benchmark: TARGETS.REUNIFICATION_PCT). */}
+        {/* D4 — reunification rate over a fixed trailing 30d window (benchmark:
+            TARGETS.REUNIFICATION_PCT). No period control on this page (PO
+            decision 2026-07-19) — always the last 30 days, never adjustable. */}
         <OpKpi
           label="Tasa de reunificación"
           // Honesty (backlog H2): with zero lost episodes the rate is 0/0 → 0%,
@@ -315,9 +290,9 @@ export default async function GobPerdidasPage({
           bar={reunification.lostEpisodes === 0 ? undefined : reunification.ratePct}
           sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
           info={{
-            definition: `Porcentaje de episodios de pérdida abiertos en el período seleccionado que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
+            definition: `Porcentaje de episodios de pérdida abiertos en los últimos 30 días que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
             formula:
-              "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en período) × 100",
+              "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en 30d) × 100",
             caveat:
               "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional.",
           }}
@@ -327,7 +302,7 @@ export default async function GobPerdidasPage({
           value={String(reunification.medianDaysToRecovery)}
           info={{
             definition:
-              "Mediana de días entre la apertura del episodio de pérdida y su resolución (reunificación), sobre los episodios del período seleccionado. Menor es mejor.",
+              "Mediana de días entre la apertura del episodio de pérdida y su resolución (reunificación), sobre los episodios de los últimos 30 días. Menor es mejor.",
             formula: "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_recovery)",
           }}
         />
