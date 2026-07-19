@@ -243,7 +243,11 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
         >
           {/* Step 1 — Disponibilidad */}
-          <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
+          <section
+            className={step === 1 ? "space-y-5" : "sr-only"}
+            aria-hidden={step !== 1}
+            inert={step !== 1 ? true : undefined}
+          >
             <div className="space-y-2">
               <p className="text-sm text-[var(--color-ln-ink-2)]">
                 ¿Dónde estás y por cuánto tiempo podés alojar un animal?
@@ -305,7 +309,11 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           </section>
 
           {/* Step 2 — Preferencias */}
-          <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+          <section
+            className={step === 2 ? "space-y-5" : "sr-only"}
+            aria-hidden={step !== 2}
+            inert={step !== 2 ? true : undefined}
+          >
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
                 Especies que aceptás
@@ -386,7 +394,11 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           </section>
 
           {/* Step 3 — Hogar + Submit */}
-          <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
+          <section
+            className={step === 3 ? "space-y-5" : "sr-only"}
+            aria-hidden={step !== 3}
+            inert={step !== 3 ? true : undefined}
+          >
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
                 Hogar (opcional)

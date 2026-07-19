@@ -183,7 +183,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
       {/* Step 1 — Identificación */}
-      <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
+      <section
+        className={step === 1 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
         <p className="text-[13px] text-ln-op-ink-2">
           Si la mascota tiene microchip o tatuaje, ingrésalos. Si el chip coincide con una mascota
           perdida en miMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
@@ -231,7 +235,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       </section>
 
       {/* Step 2 — Identidad */}
-      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
             <span className="text-[13px] text-ln-op-ink">Nombre o alias temporal *</span>
@@ -363,7 +371,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       </section>
 
       {/* Step 3 — Estado */}
-      <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
+      <section
+        className={step === 3 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 3}
+        inert={step !== 3 ? true : undefined}
+      >
         <fieldset className="space-y-1">
           <legend className="text-[13px] text-ln-op-ink">Motivo del ingreso *</legend>
           <div className="flex flex-col gap-1 text-[13px]">
@@ -455,7 +467,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       </section>
 
       {/* Step 4 — Confirmar */}
-      <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
+      <section
+        className={step === 4 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 4}
+        inert={step !== 4 ? true : undefined}
+      >
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
           <p className="text-[13px] font-semibold text-ln-op-ink">Resumen del ingreso</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">

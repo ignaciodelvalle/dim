@@ -156,7 +156,11 @@ export function AdoptionListingForm({
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
       {/* Step 1 — Content edit */}
-      <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+      <section
+        className={step === 1 ? "space-y-4" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
         <form onSubmit={saveContent} className="space-y-4">
           <div>
             <label htmlFor="story" className="block text-sm font-medium text-ln-op-ink mb-1">
@@ -292,7 +296,11 @@ export function AdoptionListingForm({
       </section>
 
       {/* Step 2 — Status / publish */}
-      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-2 text-[13px]">
           <p className="font-semibold text-ln-op-ink">Lo que vas a publicar</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">

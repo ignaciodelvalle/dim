@@ -81,7 +81,11 @@ export function ProposeReturnForm({
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {/* Step 1 — Identidad */}
-        <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+        <section
+          className={step === 1 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 1}
+          inert={step !== 1 ? true : undefined}
+        >
           <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
             <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">Vas a devolver</p>
             <p className="mt-1 text-[17px] font-semibold text-ln-op-ink">
@@ -101,7 +105,11 @@ export function ProposeReturnForm({
         </section>
 
         {/* Step 2 — Entrega */}
-        <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
+        <section
+          className={step === 2 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 2}
+          inert={step !== 2 ? true : undefined}
+        >
           <p className="text-[13px] text-ln-op-ink-2">
             Coordiná lugar y momento de entrega con el dueño antes de enviar la propuesta. Podés
             anotar detalles abajo (opcional) — el dueño los ve cuando recibe la notificación.
@@ -116,7 +124,11 @@ export function ProposeReturnForm({
         </section>
 
         {/* Step 3 — Confirmar + notes */}
-        <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
+        <section
+          className={step === 3 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 3}
+          inert={step !== 3 ? true : undefined}
+        >
           <div className="space-y-1">
             <label htmlFor="notes" className="block text-sm font-medium text-ln-op-ink-2">
               Notas para el dueño (opcional)

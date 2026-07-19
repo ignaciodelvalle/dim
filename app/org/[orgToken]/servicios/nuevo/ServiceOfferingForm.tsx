@@ -56,7 +56,11 @@ export function ServiceOfferingForm({
         )}
 
         {/* Step 1 — Tipo + nombre + descripción */}
-        <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+        <section
+          className={step === 1 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 1}
+          inert={step !== 1 ? true : undefined}
+        >
           <div className="space-y-1">
             <label htmlFor="serviceKind" className="block text-[13px] font-medium text-ln-op-ink">
               Tipo de servicio <span className="text-ln-op-danger">*</span>
@@ -106,7 +110,11 @@ export function ServiceOfferingForm({
         </section>
 
         {/* Step 2 — Capacidad */}
-        <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
+        <section
+          className={step === 2 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 2}
+          inert={step !== 2 ? true : undefined}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label
@@ -165,7 +173,11 @@ export function ServiceOfferingForm({
         </section>
 
         {/* Step 3 — Elegibilidad + submit */}
-        <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
+        <section
+          className={step === 3 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 3}
+          inert={step !== 3 ? true : undefined}
+        >
           <div className="space-y-1">
             <span className="block text-[13px] font-medium text-ln-op-ink">Especies elegibles</span>
             <div className="flex gap-4">

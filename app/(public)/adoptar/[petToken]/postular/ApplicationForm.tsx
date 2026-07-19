@@ -310,7 +310,11 @@ export function ApplicationForm({
       </p>
 
       {/* Step 1 — Motivación */}
-      <section className={step === 1 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 1}>
+      <section
+        className={step === 1 ? "space-y-[14px]" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
         <StepQuestion
           num="01"
           label={`¿Por qué querés adoptar a ${petName}?`}
@@ -354,7 +358,11 @@ export function ApplicationForm({
       </section>
 
       {/* Step 2 — Experiencia + otros animales */}
-      <section className={step === 2 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-[14px]" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <StepQuestion num="02" label="¿Tuviste mascotas antes?">
           <RadioCard
             name="prior_pets"
@@ -397,7 +405,11 @@ export function ApplicationForm({
       </section>
 
       {/* Step 3 — Tu casa */}
-      <section className={step === 3 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 3}>
+      <section
+        className={step === 3 ? "space-y-[14px]" : "sr-only"}
+        aria-hidden={step !== 3}
+        inert={step !== 3 ? true : undefined}
+      >
         <StepQuestion num="04" label="¿Cómo es tu vivienda?">
           <RadioCard
             name="housing"
@@ -425,7 +437,11 @@ export function ApplicationForm({
       </section>
 
       {/* Step 4 — Tu día a día */}
-      <section className={step === 4 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 4}>
+      <section
+        className={step === 4 ? "space-y-[14px]" : "sr-only"}
+        aria-hidden={step !== 4}
+        inert={step !== 4 ? true : undefined}
+      >
         <StepQuestion
           num="05"
           label="Cómo es tu día a día"
@@ -462,7 +478,11 @@ export function ApplicationForm({
       </section>
 
       {/* Step 5 — Confirmar */}
-      <section className={step === 5 ? "space-y-[14px]" : "sr-only"} aria-hidden={step !== 5}>
+      <section
+        className={step === 5 ? "space-y-[14px]" : "sr-only"}
+        aria-hidden={step !== 5}
+        inert={step !== 5 ? true : undefined}
+      >
         {/* Summary recap */}
         <div
           className="rounded-[var(--radius-lg)] border px-5 py-4 space-y-[10px]"

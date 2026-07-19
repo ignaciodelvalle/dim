@@ -220,6 +220,7 @@ export function MarkLostWizard({
             data-section="step-location"
             className={step === 1 ? "flex flex-col gap-3.5" : "sr-only"}
             aria-hidden={step !== 1}
+            inert={step !== 1 ? true : undefined}
           >
             {/* R5.1 (pet-state-header): this copy used to promise the location
                 "se vuelve parte de la credencial pública" — contradicting the
@@ -278,6 +279,7 @@ export function MarkLostWizard({
               data-section="step-details"
               className={step === 2 ? "flex flex-col gap-3.5" : "sr-only"}
               aria-hidden={step !== 2}
+              inert={step !== 2 ? true : undefined}
             >
               <LnCallout tone="azul" title="Sin chip ni tatuaje, estos detalles son clave">
                 Cualquiera que la encuentre sin documentación va a depender de cómo se ve.
@@ -421,6 +423,7 @@ export function MarkLostWizard({
             data-section="step-disclosure"
             className={step === disclosureStep ? "flex flex-col gap-3.5" : "sr-only"}
             aria-hidden={step !== disclosureStep}
+            inert={step !== disclosureStep ? true : undefined}
           >
             <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
               Elegí qué información tuya se muestra en la credencial pública mientras {petName} esté

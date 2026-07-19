@@ -58,7 +58,11 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {/* Step 1 — Legales */}
-        <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+        <section
+          className={step === 1 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 1}
+          inert={step !== 1 ? true : undefined}
+        >
           <Field
             id="name"
             name="name"
@@ -94,7 +98,11 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         </section>
 
         {/* Step 2 — Contacto */}
-        <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
+        <section
+          className={step === 2 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 2}
+          inert={step !== 2 ? true : undefined}
+        >
           <Field
             id="email"
             name="email"
@@ -113,7 +121,11 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         </section>
 
         {/* Step 3 — Ubicación L1 */}
-        <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
+        <section
+          className={step === 3 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 3}
+          inert={step !== 3 ? true : undefined}
+        >
           <div className="space-y-1">
             <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
               Jurisdicción donde ejercés

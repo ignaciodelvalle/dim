@@ -116,7 +116,11 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
       {/* Step 1 — Mascota recap */}
-      <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
+      <section
+        className={step === 1 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4">
           <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
           <p className="mt-1 text-base font-semibold text-ln-op-ink">{petName}</p>
@@ -134,7 +138,11 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       </section>
 
       {/* Step 2 — Destino */}
-      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <div>
           <label
             htmlFor="receiverOrgId"
@@ -167,7 +175,11 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       </section>
 
       {/* Step 3 — Razón + notas */}
-      <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
+      <section
+        className={step === 3 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 3}
+        inert={step !== 3 ? true : undefined}
+      >
         <div>
           <label htmlFor="reason" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
             Motivo de la transferencia

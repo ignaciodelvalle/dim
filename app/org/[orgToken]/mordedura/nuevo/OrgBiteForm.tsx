@@ -179,7 +179,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
       {/* Step 1 — Mascota */}
-      <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+      <section
+        className={step === 1 ? "space-y-4" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
         <OpField
           label="Token público de la mascota"
           required
@@ -210,7 +214,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       </section>
 
       {/* Step 2 — Cuándo */}
-      <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-4" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <OpField label="Fecha del incidente" required>
           {({ id, describedBy, invalid }) => (
             <LnInput
@@ -231,7 +239,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       </section>
 
       {/* Step 3 — Víctima + contexto */}
-      <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
+      <section
+        className={step === 3 ? "space-y-4" : "sr-only"}
+        aria-hidden={step !== 3}
+        inert={step !== 3 ? true : undefined}
+      >
         <OpField label="Lugar">
           {({ id, describedBy, invalid }) => (
             <LnInput
@@ -436,7 +448,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
       </section>
 
       {/* Step 4 — Confirmar + submit */}
-      <section className={step === 4 ? "space-y-4" : "sr-only"} aria-hidden={step !== 4}>
+      <section
+        className={step === 4 ? "space-y-4" : "sr-only"}
+        aria-hidden={step !== 4}
+        inert={step !== 4 ? true : undefined}
+      >
         <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-4 space-y-2">
           <LnCheckbox
             checked={confirmObservation}
