@@ -13,9 +13,8 @@
 //   Freshness footer
 
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
@@ -105,10 +104,9 @@ export default async function AdminAdopcionesPage({
         </p>
       </header>
 
-      {/* Period filter */}
-      <div className="flex justify-end">
-        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
-      </div>
+      {/* Unified filter bar — period only (no JurisdictionSwitcher: admin is a
+          national/universal view). Same pattern as /admin/censo, /admin/poblacion. */}
+      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
 
       {/* KPI row */}
       <section

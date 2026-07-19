@@ -11,10 +11,8 @@
 // Builds on lib/metrics/ (ProjectionContext, buildProjectionContext).
 
 import { Icon } from "@/components/Icon";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchCampaignDashboard, formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -147,15 +145,19 @@ export default async function GobCampanasPage({
         </p>
       </header>
 
-      {/* Filters row */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div className="grid flex-1 gap-3 md:grid-cols-2">
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-          <PeriodPicker defaultPreset="30d" />
+      {/* Unified filter bar — jurisdiction + period. "Exportar CSV" is a
+          page-level action (not a filter), so it stays outside OpFilterBar,
+          aligned to its right (same pattern as /gob/censo). */}
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex-1">
+          <OpFilterBar
+            period={{ defaultPreset: "30d" }}
+            jurisdiction={{ allowedProvinces, localities }}
+          />
         </div>
         <a
           href={exportHref}
-          className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline"
+          className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline md:mt-1"
         >
           Exportar CSV →
         </a>
