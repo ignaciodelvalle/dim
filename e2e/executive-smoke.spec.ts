@@ -1,3 +1,6 @@
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { type Page, expect, test } from "@playwright/test";
 
 /**
@@ -93,13 +96,34 @@ async function loginAsOperator(page: Page, email: string): Promise<void> {
 // Suites — one per operator role
 // ---------------------------------------------------------------------------
 
+// Persisted operator sessions live in the OS temp dir — deliberately OUTSIDE
+// test-results/, which Playwright cleans/manages per run (a session file there
+// gets wiped mid-run, causing intermittent "reading storage state" ENOENT).
+const AUTH_DIR = join(tmpdir(), "dim-e2e-auth");
+
 for (const { role, email, nav, loginLandingPattern } of ROLES) {
   const hrefs = inAppHrefs(nav.map((item) => item.href));
+  const storageStatePath = join(AUTH_DIR, `exec-${role}.json`);
 
   test.describe(`executive smoke — ${role} portal (${hrefs.length} routes)`, () => {
-    // Sign in once per suite; each test navigates with the same session.
-    test.beforeEach(async ({ page }) => {
+    // Sign in ONCE per suite, not per test. The staging login limiter trusts
+    // x-real-ip; a per-test login (48× on the single per-run IP) drains the
+    // per-IP bucket and wedges every subsequent route on "Demasiados intentos".
+    // Log in once in beforeAll, persist the session, and reuse it across every
+    // route via storageState — two logins total instead of forty-eight.
+    test.use({ storageState: storageStatePath });
+
+    test.beforeAll(async ({ browser }) => {
+      mkdirSync(AUTH_DIR, { recursive: true });
+      // Explicitly start from a CLEAN context. browser.newContext() otherwise
+      // inherits the test.use({ storageState }) above and would try to READ the
+      // very session file this hook is about to CREATE — ENOENT on first run.
+      // Passing storageState: undefined overrides that inherited option.
+      const context = await browser.newContext({ storageState: undefined });
+      const page = await context.newPage();
       await loginAsOperator(page, email);
+      await context.storageState({ path: storageStatePath });
+      await context.close();
     });
 
     for (const href of hrefs) {
@@ -158,7 +182,7 @@ for (const { role, email, nav, loginLandingPattern } of ROLES) {
     // surface is finalised. Not part of the demo path.
     if (role === "govt") {
       test.skip(`${role}: /gob/analytics/export → text/csv response`, async ({ page }) => {
-        // Ensure we are authenticated (beforeEach already ran loginAsOperator).
+        // Ensure we are authenticated (storageState carries the operator session).
         const exportUrl = "/gob/analytics/export";
 
         // Use page.request (inherits the session cookies from the browser context).

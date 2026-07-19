@@ -114,8 +114,12 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
     // PO screenshot fix (2026-07-08): the h1 "Panorama" was removed
     // (redundant with the breadcrumb + nav-rail); the eyebrow line is the
     // stable console-loaded signal now.
+    // jurisdiction-compliance (2026-07-03): the heading is now scoped to the
+    // operator's jurisdiction — "Centro de Situación · CABA · …" for a
+    // CABA-scoped account, "Centro de Situación Nacional" for a national one.
+    // Match the stable "Centro de Situación" prefix so either scope passes.
     await expect(
-      page.getByText("Centro de Situación Nacional"),
+      page.getByText(/Centro de Situación/i).first(),
       "panorama console heading",
     ).toBeVisible({ timeout: 20_000 });
     await expect(page.locator("canvas").first(), "panorama MapLibre canvas painted").toBeVisible({
@@ -171,6 +175,16 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
     // Step 3 — Dónde y cuándo (free-text carries the PRUEBA SINTÉTICA marker)
     await page.locator("textarea#description").fill(description);
     await pickCard(page, "occurredAtOption", "today_yesterday");
+    // jurisdiction-compliance (2026-07-03): the denuncia now needs a precise
+    // map point so it routes to the authority for that zone ("necesita un
+    // punto preciso para llegar a la autoridad de esa zona"). Grant a
+    // deterministic geolocation (CABA centre) and use the in-form control to
+    // drop the pin; without it, Continuar stays gated on step 3.
+    await page.context().grantPermissions(["geolocation"]);
+    await page.context().setGeolocation({ latitude: -34.6037, longitude: -58.3816 });
+    await page.getByRole("button", { name: /usar mi ubicación actual/i }).click();
+    // Let the picker place the pin and reverse-geocode before advancing.
+    await page.waitForTimeout(1_500);
     await advanceTo(page.locator('label:has(input[name="subjectKindCard"])').first());
 
     // Step 4 — Quién (optional): skip fast if a skip control exists, else fill.
