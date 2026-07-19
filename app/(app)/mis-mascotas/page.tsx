@@ -214,7 +214,7 @@ export default async function MisMascotasPage({
             variant="primary" size="md" so the visual result is unchanged. */}
         <Link
           href="/mis-mascotas/nueva"
-          className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
+          className="inline-flex items-center justify-center gap-2 rounded border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
         >
           + Inscribir mascota
         </Link>
@@ -290,7 +290,7 @@ export default async function MisMascotasPage({
             action={
               <Link
                 href="/mis-mascotas/nueva"
-                className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-[11px] py-1.5 text-sm font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
+                className="inline-flex items-center justify-center gap-2 rounded border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3 py-1.5 text-sm font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
               >
                 Cargar una mascota
               </Link>
@@ -426,7 +426,7 @@ export default async function MisMascotasPage({
           <div className="mt-3">
             <Link
               href="/mis-mascotas/reclamar"
-              className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
+              className="inline-flex items-center justify-center gap-2 rounded border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
             >
               Reclamar con un código
             </Link>
@@ -458,7 +458,7 @@ function MemorialRow({
   return (
     <a
       href={href}
-      className="grid items-center gap-4 border-b border-[var(--color-ln-line-2)] px-5 py-[18px] text-inherit no-underline last:border-b-0 hover:bg-ln-stripe"
+      className="grid items-center gap-4 border-b border-[var(--color-ln-line-2)] px-5 py-4 text-inherit no-underline last:border-b-0 hover:bg-ln-stripe"
       style={{ gridTemplateColumns: "72px 1fr auto" }}
     >
       {/* Sepia photo */}

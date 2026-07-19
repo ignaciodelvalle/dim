@@ -76,8 +76,8 @@ function CustodyOptionCard({
         .filter(Boolean)
         .join(" ")}
     >
-      <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">{title}</p>
-      <p className="mt-[3px] text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
+      <p className="text-sm font-semibold text-[var(--color-ln-ink)]">{title}</p>
+      <p className="mt-0.5 text-xs text-[var(--color-ln-mute)]">{description}</p>
     </button>
   );
 }
