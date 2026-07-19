@@ -96,24 +96,45 @@ export default async function GobPerdidasPage({
   const statusFilter = parseStatusFilter(sp.status);
   const q = sp.q?.trim() || undefined;
 
-  // Switcher inputs (localities dropdown + allowed provinces). NOTE (D4): perdidas
-  // does NOT narrow by filteredJurisdictions — the fetchers below scope internally
-  // on the operator's full `jurisdictions`; the URL province/locality only drives
-  // the switcher UI here. We therefore ignore the primitive's filteredJurisdictions.
-  const { localities, allowedProvinces } = await resolveJurisdictionScope({
+  // Switcher inputs + THE FENCE (D4 reversal, PO decision 2026-07-19): perdidas
+  // used to discard filteredJurisdictions and scope every fetcher on the
+  // operator's full `jurisdictions`, while the OpFilterBar still showed an
+  // active "Provincia: X" chip — a dishonest no-op filter. It now narrows
+  // exactly like every other /gob screen: govt fetchers scope on
+  // filteredJurisdictions (assignments ∩ selection, never wider than
+  // assignments); admin has no assignments to narrow, so a selected
+  // province/locality is applied as an explicit predicate via
+  // adminSelectedProvince/adminSelectedLocality (both null unless
+  // role === "admin" — see resolveJurisdictionScope's security guarantees).
+  const {
+    localities,
+    allowedProvinces,
+    filteredJurisdictions,
+    selectedProvince,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value.
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   // Fetch the display list with all active display filters applied. `listSince`
   // is undefined by default (full currently-lost stock) and only set when the
-  // operator explicitly picks a period.
-  const lostPets = await fetchLostPets(actor, jurisdictions, {
+  // operator explicitly picks a period. Scope: filteredJurisdictions for govt
+  // (no-op for admin, whose jurisdictions is already []), plus the admin
+  // province/locality drill-down predicate.
+  const lostPets = await fetchLostPets(actor, filteredJurisdictions, {
     since: listSince,
     species,
     status: statusFilter,
     q,
+    adminProvince,
+    adminLocality,
   });
 
   // avgDaysActive must be computed over the UNFILTERED in-scope lost pets
@@ -129,17 +150,26 @@ export default async function GobPerdidasPage({
   // "No display filters" = q absent, species absent, statusFilter the default
   // "lost", and NO period window (listSince undefined → the full stock). Only
   // then are the fetched rows the unfiltered set fetchPerdidasMetrics needs.
+  // Same scope as fetchLostPets above (filteredJurisdictions + admin drill-down)
+  // so the reused `lostPets` rows and this KPI's own internal queries agree on
+  // what "in scope" means — a jurisdiction selection NARROWS the scope itself,
+  // it is not a display filter, so the reused rows remain the full in-scope
+  // population avgDaysActive requires.
   const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
-  const metrics = await fetchPerdidasMetrics(
-    actor,
-    jurisdictions,
-    noDisplayFilters ? { lostPets } : undefined,
-  );
+  const metrics = await fetchPerdidasMetrics(actor, filteredJurisdictions, {
+    lostPets: noDisplayFilters ? lostPets : undefined,
+    adminProvince,
+    adminLocality,
+  });
 
   // D4 reunification rate (Item 4) — lost episodes returned to active within the
   // selected period, plus median days-to-recovery. Period-aware: uses the same
   // `period` window the page's filters use, jurisdiction-scoped via ProjectionContext.
-  const reunificationCtx = buildProjectionContext(actor, jurisdictions, period);
+  // Same scope as above: filteredJurisdictions for govt, admin drill-down opts for admin.
+  const reunificationCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
   const reunification = await fetchReunificationRate(reunificationCtx);
 
   // Surface the CAS- case code for each lost pet. Keyed lookup over the already
@@ -257,6 +287,8 @@ export default async function GobPerdidasPage({
             definition: `Porcentaje de episodios de pérdida que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
             formula:
               "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en período) × 100",
+            caveat:
+              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional.",
           }}
         />
         <OpKpi
@@ -278,6 +310,9 @@ export default async function GobPerdidasPage({
             data={choroplethData}
             scaleLabel="Mascotas perdidas"
             fallbackTableLabel="Mascotas perdidas por provincia"
+            // Zoom to the selected province (province-level zoom is enough even
+            // for a locality selection — zoom to the containing province).
+            visibleCodes={selectedProvince ? [selectedProvince.code] : undefined}
           />
         </OpCardBody>
       </OpCard>

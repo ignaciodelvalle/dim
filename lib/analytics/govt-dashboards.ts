@@ -272,6 +272,14 @@ export async function fetchLostPets(
     species?: string;
     status?: PetStatusFilter | null;
     q?: string | null;
+    /**
+     * Admin province drill-down (mirrors fetchPerdidasMetrics). Only set when
+     * actor.role === "admin" and a province was selected via the URL. Govt
+     * callers must NOT pass this — their scope is already enforced by the
+     * jurisdiction pairs applied below.
+     */
+    adminProvince?: string;
+    adminLocality?: string;
   } = {},
 ): Promise<LostPetRow[]> {
   // Default to 'lost' only — preserves backward-compat for metrics and
@@ -295,6 +303,16 @@ export async function fetchLostPets(
     );
     // pairs is non-null here because jurisdictions.length > 0 (guarded above).
     if (pairs) conditions.push(sql`(${pairs})`);
+  }
+
+  // Admin province/locality drill-down — same pattern as fetchPerdidasMetrics
+  // and buildMaltratoListConditions. Admin has no assignments to narrow, so the
+  // URL selection is applied as an explicit predicate instead.
+  if (actor.role === "admin" && filters.adminProvince) {
+    conditions.push(sql`${pets.jurisdictionProvince} = ${filters.adminProvince}`);
+    if (filters.adminLocality) {
+      conditions.push(sql`${pets.jurisdictionLocality} = ${filters.adminLocality}`);
+    }
   }
 
   // Push `q` (text search) and `since` (lost-event window) into SQL so the
