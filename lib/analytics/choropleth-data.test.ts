@@ -3,8 +3,13 @@
 // call sites it replaces.
 
 import { describe, expect, it } from "vitest";
-import { aggregateChoroplethData, toChoroplethData } from "./choropleth-data";
+import {
+  aggregateChoroplethData,
+  scopedChoroplethProps,
+  toChoroplethData,
+} from "./choropleth-data";
 import { PROVINCE_ISO_MAP } from "./govt-dashboards";
+import type { SubregionCaseCount } from "./subregion-redaction";
 
 describe("toChoroplethData", () => {
   it("maps one row per province like /gob/poblacion (ratePct value)", () => {
@@ -112,5 +117,57 @@ describe("aggregateChoroplethData", () => {
     );
 
     expect(result).toEqual([{ code: "AR-C", value: 1, label: "1 caso abierto" }]);
+  });
+});
+
+describe("scopedChoroplethProps", () => {
+  const provinceCells = [
+    { code: "AR-B", value: 5, label: "5 casos abiertos" },
+    { code: "AR-X", value: 2, label: "2 casos abiertos" },
+  ];
+
+  it("stays at province grain when no province is selected", () => {
+    expect(scopedChoroplethProps(provinceCells, null, null)).toEqual({
+      level: "province",
+      data: provinceCells,
+    });
+  });
+
+  it("stays at province grain when subregionCells hasn't been fetched yet, even with a selection", () => {
+    expect(scopedChoroplethProps(provinceCells, "AR-B", null)).toEqual({
+      level: "province",
+      data: provinceCells,
+    });
+  });
+
+  it("drills to department grain for a non-CABA province, dropping zero-count non-suppressed cells", () => {
+    const subregionCells: SubregionCaseCount[] = [
+      { code: "06007", name: "Adolfo Alsina", count: 7 },
+      { code: "06014", name: "Adolfo Gonzales Chaves", count: 0 },
+      { code: "06021", name: "Alberti", count: 0, suppressed: true },
+    ];
+
+    const result = scopedChoroplethProps(provinceCells, "AR-B", subregionCells);
+
+    expect(result.level).toBe("department");
+    expect(result.geojsonUrl).toBe("/geo/ar-departments.geojson");
+    // visibleCodes carries the FULL sub-region set (zooms + filters the geojson).
+    expect(result.visibleCodes).toEqual(["06007", "06014", "06021"]);
+    // data drops the honest zero (Adolfo Gonzales Chaves) but keeps the
+    // suppressed cell — count redacted to 0, never a raw 1..4 number.
+    expect(result.data).toEqual([
+      { code: "06007", value: 7, label: "Adolfo Alsina" },
+      { code: "06021", value: 0, suppressed: true, label: "Alberti" },
+    ]);
+  });
+
+  it("drills to barrio grain for CABA (AR-C)", () => {
+    const subregionCells: SubregionCaseCount[] = [{ code: "palermo", name: "Palermo", count: 8 }];
+
+    const result = scopedChoroplethProps(provinceCells, "AR-C", subregionCells);
+
+    expect(result.level).toBe("barrio");
+    expect(result.geojsonUrl).toBe("/geo/caba-barrios.geojson");
+    expect(result.data).toEqual([{ code: "palermo", value: 8, label: "Palermo" }]);
   });
 });

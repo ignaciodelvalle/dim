@@ -15,7 +15,9 @@
 //
 // Pure — no DB, no React/next imports. See choropleth-data.test.ts.
 
+import { type GeoLevel, isCABA } from "@/lib/infra/geo-join";
 import { PROVINCE_ISO_MAP } from "./govt-dashboards";
+import type { SubregionCaseCount } from "./subregion-redaction";
 
 /**
  * {code, value, label} triple consumed by MapChoropleth's `data` prop
@@ -23,6 +25,12 @@ import { PROVINCE_ISO_MAP } from "./govt-dashboards";
  * locally — structurally identical — so this lib module stays framework-free.
  */
 export type ChoroplethCell = { code: string; value: number; label: string };
+
+/** A ChoroplethCell that may carry the k-anon suppressed flag (department/barrio drill). */
+export type ScopedChoroplethCell = Pick<ChoroplethCell, "code" | "value"> & {
+  label?: string;
+  suppressed?: boolean;
+};
 
 /**
  * Maps rows that already carry one entry per province straight to choropleth
@@ -73,4 +81,71 @@ export function aggregateChoroplethData<T>(
     value,
     label: labelFor(value),
   }));
+}
+
+/** GeoJSON URL per drill-down level — mirrors MapChoropleth's own GEOJSON_BY_LEVEL. */
+const SUBREGION_GEOJSON_URL: Record<"department" | "barrio", string> = {
+  department: "/geo/ar-departments.geojson",
+  barrio: "/geo/caba-barrios.geojson",
+};
+
+export type ScopedChoroplethProps = {
+  level: GeoLevel;
+  geojsonUrl?: string;
+  visibleCodes?: string[];
+  data: ScopedChoroplethCell[];
+};
+
+/**
+ * Reusable scope-aware choropleth drill (design/scoped-choropleth-drill,
+ * engram #1481): builds the `{level, geojsonUrl, visibleCodes, data}` bundle
+ * to spread straight into `<MapChoroplethDynamic {...props} />`, auto-drilling
+ * from province to department (or barrio, for CABA) grain the moment the
+ * screen's jurisdiction filter selects a province.
+ *
+ * - No province selected, or `subregionCells` not available yet (null) →
+ *   national view unchanged: `level: "province"`, the screen's own
+ *   `provinceCells` (from `toChoroplethData`/`aggregateChoroplethData`), no
+ *   geojsonUrl/visibleCodes override (MapChoropleth's province-level defaults
+ *   already apply).
+ * - Province selected → `level: "department"` (`"barrio"` for CABA, AR-C),
+ *   the matching GeoJSON, `visibleCodes` = every sub-region of that province
+ *   (zooms the map + filters the GeoJSON to just that province — see
+ *   MapChoropleth's `visibleCodes` contract), and `data` built from
+ *   `subregionCells`: k-anon-suppressed cells pass through with `value: 0,
+ *   suppressed: true` (MapChoropleth already renders the hatch + tooltip +
+ *   empty-state copy generically off that flag — no count is ever exposed
+ *   here); zero-count non-suppressed cells are dropped so they render as
+ *   "sin datos" (grey) instead of the lightest data color.
+ *
+ * Reusable by ANY /gob screen with a jurisdiction filter: pass the screen's
+ * own province-level cells and its own `subregionCells` (built via
+ * `aggregateRowsByDepartment`, lib/analytics/subregion-aggregate.ts) — this
+ * function does no fetching and no aggregation, only prop-shaping, so it is
+ * pure and framework-free like the rest of this module.
+ */
+export function scopedChoroplethProps(
+  provinceCells: ChoroplethCell[],
+  selectedProvinceIso: string | null | undefined,
+  subregionCells: SubregionCaseCount[] | null | undefined,
+): ScopedChoroplethProps {
+  if (!selectedProvinceIso || !subregionCells) {
+    return { level: "province", data: provinceCells };
+  }
+
+  const level: "department" | "barrio" = isCABA(selectedProvinceIso) ? "barrio" : "department";
+  const data: ScopedChoroplethCell[] = subregionCells
+    .filter((c) => c.count > 0 || c.suppressed)
+    .map((c) =>
+      c.suppressed
+        ? { code: c.code, value: 0, suppressed: true, label: c.name }
+        : { code: c.code, value: c.count, label: c.name },
+    );
+
+  return {
+    level,
+    geojsonUrl: SUBREGION_GEOJSON_URL[level],
+    visibleCodes: subregionCells.map((c) => c.code),
+    data,
+  };
 }

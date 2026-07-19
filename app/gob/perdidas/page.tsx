@@ -14,7 +14,7 @@ import {
   OpKpi,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { aggregateChoroplethData } from "@/lib/analytics/choropleth-data";
+import { aggregateChoroplethData, scopedChoroplethProps } from "@/lib/analytics/choropleth-data";
 import { fetchReunificationRate } from "@/lib/analytics/compliance-metrics";
 import {
   PROVINCE_ISO_MAP,
@@ -23,6 +23,7 @@ import {
   fetchPerdidasMetrics,
 } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { aggregateRowsByDepartment } from "@/lib/analytics/subregion-aggregate";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
 import {
@@ -187,6 +188,17 @@ export default async function GobPerdidasPage({
     (value) => `${value} ${pluralizeEs(value, "mascota")} ${pluralizeEs(value, "perdida")}`,
   );
 
+  // Scope-aware choropleth drill (design/scoped-choropleth-drill): when a
+  // province is selected, fold the SAME (already filtered/scoped) lostPets
+  // into department cells — auto-drilling the map to department/barrio grain.
+  const subregionData = selectedProvince
+    ? await aggregateRowsByDepartment(
+        selectedProvince.code,
+        lostPets.map((p) => ({ locality: p.locality, value: 1 })),
+      )
+    : null;
+  const mapProps = scopedChoroplethProps(choroplethData, selectedProvince?.code, subregionData);
+
   const panelMapId = "panel-perdidas-mapa-titulo";
 
   return (
@@ -326,12 +338,9 @@ export default async function GobPerdidasPage({
         <OpCardHead title={<span id={panelMapId}>Episodios por jurisdicción</span>} />
         <OpCardBody>
           <MapChoroplethDynamic
-            data={choroplethData}
+            {...mapProps}
             scaleLabel="Mascotas perdidas"
             fallbackTableLabel="Mascotas perdidas por provincia"
-            // Zoom to the selected province (province-level zoom is enough even
-            // for a locality selection — zoom to the containing province).
-            visibleCodes={selectedProvince ? [selectedProvince.code] : undefined}
           />
         </OpCardBody>
       </OpCard>

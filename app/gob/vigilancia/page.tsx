@@ -18,7 +18,7 @@ import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFa
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { aggregateChoroplethData } from "@/lib/analytics/choropleth-data";
+import { aggregateChoroplethData, scopedChoroplethProps } from "@/lib/analytics/choropleth-data";
 import {
   computeDiseaseSummary,
   fetchCasesPerLocality,
@@ -193,49 +193,24 @@ export default async function GobVigilanciaPage({
     (value) => `${value} ${pluralizeEs(value, "caso")} ${pluralizeEs(value, "abierto")}`,
   );
 
-  // When a province is drilled into, build the sub-region choropleth.
-  //
-  // fetchCasesPerSubregion now returns the FULL sub-region set for the province
-  // (every department / every barrio, with 0-default counts). So:
-  //   - visibleCodes = every sub-region code → MapChoropleth filters the national
-  //     GeoJSON to ONLY those polygons and frames the viewport to that province.
-  //   - data = sub-regions WITH cases (count > 0) plus SUPPRESSED cells →
-  //     0-case sub-regions fall through to the missing-color (grey) branch
-  //     instead of the lightest scale color, so "no cases" reads as grey, not
-  //     "few cases".
-  //   - suppressed cells (1..4 cases, k-anon redacted at the fetcher) render
-  //     with the hatch pattern and a privacy tooltip — never a number.
-  let choroplethData = provinceChoroplethData;
-  let mapGeojsonUrl: string | undefined = undefined;
-  let mapVisibleCodes: string[] | undefined = undefined;
-  let mapCardTitle = "Casos abiertos por jurisdicción";
-
-  if (selectedProvinceIso && subregionData !== null) {
-    mapVisibleCodes = subregionData.map((r) => r.code);
-    choroplethData = subregionData
-      .filter((r) => r.count > 0 || r.suppressed)
-      .map((r) =>
-        r.suppressed
-          ? {
-              code: r.code,
-              value: 0,
-              suppressed: true,
-              label: `${r.name}: suprimido por privacidad (menos de 5 casos)`,
-            }
-          : {
-              code: r.code,
-              value: r.count,
-              label: `${r.name}: ${r.count} ${pluralizeEs(r.count, "caso")}`,
-            },
-      );
-    if (selectedProvinceIso === "AR-C") {
-      mapGeojsonUrl = "/geo/caba-barrios.geojson";
-      mapCardTitle = "Casos abiertos por barrio — CABA";
-    } else {
-      mapGeojsonUrl = "/geo/ar-departments.geojson";
-      mapCardTitle = `Casos abiertos por departamento — ${selectedProvince?.name ?? ""}`;
-    }
-  }
+  // Scope-aware choropleth drill (design/scoped-choropleth-drill): auto-drills
+  // from province to department/barrio grain the moment a province is
+  // selected, aggregating this screen's own subregionData with a k-anon floor.
+  // Also fixes a latent bug: this call used to omit `level` entirely (always
+  // defaulting to "province"), so the department/barrio codes were run through
+  // the WRONG normalizer — an accidental self-consistent (but semantically
+  // wrong) join. scopedChoroplethProps always emits the correct explicit level.
+  const mapProps = scopedChoroplethProps(
+    provinceChoroplethData,
+    selectedProvinceIso,
+    subregionData,
+  );
+  const mapCardTitle =
+    mapProps.level === "barrio"
+      ? "Casos abiertos por barrio — CABA"
+      : mapProps.level === "department"
+        ? `Casos abiertos por departamento — ${selectedProvince?.name ?? ""}`
+        : "Casos abiertos por jurisdicción";
 
   // Shape trend data for TimeSeriesChart.
   const trendPoints = trend
@@ -637,9 +612,7 @@ export default async function GobVigilanciaPage({
           <OpCardHead title={<span id={panelMapId}>{mapCardTitle}</span>} />
           <OpCardBody>
             <MapChoroplethDynamic
-              data={choroplethData}
-              {...(mapGeojsonUrl ? { geojsonUrl: mapGeojsonUrl } : {})}
-              {...(mapVisibleCodes ? { visibleCodes: mapVisibleCodes } : {})}
+              {...mapProps}
               fallbackTableLabel={mapCardTitle}
               scaleLabel="Casos abiertos"
               cartography="panorama"
