@@ -29,25 +29,9 @@ import { goToCaptureUrl } from "@/lib/ui/capture-nav";
 import { buildQuickReplyUrl } from "@/lib/ui/notification-quick-reply-nav";
 import { eventTypeLabel } from "@/lib/utils/format";
 
-// Notification types eligible for the inline quick-reply island. MUST stay
-// in sync with the owner-facing CTA types lib/infra/notifications.ts emits
-// (vaccine_due → "Registrar vacuna", post_adoption_checkin_due → "Hacer
-// check-in"). Adding a new type here without also wiring that form's
-// autoconfirm handling leaves "Confirmar" degrading to a plain prefilled
-// navigation (safe, just not a one-tap commit) — still fine, but pointless.
-export const QUICK_REPLY_ALLOWLIST: ReadonlySet<string> = new Set([
-  "vaccine_due",
-  "post_adoption_checkin_due",
-]);
-
-/** The exact mount gate NotificationCard applies before rendering the island. */
-export function isQuickReplyEligible(
-  notificationType: string,
-  relatedPetId: string | null,
-  hasRelatedPet: boolean,
-): boolean {
-  return QUICK_REPLY_ALLOWLIST.has(notificationType) && Boolean(relatedPetId) && hasRelatedPet;
-}
+// The mount gate + allowlist moved to notification-quick-reply-eligibility.ts (a
+// plain module) so the SERVER NotificationCard can call isQuickReplyEligible
+// without crossing this "use client" boundary (staging 500, digest 1823265464).
 
 const SLOT_LABELS: Record<string, string> = {
   vaccineName: "Vacuna",

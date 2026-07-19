@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { archiveNotificationAction, markNotificationReadAction } from "@/app/actions/notifications";
-import { NotificationQuickReply, isQuickReplyEligible } from "@/components/NotificationQuickReply";
+import { NotificationQuickReply } from "@/components/NotificationQuickReply";
+import { isQuickReplyEligible } from "@/components/notification-quick-reply-eligibility";
 import type { Notification, Pet } from "@/db";
 import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "@/lib/utils/format";
 

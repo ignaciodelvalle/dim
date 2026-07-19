@@ -22,11 +22,11 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/notificaciones",
 }));
 
+import { NotificationQuickReply } from "@/components/NotificationQuickReply";
 import {
-  NotificationQuickReply,
   QUICK_REPLY_ALLOWLIST,
   isQuickReplyEligible,
-} from "@/components/NotificationQuickReply";
+} from "@/components/notification-quick-reply-eligibility";
 
 afterEach(() => {
   cleanup();
