@@ -42,8 +42,13 @@ export function LandingNav() {
           ))}
         </nav>
         <span className="lp-spacer" />
-        <Link href="/login" className="lp-btn lp-btn--ghost lp-btn--nav">
+        {/* Acquisition-first: the primary nav CTA is "Crear mi miMAR" (/signup);
+            "Ingresar" (/login, an existing-user action) is demoted to a ghost. */}
+        <Link href="/login" className="lp-btn lp-btn--ghost lp-btn--nav lp-btn--nav-secondary">
           Ingresar
+        </Link>
+        <Link href="/signup" className="lp-btn lp-btn--primary lp-btn--nav">
+          Crear mi miMAR
         </Link>
       </div>
     </header>

@@ -844,6 +844,14 @@ body {
     display: none;
   }
 }
+/* Phones: the brand + two CTAs overflow the no-wrap nav row. Drop the secondary
+   "Ingresar" ghost so the primary "Crear mi miMAR" conversion CTA never clips;
+   sign-in stays reachable from the footer and the hero. */
+@media (max-width: 560px) {
+  .lp-nav .lp-btn--nav-secondary {
+    display: none;
+  }
+}
 
 /* ============ hero ========================================================= */
 .lp .lp-hero {

@@ -440,6 +440,8 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
       ["Mascotas perdidas", "/perdidas"],
       ["Adoptar", "/adoptar"],
       ["Denunciar maltrato", "/denuncias/nueva"],
+      ["Centro de ayuda", "/ayuda"],
+      ["Sugerencias", "/sugerencias"],
     ],
   ],
   [
@@ -454,10 +456,12 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
     "Institucional",
     [
       ["Acerca de miMAR", "/acerca"],
+      ["Transparencia y datos", "/transparencia"],
       ["Funcionalidades", "/funcionalidades"],
       ["Marco legal", "/leyes"],
       ["Privacidad", "/privacidad"],
       ["Términos", "/terminos"],
+      ["Cookies", "/cookies"],
       ["Accesibilidad", "/accesibilidad"],
     ],
   ],
