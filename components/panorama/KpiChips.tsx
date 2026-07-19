@@ -21,26 +21,17 @@
 
 import { useState } from "react";
 
-import { Icon } from "@/components/Icon";
+import { DeltaGlyph } from "@/components/panorama/DeltaGlyph";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { Sparkline } from "@/components/panorama/Sparkline";
 import { shortKpiLabel } from "@/components/panorama/panorama-labels";
 import type {
-  KpiDelta,
   PanoramaKpi,
   PanoramaKpis,
 } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
 import type { PresetId } from "@/src/modules/panorama/domain/presets";
 import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
-
-// Delta direction glyph — up/down route through the Icon registry (no bare
-// triangle glyphs); "flat" has no lucide equivalent worth a registry entry
-// for a single fullwidth "＝" (not a banned symbol-as-icon character).
-function DeltaGlyph({ direction }: { direction: KpiDelta["direction"] }) {
-  if (direction === "flat") return <span aria-hidden="true">＝</span>;
-  return <Icon name={direction === "up" ? "chevron-up" : "chevron-down"} size="sm" decorative />;
-}
 
 /** Cap so the overlay never buries the map (presets curate 2-3). */
 const MAX_CHIPS = 4;

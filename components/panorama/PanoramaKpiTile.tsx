@@ -12,17 +12,9 @@
 // straight pass-throughs to OpKpi — both already existed on OpKpi, only
 // `kpi.sparkline` is new (get-panorama-kpis.ts). No new visual language.
 
-import { Icon } from "@/components/Icon";
+import { DeltaGlyph } from "@/components/panorama/DeltaGlyph";
 import { OpKpi } from "@/components/ui/dashboard";
-import type { KpiDelta, PanoramaKpi } from "@/src/modules/panorama/application/get-panorama-kpis";
-
-// Delta direction glyph — up/down route through the Icon registry (no bare
-// triangle glyphs); "flat" has no lucide equivalent worth a registry entry
-// for a single fullwidth "＝" (not a banned symbol-as-icon character).
-function DeltaGlyph({ direction }: { direction: KpiDelta["direction"] }) {
-  if (direction === "flat") return <span aria-hidden="true">＝</span>;
-  return <Icon name={direction === "up" ? "chevron-up" : "chevron-down"} size="sm" decorative />;
-}
+import type { PanoramaKpi } from "@/src/modules/panorama/application/get-panorama-kpis";
 
 type Props = {
   kpi: PanoramaKpi;

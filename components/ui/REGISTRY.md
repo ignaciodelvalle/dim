@@ -99,6 +99,13 @@ see the variant-map note below).
 |---|---|---|---|
 | `CaptureConfidenceCard` | `CaptureConfidenceCard.tsx` | Presentational confirm/edit card for a fuzzy-matched capture result (event type + fields + confidence). Shared by the atender console, the notification quick-reply, and a future OCR pipeline. ZERO matching logic inside — caller resolves the match (e.g. `lib/reference/vaccine-fuzzy-match.ts`, `lib/events/event-capture-matcher.ts`) and only passes the resolved `fields`/`confidence` in. | Don't embed matching/scoring logic in this component. Don't render confidence as color only — it always carries text (WCAG). |
 
+## Panorama primitives
+
+| Component | File | Use for | DON'T |
+|---|---|---|---|
+| `DeltaGlyph` | `../panorama/DeltaGlyph.tsx` | Up/down/flat period-delta glyph next to a KPI delta figure (`KpiDelta["direction"]`). Used by `PanoramaKpiTile` and `KpiChips`. | Don't re-inline the up/down/flat glyph switch — it was a verbatim copy-paste in both call sites before this extraction. |
+| `Sparkline` (+ `sparklinePath`) | `../panorama/Sparkline.tsx` | Inline dependency-free SVG trend line for panorama KPI cards (`KpiChips`, `PanoramaKpiTile`'s `OpKpi`). `sparklinePath` is the pure, unit-testable path-math helper. | This is the panorama-specific SVG sparkline — do not confuse with `dashboard/OpKpiSparkline.tsx` (recharts-based); reconciling the two is a separate, larger migration, not a drop-in swap. |
+
 ## Empty & loading states
 
 | Component | File | Use for | DON'T |
