@@ -16,6 +16,7 @@ import {
   submitFreeClaimAction,
 } from "@/app/actions/pet-claim";
 import { LnRadio } from "@/components/ui/Field";
+import { useStepFocus } from "@/lib/ui/use-step-focus";
 
 type IdKind = "microchip" | "tattoo";
 
@@ -53,11 +54,22 @@ export function ClaimWizard() {
   const [state, setState] = useState<WizardState>(INITIAL);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  // A11y fix (2026-07 audit): each phase below is a full early-return (its own
+  // JSX tree, not a shared shell), so only one of the phase headlines is ever
+  // mounted at a time — the same ref object attaches to whichever one is
+  // currently rendered (including the ResultStep variants, via prop). See
+  // lib/ui/use-step-focus.ts.
+  const stepFocusRef = useRef<HTMLParagraphElement>(null);
+  useStepFocus(state.phase, stepFocusRef);
 
   if (state.phase === "claimed") {
     return (
       <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
-        <p className="text-base font-semibold text-[var(--color-ln-ok)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--color-ln-ok)] focus:outline-none"
+        >
           {state.petName} ahora está a tu nombre
         </p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
@@ -77,7 +89,13 @@ export function ClaimWizard() {
   if (state.phase === "submitted") {
     return (
       <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
-        <p className="text-base font-semibold text-[var(--color-ln-ok)]">Reclamo enviado</p>
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--color-ln-ok)] focus:outline-none"
+        >
+          Reclamo enviado
+        </p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
           una resolución.
@@ -118,8 +136,17 @@ export function ClaimWizard() {
         className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
       >
         <fieldset className="space-y-2">
+          {/* ref goes on an inner <span>, not <legend> itself: HTMLLegendElement
+              has a `form` property HTMLParagraphElement lacks, so the single
+              shared stepFocusRef (typed HTMLParagraphElement, reused across
+              every other step's <p> heading) isn't structurally assignable to
+              it. legend stays the direct child of fieldset (required for the
+              accessible-name association) — only the text wraps in the
+              focusable span. */}
           <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
-            ¿Cómo identificás a la mascota?
+            <span ref={stepFocusRef} tabIndex={-1} className="focus:outline-none">
+              ¿Cómo identificás a la mascota?
+            </span>
           </legend>
           <LnRadio
             name="kind"
@@ -182,6 +209,7 @@ export function ClaimWizard() {
         lookup={state.lookup}
         pending={pending}
         error={state.error}
+        stepFocusRef={stepFocusRef}
         onBack={() => setState(INITIAL)}
         onClaim={(t, n) =>
           setState({ phase: "dispute", petToken: t, petName: n, reason: "", error: null })
@@ -233,7 +261,11 @@ export function ClaimWizard() {
       className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
     >
       <div className="space-y-1">
-        <p className="text-base font-semibold text-[var(--color-ln-warn)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--color-ln-warn)] focus:outline-none"
+        >
           Iniciar disputa por {state.petName}
         </p>
         <p className="text-[var(--color-ln-warn)]">
@@ -312,6 +344,7 @@ function ResultStep({
   lookup,
   pending,
   error,
+  stepFocusRef,
   onBack,
   onClaim,
   onFreeClaim,
@@ -319,6 +352,7 @@ function ResultStep({
   lookup: Extract<ClaimLookupResult, { variant: string }>;
   pending: boolean;
   error: string | null;
+  stepFocusRef: React.RefObject<HTMLParagraphElement | null>;
   onBack: () => void;
   onClaim: (petToken: string, petName: string) => void;
   onFreeClaim: () => void;
@@ -327,7 +361,11 @@ function ResultStep({
   if (lookup.variant === "free") {
     return (
       <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-ok)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-ok)] focus:outline-none"
+        >
           Encontramos a {lookup.petName} y no tiene dueño/a registrado/a.
         </p>
         <p className="text-[var(--color-ln-ok)]">
@@ -363,7 +401,11 @@ function ResultStep({
   if (lookup.variant === "not_found") {
     return (
       <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-ink)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-ink)] focus:outline-none"
+        >
           No encontramos una mascota con ese identificador.
         </p>
         <p className="text-[var(--color-ln-ink-2)]">
@@ -392,7 +434,11 @@ function ResultStep({
   if (lookup.variant === "deceased") {
     return (
       <section className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-seal)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-seal)] focus:outline-none"
+        >
           Esta mascota figura como fallecida en miMAR.
         </p>
         <p className="text-[var(--color-ln-seal)]">Si creés que es un error, contactá a soporte.</p>
@@ -411,7 +457,11 @@ function ResultStep({
   if (lookup.variant === "lost") {
     return (
       <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-azul)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-azul)] focus:outline-none"
+        >
           {lookup.petName} está reportada como perdida.
         </p>
         <p className="text-[var(--color-ln-azul)]">
@@ -440,7 +490,11 @@ function ResultStep({
   // Variant B — active owner → offer dispute
   return (
     <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
-      <p className="font-medium text-[var(--color-ln-warn)]">
+      <p
+        ref={stepFocusRef}
+        tabIndex={-1}
+        className="font-medium text-[var(--color-ln-warn)] focus:outline-none"
+      >
         {lookup.petName} ya tiene dueño/a registrado/a
         {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.
       </p>
