@@ -1,27 +1,35 @@
-// /mis-mascotas/[publicToken]/viaje — travel compliance copilot (movilidad
-// Fase 1, Capability 4).
+// /mis-mascotas/[publicToken]/viaje — cross-border travel registry
+// (movilidad Fase 1, Capability 4).
+//
+// UX HONESTY PASS (PO decision, 2026-07-19): this feature is dead
+// end-to-end. No server action anywhere writes a transport_recorded event —
+// recordMoveAction (src/modules/pets/actions.ts) only ever emits
+// jurisdiction_changed (domestic moves via /mudanza); TransportRecordedMovement
+// (src/modules/pets/application/movement/types.ts) is declared but has no
+// writer, no form, no entry point. The compliance-copilot UI that used to
+// render here (TravelSemaforo/TravelObligationsPanel/TravelExportButton) was
+// therefore a facade: it could only ever show data derived from domestic
+// jurisdiction moves, never real cross-border travel. Rather than hide the
+// route (404) or keep pretending it's live, this page now shows an honest
+// "Próximamente" placeholder. Entry points are greyed out with the same
+// message — see MasSheet.helpers.ts's "travel" item (ADR-17c idiom, same
+// capability-gating spirit as MpfExportGate).
+//
+// Nothing below was deleted: the event schema (movement_recorded / event-
+// schemas.ts), the writer (record-movement.ts), the projection
+// (lib/projections/travel-compliance.ts), the corridor reference data, and
+// the three component files above are all untouched and ready to be wired
+// back in once an actual transport_recorded writer ships.
 //
 // Owner-path ONLY in Fase 1 (R4.2, mirrors generatePppExport's ownership
 // stance): the org-mediated path is rejected even though requirePetAccess
 // supports it.
-//
-// Projection contract (invariant #3): this RSC loads events + corridor
-// reference data and passes them RESOLVED into deriveTravelCompliance —
-// the aggregation itself is pure (R2.7).
 
-import { and, asc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { db, petEvents } from "@/db";
-import { overlayAmendments } from "@/lib/infra/amendment";
 import { requireOwnedPetByToken } from "@/lib/infra/pets";
-import { deriveTravelCompliance, deriveTravelContext } from "@/lib/projections/travel-compliance";
-import { type CorridorId, getCorridor } from "@/lib/reference/cross-border-corridors";
-import { TravelExportButton } from "./TravelExportButton";
-import { TravelObligationsPanel } from "./TravelObligationsPanel";
-import { TravelSemaforo } from "./TravelSemaforo";
 
 export default async function ViajePage({
   params,
@@ -33,98 +41,19 @@ export default async function ViajePage({
   if (access.accessPath !== "owner") notFound(); // R4.2 — owner-only in Fase 1
   const { pet } = access;
 
-  // One fetch: movement context + rabies doses + amendments (the D2 overlay
-  // is applied so corrected travel dates project their current value).
-  const rawEvents = await db
-    .select({
-      id: petEvents.id,
-      eventType: petEvents.eventType,
-      occurredAt: petEvents.occurredAt,
-      payload: petEvents.payload,
-    })
-    .from(petEvents)
-    .where(
-      and(
-        eq(petEvents.petId, pet.id),
-        inArray(petEvents.eventType, [
-          "movement_recorded",
-          "vaccination_administered",
-          "event_amended",
-        ]),
-      ),
-    )
-    .orderBy(asc(petEvents.occurredAt));
-
-  const events = overlayAmendments(rawEvents);
-  const movementEvents = events.filter((e) => e.eventType === "movement_recorded");
-
-  if (movementEvents.length === 0) {
-    // R4.4 — empty/onboarding state, never a 404 or a blank panel.
-    return (
-      <main className="mx-auto max-w-2xl px-4 py-6">
-        <h1 className="text-lg font-semibold">Viaje y movilidad</h1>
-        <LnEmptyState
-          variant="dashed"
-          title="Sin movimientos registrados"
-          description="Registrá un cambio de jurisdicción o un viaje planificado para ver los requisitos del corredor y el semáforo de cumplimiento."
-          action={
-            <Link href={`/mis-mascotas/${pet.publicToken}`} className="underline text-sm">
-              Volver a la credencial
-            </Link>
-          }
-        />
-      </main>
-    );
-  }
-
-  // Movement context → aggregation inputs (shared with the export use-case).
-  const now = new Date();
-  const context = deriveTravelContext(
-    movementEvents.map((e) => (e.payload ?? {}) as Record<string, unknown>),
-    now,
-  );
-  const corridors = context.corridorIds.map((id) => getCorridor(id as CorridorId));
-
-  const state = deriveTravelCompliance({
-    now,
-    origin: {
-      country: pet.jurisdictionCountry ?? "AR",
-      province: pet.jurisdictionProvince,
-      locality: pet.jurisdictionLocality,
-    },
-    destinations: context.destinations,
-    corridors,
-    travelDate: context.travelDate,
-    events: events
-      .filter((e) => e.eventType === "vaccination_administered")
-      .map((e) => ({ eventType: e.eventType, payload: e.payload, occurredAt: e.occurredAt })),
-  });
-
   return (
-    <main className="mx-auto max-w-2xl px-4 py-6 space-y-6">
-      <header>
-        <h1 className="text-lg font-semibold">Viaje y movilidad</h1>
-        <p className="text-sm text-[var(--color-ln-mute)]">
-          Requisitos de viaje para {pet.name}, según los movimientos registrados.
-        </p>
-      </header>
-
-      <TravelSemaforo semaforo={state.semaforo} corridors={state.corridorsShown} />
-
-      <section aria-label="Requisitos de viaje">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
-          Checklist de requisitos
-        </h2>
-        <TravelObligationsPanel obligations={state.obligations} />
-      </section>
-
-      <TravelExportButton petPublicToken={pet.publicToken} />
-
-      <p className="text-xs text-[var(--color-ln-mute)]">
-        <Link href={`/mis-mascotas/${pet.publicToken}`} className="underline">
-          Volver a la credencial
-        </Link>
-      </p>
+    <main className="mx-auto max-w-2xl px-4 py-6">
+      <h1 className="text-lg font-semibold">Viaje y movilidad</h1>
+      <LnEmptyState
+        variant="dashed"
+        title="Próximamente"
+        description={`El registro de viajes al exterior con ${pet.name} todavía no está disponible. Estamos trabajando para que puedas ver acá los requisitos del corredor y el semáforo de cumplimiento antes de viajar.`}
+        action={
+          <Link href={`/mis-mascotas/${pet.publicToken}`} className="underline text-sm">
+            Volver a la credencial
+          </Link>
+        }
+      />
     </main>
   );
 }

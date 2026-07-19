@@ -96,6 +96,23 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
   //
   // "Ficha" merged into the "Editar datos y ficha" row above (same target).
 
+  // Viaje transfronterizo (movilidad Fase 1): unlike the GPS-tracking row
+  // removed by the lean audit below (a placeholder for a feature that never
+  // existed), /viaje IS a real route — but no writer anywhere records a
+  // transport_recorded event (only jurisdiction_changed moves via /mudanza
+  // are wired; see TransportRecordedMovement in
+  // src/modules/pets/application/movement/types.ts, still unused). PO
+  // decision (UX honesty pass, 2026-07-19): keep the route, stop hiding that
+  // it's non-functional — surface it here disabled with "Próximamente"
+  // (ADR-17c idiom), same capability-gating spirit as MpfExportGate.
+  items.push({
+    id: "travel",
+    label: "Viaje y movilidad",
+    href: `/mis-mascotas/${pet.publicToken}/viaje`,
+    disabled: true,
+    badge: "Próximamente",
+  });
+
   // Pet-scoped emergency sheet (?sheet=emergencia) — the same profile fields
   // the old /cuenta/editar path edited, without leaving the pet the user is
   // looking at (flow audit 2026-07-03: two surfaces for one dataset).

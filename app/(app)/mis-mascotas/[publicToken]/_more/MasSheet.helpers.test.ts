@@ -1,6 +1,12 @@
 // Tests for deriveMasSheetItems — pet-document-redesign ADR-15 (deceased
 // pruning). The ADR-17c GPS-tracking placeholder row was removed by the lean
 // audit (2026-07-03) — a disabled row advertising a nonexistent feature.
+//
+// UX honesty pass (2026-07-19): the blanket "no disabled rows" invariant from
+// that lean audit is superseded for ONE row — "Viaje y movilidad" — because
+// unlike GPS tracking, /viaje IS a real route with no writer behind it
+// (transport_recorded is never emitted). See MasSheet.helpers.ts for the
+// full rationale.
 
 import { describe, expect, it } from "vitest";
 import { type MasSheetInput, deriveMasSheetItems } from "./MasSheet.helpers";
@@ -28,6 +34,13 @@ describe("deriveMasSheetItems — deceased pruning (REQ-9.3)", () => {
     );
     expect(items.map((i) => i.id)).toEqual(["edit", "contacts"]);
   });
+
+  it("does not surface the travel Próximamente row for a deceased pet", () => {
+    const items = deriveMasSheetItems(
+      baseInput({ pet: { species: "dog", status: "deceased", publicToken: "abc123" } }),
+    );
+    expect(items.some((i) => i.id === "travel")).toBe(false);
+  });
 });
 
 describe("deriveMasSheetItems — no placeholder rows (lean audit 2026-07-03)", () => {
@@ -35,10 +48,17 @@ describe("deriveMasSheetItems — no placeholder rows (lean audit 2026-07-03)", 
     const items = deriveMasSheetItems(baseInput());
     expect(items.some((i) => i.id === "tracking")).toBe(false);
   });
+});
 
-  it("every item is a real, enabled destination (no disabled rows)", () => {
+describe("deriveMasSheetItems — Viaje y movilidad Próximamente (UX honesty pass, 2026-07-19)", () => {
+  it("surfaces a disabled travel row with a Próximamente badge for an active pet", () => {
     const items = deriveMasSheetItems(baseInput());
-    expect(items.every((i) => !i.disabled)).toBe(true);
+    const travel = items.find((i) => i.id === "travel");
+    expect(travel).toBeDefined();
+    expect(travel?.disabled).toBe(true);
+    expect(travel?.badge).toBe("Próximamente");
+    expect(travel?.label).toBe("Viaje y movilidad");
+    expect(travel?.href).toBe("/mis-mascotas/abc123/viaje");
   });
 });
 
