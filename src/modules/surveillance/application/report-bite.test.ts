@@ -294,6 +294,49 @@ describe("reportBite — authority fan-out", () => {
 });
 
 // ---------------------------------------------------------------------------
+// LEGAL-ROUTING fix — incident jurisdiction overrides pet home jurisdiction
+// (PO decision: a bite routes to where it HAPPENED, not the pet's registered
+// home). A prior audit found both the opened case and the authority
+// notification always used pet.jurisdictionProvince/Locality — pinned here so
+// a regression can't silently bring back the home-jurisdiction routing.
+// ---------------------------------------------------------------------------
+
+describe("reportBite — incident jurisdiction overrides pet home jurisdiction", () => {
+  const INCIDENT_ELSEWHERE_INPUT: ReportBiteInput = {
+    ...BASE_INPUT,
+    // pet's home is jurisdiction A (Buenos Aires / Lomas de Zamora, per
+    // BASE_INPUT.pet). The bite happened in jurisdiction B.
+    eventJurisdictionProvince: "Córdoba",
+    eventJurisdictionLocality: "Río Cuarto",
+  };
+
+  it("opens the bite_incident case in the incident jurisdiction (B), not the pet's home (A)", async () => {
+    const deps = makeDeps();
+    await reportBite(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.openCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jurisdictionProvince: "Córdoba",
+        jurisdictionLocality: "Río Cuarto",
+      }),
+      "fake-tx",
+    );
+  });
+
+  it("notifies the incident jurisdiction's (B) authority, not the pet's home (A) authority", async () => {
+    const deps = makeDeps();
+    await reportBite(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.findAuthoritiesForJurisdiction).toHaveBeenCalledWith({
+      province: "Córdoba",
+      locality: "Río Cuarto",
+    });
+    expect(deps.findAuthoritiesForJurisdiction).not.toHaveBeenCalledWith({
+      province: "Buenos Aires",
+      locality: "Lomas de Zamora",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Vaccine validity at bite date (parity quirk #1)
 // ---------------------------------------------------------------------------
 

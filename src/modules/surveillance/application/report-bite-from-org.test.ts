@@ -239,3 +239,34 @@ describe("reportBiteFromOrg (org path)", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// LEGAL-ROUTING fix — authority fan-out uses the INCIDENT jurisdiction, not
+// the pet's home. PO decision: a bite routes to where it HAPPENED. The case
+// override was already correct (test above); this pins the authority
+// notification, which a prior audit found still used pet.jurisdictionProvince
+// /Locality (the pet's home — Palermo, CABA per BASE_INPUT.pet) regardless.
+// ---------------------------------------------------------------------------
+
+describe("reportBiteFromOrg — incident jurisdiction overrides pet home jurisdiction", () => {
+  const INCIDENT_ELSEWHERE_INPUT: ReportBiteFromOrgInput = {
+    ...BASE_INPUT,
+    // pet's home is jurisdiction A (CABA / Palermo, per BASE_INPUT.pet). The
+    // bite happened in jurisdiction B.
+    eventJurisdictionProvince: "Córdoba",
+    eventJurisdictionLocality: "Río Cuarto",
+  };
+
+  it("notifies the incident jurisdiction's (B) authority, not the pet's home (A) authority", async () => {
+    const deps = makeDeps();
+    await reportBiteFromOrg(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.findAuthoritiesForJurisdiction).toHaveBeenCalledWith({
+      province: "Córdoba",
+      locality: "Río Cuarto",
+    });
+    expect(deps.findAuthoritiesForJurisdiction).not.toHaveBeenCalledWith({
+      province: "CABA",
+      locality: "Palermo",
+    });
+  });
+});

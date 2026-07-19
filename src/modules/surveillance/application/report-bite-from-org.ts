@@ -112,6 +112,12 @@ export async function reportBiteFromOrg(
   const { pet, user, organization, occurredAt } = input;
 
   const reporterRole = orgTypeToReporterRole(organization.orgType);
+  // LEGAL-ROUTING fix: incident jurisdiction (LocalityPickerAcross in
+  // OrgBiteForm, or the map-pin reverse-geocode) overrides the pet's home
+  // jurisdiction for BOTH the opened case AND the authority notification
+  // fan-out below — a bite is the incident authority's problem, not the home
+  // registry's. Falls back to pet home only when no incident location was
+  // captured.
   const caseProvince = input.eventJurisdictionProvince ?? pet.jurisdictionProvince;
   const caseLocality = input.eventJurisdictionLocality ?? pet.jurisdictionLocality;
 
@@ -258,12 +264,13 @@ export async function reportBiteFromOrg(
     };
   }
 
-  // 7. Authority fan-out (best-effort — post-tx).
-  if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
+  // 7. Authority fan-out (best-effort — post-tx). Routes to the INCIDENT
+  // jurisdiction (caseProvince/caseLocality), not the pet's home.
+  if (caseProvince && caseLocality) {
     try {
       const authorityIds = await findAuthoritiesForJurisdiction({
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
+        province: caseProvince,
+        locality: caseLocality,
       });
       for (const authorityId of authorityIds) {
         pendingNotifications.push({

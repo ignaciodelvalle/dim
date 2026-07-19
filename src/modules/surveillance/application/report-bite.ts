@@ -109,17 +109,26 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
   // reporter can quote the incident later. Captured inside the tx.
   let casePublicCode = "";
+  // LEGAL-ROUTING fix: a bite must route to the INCIDENT jurisdiction (where
+  // it happened), not the pet's home jurisdiction — a mordedura in Córdoba by
+  // a pet registered in CABA is Córdoba's sanitary authority's problem, not
+  // CABA's. LocationFields (l2, in BiteForm) captures the incident location
+  // via map pin + reverse-geocoding into eventJurisdictionProvince/Locality;
+  // fall back to the pet's home jurisdiction only when the reporter dropped
+  // no pin. Mirrors reportBiteFromOrg's caseProvince/caseLocality pattern.
+  const caseProvince = input.eventJurisdictionProvince ?? pet.jurisdictionProvince;
+  const caseLocality = input.eventJurisdictionLocality ?? pet.jurisdictionLocality;
 
   try {
     await transaction(async (tx) => {
-      // 2. Open bite_incident case (pet jurisdiction).
+      // 2. Open bite_incident case (incident jurisdiction overrides pet jurisdiction).
       const caseRow = await openCase(
         {
           kind: "bite_incident",
           primarySubjectKind: "registered_pet",
           primaryPetId: pet.id,
-          jurisdictionProvince: pet.jurisdictionProvince,
-          jurisdictionLocality: pet.jurisdictionLocality,
+          jurisdictionProvince: caseProvince,
+          jurisdictionLocality: caseLocality,
           openedByUserId: user.id,
           openedReason: {
             code: "bite_reported_owner",
@@ -226,11 +235,13 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   }
 
   // 8. Authority fan-out (best-effort — post-tx). Add to pendingNotifications.
-  if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
+  // Routes to the INCIDENT jurisdiction (caseProvince/caseLocality), not the
+  // pet's home — see LEGAL-ROUTING fix note above.
+  if (caseProvince && caseLocality) {
     try {
       const authorityIds = await findAuthoritiesForJurisdiction({
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
+        province: caseProvince,
+        locality: caseLocality,
       });
       for (const authorityId of authorityIds) {
         pendingNotifications.push({
