@@ -1501,6 +1501,8 @@ async function insertFixtureWelfareReport(input: {
   status?: "open" | "triaged" | "in_progress" | "closed" | "invalid" | "duplicate";
   assignedToUserId?: string | null;
   closedAt?: Date | null;
+  flaggedAt?: Date | null;
+  moderationResolvedAt?: Date | null;
 }): Promise<string> {
   wrSeq += 1;
   const [row] = await db
@@ -1516,6 +1518,8 @@ async function insertFixtureWelfareReport(input: {
       status: input.status ?? "open",
       assignedToUserId: input.assignedToUserId ?? null,
       closedAt: input.closedAt ?? null,
+      flaggedAt: input.flaggedAt ?? null,
+      moderationResolvedAt: input.moderationResolvedAt ?? null,
     })
     .returning({ id: welfareReports.id });
   return row.id;
@@ -1558,6 +1562,48 @@ describe("fetchWelfareMetrics", () => {
     );
     // At least 1 open+unassigned fixture; assigned and closed ones should not be included.
     expect(m.unassignedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  // Regression guard for the KPI↔list moderation-exclusion fix (commit b0d427e3):
+  // a flagged-but-unresolved report must stay OUT of the tiles, exactly like it
+  // stays out of buildMaltratoListConditions({queue: 'unassigned'}). A flagged
+  // report whose moderation HAS been resolved is a normal report again and must
+  // be counted — this is the positive control proving the exclusion targets the
+  // unresolved-flag case specifically, not "flagged" in general.
+  it("unassignedCount excludes a flagged-but-unresolved report, but counts one whose flag was resolved", async () => {
+    const prov = "Chubut";
+    const loc = `moderation-scope-${Date.now()}`;
+
+    // Flagged, unresolved — must NOT be counted (mirrors buildMaltratoListConditions
+    // excluding it from the 'unassigned' queue).
+    await insertFixtureWelfareReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: null,
+      flaggedAt: new Date(),
+      moderationResolvedAt: null,
+    });
+    // Flagged AND resolved — positive control: must be counted like any other
+    // open+unassigned report once moderation has cleared it.
+    await insertFixtureWelfareReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: null,
+      flaggedAt: new Date(),
+      moderationResolvedAt: new Date(),
+    });
+
+    const scope = [{ province: prov, locality: loc }];
+    const m = await fetchWelfareMetrics({ role: "govt" }, scope, ownerUserId);
+    // Only the resolved report may count — the unresolved-flagged one must not.
+    expect(m.unassignedCount).toBe(1);
+    // The other active tiles must also stay honest for the unresolved-flagged
+    // report: it is not assigned to anyone, so myCount/inProgressCount are
+    // unaffected by it either way, but closedMonth must not pick it up (it's
+    // still status='open').
+    expect(m.closedMonth).toBe(0);
   });
 
   it("myCount counts only reports assigned to currentUserId with non-terminal status", async () => {
