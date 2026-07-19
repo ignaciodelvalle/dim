@@ -65,7 +65,7 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
         triggerRef={triggerRef}
       >
         {error && (
-          <p className="px-5 pb-3 text-[13px] text-ln-op-danger" role="alert">
+          <p className="px-5 pb-3 text-sm text-ln-op-danger" role="alert">
             {error}
           </p>
         )}

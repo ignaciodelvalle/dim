@@ -80,7 +80,7 @@ export default async function OrganizacionesPage({
           miMAR Gobierno · Organizaciones
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Organizaciones</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-sm text-ln-op-ink-2">
           {profile.role === "admin"
             ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
             : `Buscá entre las orgs en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
@@ -94,13 +94,13 @@ export default async function OrganizacionesPage({
           defaultValue={query}
           aria-label="Buscar organizaciones por nombre, razón social o CUIT"
           placeholder="Buscar por nombre, razón social o CUIT"
-          className="flex-1 text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="flex-1 text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <select
           name="verified"
           defaultValue={verifiedFilter}
           aria-label="Filtrar por estado de verificación"
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           {(Object.keys(VERIFIED_FILTER_LABELS) as OrgVerifiedFilter[]).map((key) => (
             <option key={key} value={key}>
@@ -112,7 +112,7 @@ export default async function OrganizacionesPage({
           name="orgType"
           defaultValue={orgTypeFilter}
           aria-label="Filtrar por tipo de organización"
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         >
           {(Object.keys(ORG_TYPE_FILTER_LABELS) as OrgTypeFilter[]).map((key) => (
             <option key={key} value={key}>
@@ -146,7 +146,7 @@ export default async function OrganizacionesPage({
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-[13px] font-medium text-ln-op-ink">{o.displayName}</p>
+                      <p className="text-sm font-medium text-ln-op-ink">{o.displayName}</p>
                       <p className="text-sm text-ln-op-mute">
                         {o.legalName} · {ORG_TYPE_LABELS[o.orgType] ?? o.orgType}
                         {o.cuit && ` · CUIT ${o.cuit}`}

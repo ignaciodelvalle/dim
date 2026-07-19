@@ -342,7 +342,7 @@ export default async function AdminInteligenciaPage({
         <OpCardHead
           title={<span id={panelPolicyId}>Política → resultado</span>}
           actions={
-            <span className="text-[11px] text-ln-op-mute">
+            <span className="text-xs text-ln-op-mute">
               Ventana fija ±{POLICY_OUTCOME_WINDOW_DAYS}d — no usa el período elegido arriba
             </span>
           }
