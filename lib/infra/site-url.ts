@@ -21,9 +21,19 @@
 // NOT covered here (deliberately different semantics, left as-is):
 //   - app/sitemap.ts — fails LOUD in production rather than guessing a domain
 //     for search engines; a silent fallback there would be a regression.
-//   - app/layout.tsx metadataBase & components/pet-profile/LostCaseBlock.tsx —
-//     fall back to http://localhost:3000 on purpose (never advertise a guessed
-//     production origin from those surfaces).
+//   - app/layout.tsx metadataBase — falls back to http://localhost:3000 on
+//     purpose (never advertise a guessed production origin from that surface).
+//
+// components/pet-profile/LostCaseBlock.tsx used to be excluded here too (its
+// own localhost fallback, "on purpose"), but that raw `?? "http://localhost:3000"`
+// didn't catch a set-but-EMPTY NEXT_PUBLIC_SITE_URL and produced a relative,
+// unclickable share link for a lost pet's main broadcast channel — the exact
+// bug this module exists to prevent. It now calls credentialQrUrl() like the
+// credential QR does (state-honesty re-audit, 2026-07-19). Flagged for PO: this
+// changes LostCaseBlock's fallback domain from localhost to the canonical
+// https://mimar.ar when NEXT_PUBLIC_SITE_URL is unset/empty — if a genuinely
+// different fallback is wanted for local dev, that needs a product call, not
+// a silent revert of this fix.
 
 const CANONICAL_SITE_URL = "https://mimar.ar";
 

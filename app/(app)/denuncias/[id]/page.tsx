@@ -35,6 +35,22 @@ function isTerminalReportStatus(status: string): boolean {
   return status === "closed" || status === "invalid" || status === "duplicate";
 }
 
+// The "aún no se envió al gobierno" banner is only honest for a report that
+// genuinely hasn't been routed yet. It used to show for ANY non-terminal
+// status — including triaged/in_progress, where a funcionario is already
+// working the case (state-honesty audit). Allow-listing "open" (rather than
+// just excluding the terminal statuses) also means any future status defaults
+// to NOT showing the pending banner.
+function isPendingReportStatus(status: string): boolean {
+  return status === "open";
+}
+
+// Statuses where the report was routed but isn't closed yet — shown as an
+// honest progress line instead of the "not sent yet" banner.
+function isInProgressReportStatus(status: string): boolean {
+  return !isTerminalReportStatus(status) && !isPendingReportStatus(status);
+}
+
 // LN status badge class mapping.
 function statusBadgeClass(status: string): string {
   switch (status) {
@@ -209,15 +225,28 @@ export default async function WelfareReportDetailPage({
         )}
       </div>
 
-      {/* Integration-pending notice — only while the report is non-terminal.
-          On closed / invalid / duplicate it contradicts the status badge (UI-7 B7). */}
-      {!isTerminalReportStatus(report.status) && (
+      {/* Integration-pending notice — ONLY while the report is genuinely
+          un-routed ("open"). Showing "aún no se envió" while a funcionario is
+          already triaging/working the case would contradict reality
+          (state-honesty audit) — those statuses get the progress line below
+          instead. On closed / invalid / duplicate neither notice applies
+          (UI-7 B7). */}
+      {isPendingReportStatus(report.status) && (
         <div className="mb-6">
           <LnCallout tone="warn">
             Esta denuncia aún no fue enviada a la herramienta gubernamental — la integración con los
             canales oficiales de la Ley 14.346 está en desarrollo. Tu reporte queda guardado y será
             enviado cuando la integración esté disponible.
           </LnCallout>
+        </div>
+      )}
+
+      {/* Honest progress line for triaged/in_progress — the report WAS
+          routed and a funcionario is already working it, which is a
+          materially different (better) state than "not sent yet". */}
+      {isInProgressReportStatus(report.status) && (
+        <div className="mb-6">
+          <LnCallout tone="azul">En revisión por la autoridad.</LnCallout>
         </div>
       )}
 

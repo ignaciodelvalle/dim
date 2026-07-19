@@ -12,6 +12,7 @@ import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
+import type { LnVstampVariant } from "@/components/ui/StatusFlag";
 import type { EventType } from "@/db/schema";
 import { eventPayloadSummary } from "@/lib/events/events";
 import {
@@ -123,8 +124,12 @@ function eventToVaccineRow(event: Event): LnVaccineRow {
       })
     : undefined;
 
-  // Derive vstamp status from next_due_at
-  let status: "ok" | "due" | "over" = "ok";
+  // Derive vstamp status from next_due_at. A NULL next_due_at means we don't
+  // know when the next dose is due — "we don't know" must never be sealed
+  // green "VIGENTE" on a medical document (state-honesty audit); only a
+  // known-future refuerzo date earns "ok". Default is the neutral "unknown"
+  // stamp, distinct from genuinely-current (ok) and expired (over).
+  let status: LnVstampVariant = "unknown";
   if (nextDueDate) {
     const now = new Date();
     const daysUntil = (nextDueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);

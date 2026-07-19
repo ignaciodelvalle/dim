@@ -65,8 +65,15 @@ export default async function MisTurnosPage() {
     (r) =>
       r.appointment.status === "cancelled" ||
       r.appointment.status === "cancelled_by_owner" ||
+      r.appointment.status === "cancelled_by_org" ||
       r.appointment.status === "no_show",
   );
+
+  // Derived from the buckets actually rendered below — NOT rows.length — so
+  // the header count always matches what's on screen. A cancelled_by_org
+  // appointment used to disappear from the list but still count toward the
+  // total (state-honesty audit: "3 turnos" header, 2 cards shown).
+  const totalShown = upcoming.length + past.length + cancelled.length;
 
   return (
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
@@ -77,9 +84,9 @@ export default async function MisTurnosPage() {
             Mis turnos
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
-            {rows.length === 0
+            {totalShown === 0
               ? "No hay turnos reservados."
-              : `${rows.length} ${pluralizeEs(rows.length, "turno")} en total.`}
+              : `${totalShown} ${pluralizeEs(totalShown, "turno")} en total.`}
           </p>
         </div>
         <Link href="/turnos/buscar">

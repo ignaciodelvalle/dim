@@ -90,7 +90,7 @@ export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
 
 // ---------- Vstamp --------------------------------------------------------
 
-export type LnVstampVariant = "ok" | "due" | "over";
+export type LnVstampVariant = "ok" | "due" | "over" | "unknown";
 
 const vstampConfig: Record<
   LnVstampVariant,
@@ -113,6 +113,15 @@ const vstampConfig: Record<
     bg: "bg-[var(--color-ln-err-bg)]",
     text: "text-[var(--color-ln-err)]",
     border: "border-[var(--color-ln-err-100)]",
+  },
+  // No next_due_at on record — "we don't know" must never read as "vigente"
+  // (state-honesty audit). Neutral tokens, same combo as LnBadge's `neutral`
+  // variant and the appointment "cancelado" badges.
+  unknown: {
+    label: "SIN DATO",
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
   },
 };
 

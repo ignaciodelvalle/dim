@@ -86,6 +86,7 @@ import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
+import { credentialQrUrl } from "@/lib/infra/site-url";
 import { formatDateShort, foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
 
 export type LostCaseBlockPet = {
@@ -134,11 +135,14 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
 
   // Single source of truth for the public origin (task #43 audit #735: this
   // used to hardcode "https://mimar.ar", diverging from other pages' guesses
-  // like "https://www.mimar.gob.ar" — see app/layout.tsx's metadataBase for
-  // the same NEXT_PUBLIC_SITE_URL resolution). Localhost fallback is for
-  // local dev only; do not invent a production domain here.
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const publicUrl = `${siteUrl}/p/${pet.publicToken}`;
+  // like "https://www.mimar.gob.ar"). Re-audited: the raw `?? "http://localhost:3000"`
+  // fallback does NOT catch a set-but-EMPTY NEXT_PUBLIC_SITE_URL (`??` only
+  // catches null/undefined) — that produced a host-less RELATIVE URL for the
+  // share link, the pet's main broadcast channel (the same class of bug
+  // credentialQrUrl was built to cure for the credential QR). Routed through
+  // the canonical `.trim() || fallback` resolver instead, so this can never
+  // regress to an unclickable link.
+  const publicUrl = credentialQrUrl(pet.publicToken);
   // Disclosure-aware (fixes audit #735: the prior text claimed to honour
   // disclosure prefs but never actually varied on them) — only names the
   // owner when discloseFirstNameWhenLost is on.
@@ -405,8 +409,8 @@ function StaleLostCaseBanner({
     <div data-section="lost-case-block" data-lost-case-variant="stale">
       <LnAlert variant="warning" title="Búsqueda cerrada por inactividad">
         <p className="m-0">
-          No hubo actividad en más de un año, así que el caso se cerró automáticamente. La mascota
-          sigue marcada como perdida.
+          Pasó más de un año desde que se abrió el caso y no hubo novedades en los últimos 60 días,
+          así que se cerró automáticamente. La mascota sigue marcada como perdida.
         </p>
         {isOwner && (
           <div className="mt-3 flex flex-wrap gap-2">

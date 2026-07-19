@@ -77,7 +77,7 @@ export default async function AppointmentDetailPage({
     minute: "2-digit",
   });
 
-  const statusConfig = STATUS_CONFIG[appointment.status] ?? STATUS_CONFIG.confirmed;
+  const statusConfig = STATUS_CONFIG[appointment.status] ?? UNKNOWN_STATUS_CONFIG;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
   // QR only while the slot is current — a past confirmed appointment (never
@@ -235,10 +235,30 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     text: "text-[var(--color-ln-mute)]",
     border: "border-[var(--color-ln-line-strong)]",
   },
+  // Cancelled BY THE ORG/PROVIDER — was previously absent from this map, so
+  // it fell through to the confirmed-green badge (state-honesty audit).
+  // Neutral "cancelado" treatment, matches AppointmentCard.tsx's existing
+  // cancelled_by_org handling for the same label/tone.
+  cancelled_by_org: {
+    label: "Cancelado por el prestador",
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
+  },
   no_show: {
     label: "No asistió",
     bg: "bg-[var(--color-ln-err-050)]",
     text: "text-[var(--color-ln-err)]",
     border: "border-[var(--color-ln-err-100)]",
   },
+};
+
+// Fallback for any status not in the map above — must read as unknown/neutral,
+// NEVER as the confirmed-green badge (state-honesty audit: an unrecognized
+// status previously silently fell back to "Confirmado").
+const UNKNOWN_STATUS_CONFIG: StatusConfig = {
+  label: "Estado desconocido",
+  bg: "bg-[var(--color-ln-stripe)]",
+  text: "text-[var(--color-ln-mute)]",
+  border: "border-[var(--color-ln-line-strong)]",
 };
