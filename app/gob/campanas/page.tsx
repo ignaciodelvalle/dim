@@ -157,7 +157,7 @@ export default async function GobCampanasPage({
         </div>
         <a
           href={exportHref}
-          className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline md:mt-1"
+          className="shrink-0 text-[var(--text-md)] text-ln-op-azul hover:underline md:mt-1"
         >
           Exportar CSV →
         </a>
@@ -297,7 +297,7 @@ export default async function GobCampanasPage({
                         </div>
                         <a
                           href={`/gob/servicios/${offering.offeringToken}`}
-                          className="shrink-0 text-[var(--text-sm)] text-ln-azul hover:underline"
+                          className="shrink-0 text-[var(--text-sm)] text-ln-op-azul hover:underline"
                         >
                           Ver servicio →
                         </a>

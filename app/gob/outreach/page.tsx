@@ -150,7 +150,7 @@ export default async function GobOutreachPage() {
             overdueResult.pets.length > 0 ? (
               <a
                 href="/gob/outreach/export?pipeline=overdue_rabies"
-                className="text-[11px] text-ln-azul hover:underline"
+                className="text-[11px] text-ln-op-azul hover:underline"
               >
                 Exportar CSV →
               </a>
@@ -231,7 +231,7 @@ export default async function GobOutreachPage() {
             !strayResult.empty ? (
               <a
                 href="/gob/outreach/export?pipeline=stray_density"
-                className="text-[11px] text-ln-azul hover:underline"
+                className="text-[11px] text-ln-op-azul hover:underline"
               >
                 Exportar CSV →
               </a>

@@ -84,14 +84,17 @@ const PRESETS: PresetConfig[] = [
 /** Multi-year chips appended only when `multiYear` is set (Panorama-only). */
 const MULTI_YEAR_PRESETS: PresetConfig[] = [PRESET_3Y, PRESET_5Y];
 
+// Operator-only component (rendered exclusively on /gob, /admin dashboards,
+// OpFilterBar and Panorama) — uses ln-op-* tokens, not the citizen ln-*
+// palette (audit 2026-07-19, consistency/skin-validation).
 const chipBase =
   "inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium border " +
-  "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-1 " +
+  "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1 " +
   "min-h-11 cursor-pointer";
 
-const chipActive = "bg-ln-azul text-white border-ln-azul";
+const chipActive = "bg-ln-op-azul text-white border-ln-op-azul";
 const chipInactive =
-  "bg-ln-card text-ln-ink-2 border-ln-line hover:border-ln-line-strong hover:text-ln-ink";
+  "bg-ln-op-card text-ln-op-ink-2 border-ln-op-line hover:border-ln-op-line-2 hover:text-ln-op-ink";
 
 export function PeriodPicker({
   defaultPreset = "30d",

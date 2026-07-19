@@ -173,12 +173,31 @@ add `lint:select` · dedupe `DeltaGlyph`/sparkline de Panorama en primitivos reg
   fence de botones cuando se widee a la superficie ciudadana (§4). Un tiro, dos
   problemas.
 - **`LnCheckbox` hardcodea `ln-azul` (token ciudadano) bajo skin operador** —
-  gap de token latente (flag del writer de la cola). No tocado (blast radius
-  global); candidato al `lint:select`/token-harmonization sweep.
+  gap de token latente (flag del writer de la cola). **Confirmado INTENCIONAL,
+  no tocado**: es un primitivo compartido de verdad — 41 call sites divididos
+  entre superficie ciudadana (signup, mis-mascotas, cuenta, turnos, perdidas
+  público) y operador (gob/admin/org). No existe `OpCheckbox`; un token-swap acá
+  rompería la mitad de sus callers. Documentado con comentario en
+  `components/ui/Field.tsx`. Follow-up real: crear `OpCheckbox` (fuera de
+  alcance de esta auditoría).
 - **`JurisdictionSwitcher` usa tokens ciudadanos (`ln-line`/`ln-card`) dentro de
-  dashboards operador** — misma clase de gap. El `OpFilterBar` no lo restila
-  (compartido); harmonizar sus tokens a `ln-op-*` es follow-up con validación en
-  vigilancia + panorama embebido.
+  dashboards operador** — misma clase de gap, pero acá SÍ era un bug: 100% de
+  sus call sites son `/gob/*` + `OpFilterBar` + Panorama (cero uso ciudadano).
+  **Corregido** (auditoría 2026-07-19, consistency/skin-validation) — swap a
+  `ln-op-line`/`ln-op-card`/`ln-op-ink`/`ln-op-ink-2`/`ln-op-azul`. Mismo swap
+  aplicado a `PeriodPicker.tsx` y `DateRangePicker.tsx` (idéntico patrón, mismo
+  autor, 100% operador). También corregidos: 2 spots sueltos de `ln-azul` en
+  `OpKpi.tsx` (ring de foco del botón ⓘ + link "Ver detalle →" — NO tocado el
+  popover de info, que usa `ln-line`/`ln-card` a propósito, documentado inline
+  como "aligned to the LN card system"), y el link "Exportar CSV →" copy-pasteado
+  con `text-ln-azul` en 5 páginas `/gob` (`campanas`, `adopciones`, `poblacion`,
+  `censo`, `outreach` — 7 ocurrencias) → `text-ln-op-azul`. Verificado:
+  `tsc --noEmit` limpio, `biome check` limpio, `lint:tokens` + `lint:ui` verdes,
+  tests de los 4 componentes tocados en verde (JurisdictionSwitcher, PeriodPicker,
+  Field.checkbox, OpKpi). `MapChoropleth.tsx` NO tocado pese a usar tokens
+  ciudadanos en superficie 100% operador (`/gob/perdidas`, `/censo`, `/vigilancia`)
+  — es un chart gobernado por la skill `dataviz`, ya catalogado "on-standard" en
+  §4; blast radius grande, follow-up separado si se decide harmonizar.
 
 ## 4ter. OpFilterBar v2 — rediseño de visualización (HECHO, sin commitear)
 

@@ -149,7 +149,7 @@ function InfoButton({ info }: { info: InfoTooltip }) {
           e.stopPropagation();
           setOpen((v) => !v);
         }}
-        className="ml-1 inline-flex items-center align-middle text-ln-op-mute hover:text-ln-op-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul rounded-sm"
+        className="ml-1 inline-flex items-center align-middle text-ln-op-mute hover:text-ln-op-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
       >
         {/* PO directive: no loose glyphs. The ⓘ literal is replaced by the app's
             Icon registry (b026716c standardized all glyphs on it). */}
@@ -327,7 +327,7 @@ export function OpKpi({
       {drillHref && (
         <a
           href={drillHref}
-          className="mt-auto pt-1.5 text-[11px] text-ln-azul hover:underline self-start"
+          className="mt-auto pt-1.5 text-[11px] text-ln-op-azul hover:underline self-start"
           onClick={(e) => e.stopPropagation()}
         >
           Ver detalle →

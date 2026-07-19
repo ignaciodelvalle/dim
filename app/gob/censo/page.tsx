@@ -129,7 +129,7 @@ export default async function GobCensoPage({
       </div>
       <a
         href={exportHref}
-        className="shrink-0 text-[var(--text-md)] text-ln-azul hover:underline md:mt-1"
+        className="shrink-0 text-[var(--text-md)] text-ln-op-azul hover:underline md:mt-1"
       >
         Exportar CSV →
       </a>

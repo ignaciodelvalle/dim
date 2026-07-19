@@ -359,7 +359,17 @@ export function LnSuffixWrap({ suffix, children, className = "" }: LnSuffixWrapP
 }
 
 // ---------- Checkbox -------------------------------------------------------
-
+//
+// INTENTIONAL cross-skin sharing (audit 2026-07-19, consistency/skin-validation):
+// LnCheckbox hardcodes citizen tokens (ln-azul, ln-celeste-050, ln-err, ln-ink)
+// but is also rendered on operator surfaces (/gob, /admin, /org — e.g.
+// VerifiedFilterCheckbox on /gob/vigilancia/brotes) because no OpCheckbox
+// equivalent exists in components/ui/dashboard/*. This is a real token gap,
+// but LnCheckbox's usage spans both skins broadly (signup, mis-mascotas,
+// cuenta forms on the citizen side; gob/admin/org actions on the operator
+// side), so a token swap here would be a wrong-skin fix for HALF its callers.
+// Do not swap these tokens. Introducing a dedicated OpCheckbox is the correct
+// fix — tracked as a follow-up, out of scope for this audit.
 export type LnCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
   /** Sets aria-invalid="true" and applies error styling to the input. */
   invalid?: boolean;

@@ -35,13 +35,16 @@ export type DateRangePickerProps = {
   className?: string;
 };
 
+// Operator-only component (rendered exclusively inside PeriodPicker, itself
+// operator-only) — uses ln-op-* tokens, not the citizen ln-* palette
+// (audit 2026-07-19, consistency/skin-validation).
 const inputClasses =
-  "min-h-11 px-3 rounded-lg border border-ln-line bg-ln-card " +
-  "text-sm text-ln-ink " +
-  "focus:border-ln-azul focus:outline-none focus:ring-2 focus:ring-ln-azul/20 " +
+  "min-h-11 px-3 rounded-lg border border-ln-op-line bg-ln-op-card " +
+  "text-sm text-ln-op-ink " +
+  "focus:border-ln-op-azul focus:outline-none focus:ring-2 focus:ring-ln-op-azul/20 " +
   "w-full";
 
-const labelClasses = "text-sm font-medium text-ln-ink-2";
+const labelClasses = "text-sm font-medium text-ln-op-ink-2";
 
 export function DateRangePicker({
   value,
