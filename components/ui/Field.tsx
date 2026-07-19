@@ -362,14 +362,18 @@ export function LnSuffixWrap({ suffix, children, className = "" }: LnSuffixWrapP
 //
 // INTENTIONAL cross-skin sharing (audit 2026-07-19, consistency/skin-validation):
 // LnCheckbox hardcodes citizen tokens (ln-azul, ln-celeste-050, ln-err, ln-ink)
-// but is also rendered on operator surfaces (/gob, /admin, /org — e.g.
-// VerifiedFilterCheckbox on /gob/vigilancia/brotes) because no OpCheckbox
-// equivalent exists in components/ui/dashboard/*. This is a real token gap,
-// but LnCheckbox's usage spans both skins broadly (signup, mis-mascotas,
-// cuenta forms on the citizen side; gob/admin/org actions on the operator
-// side), so a token swap here would be a wrong-skin fix for HALF its callers.
-// Do not swap these tokens. Introducing a dedicated OpCheckbox is the correct
-// fix — tracked as a follow-up, out of scope for this audit.
+// but is also rendered on operator surfaces (/gob, /admin, /org). LnCheckbox's
+// usage spans both skins broadly (signup, mis-mascotas, cuenta forms on the
+// citizen side; gob/admin/org actions on the operator side), so a token swap
+// here would be a wrong-skin fix for HALF its callers. Do not swap these
+// tokens — this stays the citizen-skinned primitive.
+//
+// Follow-up SHIPPED (consistency/op-skin-followups, 2026-07-19):
+// `OpCheckbox` now exists at components/ui/dashboard/OpField.tsx (ln-op-*
+// tokens, identical structure/API). New operator call sites should use
+// OpCheckbox; VerifiedFilterCheckbox and BulkApprovalQueueList were migrated.
+// Remaining LnCheckbox usages under app/gob, app/admin, app/org are a known
+// backlog — migrate opportunistically, not a hard blocker.
 export type LnCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
   /** Sets aria-invalid="true" and applies error styling to the input. */
   invalid?: boolean;

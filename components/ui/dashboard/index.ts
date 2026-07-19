@@ -53,7 +53,9 @@ export {
   OpSelect,
   OpTextarea,
   OpSubmitButton,
+  OpCheckbox,
 } from "./OpField";
+export type { OpCheckboxProps } from "./OpField";
 // NOTE: DashboardFreshnessFooter is a SERVER component (queries the DB via
 // lib/metrics/freshness → db → postgres). It must NOT be re-exported here —
 // this barrel is imported by client components (e.g. PanoramaConsole →

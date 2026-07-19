@@ -31,8 +31,8 @@ import {
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton, type OpButtonVariant } from "@/components/ui/dashboard/OpButton";
+import { OpCheckbox } from "@/components/ui/dashboard/OpField";
 import type { ApprovalRequestType } from "@/db";
 import {
   RUPGA_APPROVAL_WARNING,
@@ -187,7 +187,7 @@ export function BulkApprovalQueueList({
                   : "border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe"
               }`}
             >
-              <LnCheckbox
+              <OpCheckbox
                 id={`row-${item.publicToken}`}
                 checked={isSelected}
                 onChange={() => toggle(item.publicToken)}

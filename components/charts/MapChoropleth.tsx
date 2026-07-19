@@ -31,6 +31,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  *
  * Backward-compatible: los callers que no pasen `allowDrill` ni `level` obtienen
  * el comportamiento v1 sin ningún cambio.
+ *
+ * Skin audit (consistency/op-skin-followups, 2026-07-19): every current caller
+ * is 100% operator surface (/gob/perdidas, /gob/censo, /gob/vigilancia,
+ * /gob/campanas + the design/dashboards QA showcase) — same shape as the
+ * already-fixed JurisdictionSwitcher/PeriodPicker/DateRangePicker precedent.
+ * UI-chrome tokens (breadcrumb, legend labels/captions, swatch/table/map
+ * borders, "Ver datos" link) were swapped ln-* → ln-op-*. The DATA-VIZ palette
+ * (colorScale/RAMP_BLUE, COLOR_DIVERGENT_*, COLOR_NO_DATA, COLOR_SUPPRESSED,
+ * the CARTO_* cartographic stroke constants, and the raw hex used in MapLibre
+ * paint expressions / popup HTML) is intentionally UNCHANGED — that's a
+ * dataviz-governed encoded palette, not skin chrome.
  */
 
 // ---------------------------------------------------------------------------
@@ -787,7 +798,7 @@ export function MapChoropleth({
           <button
             type="button"
             onClick={handleDrillBack}
-            className="text-ln-azul hover:underline font-medium"
+            className="text-ln-op-azul hover:underline font-medium"
           >
             ← Volver
           </button>
@@ -798,13 +809,13 @@ export function MapChoropleth({
                 key={i}
                 className="flex items-center gap-1"
               >
-                <span className="text-ln-ink-2">{crumb.label}</span>
-                <span className="text-ln-ink-3" aria-hidden="true">
+                <span className="text-ln-op-ink-2">{crumb.label}</span>
+                <span className="text-ln-op-mute" aria-hidden="true">
                   /
                 </span>
               </li>
             ))}
-            <li className="text-ln-ink font-medium">{LEVEL_LABELS[drillState.level]}</li>
+            <li className="text-ln-op-ink font-medium">{LEVEL_LABELS[drillState.level]}</li>
           </ol>
         </nav>
       )}
@@ -813,7 +824,7 @@ export function MapChoropleth({
       <div
         ref={mapContainer}
         style={{ height }}
-        className="w-full rounded-xl overflow-hidden border border-ln-line"
+        className="w-full rounded-xl overflow-hidden border border-ln-op-line"
         aria-label={fallbackTableLabel}
         role="img"
       />
@@ -822,7 +833,7 @@ export function MapChoropleth({
       {(isEmpty || allSuppressed) && (
         <p
           role="note"
-          className="mt-2 rounded-[var(--radius-sm)] border border-ln-line bg-ln-stripe px-3 py-2 text-xs text-ln-ink-2"
+          className="mt-2 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-3 py-2 text-xs text-ln-op-ink-2"
         >
           {isEmpty
             ? "Sin datos para el filtro seleccionado: no hay valores que mostrar en este alcance y período."
@@ -849,26 +860,26 @@ export function MapChoropleth({
                 : `Escala de color para ${scaleLabel}: de ${scaleBounds.min} (mínimo) a ${scaleBounds.max} (máximo)`
             }
           >
-            <p className="text-xs text-ln-ink-3 mb-0.5">{scaleLabel}</p>
+            <p className="text-xs text-ln-op-mute mb-0.5">{scaleLabel}</p>
             {scaleMode === "divergent" && typeof target === "number" ? (
               // Divergent legend: two poles with the target anchor labeled.
               // Mirrors the F5 Panorama province-choropleth legend semantics.
               // Colorblind-safe: orange=below, neutral=at target, teal=above.
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-ln-ink-3">bajo meta</span>
+                  <span className="text-xs text-ln-op-mute">bajo meta</span>
                   <div
-                    className="h-2.5 flex-1 rounded-sm border border-ln-line"
+                    className="h-2.5 flex-1 rounded-sm border border-ln-op-line"
                     style={{
                       background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
                     }}
                     aria-hidden="true"
                   />
-                  <span className="text-xs text-ln-ink-3">sobre meta</span>
+                  <span className="text-xs text-ln-op-mute">sobre meta</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-ln-ink-3">
+                <div className="flex items-center gap-1.5 text-xs text-ln-op-mute">
                   <span
-                    className="inline-block w-2.5 h-2.5 rounded-[var(--radius-xs)] border border-ln-line"
+                    className="inline-block w-2.5 h-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
                     style={{ background: COLOR_DIVERGENT_NEUTRAL }}
                     aria-hidden="true"
                   />
@@ -880,15 +891,15 @@ export function MapChoropleth({
             ) : (
               // Sequential legend: min → max gradient bar.
               <div className="flex items-center gap-2">
-                <span className="text-xs tabular-nums text-ln-ink-3">{scaleBounds.min}</span>
+                <span className="text-xs tabular-nums text-ln-op-mute">{scaleBounds.min}</span>
                 <div
-                  className="h-2.5 flex-1 rounded-sm border border-ln-line"
+                  className="h-2.5 flex-1 rounded-sm border border-ln-op-line"
                   style={{
                     background: `linear-gradient(to right, ${colorScale[0]}, ${colorScale[1]})`,
                   }}
                   aria-hidden="true"
                 />
-                <span className="text-xs tabular-nums text-ln-ink-3">{scaleBounds.max}</span>
+                <span className="text-xs tabular-nums text-ln-op-mute">{scaleBounds.max}</span>
               </div>
             )}
           </div>
@@ -908,27 +919,27 @@ export function MapChoropleth({
                 onClick={() => onBinClick(i)}
                 className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
                   activeBin === i
-                    ? "border-ln-azul bg-ln-azul/10 font-medium text-ln-azul"
-                    : "border-ln-line text-ln-ink-3 hover:border-ln-azul/40"
+                    ? "border-ln-op-azul bg-ln-op-azul/10 font-medium text-ln-op-azul"
+                    : "border-ln-op-line text-ln-op-mute hover:border-ln-op-azul/40"
                 }`}
               >
                 {bin.label}
               </button>
             ))}
             {activeBin !== null && (
-              <span className="text-xs text-ln-ink-3">resaltando el rango en el mapa</span>
+              <span className="text-xs text-ln-op-mute">resaltando el rango en el mapa</span>
             )}
           </fieldset>
         )}
 
         {/* Discrete swatches: no-data + suppressed */}
         <ul
-          className="flex items-center gap-3 list-none m-0 p-0 text-xs text-ln-ink-3"
+          className="flex items-center gap-3 list-none m-0 p-0 text-xs text-ln-op-mute"
           aria-label="Estados especiales"
         >
           <li className="flex items-center gap-1">
             <span
-              className="inline-block w-3 h-3 rounded-sm border border-ln-line"
+              className="inline-block w-3 h-3 rounded-sm border border-ln-op-line"
               style={{ background: COLOR_NO_DATA }}
               aria-hidden="true"
             />
@@ -938,7 +949,7 @@ export function MapChoropleth({
             {/* Hatched swatch mirrors the on-map fill-pattern — the suppressed
                 state is encoded by texture + text, never color alone. */}
             <span
-              className="inline-block w-3 h-3 rounded-sm border border-ln-line"
+              className="inline-block w-3 h-3 rounded-sm border border-ln-op-line"
               style={{
                 background: `repeating-linear-gradient(45deg, ${COLOR_SUPPRESSED}, ${COLOR_SUPPRESSED} 3px, rgba(71, 85, 105, 0.9) 3px, rgba(71, 85, 105, 0.9) 4px)`,
               }}
@@ -951,7 +962,7 @@ export function MapChoropleth({
 
       {/* Tabla a11y */}
       <details className="mt-3 text-sm">
-        <summary className="cursor-pointer text-ln-azul hover:underline text-xs font-medium">
+        <summary className="cursor-pointer text-ln-op-azul hover:underline text-xs font-medium">
           Ver datos
         </summary>
         <table className="mt-2 w-full border-collapse text-xs">
@@ -960,13 +971,13 @@ export function MapChoropleth({
             <tr>
               <th
                 scope="col"
-                className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
+                className="border border-ln-op-line px-3 py-1.5 text-left font-semibold text-ln-op-ink-2 bg-ln-op-stripe"
               >
                 Región
               </th>
               <th
                 scope="col"
-                className="border border-ln-line px-3 py-1.5 text-left font-semibold text-ln-ink-2 bg-ln-stripe"
+                className="border border-ln-op-line px-3 py-1.5 text-left font-semibold text-ln-op-ink-2 bg-ln-op-stripe"
               >
                 Valor
               </th>
@@ -975,10 +986,10 @@ export function MapChoropleth({
           <tbody>
             {data.map((d) => (
               <tr key={d.code}>
-                <td className="border border-ln-line px-3 py-1.5 text-ln-ink">
+                <td className="border border-ln-op-line px-3 py-1.5 text-ln-op-ink">
                   {d.label ?? d.code}
                 </td>
-                <td className="border border-ln-line px-3 py-1.5 text-ln-ink tabular-nums">
+                <td className="border border-ln-op-line px-3 py-1.5 text-ln-op-ink tabular-nums">
                   {d.suppressed ? <span className="text-ln-op-mute">— (suprimido)</span> : d.value}
                 </td>
               </tr>

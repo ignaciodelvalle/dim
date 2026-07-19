@@ -26,6 +26,7 @@ import { OpButton } from "@/components/ui/dashboard/OpButton";
  *   OpSelect       — <select> with op control classes
  *   OpTextarea     — <textarea> with op control classes
  *   OpSubmitButton — full-width submit button with pending/idle label
+ *   OpCheckbox     — native uncontrolled checkbox with op-tier styling
  */
 
 // ---------------------------------------------------------------------------
@@ -270,5 +271,78 @@ export function OpSubmitButton({
     <OpButton type="submit" variant="primary" block loading={pending}>
       {pending ? pendingLabel : children}
     </OpButton>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Checkbox
+// ---------------------------------------------------------------------------
+//
+// Operator-skinned counterpart to LnCheckbox (components/ui/Field.tsx) — same
+// structure/API, but ln-op-* tokens (op accent/line/card/ink) instead of the
+// citizen ln-azul/ln-celeste-050/ln-err/ln-ink. Closes the token gap that
+// LnCheckbox's file-level comment documents as an intentional, tracked-for-
+// later follow-up (consistency/skin-validation audit, 2026-07-19): LnCheckbox
+// is a real cross-skin primitive with too many citizen callers to re-skin in
+// place, so operator surfaces get their own checkbox instead.
+//
+// Unlike LnCheckbox, this does NOT wire the localized-validity / mobile-focus-
+// scroll helpers — OpInput/OpSelect/OpTextarea in this same file don't either,
+// so this stays consistent with its op-tier siblings rather than reaching into
+// Field.tsx's private helpers.
+
+export type OpCheckboxProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "children"> & {
+  /** Sets aria-invalid="true" and applies error styling to the input. */
+  invalid?: boolean;
+  /** Label content. Omit for a label-less control (pass `aria-label` instead). */
+  children?: ReactNode;
+  /** Extra classes for the label text span. */
+  labelClassName?: string;
+};
+
+export function OpCheckbox({
+  invalid,
+  children,
+  className,
+  labelClassName,
+  id: idProp,
+  ...rest
+}: OpCheckboxProps) {
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
+
+  const input = (
+    <input
+      id={id}
+      type="checkbox"
+      aria-invalid={invalid || undefined}
+      className={[
+        "mt-0.5 h-4 w-4 shrink-0 cursor-pointer",
+        "accent-[var(--color-ln-op-azul)]",
+        "rounded-[var(--radius-sm)]",
+        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-op-celeste-050)]",
+        invalid ? "outline outline-[1.5px] outline-[var(--color-ln-op-danger)]" : "",
+        className ?? "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+      {...rest}
+    />
+  );
+
+  // Label-less: render just the input — caller supplies aria-label.
+  if (children == null) return input;
+
+  return (
+    <label htmlFor={id} className="flex items-start gap-2 cursor-pointer">
+      {input}
+      <span
+        className={["text-sm leading-tight text-[var(--color-ln-op-ink)]", labelClassName ?? ""]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {children}
+      </span>
+    </label>
   );
 }
