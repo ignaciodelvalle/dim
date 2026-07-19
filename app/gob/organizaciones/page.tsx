@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
-import type { OrgVerifiedFilter } from "@/lib/infra/admin-search";
+import type { OrgTypeFilter, OrgVerifiedFilter } from "@/lib/infra/admin-search";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -30,20 +30,42 @@ function parseVerifiedFilter(raw: string | undefined): OrgVerifiedFilter {
   return raw === "verified" || raw === "pending" ? raw : "all";
 }
 
+// ORG-TYPE filter select labels — "all" is the UI sentinel for "no filter".
+const ORG_TYPE_FILTER_LABELS: Record<OrgTypeFilter, string> = {
+  all: "Todos los tipos",
+  clinic: "Clínica",
+  shelter: "Refugio",
+  rescue_network: "Red de rescate",
+  sanitary_authority: "Autoridad sanitaria",
+  other: "Otro",
+};
+
+function parseOrgTypeFilter(raw: string | undefined): OrgTypeFilter {
+  return raw === "clinic" ||
+    raw === "shelter" ||
+    raw === "rescue_network" ||
+    raw === "sanitary_authority" ||
+    raw === "other"
+    ? raw
+    : "all";
+}
+
 export default async function OrganizacionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; verified?: string }>;
+  searchParams: Promise<{ q?: string; verified?: string; orgType?: string }>;
 }) {
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const verifiedFilter = parseVerifiedFilter(sp.verified);
+  const orgTypeFilter = parseOrgTypeFilter(sp.orgType);
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
   const { items: results, truncated } = await searchOrganizations(
     query,
     { role: profile.role, jurisdictions },
     verifiedFilter,
+    orgTypeFilter,
   );
 
   // AC2: every PII read leaves a trail — both the typed-query search AND the
@@ -86,6 +108,18 @@ export default async function OrganizacionesPage({
             </option>
           ))}
         </select>
+        <select
+          name="orgType"
+          defaultValue={orgTypeFilter}
+          aria-label="Filtrar por tipo de organización"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+        >
+          {(Object.keys(ORG_TYPE_FILTER_LABELS) as OrgTypeFilter[]).map((key) => (
+            <option key={key} value={key}>
+              {ORG_TYPE_FILTER_LABELS[key]}
+            </option>
+          ))}
+        </select>
         <OpButton type="submit" variant="primary" size="sm">
           Buscar
         </OpButton>
@@ -93,7 +127,7 @@ export default async function OrganizacionesPage({
 
       <p className="text-sm text-ln-op-mute">
         {results.length === 0
-          ? query || verifiedFilter !== "all"
+          ? query || verifiedFilter !== "all" || orgTypeFilter !== "all"
             ? "Sin resultados."
             : "Ingresa una consulta para buscar organizaciones."
           : truncated

@@ -832,18 +832,32 @@ export type OutbreakInvestigationDetail = {
  *
  * Cross-jurisdiction guard: a govt user with no assignments gets an empty
  * list instead of a nationwide data leak (mirrors listCasesForGovt).
+ *
+ * `opts.adminProvince`/`adminLocality` mirror casesScopeClause
+ * (lib/analytics/govt-dashboards.ts): admin-only drill-down predicate, additive-
+ * only, backward-compatible (omitted → unrestricted, same as before). Govt
+ * callers must never pass these — their scope is already `jurisdictions`.
  */
 export async function listOutbreakInvestigationsForGovt(
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
   isAdmin = false,
+  opts?: { adminProvince?: string; adminLocality?: string },
 ): Promise<OutbreakInvestigationListItem[]> {
   // Guard: non-admin with no jurisdiction assignments sees nothing.
   if (!isAdmin && jurisdictions.length === 0) return [];
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-  const jurisdictionFilter =
-    !isAdmin && jurisdictions.length > 0
+  const jurisdictionFilter = isAdmin
+    ? opts?.adminProvince
+      ? opts.adminLocality
+        ? and(
+            eq(cases.jurisdictionProvince, opts.adminProvince),
+            eq(cases.jurisdictionLocality, opts.adminLocality),
+          )
+        : eq(cases.jurisdictionProvince, opts.adminProvince)
+      : undefined
+    : jurisdictions.length > 0
       ? or(
           ...jurisdictions.map((j) =>
             and(

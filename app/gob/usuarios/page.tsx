@@ -4,6 +4,7 @@ import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpBreach, OpButton, OpCard, OpCardBody, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
+import type { UserRoleFilter } from "@/lib/infra/admin-search";
 import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { isTestAccount } from "@/lib/infra/test-accounts";
@@ -33,17 +34,31 @@ const ROLE_TONES: Record<string, RoleTone> = {
   admin: "open",
 };
 
+// ROLE filter select labels — "all" is the UI sentinel for "no filter".
+const ROLE_FILTER_LABELS: Record<UserRoleFilter, string> = {
+  all: "Todos",
+  owner: "Dueño/a",
+  vet: "Veterinario/a",
+  govt: "Gobierno",
+  admin: "Administrador/a",
+};
+
+function parseRoleFilter(raw: string | undefined): UserRoleFilter {
+  return raw === "owner" || raw === "vet" || raw === "govt" || raw === "admin" ? raw : "all";
+}
+
 export default async function UsuariosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; test?: string }>;
+  searchParams: Promise<{ q?: string; test?: string; role?: string }>;
 }) {
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const showTestAccounts = sp.test === "1";
+  const roleFilter = parseRoleFilter(sp.role);
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
-  const allResults = await searchUsers(query, { role: profile.role, jurisdictions });
+  const allResults = await searchUsers(query, { role: profile.role, jurisdictions }, roleFilter);
 
   // I1: emails live in auth.users (no email column on profiles) — resolve them so
   // each row shows a human email + estado instead of an opaque UUID. Same
@@ -61,10 +76,11 @@ export default async function UsuariosPage({
     ? allResults
     : allResults.filter((u) => !isTestAccount(u.displayName, emailMap.get(u.id)));
 
-  // Toggle for the test-account filter — preserves the active query.
+  // Toggle for the test-account filter — preserves the active query + role filter.
   const testToggleHref = (() => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);
+    if (roleFilter !== "all") params.set("role", roleFilter);
     if (!showTestAccounts) params.set("test", "1");
     const qs = params.toString();
     return qs ? `${base}/usuarios?${qs}` : `${base}/usuarios`;
@@ -148,6 +164,18 @@ export default async function UsuariosPage({
           placeholder="Buscar por nombre"
           className="flex-1 text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
+        <select
+          name="role"
+          defaultValue={roleFilter}
+          aria-label="Filtrar por rol"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+        >
+          {(Object.keys(ROLE_FILTER_LABELS) as UserRoleFilter[]).map((key) => (
+            <option key={key} value={key}>
+              {ROLE_FILTER_LABELS[key]}
+            </option>
+          ))}
+        </select>
         <OpButton type="submit" variant="primary" size="sm">
           Buscar
         </OpButton>
@@ -155,10 +183,10 @@ export default async function UsuariosPage({
 
       <p className="text-sm text-ln-op-mute">
         {results.length === 0
-          ? query
+          ? query || roleFilter !== "all"
             ? "Sin resultados."
             : "No hay usuarios registrados."
-          : query
+          : query || roleFilter !== "all"
             ? `${results.length} ${pluralizeEs(results.length, "resultado")}`
             : `Mostrando los primeros ${results.length} usuarios ordenados por rol y nombre.`}
       </p>

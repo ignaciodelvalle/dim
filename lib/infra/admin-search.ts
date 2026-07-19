@@ -19,7 +19,7 @@
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 
 import { db, organizations, ownerships, petServiceDog, pets, profiles } from "@/db";
-import type { ServiceDogType } from "@/db";
+import type { ServiceDogType, orgTypeEnum } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { likeContains } from "@/lib/utils/like-helpers";
 
@@ -40,6 +40,10 @@ export type UserSearchResult = {
 export type UserSearchScope =
   | { role: "admin" }
   | { role: "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] };
+
+// Canonical roles come straight from userRoleEnum (db/schema.ts) — "all" is the
+// UI-only "no filter" sentinel, never pushed into the WHERE clause.
+export type UserRoleFilter = "owner" | "vet" | "govt" | "admin" | "all";
 
 export type OrgSearchResult = {
   id: string;
@@ -75,6 +79,7 @@ const DEFAULT_LIST_LIMIT = 50;
 export async function searchUsers(
   query: string,
   scope: UserSearchScope = { role: "admin" },
+  roleFilter: UserRoleFilter = "all",
 ): Promise<UserSearchResult[]> {
   // Govt with no assignments must see nothing (prefer showing LESS).
   if (scope.role === "govt" && scope.jurisdictions.length === 0) return [];
@@ -93,6 +98,10 @@ export async function searchUsers(
   // manageable human administrators. `/admin/admins` already partitions on
   // this same flag — mirror it here rather than a display-name heuristic.
   const scopeConditions: ReturnType<typeof and>[] = [eq(profiles.isSystem, false)];
+  // Role filter (ROLE param, narrows only — "all" pushes no predicate).
+  if (roleFilter !== "all") {
+    scopeConditions.push(eq(profiles.role, roleFilter));
+  }
   if (scope.role === "govt") {
     // At least one active ownership linking the user to a scoped pet.
     // ownerships.role = 'owner' ensures we only count real owners (not caretakers).
@@ -164,6 +173,11 @@ export async function searchUsers(
 
 export type OrgVerifiedFilter = "pending" | "verified" | "all";
 
+// Canonical org types come straight from orgTypeEnum (db/schema.ts) — "all" is
+// the UI-only "no filter" sentinel, never pushed into the WHERE clause.
+export type OrgType = (typeof orgTypeEnum.enumValues)[number];
+export type OrgTypeFilter = OrgType | "all";
+
 // Search organizations. Admin sees all; govt sees only orgs whose
 // (jurisdiction_province, jurisdiction_locality) matches one of their
 // active assignments.
@@ -171,10 +185,12 @@ export type OrgVerifiedFilter = "pending" | "verified" | "all";
 // `verifiedFilter` pushes the verified/unverified predicate into SQL so the
 // LIMIT is applied AFTER the filter — preventing the "Pendientes" tab from
 // silently truncating the queue when more than SEARCH_LIMIT orgs exist.
+// `orgTypeFilter` mirrors the same shape for the org-type predicate.
 export async function searchOrganizations(
   query: string,
   scope: { role: "admin" | "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] },
   verifiedFilter: OrgVerifiedFilter = "all",
+  orgTypeFilter: OrgTypeFilter = "all",
 ): Promise<{ items: OrgSearchResult[]; truncated: boolean }> {
   // Govt with zero assignments sees nothing; skip the query entirely.
   if (scope.role === "govt" && scope.jurisdictions.length === 0)
@@ -212,9 +228,12 @@ export async function searchOrganizations(
         ? eq(organizations.verified, true)
         : undefined;
 
+  const orgTypePredicate =
+    orgTypeFilter !== "all" ? eq(organizations.orgType, orgTypeFilter) : undefined;
+
   // Combine all predicates. and() with every defined clause produces a single
   // SQL<unknown> that drizzle's .where() accepts cleanly.
-  const activeClauses = [textPredicate, scopePredicate, verifiedPredicate].filter(
+  const activeClauses = [textPredicate, scopePredicate, verifiedPredicate, orgTypePredicate].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,
   );
   const where =

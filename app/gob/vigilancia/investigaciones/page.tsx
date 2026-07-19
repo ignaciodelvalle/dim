@@ -1,8 +1,10 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/infra/case-queries";
 import { formatDateTime } from "@/lib/utils/format";
@@ -21,11 +23,37 @@ const STATUS_PILL_TONE: Record<string, PillTone> = {
   closed: "closed",
 };
 
-export default async function GobInvestigacionesPage() {
+export default async function GobInvestigacionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ province?: string; locality?: string }>;
+}) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const isAdmin = profile.role === "admin";
+  const sp = await searchParams;
 
-  const investigations = await listOutbreakInvestigationsForGovt(jurisdictions, isAdmin);
+  // Same pattern as /gob/vigilancia and /gob/vigilancia/brotes: resolve the
+  // jurisdiction scope (fence — govt narrows DOWN only, never widens) and
+  // thread the admin drill-down (province/locality names) the same way
+  // /gob/vigilancia does.
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
+
+  const investigations = await listOutbreakInvestigationsForGovt(filteredJurisdictions, isAdmin, {
+    adminProvince,
+    adminLocality,
+  });
 
   return (
     <div className="space-y-6">
@@ -54,6 +82,13 @@ export default async function GobInvestigacionesPage() {
         detail="La notificación obligatoria a SNVS/SENASA/zoonosis (Ley 15.465/60, Decreto 3640/64) NO está integrada en esta versión. Realizala a través de los canales habituales de tu jurisdicción."
         icon={<Icon name="alerta" decorative />}
       />
+
+      {/* Filters row — same JurisdictionSwitcher as /gob/vigilancia and
+          /gob/vigilancia/brotes; selecting a province/locality narrows the
+          list below (never widens beyond the operator's assignments). */}
+      <div className="grid md:grid-cols-2 gap-3">
+        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+      </div>
 
       <OpCard>
         <OpCardHead
