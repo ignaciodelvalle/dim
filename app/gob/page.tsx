@@ -197,7 +197,7 @@ export default async function GobiernoDashboardPage({
       // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
       // detail list shows N active (val-2-govt M2). filteredJurisdictions applies
       // the same province/locality narrowing the KPI strip uses.
-      fetchPerdidasMetrics(actor, filteredJurisdictions),
+      fetchPerdidasMetrics(actor, filteredJurisdictions, { countOnly: true }),
       // Casos regulatorios (open/escalated, top 5) — status filter + LIMIT 5
       // are pushed into SQL: admin sees universal scope, govt is
       // jurisdiction-scoped. Previously this loaded up to 500/300 rows and

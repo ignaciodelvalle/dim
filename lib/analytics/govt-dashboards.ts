@@ -493,6 +493,13 @@ export async function fetchPerdidasMetrics(
   opts?: {
     lostPets?: LostPetRow[];
     /**
+     * Count-only fast path (perf audit 2026-07-19 qw#6): return just `activeCount`
+     * via a single COUNT, skipping fetchLostPets (≤500 rows, 3 queries) and the
+     * recovered-count join. `recoveredMonth` / `avgDaysActive` come back 0. The
+     * /gob home renders ONLY activeCount, so it opts in; /gob/perdidas does not.
+     */
+    countOnly?: boolean;
+    /**
      * Admin province drill-down (Panorama). Only set when actor.role === "admin"
      * and a province was selected. Never set from govt page code.
      */
@@ -516,6 +523,16 @@ export async function fetchPerdidasMetrics(
     if (adminLocality) {
       activeConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
     }
+  }
+
+  // Count-only fast path (qw#6): the /gob home shows only activeCount. Serve it
+  // with the single COUNT above and skip the recovered join + fetchLostPets.
+  if (opts?.countOnly) {
+    const [activeRows] = await db
+      .select({ n: count() })
+      .from(pets)
+      .where(and(...activeConditions));
+    return { activeCount: activeRows?.n ?? 0, recoveredMonth: 0, avgDaysActive: 0 };
   }
 
   // 2. Count `status_changed` events where `from_status = 'lost'` within 30d in scope.
