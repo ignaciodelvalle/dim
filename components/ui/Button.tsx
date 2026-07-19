@@ -17,12 +17,12 @@ import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
  * Modifiers: block (full-width), uppercase
  *
  * Anchor mode: pass `href` (and no `onClick`-only button semantics) to render
- * a next/link `<Link>` instead of a `<button>` — same classes, same variant/
- * size system. Needed anywhere an LnButton-styled CTA must navigate: a
- * `<button>` cannot legally nest inside another interactive element and a
- * `<Link>`'s `<a>` cannot legally contain a `<button>` (WCAG 4.1.2), so a
- * plain `<LnButton>` can't be dropped into link position. Byte-identical
- * look to `<LnButton variant="primary">` — same base/sizes/variants maps.
+ * a next/link `<Link>` instead of a native button element — same classes, same
+ * variant/size system. Needed anywhere an LnButton-styled CTA must navigate: a
+ * native button element cannot legally nest inside another interactive element
+ * and a `<Link>`'s `<a>` cannot legally contain one (WCAG 4.1.2), so a plain
+ * `<LnButton>` can't be dropped into link position. Byte-identical look to
+ * `<LnButton variant="primary">` — same base/sizes/variants maps.
  *
  * Uses ln-* semantic tokens from globals.css @theme.
  * Safe in components/ui/ (excluded from lint:tokens guard).
