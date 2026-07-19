@@ -29,6 +29,7 @@ import {
   TARGETS,
   computeCensusCoverage,
   dogsInScopeCondition,
+  isSubProvincialScope,
   jurisdictionPairClause,
   petsScopeClause,
   rabiesCurrentlyValidCondition,
@@ -301,7 +302,18 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // Second (census) denominator: registered dogs / estimated canine population.
   // computeCensusCoverage returns null when no census row covers the scope, so
   // the display degrades to "sin estimación censal" instead of a fabricated %.
-  const census = computeCensusCoverage(totalDogs, censusPopulation);
+  //
+  // H-2 (fresh-review 2026-07-18): this census denominator divides a
+  // scope-narrowed dog count (dogsCondition honors the locality) by the
+  // WHOLE-province human census (fetchCensusPopulation sums province rows —
+  // jurisdictions_census is province-grain only), so at sub-province grain
+  // censusCoveragePct is understated by the same province/locality ratio as the
+  // H1 bites rate (~13× for a CABA comuna). Suppress it there — never a
+  // fabricated coverage. The registry coverage (`current`, a dogs/dogs ratio) is
+  // grain-independent and stays honest at any grain.
+  const census = isSubProvincialScope(ctx)
+    ? null
+    : computeCensusCoverage(totalDogs, censusPopulation);
 
   return {
     current,
@@ -545,6 +557,16 @@ export type BitesPer10kKpi = {
   delta: number;
   /** Raw count of incident_reported bite events in the last 12 months. */
   reports: number;
+  /**
+   * False when the viewer's scope is sub-provincial (isSubProvincialScope): the
+   * census denominator is province-grain only, so a per-10k rate would divide a
+   * locality-scoped numerator by a whole-province population — understating it
+   * (~13× for Palermo within CABA, the H1 finding). In that state the tile shows
+   * the absolute `reports` count and hides the rate; `rate`/`delta` are 0. Read
+   * this flag FIRST — a 0 rate here means "not publishable at this grain", not
+   * "no incidence". Mirrors the map's percapitaEligibleFor at the KPI strip.
+   */
+  percapitaEligible: boolean;
 };
 
 /**
@@ -604,7 +626,7 @@ async function fetchCensusPopulation(ctx: ProjectionContext): Promise<number> {
  */
 export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer10kKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { rate: 0, delta: 0, reports: 0 };
+    return { rate: 0, delta: 0, reports: 0, percapitaEligible: true };
   }
 
   // "Mordeduras / 10k hab." is a FIXED trailing-12-month rate, ending at
@@ -658,6 +680,16 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
   const reports = currentRows[0]?.n ?? 0;
   const prevReports = prevRows[0]?.n ?? 0;
 
+  // Per-cápita honesty (H1): at sub-province grain the numerator is
+  // locality-scoped (petsCurrentJurisdictionGuard) but fetchCensusPopulation can
+  // only sum WHOLE-province census rows, so a rate would understate incidence by
+  // the province/locality population ratio. Suppress the rate and expose only the
+  // absolute count — the tile renders "N reportes" with no fabricated per-10k
+  // value, mirroring the map's percapitaEligibleFor gate.
+  if (isSubProvincialScope(ctx)) {
+    return { rate: 0, delta: 0, reports, percapitaEligible: false };
+  }
+
   // Guard: if no census row exists for this jurisdiction, rate is 0 rather than
   // throwing a division-by-zero. This keeps the KPI card functional even before
   // the census table is fully seeded in a new environment.
@@ -666,7 +698,7 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
     population === 0 ? 0 : Math.round((prevReports / (population / 10_000)) * 10) / 10;
   const delta = Math.round((rate - prevRate) * 10) / 10;
 
-  return { rate, delta, reports };
+  return { rate, delta, reports, percapitaEligible: true };
 }
 
 // ---------------------------------------------------------------------------

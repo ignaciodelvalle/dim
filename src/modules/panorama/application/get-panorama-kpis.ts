@@ -551,7 +551,7 @@ export async function getPanoramaKpis(
   };
   const analytics = opt(settled[1]); // footer denominator — nullable, guarded in the return.
   const perdidas = opt(settled[2]) ?? { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
-  const bites = opt(settled[3]) ?? { rate: 0, delta: 0, reports: 0 };
+  const bites = opt(settled[3]) ?? { rate: 0, delta: 0, reports: 0, percapitaEligible: true };
   // Zoonosis composite (activas hoy) — an ENRICHMENT for the sub/secondary; the
   // PRIMARY value is the scope-signal total [16]. Null → drop sub/secondary.
   const zoonosis = opt(settled[4]);
@@ -627,9 +627,9 @@ export async function getPanoramaKpis(
         definition:
           "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón registrado es el primer denominador; el segundo es la población canina estimada. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
         formula:
-          "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,152 perros/hab.).",
+          "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,158 perros/hab.).",
         caveat:
-          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,152 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; si la jurisdicción no tiene fila de censo se muestra «sin estimación censal». «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
+          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; si la jurisdicción no tiene fila de censo se muestra «sin estimación censal». «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
       },
     },
     {
@@ -739,26 +739,38 @@ export async function getPanoramaKpis(
     },
     {
       id: "mordeduras",
-      label: "Mordeduras / 10k hab.",
+      // Per-cápita honesty (H1): jurisdictions_census is province-grain only, so
+      // a locality-scoped viewer (percapitaEligible=false) cannot get an honest
+      // per-10k rate — the numerator counts the locality but the denominator sums
+      // the whole province, understating it. The tile then shows the absolute
+      // count under "Mordeduras (12 meses)", mirroring the map's
+      // percapitaEligibleFor gate — never a fabricated rate.
+      label: bites.percapitaEligible ? "Mordeduras / 10k hab." : "Mordeduras (12 meses)",
       // G2: a rate that rounds to "0,0" at 1 decimal while there ARE reports
       // (n>0) reads as "cero mordeduras" — the headline number contradicts the
       // "N reportes" sub-line. Show "<0,1" so a nonzero numerator never displays
       // as a flat zero. A genuine zero (0 reports) keeps the plain "0,0".
-      value:
-        bites.reports > 0 && formatRate(bites.rate) === formatRate(0)
+      value: !bites.percapitaEligible
+        ? formatCount(bites.reports)
+        : bites.reports > 0 && formatRate(bites.rate) === formatRate(0)
           ? "<0,1"
           : formatRate(bites.rate),
-      sub: `${formatCount(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`,
+      sub: bites.percapitaEligible
+        ? `${formatCount(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`
+        : "sin padrón censal local",
       tone: "warn",
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchBitesPer10k",
-      delta: priorBites ? deltaOf(bites.rate, priorBites.rate) : undefined,
+      delta:
+        bites.percapitaEligible && priorBites ? deltaOf(bites.rate, priorBites.rate) : undefined,
       sparkline: bitesTrend ? bitesTrend.points.map((p) => p.y) : undefined,
       info: {
-        definition:
-          "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy).",
-        formula:
-          "COUNT(incident_reported donde incident_type='bite_inflicted', últimos 12m) / (población_censo / 10.000)",
+        definition: bites.percapitaEligible
+          ? "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy)."
+          : "Cantidad de incidentes de mordedura en los últimos 12 meses. A nivel localidad no se publica la tasa por 10.000 hab.: el censo (jurisdictions_census) solo tiene padrón provincial, así que una tasa subestimaría la incidencia.",
+        formula: bites.percapitaEligible
+          ? "COUNT(incident_reported donde incident_type='bite_inflicted', últimos 12m) / (población_censo / 10.000)"
+          : "COUNT(incident_reported donde incident_type='bite_inflicted', últimos 12m)",
         caveat:
           "El denominador es población humana del censo (jurisdictions_census). Si la provincia no tiene fila de censo, la tasa se muestra como 0.",
       },

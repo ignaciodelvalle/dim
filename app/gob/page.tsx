@@ -326,7 +326,11 @@ export default async function GobiernoDashboardPage({
           info={getKpiInfo("sterilizations_per_month")}
         />
         <OpKpi
-          label="Mordeduras / 10k hab."
+          // Per-cápita honesty (H1): the census denominator is province-grain
+          // only, so a locality-scoped viewer cannot get an honest per-10k rate.
+          // The tile then reads "Mordeduras (12 meses)" over the absolute count,
+          // never a fabricated rate — mirroring the map's percapitaEligibleFor.
+          label={bitesPer10k.percapitaEligible ? "Mordeduras / 10k hab." : "Mordeduras (12 meses)"}
           // Honest small-rate display (UI/UX audit 2026-07, number coherence):
           // fetchBitesPer10k rounds to 1 decimal, so a few reports over a large
           // population display "0,0" right next to "N reportes" — a fabricated
@@ -336,16 +340,18 @@ export default async function GobiernoDashboardPage({
           // ("<0,01" at the map's 2-decimal grid) in
           // src/modules/panorama/domain/percapita.ts.
           value={
-            bitesPer10k.reports > 0 && formatRate(bitesPer10k.rate) === formatRate(0)
-              ? "<0,1"
-              : formatRate(bitesPer10k.rate)
+            !bitesPer10k.percapitaEligible
+              ? String(bitesPer10k.reports)
+              : bitesPer10k.reports > 0 && formatRate(bitesPer10k.rate) === formatRate(0)
+                ? "<0,1"
+                : formatRate(bitesPer10k.rate)
           }
           // Semaphore gate: "Atención" (tone warn) must never fire over a
           // displayed 0,0 — a genuine zero (0 reports) is a neutral state, not
           // a warning. With the guard above, a displayed "0,0" ⟺ reports === 0.
           tone={bitesPer10k.reports > 0 ? "warn" : "neutral"}
           deltaV2={
-            bitesPer10k.delta !== 0
+            bitesPer10k.percapitaEligible && bitesPer10k.delta !== 0
               ? {
                   value: computeDeltaPct(bitesPer10k.rate, bitesPer10k.rate - bitesPer10k.delta),
                   period: "vs año ant.",
@@ -353,7 +359,11 @@ export default async function GobiernoDashboardPage({
               : undefined
           }
           sparkline={bitesTrend.points.map((p) => p.y)}
-          sub={`${bitesPer10k.reports} reportes`}
+          sub={
+            bitesPer10k.percapitaEligible
+              ? `${bitesPer10k.reports} reportes`
+              : "sin padrón censal local"
+          }
           href="/gob/vigilancia"
           info={getKpiInfo("bites_per_10k")}
         />

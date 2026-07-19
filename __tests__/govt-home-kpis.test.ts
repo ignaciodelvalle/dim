@@ -107,28 +107,28 @@ afterAll(cleanupFixtures);
 // ---------------------------------------------------------------------------
 
 describe("fetchBitesPer10k — census denominator", () => {
-  it("uses the census table population for a scoped govt view", async () => {
+  it("derives the per-10k rate from the census population (whole-province scope)", async () => {
     // Insert one bite event in the last 12 months.
     await insertBiteEvent(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
-    const ctx = buildProjectionContext(
-      { role: "govt" },
-      [{ province: TEST_PROVINCE, locality: TEST_LOCALITY }],
-      windows.trailing12m(),
-    );
+    // Admin PROVINCE drill-down (no locality) is per-cápita eligible — the
+    // numerator spans the whole province and fetchCensusPopulation sums that
+    // province's census row (a govt actor cannot represent a whole GENERIC
+    // province in one row; whole-province exists only for CABA's two-tier form,
+    // and a locality-scoped ctx is now suppressed — see the sub-provincial test).
+    // reports may also include seed Santa Fe bites, so derive the expected rate
+    // from the RETURNED count: the assertion is that the DENOMINATOR is the real
+    // census population, not a heuristic constant.
+    const ctx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m(), {
+      adminProvince: TEST_PROVINCE,
+    });
     const kpi = await fetchBitesPer10k(ctx);
 
-    // With 1 bite and SANTA_FE_CENSUS_POPULATION, the expected rate is:
-    // round((1 / (SANTA_FE_CENSUS_POPULATION / 10_000)) * 10) / 10
-    const expectedRate = Math.round((1 / (SANTA_FE_CENSUS_POPULATION / 10_000)) * 10) / 10;
-
-    expect(kpi.reports).toBe(1);
+    expect(kpi.percapitaEligible).toBe(true);
+    expect(kpi.reports).toBeGreaterThanOrEqual(1);
+    const expectedRate =
+      Math.round((kpi.reports / (SANTA_FE_CENSUS_POPULATION / 10_000)) * 10) / 10;
     expect(kpi.rate).toBe(expectedRate);
-
-    // Sanity check: this rate is tiny (< 0.1 for 1 bite in 3.5M population).
-    // The old heuristic (1 locality × 50_000) would yield ~0.2 — a 20× error.
-    // Just assert it's less than 0.01 to confirm we're using the real figure.
-    expect(kpi.rate).toBeLessThan(0.01);
   });
 
   it("returns rate=0 gracefully when no census row exists for the province", async () => {
@@ -136,14 +136,16 @@ describe("fetchBitesPer10k — census denominator", () => {
     // We temporarily delete the row, assert zero, then restore.
     await db.delete(jurisdictionsCensus).where(eq(jurisdictionsCensus.provinceName, TEST_PROVINCE));
 
-    const ctx = buildProjectionContext(
-      { role: "govt" },
-      [{ province: TEST_PROVINCE, locality: TEST_LOCALITY }],
-      windows.trailing12m(),
-    );
+    // Admin province drill-down (eligible) so we reach the census division, not
+    // the sub-province suppression — with no census row the population is 0 and
+    // the rate falls back to 0 rather than dividing by zero.
+    const ctx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m(), {
+      adminProvince: TEST_PROVINCE,
+    });
 
     try {
       const kpi = await fetchBitesPer10k(ctx);
+      expect(kpi.percapitaEligible).toBe(true);
       expect(kpi.rate).toBe(0);
       expect(kpi.delta).toBe(0);
     } finally {
@@ -158,6 +160,26 @@ describe("fetchBitesPer10k — census denominator", () => {
         })
         .onConflictDoNothing();
     }
+  });
+
+  it("suppresses the per-10k rate at sub-province (locality) grain — count only", async () => {
+    await insertBiteEvent(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
+
+    // Locality-scoped: the numerator honors the locality, but jurisdictions_census
+    // is province-grain only, so a per-10k rate would divide a comuna numerator by
+    // the whole-province population — understating it. The KPI reports the absolute
+    // count and marks percapitaEligible=false (H1), never a fabricated rate.
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: TEST_PROVINCE, locality: TEST_LOCALITY }],
+      windows.trailing12m(),
+    );
+    const kpi = await fetchBitesPer10k(ctx);
+
+    expect(kpi.percapitaEligible).toBe(false);
+    expect(kpi.reports).toBeGreaterThanOrEqual(1);
+    expect(kpi.rate).toBe(0);
+    expect(kpi.delta).toBe(0);
   });
 
   it("returns rate=0 for empty govt jurisdictions without hitting the DB", async () => {

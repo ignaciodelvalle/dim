@@ -13,7 +13,7 @@ export type {
   ProjectionContext,
   ProjectionScope,
 } from "./context";
-export { buildProjectionContext, ctxKey } from "./context";
+export { buildProjectionContext, ctxKey, isSubProvincialScope } from "./context";
 
 export type { Cell, MetricResult, SuppressedCells } from "./types";
 

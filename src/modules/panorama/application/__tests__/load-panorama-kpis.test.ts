@@ -95,7 +95,12 @@ function seedDefaults() {
     recoveredMonth: 7,
     avgDaysActive: 5,
   });
-  vi.mocked(fetchBitesPer10k).mockResolvedValue({ rate: 3.5, delta: 0, reports: 18 });
+  vi.mocked(fetchBitesPer10k).mockResolvedValue({
+    rate: 3.5,
+    delta: 0,
+    reports: 18,
+    percapitaEligible: true,
+  });
   vi.mocked(fetchActiveZoonosis).mockResolvedValue({
     count: 9,
     rabies: 2,

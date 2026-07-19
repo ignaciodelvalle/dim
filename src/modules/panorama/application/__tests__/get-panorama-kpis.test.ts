@@ -98,7 +98,12 @@ function seedDefaults() {
     recoveredMonth: 7,
     avgDaysActive: 5,
   });
-  vi.mocked(fetchBitesPer10k).mockResolvedValue({ rate: 3.5, delta: 0, reports: 18 });
+  vi.mocked(fetchBitesPer10k).mockResolvedValue({
+    rate: 3.5,
+    delta: 0,
+    reports: 18,
+    percapitaEligible: true,
+  });
   vi.mocked(fetchActiveZoonosis).mockResolvedValue({
     count: 9,
     rabies: 2,
@@ -254,7 +259,12 @@ describe("getPanoramaKpis", () => {
   it("G2: mordeduras rate that rounds to 0,0 with reports>0 shows '<0,1' (not '0,0')", async () => {
     // 5 reports over a large population → a tiny rate that rounds to "0,0" at 1
     // decimal. Displaying "0,0" next to "5 reportes" reads as zero bites.
-    vi.mocked(fetchBitesPer10k).mockResolvedValue({ rate: 0.02, delta: 0, reports: 5 });
+    vi.mocked(fetchBitesPer10k).mockResolvedValue({
+      rate: 0.02,
+      delta: 0,
+      reports: 5,
+      percapitaEligible: true,
+    });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const kpi = kpis.find((k) => k.id === "mordeduras")!;
     expect(kpi.value).toBe("<0,1");
@@ -262,10 +272,33 @@ describe("getPanoramaKpis", () => {
   });
 
   it("G2: a genuine zero (0 reports) keeps the plain '0,0' rate", async () => {
-    vi.mocked(fetchBitesPer10k).mockResolvedValue({ rate: 0, delta: 0, reports: 0 });
+    vi.mocked(fetchBitesPer10k).mockResolvedValue({
+      rate: 0,
+      delta: 0,
+      reports: 0,
+      percapitaEligible: true,
+    });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const kpi = kpis.find((k) => k.id === "mordeduras")!;
     expect(kpi.value).toBe("0,0");
+  });
+
+  it("H1: sub-provincial scope (percapitaEligible=false) shows the absolute count, not a rate", async () => {
+    // A locality-scoped viewer: the numerator counts the locality but the census
+    // denominator is province-grain only, so a per-10k rate would understate
+    // incidence. The tile must show the raw report count and hide the rate/delta.
+    vi.mocked(fetchBitesPer10k).mockResolvedValue({
+      rate: 0,
+      delta: 0,
+      reports: 42,
+      percapitaEligible: false,
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "mordeduras")!;
+    expect(kpi.label).toBe("Mordeduras (12 meses)");
+    expect(kpi.value).toBe("42");
+    expect(kpi.sub).toBe("sin padrón censal local");
+    expect(kpi.delta).toBeUndefined();
   });
 
   it("esterilizacion KPI is tone ok when rate >= 70", async () => {
@@ -421,8 +454,8 @@ describe("getPanoramaKpis", () => {
         censusCoveragePct: 2.3,
       });
     vi.mocked(fetchBitesPer10k)
-      .mockResolvedValueOnce({ rate: 3.5, delta: 0, reports: 18 })
-      .mockResolvedValueOnce({ rate: 7, delta: 0, reports: 30 });
+      .mockResolvedValueOnce({ rate: 3.5, delta: 0, reports: 18, percapitaEligible: true })
+      .mockResolvedValueOnce({ rate: 7, delta: 0, reports: 30, percapitaEligible: true });
 
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const byId = Object.fromEntries(kpis.map((k) => [k.id, k]));

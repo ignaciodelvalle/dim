@@ -9,6 +9,7 @@
 //   const kpi  = await fetchRabiesCoverage(ctx);
 
 import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
 
 /** Who is asking: admin (universal scope) or govt (jurisdiction-scoped). */
 export type DashboardActor = { role: "admin" | "govt" };
@@ -114,4 +115,38 @@ export function ctxKey(ctx: ProjectionContext): string {
   // must never collide in a React.cache surrogate keyed on this string.
   const verifiedPart = ctx.verifiedOnly ? "|verified" : "";
   return `${scopePart}${adminPart}${verifiedPart}|${ctx.period.since.toISOString()}|${ctx.period.until.toISOString()}`;
+}
+
+/**
+ * True when the context targets a grain FINER than a whole province — an admin
+ * locality drill-down, or a govt scope that includes any specific-locality
+ * assignment (locality === "" means the WHOLE province, which is census grain).
+ *
+ * WHY this matters for per-cápita: the census denominator table
+ * (`jurisdictions_census`) holds ONLY the 24 province rows (Censo 2022) — no
+ * department/locality populations exist yet (the same v1 limitation documented
+ * in src/modules/panorama/domain/percapita.ts, which gates the MAP's per-cápita
+ * encoding to `level === "province"`). A KPI that counts a locality-scoped
+ * numerator but divides by the whole-province census population UNDERSTATES the
+ * rate by the province/locality population ratio (~13× for Palermo within CABA).
+ * The honest response is to SUPPRESS the per-cápita rate at sub-province grain
+ * and show the absolute count instead — never a fabricated rate. Callers use
+ * this to gate the census-denominator KPIs, mirroring `percapitaEligibleFor`.
+ */
+export function isSubProvincialScope(ctx: ProjectionContext): boolean {
+  if (ctx.scope.kind === "global") {
+    // Admin: sub-provincial only when drilled into a specific locality.
+    return !!ctx.adminLocality;
+  }
+  // Govt: sub-provincial when ANY assigned jurisdiction targets a grain FINER
+  // than the whole province. A whole-province assignment stays census grain —
+  // and that is stored TWO ways: the generic `locality === ""`, AND the two-tier
+  // canonical form `{ province: "CABA", locality: "Ciudad Autónoma de Buenos
+  // Aires" }` (isWholeProvinceLocality). We MUST mirror the query's own
+  // subsumption (jurisdictionPairClause / petsScopeClause, which emit a
+  // province-only predicate for both forms), or a whole-CABA operator — who DOES
+  // have a census row and an honest per-10k rate — would be wrongly suppressed.
+  return ctx.scope.jurisdictions.some(
+    (j) => j.locality !== "" && !isWholeProvinceLocality(j.province, j.locality),
+  );
 }
