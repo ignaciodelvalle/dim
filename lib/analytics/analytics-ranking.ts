@@ -52,7 +52,10 @@ export function rankByField(
 /**
  * Jurisdiction-scope clause for the region ranking's `pets` queries.
  *
- * admin → null (universal scope, no restriction).
+ * admin, no province selected → null (universal scope, no restriction).
+ * admin + province selected   → province (+ optional locality) predicate
+ *   (Panorama-style admin drill-down; additive-only, mirrors petsScopeClause).
+ *   Backward-compat: no adminProvince → null, exactly as before.
  * govt  → OR of the actor's assignment pairs via the SHARED jurisdictionPairClause,
  *   so a whole-province assignment (e.g. whole-CABA, locality
  *   "Ciudad Autónoma de Buenos Aires") subsumes its barrio/locality-tagged pets
@@ -67,8 +70,22 @@ export function rankByField(
 export function regionRankingPetsScope(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): SQL | null {
-  if (actor.role !== "govt") return null;
+  if (actor.role !== "govt") {
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      // `and()`'s general signature returns `SQL | undefined`; with two concrete
+      // (non-undefined) conditions it always yields a defined SQL — cast to match
+      // this function's `SQL | null` contract.
+      return and(
+        eq(pets.jurisdictionProvince, adminProvince),
+        eq(pets.jurisdictionLocality, adminLocality),
+      ) as SQL;
+    }
+    return eq(pets.jurisdictionProvince, adminProvince);
+  }
   return jurisdictionPairClause(
     jurisdictions,
     sql`${pets.jurisdictionProvince}`,
@@ -112,13 +129,19 @@ export type RegionRankingResult = {
 export async function fetchRegionRanking(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<RegionRankingResult> {
   if (actor.role === "govt" && jurisdictions.length === 0) {
     return { top: [], bottom: [] };
   }
 
   // Build scope filter for the pets table (whole-province subsumption included).
-  const petsScope = regionRankingPetsScope(actor, jurisdictions);
+  const petsScope = regionRankingPetsScope(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
 
   // 1. Total active+lost pets per province.
   const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];

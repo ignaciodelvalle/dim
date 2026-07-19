@@ -56,18 +56,34 @@ export default async function GobSistemaPage({
   // 'admin' | 'govt', and 'govt' redirected above) — unchanged full view.
   const actor = { role: profile.role } as const;
 
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas). Note: this page is admin-only past this
+  // point (govt redirects to /gob/programa above), so adminProvince/adminLocality
+  // are the only meaningful branch here.
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   const [enoSla, queue] = await Promise.all([
     fetchEnoSla(ctx),
-    fetchQueueHealthScoped(filteredJurisdictions),
+    fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
   ]);
 
   return (

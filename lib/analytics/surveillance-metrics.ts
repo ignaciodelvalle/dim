@@ -72,7 +72,19 @@ export const RABIES_OBSERVATION_WINDOW_DAYS = 10;
 // ---------------------------------------------------------------------------
 
 function outboxScopeClause(ctx: ProjectionContext) {
-  if (ctx.scope.kind === "global") return null;
+  if (ctx.scope.kind === "global") {
+    // Admin province drill-down (Panorama-style), mirroring petsScopeClause /
+    // petEventsScopeClause (lib/metrics/scope.ts). Backward-compat: no
+    // ctx.adminProvince → null (unrestricted), exactly as before.
+    if (!ctx.adminProvince) return null;
+    if (ctx.adminLocality) {
+      return and(
+        eq(eventNotificationOutbox.targetJurisdictionProvince, ctx.adminProvince),
+        eq(eventNotificationOutbox.targetJurisdictionLocality, ctx.adminLocality),
+      );
+    }
+    return eq(eventNotificationOutbox.targetJurisdictionProvince, ctx.adminProvince);
+  }
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return sql`false`;
   // Whole-province subsumption (jurisdictionPairClause): a whole-CABA operator

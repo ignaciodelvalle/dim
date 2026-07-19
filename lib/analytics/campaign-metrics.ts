@@ -177,13 +177,23 @@ export type CampaignDashboardData = {
  */
 async function resolveOfferingIds(ctx: ProjectionContext): Promise<string[]> {
   if (ctx.scope.kind === "global") {
-    // Admin: fetch all approved/active offerings.
+    // Admin: fetch all approved/active offerings, narrowed to ctx.adminProvince
+    // when a Panorama-style drill-down is active (additive-only — mirrors
+    // petsScopeClause's admin branch). Backward-compat: no ctx.adminProvince →
+    // unrestricted, exactly as before.
+    const conditions = [
+      inArray(serviceOfferings.status, ["approved", "pending_approval", "paused", "archived"]),
+    ];
+    if (ctx.adminProvince) {
+      conditions.push(eq(serviceOfferings.jurisdictionProvince, ctx.adminProvince));
+      if (ctx.adminLocality) {
+        conditions.push(eq(serviceOfferings.jurisdictionLocality, ctx.adminLocality));
+      }
+    }
     const rows = await db
       .select({ id: serviceOfferings.id })
       .from(serviceOfferings)
-      .where(
-        inArray(serviceOfferings.status, ["approved", "pending_approval", "paused", "archived"]),
-      );
+      .where(and(...conditions));
     return rows.map((r) => r.id);
   }
 

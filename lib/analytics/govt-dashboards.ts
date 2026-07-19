@@ -66,6 +66,13 @@ export type SurveillanceFilters = {
   since: Date;
   /** Optional disease_code narrow filter. */
   diseaseCode?: string | null;
+  /**
+   * Admin province drill-down (Panorama). Only set when actor.role === "admin"
+   * and a province was selected via the URL. Govt callers must NOT pass this —
+   * their scope is already enforced by the jurisdiction pairs.
+   */
+  adminProvince?: string;
+  adminLocality?: string;
 };
 
 export type SurveillanceSignal = {
@@ -97,11 +104,30 @@ export type DiseaseSummary = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Build the scope-match SQL clause on outbreak_signal events. Admin gets no
-// scope filter (returns `null` from this helper so the caller can omit the
-// clause). Govt gets a disjunction of `(province=X AND locality=Y)` pairs.
-function outbreakSignalScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
+// Build the scope-match SQL clause on outbreak_signal events.
+// - admin, no province selected → null (no restriction; caller omits the clause)
+// - admin + province selected   → payload province (+ optional locality) predicate
+//   (Panorama-style admin drill-down — mirrors petEventsScopeClause's admin
+//   branch in lib/metrics/scope.ts; additive-only, never widens scope)
+// - govt with no assignments    → `false` (matches nothing)
+// - govt with assignments       → OR of `(province=X AND locality=Y)` pairs
+function outbreakSignalScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+) {
+  if (actor.role === "admin") {
+    // Backward-compat: no adminProvince → unrestricted, exactly as before.
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${adminProvince}`,
+        sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${adminLocality}`,
+      );
+    }
+    return sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${adminProvince}`;
+  }
   // Govt with no active assignments — match nothing.
   return (
     jurisdictionPairClause(
@@ -122,8 +148,25 @@ function outbreakSignalScopeClause(actor: DashboardActor, jurisdictions: Dashboa
 function petsCurrentJurisdictionClause(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") return null;
+  if (actor.role === "admin") {
+    // Admin province drill-down (Panorama-style) — narrows the CURRENT-jurisdiction
+    // guard the same way petsScopeClause does. Backward-compat: no adminProvince →
+    // null, exactly as before.
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      // `and()`'s general signature returns `SQL | undefined`; with two concrete
+      // (non-undefined) conditions it always yields a defined SQL — cast to match
+      // this function's `SQL | null` contract.
+      return and(
+        eq(pets.jurisdictionProvince, adminProvince),
+        eq(pets.jurisdictionLocality, adminLocality),
+      ) as SQL;
+    }
+    return eq(pets.jurisdictionProvince, adminProvince);
+  }
   return (
     jurisdictionPairClause(
       jurisdictions,
@@ -138,8 +181,10 @@ function petsCurrentJurisdictionClause(
 function petsCurrentJurisdictionExists(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): SQL | null {
-  const clause = petsCurrentJurisdictionClause(actor, jurisdictions);
+  const clause = petsCurrentJurisdictionClause(actor, jurisdictions, adminProvince, adminLocality);
   if (!clause) return null;
   return sql`EXISTS (SELECT 1 FROM ${pets} WHERE ${pets.id} = ${petEvents.petId} AND (${clause}))`;
 }
@@ -156,11 +201,21 @@ export async function fetchSurveillanceSignals(
   if (filters.diseaseCode) {
     conditions.push(sql`(${petEvents.payload}->>'disease_code') = ${filters.diseaseCode}`);
   }
-  const scope = outbreakSignalScopeClause(actor, jurisdictions);
+  const scope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    filters.adminProvince,
+    filters.adminLocality,
+  );
   if (scope) conditions.push(sql`(${scope})`);
   // Rows return pet identifiers (name + public token) — require the pet's
   // CURRENT jurisdiction to be in scope too (pets is inner-joined below).
-  const petsScope = petsCurrentJurisdictionClause(actor, jurisdictions);
+  const petsScope = petsCurrentJurisdictionClause(
+    actor,
+    jurisdictions,
+    filters.adminProvince,
+    filters.adminLocality,
+  );
   if (petsScope) conditions.push(sql`(${petsScope})`);
 
   const rows = await db
@@ -238,10 +293,14 @@ export function computeDiseaseSummary(signals: SurveillanceSignal[]): DiseaseSum
 export async function fetchDiseaseSummary(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
+  opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
 ): Promise<DiseaseSummary[]> {
   const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
-  const signals = await fetchSurveillanceSignals(actor, jurisdictions, { since });
+  const signals = await fetchSurveillanceSignals(actor, jurisdictions, {
+    since,
+    adminProvince: opts.adminProvince,
+    adminLocality: opts.adminLocality,
+  });
   return computeDiseaseSummary(signals);
 }
 
@@ -725,10 +784,28 @@ export const PROVINCE_ISO_MAP: Record<string, string> = {
   Tucumán: "AR-T",
 };
 
-// Build a scope clause for the `cases` table. Admin: null (no restriction).
-// Govt: OR of (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs.
-function casesScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
-  if (actor.role === "admin") return null;
+// Build a scope clause for the `cases` table.
+// - admin, no province selected → null (no restriction)
+// - admin + province selected   → province (+ optional locality) predicate
+//   (Panorama-style admin drill-down; additive-only, mirrors petsScopeClause)
+// - govt: OR of (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs.
+function casesScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+) {
+  if (actor.role === "admin") {
+    // Backward-compat: no adminProvince → unrestricted, exactly as before.
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        eq(cases.jurisdictionProvince, adminProvince),
+        eq(cases.jurisdictionLocality, adminLocality),
+      );
+    }
+    return eq(cases.jurisdictionProvince, adminProvince);
+  }
   return (
     jurisdictionPairClause(
       jurisdictions,
@@ -762,15 +839,27 @@ export function custodyDisputesScopeClause(
 
 // Thin adapters for the two scope helpers now canonical in lib/metrics/.
 // The period is not relevant for scope-only use — trailing12m is a valid placeholder.
-function petsScopeClause(actor: DashboardActor, jurisdictions: DashboardJurisdiction[]) {
+// adminProvince/adminLocality are forwarded into buildProjectionContext's opts,
+// which metricsPetsScopeClause already honors (lib/metrics/scope.ts petsScopeClause) —
+// backward-compat: omitted → ctx.adminProvince is undefined → unrestricted, same as before.
+function petsScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+) {
   return metricsPetsScopeClause(
-    buildProjectionContext(actor, jurisdictions, windows.trailing12m()),
+    buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+      adminProvince,
+      adminLocality,
+    }),
   );
 }
 
 export async function fetchVigilanciaMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<VigilanciaMetrics> {
   const now = Date.now();
   const since30d = new Date(now - 30 * DAY_MS);
@@ -784,17 +873,22 @@ export async function fetchVigilanciaMetrics(
     eq(petEvents.eventType, "outbreak_signal"),
     gte(petEvents.occurredAt, since30d),
   ];
-  const outbreakScope = outbreakSignalScopeClause(actor, jurisdictions);
+  const outbreakScope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
   if (outbreakScope) outbreakConditions.push(sql`(${outbreakScope})`);
 
   // 2. Count open cases with caseKind='rabies_observation'.
   const rabiesConditions = [eq(cases.caseKind, "rabies_observation"), eq(cases.status, "open")];
-  const casesScope = casesScopeClause(actor, jurisdictions);
+  const casesScope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
   if (casesScope) rabiesConditions.push(sql`(${casesScope})`);
 
   // 3. Count pets created today.
   const petsConditions = [gte(pets.createdAt, todayStart)];
-  const petsScope = petsScopeClause(actor, jurisdictions);
+  const petsScope = petsScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
   if (petsScope) petsConditions.push(sql`(${petsScope})`);
 
   // 4. Count vaccination_administered events in the last 7 days.
@@ -861,9 +955,10 @@ export type LocalityCaseCount = {
 export async function fetchCasesPerLocality(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<LocalityCaseCount[]> {
   const conditions = [eq(cases.status, "open")];
-  const scope = casesScopeClause(actor, jurisdictions);
+  const scope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
 
   const rows = await db
@@ -923,10 +1018,15 @@ export async function fetchCasesPerSubregion(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   provinceIso: string,
+  opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<SubregionCaseCount[]> {
-  const scope = casesScopeClause(actor, jurisdictions);
-  // Govt with no assignments can never see any case.
-  if (scope !== null && jurisdictions.length === 0) return [];
+  const scope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  // Govt with no assignments can never see any case. NOTE: this must key off
+  // actor.role, not `scope !== null` — an admin+adminProvince drill-down now
+  // also produces a non-null scope, and admin's jurisdictions is always []
+  // by contract, so a `scope !== null && jurisdictions.length === 0` check
+  // would have wrongly zeroed the admin drill-down result.
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
   // Barrio slug normalization is the SHARED canonical one (lib/infra/geo-join):
   // one source of truth so the codes computed here match caba-barrios.geojson —
@@ -1161,7 +1261,7 @@ export type ZoonosisTrendPoint = {
 export async function fetchZoonosisTrend(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
+  opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
 ): Promise<ZoonosisTrendPoint[]> {
   const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
 
@@ -1169,11 +1269,21 @@ export async function fetchZoonosisTrend(
     sql`${petEvents.eventType} LIKE ${"outbreak_%"}`,
     gte(petEvents.occurredAt, since12m),
   ];
-  const scope = outbreakSignalScopeClause(actor, jurisdictions);
+  const scope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
   if (scope) conditions.push(sql`(${scope})`);
   // Payload jurisdiction is an event-time snapshot — also require the pet's
   // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
-  const petsGuard = petsCurrentJurisdictionExists(actor, jurisdictions);
+  const petsGuard = petsCurrentJurisdictionExists(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
   if (petsGuard) conditions.push(petsGuard);
 
   const rows = await db
@@ -2116,7 +2226,7 @@ export type AcquisitionTrendPoint = {
 export async function fetchAcquisitionTrend(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
+  opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
 ): Promise<AcquisitionTrendPoint[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
@@ -2138,36 +2248,48 @@ export async function fetchAcquisitionTrend(
     );
     if (pairs) conditions.push(sql`(${pairs})`);
   }
+  // Admin province drill-down (Panorama-style) — same pattern as
+  // fetchAnalyticsMetrics/fetchPerdidasMetrics. Backward-compat: absent →
+  // unrestricted, exactly as before.
+  if (actor.role === "admin" && opts.adminProvince) {
+    conditions.push(sql`${pets.jurisdictionProvince} = ${opts.adminProvince}`);
+    if (opts.adminLocality) {
+      conditions.push(sql`${pets.jurisdictionLocality} = ${opts.adminLocality}`);
+    }
+  }
 
-  const baseQuery =
-    actor.role === "govt"
-      ? db
-          .select({
-            month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
-            method: sql<string>`(${petEvents.payload}->>'acquisition_method')`,
-            n: count(),
-          })
-          .from(petEvents)
-          .innerJoin(pets, eq(pets.id, petEvents.petId))
-          .where(and(...conditions))
-          .groupBy(
-            sql`date_trunc('month', ${petEvents.occurredAt})`,
-            sql`(${petEvents.payload}->>'acquisition_method')`,
-          )
-          .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`)
-      : db
-          .select({
-            month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
-            method: sql<string>`(${petEvents.payload}->>'acquisition_method')`,
-            n: count(),
-          })
-          .from(petEvents)
-          .where(and(...conditions))
-          .groupBy(
-            sql`date_trunc('month', ${petEvents.occurredAt})`,
-            sql`(${petEvents.payload}->>'acquisition_method')`,
-          )
-          .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`);
+  // Whether the petEvents query needs an innerJoin to pets for province scoping.
+  // Govt always joins (jurisdiction pairs); admin+adminProvince also joins.
+  const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!opts.adminProvince);
+
+  const baseQuery = needsJoin
+    ? db
+        .select({
+          month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
+          method: sql<string>`(${petEvents.payload}->>'acquisition_method')`,
+          n: count(),
+        })
+        .from(petEvents)
+        .innerJoin(pets, eq(pets.id, petEvents.petId))
+        .where(and(...conditions))
+        .groupBy(
+          sql`date_trunc('month', ${petEvents.occurredAt})`,
+          sql`(${petEvents.payload}->>'acquisition_method')`,
+        )
+        .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`)
+    : db
+        .select({
+          month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
+          method: sql<string>`(${petEvents.payload}->>'acquisition_method')`,
+          n: count(),
+        })
+        .from(petEvents)
+        .where(and(...conditions))
+        .groupBy(
+          sql`date_trunc('month', ${petEvents.occurredAt})`,
+          sql`(${petEvents.payload}->>'acquisition_method')`,
+        )
+        .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`);
 
   const rows = await baseQuery;
 
@@ -2208,7 +2330,7 @@ export type DeathCauseRow = {
 export async function fetchDeathCauses(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
-  opts: { since?: Date } = {},
+  opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
 ): Promise<DeathCauseRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
@@ -2228,8 +2350,19 @@ export async function fetchDeathCauses(
     );
     if (pairs) conditions.push(sql`(${pairs})`);
   }
+  // Admin province drill-down (Panorama-style) — backward-compat: absent →
+  // unrestricted, exactly as before.
+  if (actor.role === "admin" && opts.adminProvince) {
+    conditions.push(sql`${pets.jurisdictionProvince} = ${opts.adminProvince}`);
+    if (opts.adminLocality) {
+      conditions.push(sql`${pets.jurisdictionLocality} = ${opts.adminLocality}`);
+    }
+  }
 
-  const rows = await (actor.role === "govt"
+  // Govt always joins (jurisdiction pairs); admin+adminProvince also joins.
+  const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!opts.adminProvince);
+
+  const rows = await (needsJoin
     ? db
         .select({
           cause: sql<string>`COALESCE((${petEvents.payload}->>'cause'), 'unknown')`,
@@ -2290,14 +2423,25 @@ export type OutbreakHistoryRow = {
 export async function fetchOutbreakHistory(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<OutbreakHistoryRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
   // Build the jurisdiction scope clause once; reused in both CTEs. The pets
   // guard (EXISTS on the pet's CURRENT jurisdiction) closes the payload-drift
   // hole for govt viewers (scope-security review 2026-07-04 A2).
-  const scope = outbreakSignalScopeClause(actor, jurisdictions);
-  const petsGuard = petsCurrentJurisdictionExists(actor, jurisdictions);
+  const scope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
+  const petsGuard = petsCurrentJurisdictionExists(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
   const scopeFragment = sql.join(
     [scope ? sql` AND (${scope})` : sql``, petsGuard ? sql` AND ${petsGuard}` : sql``],
     sql``,

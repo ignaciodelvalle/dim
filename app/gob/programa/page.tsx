@@ -129,14 +129,28 @@ export default async function GobProgramaPage({
 
   const sp = await searchParams;
 
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas).
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
@@ -169,7 +183,7 @@ export default async function GobProgramaPage({
       fetchSterilizationCoverage(ctx),
       fetchMicrochipPenetration(ctx),
       fetchEnoSla(ctx),
-      fetchQueueHealthScoped(filteredJurisdictions),
+      fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
       fetchDataQuality(ctx),
       fetchCrossJurisdictionOutliers(ctx),
       fetchPiiOversight(ctx),

@@ -82,15 +82,29 @@ export default async function GobCampanasPage({
   const exportHref = `/gob/campanas/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
 
   // Jurisdiction filter (same pattern as /gob/analytics).
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas).
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
 
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
   const dashboard = await fetchCampaignDashboard(ctx);
 
   // Determine the "period label" string for delta display.

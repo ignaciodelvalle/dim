@@ -74,16 +74,30 @@ export default async function GobAnalyticsPage({
 
   const sp = await searchParams;
 
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas).
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = resolveAnalyticsPeriod(sp);
   const { since } = period;
   // ProjectionContext for the D1 trend fetcher (scope-aware, period-aware).
-  const trendCtx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const trendCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
@@ -104,11 +118,14 @@ export default async function GobAnalyticsPage({
   // to an honest "tardando… reintentar" state instead of hanging the page.
   const load = await loadWithTimeout(
     Promise.all([
-      fetchAnalyticsMetrics(actor, filteredJurisdictions, { since }),
-      fetchAcquisitionTrend(actor, filteredJurisdictions, { since }),
-      fetchDeathCauses(actor, filteredJurisdictions, { since }),
-      fetchOutbreakHistory(actor, filteredJurisdictions),
-      fetchRegionRanking(actor, filteredJurisdictions),
+      // Every fetcher below now honors the admin province/locality drill-down
+      // (scope-helpers-admin-fix honesty sweep) — mirrors fetchPerdidasMetrics'
+      // admin branch, additive-only (never widens scope for govt callers).
+      fetchAnalyticsMetrics(actor, filteredJurisdictions, { since, adminProvince, adminLocality }),
+      fetchAcquisitionTrend(actor, filteredJurisdictions, { since, adminProvince, adminLocality }),
+      fetchDeathCauses(actor, filteredJurisdictions, { since, adminProvince, adminLocality }),
+      fetchOutbreakHistory(actor, filteredJurisdictions, { adminProvince, adminLocality }),
+      fetchRegionRanking(actor, filteredJurisdictions, { adminProvince, adminLocality }),
       fetchOutbreakSignalsTrend(trendCtx),
       // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
       fetchKpiTrend("pet_registered", trendCtx),

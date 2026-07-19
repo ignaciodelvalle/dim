@@ -40,17 +40,24 @@ export async function GET(request: NextRequest): Promise<Response> {
   };
 
   // Jurisdiction filter — identical logic to app/gob/campanas/page.tsx.
-  const { filteredJurisdictions } = await resolveJurisdictionScope({
-    role: profile.role,
-    jurisdictions,
-    params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
-  });
+  const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
+    await resolveJurisdictionScope({
+      role: profile.role,
+      jurisdictions,
+      params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
+    });
+  // Both undefined unless role === "admin" — same pattern as the page.
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   // Same default-window quirk as the page: campañas defaults to trailing 30d
   // (not the 12m dashboard default) when no period/from param is present.
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const actor = { role: profile.role };
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   const dashboard = await fetchCampaignDashboard(ctx);
 

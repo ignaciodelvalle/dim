@@ -60,12 +60,23 @@ export default async function GobVigilanciaPage({
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const { since } = period;
 
-  const { filteredJurisdictions, localities, allowedProvinces, selectedProvince } =
-    await resolveJurisdictionScope({
-      role: profile.role,
-      jurisdictions,
-      params: { province: sp.province, locality: sp.locality },
-    });
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    selectedProvince,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas).
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   // Raw selected province ISO gates the sub-region (department/barrio) choropleth
   // drill below — passed as an explicit predicate to fetchCasesPerSubregion.
@@ -82,7 +93,10 @@ export default async function GobVigilanciaPage({
   // A6/A10). Built on lib/metrics ProjectionContext (jurisdiction-scoped,
   // period-aware, k-anonymity enforced). Server fetch; the cards below are
   // presentational.
-  const complianceCtx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const complianceCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
@@ -103,18 +117,29 @@ export default async function GobVigilanciaPage({
   // to an honest "tardando… reintentar" state instead of hanging the page.
   const load = await loadWithTimeout(
     Promise.all([
-      fetchVigilanciaMetrics(actor, filteredJurisdictions),
-      fetchSurveillanceSignals(actor, filteredJurisdictions, { since: since30d }),
-      fetchCasesPerLocality(actor, filteredJurisdictions),
-      fetchZoonosisTrend(actor, filteredJurisdictions, { since }),
+      fetchVigilanciaMetrics(actor, filteredJurisdictions, { adminProvince, adminLocality }),
+      fetchSurveillanceSignals(actor, filteredJurisdictions, {
+        since: since30d,
+        adminProvince,
+        adminLocality,
+      }),
+      fetchCasesPerLocality(actor, filteredJurisdictions, { adminProvince, adminLocality }),
+      fetchZoonosisTrend(actor, filteredJurisdictions, { since, adminProvince, adminLocality }),
       periodMatchesSummary
         ? null
-        : fetchSurveillanceSignals(actor, filteredJurisdictions, { since }),
+        : fetchSurveillanceSignals(actor, filteredJurisdictions, {
+            since,
+            adminProvince,
+            adminLocality,
+          }),
       // When a province is selected, fetch department/barrio-level case counts.
       // For the national view (no province), this is null and the choropleth
       // stays at province level (no behavior change).
       selectedProvinceIso
-        ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso)
+        ? fetchCasesPerSubregion(actor, filteredJurisdictions, selectedProvinceIso, {
+            adminProvince,
+            adminLocality,
+          })
         : Promise.resolve(null),
       fetchSurveillanceCompliance(complianceCtx),
       // Sparklines for KPI tiles (Fase 0).

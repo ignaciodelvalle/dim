@@ -12,7 +12,7 @@
 // serves the burst normally; locally analyticsDb falls back to DATABASE_URL,
 // so dev/test behavior is identical.
 
-import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { type SQL, and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import {
   approvalRequests,
@@ -135,10 +135,15 @@ export async function fetchQueueHealth(): Promise<QueueHealth> {
  * `(jurisdictionProvince, jurisdictionLocality)` pairs.
  *
  * Empty `jurisdictions` (admin universal scope) → behaves identically to
- * `fetchQueueHealth()` with no jurisdiction filter.
+ * `fetchQueueHealth()` with no jurisdiction filter, UNLESS `opts.adminProvince`
+ * is set (Panorama-style admin drill-down — additive-only narrowing, mirrors
+ * `petsScopeClause`/`fetchPerdidasMetrics`'s admin branch). Backward-compat:
+ * a caller that omits `opts` (every existing caller before this change) sees
+ * byte-identical behavior.
  */
 export async function fetchQueueHealthScoped(
   jurisdictions: import("@/lib/metrics").DashboardJurisdiction[],
+  opts?: { adminProvince?: string; adminLocality?: string },
 ): Promise<QueueHealth> {
   const now = Date.now();
 
@@ -154,12 +159,24 @@ export async function fetchQueueHealthScoped(
   // (visibleRequestsClause) uses — so this aging COUNTER and that queue can
   // never diverge (a whole-CABA operator's "cola pendiente" tile and their
   // queue show the same population). Exact pairs are kept for barrio operators.
-  const jurisClause =
-    jurisdictionPairClause(
-      jurisdictions,
-      sql`${approvalRequests.jurisdictionProvince}`,
-      sql`${approvalRequests.jurisdictionLocality}`,
-    ) ?? undefined;
+  const jurisClause = jurisdictionPairClause(
+    jurisdictions,
+    sql`${approvalRequests.jurisdictionProvince}`,
+    sql`${approvalRequests.jurisdictionLocality}`,
+  );
+
+  const conditions: SQL[] = [];
+  if (jurisClause) conditions.push(jurisClause);
+  // Admin province drill-down: jurisdictions is empty for admin (universal
+  // scope by contract), so jurisClause is null above and this is the only
+  // restriction an admin gets. Never set for govt callers.
+  if (opts?.adminProvince) {
+    conditions.push(sql`${approvalRequests.jurisdictionProvince} = ${opts.adminProvince}`);
+    if (opts.adminLocality) {
+      conditions.push(sql`${approvalRequests.jurisdictionLocality} = ${opts.adminLocality}`);
+    }
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const [row] = await db
     .select({
@@ -172,7 +189,7 @@ export async function fetchQueueHealthScoped(
       pending60dPlus: sql<number>`count(*) filter (where ${approvalRequests.status} = 'pending' and ${approvalRequests.createdAt} < ${new Date(now - 60 * DAY_MS).toISOString()})`,
     })
     .from(approvalRequests)
-    .where(jurisClause);
+    .where(whereClause);
 
   return {
     pendingTotal: Number(row.pendingTotal),
