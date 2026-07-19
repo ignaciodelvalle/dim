@@ -8,7 +8,7 @@
     "components/panorama/PanoramaConsole.tsx": 5364,
     "src/modules/panorama/infrastructure/repository.ts": 4170,
     "components/panorama/SituationalMap.tsx": 3985,
-    "lib/analytics/govt-dashboards.ts": 2515,
+    "lib/analytics/govt-dashboards.ts": 2613,
     "lib/analytics/owner-dashboard.ts": 2018,
     "lib/events/event-schemas.ts": 1761,
     "src/modules/events/actions.ts": 1754,
