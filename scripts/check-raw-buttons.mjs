@@ -1,23 +1,26 @@
 // Raw <button> ratchet — CI guard (design-system consolidation).
 //
-// Enforces that literal `<button` elements do not increase across the
-// operator/government/org surfaces. The target is full adoption of the
-// LnButton (components/ui/Button.tsx) and OpButton
-// (components/ui/dashboard/OpButton.tsx) primitives instead of raw
+// Enforces that literal `<button` elements do not increase across two
+// surfaces, tracked with SEPARATE baselines so burn-down stays legible:
+//   - operator/government/org  (app/gob, app/admin, app/org)
+//   - citizen                  (components/**, app/(app), app/(public), app/(auth))
+// The target is full adoption of the LnButton (components/ui/Button.tsx) and
+// OpButton (components/ui/dashboard/OpButton.tsx) primitives instead of raw
 // `<button>` tags, so touch targets, focus rings, and disabled/loading
 // states stay consistent across the design system.
 //
-// Rule:
+// Rule (per surface):
 //   Count literal `<button` occurrences (case-sensitive tag open) in .tsx
-//   files under app/gob, app/admin, app/org (test files excluded). If the
-//   TOTAL count is greater than BASELINE, fail. If a PR migrates raw
-//   buttons to LnButton/OpButton and lowers the count, update BASELINE
-//   down to the new total in the same change — the ratchet only ever
-//   tightens.
+//   files under that surface's glob (test files excluded). If the TOTAL
+//   count for a surface is greater than its BASELINE, fail. If a PR migrates
+//   raw buttons to LnButton/OpButton and lowers a surface's count, update
+//   that surface's BASELINE down to the new total in the same change — the
+//   ratchet only ever tightens. The two counts are never merged: an operator
+//   regression must not be masked by citizen headroom, or vice versa.
 //
 // Run: node scripts/check-raw-buttons.mjs   (or: pnpm lint:buttons)
-// Exits 0 when clean; exits 1 listing each file's count when the total
-// exceeds the baseline.
+// Exits 0 when both surfaces are clean; exits 1 listing each file's count
+// (per surface) when either surface's total exceeds its baseline.
 
 import { globSync, readFileSync } from "node:fs";
 
@@ -55,9 +58,25 @@ import { globSync, readFileSync } from "node:fs";
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const BASELINE = 52;
+const OPERATOR_BASELINE = 52;
+const OPERATOR_SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
+const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 
-const SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
+/** Total literal `<button` occurrences across the citizen surface —
+ *  components/**, app/(app), app/(public), app/(auth) — measured on
+ *  2026-07-19 (consistency-fences pass, widened from operator-only scan).
+ *  This is a SEPARATE ratchet from the operator baseline above: the two
+ *  surfaces migrate independently (LnButton for citizen, OpButton for
+ *  operator), so merging the counts would hide a regression in either one
+ *  behind headroom in the other.
+ *  Target: 0, via migration to LnButton (components/ui/Button.tsx).
+ *  Lower this number as files migrate — never raise it without a design
+ *  review sign-off (raw <button> reintroduces inconsistent touch targets,
+ *  focus rings, and loading/disabled states). */
+const CITIZEN_BASELINE = 325;
+const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
+const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
+
 const RAW_BUTTON = /<button\b/g;
 
 // ---------------------------------------------------------------------------
@@ -72,15 +91,16 @@ export function countRawButtons(src) {
 // Runner
 // ---------------------------------------------------------------------------
 
-function runScan() {
-  const files = globSync(SCAN_GLOB)
+/** Scan one surface against its baseline. Returns true if clean (total <= baseline). */
+function scanSurface({ label, glob, baseline, scriptName }) {
+  const files = globSync(glob)
     .map((f) => f.replaceAll("\\", "/"))
     .filter((f) => !f.includes(".test."))
     .sort();
 
   if (files.length === 0) {
-    console.error("✗ check-raw-buttons: no files found under app/gob, app/admin, app/org.");
-    process.exit(1);
+    console.error(`✗ check-raw-buttons: no files found for ${label} surface.`);
+    return false;
   }
 
   const perFile = [];
@@ -95,28 +115,49 @@ function runScan() {
     }
   }
 
-  if (total > BASELINE) {
+  if (total > baseline) {
     perFile
       .sort((a, b) => b.count - a.count)
       .forEach(({ file, count }) => {
         console.error(`${file}: ${count} raw <button> occurrence(s)`);
       });
     console.error(
-      `\n✗ ${total} raw <button> occurrence(s) across app/gob, app/admin, app/org — baseline allows ${BASELINE}. Migrate new raw buttons to LnButton (components/ui/Button.tsx) or OpButton (components/ui/dashboard/OpButton.tsx).`,
+      `\n✗ ${total} raw <button> occurrence(s) across ${label} — baseline allows ${baseline}. Migrate new raw buttons to LnButton (components/ui/Button.tsx) or OpButton (components/ui/dashboard/OpButton.tsx).`,
     );
-    process.exit(1);
+    return false;
   }
 
-  if (total < BASELINE) {
+  if (total < baseline) {
     console.log(
-      `✓ raw <button> count improved: ${total} (baseline ${BASELINE}). Lower BASELINE in scripts/check-raw-buttons.mjs to ${total} to lock in the gain.`,
+      `✓ [${label}] raw <button> count improved: ${total} (baseline ${baseline}). Lower ${scriptName} in scripts/check-raw-buttons.mjs to ${total} to lock in the gain.`,
     );
-    return;
+    return true;
   }
 
   console.log(
-    `✓ raw <button> count clean — ${total} occurrence(s) across ${files.length} file(s), at baseline (${BASELINE}).`,
+    `✓ [${label}] raw <button> count clean — ${total} occurrence(s) across ${files.length} file(s), at baseline (${baseline}).`,
   );
+  return true;
+}
+
+function runScan() {
+  const operatorOk = scanSurface({
+    label: OPERATOR_LABEL,
+    glob: OPERATOR_SCAN_GLOB,
+    baseline: OPERATOR_BASELINE,
+    scriptName: "OPERATOR_BASELINE",
+  });
+
+  const citizenOk = scanSurface({
+    label: CITIZEN_LABEL,
+    glob: CITIZEN_SCAN_GLOB,
+    baseline: CITIZEN_BASELINE,
+    scriptName: "CITIZEN_BASELINE",
+  });
+
+  if (!operatorOk || !citizenOk) {
+    process.exit(1);
+  }
 }
 
 // Guard: only scan when run directly; importing from tests exposes
