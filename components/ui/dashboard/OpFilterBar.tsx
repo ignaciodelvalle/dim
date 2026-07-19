@@ -24,13 +24,17 @@ import { serverNavCommit } from "@/lib/ui/filter-commit";
  * bespoke row of controls.
  *
  * Three regions, top to bottom:
- *   1. Period (<PeriodPicker>) + optional Jurisdiction (<JurisdictionSwitcher>)
- *      — the two already-consistent shared controls, reused as-is (not
- *      restyled: they are shared across many surfaces).
- *   2. Domain axes — screen-specific filters (species / status / kind /
- *      severity …) declared via the `axes` descriptor and rendered as ONE
- *      consistent labeled <select> idiom, plus a free-form `children` slot for
- *      anything that doesn't fit the descriptor (a search form, status tabs…).
+ *   1. Header — a compact "Filtros" eyebrow (filter icon + micro-caps label)
+ *      that gives the bar an identity instead of an invisible aria-label only.
+ *   2. Unified rail — period (<PeriodPicker>), optional jurisdiction
+ *      (<JurisdictionSwitcher>), and the screen-specific domain axes all flow
+ *      and WRAP together in one `flex-wrap` row (not a hard grid), so on a wide
+ *      screen they sit on one line and on a narrow one they stack cleanly.
+ *      Every control carries the SAME caption treatment; axes render as one
+ *      consistent labeled <select> idiom; a free-form `children` slot trails
+ *      for anything that doesn't fit the descriptor (a search form, status
+ *      tabs…). The two shared controls are reused as-is (not restyled: they
+ *      are shared across many surfaces) — only their wrapper alignment is ours.
  *   3. Active-filter chips + "Limpiar todo" — a removable chip per active
  *      non-default filter, derived from the live searchParams and the axis
  *      registry, plus a one-click reset to defaults. No screen had this before.
@@ -100,8 +104,14 @@ export type OpFilterBarJurisdiction = {
 };
 
 export type OpFilterBarProps = {
-  /** Period axis config. Always rendered; omit to use defaults. */
+  /** Period axis config. Only used when `showPeriod` is true; omit to use defaults. */
   period?: OpFilterBarPeriod;
+  /**
+   * Whether to render the Período control and its active-filter chip. Default
+   * true. Set false on period-agnostic screens (e.g. a live triage queue) where
+   * the period param drives nothing downstream — a rendered-but-dead control.
+   */
+  showPeriod?: boolean;
   /** Jurisdiction axis config. Rendered only when provided (screen has scope). */
   jurisdiction?: OpFilterBarJurisdiction;
   /** Screen-specific domain axes, rendered as consistent labeled selects. */
@@ -143,55 +153,38 @@ type ActiveChip = {
   clear: Record<string, string | null>;
 };
 
-const axisLabelClasses = "flex flex-col gap-1 text-xs font-medium text-ln-op-ink-2";
-
-const chipClasses =
-  "inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-stripe " +
-  "px-3 py-1 text-xs font-medium text-ln-op-ink min-h-8 " +
-  "hover:border-ln-op-mute focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
-
-const clearAllClasses =
-  "inline-flex items-center min-h-8 rounded px-1 text-xs font-semibold text-ln-op-azul " +
-  "underline underline-offset-2 hover:text-ln-op-azul-700 " +
-  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
-
-export function OpFilterBar({
-  period,
-  jurisdiction,
-  axes = [],
-  resetParamsOnChange = [],
-  children,
-  className = "",
-}: OpFilterBarProps) {
-  const searchParams = useSearchParams();
-  const uid = useId();
-
-  const periodKey = period?.paramKey ?? "period";
-  const fromKey = period?.customParamKeys?.from ?? "from";
-  const toKey = period?.customParamKeys?.to ?? "to";
-  const defaultPreset: PeriodPresetId = period?.defaultPreset ?? "30d";
-
-  const provinceKey = jurisdiction?.paramKeys?.province ?? "province";
-  const localityKey = jurisdiction?.paramKeys?.locality ?? "locality";
-
-  // Single commit path — every mutation flows through the sanctioned
-  // full-document navigation, dropping any filter-invalidated params (cursor…).
-  function commit(updates: Record<string, string | null>) {
-    serverNavCommit(searchParams.toString())(updates, resetParamsOnChange);
-  }
-
-  function handleAxisChange(axis: OpFilterAxis, value: string) {
-    // "" → null deletes the param, returning the axis to its "all" default.
-    commit({ [axis.paramKey]: value || null });
-  }
-
-  // ---- Active-filter chips -------------------------------------------------
-  // Derived from the LIVE searchParams (period/jurisdiction) and the page's
-  // already-validated axis `current` — the source of truth for what's on screen.
+// Derives the removable active-filter chips from the LIVE searchParams
+// (period/jurisdiction) and the page's already-validated axis `current` — the
+// source of truth for what's on screen. Pulled out of the component so
+// OpFilterBar's own cognitive complexity stays under the lint budget.
+function buildActiveChips(params: {
+  searchParams: URLSearchParams;
+  showPeriod: boolean;
+  periodKey: string;
+  fromKey: string;
+  toKey: string;
+  defaultPreset: PeriodPresetId;
+  jurisdiction?: OpFilterBarJurisdiction;
+  provinceKey: string;
+  localityKey: string;
+  axes: OpFilterAxis[];
+}): ActiveChip[] {
+  const {
+    searchParams,
+    showPeriod,
+    periodKey,
+    fromKey,
+    toKey,
+    defaultPreset,
+    jurisdiction,
+    provinceKey,
+    localityKey,
+    axes,
+  } = params;
   const chips: ActiveChip[] = [];
 
   const activePreset = searchParams.get(periodKey);
-  if (activePreset && activePreset !== defaultPreset) {
+  if (showPeriod && activePreset && activePreset !== defaultPreset) {
     const label = PERIOD_CHIP_LABELS[activePreset] ?? activePreset;
     chips.push({
       id: "period",
@@ -234,6 +227,70 @@ export function OpFilterBar({
     }
   }
 
+  return chips;
+}
+
+// One caption treatment for every control the bar owns (Período + axes), sized
+// text-sm to MATCH the JurisdictionSwitcher's own Provincia/Localidad labels
+// (which are text-sm and cannot be restyled here — shared component), so the
+// rail reads as one consistent set of captioned controls, not three sizes.
+const captionClasses = "text-sm font-medium text-ln-op-ink-2";
+
+const chipClasses =
+  "inline-flex items-center gap-1.5 rounded-full border border-ln-op-line bg-ln-op-stripe " +
+  "px-3 py-1 text-xs font-medium text-ln-op-ink min-h-8 " +
+  "hover:border-ln-op-mute focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
+
+const clearAllClasses =
+  "inline-flex items-center min-h-8 rounded px-1 text-xs font-semibold text-ln-op-azul " +
+  "underline underline-offset-2 hover:text-ln-op-azul-700 " +
+  "focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
+
+export function OpFilterBar({
+  period,
+  showPeriod = true,
+  jurisdiction,
+  axes = [],
+  resetParamsOnChange = [],
+  children,
+  className = "",
+}: OpFilterBarProps) {
+  const searchParams = useSearchParams();
+  const uid = useId();
+
+  const periodKey = period?.paramKey ?? "period";
+  const fromKey = period?.customParamKeys?.from ?? "from";
+  const toKey = period?.customParamKeys?.to ?? "to";
+  const defaultPreset: PeriodPresetId = period?.defaultPreset ?? "30d";
+
+  const provinceKey = jurisdiction?.paramKeys?.province ?? "province";
+  const localityKey = jurisdiction?.paramKeys?.locality ?? "locality";
+
+  // Single commit path — every mutation flows through the sanctioned
+  // full-document navigation, dropping any filter-invalidated params (cursor…).
+  function commit(updates: Record<string, string | null>) {
+    serverNavCommit(searchParams.toString())(updates, resetParamsOnChange);
+  }
+
+  function handleAxisChange(axis: OpFilterAxis, value: string) {
+    // "" → null deletes the param, returning the axis to its "all" default.
+    commit({ [axis.paramKey]: value || null });
+  }
+
+  // ---- Active-filter chips -------------------------------------------------
+  const chips = buildActiveChips({
+    searchParams,
+    showPeriod,
+    periodKey,
+    fromKey,
+    toKey,
+    defaultPreset,
+    jurisdiction,
+    provinceKey,
+    localityKey,
+    axes,
+  });
+
   function handleClearAll() {
     const updates: Record<string, string | null> = {
       [periodKey]: null,
@@ -258,55 +315,103 @@ export function OpFilterBar({
         .filter(Boolean)
         .join(" ")}
     >
-      {/* Region 1 — period + (optional) jurisdiction */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <span className="block text-xs font-medium text-ln-op-ink-2">Período</span>
-          <PeriodPicker
-            defaultPreset={defaultPreset}
-            multiYear={period?.multiYear}
-            presetParamKey={periodKey}
-            customParamKeys={{ from: fromKey, to: toKey }}
-          />
-        </div>
-        {jurisdiction && (
-          <JurisdictionSwitcher
-            allowedProvinces={jurisdiction.allowedProvinces}
-            localities={jurisdiction.localities}
-            paramKeys={{ province: provinceKey, locality: localityKey }}
-            dropParamsOnNavigate={jurisdiction.dropParamsOnNavigate}
-          />
+      {/* Region 1 — header: bar identity + active-filter count at a glance
+          (the count summarizes; the removable chips below carry the detail) */}
+      <div className="flex items-center gap-2 text-ln-op-mute">
+        <Icon name="filter" size={15} decorative />
+        <span className="text-xs font-semibold uppercase tracking-[0.08em]">Filtros</span>
+        {chips.length > 0 && (
+          <span
+            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ln-op-azul px-1.5 text-xs font-semibold leading-none text-white"
+            aria-label={`Filtros activos: ${chips.length}`}
+          >
+            {chips.length}
+          </span>
         )}
       </div>
 
-      {/* Region 2 — domain axes + free-form slot */}
-      {(axes.length > 0 || children) && (
-        <div className="flex flex-wrap items-end gap-3">
-          {axes.map((axis) => {
-            const selectId = `${uid}-${axis.id}`;
-            return (
-              <label key={axis.id} htmlFor={selectId} className={axisLabelClasses}>
-                {axis.label}
-                <OpSelect
-                  id={selectId}
-                  className="min-h-11 w-auto min-w-[9rem]"
-                  value={axis.current ?? ""}
-                  onChange={(e) => handleAxisChange(axis, e.target.value)}
-                  aria-label={axis.label}
+      {/* Region 2 — unified rail, grouped by kind: SCOPE (period + jurisdiction:
+          "which universe") is set apart from DOMAIN filters (species / kind /
+          severity: "which subset of it"). The split is carried by proximity +
+          a hairline divider that only shows when the two groups sit inline
+          (sm+); on a narrow screen the groups stack and the divider vanishes,
+          so grouping never fights the responsive wrap. No boxes, no group
+          labels — the structure encodes the scope-vs-content distinction on
+          its own. */}
+      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+        {/* Scope group — period (optional) + optional jurisdiction. Omitted
+            entirely when neither is present, so the domain group below never
+            grows a stray divider with nothing to its left. */}
+        {(showPeriod || jurisdiction) && (
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+            {showPeriod && (
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
+                <span className={captionClasses}>Período</span>
+                <PeriodPicker
+                  defaultPreset={defaultPreset}
+                  multiYear={period?.multiYear}
+                  presetParamKey={periodKey}
+                  customParamKeys={{ from: fromKey, to: toKey }}
+                />
+              </div>
+            )}
+
+            {jurisdiction && (
+              <div className="w-full sm:w-auto sm:min-w-[17rem]">
+                <JurisdictionSwitcher
+                  allowedProvinces={jurisdiction.allowedProvinces}
+                  localities={jurisdiction.localities}
+                  paramKeys={{ province: provinceKey, locality: localityKey }}
+                  dropParamsOnNavigate={jurisdiction.dropParamsOnNavigate}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Domain group — screen-specific axes + free-form slot, set off from
+            the scope group by a hairline divider (sm+ only). The divider only
+            applies when a scope group actually rendered above it. */}
+        {(axes.length > 0 || children) && (
+          <div
+            className={[
+              "flex flex-wrap items-end gap-x-4 gap-y-3",
+              (showPeriod || jurisdiction) && "sm:border-l sm:border-ln-op-line-2 sm:pl-5",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {axes.map((axis) => {
+              const selectId = `${uid}-${axis.id}`;
+              return (
+                <label
+                  key={axis.id}
+                  htmlFor={selectId}
+                  className="flex w-full flex-col gap-1 sm:w-auto"
                 >
-                  <option value="">{axis.allLabel ?? "Todas"}</option>
-                  {axis.options.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </OpSelect>
-              </label>
-            );
-          })}
-          {children}
-        </div>
-      )}
+                  <span className={captionClasses}>{axis.label}</span>
+                  <OpSelect
+                    id={selectId}
+                    className="min-h-11 w-full sm:w-auto sm:min-w-[9rem]"
+                    value={axis.current ?? ""}
+                    onChange={(e) => handleAxisChange(axis, e.target.value)}
+                    aria-label={axis.label}
+                  >
+                    <option value="">{axis.allLabel ?? "Todas"}</option>
+                    {axis.options.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </OpSelect>
+                </label>
+              );
+            })}
+
+            {children}
+          </div>
+        )}
+      </div>
 
       {/* Region 3 — active-filter chips + clear-all */}
       {chips.length > 0 && (

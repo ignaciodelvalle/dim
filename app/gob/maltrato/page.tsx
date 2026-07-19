@@ -167,9 +167,19 @@ export default async function GobMaltratoPage({
     : undefined;
   const rowsWhereCondition = cursorClause ? and(whereCondition, cursorClause) : whereCondition;
 
-  // Fetch metrics and paginated report list in parallel.
+  // Fetch metrics and paginated report list in parallel. The KPI tiles mirror
+  // the SAME domain filters (kind/severity/status + scope) the list applies
+  // via buildMaltratoListConditions — never the `queue` workflow lens — so a
+  // filtered list and its "totals" tiles always agree (filter-honesty fix
+  // 2026-07).
   const [metrics, rawRows, [totalRow]] = await Promise.all([
-    fetchWelfareMetrics(actor, filteredJurisdictions, user.id),
+    fetchWelfareMetrics(actor, filteredJurisdictions, user.id, {
+      kind: activeKind,
+      severity: activeSeverity,
+      status: activeStatus,
+      selectedProvince: adminSelectedProvince,
+      selectedLocality: adminSelectedLocality,
+    }),
     db
       .select()
       .from(welfareReports)
@@ -249,13 +259,17 @@ export default async function GobMaltratoPage({
           </div>
         )}
 
-        {/* Unified filter bar — period + jurisdiction + kind/severity/status axes
-            + active-filter chips. These three axes were always wired
-            (buildMaltratoListConditions applies them) but had no visible control.
-            A filter change drops the keyset `cursor` (page 1). The queue TABS are a
-            separate concept (workflow lens) and keep their own control below. */}
+        {/* Unified filter bar — jurisdiction + kind/severity/status axes +
+            active-filter chips. Period is OMITTED: /gob/maltrato is a
+            period-agnostic live triage queue (PO decision 2026-07) — the
+            period param drove nothing downstream, so the control is dropped
+            rather than left as a dead affordance. The kind/severity/status
+            axes were always wired (buildMaltratoListConditions applies them)
+            but had no visible control. A filter change drops the keyset
+            `cursor` (page 1). The queue TABS are a separate concept (workflow
+            lens) and keep their own control below. */}
         <OpFilterBar
-          period={{ defaultPreset: "30d" }}
+          showPeriod={false}
           jurisdiction={{ allowedProvinces, localities }}
           resetParamsOnChange={["cursor"]}
           axes={

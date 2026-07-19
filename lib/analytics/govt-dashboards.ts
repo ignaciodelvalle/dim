@@ -1416,10 +1416,22 @@ export type WelfareMetrics = {
   closedMonth: number;
 };
 
+// KPI↔list parity (filter-honesty fix 2026-07): the maltrato KPI tiles used to
+// ignore kind/severity/status/admin-province entirely, so a filtered list
+// (buildMaltratoListConditions) and its "totals" tiles disagreed. This mirrors
+// ONLY the domain axes (kind/severity/status) + jurisdiction/admin scope —
+// deliberately excludes `queue`, which is a WORKFLOW lens over the list, not a
+// domain filter, and must never skew a KPI count.
+export type WelfareMetricsFilters = Pick<
+  MaltratoListFilters,
+  "kind" | "severity" | "status" | "selectedProvince" | "selectedLocality"
+>;
+
 export async function fetchWelfareMetrics(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   currentUserId: string,
+  filters?: WelfareMetricsFilters,
 ): Promise<WelfareMetrics> {
   const scope = welfareReportsScopeClause(actor, jurisdictions);
 
@@ -1428,31 +1440,52 @@ export async function fetchWelfareMetrics(
   }
 
   const since30d = new Date(Date.now() - 30 * DAY_MS);
+  const { kind, severity, status, selectedProvince, selectedLocality } = filters ?? {};
+
+  // Domain narrow filters — the SAME eq() clauses buildMaltratoListConditions
+  // applies to the list (identical enums, identical scope logic), so a tile
+  // and the list it drills into always agree under the same filter set.
+  const domainConditions: SQL[] = [];
+  if (scope) domainConditions.push(sql`(${scope})`);
+  if (actor.role === "admin" && selectedProvince) {
+    if (selectedLocality) {
+      domainConditions.push(
+        and(
+          eq(welfareReports.jurisdictionProvince, selectedProvince),
+          eq(welfareReports.jurisdictionLocality, selectedLocality),
+        ) as SQL,
+      );
+    } else {
+      domainConditions.push(eq(welfareReports.jurisdictionProvince, selectedProvince) as SQL);
+    }
+  }
+  if (kind) domainConditions.push(eq(welfareReports.kind, kind as never) as SQL);
+  if (severity) domainConditions.push(eq(welfareReports.severity, severity as never) as SQL);
+  if (status) domainConditions.push(eq(welfareReports.status, status as never) as SQL);
 
   // 1. Unassigned: assigned_to_user_id IS NULL AND status NOT IN terminal.
   const unassignedConditions = [
     isNull(welfareReports.assignedToUserId),
     not(inArray(welfareReports.status, [...TERMINAL_STATUSES])),
+    ...domainConditions,
   ];
-  if (scope) unassignedConditions.push(sql`(${scope})`);
 
   // 2. Mine: assigned to currentUserId, status in non-terminal active states.
   const myConditions = [
     eq(welfareReports.assignedToUserId, currentUserId),
     not(inArray(welfareReports.status, [...TERMINAL_STATUSES])),
+    ...domainConditions,
   ];
-  if (scope) myConditions.push(sql`(${scope})`);
 
   // 3. In-progress: status='in_progress'.
-  const inProgressConditions = [eq(welfareReports.status, "in_progress")];
-  if (scope) inProgressConditions.push(sql`(${scope})`);
+  const inProgressConditions = [eq(welfareReports.status, "in_progress"), ...domainConditions];
 
   // 4. Closed in last 30 days: status='closed' AND closed_at >= 30d ago.
   const closedMonthConditions = [
     eq(welfareReports.status, "closed"),
     gte(welfareReports.closedAt, since30d),
+    ...domainConditions,
   ];
-  if (scope) closedMonthConditions.push(sql`(${scope})`);
 
   const [unassignedRows, myRows, inProgressRows, closedMonthRows] = await Promise.all([
     db
