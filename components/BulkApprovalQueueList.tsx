@@ -6,6 +6,21 @@
 // drive the corresponding bulk server action; results show per-item
 // success / failure inline so partial-failure (e.g. some items out of the
 // govt's scope) is legible.
+//
+// Dashboard-kit migration (2026-07-19): rows/actions were brought up to kit
+// STYLING (LnEmptyState, OpButton, OpCard-consistent row tokens) but rows
+// deliberately were NOT ported onto `components/ui/dashboard/CaseQueue.tsx`.
+// CaseQueue's bulk mode delegates to `OpBulkBar`, whose `OpBulkAction.onRun`
+// is a single `(reason: string) => void | Promise<void>` — it has no slot for
+// this screen's per-type approval breakdown, the RUPGA CUD warning, the
+// hasVetMatricula bulk-approve gate, or (the big one) the inline partial-
+// failure `ResultPanel` below (succeeded/failed counts + per-item reasons +
+// bulkActionId — see settleBulkResult/dismissResult). `CaseQueueRow` also
+// assumes case semantics (caseKind/CaseStatus/openedAt/closedAt) that don't
+// exist for an approval_requests row. Forcing either would mean rebuilding
+// half of OpBulkBar inside a CaseQueue wrapper or discarding the partial-
+// failure legibility that's this screen's whole point — so rows keep their
+// bespoke <ul>/<li> + bespoke bulk bar, now token-aligned with the kit.
 
 import Link from "next/link";
 import { type ReactNode, useState, useTransition } from "react";
@@ -15,7 +30,9 @@ import {
   bulkApproveRequestsAction,
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpButton, type OpButtonVariant } from "@/components/ui/dashboard/OpButton";
 import type { ApprovalRequestType } from "@/db";
 import {
   RUPGA_APPROVAL_WARNING,
@@ -119,7 +136,11 @@ export function BulkApprovalQueueList({
 
   if (items.length === 0) {
     return (
-      <p className="text-sm text-ln-op-mute">Cuando lleguen nuevas solicitudes vas a verlas acá.</p>
+      <LnEmptyState
+        icon="solicitud"
+        title="No hay solicitudes pendientes"
+        description="No hay solicitudes pendientes en tu jurisdicción. Cuando lleguen nuevas solicitudes las vas a ver acá."
+      />
     );
   }
 
@@ -153,8 +174,17 @@ export function BulkApprovalQueueList({
           return (
             <li
               key={item.publicToken}
-              className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${
-                isSelected ? "border-ln-op-line bg-ln-op-stripe" : "border-ln-op-line"
+              // OpCard-consistent row treatment (rounded-[var(--radius-md)] +
+              // border-ln-op-line + bg-ln-op-card, matching components/ui/
+              // dashboard/OpCard.tsx) and the same selected/hover tokens
+              // CaseQueue uses for its rows (bg-ln-op-blue-bg when selected).
+              // Kept as a raw <li>, NOT CaseQueue itself — see the file-level
+              // note below the imports for why forcing CaseQueue here would
+              // regress the bulk-selection UX this screen depends on.
+              className={`rounded-[var(--radius-md)] border px-4 py-3 flex items-start gap-3 transition-colors ${
+                isSelected
+                  ? "border-ln-op-line bg-ln-op-blue-bg"
+                  : "border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe"
               }`}
             >
               <LnCheckbox
@@ -194,6 +224,11 @@ export function BulkApprovalQueueList({
                     {pluralizeEs(selected.size, "seleccionada")}
                   </p>
                   <div className="flex items-center gap-2">
+                    {/* "Limpiar" stays a plain text button — not an OpButton —
+                        matching OpBulkBar's OWN canonical "Limpiar" affordance
+                        (components/ui/dashboard/OpBulkBar.tsx:117-123), which
+                        is a bare button too. The shared kit doesn't promote
+                        the clear-selection action to a bordered button. */}
                     <button
                       type="button"
                       onClick={clear}
@@ -201,21 +236,17 @@ export function BulkApprovalQueueList({
                     >
                       Limpiar
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setMode("reject")}
-                      className="px-3 py-1.5 rounded text-sm border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg"
-                    >
+                    <OpButton variant="danger" size="sm" onClick={() => setMode("reject")}>
                       Rechazar
-                    </button>
-                    <button
-                      type="button"
+                    </OpButton>
+                    <OpButton
+                      variant="ok"
+                      size="sm"
                       onClick={() => setMode("approve")}
                       disabled={hasVetMatricula}
-                      className="px-3 py-1.5 rounded text-sm bg-ln-op-ok text-white hover:bg-ln-op-ok disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Aprobar
-                    </button>
+                    </OpButton>
                   </div>
                 </div>
                 {hasVetMatricula && (
@@ -233,7 +264,7 @@ export function BulkApprovalQueueList({
                 value={decisionNotes}
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar aprobación"
-                confirmClass="bg-ln-op-ok text-white hover:bg-ln-op-ok"
+                confirmVariant="ok"
                 confirmDisabled={hasVetMatricula}
                 pending={pending}
                 onConfirm={runApprove}
@@ -265,7 +296,7 @@ export function BulkApprovalQueueList({
                 value={decisionNotes}
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar rechazo"
-                confirmClass="bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                confirmVariant="primary"
                 confirmDisabled={decisionNotes.trim().length < 5}
                 pending={pending}
                 onConfirm={runReject}
@@ -285,7 +316,7 @@ function ConfirmRow({
   value,
   onChange,
   confirmLabel,
-  confirmClass,
+  confirmVariant,
   confirmDisabled,
   pending,
   onConfirm,
@@ -297,7 +328,15 @@ function ConfirmRow({
   value: string;
   onChange: (v: string) => void;
   confirmLabel: string;
-  confirmClass: string;
+  /**
+   * Approve = "ok" (bg-ln-op-ok, matches OpButton's "EXPLICIT positive
+   * confirmation" contract exactly). Reject = "primary" (bg-ln-op-azul) —
+   * this preserves the EXISTING bespoke `confirmClass` color, which was
+   * already blue, not red: rejecting a request is a normal decisive
+   * workflow action here, not styled as destructive-red (the outline-red
+   * "Rechazar" TRIGGER button above is the only red affordance in this flow).
+   */
+  confirmVariant: OpButtonVariant;
   confirmDisabled?: boolean;
   pending: boolean;
   onConfirm: () => void;
@@ -316,22 +355,17 @@ function ConfirmRow({
         className="w-full px-3 py-2 rounded-lg border border-ln-op-line bg-ln-op-card text-sm"
       />
       <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="px-3 py-1.5 rounded text-sm border border-ln-op-line"
-        >
+        <OpButton variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
           Cancelar
-        </button>
-        <button
-          type="button"
+        </OpButton>
+        <OpButton
+          variant={confirmVariant}
+          size="sm"
           onClick={onConfirm}
           disabled={pending || confirmDisabled}
-          className={`px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 ${confirmClass}`}
         >
           {pending ? "Procesando..." : confirmLabel}
-        </button>
+        </OpButton>
       </div>
     </div>
   );

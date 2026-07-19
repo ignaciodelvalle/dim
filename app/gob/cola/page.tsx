@@ -61,10 +61,14 @@ export default async function ColaPage({
 
   const pageTitle = activeType ? `Cola — ${TYPE_LABELS[activeType]}` : "Cola de solicitudes";
 
+  // Empty case no longer duplicates a one-line "no hay…" sentence here — the
+  // single LnEmptyState rendered by BulkApprovalQueueList (below) already
+  // carries that message with an icon/title/description, so the header stays
+  // silent instead of repeating it.
   const subtitle =
-    pending.length === 0
-      ? "No hay solicitudes pendientes en tu jurisdicción."
-      : `${pending.length}${hasMore ? "+" : ""} ${pluralizeEs(pending.length, "solicitud")} ${pluralizeEs(pending.length, "pendiente")}.`;
+    pending.length > 0
+      ? `${pending.length}${hasMore ? "+" : ""} ${pluralizeEs(pending.length, "solicitud")} ${pluralizeEs(pending.length, "pendiente")}.`
+      : null;
 
   // Pagination links — filter params exclude cursor so changing a filter resets to page 1.
   const filterParams: Record<string, string | undefined> = activeType ? { type: activeType } : {};
@@ -82,18 +86,36 @@ export default async function ColaPage({
           <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
             {pageTitle}
           </h1>
-          <p className="text-[13px] text-ln-op-mute">{subtitle}</p>
+          {subtitle && <p className="text-[13px] text-ln-op-mute">{subtitle}</p>}
         </header>
 
-        {/* Type filter chips — links drop ?cursor so filters reset to page 1 */}
+        {/*
+         * Type filter chips — links drop ?cursor so filters reset to page 1.
+         *
+         * NOTE on component choice: `OpPill` (components/ui/dashboard/OpPill.tsx)
+         * is a read-only STATUS/tone badge (open|escalated|closed|ok|…) — it has
+         * no Link/active-state API and is used exactly that way everywhere else
+         * in the codebase (see app/gob/cola/[publicToken]/page.tsx's status
+         * pill). Wrapping it as a clickable nav filter would be a misuse of its
+         * contract, not a kit migration. The kit's own `CaseQueue` component
+         * (components/ui/dashboard/CaseQueue.tsx:182-204) faces the identical
+         * problem — a URL-driven filter Link with an active/inactive style —
+         * and hand-rolls the SAME pattern rather than delegating to OpPill.
+         * That inline pattern (Link + aria-pressed + border/bg swap) is the
+         * closest thing this codebase has to a "canonical" filter chip, so
+         * these chips are aligned to CaseQueue's exact classes (added
+         * aria-pressed, matching hover:bg-ln-op-stripe) instead of forcing a
+         * status-badge component into a navigation role.
+         */}
         <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
           <Link
             href={`${base}/cola`}
+            aria-pressed={!activeType}
             className={[
               "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
               !activeType
                 ? "border-ln-op-azul bg-ln-op-azul text-white"
-                : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
+                : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
             ].join(" ")}
           >
             Todas
@@ -102,11 +124,12 @@ export default async function ColaPage({
             <Link
               key={t}
               href={`${base}/cola?type=${t}`}
+              aria-pressed={activeType === t}
               className={[
                 "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
                 activeType === t
                   ? "border-ln-op-azul bg-ln-op-azul text-white"
-                  : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-ink-2",
+                  : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
               ].join(" ")}
             >
               {TYPE_LABELS[t]}
