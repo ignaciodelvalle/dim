@@ -1480,6 +1480,15 @@ export async function fetchWelfareMetrics(
   if (kind) domainConditions.push(eq(welfareReports.kind, kind as never) as SQL);
   if (severity) domainConditions.push(eq(welfareReports.severity, severity as never) as SQL);
   if (status) domainConditions.push(eq(welfareReports.status, status as never) as SQL);
+  // Moderation-exclusion — mirror buildMaltratoListConditions exactly: a flagged
+  // report stays OUT of the work queue until moderation resolves it, so the KPI
+  // tiles must exclude it too. Without this a flagged-but-unresolved report is
+  // counted by a tile but absent from the list it drills into — the very
+  // KPI↔list divergence this parity fix exists to eliminate, on the moderation
+  // axis instead of kind/severity/status.
+  domainConditions.push(
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  );
 
   // 1. Unassigned: assigned_to_user_id IS NULL AND status NOT IN terminal.
   const unassignedConditions = [
