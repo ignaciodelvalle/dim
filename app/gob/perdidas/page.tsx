@@ -260,9 +260,10 @@ export default async function GobPerdidasPage({
           value={String(metrics.recoveredMonth)}
           tone="ok"
           info={{
-            definition: "Mascotas que pasaron de estado 'lost' a 'active' en los últimos 30 días.",
+            definition:
+              "Mascotas que salieron del estado 'perdido' en los últimos 30 días (recuperadas o dadas de baja).",
             formula:
-              "COUNT(pet_events WHERE event_type='status_changed', 'lost'→'active', últimos 30d) scoped",
+              "COUNT(pet_events WHERE event_type='status_changed', from='lost' → to≠'lost', últimos 30d) scoped",
           }}
         />
         <OpKpi
@@ -323,8 +324,7 @@ export default async function GobPerdidasPage({
 
       {/* Search form */}
       <form action="/gob/perdidas" method="get" className="flex items-center gap-2">
-        {/* Preserve other active searchParams so the form doesn't reset period/species */}
-        {sp.period && <input type="hidden" name="period" value={sp.period} />}
+        {/* Preserve other active searchParams so the form doesn't reset species/status */}
         {sp.species && <input type="hidden" name="species" value={sp.species} />}
         {sp.status && <input type="hidden" name="status" value={sp.status} />}
         <LnInput
@@ -395,7 +395,7 @@ export default async function GobPerdidasPage({
                         description={
                           q
                             ? `No se encontraron mascotas para "${q}" con el estado seleccionado.`
-                            : "No hay mascotas con este estado en el periodo para tu cobertura."
+                            : "No hay mascotas con este estado para tu cobertura."
                         }
                       />
                     ) : (
