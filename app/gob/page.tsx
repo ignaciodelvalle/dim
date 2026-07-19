@@ -82,11 +82,22 @@ export default async function GobiernoDashboardPage({
   const selectedProvinceIso = typeof sp.province === "string" ? sp.province : null;
   const selectedLocalitySlug = typeof sp.locality === "string" ? sp.locality : null;
 
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: selectedProvinceIso, locality: selectedLocalitySlug },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas).
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   // --- Scope label --------------------------------------------------------
 
@@ -115,8 +126,14 @@ export default async function GobiernoDashboardPage({
   // Build one ProjectionContext for all KPI tiles. Uses trailing-12m as the
   // default window (the home dashboard has no period picker). Trailing-30d is
   // passed to fetchSterilizationMetrics separately via ctx.period.since.
-  const ctx12m = buildProjectionContext(actor, filteredJurisdictions, windows.trailing12m());
-  const ctx30d = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d());
+  const ctx12m = buildProjectionContext(actor, filteredJurisdictions, windows.trailing12m(), {
+    adminProvince,
+    adminLocality,
+  });
+  const ctx30d = buildProjectionContext(actor, filteredJurisdictions, windows.trailing30d(), {
+    adminProvince,
+    adminLocality,
+  });
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
@@ -197,7 +214,11 @@ export default async function GobiernoDashboardPage({
       // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
       // detail list shows N active (val-2-govt M2). filteredJurisdictions applies
       // the same province/locality narrowing the KPI strip uses.
-      fetchPerdidasMetrics(actor, filteredJurisdictions, { countOnly: true }),
+      fetchPerdidasMetrics(actor, filteredJurisdictions, {
+        countOnly: true,
+        adminProvince,
+        adminLocality,
+      }),
       // Casos regulatorios (open/escalated, top 5) — status filter + LIMIT 5
       // are pushed into SQL: admin sees universal scope, govt is
       // jurisdiction-scoped. Previously this loaded up to 500/300 rows and

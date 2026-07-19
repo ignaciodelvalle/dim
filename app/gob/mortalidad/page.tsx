@@ -84,14 +84,28 @@ export default async function GobMortalidadPage({
 
   const sp = await searchParams;
 
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
   });
+  // Both undefined unless role === "admin" (resolveJurisdictionScope's guarantee) —
+  // hoisted once so every fetcher below shares the identical admin-scope value
+  // (same pattern as /gob/perdidas).
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = resolveAnalyticsPeriod(sp);
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
   // Snapshot projection + the D1 cause-by-period trend + death sparkline run in
   // parallel over the same scoped death_recorded population.
   const [m, causesTrend, deathSparkline] = await Promise.all([

@@ -54,15 +54,22 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Jurisdiction filter — identical logic to app/gob/poblacion/page.tsx so
   // the export always matches the active province/locality selection.
-  const { filteredJurisdictions } = await resolveJurisdictionScope({
-    role: profile.role,
-    jurisdictions,
-    params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
-  });
+  const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
+    await resolveJurisdictionScope({
+      role: profile.role,
+      jurisdictions,
+      params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
+    });
+  // Both undefined unless role === "admin" — same pattern as the page.
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = resolveAnalyticsPeriod(sp);
   const actor = { role: profile.role } as const;
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio] =
     await Promise.all([

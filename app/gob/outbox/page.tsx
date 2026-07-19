@@ -85,7 +85,19 @@ export default async function GobOutboxPage({
 
   // Build a scoped ProjectionContext for DashboardFreshnessFooter.
   // The outbox page has no period picker — trailing12m is the default window.
-  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m());
+  // This page has no JurisdictionSwitcher/resolveJurisdictionScope — it uses its
+  // own `province` <select> (below) as the sole scope narrowing, applied directly
+  // in the WHERE clause for BOTH roles. For an admin, that dropdown IS the
+  // equivalent of the JurisdictionSwitcher's province drill-down elsewhere, so
+  // it's threaded into the ctx too — otherwise the freshness footer's "último
+  // evento" would silently stay national while the list above is narrowed.
+  const adminProvince =
+    profile.role === "admin" && filters.province && VALID_PROVINCE_NAMES.has(filters.province)
+      ? filters.province
+      : undefined;
+  const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+    adminProvince,
+  });
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 

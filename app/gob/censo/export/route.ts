@@ -45,15 +45,22 @@ export async function GET(request: NextRequest): Promise<Response> {
   };
 
   // Jurisdiction filter — identical logic to app/gob/censo/page.tsx.
-  const { filteredJurisdictions } = await resolveJurisdictionScope({
-    role: profile.role,
-    jurisdictions,
-    params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
-  });
+  const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
+    await resolveJurisdictionScope({
+      role: profile.role,
+      jurisdictions,
+      params: { province: searchParams.get("province"), locality: searchParams.get("locality") },
+    });
+  // Both undefined unless role === "admin" — same pattern as the page.
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
   const period = resolveAnalyticsPeriod(sp);
   const actor = { role: profile.role } as const;
-  const ctx = buildProjectionContext(actor, filteredJurisdictions, period);
+  const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
 
   const [counts, funnel, provinceRows] = await Promise.all([
     registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
