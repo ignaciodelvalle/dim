@@ -387,55 +387,89 @@ export default async function PetDetailPage({
     physicalCredentialChannels = channels;
   }
 
-  // Jurisdiction-resolved PPP breed list for the in-profile edit sheet, so a
-  // locality that ADDED a breed via the admin console flags it in the sheet's
-  // inline "raza peligrosa" warning too — parity with the standalone /editar
-  // page (2026-07-04). Display-only; submit-time classification stays
-  // authoritative regardless.
-  const pppBreedRule = await resolveBusinessRule("ppp_breed_list", {
-    province: pet.jurisdictionProvince,
-    locality: pet.jurisdictionLocality,
-  });
-
-  // Jurisdiction gate for the microchip obligation (jurisdiction-compliance):
-  // resolves the microchip_required rule for the pet's jurisdiction. Default is
-  // TRUE everywhere (no override rows at rollout), so the microchip card keeps
-  // showing until a jurisdiction opts out with a { required: false } rule.
-  const microchipRule = await resolveBusinessRule("microchip_required", {
-    province: pet.jurisdictionProvince,
-    locality: pet.jurisdictionLocality,
-  });
-
-  // Lost-episode + scans fetch — relocated out of the old early-return into
-  // the mainline (pet-document-redesign REQ-5.1/ADR-7): runs unconditionally
-  // when `status === 'lost'`, for BOTH owner and org viewers, since the
-  // normal profile now always renders and LostCaseBlock (rendered below, in
-  // the alert strip) needs this data for both roles — org gets the
-  // read-only variant, not a separate cockpit.
-  let lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>> = null;
-  let lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>> = [];
-  if (pet.status === "lost") {
-    // Fetch episode first so we can pass its caseId to the scan feed query.
-    // This scopes sighting rows to the current episode and prevents cross-episode
-    // pollution when a pet was lost→found→lost again.
-    lostEpisode = await fetchLostEpisodeForPet(pet.id);
-    const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
-
-    // P0g: resolve signed URLs for sighting AND finder-in-possession items that
-    // carry a photoStoragePath. event-attachments is a private bucket so
-    // thumbnails need short-lived signed URLs. We use the SSR supabase client
-    // (owner is authenticated at this point; org viewers reach here too and
-    // share the same signed-URL resolution).
-    lostScans = await Promise.all(
-      rawScans.map(async (item) => {
-        if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
-          const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
-          return { ...item, photoUrl: url };
-        }
-        return item;
-      }),
-    );
-  }
+  // Parallel fan-out (perf audit 2026-07-19 qw#3): these reads are independent —
+  // they only need `pet` / `user` / `accessPath`, all resolved above — but ran as
+  // ~5 SEQUENTIAL awaits, adding ~150-250 ms of serial round-trips to every
+  // profile TTFB in prod. One Promise.all collapses them. Only the pregnancy card
+  // (derives from typedEvents) and ownerFirstName (pure) stay AFTER the fan-out.
+  //   - pppBreedRule / microchipRule: jurisdiction business rules for the edit
+  //     sheet + microchip obligation (display-only; submit-time stays authoritative).
+  //   - typedEvents: v2 targeted events (replaces the old O(N) events + signing).
+  //   - lostData: lost-episode + scans, a self-contained async unit — its internal
+  //     episode→scans dependency (scoped so a lost→found→lost pet never pollutes
+  //     across episodes) stays sequential INSIDE the unit. Runs for both owner and
+  //     org viewers (LostCaseBlock needs it for both roles).
+  //   - reminders / canonicalIds / rabies turno: the compliance-projection reads.
+  const [
+    pppBreedRule,
+    microchipRule,
+    { typedEvents },
+    lostData,
+    petActiveReminders,
+    canonicalIds,
+    reservedRabiesTurnoRows,
+  ] = await Promise.all([
+    resolveBusinessRule("ppp_breed_list", {
+      province: pet.jurisdictionProvince,
+      locality: pet.jurisdictionLocality,
+    }),
+    resolveBusinessRule("microchip_required", {
+      province: pet.jurisdictionProvince,
+      locality: pet.jurisdictionLocality,
+    }),
+    fetchPetEventsForProfileV2(pet.id),
+    (async (): Promise<{
+      lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>>;
+      lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>>;
+    }> => {
+      if (pet.status !== "lost") return { lostEpisode: null, lostScans: [] };
+      // Fetch episode first so we can scope the scan feed to the current episode.
+      const lostEpisode = await fetchLostEpisodeForPet(pet.id);
+      const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
+      // P0g: sighting/finder items in a private bucket need short-lived signed URLs.
+      const lostScans = await Promise.all(
+        rawScans.map(async (item) => {
+          if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
+            const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
+            return { ...item, photoUrl: url };
+          }
+          return item;
+        }),
+      );
+      return { lostEpisode, lostScans };
+    })(),
+    // Vaccine reminders for owner path only.
+    accessPath === "owner"
+      ? fetchActiveRemindersForPet(user.id, pet.id)
+      : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
+    // Canonical chip/tattoo identifiers (ARCH-Q).
+    fetchActiveIdentifications(pet.id),
+    // WS-2: the pet's next confirmed rabies appointment (service_kind =
+    // vaccination_rabies), if any — drives the "Turno reservado" compliance
+    // state. Left-joins the provider (org or individual vet) for the label.
+    db
+      .select({
+        slotStartsAt: timeSlots.startsAt,
+        orgName: organizations.displayName,
+        vetName: profiles.displayName,
+      })
+      .from(appointments)
+      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
+      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
+      .where(
+        and(
+          eq(appointments.petId, pet.id),
+          eq(appointments.status, "confirmed"),
+          eq(serviceOfferings.serviceKind, "vaccination_rabies"),
+          gt(timeSlots.startsAt, new Date()),
+        ),
+      )
+      .orderBy(asc(timeSlots.startsAt))
+      .limit(1),
+  ]);
+  const { lostEpisode, lostScans } = lostData;
 
   // Derive owner first name from displayName (first word only) — feeds
   // LostCaseBlock's disclosure preview copy for owner viewers only.
@@ -443,11 +477,8 @@ export default async function PetDetailPage({
     ? (viewerContacts.displayName.split(" ")[0] ?? viewerContacts.displayName)
     : "el dueño";
 
-  // v2 targeted queries — replaces the old O(N) events + attachment signing.
-  const { typedEvents } = await fetchPetEventsForProfileV2(pet.id);
-
   // Pregnancy card data — derived from typedEvents (clinical_info_logged events
-  // are in the whitelist so they're available here).
+  // are in the whitelist so they're available here). MUST stay after the fan-out.
   const PREGNANCY_DURATION_WEEKS_BY_SPECIES: Record<string, number> = {
     dog: 9,
     cat: 9,
@@ -483,43 +514,6 @@ export default async function PetDetailPage({
       };
     }
   }
-
-  // Remaining parallel queries feeding the compliance projection + hero tags.
-  // Achievements, medication doses, upcoming appointments, and weight history
-  // moved out of Face 1 entirely (design.md deletion list) — Face 2 re-queries
-  // its own future/weight sources inside getLibretaFaceData when it activates.
-  const [petActiveReminders, canonicalIds, reservedRabiesTurnoRows] = await Promise.all([
-    // Vaccine reminders for owner path only.
-    accessPath === "owner"
-      ? fetchActiveRemindersForPet(user.id, pet.id)
-      : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
-    // Canonical chip/tattoo identifiers (ARCH-Q).
-    fetchActiveIdentifications(pet.id),
-    // WS-2: the pet's next confirmed rabies appointment (service_kind =
-    // vaccination_rabies), if any — drives the "Turno reservado" compliance
-    // state. Left-joins the provider (org or individual vet) for the label.
-    db
-      .select({
-        slotStartsAt: timeSlots.startsAt,
-        orgName: organizations.displayName,
-        vetName: profiles.displayName,
-      })
-      .from(appointments)
-      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-      .where(
-        and(
-          eq(appointments.petId, pet.id),
-          eq(appointments.status, "confirmed"),
-          eq(serviceOfferings.serviceKind, "vaccination_rabies"),
-          gt(timeSlots.startsAt, new Date()),
-        ),
-      )
-      .orderBy(asc(timeSlots.startsAt))
-      .limit(1),
-  ]);
 
   // tarjeta-todo (PO 2026-07-18): the under-card PetOwnerActivity block
   // (nudges / RemindersSection / Próximos turnos / Ciclos abiertos) was
