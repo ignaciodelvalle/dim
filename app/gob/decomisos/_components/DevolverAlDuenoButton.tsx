@@ -9,10 +9,10 @@
 // the former owner's FULL access to the pet, so it requires an explicit
 // confirmation before firing.
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { returnCustodyToOwnerAction } from "@/app/actions/decomiso";
-import { OpButton } from "@/components/ui/dashboard";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type DevolverAlDuenoButtonProps = {
@@ -23,6 +23,10 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  // OpButton forwards no ref (see scripts/check-raw-buttons.mjs baseline note),
+  // so the trigger stays a plain HTML button to give ConfirmDialog a
+  // focus-restore target — same pattern as LeaveOrgButton/RemoveMemberButton.
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   function handleConfirm() {
     setError(null);
@@ -39,66 +43,33 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
     });
   }
 
-  if (!open) {
-    return (
-      <OpButton type="button" onClick={() => setOpen(true)} variant="ghost" size="sm">
-        Devolver al dueño
-      </OpButton>
-    );
-  }
-
   return (
-    <dialog
-      open
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 m-0 w-full h-full max-w-none max-h-none bg-transparent border-none"
-      aria-label={`Devolver al dueño — ${casePublicCode}`}
-    >
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-ln-op-ink/40"
-        onClick={() => !isPending && setOpen(false)}
-        onKeyDown={(e) => e.key === "Escape" && !isPending && setOpen(false)}
-      />
-      {/* Modal */}
-      <div className="relative z-10 w-full max-w-md rounded-[var(--radius-lg)] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
-        <h3 className="text-[var(--text-base)] font-semibold text-ln-op-ink">
-          Devolver al dueño — {casePublicCode}
-        </h3>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
-          Esto cierra el episodio de custodia y le restituye al dueño anterior el acceso completo
-          sobre la mascota — una transferencia real de responsabilidad legal. Esta acción no se
-          puede deshacer.
-        </p>
-
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(true)}
+        className="rounded-[var(--radius-sm)] border border-ln-op-line px-3 py-1.5 text-sm font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe"
+      >
+        Devolver al dueño
+      </button>
+      <ConfirmDialog
+        open={open}
+        onClose={() => !isPending && setOpen(false)}
+        onConfirm={handleConfirm}
+        title={`Devolver al dueño — ${casePublicCode}`}
+        description="Esto cierra el episodio de custodia y le restituye al dueño anterior el acceso completo sobre la mascota — una transferencia real de responsabilidad legal. Esta acción no se puede deshacer."
+        confirmLabel="Confirmar devolución"
+        tone="neutral"
+        pending={isPending}
+        triggerRef={triggerRef}
+      >
         {error && (
-          <p className="text-[var(--text-md)] text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
+          <p className="px-5 pb-3 text-[13px] text-ln-op-danger" role="alert">
             {error}
           </p>
         )}
-
-        <div className="flex gap-3 pt-2">
-          <OpButton
-            type="button"
-            onClick={handleConfirm}
-            disabled={isPending}
-            variant="primary"
-            block
-            className="py-2.5"
-          >
-            {isPending ? "Devolviendo..." : "Confirmar devolución"}
-          </OpButton>
-          <OpButton
-            type="button"
-            onClick={() => setOpen(false)}
-            disabled={isPending}
-            variant="ghost"
-            block
-            className="py-2.5"
-          >
-            Cancelar
-          </OpButton>
-        </div>
-      </div>
-    </dialog>
+      </ConfirmDialog>
+    </>
   );
 }

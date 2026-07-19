@@ -45,11 +45,17 @@ import { globSync, readFileSync } from "node:fs";
  *  button, so OpButton (which centers content + carries action chrome) would
  *  degrade scanability and lose the escape-hatch signal. The console's submit
  *  button WAS migrated to OpButton in the same change. Baseline raised 49 → 51.
+ *  2026-07-19: a11y batch — ReasignarButton.tsx and DevolverAlDuenoButton.tsx
+ *  (app/gob/decomisos/_components) migrated their hand-rolled `<dialog>`
+ *  modals onto ConfirmDialog (focus trap + Escape + focus-restore); each
+ *  trigger carries a `ref` for ConfirmDialog's focus-restore, which OpButton
+ *  cannot forward (+2). Same change converted OrgBiteForm.tsx's victim-type
+ *  button trio into native radio inputs (-3). Net: baseline lowered 51 → 52.
  *  Target: 0, via migration to LnButton (citizen) / OpButton (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const BASELINE = 51;
+const BASELINE = 52;
 
 const SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const RAW_BUTTON = /<button\b/g;

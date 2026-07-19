@@ -11,12 +11,15 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
 
   if (state.ok) {
     return (
-      <div className="rounded-lg border border-ln-ok bg-ln-ok/10 p-4 text-sm text-ln-ok">
+      <output
+        aria-live="polite"
+        className="block rounded-lg border border-ln-ok bg-ln-ok/10 p-4 text-sm text-ln-ok"
+      >
         <p className="font-medium">¡Gracias!</p>
         <p className="mt-1 text-xs">
           Le avisamos al dueño. Mientras tanto, cuidala lo mejor que puedas.
         </p>
-      </div>
+      </output>
     );
   }
 
