@@ -544,7 +544,10 @@ export default async function GobMaltratoDetailPage({
         <OpCard>
           <OpCardHead title="Exportación fiscal" />
           <OpCardBody>
-            <MpfExportButton welfareReportId={report.id} />
+            <MpfExportButton
+              welfareReportId={report.id}
+              jurisdictionProvince={report.jurisdictionProvince}
+            />
           </OpCardBody>
         </OpCard>
 

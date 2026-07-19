@@ -4,6 +4,18 @@
 // Calls generateMpfExportAction and renders the signed URL as a visible link.
 // Visible to admin and govt in scope (the detail page already enforces scope).
 //
+// JURISDICTION GATE (capability-gating pattern, engram
+// pattern/locality-variable-capability-gating): the generated PDF is
+// hardwired to "MPF CABA" (lib/analytics/welfare-exports.ts) — there is no
+// per-province routing. Offering this button for a report outside
+// MPF_CONFIGURED_PROVINCES would misroute a formal fiscal document to the
+// wrong prosecutor's office, so it must be disabled — never merely hidden or
+// silently mis-wired — with a visible explanation. See lib/domain/mpf-jurisdiction.ts.
+// Gated by the REPORT's jurisdiction, not the viewer's: a govt viewer can only
+// ever reach a report inside their own jurisdiction assignments (scope guard
+// upstream), so the two coincide for govt; for admin (universal scope) the
+// report's jurisdiction is the only jurisdiction that matters for routing.
+//
 // WHY a visible <a> instead of window.open(url) after the await: the browser
 // popup blocker kills a window.open() call that isn't inside the direct click
 // gesture (this one runs after an async server action), so the tab silently
@@ -14,16 +26,20 @@
 import { useState } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { isMpfConfiguredForProvince } from "@/lib/domain/mpf-jurisdiction";
 import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 
 type Props = {
   welfareReportId: string;
+  jurisdictionProvince: string | null;
 };
 
-export function MpfExportButton({ welfareReportId }: Props) {
+export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+
+  const mpfConfigured = isMpfConfiguredForProvince(jurisdictionProvince);
 
   async function handleClick() {
     setLoading(true);
@@ -37,7 +53,9 @@ export function MpfExportButton({ welfareReportId }: Props) {
             ? "Error al generar el PDF. Intentá de nuevo."
             : result.error === "storage_upload_failed"
               ? "Error al subir el PDF. Verificá la conectividad con el servidor."
-              : "Error al generar el export. Intentá de nuevo.",
+              : result.error === "mpf_not_configured"
+                ? "El export a fiscalía no está configurado para esta jurisdicción."
+                : "Error al generar el export. Intentá de nuevo.",
         );
       } else {
         setSignedUrl(result.signedUrl);
@@ -51,7 +69,17 @@ export function MpfExportButton({ welfareReportId }: Props) {
 
   return (
     <div className="space-y-2">
-      <OpButton type="button" onClick={handleClick} disabled={loading} variant="primary">
+      <OpButton
+        type="button"
+        onClick={handleClick}
+        disabled={loading || !mpfConfigured}
+        variant="primary"
+        title={
+          mpfConfigured
+            ? undefined
+            : "El export a fiscalía no está configurado para tu jurisdicción."
+        }
+      >
         {loading ? (
           <>
             <svg
@@ -99,6 +127,11 @@ export function MpfExportButton({ welfareReportId }: Props) {
         )}
       </OpButton>
 
+      {!mpfConfigured && (
+        <p className="text-[11px] text-ln-op-warn">
+          El export a fiscalía no está configurado para tu jurisdicción.
+        </p>
+      )}
       {error && <p className="text-[11px] text-ln-op-danger">{error}</p>}
       {signedUrl && (
         <p className="text-[11px] text-ln-op-ok">

@@ -46,6 +46,7 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { isMpfConfiguredForProvince } from "@/lib/domain/mpf-jurisdiction";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import {
   requireAdminOrGovtOrRedirect,
@@ -802,6 +803,19 @@ export async function generateMpfExportAction(
   // Jurisdiction scope guard (mirrors the detail page).
   const loaded = await loadAndVerifyScope(welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: "not_found" };
+
+  // Capability gate (pattern/locality-variable-capability-gating): the export
+  // is hardwired to MPF CABA — never generate it for a report whose
+  // jurisdiction has no MPF integration, or a formal fiscal document reaches
+  // the wrong prosecutor's office. The UI already disables the button for
+  // this case (MpfExportButton/MpfExportGate); this is defense-in-depth
+  // against a direct call to this action. Gated by the REPORT's jurisdiction —
+  // correct for both govt (scope guard above already confines them to their
+  // own jurisdiction) and admin (universal scope, so the report's
+  // jurisdiction is the only one that matters for routing).
+  if (!isMpfConfiguredForProvince(loaded.row.jurisdictionProvince)) {
+    return { ok: false, error: "mpf_not_configured" };
+  }
 
   const supabase = await createClient();
 

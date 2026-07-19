@@ -89,7 +89,11 @@ export function WelfareInspectorContent({
         <OpCard>
           <OpCardHead title="Exportación fiscal" />
           <OpCardBody>
-            <MpfExportGate welfareReportId={detail.id} status={detail.status} />
+            <MpfExportGate
+              welfareReportId={detail.id}
+              status={detail.status}
+              jurisdictionProvince={detail.jurisdictionProvince}
+            />
           </OpCardBody>
         </OpCard>
       )}

@@ -371,6 +371,52 @@ describe("generateMpfExportAction — mocked storage", () => {
     expect(result.error).toBe("not_found");
   });
 
+  it("returns mpf_not_configured for a report outside MPF_CONFIGURED_PROVINCES (jurisdiction gate)", async () => {
+    // Distinct fixture row in a non-configured province — the gate must block
+    // BEFORE any storage/PDF work happens (never generate a fiscal doc bound
+    // for the wrong prosecutor's office).
+    const NON_CABA_REF = "DEN-MPF-TEST02";
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code = ${NON_CABA_REF}`);
+    });
+    const [nonCabaReport] = await db
+      .insert(welfareReports)
+      .values({
+        referenceCode: NON_CABA_REF,
+        kind: "neglect",
+        severity: "medium",
+        description: "Integration test welfare report outside MPF-configured jurisdiction.",
+        subjectKind: "unowned_animal",
+        subjectDescription: "Perro sin dueño",
+        status: "open",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "Buenos Aires",
+      })
+      .returning();
+
+    const supabaseMock = buildSupabaseMock();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockCreateClient.mockResolvedValue(supabaseMock as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockRequireAdminOrGovt.mockResolvedValue({
+      profile: { id: govtUserId, role: "admin" },
+      jurisdictions: [],
+      user: { id: govtUserId },
+      supabase: supabaseMock,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const result = await generateMpfExportAction(nonCabaReport.id);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toBe("mpf_not_configured");
+    expect(supabaseMock.storage.from).not.toHaveBeenCalled();
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code = ${NON_CABA_REF}`);
+    });
+  });
+
   it("audit_log payload storagePath has format {welfareReportId}/{timestamp}.pdf", async () => {
     // The idempotency window (24h) may cause the action to skip upload and reuse
     // the existing signed URL. Verify by inspecting the audit_log payload stored
