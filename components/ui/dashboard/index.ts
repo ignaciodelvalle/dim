@@ -26,6 +26,7 @@ export type {
   OpFilterAxis,
   OpFilterAxisOption,
 } from "./OpFilterBar";
+export { CopyViewButton } from "./CopyViewButton";
 export { OpBreach } from "./OpBreach";
 export { OpCallout } from "./OpCallout";
 export { OpStateBadge } from "./OpStateBadge";

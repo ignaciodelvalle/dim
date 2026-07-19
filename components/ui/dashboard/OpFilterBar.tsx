@@ -6,6 +6,7 @@ import { type ReactNode, useId } from "react";
 import { Icon } from "@/components/Icon";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { CopyViewButton } from "@/components/ui/dashboard/CopyViewButton";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
 import {
   PRESET_3Y,
@@ -316,7 +317,10 @@ export function OpFilterBar({
         .join(" ")}
     >
       {/* Region 1 — header: bar identity + active-filter count at a glance
-          (the count summarizes; the removable chips below carry the detail) */}
+          (the count summarizes; the removable chips below carry the detail).
+          "Copiar vista" sits at the far right — the URL already carries every
+          active filter (period/jurisdiction/domain axes are all searchParams),
+          so it's a shareable/bookmarkable "saved view" one click away. */}
       <div className="flex items-center gap-2 text-ln-op-mute">
         <Icon name="filter" size={15} decorative />
         <span className="text-xs font-semibold uppercase tracking-[0.08em]">Filtros</span>
@@ -328,6 +332,7 @@ export function OpFilterBar({
             {chips.length}
           </span>
         )}
+        <CopyViewButton className="ml-auto" />
       </div>
 
       {/* Region 2 — unified rail, grouped by kind: SCOPE (period + jurisdiction:
