@@ -5,9 +5,11 @@
 //
 // This RSC is now a thin data-fetch + assembly shell. The two faces
 // themselves (and everything they render) live in dedicated components:
-//   - CredentialFace (Face 1, server, eager)   — components/pet-profile/CredentialFace.tsx
-//   - LibretaFace     (Face 2, client, deferred) — components/pet-profile/LibretaFace.tsx
-//   - PetDetailTabsPanel — owns the tab switcher + Face 2's deferred fetch.
+//   - CredentialFace (Face 1, server, eager)      — components/pet-profile/CredentialFace.tsx
+//   - LibretaFace     (Face 2, server-rendered, streamed via its own
+//     <Suspense> — see LibretaFaceSection/PF3 below) — components/pet-profile/LibretaFace.tsx
+//   - PetDetailTabsPanel — owns the tab switcher only; both faces arrive as
+//     already-rendered nodes (credencialContent/libretaContent props).
 //
 // Screen order (normal/active state, AGENTS.md rule 5):
 //   back-link → org notice (org-path only) → PetDetailTabsPanel, whose
@@ -54,11 +56,19 @@
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
+import {
+  LibretaFace,
+  type LibretaFaceEmergencyContacts,
+} from "@/components/pet-profile/LibretaFace";
 import { LostCaseBlock } from "@/components/pet-profile/LostCaseBlock";
 import { PetActionRow } from "@/components/pet-profile/PetActionRow";
 import { type PetAlert, PetAlertStrip } from "@/components/pet-profile/PetAlertStrip";
 import { PetCredentialCarousel } from "@/components/pet-profile/PetCredentialCarousel";
-import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
+import {
+  PetDetailTabsPanel,
+  TabErrorState,
+  TabLoadingSkeleton,
+} from "@/components/pet-profile/PetDetailTabsPanel";
 import { PetSwitcherDots } from "@/components/pet-profile/PetSwitcherDots";
 import {
   appointments,
@@ -89,7 +99,11 @@ import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-fa
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
-import { getFormerOwnerReadAccess, requirePetAccess } from "@/lib/infra/pet-access";
+import {
+  type PetAccessSuccess,
+  getFormerOwnerReadAccess,
+  requirePetAccess,
+} from "@/lib/infra/pet-access";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePhysicalCredentialChannels } from "@/lib/infra/physical-credential-channels";
 import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
@@ -113,6 +127,7 @@ import {
   situationLabelForSex,
   speciesLabel,
 } from "@/lib/utils/format";
+import { getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
@@ -131,6 +146,48 @@ import { resolveCaptureIntentUrl } from "./anotar/handoff";
 // derivation every surface reads. (The transitional "Ciclos abiertos" dedup
 // filter died with the under-card PetOwnerActivity block — tarjeta-todo.)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Libreta face (Face 2) — server-rendered (perf audit 2026-07-19, PF3)
+// ---------------------------------------------------------------------------
+//
+// Wrapped in its own <Suspense> below (see `documentNode`) so it streams
+// independently of the eager, SSR'd Face 1 (CredentialFace never waits on
+// this). Calls the tab-data use-case DIRECTLY with the access this page
+// already resolved via requirePetAccess — no re-auth, and no client-trusted
+// token crosses the wire. This replaces the old client mount-effect in
+// PetDetailTabsPanel that called the `getLibretaFaceData` SERVER ACTION on
+// every profile load: that action re-ran requirePetAccess's full auth +
+// pet-access chain (a second getUser() + ownership query) for data the page
+// had already authorized in the SAME request — wasted backend work on every
+// view, not critical-path latency (the credential card paints without
+// waiting for this).
+async function LibretaFaceSection({
+  user,
+  pet,
+  accessPath,
+  organization,
+  isOwner,
+  emergencyContacts,
+}: {
+  user: PetAccessSuccess["user"];
+  pet: PetAccessSuccess["pet"];
+  accessPath: PetAccessSuccess["accessPath"];
+  organization: PetAccessSuccess["organization"];
+  isOwner: boolean;
+  emergencyContacts: LibretaFaceEmergencyContacts | null;
+}) {
+  const result = await getLibretaFaceData({ user, pet, accessPath, organization });
+  if (!result.ok) return <TabErrorState message={result.error} />;
+  return (
+    <LibretaFace
+      data={result.data}
+      petPublicToken={pet.publicToken}
+      isOwner={isOwner}
+      emergencyContacts={emergencyContacts}
+    />
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -800,6 +857,22 @@ export default async function PetDetailPage({
         })
       : [];
 
+  // Libreta face (Face 2) — server-rendered, streamed via its OWN Suspense
+  // boundary so it never blocks Face 1's SSR paint (PF3 perf fix — see
+  // LibretaFaceSection above).
+  const libretaContent = (
+    <Suspense fallback={<TabLoadingSkeleton />}>
+      <LibretaFaceSection
+        user={user}
+        pet={pet}
+        accessPath={accessPath}
+        organization={organization}
+        isOwner={isOwner}
+        emergencyContacts={resolvedEmergencyContacts}
+      />
+    </Suspense>
+  );
+
   // The credential document — server-rendered per route. A swipe/key/dot is a
   // NAVIGATION to the neighbor's route, not a client pane slide, so this same
   // node renders whether or not the carousel gesture shell wraps it.
@@ -814,7 +887,7 @@ export default async function PetDetailPage({
         initialFace={activeFace}
         isOwner={isOwner}
         situation={chromeSituation}
-        emergencyContacts={resolvedEmergencyContacts}
+        libretaContent={libretaContent}
         credencialContent={
           // The whole front face is ONE framed sheet ("Una sola libreta"):
           // identity → Cumplimiento → Avisos → Anotar → action row, bound by

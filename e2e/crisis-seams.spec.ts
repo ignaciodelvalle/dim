@@ -218,8 +218,9 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     // inactive credencial face keeps its own "Vacuna antirrábica" copy in the
     // DOM as display:none — so a bare getByText(...).first() resolves to that
     // HIDDEN front-face node and fails despite the visible libreta rows. Scope
-    // the assertion to the libreta panel, and its data is fetched client-side
-    // on mount (getLibretaFaceData) so give it a generous settle + timeout.
+    // the assertion to the libreta panel. Its data now streams in server-side
+    // (PF3 perf fix, no more client mount-effect fetch) but still give it a
+    // generous settle + timeout for the Suspense boundary to resolve.
     await relogin(page, ACCOUNTS.owner);
     const libretaRes = await page.goto(`/mis-mascotas/${ROCCO_TOKEN}/libreta`, {
       waitUntil: "domcontentloaded",

@@ -15,26 +15,29 @@
 // - Reads the active face from ?tab= (default: credencial).
 // - Syncs hash fragments: legacy anchors (#libreta, #vacunas, #historial,
 //   #resumen) still activate the right face on mount.
-// - FlipCard (ADR-11) mounts BOTH faces always: the Libreta face's data is
-//   fetched once via a server action on MOUNT (not gated behind first
-//   activation) so the back face has real content to flip into from the
-//   start; a loading skeleton scoped to the back face covers the gap.
+// - FlipCard (ADR-11) mounts BOTH faces always, so the back face needs real
+//   content (or a loading skeleton) from the very first render.
 // - Credencial content is pre-rendered server-side and passed as a node
 //   (eager, zero client cost) — Face 1 stays the only SSR-eager content.
+// - Libreta content (perf audit 2026-07-19, PF3): ALSO rendered server-side
+//   now, inside its own <Suspense> the page wraps around it, and passed down
+//   as `libretaContent` — same "pre-rendered node" shape as `credencialContent`.
+//   This replaced a client mount-effect that called `getLibretaFaceData` (a
+//   server action) on EVERY profile load: that action re-ran requirePetAccess's
+//   FULL auth + pet-access chain (a second getUser() + ownership query) even
+//   though the credential card had already resolved access server-side in the
+//   SAME request. The page now calls the tab-data use-case directly with the
+//   already-resolved access — no client-trusted token, no redundant re-auth —
+//   and streams it in via Suspense so Face 1's SSR paint is still unblocked.
 // - Print: libreta-print.css is imported here so it's only applied when this
 //   component (and thus the Libreta face) is rendered.
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
-import { type LibretaFaceData, getLibretaFaceData } from "@/app/actions/pet-tab-data";
 import type { ChromeSituation } from "@/components/pet-profile/DocumentChrome";
 import { FlipCard, PET_FACE_PANEL_ID } from "@/components/pet-profile/FlipCard";
-import {
-  LibretaFace,
-  type LibretaFaceEmergencyContacts,
-} from "@/components/pet-profile/LibretaFace";
 import { type PetFace, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { pushTabUrl, replaceTabUrl } from "@/lib/ui/sheet-nav";
 
@@ -47,7 +50,11 @@ export type TabKey = PetFace;
 // Loading skeleton / error state
 // ---------------------------------------------------------------------------
 
-function TabLoadingSkeleton() {
+// Exported (PF3): the page's server-side Suspense wrapper around the Libreta
+// fetch reuses these same skeleton/error presentational nodes so the two
+// render paths (Suspense fallback vs. resolved error) stay visually identical
+// to what this component always rendered.
+export function TabLoadingSkeleton() {
   return (
     <div className="space-y-[14px] py-6 animate-pulse" aria-busy="true" aria-label="Cargando...">
       <div className="h-[18px] w-1/3 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
@@ -58,7 +65,7 @@ function TabLoadingSkeleton() {
   );
 }
 
-function TabErrorState({ message }: { message: string }) {
+export function TabErrorState({ message }: { message: string }) {
   return (
     <div
       className="py-8 text-center font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em]"
@@ -87,9 +94,19 @@ const HASH_TO_TAB: Record<string, TabKey> = {
 // ---------------------------------------------------------------------------
 
 type Props = {
+  /** Which pet this panel belongs to — not used for fetching anymore (PF3:
+   * both faces arrive pre-rendered from the server), kept as a stable
+   * data-attribute hook for e2e/debugging. */
   petPublicToken: string;
   /** Face 1 content — rendered server-side and passed as a node. */
   credencialContent: ReactNode;
+  /**
+   * Face 2 content — ALSO rendered server-side (PF3 perf fix), wrapped by the
+   * page in its own <Suspense> so it streams independently of Face 1. Replaces
+   * the old client mount-effect fetch (getLibretaFaceData) that re-ran the
+   * full auth + pet-access chain on every profile load.
+   */
+  libretaContent: ReactNode;
   /** Active face resolved from searchParams on the server (resolvePetFace). */
   initialFace: TabKey;
   /**
@@ -99,14 +116,6 @@ type Props = {
    * toggle and no face hidden anymore.
    */
   isOwner: boolean;
-  /**
-   * Owner-only vet/emergency contact rows, forwarded to LibretaFace's
-   * Emergencia block (wave-3 P3, PO decision #645 point 3). `null`/
-   * `undefined` renders no Emergencia block. Passed synchronously (same
-   * viewer-profile query page.tsx already ran for the credential face) — it
-   * does not go through the deferred `getLibretaFaceData` fetch.
-   */
-  emergencyContacts?: LibretaFaceEmergencyContacts | null;
   /**
    * Pet situation for the document chrome band (pet-state-header) — server-
    * derived, pre-gendered label. Threaded to FlipCard so BOTH faces carry the
@@ -122,19 +131,15 @@ type Props = {
 export function PetDetailTabsPanel({
   petPublicToken,
   credencialContent,
+  libretaContent,
   initialFace,
   isOwner,
-  emergencyContacts,
   situation,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [activeFace, setActiveFace] = useState<TabKey>(initialFace);
-
-  const [libretaData, setLibretaData] = useState<LibretaFaceData | null>(null);
-  const [libretaError, setLibretaError] = useState<string | null>(null);
-  const fetchedRef = useRef(false);
 
   // Sync face from searchParam changes (back/forward nav). Must reuse the
   // SAME legacy-mapping table the server used to resolve `initialFace`
@@ -149,29 +154,6 @@ export function PetDetailTabsPanel({
     const { face } = resolvePetFace({ tab: tabParam, lente: lenteParam, isOwner });
     setActiveFace(face);
   }, [searchParams, isOwner]);
-
-  const fetchLibreta = useCallback(async () => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-    const result = await getLibretaFaceData(petPublicToken);
-    if (result.ok) {
-      setLibretaData(result.data);
-    } else {
-      setLibretaError(result.error);
-    }
-  }, [petPublicToken]);
-
-  // pet-document-redesign ADR-11: FlipCard mounts BOTH faces always, so the
-  // back face needs real content (or at least a scoped skeleton) from the
-  // very first render — the fetch fires unconditionally on mount instead of
-  // being gated behind first Libreta activation. This trades one extra
-  // round-trip on every page load for eliminating the height-jump the old
-  // "fetch on first activation" gate caused on the first flip. The skeleton
-  // this produces is scoped to the back face only (see `backContent` below)
-  // — the eager, SSR'd front face is never affected.
-  useEffect(() => {
-    fetchLibreta();
-  }, [fetchLibreta]);
 
   // On mount: check for a legacy hash fragment and activate that face.
   //
@@ -210,21 +192,6 @@ export function PetDetailTabsPanel({
       });
     }
   }, [searchParams, initialFace]);
-
-  // Back face content — skeleton/error scoped here only (never the front,
-  // which is the eager SSR credencialContent).
-  function renderBackContent() {
-    if (libretaError) return <TabErrorState message={libretaError} />;
-    if (!libretaData) return <TabLoadingSkeleton />;
-    return (
-      <LibretaFace
-        data={libretaData}
-        petPublicToken={petPublicToken}
-        isOwner={isOwner}
-        emergencyContacts={emergencyContacts}
-      />
-    );
-  }
 
   // Face navigation (ADR-11) — writes the active face into ?tab=.
   //
@@ -272,10 +239,10 @@ export function PetDetailTabsPanel({
   }
 
   return (
-    <div id="tab-panel" className="ln-doc-root">
+    <div id="tab-panel" className="ln-doc-root" data-pet-token={petPublicToken}>
       <FlipCard
         front={credencialContent}
-        back={renderBackContent()}
+        back={libretaContent}
         activeFace={activeFace}
         onFlip={switchFace}
         situation={situation}

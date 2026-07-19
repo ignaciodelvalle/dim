@@ -1,10 +1,18 @@
 // get-libreta-face-data.ts — use-case for Face 2 (Libreta) of the two-face
 // pet profile (ADR-4, design.md). Merges the former getLibretaTabData /
 // getVacunasTabData / getHistorialTabData fetchers into a single deferred
-// query batch. Auth guard is handled by the shim (app/actions/pet-tab-data.ts),
-// which now allows both owner and org-path callers — this use-case itself
-// never returns activeShares for org-path callers, so SharesManager stays
-// owner-gated regardless of the widened read guard.
+// query batch. This function does NO auth itself — every caller must resolve
+// access first:
+//   - app/actions/pet-tab-data.ts's getLibretaFaceData shim runs
+//     requirePetAccess before calling this (kept for any remaining/future
+//     client-side callers).
+//   - app/(app)/mis-mascotas/[publicToken]/page.tsx (PF3 perf fix,
+//     2026-07-19) calls this DIRECTLY, passing the access it already
+//     resolved once for the whole request — avoids a redundant second
+//     requirePetAccess round-trip on every profile load.
+// Both allow owner and org-path callers — this use-case itself never returns
+// activeShares for org-path callers, so SharesManager stays owner-gated
+// regardless of the widened read guard.
 //
 // Amendment projection (D2, projection-cron audit 2026-07-03 A): the fetched
 // stream already contains the event_amended rows, so overlayAmendments

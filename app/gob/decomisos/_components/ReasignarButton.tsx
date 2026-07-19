@@ -13,28 +13,52 @@ import { reassignDecomisoToAnotherReceiverAction } from "@/app/actions/decomiso"
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
+type ReceiverOrgOption = {
+  id: string;
+  displayName: string;
+  orgType: string;
+};
+
+const ORG_TYPE_LABEL: Record<string, string> = {
+  shelter: "Refugio",
+  rescue_network: "Red de rescate",
+};
+
 type ReasignarButtonProps = {
   casePublicCode: string;
   currentReceiverName: string;
+  /** Excluded from the picker — reassigning to the same org is a no-op the
+   * server already rejects, but there's no reason to offer it. */
+  currentReceiverOrgId: string | null;
+  /** Verified + active shelter/rescue_network orgs (same eligibility gate as
+   * validateReceiverOrg) — display-only convenience; submit re-validates. */
+  receiverOrgs: ReceiverOrgOption[];
 };
 
-export function ReasignarButton({ casePublicCode, currentReceiverName }: ReasignarButtonProps) {
+export function ReasignarButton({
+  casePublicCode,
+  currentReceiverName,
+  currentReceiverOrgId,
+  receiverOrgs,
+}: ReasignarButtonProps) {
   const [open, setOpen] = useState(false);
   const [newReceiverId, setNewReceiverId] = useState("");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const availableReceivers = receiverOrgs.filter((r) => r.id !== currentReceiverOrgId);
+
   function handleSubmit() {
-    if (!newReceiverId.trim()) {
-      setError("Ingresa el ID del nuevo refugio destinatario.");
+    if (!newReceiverId) {
+      setError("Elegí el nuevo refugio destinatario.");
       return;
     }
     setError(null);
     startTransition(async () => {
       const result = await reassignDecomisoToAnotherReceiverAction({
         casePublicCode,
-        newReceiverOrgId: newReceiverId.trim(),
+        newReceiverOrgId: newReceiverId,
         reason: reason.trim() || null,
       });
       if ("error" in result) {
@@ -81,18 +105,26 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
 
         <div className="space-y-1">
           <label htmlFor="newReceiverId" className="block text-sm font-medium text-ln-op-ink">
-            ID del nuevo refugio destinatario
+            Nuevo refugio destinatario
           </label>
-          <input
+          <select
             id="newReceiverId"
-            type="text"
             value={newReceiverId}
             onChange={(e) => setNewReceiverId(e.target.value)}
-            placeholder="UUID del refugio (shelter / rescue_network verificado)"
-            className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-          />
+            disabled={availableReceivers.length === 0}
+            className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          >
+            <option value="">Elegí una organización verificada…</option>
+            {availableReceivers.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.displayName} · {ORG_TYPE_LABEL[r.orgType] ?? r.orgType}
+              </option>
+            ))}
+          </select>
           <p className="text-sm text-ln-op-mute">
-            Podes obtener el UUID desde la seccion Organizaciones.
+            {availableReceivers.length === 0
+              ? "No hay refugios verificados disponibles para reasignar."
+              : "Solo aparecen refugios/redes de rescate verificados y activos."}
           </p>
         </div>
 
@@ -120,7 +152,7 @@ export function ReasignarButton({ casePublicCode, currentReceiverName }: Reasign
           <OpButton
             type="button"
             onClick={handleSubmit}
-            disabled={isPending || !newReceiverId.trim()}
+            disabled={isPending || !newReceiverId}
             variant="primary"
             block
             className="py-2.5"

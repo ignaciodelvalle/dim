@@ -65,10 +65,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }));
 
-vi.mock("@/app/actions/pet-tab-data", () => ({
-  getLibretaFaceData: vi.fn().mockResolvedValue({ ok: false, error: "not needed for this test" }),
-}));
-
 import { PetDetailTabsPanel } from "@/components/pet-profile/PetDetailTabsPanel";
 
 let originalPushState: typeof window.history.pushState;
@@ -129,6 +125,10 @@ function renderPanel(initialFace: "credencial" | "libreta" = "credencial") {
     <PetDetailTabsPanel
       petPublicToken="abc123"
       credencialContent={<div>CREDENCIAL-CONTENT</div>}
+      // PF3 perf fix: both faces now arrive as pre-rendered nodes (the page
+      // resolves Libreta server-side inside its own Suspense) — no more
+      // client-side getLibretaFaceData fetch to mock here.
+      libretaContent={<div>LIBRETA-CONTENT</div>}
       initialFace={initialFace}
       isOwner
     />,

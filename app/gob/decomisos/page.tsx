@@ -10,7 +10,7 @@
 // Columns: pet, status/phase, dias transcurridos, refugio receptor, accion Reasignar.
 // Auth: requireDecomisoPrincipal (admin sees all; govt scoped to their org).
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
@@ -94,6 +94,28 @@ export default async function DecomisosDashboardPage() {
         : eq(cases.caseKind, "custody_episode"),
     )
     .orderBy(desc(cases.openedAt))
+    .limit(200);
+
+  // Verified-orgs list for the Reasignar combobox (V9 usability fix): same
+  // eligibility gate reassign-decomiso.ts's validateReceiverOrg enforces
+  // server-side (verified + active + shelter/rescue_network) — this is a
+  // display-only convenience list, not a security boundary; the use-case
+  // re-validates on submit regardless of what's shown here.
+  const receiverOrgs = await db
+    .select({
+      id: organizations.id,
+      displayName: organizations.displayName,
+      orgType: organizations.orgType,
+    })
+    .from(organizations)
+    .where(
+      and(
+        eq(organizations.verified, true),
+        eq(organizations.status, "active"),
+        inArray(organizations.orgType, ["shelter", "rescue_network"]),
+      ),
+    )
+    .orderBy(organizations.displayName)
     .limit(200);
 
   // D5 seizures (Item 4) — shelter_intake_recorded(intake_reason='seizure')
@@ -258,6 +280,8 @@ export default async function DecomisosDashboardPage() {
                           <ReasignarButton
                             casePublicCode={c.publicCode}
                             currentReceiverName={receiverName ?? "el refugio actual"}
+                            currentReceiverOrgId={c.receiverOrganizationId}
+                            receiverOrgs={receiverOrgs}
                           />
                         )}
                         {canReturnToOwner && (
