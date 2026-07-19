@@ -16,9 +16,8 @@
 
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -143,10 +142,8 @@ export default async function AdminPoblacionPage({
       {/* Page header */}
       {header}
 
-      {/* Period filter (no JurisdictionSwitcher for admin — universal scope) */}
-      <div className="flex justify-end">
-        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
-      </div>
+      {/* Unified filter bar — period only (no jurisdiction for admin — universal scope) */}
+      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
 
       {/* KPI row */}
       <section

@@ -17,14 +17,13 @@
 // and passed to the single fetcher.
 
 import { StackedTimeSeriesChartDynamic } from "@/components/charts/StackedTimeSeriesChartDynamic";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpBreach,
   OpCard,
   OpCardBody,
   OpCardHead,
+  OpFilterBar,
   OpKpi,
   OpKpiSm,
 } from "@/components/ui/dashboard";
@@ -157,11 +156,11 @@ export default async function GobMortalidadPage({
         </p>
       </header>
 
-      {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="trailing12m" />
-      </div>
+      {/* Unified filter bar — jurisdiction + period + active-filter chips. */}
+      <OpFilterBar
+        period={{ defaultPreset: "trailing12m" }}
+        jurisdiction={{ allowedProvinces, localities }}
+      />
 
       {/* Conditional breach banner — low disposal traceability */}
       {showBreach && (
