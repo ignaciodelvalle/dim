@@ -128,13 +128,13 @@ export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props
       </OpButton>
 
       {!mpfConfigured && (
-        <p className="text-[11px] text-ln-op-warn">
+        <p className="text-xs text-ln-op-warn">
           El export a fiscalía no está configurado para tu jurisdicción.
         </p>
       )}
-      {error && <p className="text-[11px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-xs text-ln-op-danger">{error}</p>}
       {signedUrl && (
-        <p className="text-[11px] text-ln-op-ok">
+        <p className="text-xs text-ln-op-ok">
           PDF generado.{" "}
           <a
             href={signedUrl}
