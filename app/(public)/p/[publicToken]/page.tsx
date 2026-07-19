@@ -1072,9 +1072,12 @@ function ThrottleNotice() {
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="flex min-h-screen items-center justify-center bg-ln-paper font-[var(--font-ln-sans)]">
       <div className="mx-auto max-w-[400px] px-6 py-12 text-center text-ln-ink">
-        <p className="mb-3 font-[var(--font-ln-serif)] text-lg font-semibold">
+        {/* Real h1 (not just a styled <p>) — a screen-reader user throttled
+            before any pet data loads still needs page orientation. No pet
+            name is known at this point, so a generic heading is honest. */}
+        <h1 className="mb-3 font-[var(--font-ln-serif)] text-lg font-semibold">
           Demasiadas consultas
-        </p>
+        </h1>
         <p className="text-md leading-[1.6] text-ln-ink-2">
           Estás realizando demasiadas consultas desde esta conexión. Esperá unos minutos y volvé a
           intentarlo.

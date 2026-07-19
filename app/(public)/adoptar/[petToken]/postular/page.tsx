@@ -3,12 +3,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
-import { attachments, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { attachments, db, organizations, ownerships, pets, profiles } from "@/db";
 import { APPLY_INTENT_COOKIE_NAME, validateApplyIntentToken } from "@/lib/domain/apply-intent";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
+import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
 
 import { ApplicationForm } from "./ApplicationForm";
 
@@ -105,23 +106,14 @@ export default async function PostularPage({
     : false;
 
   // 5) Idempotency — render "ya postulaste" if there's an unresolved
-  // _submitted from this applicant for this pet.
-  const pending = await db.execute<{ id: string; submitted_at: string }>(sql`
-    SELECT e.id::text AS id,
-           e.recorded_at AS submitted_at
-    FROM ${petEvents} e
-    WHERE e.pet_id = ${pet.id}
-      AND e.event_type = 'adoption_application_submitted'
-      AND e.payload->>'applicant_user_id' = ${user.id}
-      AND NOT EXISTS (
-        SELECT 1 FROM ${petEvents} d
-        WHERE d.pet_id = e.pet_id
-          AND d.event_type IN ('adoption_application_approved', 'adoption_application_rejected')
-          AND d.payload->>'application_event_id' = e.id::text
-      )
-    LIMIT 1
-  `);
-  if (pending.length > 0) {
+  // application from this applicant for this pet. findExistingApplication is
+  // the canonical predicate (used by the submit use-case too): it checks for
+  // an adoption_application_resolved event (the real event type — approved,
+  // rejected, or withdrawn all count) referencing the application. A
+  // RESOLVED application (e.g. rejected) must NOT block a new one — only a
+  // still-pending application does.
+  const pending = await AdoptionRepository.findExistingApplication(pet.id, user.id);
+  if (pending) {
     return <AlreadyApplied name={pet.name} />;
   }
 

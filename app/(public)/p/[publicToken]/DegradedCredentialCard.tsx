@@ -69,12 +69,13 @@ export function DegradedCredentialCard({
           </div>
 
           <div role="alert" className="px-4 py-5">
-            {petName && (
-              <h1 className="m-0 font-[var(--font-ln-serif)] text-xl font-semibold text-ln-ink">
-                {petName}
-              </h1>
-            )}
-            <p className={`text-md leading-[1.6] text-ln-ink-2 ${petName ? "mt-2" : "m-0"}`}>
+            {/* Always render a real h1 — even when the pet row itself failed
+                to resolve, a screen-reader user landing on this fail-soft
+                state still needs page orientation. */}
+            <h1 className="m-0 font-[var(--font-ln-serif)] text-xl font-semibold text-ln-ink">
+              {petName ?? "Credencial"}
+            </h1>
+            <p className="mt-2 text-md leading-[1.6] text-ln-ink-2">
               No pudimos cargar todos los datos. Reintentá en unos segundos.
             </p>
 

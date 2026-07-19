@@ -299,7 +299,11 @@ export default async function GobVigilanciaPage({
           value={String(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
           sparkline={rabiesSparkline.points.map((p) => p.y)}
-          href={`#${panelRabiesId}`}
+          // Jumps to the compliance card (panelComplianceId), not the disease-
+          // signals card (panelRabiesId) — that card is per-disease SIGNAL
+          // counts, not rabies-observation detail. The compliance card is
+          // where the real open-breach count for THIS metric actually lives.
+          href={`#${panelComplianceId}`}
           info={{
             definition:
               "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",
@@ -398,14 +402,16 @@ export default async function GobVigilanciaPage({
           title={`${rabiesCompliance.openBreaches} observación(es) rábica(s) fuera del plazo legal de 10 días`}
           detail={
             // Only admins have an observation queue console; govt operators get
-            // the in-page "Observaciones rábicas en curso" card instead of a
-            // link that would bounce off the /admin auth guard.
+            // an in-page jump to the compliance card instead of a link that
+            // would bounce off the /admin auth guard. That card (not the
+            // disease-signals card) is where the real openBreaches count for
+            // this banner lives.
             profile.role === "admin" ? (
               <Link href="/admin/observaciones" className="underline">
                 Ver observaciones →
               </Link>
             ) : (
-              <a href={`#${panelRabiesId}`} className="underline">
+              <a href={`#${panelComplianceId}`} className="underline">
                 Ver observaciones en curso ↓
               </a>
             )
@@ -662,9 +668,16 @@ export default async function GobVigilanciaPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Disease summary table */}
+      {/* Disease summary table — per-disease SIGNAL counts (outbreak_signal
+          events), always over the trailing 30 days regardless of the period
+          picker (see periodMatchesSummary above). This is NOT a count of open
+          rabies observations (that's rabiesActiveCount / rabiesCompliance,
+          rendered in the KPI tile and compliance card above) — the title
+          must say what this table actually shows. */}
       <OpCard aria-labelledby={panelRabiesId}>
-        <OpCardHead title={<span id={panelRabiesId}>Observaciones rábicas en curso</span>} />
+        <OpCardHead
+          title={<span id={panelRabiesId}>Señales por enfermedad (últimos 30 días)</span>}
+        />
         <OpCardBody className="p-0">
           <div className="px-4 py-3">
             <DiseaseSummaryTable summary={summary} />

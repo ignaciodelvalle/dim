@@ -29,7 +29,6 @@ import { ActionLinkCard } from "@/components/ActionLinkCard";
 import { CasesWidget, adaptWorkflow } from "@/components/CasesWidget";
 import { isTransitRole } from "@/components/PetCard.helpers";
 import { LnBadge } from "@/components/ui/Badge";
-import { LnButton } from "@/components/ui/Button";
 import type { LnPetStatus } from "@/components/ui/Chip";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -209,10 +208,15 @@ export default async function MisMascotasPage({
             {deceasedPets.length > 0 && ` · ${deceasedPets.length} en memoria`}
           </p>
         </div>
-        <Link href="/mis-mascotas/nueva">
-          <LnButton variant="primary" size="md">
-            + Inscribir mascota
-          </LnButton>
+        {/* A single anchor styled as a button — LnButton always renders a
+            <button>, and next/link's <a> cannot legally contain one (invalid
+            HTML, WCAG 4.1.2). Classes copied 1:1 from LnButton
+            variant="primary" size="md" so the visual result is unchanged. */}
+        <Link
+          href="/mis-mascotas/nueva"
+          className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
+        >
+          + Inscribir mascota
         </Link>
       </div>
 
@@ -284,10 +288,11 @@ export default async function MisMascotasPage({
             title="No tenés mascotas registradas."
             description="Cargá una mascota para verla acá."
             action={
-              <Link href="/mis-mascotas/nueva">
-                <LnButton variant="primary" size="sm">
-                  Cargar una mascota
-                </LnButton>
+              <Link
+                href="/mis-mascotas/nueva"
+                className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-[11px] py-1.5 text-sm font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
+              >
+                Cargar una mascota
               </Link>
             }
           />
@@ -419,10 +424,11 @@ export default async function MisMascotasPage({
             para reclamarla a tu cuenta.
           </p>
           <div className="mt-3">
-            <Link href="/mis-mascotas/reclamar">
-              <LnButton variant="primary" size="md">
-                Reclamar con un código
-              </LnButton>
+            <Link
+              href="/mis-mascotas/reclamar"
+              className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[12.5px] font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] active:scale-[0.98] active:opacity-90"
+            >
+              Reclamar con un código
             </Link>
           </div>
           <p className="mt-2 text-sm text-[var(--color-ln-faint)]">

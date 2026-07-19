@@ -12,7 +12,8 @@ import { LnButton } from "@/components/ui/Button";
 import { LnCallout } from "@/components/ui/DocElements";
 import { type Pet, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { hasPendingProposal } from "@/src/modules/return-to-owner/application/proposal-queries";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OwnerInitiateReturnForm } from "./OwnerInitiateReturnForm";
@@ -172,21 +173,11 @@ export default async function DevolucionPage({
     .orderBy(desc(petEvents.occurredAt))
     .limit(1);
 
-  let isPending = false;
-  if (latestProposal) {
-    const [subsequentTransfer] = await db
-      .select({ id: petEvents.id })
-      .from(petEvents)
-      .where(
-        and(
-          eq(petEvents.petId, pet.id),
-          eq(petEvents.eventType, "custody_transferred"),
-          gt(petEvents.occurredAt, latestProposal.occurredAt),
-        ),
-      )
-      .limit(1);
-    if (!subsequentTransfer) isPending = true;
-  }
+  // Canonical pending-proposal predicate (proposal-queries.ts) — the same
+  // tri-check (accepted / structured cancellation / legacy cancel marker)
+  // used by the rest of the return-to-owner flow. A rejected/cancelled
+  // proposal must NOT re-render as actionable here.
+  const isPending = await hasPendingProposal(pet.id, db);
 
   if (!isPending) {
     // Initiation mode: check if this pet was received via adoption so the

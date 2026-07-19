@@ -29,10 +29,10 @@ describe("DegradedCredentialCard", () => {
     expect(screen.getByRole("link", { name: "Reintentar" })).toHaveAttribute("href", `/p/${TOKEN}`);
   });
 
-  it("shows no pet name and no lost CTAs when the pet row never resolved", () => {
+  it("falls back to a generic h1 (page orientation) and shows no lost CTAs when the pet row never resolved", () => {
     render(<DegradedCredentialCard publicToken={TOKEN} />);
 
-    expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Credencial" })).toBeInTheDocument();
     expect(document.querySelector('[data-section="degraded-lost-ctas"]')).toBeNull();
   });
 
