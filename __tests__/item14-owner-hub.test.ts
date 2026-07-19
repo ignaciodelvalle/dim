@@ -86,10 +86,13 @@ describe("vaccine_due notification ctaUrl (notice→action contract)", () => {
 // 14.3 — LibretaExport pure helpers
 // ---------------------------------------------------------------------------
 
-describe("libreta-export HTML helper (htmlEscape and formatEventLabel)", () => {
-  // Test the helpers that are used in the export route. We replicate the
-  // logic here since the route file is a Next.js handler and can't be
-  // imported directly in vitest without server-only setup.
+describe("libreta-export HTML helper (htmlEscape and eventTypeLabel)", () => {
+  // htmlEscape is replicated here since the route file is a Next.js handler
+  // and can't be imported directly in vitest without server-only setup.
+  // The event label, however, is imported from the real es-AR helper the
+  // route actually uses (lib/utils/format.ts) — the route stopped hand-rolling
+  // an English Title Case label a while back, so this test documents the
+  // real (es-AR) behavior instead of a stale English duplicate.
 
   function htmlEscape(s: string | null | undefined): string {
     if (!s) return "";
@@ -98,10 +101,6 @@ describe("libreta-export HTML helper (htmlEscape and formatEventLabel)", () => {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
-  }
-
-  function formatEventLabel(eventType: string): string {
-    return eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
   it("htmlEscape handles null/undefined as empty string", () => {
@@ -117,10 +116,11 @@ describe("libreta-export HTML helper (htmlEscape and formatEventLabel)", () => {
     expect(htmlEscape("A & B")).toBe("A &amp; B");
   });
 
-  it("formatEventLabel converts snake_case to Title Case", () => {
-    expect(formatEventLabel("vaccination_administered")).toBe("Vaccination Administered");
-    expect(formatEventLabel("weight_recorded")).toBe("Weight Recorded");
-    expect(formatEventLabel("vet_visit_logged")).toBe("Vet Visit Logged");
+  it("eventTypeLabel renders the es-AR label the libreta-export route actually prints", async () => {
+    const { eventTypeLabel } = await import("@/lib/utils/format");
+    expect(eventTypeLabel("vaccination_administered")).toBe("Vacuna administrada");
+    expect(eventTypeLabel("weight_recorded")).toBe("Peso registrado");
+    expect(eventTypeLabel("vet_visit_logged")).toBe("Visita al veterinario");
   });
 
   it("libreta PDF URL pattern is owner-scoped", () => {
