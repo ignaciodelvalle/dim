@@ -14,10 +14,12 @@
 // filename for HTML content). The page auto-triggers window.print() so the
 // user produces the PDF via the browser's own print-to-PDF, not the server.
 
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import type { EventType } from "@/db/schema";
+import { overlayAmendments } from "@/lib/infra/amendment";
 import {
   LIBRETA_GROUPS,
   LIBRETA_GROUP_LABELS,
@@ -25,7 +27,13 @@ import {
   libretaSanitariaClause,
 } from "@/lib/infra/libreta-sanitaria";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatDateTimeLegal, sexLabel, speciesLabel } from "@/lib/utils/format";
+import {
+  eventTypeLabel,
+  formatDate,
+  formatDateTimeLegal,
+  sexLabel,
+  speciesLabel,
+} from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +44,6 @@ function htmlEscape(s: string | null | undefined): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function formatEventLabel(eventType: string): string {
-  return eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function extractEventSummary(event: {
@@ -122,12 +126,26 @@ export async function GET(
     .limit(1);
   const ownerName = profileRow?.displayName ?? "";
 
-  // Load libreta events.
-  const events = await db
+  // Load libreta events. event_amended is NOT itself a libreta type (it's a
+  // correction pointer — lib/infra/libreta-sanitaria.ts NON_LIBRETA_EVENT_TYPES)
+  // but must be fetched alongside so overlayAmendments below can project
+  // corrected values onto the events it targets; groupLibretaEvents drops the
+  // event_amended rows themselves (libretaGroupForEvent has no case for them).
+  const rawEvents = await db
     .select()
     .from(petEvents)
-    .where(and(eq(petEvents.petId, petRow.id), libretaSanitariaClause()))
+    .where(
+      and(
+        eq(petEvents.petId, petRow.id),
+        or(libretaSanitariaClause(), eq(petEvents.eventType, "event_amended")),
+      ),
+    )
     .orderBy(desc(petEvents.occurredAt));
+
+  // Mirror the on-screen libreta's data path (get-libreta-face-data.ts): apply
+  // the amendment overlay so a corrected vaccine/weight/etc. prints with its
+  // CURRENT value, not the as-typed pre-correction one (H7).
+  const events = overlayAmendments(rawEvents);
 
   const grouped = groupLibretaEvents(events);
   const generatedAt = formatDateTimeLegal(new Date());
@@ -155,7 +173,7 @@ export async function GET(
             ${groupEvents
               .map((e) => {
                 const date = formatDate(e.occurredAt);
-                const type = htmlEscape(formatEventLabel(e.eventType));
+                const type = htmlEscape(eventTypeLabel(e.eventType as EventType));
                 const detail = htmlEscape(
                   extractEventSummary({
                     eventType: e.eventType,

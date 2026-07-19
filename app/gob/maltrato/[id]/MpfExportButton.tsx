@@ -1,8 +1,15 @@
 "use client";
 
 // Client component: "Generar PDF MPF" button for the welfare detail page.
-// Calls generateMpfExportAction and opens the signed URL in a new tab.
+// Calls generateMpfExportAction and renders the signed URL as a visible link.
 // Visible to admin and govt in scope (the detail page already enforces scope).
+//
+// WHY a visible <a> instead of window.open(url) after the await: the browser
+// popup blocker kills a window.open() call that isn't inside the direct click
+// gesture (this one runs after an async server action), so the tab silently
+// never opens while the UI still claimed success — the único fiscal output
+// could vanish behind a green check. Mirrors TravelExportButton.tsx's pattern
+// (H3 backlog fix).
 
 import { useState } from "react";
 
@@ -16,12 +23,12 @@ type Props = {
 export function MpfExportButton({ welfareReportId }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
   async function handleClick() {
     setLoading(true);
     setError(null);
-    setSuccess(false);
+    setSignedUrl(null);
     try {
       const result = await generateMpfExportAction(welfareReportId);
       if (!result.ok) {
@@ -33,8 +40,7 @@ export function MpfExportButton({ welfareReportId }: Props) {
               : "Error al generar el export. Intentá de nuevo.",
         );
       } else {
-        setSuccess(true);
-        window.open(result.signedUrl, "_blank", "noopener,noreferrer");
+        setSignedUrl(result.signedUrl);
       }
     } catch {
       setError("Error inesperado. Intentá de nuevo.");
@@ -94,9 +100,18 @@ export function MpfExportButton({ welfareReportId }: Props) {
       </OpButton>
 
       {error && <p className="text-[11px] text-ln-op-danger">{error}</p>}
-      {success && (
+      {signedUrl && (
         <p className="text-[11px] text-ln-op-ok">
-          PDF generado. Se abrió en una nueva pestaña. El link expira en 24 horas.
+          PDF generado.{" "}
+          <a
+            href={signedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-ln-op-azul hover:underline font-medium"
+          >
+            Abrir/Descargar el informe
+          </a>{" "}
+          — el link expira en 24 horas.
         </p>
       )}
       <p className="text-xs text-ln-op-mute">

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import {
@@ -50,7 +50,7 @@ export default async function ObservationDetailPage({
   }
 
   const [startedEvent] = await db
-    .select({ id: petEvents.id, payload: petEvents.payload })
+    .select({ id: petEvents.id, occurredAt: petEvents.occurredAt, payload: petEvents.payload })
     .from(petEvents)
     .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "rabies_observation_started")))
     .orderBy(desc(petEvents.occurredAt))
@@ -61,11 +61,23 @@ export default async function ObservationDetailPage({
   const observationUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
 
   // Symptom events emitted during the observation period that flagged rabies.
+  // Same window (>= observation start) + disease filter (rabies_suspected) as
+  // SurveillanceRepository.findEscalatingSymptom — the alarm must reflect the
+  // canonical predicate that actually blocks/escalates the case, not any
+  // symptom_observed event ever logged for the pet (H6: an unbounded,
+  // disease-blind check painted years-old colds as escalating rabies cases).
   const escalatingSymptoms = startedEvent
     ? await db
         .select({ id: petEvents.id, occurredAt: petEvents.occurredAt, payload: petEvents.payload })
         .from(petEvents)
-        .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "symptom_observed")))
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            eq(petEvents.eventType, "symptom_observed"),
+            gte(petEvents.occurredAt, startedEvent.occurredAt),
+            sql`(${petEvents.payload}->'alerted_disease_codes') @> '"rabies_suspected"'::jsonb`,
+          ),
+        )
         .orderBy(desc(petEvents.occurredAt))
     : [];
 

@@ -24,6 +24,7 @@ import { OpButton } from "@/components/ui/dashboard";
 import { canRevoke } from "@/lib/domain/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/domain/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Org = {
   id: string;
@@ -185,6 +186,11 @@ function RevokeOrgForm({
         setError(result.error);
       } else {
         onDone();
+        // Full document reload so the SSR page reflects the revoked status —
+        // otherwise the "Verificada" pill stays stale next to the "revocada"
+        // message (H5). router.refresh() is banned - see
+        // lib/ui/full-page-action-nav.ts.
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }
