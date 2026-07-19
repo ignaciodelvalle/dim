@@ -18,11 +18,13 @@ import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFa
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { aggregateChoroplethData, scopedChoroplethProps } from "@/lib/analytics/choropleth-data";
 import {
   computeDiseaseSummary,
   fetchCasesPerLocality,
   fetchCasesPerSubregion,
+  fetchPrevVaccinationsWeek,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
@@ -149,6 +151,10 @@ export default async function GobVigilanciaPage({
       // Movilidad jurisdiccional / CVI — mobility is an epidemiological vector
       // (a moved animal carries its exposure into a new jurisdiction).
       fetchMovementCorridors(complianceCtx),
+      // fetchPrevVaccinationsWeek adds ONE new query (same scope, 7d window
+      // shifted one week back) purely to power the "Vacunaciones (7d)" deltaV2
+      // chip — mirrors campaign-metrics.ts' fetchPrevTotals pattern.
+      fetchPrevVaccinationsWeek(actor, filteredJurisdictions, { adminProvince, adminLocality }),
     ]),
   );
 
@@ -176,7 +182,14 @@ export default async function GobVigilanciaPage({
     rabiesSparkline,
     vacSparkline,
     movement,
+    prevVaccinationsWeek,
   ] = load.value;
+
+  const vaccinationsDelta = formatDelta(
+    metrics.vaccinationsThisWeek,
+    prevVaccinationsWeek,
+    "vs semana anterior",
+  );
 
   const signals = signalsPeriod ?? signals30d;
   const summary = computeDiseaseSummary(signals30d);
@@ -323,6 +336,7 @@ export default async function GobVigilanciaPage({
           label="Vacunaciones (7d)"
           value={String(metrics.vaccinationsThisWeek)}
           tone="ok"
+          deltaV2={metrics.vaccinationsThisWeek > 0 ? (vaccinationsDelta ?? undefined) : undefined}
           sparkline={vacSparkline.points.map((p) => p.y)}
           info={{
             definition:

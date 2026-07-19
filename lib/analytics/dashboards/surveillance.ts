@@ -8,7 +8,7 @@
 // is empty by contract for admin), govt sees only rows matching one of their
 // active assignments.
 
-import { type SQL, and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { type SQL, and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import {
@@ -374,6 +374,58 @@ export async function fetchVigilanciaMetrics(
     petsRegisteredToday: petsRows[0]?.n ?? 0,
     vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
   };
+}
+
+/**
+ * Prior-week vaccination_administered count, for the /gob/vigilancia deltaV2
+ * chip on "Vacunaciones (7d)".
+ *
+ * Mirrors fetchVigilanciaMetrics' vaccination arm EXACTLY (same event type,
+ * same petsScope — vaccination_administered carries no payload jurisdiction
+ * snapshot, so scope is by the pet's HOME jurisdiction) but the 7-day window
+ * shifted one full week back: [since7d − 7d, since7d) instead of [since7d, now).
+ * Consumed via formatDelta (lib/analytics/campaign-metrics.ts) for an honest
+ * "vs semana anterior" comparison.
+ *
+ * outbreakActiveCount / rabiesActiveCount are NOT given a matching prev-period
+ * fetcher here: both are current OPEN-status snapshots (a stock, not a period
+ * flow — reopening/closing shifts the count independent of "when" a signal
+ * fired), so a period-over-period delta on them would misrepresent a status
+ * change as an activity trend. petsRegisteredToday is a genuine flow but only
+ * covers a PARTIAL day-in-progress — comparing it to a full prior day (or a
+ * same-hour-yesterday slice) is an inconsistent denominator that reads as a
+ * false swing early in the day, so it is skipped too (see the deltaV2-extend
+ * writeup, engram topic filtros/deltav2-extend).
+ *
+ * @param actor - The DashboardActor (role) making the request.
+ * @param jurisdictions - The actor's scoped jurisdictions (empty for admin).
+ * @param opts - Optional admin province/locality drill-down.
+ */
+export async function fetchPrevVaccinationsWeek(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
+): Promise<number> {
+  const now = Date.now();
+  const since7d = new Date(now - 7 * DAY_MS);
+  const prevSince7d = new Date(now - 14 * DAY_MS);
+
+  const petsScope = petsScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+
+  const conditions = [
+    eq(petEvents.eventType, "vaccination_administered"),
+    gte(petEvents.occurredAt, prevSince7d),
+    lt(petEvents.occurredAt, since7d),
+  ];
+  if (petsScope) conditions.push(sql`(${petsScope})`);
+
+  const [row] = await db
+    .select({ n: count() })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...conditions));
+
+  return row?.n ?? 0;
 }
 
 // ============================================================================
