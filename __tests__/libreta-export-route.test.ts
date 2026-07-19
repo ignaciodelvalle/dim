@@ -18,7 +18,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
 
-import { type Pet, db, ownerships, pets } from "@/db";
+import { type Pet, db, ownerships, petEvents, pets } from "@/db";
 import * as supabaseServer from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -122,5 +122,30 @@ describe("GET /api/mis-mascotas/[publicToken]/libreta-export", () => {
     // Print-to-PDF affordance: the browser's native print dialog produces
     // the actual PDF, not the server.
     expect(html).toContain("window.print()");
+  });
+
+  it("prints the pet weight from a weight_recorded event (regression — state-honesty 2nd layer)", async () => {
+    // weight_recorded events store weight under payload.kg (a string —
+    // lib/events/event-schemas.ts), never payload.weight_kg. extractEventSummary
+    // used to check the nonexistent `weight_kg` field and silently dropped the
+    // weight from every export.
+    await db.insert(petEvents).values({
+      petId: fixturePet.id,
+      eventType: "weight_recorded",
+      occurredAt: new Date(),
+      recordedAt: new Date(),
+      recordedByUserId: ownerUserId,
+      authorRole: "owner",
+      payload: { payload_version: 1, kg: "12.50" },
+    });
+
+    mockAuthAs(ownerUserId);
+    const { GET } = await import("@/app/api/mis-mascotas/[publicToken]/libreta-export/route");
+    const res = await GET(buildRequest() as never, {
+      params: Promise.resolve({ publicToken: PET_TOKEN }),
+    });
+
+    const html = await res.text();
+    expect(html).toContain("12.50 kg");
   });
 });

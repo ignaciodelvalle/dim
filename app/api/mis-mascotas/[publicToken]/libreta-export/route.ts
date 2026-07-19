@@ -61,8 +61,12 @@ function extractEventSummary(event: {
   if (typeof p.lot_number === "string") parts.push(`Lote: ${p.lot_number}`);
   if (typeof p.next_due_at === "string") parts.push(`Próx. dosis: ${formatDate(p.next_due_at)}`);
 
-  // Weight
-  if (typeof p.weight_kg === "number") parts.push(`${p.weight_kg} kg`);
+  // Weight — event payload stores `kg` as a string (weight_recorded schema,
+  // lib/events/event-schemas.ts), NOT `weight_kg` (that's the denormalized
+  // pets.estimated_weight_kg column name, a different field entirely). The
+  // old `weight_kg` check here never matched, so the PDF silently dropped
+  // every weight entry (state-honesty audit, 2nd layer).
+  if (typeof p.kg === "string" && p.kg) parts.push(`${p.kg} kg`);
 
   // Medication
   if (typeof p.drug_name === "string") parts.push(p.drug_name);
