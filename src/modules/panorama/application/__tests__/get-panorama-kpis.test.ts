@@ -281,6 +281,20 @@ describe("getPanoramaKpis", () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const kpi = kpis.find((k) => k.id === "mordeduras")!;
     expect(kpi.value).toBe("0,0");
+    // A genuine zero is neutral, not an "Atención" warning (LOW-1).
+    expect(kpi.tone).toBe("neutral");
+  });
+
+  it("mordeduras tile is tone 'warn' when there ARE reports", async () => {
+    vi.mocked(fetchBitesPer10k).mockResolvedValue({
+      rate: 3.5,
+      delta: 0,
+      reports: 18,
+      percapitaEligible: true,
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    const kpi = kpis.find((k) => k.id === "mordeduras")!;
+    expect(kpi.tone).toBe("warn");
   });
 
   it("H1: sub-provincial scope (percapitaEligible=false) shows the absolute count, not a rate", async () => {

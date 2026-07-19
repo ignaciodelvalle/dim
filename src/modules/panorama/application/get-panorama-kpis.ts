@@ -758,7 +758,11 @@ export async function getPanoramaKpis(
       sub: bites.percapitaEligible
         ? `${formatCount(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`
         : "sin padrón censal local",
-      tone: "warn",
+      // A genuine zero (0 reports) is a neutral state, not an "Atención": gate the
+      // warn semaphore on reports > 0 (mirrors app/gob/page.tsx). Without this the
+      // tile flags a warning over "0" — starker now that the sub-province path
+      // shows the absolute count.
+      tone: bites.reports > 0 ? "warn" : "neutral",
       href: "/gob/vigilancia",
       source: "govt-home-kpis.fetchBitesPer10k",
       delta:
