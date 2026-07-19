@@ -19,7 +19,7 @@ import {
   fetchRabiesCoverageByProvince,
   fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
-import { buildProjectionContext } from "@/lib/metrics";
+import { buildProjectionContext, resetCensusPopulationsCache } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -108,6 +108,9 @@ afterAll(cleanupFixtures);
 
 describe("fetchBitesPer10k — census denominator", () => {
   it("derives the per-10k rate from the census population (whole-province scope)", async () => {
+    // The census lookup is process-cached (qw#5) — reset so this reads the DB
+    // fresh (with the seeded Santa Fe row present).
+    resetCensusPopulationsCache();
     // Insert one bite event in the last 12 months.
     await insertBiteEvent(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000));
 
@@ -135,6 +138,9 @@ describe("fetchBitesPer10k — census denominator", () => {
     // Use a province that will NOT have a census row inserted.
     // We temporarily delete the row, assert zero, then restore.
     await db.delete(jurisdictionsCensus).where(eq(jurisdictionsCensus.provinceName, TEST_PROVINCE));
+    // Reset the process cache so fetchCensusPopulation re-reads the DB WITHOUT the
+    // just-deleted row (else the cached population would still be served — qw#5).
+    resetCensusPopulationsCache();
 
     // Admin province drill-down (eligible) so we reach the census division, not
     // the sub-province suppression — with no census row the population is 0 and
@@ -149,7 +155,7 @@ describe("fetchBitesPer10k — census denominator", () => {
       expect(kpi.rate).toBe(0);
       expect(kpi.delta).toBe(0);
     } finally {
-      // Restore the census row.
+      // Restore the census row + clear the cache so later tests see it again.
       await db
         .insert(jurisdictionsCensus)
         .values({
@@ -159,6 +165,7 @@ describe("fetchBitesPer10k — census denominator", () => {
           source: "INDEC Censo 2022",
         })
         .onConflictDoNothing();
+      resetCensusPopulationsCache();
     }
   });
 

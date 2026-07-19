@@ -9,19 +9,12 @@
 // single-sourced there; k-anonymity suppression is enforced by
 // lib/metrics/anonymity.ts where applicable.
 
-import { and, count, countDistinct, gte, inArray, lt, lte, not, sql, sum } from "drizzle-orm";
+import { and, count, countDistinct, gte, inArray, lt, lte, not, sql } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 
 // Heavy read-only analytics — routed through the ANALYTICS pool (session
 // pooler in production; see db/index.ts, task #74 dual-pool split).
-import {
-  cases,
-  analyticsDb as db,
-  jurisdictionsCensus,
-  petEvents,
-  pets,
-  welfareReports,
-} from "@/db";
+import { cases, analyticsDb as db, petEvents, pets, welfareReports } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 import {
   type ProjectionContext,
@@ -29,6 +22,7 @@ import {
   TARGETS,
   computeCensusCoverage,
   dogsInScopeCondition,
+  getCensusPopulationsCached,
   isSubProvincialScope,
   jurisdictionPairClause,
   petsScopeClause,
@@ -192,7 +186,10 @@ export type RabiesCoverageKpi = {
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<RabiesCoverageKpi> {
+export async function fetchRabiesCoverage(
+  ctx: ProjectionContext,
+  sharedDenom?: RabiesDenominator,
+): Promise<RabiesCoverageKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return {
       current: 0,
@@ -225,7 +222,6 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // `false` for every scoped-govt row). petsScopeClause covers govt AND the admin
   // province drill-down.
   const petsScope = petsScopeClause(ctx);
-  const dogsCondition = dogsInScopeCondition(ctx);
 
   // Distinct dogs with a rabies vaccination event in scope, last 12 months.
   // vaccination_administered payload carries `vaccine_name`. Match the SAME
@@ -270,28 +266,23 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // Scope to dogs only by joining pets.
   rabiesVaccConditions.push(sql`${pets.species} = ${"dog"}`);
 
-  // Partidos: distinct localities with ≥1 dog in scope.
-  // censusPopulation: the scope's HUMAN census total (jurisdictions_census) — the
-  // basis for the ESTIMATED canine population (the second, census denominator).
-  const [dogsRows, vaccDogRows, partidosRows, censusPopulation] = await Promise.all([
-    db.select({ n: count() }).from(pets).where(dogsCondition),
-
-    // Distinct dog petIds with a qualifying rabies vax event (join pets to filter species).
+  // Numerator: distinct dog petIds with a qualifying rabies vax event (join pets
+  // to filter species). The DENOMINATOR (total dogs + partidos + census
+  // population) is scope-only — period- AND verifiedOnly-independent — so the
+  // panorama fan-out computes it ONCE and shares it across the current / prior /
+  // verified calls (qw#4). /gob home passes no sharedDenom, so
+  // fetchRabiesDenominator runs concurrently with the numerator here — same
+  // parallelism as before, no regression.
+  const [vaccDogRows, denom] = await Promise.all([
     db
       .select({ n: countDistinct(petEvents.petId) })
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .where(and(...rabiesVaccConditions)),
-
-    db
-      .select({ n: countDistinct(pets.jurisdictionLocality) })
-      .from(pets)
-      .where(dogsCondition),
-
-    fetchCensusPopulation(ctx),
+    sharedDenom ? Promise.resolve(sharedDenom) : fetchRabiesDenominator(ctx),
   ]);
 
-  const totalDogs = dogsRows[0]?.n ?? 0;
+  const totalDogs = denom.totalDogs;
   const vaccinatedDogs = vaccDogRows[0]?.n ?? 0;
   // One-decimal precision (Math.round(x*1000)/10), NOT a bare integer: a
   // coverage of 41.9% must survive to the display as 41,9% instead of being
@@ -313,16 +304,47 @@ export async function fetchRabiesCoverage(ctx: ProjectionContext): Promise<Rabie
   // grain-independent and stays honest at any grain.
   const census = isSubProvincialScope(ctx)
     ? null
-    : computeCensusCoverage(totalDogs, censusPopulation);
+    : computeCensusCoverage(totalDogs, denom.censusPopulation);
 
   return {
     current,
     target: TARGETS.RABIES_COVERAGE_PCT,
-    partidos: partidosRows[0]?.n ?? 0,
+    partidos: denom.partidos,
     hasData: totalDogs > 0,
     registryDenominator: totalDogs,
     censusDenominator: census?.censusDenominator ?? null,
     censusCoveragePct: census?.censusCoveragePct ?? null,
+  };
+}
+
+/**
+ * The scope-only rabies-coverage denominator (perf audit 2026-07-19 qw#4): total
+ * dogs, distinct partidos, and the census population. NONE depend on the period
+ * or the verifiedOnly flag (dogsInScopeCondition is status+species+scope; census
+ * is scope-only), so the panorama KPI fan-out — which calls fetchRabiesCoverage
+ * 3× over the SAME scope (current, prior-window, matrícula-verified) — computes
+ * this ONCE and passes it to all three, instead of recomputing byte-identical
+ * denominator queries each time.
+ */
+export type RabiesDenominator = { totalDogs: number; partidos: number; censusPopulation: number };
+
+export async function fetchRabiesDenominator(ctx: ProjectionContext): Promise<RabiesDenominator> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { totalDogs: 0, partidos: 0, censusPopulation: 0 };
+  }
+  const dogsCondition = dogsInScopeCondition(ctx);
+  const [dogsRows, partidosRows, censusPopulation] = await Promise.all([
+    db.select({ n: count() }).from(pets).where(dogsCondition),
+    db
+      .select({ n: countDistinct(pets.jurisdictionLocality) })
+      .from(pets)
+      .where(dogsCondition),
+    fetchCensusPopulation(ctx),
+  ]);
+  return {
+    totalDogs: dogsRows[0]?.n ?? 0,
+    partidos: partidosRows[0]?.n ?? 0,
+    censusPopulation,
   };
 }
 
@@ -583,33 +605,23 @@ export type BitesPer10kKpi = {
 async function fetchCensusPopulation(ctx: ProjectionContext): Promise<number> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) return 0;
 
+  // qw#5 (perf audit 2026-07-19): jurisdictions_census is a static 24-row INDEC
+  // table; read it once per process (getCensusPopulationsCached) and sum in
+  // memory instead of a fresh SUM query per call — this ran ~5× per /gob +
+  // panorama fan-out over a 2-connection pool. Same EXACT-name match the old
+  // eq/inArray used (no normalization), so an unmatched province still adds 0.
+  const pops = await getCensusPopulationsCached();
+
   if (ctx.scope.kind === "global") {
-    if (ctx.adminProvince) {
-      // Admin province drill-down: use the selected province's census population
-      // as the denominator (same approach as the scoped govt path below).
-      const rows = await db
-        .select({ total: sum(jurisdictionsCensus.population) })
-        .from(jurisdictionsCensus)
-        .where(eq(jurisdictionsCensus.provinceName, ctx.adminProvince));
-      return Number(rows[0]?.total ?? 0);
-    }
-    // National total for unrestricted admin.
-    const rows = await db
-      .select({ total: sum(jurisdictionsCensus.population) })
-      .from(jurisdictionsCensus);
-    return Number(rows[0]?.total ?? 0);
+    // Admin province drill-down: the selected province's census population; else
+    // the national total for unrestricted admin.
+    if (ctx.adminProvince) return pops[ctx.adminProvince] ?? 0;
+    return Object.values(pops).reduce((total, p) => total + p, 0);
   }
 
-  // Scoped: deduplicate to unique province names, then sum those rows.
+  // Scoped: deduplicate to unique province names, then sum those populations.
   const uniqueProvinces = [...new Set(ctx.scope.jurisdictions.map((j) => j.province))];
-  if (uniqueProvinces.length === 0) return 0;
-
-  const rows = await db
-    .select({ total: sum(jurisdictionsCensus.population) })
-    .from(jurisdictionsCensus)
-    .where(inArray(jurisdictionsCensus.provinceName, uniqueProvinces));
-
-  return Number(rows[0]?.total ?? 0);
+  return uniqueProvinces.reduce((total, p) => total + (pops[p] ?? 0), 0);
 }
 
 /**

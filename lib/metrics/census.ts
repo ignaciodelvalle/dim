@@ -35,7 +35,7 @@ import { and, count, countDistinct, eq, gte, lte, sql } from "drizzle-orm";
 // /gob/programa, /admin/censo, /gob/censo). supavisor transaction mode (6543) has a
 // measured >100x pathology for this fan-out shape (db/index.ts); session mode serves it
 // normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
-import { analyticsDb as db, petEvents, pets } from "@/db";
+import { analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 
 import { suppressedMetric } from "./anonymity";
 import type { ProjectionContext } from "./context";
@@ -146,6 +146,47 @@ export function computeCensusCoverage(
   if (censusDenominator === null) return null;
   const censusCoveragePct = Math.round((registryDogs / censusDenominator) * 1000) / 10;
   return { censusDenominator, censusCoveragePct };
+}
+
+// ---------------------------------------------------------------------------
+// Census population lookup (process-lifetime cache — perf audit 2026-07-19 qw#5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Process-lifetime cache of jurisdictions_census populations, keyed by the
+ * CANONICAL province display name (the table PK — same vocabulary as
+ * pets.jurisdiction_province). jurisdictions_census is a STATIC 24-row INDEC
+ * reference table (re-seeded only by a migration when a new national census
+ * publishes), so ONE query per process is enough — the per-cápita denominators
+ * (fetchBitesPer10k, fetchRabiesCoverage's census coverage) then cost ZERO extra
+ * queries per dashboard render, instead of a fresh SUM query each (~5× per /gob +
+ * panorama fan-out). An empty read is NOT cached: a transient startup hiccup must
+ * not pin "no census" for the process lifetime.
+ */
+let censusPopulationsCache: Readonly<Record<string, number>> | null = null;
+
+export async function getCensusPopulationsCached(): Promise<Readonly<Record<string, number>>> {
+  if (censusPopulationsCache) return censusPopulationsCache;
+  const rows = await db
+    .select({
+      provinceName: jurisdictionsCensus.provinceName,
+      population: jurisdictionsCensus.population,
+    })
+    .from(jurisdictionsCensus);
+  if (rows.length === 0) return {};
+  const pops: Record<string, number> = {};
+  for (const r of rows) pops[r.provinceName] = Number(r.population);
+  censusPopulationsCache = pops;
+  return pops;
+}
+
+/**
+ * Test-only: clear the process cache so a test that MUTATES jurisdictions_census
+ * (e.g. deleting a province row to assert the no-census path) reads fresh data.
+ * Production never calls this — the table only changes via a migration + redeploy.
+ */
+export function resetCensusPopulationsCache(): void {
+  censusPopulationsCache = null;
 }
 
 // ---------------------------------------------------------------------------

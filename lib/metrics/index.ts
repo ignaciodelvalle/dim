@@ -93,11 +93,13 @@ export {
   computeCensusCoverage,
   estimateDogPopulation,
   funnelPercents,
+  getCensusPopulationsCached,
   identificationFunnel,
   isIncompleteProfile,
   registryCounts,
   registrationTrend,
   registryByProvince,
+  resetCensusPopulationsCache,
 } from "./census";
 export type { CensusCoverage, FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";
 

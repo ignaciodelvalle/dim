@@ -54,10 +54,12 @@ import {
 } from "@/lib/analytics/compliance-metrics";
 import { fetchAnalyticsMetrics, fetchPerdidasMetrics } from "@/lib/analytics/govt-dashboards";
 import {
+  type RabiesDenominator,
   fetchActiveZoonosis,
   fetchBitesPer10k,
   fetchOpenWelfareReportsCount,
   fetchRabiesCoverage,
+  fetchRabiesDenominator,
 } from "@/lib/analytics/govt-home-kpis";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 import {
@@ -440,9 +442,22 @@ export async function getPanoramaKpis(
   // historical all-or-nothing parity contract) by throwing a typed error the
   // callers convert into a degraded-but-honest state — but only AFTER every
   // sibling has settled, so nothing dangles.
+  // qw#4: the rabies-coverage denominator is scope-only, so compute it ONCE and
+  // share it across the 3 fetchRabiesCoverage calls below (ctx / priorCtx /
+  // verifiedCtx — same scope) instead of recomputing byte-identical denominator
+  // queries each time. Fail-safe: on a denominator error we fall back to
+  // undefined, so each call recomputes its own and fails honestly INSIDE the
+  // allSettled — the never-crash contract is preserved.
+  let rabiesDenom: RabiesDenominator | undefined;
+  try {
+    rabiesDenom = await fetchRabiesDenominator(ctx);
+  } catch {
+    rabiesDenom = undefined;
+  }
+
   const settled = await Promise.allSettled([
     // 1. Cobertura antirrábica — lib/govt-home-kpis.fetchRabiesCoverage (ctx).
-    fetchRabiesCoverage(ctx),
+    fetchRabiesCoverage(ctx, rabiesDenom),
     // 2. Mascotas en cobertura (totalPets) — lib/govt-dashboards.fetchAnalyticsMetrics.
     //    Non-ctx fetcher: thread adminProvince via opts so it applies explicit predicates.
     fetchAnalyticsMetrics(actor, jurisdictions, {
@@ -470,13 +485,13 @@ export async function getPanoramaKpis(
     // the temporal KPIs' priors anchor to the as-of frame (temporalPriorCtx). Zoonosis's
     // prior is a signal-total (added at the end) — its delta now tracks the signal
     // primary, not the old composite.
-    fetchRabiesCoverage(priorCtx),
+    fetchRabiesCoverage(priorCtx, rabiesDenom),
     fetchBitesPer10k(temporalPriorCtx),
     // Freshness: newest scoped ingest event (map-QOL freshness chip).
     lastIngestAt(ctx),
     // task #78 Part 3: signed-only (firmado por matrícula) rabies coverage for the
     // cobertura tile's "both numbers" sub-line.
-    fetchRabiesCoverage(verifiedCtx),
+    fetchRabiesCoverage(verifiedCtx, rabiesDenom),
     // v+1 rail — meta-progress meters: D4 reunification rate (perdidas-reunificacion
     // preset) + C1 microchip penetration (cumplimiento preset). Same fetchers
     // /gob/perdidas + /gob/programa already call; current-active-period ctx.
