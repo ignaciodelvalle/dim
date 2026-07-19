@@ -67,6 +67,11 @@ const INTERVENTION_PILL_TONE: Record<string, "ok" | "escalated" | "neutral"> = {
 
 type TabKey = "recibidos" | "emitidos";
 
+// Report list is recency-bounded; cap the fetch and signal truncation (mirrors
+// the intake queue cap — app/org/[orgToken]/intake/page.tsx) so a high-volume
+// org isn't silently shown a partial list with no notice.
+const REPORT_LIST_CAP = 100;
+
 // Shared row shape for both queries.
 // Derived from ORG_WELFARE_SELECT to ensure structural alignment with the
 // org-safe projection — PII fields are absent by construction.
@@ -139,6 +144,7 @@ export default async function OrgMaltratoRecibidosPage({
   } as const;
 
   let rows: ReportRow[] = [];
+  let truncated = false;
 
   if (activeTab === "recibidos") {
     const rawRows = await db
@@ -147,8 +153,9 @@ export default async function OrgMaltratoRecibidosPage({
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
       .where(eq(welfareReports.derivedToOrganizationId, organization.id))
       .orderBy(desc(welfareReports.derivedAt))
-      .limit(100);
-    rows = rawRows;
+      .limit(REPORT_LIST_CAP + 1);
+    truncated = rawRows.length > REPORT_LIST_CAP;
+    rows = truncated ? rawRows.slice(0, REPORT_LIST_CAP) : rawRows;
   } else {
     const rawRows = await db
       .select({ ...orgSafeShape, derivedAt: sql<Date | null>`null` })
@@ -156,8 +163,9 @@ export default async function OrgMaltratoRecibidosPage({
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
       .where(eq(welfareReports.reporterOrganizationId, organization.id))
       .orderBy(desc(welfareReports.createdAt))
-      .limit(100);
-    rows = rawRows;
+      .limit(REPORT_LIST_CAP + 1);
+    truncated = rawRows.length > REPORT_LIST_CAP;
+    rows = truncated ? rawRows.slice(0, REPORT_LIST_CAP) : rawRows;
   }
 
   return (
@@ -218,6 +226,12 @@ export default async function OrgMaltratoRecibidosPage({
       ) : (
         <OpCard>
           <OpCardBody className="p-0">
+            {truncated && (
+              <p className="px-4 pt-3 text-sm text-ln-op-mute">
+                Mostrando las {REPORT_LIST_CAP} denuncias más recientes. Hay más en el historial de
+                la organización.
+              </p>
+            )}
             <ul className="divide-y divide-ln-op-line">
               {rows.map((r) => (
                 <li key={r.reportId} className="px-4 py-3 space-y-3">

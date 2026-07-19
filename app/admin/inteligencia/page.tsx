@@ -339,7 +339,14 @@ export default async function AdminInteligenciaPage({
 
       {/* 2. Política → resultado */}
       <OpCard aria-labelledby={panelPolicyId}>
-        <OpCardHead title={<span id={panelPolicyId}>Política → resultado</span>} />
+        <OpCardHead
+          title={<span id={panelPolicyId}>Política → resultado</span>}
+          actions={
+            <span className="text-[11px] text-ln-op-mute">
+              Ventana fija ±{POLICY_OUTCOME_WINDOW_DAYS}d — no usa el período elegido arriba
+            </span>
+          }
+        />
         <OpCardBody>
           {policyRows.length === 0 ? (
             <LnEmptyState
@@ -415,7 +422,10 @@ export default async function AdminInteligenciaPage({
               <p className="mt-2 text-xs text-ln-op-mute">
                 Conteo de eventos agregados en la jurisdicción de la regla,{" "}
                 {POLICY_OUTCOME_WINDOW_DAYS} días antes y después del cambio. Correlación temporal —
-                no implica causalidad. Pares con ambas ventanas &lt;5 se enmascaran (privacidad).
+                no implica causalidad. Pares con ambas ventanas &lt;5 se enmascaran (privacidad). El
+                selector de período de arriba no afecta esta tabla: la ventana de ±
+                {POLICY_OUTCOME_WINDOW_DAYS} días es fija y se ancla a la fecha de cada cambio de
+                regla, porque cada regla necesita su propio antes/después.
               </p>
             </div>
           )}

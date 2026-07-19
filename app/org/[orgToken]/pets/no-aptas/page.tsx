@@ -4,7 +4,14 @@ import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/u
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDateShort, speciesLabel } from "@/lib/utils/format";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
+
+// This list was previously unbounded. Cap it and signal truncation (mirrors
+// the intake queue cap — app/org/[orgToken]/intake/page.tsx) so a shelter
+// with a large ineligible roster isn't silently shown a partial list with no
+// notice. Ordered by most recently updated so the cap surfaces the freshest
+// eligibility calls first.
+const NO_APTAS_CAP = 100;
 
 const REASON_LABELS: Record<string, string> = {
   medical_treatment: "Tratamiento médico en curso",
@@ -25,7 +32,7 @@ export default async function PetsNoAptasPage({
   const { orgToken } = await params;
   const { organization } = await requireOrgAccessByToken(orgToken);
 
-  const rows = await db
+  const rawRows = await db
     .select({ pet: pets })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -36,7 +43,12 @@ export default async function PetsNoAptasPage({
         isNull(ownerships.endedAt),
         eq(pets.adoptionEligible, false),
       ),
-    );
+    )
+    .orderBy(desc(pets.updatedAt))
+    .limit(NO_APTAS_CAP + 1);
+
+  const truncated = rawRows.length > NO_APTAS_CAP;
+  const rows = truncated ? rawRows.slice(0, NO_APTAS_CAP) : rawRows;
 
   // Group by reason.
   const byReason = new Map<string, typeof rows>();
@@ -68,6 +80,13 @@ export default async function PetsNoAptasPage({
             motivo desde el perfil del pet para volver a marcarlos como aptos.
           </p>
         </header>
+
+        {truncated && (
+          <p className="text-sm text-ln-op-mute">
+            Mostrando las {NO_APTAS_CAP} mascotas actualizadas más recientemente. Hay más en el
+            listado de mascotas de la organización.
+          </p>
+        )}
 
         {rows.length === 0 ? (
           <p className="text-[13px] text-ln-op-mute py-6 text-center">

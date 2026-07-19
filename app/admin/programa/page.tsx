@@ -36,6 +36,7 @@ import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import {
+  K_ANON_MIN,
   TARGETS,
   buildProjectionContext,
   enoSlaTone,
@@ -427,6 +428,9 @@ export default async function AdminProgramaPage({
                   })}
                 </tbody>
               </table>
+              <p className="mt-2 text-xs text-ln-op-mute">
+                Provincias con menos de {K_ANON_MIN} mascotas no se listan (privacidad).
+              </p>
             </div>
           )}
         </OpCardBody>

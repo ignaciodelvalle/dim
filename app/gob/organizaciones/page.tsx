@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import type { OrgVerifiedFilter } from "@/lib/infra/admin-search";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -19,19 +20,31 @@ const ORG_TYPE_LABELS: Record<string, string> = {
   other: "Otro",
 };
 
+const VERIFIED_FILTER_LABELS: Record<OrgVerifiedFilter, string> = {
+  all: "Todas",
+  verified: "Verificadas",
+  pending: "Pendientes",
+};
+
+function parseVerifiedFilter(raw: string | undefined): OrgVerifiedFilter {
+  return raw === "verified" || raw === "pending" ? raw : "all";
+}
+
 export default async function OrganizacionesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; verified?: string }>;
 }) {
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
+  const verifiedFilter = parseVerifiedFilter(sp.verified);
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
-  const { items: results, truncated } = await searchOrganizations(query, {
-    role: profile.role,
-    jurisdictions,
-  });
+  const { items: results, truncated } = await searchOrganizations(
+    query,
+    { role: profile.role, jurisdictions },
+    verifiedFilter,
+  );
 
   // AC2: every PII read leaves a trail — both the typed-query search AND the
   // no-query landing. Awaited so the audit row is durable; the wrapper logs to
@@ -61,6 +74,18 @@ export default async function OrganizacionesPage({
           placeholder="Buscar por nombre, razón social o CUIT"
           className="flex-1 text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
+        <select
+          name="verified"
+          defaultValue={verifiedFilter}
+          aria-label="Filtrar por estado de verificación"
+          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+        >
+          {(Object.keys(VERIFIED_FILTER_LABELS) as OrgVerifiedFilter[]).map((key) => (
+            <option key={key} value={key}>
+              {VERIFIED_FILTER_LABELS[key]}
+            </option>
+          ))}
+        </select>
         <OpButton type="submit" variant="primary" size="sm">
           Buscar
         </OpButton>
@@ -68,7 +93,7 @@ export default async function OrganizacionesPage({
 
       <p className="text-sm text-ln-op-mute">
         {results.length === 0
-          ? query
+          ? query || verifiedFilter !== "all"
             ? "Sin resultados."
             : "Ingresa una consulta para buscar organizaciones."
           : truncated

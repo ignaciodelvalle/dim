@@ -42,7 +42,7 @@ import { rabiesVaccinatedExists } from "./rabies";
 // ---------------------------------------------------------------------------
 
 /** Minimum province denominator — provinces with fewer active pets are skipped. */
-const K_ANON_MIN = 5;
+export const K_ANON_MIN = 5;
 
 /** Maximum PII oversight rows returned (top actors by count). */
 const PII_OVERSIGHT_TOP_N = 20;

@@ -130,6 +130,7 @@ export {
   fetchDataQuality,
   fetchPiiOversight,
   isOutlier,
+  K_ANON_MIN,
 } from "./program-health";
 export type { DataQuality, OutlierMetric, OutlierRow, PiiOversightRow } from "./program-health";
 
