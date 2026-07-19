@@ -22,6 +22,7 @@ import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertS
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -337,7 +338,11 @@ export default async function AdminProgramaPage({
         />
         <OpCardBody>
           {outliers.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">Sin datos provinciales disponibles.</p>
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin datos"
+              description="Sin datos provinciales disponibles."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[13px] text-ln-op-ink border-collapse">

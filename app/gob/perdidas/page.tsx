@@ -19,7 +19,13 @@ import {
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
-import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
+import {
+  TARGETS,
+  buildProjectionContext,
+  resolveAnalyticsPeriod,
+  toneForTarget,
+  windows,
+} from "@/lib/metrics";
 import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
@@ -55,13 +61,20 @@ export default async function GobPerdidasPage({
   const actor = { role: profile.role };
 
   const sp = await searchParams;
-  const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  // H4 fix: the page renders the full <PeriodPicker> (chips include
+  // trailing12m/ytd/custom), so the window must be resolved through the
+  // canonical resolveAnalyticsPeriod (same pattern as /gob/campanas) instead
+  // of a hand-rolled 7d/90d/30d parser — otherwise those chips silently no-op
+  // back to a 30d window. No explicit ?period/?from → keep the page's own
+  // 30d default (matches <PeriodPicker defaultPreset="30d"> below), same as
+  // campanas' identical ternary.
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
+  const since = period.since;
   // G0 (PO decision 2026-07): the LIST defaults to the full currently-lost STOCK
   // (no window) so its count matches the same-page "Perdidas activas" KPI — both
   // count status='lost'. The period is an OPTIONAL filter: only an explicit
-  // ?period windows the list by the lost-event date. `since` above stays the
-  // 30d-default window for the period-scoped reunification KPIs (unchanged).
+  // ?period windows the list by the lost-event date. `since`/`period` above stay
+  // the period-scoped window for the reunification KPIs (unchanged).
   const listSince = sp.period ? since : undefined;
   const species = sp.species || undefined;
   const statusFilter = parseStatusFilter(sp.status);
@@ -109,11 +122,8 @@ export default async function GobPerdidasPage({
 
   // D4 reunification rate (Item 4) — lost episodes returned to active within the
   // selected period, plus median days-to-recovery. Period-aware: uses the same
-  // `since` window the page's filters use, jurisdiction-scoped via ProjectionContext.
-  const reunificationCtx = buildProjectionContext(actor, jurisdictions, {
-    since,
-    until: new Date(),
-  });
+  // `period` window the page's filters use, jurisdiction-scoped via ProjectionContext.
+  const reunificationCtx = buildProjectionContext(actor, jurisdictions, period);
   const reunification = await fetchReunificationRate(reunificationCtx);
 
   // Surface the CAS- case code for each lost pet. Keyed lookup over the already

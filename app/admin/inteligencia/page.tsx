@@ -17,6 +17,7 @@
 // may be added. k=5 suppression is applied or inherited on all three surfaces.
 
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -249,9 +250,11 @@ export default async function AdminInteligenciaPage({
         <OpCardHead title={<span id={panelIndexId}>Índice territorial compuesto</span>} />
         <OpCardBody>
           {indexRows.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
-              Sin provincias con población suficiente para calcular el índice.
-            </p>
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin datos suficientes"
+              description="Sin provincias con población suficiente para calcular el índice."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
@@ -339,9 +342,11 @@ export default async function AdminInteligenciaPage({
         <OpCardHead title={<span id={panelPolicyId}>Política → resultado</span>} />
         <OpCardBody>
           {policyRows.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
-              Sin cambios de reglas registrados en el audit log todavía.
-            </p>
+            <LnEmptyState
+              icon="disputa"
+              title="Sin cambios de reglas"
+              description="Sin cambios de reglas registrados en el audit log todavía."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
@@ -422,9 +427,11 @@ export default async function AdminInteligenciaPage({
         <OpCardHead title={<span id={panelQualityId}>Calidad de datos por provincia</span>} />
         <OpCardBody>
           {quality.rows.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
-              Sin provincias con población suficiente para el puntaje de calidad.
-            </p>
+            <LnEmptyState
+              icon="chart-line"
+              title="Sin datos suficientes"
+              description="Sin provincias con población suficiente para el puntaje de calidad."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">

@@ -4,6 +4,14 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { useCommittedPeriod } from "@/components/panorama/committed-period-context";
+import {
+  PRESET_3Y,
+  PRESET_5Y,
+  PRESET_30D,
+  PRESET_90D,
+  PRESET_YTD,
+  type PeriodPresetId,
+} from "@/lib/metrics/period-presets";
 
 import { DateRangePicker } from "./DateRangePicker";
 import type { DateRange } from "./DateRangePicker";
@@ -34,7 +42,11 @@ import type { DateRange } from "./DateRangePicker";
  * ```
  */
 
-export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "trailing12m" | "3y" | "5y" | "custom";
+// Alias kept for existing consumers (PeriodPanel.tsx and friends import
+// `PeriodPreset` from here). The canonical id union now lives in
+// lib/metrics/period-presets.ts, shared with PeriodPanel.tsx — see that
+// module for why the (id, label) pairs are only partially centralized.
+export type PeriodPreset = PeriodPresetId;
 
 export type PeriodPickerProps = {
   /** Preset por defecto cuando no hay searchParam. Default "30d". */
@@ -57,19 +69,19 @@ type PresetConfig = {
   label: string;
 };
 
+// 30d/90d/ytd are single-sourced from lib/metrics/period-presets (identical
+// label in PeriodPanel.tsx); 7d/trailing12m keep their PeriodPicker-specific
+// copy locally — see the module doc comment there for why.
 const PRESETS: PresetConfig[] = [
   { value: "7d", label: "Últimos 7 días" },
-  { value: "30d", label: "30 días" },
-  { value: "90d", label: "90 días" },
+  PRESET_30D,
+  PRESET_90D,
   { value: "trailing12m", label: "Últimos 12 meses" },
-  { value: "ytd", label: "Año en curso" },
+  PRESET_YTD,
 ];
 
 /** Multi-year chips appended only when `multiYear` is set (Panorama-only). */
-const MULTI_YEAR_PRESETS: PresetConfig[] = [
-  { value: "3y", label: "3 años" },
-  { value: "5y", label: "5 años" },
-];
+const MULTI_YEAR_PRESETS: PresetConfig[] = [PRESET_3Y, PRESET_5Y];
 
 const chipBase =
   "inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium border " +

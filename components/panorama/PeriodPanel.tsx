@@ -21,18 +21,29 @@ import { Icon } from "@/components/Icon";
 import { DateRangePicker } from "@/components/gob/DateRangePicker";
 import type { DateRange } from "@/components/gob/DateRangePicker";
 import type { PeriodPreset } from "@/components/gob/PeriodPicker";
+import {
+  PRESET_3Y,
+  PRESET_5Y,
+  PRESET_30D,
+  PRESET_90D,
+  PRESET_YTD,
+} from "@/lib/metrics/period-presets";
 
+// 30d/90d/ytd/3y/5y are single-sourced from lib/metrics/period-presets
+// (identical label in PeriodPicker.tsx); 7d/trailing12m keep their
+// PeriodPanel-specific terser rail copy locally — see that module's doc
+// comment for why.
 const COMMON: ReadonlyArray<{ value: PeriodPreset; label: string }> = [
   { value: "7d", label: "7 días" },
-  { value: "30d", label: "30 días" },
-  { value: "90d", label: "90 días" },
+  PRESET_30D,
+  PRESET_90D,
   { value: "trailing12m", label: "12 meses" },
 ];
 
 const MORE: ReadonlyArray<{ value: PeriodPreset; label: string }> = [
-  { value: "ytd", label: "Año en curso" },
-  { value: "3y", label: "3 años" },
-  { value: "5y", label: "5 años" },
+  PRESET_YTD,
+  PRESET_3Y,
+  PRESET_5Y,
 ];
 
 type Props = {

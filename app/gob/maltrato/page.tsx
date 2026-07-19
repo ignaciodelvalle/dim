@@ -2,6 +2,7 @@ import { Suspense } from "react";
 
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -309,9 +310,11 @@ export default async function GobMaltratoPage({
                     <OpCardHead title={`Denuncias (${totalCount} en total)`} />
                     <OpCardBody>
                       {rows.length === 0 ? (
-                        <p className="text-sm text-ln-op-mute py-4 text-center">
-                          No hay denuncias que coincidan con los filtros seleccionados.
-                        </p>
+                        <LnEmptyState
+                          icon="denuncia"
+                          title="Sin denuncias"
+                          description="No hay denuncias que coincidan con los filtros seleccionados."
+                        />
                       ) : (
                         <ul className="space-y-2">
                           {rows.map((r) => (
