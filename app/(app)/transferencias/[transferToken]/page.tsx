@@ -114,6 +114,7 @@ export default async function TransferPage({
           isRecipient={transfer.isRecipient}
           isSender={transfer.isSender}
           petToken={transfer.petToken}
+          petName={transfer.petName}
         />
       )}
     </div>

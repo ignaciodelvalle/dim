@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   acceptPetTransferAction,
@@ -14,17 +15,42 @@ export function AcceptTransferActions({
   isRecipient,
   isSender,
   petToken,
+  petName,
 }: {
   transferToken: string;
   isRecipient: boolean;
   isSender: boolean;
   petToken: string;
+  petName: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  // Accepting a transfer is IRREVERSIBLE (ownership changes hands, no undo) —
+  // it must be gated behind the same confirmation weight as rejecting.
+  // Previously accept fired on a single click while reject asked for a
+  // reason + a second confirm click — backwards (audit finding, safety pass
+  // 2026-07-19).
+  const [confirmAccept, setConfirmAccept] = useState(false);
+  const acceptTriggerRef = useRef<HTMLButtonElement>(null);
+
+  function handleAccept() {
+    startTransition(async () => {
+      const result = await acceptPetTransferAction(transferToken);
+      if ("error" in result) {
+        setError(result.error);
+        setConfirmAccept(false);
+        return;
+      }
+      // Ownership just changed (custody event emitted) — land on
+      // the pet profile with one full document navigation so its
+      // SSR ownership badges match the DB (soft push + refresh is
+      // banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(`/mis-mascotas/${petToken}`);
+    });
+  }
 
   if (isRecipient) {
     return (
@@ -94,28 +120,27 @@ export function AcceptTransferActions({
               Rechazar
             </button>
             <button
+              ref={acceptTriggerRef}
               type="button"
               disabled={pending}
-              onClick={() => {
-                startTransition(async () => {
-                  const result = await acceptPetTransferAction(transferToken);
-                  if ("error" in result) {
-                    setError(result.error);
-                    return;
-                  }
-                  // Ownership just changed (custody event emitted) — land on
-                  // the pet profile with one full document navigation so its
-                  // SSR ownership badges match the DB (soft push + refresh is
-                  // banned — see lib/ui/full-page-action-nav.ts).
-                  navigateAfterActionSuccess(`/mis-mascotas/${petToken}`);
-                });
-              }}
+              onClick={() => setConfirmAccept(true)}
               className="flex-1 rounded-[3px] bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
-              {pending ? "Aceptando…" : "Aceptar"}
+              Aceptar
             </button>
           </div>
         )}
+        <ConfirmDialog
+          open={confirmAccept}
+          onClose={() => !pending && setConfirmAccept(false)}
+          onConfirm={handleAccept}
+          title="Aceptar transferencia de titularidad"
+          description={`Vas a aceptar la transferencia de titularidad de ${petName}. Esta acción no se puede deshacer.`}
+          confirmLabel="Aceptar transferencia"
+          tone="warn"
+          pending={pending}
+          triggerRef={acceptTriggerRef}
+        />
       </div>
     );
   }
