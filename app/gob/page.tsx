@@ -36,7 +36,7 @@ import {
   fetchSterilizationMetrics,
 } from "@/lib/analytics/govt-home-kpis";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
+import { fetchMortalityHeadline } from "@/lib/analytics/mortality-metrics";
 import { countVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -191,7 +191,8 @@ export default async function GobiernoDashboardPage({
       fetchKpiTrend("vaccination_administered", ctx12m),
       // §5 narrative: mortality & disposition — the third citizen-traceable
       // projection (death_recorded events + how traceable their disposition is).
-      fetchMortalityDisposition(ctx12m),
+      // Home shows only total + traceableRate → the headline-only fetcher (qw#2).
+      fetchMortalityHeadline(ctx12m),
       // Pérdidas activas — SAME fetcher + scope as /gob/perdidas and the Panorama
       // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
       // detail list shows N active (val-2-govt M2). filteredJurisdictions applies

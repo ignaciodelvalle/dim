@@ -444,39 +444,33 @@ export function sortGovtActivityByActivity(rows: readonly GovtActivityRow[]): Go
   });
 }
 
-// Latest run per cron_name. Two queries because Drizzle doesn't compose
-// DISTINCT ON cleanly; the cron_name cardinality is tiny so this is fine.
+// Latest run per cron_name in ONE DISTINCT ON pass (was a per-name N+1 loop of
+// ~22 serial round-trips — perf audit 2026-07-19 qw#1). Same DISTINCT ON shape as
+// fetchFailedCronNames, including the secondary id key so a started_at tie
+// resolves IDENTICALLY here and there (else the dashboard banner could disagree
+// with the /admin/sistema Crons card about which job is down). Defensive casts:
+// db.execute returns raw rows, so started_at/items_processed may arrive as
+// string OR Date/number depending on the driver.
 export async function fetchCronRuns(): Promise<CronRunRow[]> {
-  const names = await db
-    .selectDistinct({ cronName: cronRuns.cronName })
-    .from(cronRuns)
-    .orderBy(cronRuns.cronName);
-
-  const results: CronRunRow[] = [];
-  for (const n of names) {
-    const [latest] = await db
-      .select({
-        startedAt: cronRuns.startedAt,
-        status: cronRuns.status,
-        itemsProcessed: cronRuns.itemsProcessed,
-        details: cronRuns.details,
-      })
-      .from(cronRuns)
-      .where(eq(cronRuns.cronName, n.cronName))
-      // Secondary key on id so a started_at tie resolves IDENTICALLY here and in
-      // fetchFailedCronNames (else the dashboard banner could disagree with the
-      // /admin/sistema Crons card about which job is down).
-      .orderBy(desc(cronRuns.startedAt), desc(cronRuns.id))
-      .limit(1);
-    results.push({
-      cronName: n.cronName,
-      lastRunAt: latest?.startedAt ?? null,
-      lastStatus: latest?.status ?? null,
-      itemsProcessed: latest?.itemsProcessed ?? null,
-      lastDetails: latest?.details ? (latest.details as Record<string, unknown>) : null,
-    });
-  }
-  return results;
+  const rows = (await db.execute(sql`
+    SELECT DISTINCT ON (cron_name)
+      cron_name, started_at, status, items_processed, details
+    FROM cron_runs
+    ORDER BY cron_name, started_at DESC, id DESC
+  `)) as {
+    cron_name: string;
+    started_at: Date | string;
+    status: string;
+    items_processed: number | string | null;
+    details: unknown;
+  }[];
+  return rows.map((r) => ({
+    cronName: r.cron_name,
+    lastRunAt: r.started_at ? new Date(r.started_at) : null,
+    lastStatus: (r.status as CronRunRow["lastStatus"]) ?? null,
+    itemsProcessed: r.items_processed == null ? null : Number(r.items_processed),
+    lastDetails: r.details ? (r.details as Record<string, unknown>) : null,
+  }));
 }
 
 // Cron names whose MOST RECENT run failed — the signal behind the crons-down
@@ -663,29 +657,31 @@ const CRON_REGISTRY_NAMES = Object.keys(CRON_SCHEDULE_MAP);
 export async function fetchCronHealth(): Promise<CronHealthRow[]> {
   const now = Date.now();
 
-  // Fetch the latest run for every known cron name in one pass.
-  const knownNames = await db
-    .selectDistinct({ cronName: cronRuns.cronName })
-    .from(cronRuns)
-    .orderBy(cronRuns.cronName);
+  // Fetch the latest run for every known cron name in ONE DISTINCT ON pass (was a
+  // per-name N+1 loop of ~22 serial round-trips — perf audit 2026-07-19 qw#1).
+  // Same shape/tiebreak as fetchCronRuns/fetchFailedCronNames.
+  const latestRows = (await db.execute(sql`
+    SELECT DISTINCT ON (cron_name)
+      cron_name, started_at, status, items_processed
+    FROM cron_runs
+    ORDER BY cron_name, started_at DESC, id DESC
+  `)) as {
+    cron_name: string;
+    started_at: Date | string;
+    status: string;
+    items_processed: number | string | null;
+  }[];
 
   const latestByName = new Map<
     string,
     { startedAt: Date; status: string; itemsProcessed: number }
   >();
-
-  for (const n of knownNames) {
-    const [latest] = await db
-      .select({
-        startedAt: cronRuns.startedAt,
-        status: cronRuns.status,
-        itemsProcessed: cronRuns.itemsProcessed,
-      })
-      .from(cronRuns)
-      .where(eq(cronRuns.cronName, n.cronName))
-      .orderBy(desc(cronRuns.startedAt))
-      .limit(1);
-    if (latest) latestByName.set(n.cronName, latest);
+  for (const r of latestRows) {
+    latestByName.set(r.cron_name, {
+      startedAt: new Date(r.started_at),
+      status: r.status,
+      itemsProcessed: r.items_processed == null ? 0 : Number(r.items_processed),
+    });
   }
 
   const rows: CronHealthRow[] = [];

@@ -255,6 +255,39 @@ export async function fetchMortalityDisposition(
   };
 }
 
+/** The two numbers the /gob home mortality card actually renders. */
+export type MortalityHeadline = { total: number; traceableRate: number };
+
+/**
+ * /gob home shows ONLY `total` + `traceableRate` (both derived from the scalar
+ * aggregation query #1), yet fetchMortalityDisposition runs FIVE sequential
+ * queries (agg + method + cause-week + code + locality). This runs just the
+ * first, cutting 4 serial round-trips off every home render (perf audit
+ * 2026-07-19 qw#2). The full fetcher stays for /gob/mortalidad.
+ */
+export async function fetchMortalityHeadline(ctx: ProjectionContext): Promise<MortalityHeadline> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { total: 0, traceableRate: 0 };
+  }
+  const scope = petsScopeClause(ctx);
+  const baseConditions = [
+    eq(petEvents.eventType, "death_recorded"),
+    gte(petEvents.occurredAt, ctx.period.since),
+    lte(petEvents.occurredAt, ctx.period.until),
+  ];
+  if (scope) baseConditions.push(sql`(${scope})`);
+  const [agg] = await db
+    .select({
+      total: count(),
+      traceable: sql<number>`count(*) FILTER (WHERE ${TRACEABLE})`.mapWith(Number),
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...baseConditions));
+  const total = agg?.total ?? 0;
+  return { total, traceableRate: pct(agg?.traceable ?? 0, total) };
+}
+
 function emptyResult(): MortalityDisposition {
   const empty = suppressSmallCells<Cell>([], {
     count: (c) => c.count,
