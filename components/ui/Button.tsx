@@ -1,6 +1,7 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import Link from "next/link";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode } from "react";
 
 /**
  * Libreta Nacional Button.
@@ -15,6 +16,14 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
  * Sizes: sm | md | lg
  * Modifiers: block (full-width), uppercase
  *
+ * Anchor mode: pass `href` (and no `onClick`-only button semantics) to render
+ * a next/link `<Link>` instead of a `<button>` — same classes, same variant/
+ * size system. Needed anywhere an LnButton-styled CTA must navigate: a
+ * `<button>` cannot legally nest inside another interactive element and a
+ * `<Link>`'s `<a>` cannot legally contain a `<button>` (WCAG 4.1.2), so a
+ * plain `<LnButton>` can't be dropped into link position. Byte-identical
+ * look to `<LnButton variant="primary">` — same base/sizes/variants maps.
+ *
  * Uses ln-* semantic tokens from globals.css @theme.
  * Safe in components/ui/ (excluded from lint:tokens guard).
  */
@@ -22,13 +31,24 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 export type LnButtonVariant = "primary" | "seal" | "ghost" | "ok" | "warn";
 export type LnButtonSize = "sm" | "md" | "lg";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+type CommonProps = {
   variant?: LnButtonVariant;
   size?: LnButtonSize;
   block?: boolean;
-  loading?: boolean;
+  className?: string;
   children?: ReactNode;
 };
+
+type LnButtonAsButtonProps = CommonProps &
+  Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children"> & {
+    loading?: boolean;
+    href?: undefined;
+  };
+
+type LnButtonAsAnchorProps = CommonProps &
+  Omit<ComponentProps<typeof Link>, "className" | "children">;
+
+export type LnButtonProps = LnButtonAsButtonProps | LnButtonAsAnchorProps;
 
 const base =
   "inline-flex items-center justify-center gap-[7px] font-semibold " +
@@ -66,26 +86,52 @@ function Spinner() {
   );
 }
 
-export function LnButton({
+// Shared by both render paths below (button + anchor) — the one place that
+// turns variant/size/block/className into the final class string, so the
+// two modes can never visually drift apart.
+function lnButtonClasses({
   variant = "primary",
   size = "md",
   block = false,
-  loading = false,
   className = "",
-  disabled,
-  type = "button",
-  children,
-  ...rest
-}: Props) {
+}: Pick<CommonProps, "variant" | "size" | "block" | "className">): string {
+  return [base, sizes[size], variants[variant], block ? "w-full" : "", className]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function LnButton(props: LnButtonProps) {
+  if (props.href !== undefined) {
+    const { variant, size, block, className, children, href, ...anchorRest } = props;
+    // Buttons are never underlined by the browser; an <a> needs the explicit
+    // reset so LnButton's anchor mode matches its button mode.
+    const anchorClassName = `${lnButtonClasses({ variant, size, block, className })} no-underline`;
+    return (
+      <Link href={href} className={anchorClassName} {...anchorRest}>
+        {children}
+      </Link>
+    );
+  }
+
+  const {
+    variant,
+    size,
+    block,
+    className,
+    disabled,
+    loading = false,
+    type = "button",
+    children,
+    ...buttonRest
+  } = props;
+
   return (
     <button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={[base, sizes[size], variants[variant], block ? "w-full" : "", className]
-        .filter(Boolean)
-        .join(" ")}
-      {...rest}
+      className={lnButtonClasses({ variant, size, block, className })}
+      {...buttonRest}
     >
       {loading ? <Spinner /> : null}
       {children}
