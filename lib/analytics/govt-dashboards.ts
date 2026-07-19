@@ -516,12 +516,27 @@ export type PerdidasMetrics = {
   /** Pets in scope currently in status='lost'. */
   activeCount: number;
   /**
-   * Pets in scope that transitioned from 'lost' to any other status in the last
-   * 30 days. Detected via `status_changed` events where payload `from_status =
-   * 'lost'` and `to_status != 'lost'` and the event was recorded within 30d.
+   * Pets in scope that TRULY recovered — went from 'lost' back to 'active' —
+   * in the last 30 days. Detected via `status_changed` events where payload
+   * `from_status = 'lost'` and `to_status = 'active'` and the event was
+   * recorded within 30d.
+   *
+   * Deliberately narrower than "any exit from lost": a lost pet later marked
+   * `deceased` is a BAJA, not a recovery, and must not inflate this KPI (PO
+   * decision — "don't conflate the metric with its label", 2026-07-19). In
+   * practice this exclusion is currently a no-op for volume: every writer of
+   * `status_changed` with `from_status='lost'` — setPetFound
+   * (src/modules/events/application/lifecycle/set-pet-found-use-case.ts) and
+   * owner-accept-return (src/modules/return-to-owner/application/owner-accept-return.ts)
+   * — always pairs it with `to_status='active'`. Death is recorded via a
+   * separate `death_recorded` event + direct `updateDeceased()` projection
+   * write (src/modules/events/application/lifecycle/death-record-use-case.ts);
+   * it never emits a `status_changed` event, so lost→deceased status_changed
+   * rows do not occur today. The `to_status='active'` predicate below is a
+   * forward-guard, not a fix for an observed inflation.
    *
    * Payload convention: `{ from_status: string, to_status: string, ... }`
-   * Canonical source: lib/event-schemas.ts `statusChanged` + AGENTS.md §Events table.
+   * Canonical source: lib/events/event-schemas.ts `statusChanged` + AGENTS.md §Events table.
    */
   recoveredMonth: number;
   /**
@@ -551,7 +566,9 @@ export type PerdidasMetrics = {
  * ambiguity reported for "Pérdidas activas" — documented here directly).
  *   NUMERATOR (activeCount):    COUNT pets WHERE status = 'lost', in scope.
  *   NUMERATOR (recoveredMonth): COUNT status_changed events where
- *     payload.from_status='lost' AND payload.to_status != 'lost', trailing 30d.
+ *     payload.from_status='lost' AND payload.to_status='active' (true
+ *     recovery only — excludes lost→deceased/other exits, which are BAJAS,
+ *     not recoveries), trailing 30d.
  *   NUMERATOR (avgDaysActive):  average of (now − markedLostAt) over
  *     currently-lost pets, in days.
  *   DENOMINATOR: n/a for all three — absolute counts / an average, not ratios.
@@ -608,15 +625,17 @@ export async function fetchPerdidasMetrics(
     return { activeCount: activeRows?.n ?? 0, recoveredMonth: 0, avgDaysActive: 0 };
   }
 
-  // 2. Count `status_changed` events where `from_status = 'lost'` within 30d in scope.
-  // These events represent pets that were recovered (or had their status changed)
-  // away from 'lost'. We scope-match on the pet's own jurisdiction columns, not
-  // the event payload, because status_changed events may not carry jurisdiction
-  // in their payload (it is present in outbreak_signal but not status_changed).
+  // 2. Count `status_changed` events where `from_status = 'lost'` AND
+  // `to_status = 'active'` within 30d in scope — a TRUE recovery. A lost pet
+  // later marked deceased (or any other non-active exit) is a BAJA, not a
+  // recovery, and must not be counted here (PO decision 2026-07-19). We
+  // scope-match on the pet's own jurisdiction columns, not the event payload,
+  // because status_changed events may not carry jurisdiction in their payload
+  // (it is present in outbreak_signal but not status_changed).
   const recoveredConditions = [
     eq(petEvents.eventType, "status_changed"),
     sql`(${petEvents.payload}->>'from_status') = 'lost'`,
-    sql`(${petEvents.payload}->>'to_status') != 'lost'`,
+    sql`(${petEvents.payload}->>'to_status') = 'active'`,
     gte(petEvents.occurredAt, since30d),
   ];
   // Apply scope by joining to pets.

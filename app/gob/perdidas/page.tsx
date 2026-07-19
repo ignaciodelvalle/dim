@@ -261,9 +261,9 @@ export default async function GobPerdidasPage({
           tone="ok"
           info={{
             definition:
-              "Mascotas que salieron del estado 'perdido' en los últimos 30 días (recuperadas o dadas de baja).",
+              "Mascotas que volvieron de 'perdido' a 'activo' (reunificadas con su dueño/a) en los últimos 30 días. No incluye bajas (p. ej. fallecimiento) ocurridas mientras estaban perdidas.",
             formula:
-              "COUNT(pet_events WHERE event_type='status_changed', from='lost' → to≠'lost', últimos 30d) scoped",
+              "COUNT(pet_events WHERE event_type='status_changed', from='lost' → to='active', últimos 30d) scoped",
           }}
         />
         <OpKpi

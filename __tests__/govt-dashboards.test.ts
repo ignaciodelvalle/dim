@@ -1365,6 +1365,29 @@ describe("fetchPerdidasMetrics", () => {
     });
   }
 
+  // Pins the honesty fix (2026-07-19): a lost pet that exits via a BAJA
+  // (e.g. deceased) is not a recovery. Real writers never emit this shape
+  // (death goes through `death_recorded`, not `status_changed`) — this
+  // fixture exercises the query predicate directly so a future writer or a
+  // query regression can't silently re-inflate recoveredMonth.
+  async function markDeceasedFixture(petId: string, hoursAgo: number) {
+    await db.update(pets).set({ status: "deceased" }).where(eq(pets.id, petId));
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "status_changed",
+      occurredAt: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        from_status: "lost",
+        to_status: "deceased",
+        location_description: null,
+        reason: null,
+      },
+      authorRole: "owner",
+      recordedByUserId: ownerUserId,
+    });
+  }
+
   it("returns the 3-key shape", async () => {
     const m = await fetchPerdidasMetrics({ role: "admin" }, []);
     expect(typeof m.activeCount).toBe("number");
@@ -1435,7 +1458,7 @@ describe("fetchPerdidasMetrics", () => {
     expect(m.recoveredMonth).toBeGreaterThanOrEqual(0);
   });
 
-  it("recoveredMonth correctly counts pets that went lost → other status within 30d", async () => {
+  it("recoveredMonth correctly counts pets that went lost → active within 30d", async () => {
     const pet = await insertFixturePet({
       name: "RecoveredPet",
       species: "dog",
@@ -1450,6 +1473,26 @@ describe("fetchPerdidasMetrics", () => {
       { province: "Córdoba", locality: "Villa Carlos Paz" },
     ]);
     expect(m.recoveredMonth).toBeGreaterThanOrEqual(1);
+  });
+
+  it("recoveredMonth does NOT count a lost → deceased exit (baja, not a recovery)", async () => {
+    // Isolated jurisdiction (not reused by other tests in this file) so the
+    // scoped recoveredMonth count for this fixture pet is exact, not just
+    // ">= 0" — this is what pins the fix, not just non-regression.
+    const pet = await insertFixturePet({
+      name: "SoloDeceasedWhileLostPet",
+      species: "dog",
+      province: "Chaco",
+      locality: "Resistencia",
+    });
+    await markLostFixture(pet, 48);
+    await markDeceasedFixture(pet, 24);
+
+    const m = await fetchPerdidasMetrics({ role: "govt" }, [
+      { province: "Chaco", locality: "Resistencia" },
+    ]);
+    // A lost→deceased exit is a BAJA, not a recovery — must contribute 0.
+    expect(m.recoveredMonth).toBe(0);
   });
 
   it("avgDaysActive returns 0 when there are no active lost pets in scope", async () => {
