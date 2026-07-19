@@ -1,10 +1,15 @@
 import { Suspense } from "react";
 
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, welfareReports } from "@/db";
 import {
@@ -23,6 +28,8 @@ import {
   WELFARE_REPORT_STATUSES,
   type WelfareReportKind,
   type WelfareReportSeverity,
+  welfareReportKindLabel,
+  welfareReportSeverityLabel,
   welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
 import { and, asc, count, sql } from "drizzle-orm";
@@ -57,6 +64,22 @@ function parseStatus(raw: string | undefined): string | null {
   if (!raw) return null;
   return (WELFARE_REPORT_STATUSES as readonly string[]).includes(raw) ? raw : null;
 }
+
+// Domain-axis options for the filter bar. buildMaltratoListConditions already
+// applies kind/severity/status; these surface the previously-invisible controls.
+// Labels come from the SAME domain registry the rows/KPIs use (one vocabulary).
+const KIND_OPTIONS = WELFARE_REPORT_KINDS.map((k) => ({
+  value: k,
+  label: welfareReportKindLabel(k),
+}));
+const SEVERITY_OPTIONS = WELFARE_REPORT_SEVERITIES.map((s) => ({
+  value: s,
+  label: welfareReportSeverityLabel(s),
+}));
+const STATUS_OPTIONS = WELFARE_REPORT_STATUSES.map((s) => ({
+  value: s,
+  label: welfareReportStatusLabel(s),
+}));
 
 export default async function GobMaltratoPage({
   searchParams,
@@ -226,11 +249,44 @@ export default async function GobMaltratoPage({
           </div>
         )}
 
-        {/* Filters row */}
-        <div className="grid md:grid-cols-2 gap-3">
-          <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-          <PeriodPicker defaultPreset="30d" />
-        </div>
+        {/* Unified filter bar — period + jurisdiction + kind/severity/status axes
+            + active-filter chips. These three axes were always wired
+            (buildMaltratoListConditions applies them) but had no visible control.
+            A filter change drops the keyset `cursor` (page 1). The queue TABS are a
+            separate concept (workflow lens) and keep their own control below. */}
+        <OpFilterBar
+          period={{ defaultPreset: "30d" }}
+          jurisdiction={{ allowedProvinces, localities }}
+          resetParamsOnChange={["cursor"]}
+          axes={
+            [
+              {
+                id: "kind",
+                label: "Tipo",
+                paramKey: "kind",
+                options: KIND_OPTIONS,
+                current: activeKind,
+                allLabel: "Todos",
+              },
+              {
+                id: "severity",
+                label: "Severidad",
+                paramKey: "severity",
+                options: SEVERITY_OPTIONS,
+                current: activeSeverity,
+                allLabel: "Todas",
+              },
+              {
+                id: "status",
+                label: "Estado",
+                paramKey: "status",
+                options: STATUS_OPTIONS,
+                current: activeStatus,
+                allLabel: "Todos",
+              },
+            ] satisfies OpFilterAxis[]
+          }
+        />
 
         {/* 4 metric KPI tiles */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -291,6 +347,11 @@ export default async function GobMaltratoPage({
       <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row">
         {/* Master — queue tabs + list (own scroll on lg) */}
         <div className="flex min-w-0 flex-col lg:w-2/5 lg:min-h-0 lg:overflow-y-auto">
+          {/* Queue ≠ status: the tabs are a workflow lens (urgentes / sin asignar /
+              mías…), NOT the "Estado" filter (that lives in the bar above). */}
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+            Cola de trabajo
+          </p>
           <Suspense>
             <UrlTabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
               {TABS.map((tab) => (

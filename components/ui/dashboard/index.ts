@@ -18,6 +18,14 @@ export { OpStatusPill } from "./OpStatusPill";
 export type { StatusTone } from "./OpStatusPill";
 export { OpCodeBadge } from "./OpCodeBadge";
 export { OpCard, OpCardHead, OpCardBody } from "./OpCard";
+export { OpFilterBar } from "./OpFilterBar";
+export type {
+  OpFilterBarProps,
+  OpFilterBarPeriod,
+  OpFilterBarJurisdiction,
+  OpFilterAxis,
+  OpFilterAxisOption,
+} from "./OpFilterBar";
 export { OpBreach } from "./OpBreach";
 export { OpCallout } from "./OpCallout";
 export { OpStateBadge } from "./OpStateBadge";

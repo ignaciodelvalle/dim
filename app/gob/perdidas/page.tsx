@@ -1,12 +1,18 @@
 import { Suspense } from "react";
 
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
-import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpButton,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { aggregateChoroplethData } from "@/lib/analytics/choropleth-data";
 import { fetchReunificationRate } from "@/lib/analytics/compliance-metrics";
@@ -41,6 +47,16 @@ const STATUS_TABS: UrlTabItem[] = [
   { value: "active", label: "Recuperadas" },
   { value: "deceased", label: "Fallecidas" },
   { value: "all", label: "Todas" },
+];
+
+// Species domain axis — the page already reads `sp.species` and fetchLostPets
+// applies `eq(pets.species, species)`; this surfaces the previously-hidden
+// control. dog/cat match a single stored species; "other" is the exact value
+// `pets.species='other'` the fetcher honors as-is (no query change).
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perro" },
+  { value: "cat", label: "Gato" },
+  { value: "other", label: "Otra" },
 ];
 
 export default async function GobPerdidasPage({
@@ -171,11 +187,24 @@ export default async function GobPerdidasPage({
         </div>
       )}
 
-      {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
-      </div>
+      {/* Unified filter bar — period + jurisdiction + species axis + active-filter chips.
+          Status (tabs) and search (q) keep their own controls below; the bar owns
+          period/jurisdiction/species. */}
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{ allowedProvinces, localities }}
+        axes={
+          [
+            {
+              id: "species",
+              label: "Especie",
+              paramKey: "species",
+              options: SPECIES_OPTIONS,
+              current: sp.species ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
