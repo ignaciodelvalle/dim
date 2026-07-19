@@ -16,6 +16,7 @@
 import { snoozeReminderAction } from "@/app/actions/reminders";
 import { Icon } from "@/components/Icon";
 import { LnLinkButton } from "@/components/ui/LinkButton";
+import { LnListRow } from "@/components/ui/ListRow";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -195,37 +196,44 @@ export function FutureLedgerList({
       </p>
       <ul className="divide-y divide-[var(--color-ln-line)]">
         {visible.map((item) => (
-          <li key={item.id} className="flex items-center gap-3 py-2.5">
-            <span
-              aria-hidden
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]"
+          <li key={item.id}>
+            <LnListRow
+              align="center"
+              className="py-2.5"
+              icon={
+                <span
+                  aria-hidden
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]"
+                >
+                  <Icon name={KIND_ICON[item.kind]} size="sm" decorative />
+                </span>
+              }
+              trailing={
+                <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                  <FutureLedgerRowAction item={item} petPublicToken={petPublicToken} />
+                  {item.kind === "reminder" && item.reminderId && (
+                    <ReminderRowActions
+                      reminderId={item.reminderId}
+                      petPublicToken={petPublicToken}
+                      onSnoozed={() =>
+                        setSnoozedIds((prev) => {
+                          const next = new Set(prev);
+                          next.add(item.id);
+                          return next;
+                        })
+                      }
+                    />
+                  )}
+                </span>
+              }
             >
-              <Icon name={KIND_ICON[item.kind]} size="sm" decorative />
-            </span>
-            <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium text-[var(--color-ln-ink)]">
                 {item.label}
               </span>
               <span className="mt-0.5 block text-xs text-[var(--color-ln-mute)]">
                 {formatDueAt(item.dueAt)}
               </span>
-            </span>
-            <span className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-              <FutureLedgerRowAction item={item} petPublicToken={petPublicToken} />
-              {item.kind === "reminder" && item.reminderId && (
-                <ReminderRowActions
-                  reminderId={item.reminderId}
-                  petPublicToken={petPublicToken}
-                  onSnoozed={() =>
-                    setSnoozedIds((prev) => {
-                      const next = new Set(prev);
-                      next.add(item.id);
-                      return next;
-                    })
-                  }
-                />
-              )}
-            </span>
+            </LnListRow>
           </li>
         ))}
       </ul>

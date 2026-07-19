@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { LnListRow } from "@/components/ui/ListRow";
 import type { WorkflowItem, WorkflowKind } from "@/lib/analytics/owner-dashboard";
 import { AR_TIME_ZONE, calendarDaysAgoInAr } from "@/lib/utils/format";
 
@@ -106,22 +107,22 @@ export function CasesWidget({
         <ul className="divide-y divide-ln-line">
           {cases.map((c) => (
             <li key={c.id}>
-              <Link
+              <LnListRow
                 href={c.ctaUrl}
-                className="flex items-start gap-3 py-3 transition-colors hover:bg-ln-stripe"
+                className="py-3 transition-colors hover:bg-ln-stripe"
+                icon={<CaseIcon severity={c.severity} icon={c.icon} />}
+                trailing={
+                  <p
+                    className="shrink-0 text-[11px] text-ln-mute"
+                    title={c.since.toLocaleString("es-AR", { timeZone: AR_TIME_ZONE })}
+                  >
+                    {relativeShort(c.since)}
+                  </p>
+                }
               >
-                <CaseIcon severity={c.severity} icon={c.icon} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ln-ink">{c.title}</p>
-                  <p className="mt-0.5 truncate text-xs text-ln-mute">{c.subtitle}</p>
-                </div>
-                <p
-                  className="shrink-0 text-[11px] text-ln-mute"
-                  title={c.since.toLocaleString("es-AR", { timeZone: AR_TIME_ZONE })}
-                >
-                  {relativeShort(c.since)}
-                </p>
-              </Link>
+                <p className="truncate text-sm font-medium text-ln-ink">{c.title}</p>
+                <p className="mt-0.5 truncate text-xs text-ln-mute">{c.subtitle}</p>
+              </LnListRow>
             </li>
           ))}
         </ul>

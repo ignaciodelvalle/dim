@@ -89,6 +89,7 @@ see the variant-map note below).
 |---|---|---|---|
 | `LnLedger` / `LnVaccineLedger` | `Ledger.tsx` | Citizen tabular ledger (typed columns). | Don't render a raw `<table>` for ledger data. |
 | `LnRegRow` / `LnRegistry` / `LnPetPhoto` | `RegRow.tsx` | Registry rows + pet photo thumbnail. | — |
+| `LnListRow` | `ListRow.tsx` | Minimal simple-list row: optional icon + label/meta content + optional trailing slot, optionally the whole row as a `Link`. Layout-only — icon/children/trailing are caller-styled, so it works for both `ln-*` and `ln-op-*` skins without a skin prop. Used by `CasesWidget.tsx` and `pet-profile/FutureLedgerList.tsx`. | Don't hand-roll another `<li className="flex items-center gap-3">` icon+label+meta+trailing row — use this. Don't reach for it for pet-registry rows (`LnRegRow`), typed tabular data (`LnLedger`), or an operator table with bulk-select/filters (`CaseQueue`) — those stay on their own primitives. |
 | `DiscList` / `DiscRow` | `../pet-profile/DiscList.tsx` | Disc-bulleted definition lists on the pet profile. | — |
 | `OpKpi` / `OpKpiSm` | `dashboard/OpKpi.tsx` | Operator KPI tile (value + tone + trend). | Don't build a KPI tile from scratch — see the `dataviz` skill for chart tiles. |
 | `KpiStrip` | `dashboard/KpiStrip.tsx` | Row of KPIs. | — |
