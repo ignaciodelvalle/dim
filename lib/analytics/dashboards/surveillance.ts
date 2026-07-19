@@ -1,0 +1,770 @@
+// Read helpers for the /gob regional dashboards (Fase 11) — vigilancia /
+// surveillance domain (outbreak signals, zoonosis trend, cases per
+// locality/subregion/capita, outbreak history).
+// Split out of lib/analytics/govt-dashboards.ts (engram refactor/govt-dashboards-split).
+//
+// All helpers accept the actor + jurisdictions tuple already produced by
+// requireAdminOrGovtOrRedirect — admin sees universal scope (jurisdictions
+// is empty by contract for admin), govt sees only rows matching one of their
+// active assignments.
+
+import { type SQL, and, count, desc, eq, gte, sql } from "drizzle-orm";
+
+import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
+import {
+  type DashboardActor,
+  type DashboardJurisdiction,
+  jurisdictionPairClause,
+} from "@/lib/metrics";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
+import { findDisease } from "@/lib/reference/diseases";
+import { aggregateRowsByDepartment } from "../subregion-aggregate";
+import type { SubregionCaseCount } from "../subregion-redaction";
+import { DAY_MS, casesScopeClause, petsCurrentJurisdictionClause, petsScopeClause } from "./_scope";
+
+export type SurveillanceFilters = {
+  /** Inclusive lower bound for occurredAt. */
+  since: Date;
+  /** Optional disease_code narrow filter. */
+  diseaseCode?: string | null;
+  /**
+   * Admin province drill-down (Panorama). Only set when actor.role === "admin"
+   * and a province was selected via the URL. Govt callers must NOT pass this —
+   * their scope is already enforced by the jurisdiction pairs.
+   */
+  adminProvince?: string;
+  adminLocality?: string;
+};
+
+export type SurveillanceSignal = {
+  signalEventId: string;
+  petId: string;
+  petPublicToken: string;
+  petName: string;
+  petSpecies: string;
+  diseaseCode: string;
+  diseaseName: string;
+  province: string | null;
+  locality: string | null;
+  detectedAt: Date;
+  // Provenance for confidence tier computation (plan §A.5, 2026-05-22).
+  // Stored here so consumers can call computeConfidence() without a second DB query.
+  authorRole: string;
+  authorVerified: boolean;
+  authorOrganizationId: string | null;
+  payload: Record<string, unknown>;
+};
+
+export type DiseaseSummary = {
+  diseaseCode: string;
+  diseaseName: string;
+  count30d: number;
+  count7d: number;
+  count24h: number;
+};
+
+// Build the scope-match SQL clause on outbreak_signal events.
+// - admin, no province selected → null (no restriction; caller omits the clause)
+// - admin + province selected   → payload province (+ optional locality) predicate
+//   (Panorama-style admin drill-down — mirrors petEventsScopeClause's admin
+//   branch in lib/metrics/scope.ts; additive-only, never widens scope)
+// - govt with no assignments    → `false` (matches nothing)
+// - govt with assignments       → OR of `(province=X AND locality=Y)` pairs
+function outbreakSignalScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+) {
+  if (actor.role === "admin") {
+    // Backward-compat: no adminProvince → unrestricted, exactly as before.
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${adminProvince}`,
+        sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${adminLocality}`,
+      );
+    }
+    return sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${adminProvince}`;
+  }
+  // Govt with no active assignments — match nothing.
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+      sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
+    ) ?? sql`false`
+  );
+}
+
+// Same guard as petsCurrentJurisdictionClause, wrapped in an EXISTS subquery
+// for pet_events queries that do NOT already join the pets table.
+function petsCurrentJurisdictionExists(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  const clause = petsCurrentJurisdictionClause(actor, jurisdictions, adminProvince, adminLocality);
+  if (!clause) return null;
+  return sql`EXISTS (SELECT 1 FROM ${pets} WHERE ${pets.id} = ${petEvents.petId} AND (${clause}))`;
+}
+
+export async function fetchSurveillanceSignals(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  filters: SurveillanceFilters,
+): Promise<SurveillanceSignal[]> {
+  const conditions = [
+    eq(petEvents.eventType, "outbreak_signal"),
+    gte(petEvents.occurredAt, filters.since),
+  ];
+  if (filters.diseaseCode) {
+    conditions.push(sql`(${petEvents.payload}->>'disease_code') = ${filters.diseaseCode}`);
+  }
+  const scope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    filters.adminProvince,
+    filters.adminLocality,
+  );
+  if (scope) conditions.push(sql`(${scope})`);
+  // Rows return pet identifiers (name + public token) — require the pet's
+  // CURRENT jurisdiction to be in scope too (pets is inner-joined below).
+  const petsScope = petsCurrentJurisdictionClause(
+    actor,
+    jurisdictions,
+    filters.adminProvince,
+    filters.adminLocality,
+  );
+  if (petsScope) conditions.push(sql`(${petsScope})`);
+
+  const rows = await db
+    .select({
+      signalEventId: petEvents.id,
+      petId: pets.id,
+      petPublicToken: pets.publicToken,
+      petName: pets.name,
+      petSpecies: pets.species,
+      diseaseCode: sql<string>`(${petEvents.payload}->>'disease_code')`,
+      diseaseLabel: sql<string | null>`(${petEvents.payload}->>'disease_label')`,
+      province: sql<string | null>`(${petEvents.payload}->>'pet_jurisdiction_province')`,
+      locality: sql<string | null>`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
+      detectedAt: petEvents.occurredAt,
+      // Provenance for confidence tier computation (plan §A.5).
+      authorRole: petEvents.authorRole,
+      authorVerified: petEvents.authorVerified,
+      authorOrganizationId: petEvents.authorOrganizationId,
+      payload: petEvents.payload,
+    })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...conditions))
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(500);
+
+  return rows.map((r) => ({
+    signalEventId: r.signalEventId,
+    petId: r.petId,
+    petPublicToken: r.petPublicToken,
+    petName: r.petName,
+    petSpecies: r.petSpecies,
+    diseaseCode: r.diseaseCode,
+    diseaseName: findDisease(r.diseaseCode)?.label ?? r.diseaseLabel ?? r.diseaseCode,
+    province: r.province,
+    locality: r.locality,
+    detectedAt: r.detectedAt,
+    authorRole: r.authorRole,
+    authorVerified: r.authorVerified,
+    authorOrganizationId: r.authorOrganizationId,
+    payload: (r.payload ?? {}) as Record<string, unknown>,
+  }));
+}
+
+// Pure rollup: groups already-fetched signals by disease_code and computes
+// sub-window counts (7d, 24h) in JS. No DB call. The caller is responsible
+// for fetching signals with a window >= 30 days so count30d is correct.
+export function computeDiseaseSummary(signals: SurveillanceSignal[]): DiseaseSummary[] {
+  const now = Date.now();
+  const byCode = new Map<string, DiseaseSummary>();
+  for (const s of signals) {
+    const entry = byCode.get(s.diseaseCode) ?? {
+      diseaseCode: s.diseaseCode,
+      diseaseName: s.diseaseName,
+      count30d: 0,
+      count7d: 0,
+      count24h: 0,
+    };
+    const age = now - s.detectedAt.getTime();
+    entry.count30d += 1;
+    if (age <= 7 * DAY_MS) entry.count7d += 1;
+    if (age <= DAY_MS) entry.count24h += 1;
+    byCode.set(s.diseaseCode, entry);
+  }
+  return [...byCode.values()].sort((a, b) => b.count30d - a.count30d);
+}
+
+// Period rollup grouped by disease_code (default last 30 days), with
+// sub-counts for the last 7 days and 24h. Pulls from the same scoped query
+// as the detail feed so the totals match exactly. `count30d` holds the
+// window total (named for the default; callers may pass a custom `since`).
+//
+// When the caller already has a 30-day SurveillanceSignal[] in hand, prefer
+// calling computeDiseaseSummary(signals) directly to avoid a second DB round-trip.
+export async function fetchDiseaseSummary(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
+): Promise<DiseaseSummary[]> {
+  const since = opts.since ?? new Date(Date.now() - 30 * DAY_MS);
+  const signals = await fetchSurveillanceSignals(actor, jurisdictions, {
+    since,
+    adminProvince: opts.adminProvince,
+    adminLocality: opts.adminLocality,
+  });
+  return computeDiseaseSummary(signals);
+}
+
+// ============================================================================
+// Vigilancia metrics — E2
+// ============================================================================
+
+export type VigilanciaMetrics = {
+  /** outbreak_signal events in scope with status='open', last 30 days. */
+  outbreakActiveCount: number;
+  /** cases where caseKind='rabies_observation' AND status='open'. */
+  rabiesActiveCount: number;
+  /** pets in scope created today (since midnight local time). */
+  petsRegisteredToday: number;
+  /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
+  vaccinationsThisWeek: number;
+};
+
+// Canonical list of Argentine provinces for /gob/* dashboard pages.
+// Admin pages use all 24; govt pages derive a subset from their jurisdictions.
+// Keep code/name aligned with PROVINCE_ISO_MAP and ar-provincias.ts.
+export const GOB_ALL_PROVINCES: Array<{ code: string; name: string }> = [
+  { code: "AR-C", name: "CABA" },
+  { code: "AR-B", name: "Buenos Aires" },
+  { code: "AR-X", name: "Córdoba" },
+  { code: "AR-S", name: "Santa Fe" },
+  { code: "AR-M", name: "Mendoza" },
+  { code: "AR-T", name: "Tucumán" },
+  { code: "AR-E", name: "Entre Ríos" },
+  { code: "AR-A", name: "Salta" },
+  { code: "AR-N", name: "Misiones" },
+  { code: "AR-H", name: "Chaco" },
+  { code: "AR-W", name: "Corrientes" },
+  { code: "AR-K", name: "Catamarca" },
+  { code: "AR-U", name: "Chubut" },
+  { code: "AR-P", name: "Formosa" },
+  { code: "AR-Y", name: "Jujuy" },
+  { code: "AR-L", name: "La Pampa" },
+  { code: "AR-F", name: "La Rioja" },
+  { code: "AR-Q", name: "Neuquén" },
+  { code: "AR-R", name: "Río Negro" },
+  { code: "AR-J", name: "San Juan" },
+  { code: "AR-D", name: "San Luis" },
+  { code: "AR-Z", name: "Santa Cruz" },
+  { code: "AR-G", name: "Santiago del Estero" },
+  { code: "AR-V", name: "Tierra del Fuego" },
+];
+
+// Hardcoded province-name → ISO 3166-2:AR code map.
+// The cases table stores the canonical display name (migration 0055 + check
+// constraint enforcing the 24-enum). The GeoJSON uses ISO codes. Unknown
+// provinces return code: "" — should be impossible after migration 0055.
+export const PROVINCE_ISO_MAP: Record<string, string> = {
+  "Buenos Aires": "AR-B",
+  CABA: "AR-C",
+  Catamarca: "AR-K",
+  Chaco: "AR-H",
+  Chubut: "AR-U",
+  Córdoba: "AR-X",
+  Corrientes: "AR-W",
+  "Entre Ríos": "AR-E",
+  Formosa: "AR-P",
+  Jujuy: "AR-Y",
+  "La Pampa": "AR-L",
+  "La Rioja": "AR-F",
+  Mendoza: "AR-M",
+  Misiones: "AR-N",
+  Neuquén: "AR-Q",
+  "Río Negro": "AR-R",
+  Salta: "AR-A",
+  "San Juan": "AR-J",
+  "San Luis": "AR-D",
+  "Santa Cruz": "AR-Z",
+  "Santa Fe": "AR-S",
+  "Santiago del Estero": "AR-G",
+  "Tierra del Fuego": "AR-V",
+  Tucumán: "AR-T",
+};
+
+export async function fetchVigilanciaMetrics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
+): Promise<VigilanciaMetrics> {
+  const now = Date.now();
+  const since30d = new Date(now - 30 * DAY_MS);
+  const since7d = new Date(now - 7 * DAY_MS);
+  // "Today" starts at midnight UTC to match server-side time. If the project
+  // later moves to AR timezone, change this to use startOf('day', 'America/Argentina/Buenos_Aires').
+  const todayStart = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+
+  // 1. Count open outbreak_signal events from the last 30 days scoped to user.
+  const outbreakConditions = [
+    eq(petEvents.eventType, "outbreak_signal"),
+    gte(petEvents.occurredAt, since30d),
+  ];
+  const outbreakScope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
+  if (outbreakScope) outbreakConditions.push(sql`(${outbreakScope})`);
+
+  // 2. Count open cases with caseKind='rabies_observation'.
+  const rabiesConditions = [eq(cases.caseKind, "rabies_observation"), eq(cases.status, "open")];
+  const casesScope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  if (casesScope) rabiesConditions.push(sql`(${casesScope})`);
+
+  // 3. Count pets created today.
+  const petsConditions = [gte(pets.createdAt, todayStart)];
+  const petsScope = petsScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  if (petsScope) petsConditions.push(sql`(${petsScope})`);
+
+  // 4. Count vaccination_administered events in the last 7 days.
+  const vaccConditions = [
+    eq(petEvents.eventType, "vaccination_administered"),
+    gte(petEvents.occurredAt, since7d),
+  ];
+  // vaccination_administered does NOT carry a payload jurisdiction snapshot (only
+  // outbreak_signal does) — scope by the pet's HOME jurisdiction (petsScope, reused
+  // from arm 3) against the pets INNER JOIN added below. The previous
+  // petEventsScopeClause here was the ghost-payload bug (zeroed this count for
+  // every scoped-govt viewer). The outbreak arm above keeps its payload scope.
+  if (petsScope) vaccConditions.push(sql`(${petsScope})`);
+
+  const [outbreakRows, rabiesRows, petsRows, vaccRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .where(and(...outbreakConditions)),
+    db
+      .select({ n: count() })
+      .from(cases)
+      .where(and(...rabiesConditions)),
+    db
+      .select({ n: count() })
+      .from(pets)
+      .where(and(...petsConditions)),
+    db
+      .select({ n: count() })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(and(...vaccConditions)),
+  ]);
+
+  return {
+    outbreakActiveCount: outbreakRows[0]?.n ?? 0,
+    rabiesActiveCount: rabiesRows[0]?.n ?? 0,
+    petsRegisteredToday: petsRows[0]?.n ?? 0,
+    vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
+  };
+}
+
+// ============================================================================
+
+export type LocalityCaseCount = {
+  province: string;
+  locality: string;
+  /**
+   * ISO 3166-2:AR code matching the GeoJSON `code` property if known.
+   * Empty string if the province is not in PROVINCE_ISO_MAP.
+   */
+  code: string;
+  count: number;
+};
+
+/**
+ * Counts of open cases grouped by (province, locality). Used for the
+ * <MapChoropleth metric="cases_open"> on /gob/vigilancia.
+ *
+ * Province code mapping: uses PROVINCE_ISO_MAP (hardcoded). The cases table
+ * stores jurisdictionProvince as free-text; the GeoJSON uses ISO 3166-2:AR codes.
+ * Cases in provinces not present in the map return code: "".
+ */
+export async function fetchCasesPerLocality(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
+): Promise<LocalityCaseCount[]> {
+  const conditions = [eq(cases.status, "open")];
+  const scope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({
+      province: cases.jurisdictionProvince,
+      locality: cases.jurisdictionLocality,
+      n: count(),
+    })
+    .from(cases)
+    .where(and(...conditions))
+    .groupBy(cases.jurisdictionProvince, cases.jurisdictionLocality);
+
+  return rows
+    .filter((r) => r.province !== null)
+    .map((r) => ({
+      province: r.province as string,
+      locality: r.locality ?? "",
+      code: PROVINCE_ISO_MAP[r.province as string] ?? "",
+      count: r.n,
+    }));
+}
+
+// ============================================================================
+
+export type { SubregionCaseCount } from "../subregion-redaction";
+
+/**
+ * Open cases per sub-region within a selected province — the FULL sub-region set.
+ *
+ * Returns EVERY sub-region of the province (not only those with cases), each with
+ * its open-case count (0 when there are none). This lets the caller frame and
+ * render the whole province: sub-regions with 0 cases render grey via the
+ * choropleth's missing-color branch.
+ *
+ * Thin wrapper (reusable-drill extraction, design/scoped-choropleth-drill,
+ * engram #1481): fetches this screen's own open-cases-per-locality rows, then
+ * folds them to department/barrio grain via the shared
+ * aggregateRowsByDepartment (lib/analytics/subregion-aggregate.ts), which also
+ * enforces the k=5 k-anonymity floor. Signature unchanged for existing callers.
+ *
+ * Scope is enforced by casesScopeClause (same as all other cases fetchers).
+ * Admin always sees all cases; govt sees only their assigned localities.
+ */
+export async function fetchCasesPerSubregion(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  provinceIso: string,
+  opts: { adminProvince?: string; adminLocality?: string } = {},
+): Promise<SubregionCaseCount[]> {
+  const scope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  // Govt with no assignments can never see any case. NOTE: this must key off
+  // actor.role, not `scope !== null` — an admin+adminProvince drill-down now
+  // also produces a non-null scope, and admin's jurisdictions is always []
+  // by contract, so a `scope !== null && jurisdictions.length === 0` check
+  // would have wrongly zeroed the admin drill-down result.
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+
+  // Cases store the canonical province display name (migration 0055's
+  // 24-enum check constraint); CABA is stored literally as "CABA" (not
+  // "Ciudad Autónoma de Buenos Aires", which is ar_localities' province row name).
+  const provinceDisplayName = provinceIso === "AR-C" ? "CABA" : provinceByCode(provinceIso)?.name;
+  if (!provinceDisplayName) return [];
+
+  const conditions = [
+    eq(cases.status, "open"),
+    eq(cases.jurisdictionProvince, provinceDisplayName),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const caseRows = await db
+    .select({ locality: cases.jurisdictionLocality, n: count() })
+    .from(cases)
+    .where(and(...conditions))
+    .groupBy(cases.jurisdictionLocality);
+
+  return aggregateRowsByDepartment(
+    provinceIso,
+    caseRows.map((r) => ({ locality: r.locality, value: r.n })),
+  );
+}
+
+// ============================================================================
+
+export type ProvinceCasesPerCapita = {
+  province: string;
+  /**
+   * ISO 3166-2:AR code matching the GeoJSON `code` property if known.
+   * Empty string if the province is not in PROVINCE_ISO_MAP.
+   */
+  code: string;
+  /** Raw count of open cases in this province. */
+  count: number;
+  /**
+   * Cases per 10,000 inhabitants (count / population * 10_000), rounded to
+   * one decimal. `null` when there is no census row for the province (avoids
+   * divide-by-zero; the UI falls back to showing the raw count in that case).
+   */
+  ratePer10k: number | null;
+};
+
+/**
+ * Open cases per province with INDEC 2022 per-capita rate.
+ *
+ * Aggregates open cases by jurisdictionProvince, then LEFT JOINs the
+ * jurisdictions_census table (province_name = jurisdiction_province) to
+ * compute rate = count / population * 10_000.
+ *
+ * Join key: cases.jurisdictionProvince (canonical display name, same format
+ * as jurisdictionsCensus.provinceName — both enforced by migration 0055
+ * canonical check constraint). Match is exact text equality.
+ *
+ * Fallback: provinces with no census row get ratePer10k = null so callers
+ * can display the raw count as a safe fallback.
+ */
+export async function fetchCasesPerCapita(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceCasesPerCapita[]> {
+  const conditions = [eq(cases.status, "open")];
+  const scope = casesScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  // Aggregate by province only (no locality grouping — per-capita is a
+  // province-level figure because the census table is province-level).
+  // The LEFT JOIN is 1:1 (province_name is the PK of jurisdictions_census),
+  // so grouping by province alone and using MAX(population) is safe.
+  const rows = await db
+    .select({
+      province: cases.jurisdictionProvince,
+      n: count(),
+      population: sql<string | null>`MAX(${jurisdictionsCensus.population})`,
+    })
+    .from(cases)
+    .leftJoin(
+      jurisdictionsCensus,
+      and(
+        eq(jurisdictionsCensus.provinceName, cases.jurisdictionProvince),
+        eq(jurisdictionsCensus.censusYear, 2022),
+      ),
+    )
+    .where(and(...conditions))
+    .groupBy(cases.jurisdictionProvince);
+
+  return rows
+    .filter((r) => r.province !== null)
+    .map((r) => {
+      const pop = r.population !== null ? Number(r.population) : null;
+      const ratePer10k =
+        pop !== null && pop > 0 ? Math.round((r.n / pop) * 10_000 * 10) / 10 : null;
+      return {
+        province: r.province as string,
+        code: PROVINCE_ISO_MAP[r.province as string] ?? "",
+        count: r.n,
+        ratePer10k,
+      };
+    });
+}
+
+// ============================================================================
+
+export type ZoonosisTrendPoint = {
+  /** Pre-formatted x-axis label, e.g. "ene.", "feb.". Month abbreviation in es-AR locale. */
+  x: string;
+  /** Count of outbreak_signal events in that month. */
+  y: number;
+  /** ISO date of the period start (month start), for upstream sorting. */
+  periodStart: string;
+};
+
+/**
+ * Outbreak signal counts grouped by month, last 12 months, within the user's
+ * scope. Used for <TimeSeriesChart> on /gob/vigilancia.
+ *
+ * We use date_trunc('month', occurred_at) to group by calendar month. The
+ * pet_events table lacks a dedicated "event_category" column — we match on
+ * eventType LIKE 'outbreak_%' by listing all known outbreak_* event types.
+ * Currently only 'outbreak_signal' exists; this pattern extends naturally.
+ */
+export async function fetchZoonosisTrend(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { since?: Date; adminProvince?: string; adminLocality?: string } = {},
+): Promise<ZoonosisTrendPoint[]> {
+  const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
+
+  const conditions = [
+    sql`${petEvents.eventType} LIKE ${"outbreak_%"}`,
+    gte(petEvents.occurredAt, since12m),
+  ];
+  const scope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
+  if (scope) conditions.push(sql`(${scope})`);
+  // Payload jurisdiction is an event-time snapshot — also require the pet's
+  // CURRENT jurisdiction in scope (scope-security review 2026-07-04 A2).
+  const petsGuard = petsCurrentJurisdictionExists(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
+  if (petsGuard) conditions.push(petsGuard);
+
+  const rows = await db
+    .select({
+      month: sql<string>`date_trunc('month', ${petEvents.occurredAt})`,
+      n: count(),
+    })
+    .from(petEvents)
+    .where(and(...conditions))
+    .groupBy(sql`date_trunc('month', ${petEvents.occurredAt})`)
+    .orderBy(sql`date_trunc('month', ${petEvents.occurredAt})`);
+
+  return rows.map((r) => {
+    const d = new Date(r.month);
+    return {
+      // r.month is a date_trunc('month') UTC boundary — pin UTC so the label
+      // names the bucket month (an ambient/AR render shifts midnight-UTC
+      // boundaries into the PREVIOUS month).
+      x: d.toLocaleString("es-AR", { month: "short", timeZone: "UTC" }),
+      y: r.n,
+      periodStart: d.toISOString(),
+    };
+  });
+}
+
+// ============================================================================
+
+export type OutbreakHistoryRow = {
+  diseaseCode: string;
+  diseaseName: string;
+  locality: string;
+  province: string;
+  /**
+   * ISO date (YYYY-MM-DD) of the calendar day with the highest number of
+   * outbreak_signal events for this (disease_code, locality, province) group.
+   * Tie-break: highest signal count first, then most-recent day.
+   */
+  peakDate: string;
+  /** Total outbreak_signal events from this disease in this locality, full history. */
+  totalSignals: number;
+};
+
+/**
+ * Historical outbreaks grouped by (disease_code, disease_label, locality, province),
+ * ordered by most-recent signal descending.
+ *
+ * peakDate = the calendar day (date_trunc('day', occurred_at)::date) that
+ * had the most outbreak_signal events within the group. Ties broken by most-
+ * recent day. Group-level totalSignals counts all signals across all days.
+ *
+ * Implemented as a three-CTE query (daily → peak → totals) joined together so
+ * that per-day counts, busiest-day selection (DISTINCT ON), and group totals
+ * are each computed in a single pass.
+ *
+ * Scope via outbreak_signal payload fields pet_jurisdiction_province/locality
+ * (same as fetchSurveillanceSignals). No time restriction — full history.
+ */
+export async function fetchOutbreakHistory(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  opts: { adminProvince?: string; adminLocality?: string } = {},
+): Promise<OutbreakHistoryRow[]> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+
+  // Build the jurisdiction scope clause once; reused in both CTEs. The pets
+  // guard (EXISTS on the pet's CURRENT jurisdiction) closes the payload-drift
+  // hole for govt viewers (scope-security review 2026-07-04 A2).
+  const scope = outbreakSignalScopeClause(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
+  const petsGuard = petsCurrentJurisdictionExists(
+    actor,
+    jurisdictions,
+    opts.adminProvince,
+    opts.adminLocality,
+  );
+  const scopeFragment = sql.join(
+    [scope ? sql` AND (${scope})` : sql``, petsGuard ? sql` AND ${petsGuard}` : sql``],
+    sql``,
+  );
+
+  type RawRow = {
+    disease_code: string;
+    disease_label: string | null;
+    province: string;
+    locality: string;
+    peak_day: string;
+    total_signals: number;
+    last_seen: string;
+  };
+
+  const rows = (await db.execute(sql`
+    WITH daily AS (
+      -- Per-(group, day) signal counts. Groups share the same 4-tuple key.
+      SELECT
+        (${petEvents.payload}->>'disease_code')                                AS disease_code,
+        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
+        date_trunc('day', ${petEvents.occurredAt})::date                        AS day,
+        COUNT(*)::int                                                           AS day_count
+      FROM ${petEvents}
+      WHERE ${petEvents.eventType} = 'outbreak_signal'${scopeFragment}
+      GROUP BY disease_code, disease_label, province, locality, day
+    ),
+    peak AS (
+      -- Pick the single busiest day per group.
+      -- Tie-break: most signals first, then most-recent day.
+      SELECT DISTINCT ON (disease_code, disease_label, province, locality)
+        disease_code,
+        disease_label,
+        province,
+        locality,
+        day AS peak_day
+      FROM daily
+      ORDER BY disease_code, disease_label, province, locality,
+               day_count DESC, day DESC
+    ),
+    totals AS (
+      -- Group-level aggregates: total signal count + last-seen timestamp
+      -- (used for ordering the final result).
+      SELECT
+        (${petEvents.payload}->>'disease_code')                                AS disease_code,
+        COALESCE((${petEvents.payload}->>'disease_label'), '')                 AS disease_label,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_province'), '')      AS province,
+        COALESCE((${petEvents.payload}->>'pet_jurisdiction_locality'), '')      AS locality,
+        COUNT(*)::int                                                           AS total_signals,
+        MAX(${petEvents.occurredAt})                                            AS last_seen
+      FROM ${petEvents}
+      WHERE ${petEvents.eventType} = 'outbreak_signal'${scopeFragment}
+      GROUP BY disease_code, disease_label, province, locality
+    )
+    SELECT
+      t.disease_code,
+      t.disease_label,
+      t.province,
+      t.locality,
+      p.peak_day,
+      t.total_signals,
+      t.last_seen
+    FROM totals t
+    JOIN peak p USING (disease_code, disease_label, province, locality)
+    ORDER BY t.last_seen DESC
+    LIMIT 100
+  `)) as RawRow[];
+
+  return rows.map((r) => ({
+    diseaseCode: r.disease_code,
+    diseaseName: findDisease(r.disease_code)?.label ?? (r.disease_label || null) ?? r.disease_code,
+    locality: r.locality,
+    province: r.province,
+    // peak_day arrives as a Postgres ::date string (YYYY-MM-DD); wrap in Date
+    // only to normalise, then emit as ISO date string.
+    peakDate: new Date(r.peak_day).toISOString(),
+    totalSignals: r.total_signals,
+  }));
+}

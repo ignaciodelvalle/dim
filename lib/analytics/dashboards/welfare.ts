@@ -1,0 +1,613 @@
+// Maltrato (welfare_reports) dashboard fetchers — E4.
+// Split out of lib/analytics/govt-dashboards.ts (engram refactor/govt-dashboards-split).
+
+import {
+  type SQL,
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  not,
+  sql,
+} from "drizzle-orm";
+
+import { caseEvents, cases, analyticsDb as db, petEvents, profiles, welfareReports } from "@/db";
+import {
+  type DashboardActor,
+  type DashboardJurisdiction,
+  jurisdictionPairClause,
+} from "@/lib/metrics";
+import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
+import { DAY_MS } from "./_scope";
+
+// Build a scope clause for the `welfare_reports` table.
+// Admin: null (no restriction). Govt: OR of jurisdiction pair matches.
+// Exported so the maltrato list page and its tests can reuse the same logic.
+export function welfareReportsScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+) {
+  if (actor.role === "admin") return null;
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${welfareReports.jurisdictionProvince}`,
+      sql`${welfareReports.jurisdictionLocality}`,
+    ) ?? sql`false`
+  );
+}
+
+// ============================================================================
+// Moderation queue WHERE-clause builder (jurisdiction denuncia moderation)
+//
+// The flagged-denuncia moderation queue. /admin/moderacion sees it universally;
+// /gob/moderacion sees ONLY the viewer's assigned localities (govt) with the
+// same predicate + the jurisdiction scope clause — so we don't fork a parallel
+// query. A flagged report with no/ambiguous jurisdiction never matches a govt
+// scope pair, so it stays admin-only (never invisible to everyone).
+// ============================================================================
+
+export type ModerationQueueStatus = "pending" | "resolved" | "all";
+
+export type ModerationQueueFilters = {
+  actor: DashboardActor;
+  /** The viewer's active jurisdiction assignments (empty for admin = universal). */
+  jurisdictions: DashboardJurisdiction[];
+  /** pending = actionable (unresolved, not escalated); resolved; all = every flagged row in scope. */
+  status: ModerationQueueStatus;
+  kind?: string | null;
+  severity?: string | null;
+};
+
+/**
+ * Returns a Drizzle SQL condition for the flagged-denuncia moderation queue,
+ * scoped to the viewer:
+ *   - Only flagged rows (flaggedAt IS NOT NULL).
+ *   - Jurisdiction scope (govt: assignment pairs; admin: universal). Rows with
+ *     no jurisdiction never match a govt pair, so they stay admin-only.
+ *   - status: pending = unresolved AND not escalated (the govt actionable queue);
+ *     resolved = moderation already resolved; all = every flagged row in scope.
+ *   - Optional kind / severity narrow filters.
+ *
+ * Returns `sql\`false\`` when a govt viewer has no jurisdiction assignments.
+ */
+export function buildModerationQueueConditions(filters: ModerationQueueFilters): SQL {
+  const { actor, jurisdictions, status, kind, severity } = filters;
+
+  // Short-circuit: a govt with no assignments can never see any flagged row.
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    return sql`false`;
+  }
+
+  const conditions: SQL[] = [isNotNull(welfareReports.flaggedAt) as SQL];
+
+  // Jurisdiction scope (govt only — admin is unscoped/universal).
+  const scope = welfareReportsScopeClause(actor, jurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  // Status bucket.
+  if (status === "pending") {
+    // Actionable queue: not yet resolved AND not handed off to admin.
+    conditions.push(sql`(${welfareReports.moderationResolvedAt} IS NULL)`);
+    conditions.push(sql`(${welfareReports.moderationEscalatedAt} IS NULL)`);
+  } else if (status === "resolved") {
+    conditions.push(sql`(${welfareReports.moderationResolvedAt} IS NOT NULL)`);
+  }
+  // "all" = every flagged row in scope (no extra clause).
+
+  if (kind) conditions.push(eq(welfareReports.kind, kind as never) as SQL);
+  if (severity) conditions.push(eq(welfareReports.severity, severity as never) as SQL);
+
+  return and(...conditions) as SQL;
+}
+
+// TERMINAL_STATUSES (closed | invalid | duplicate) is imported from the welfare
+// domain — the single source of truth shared with govt-home-kpis and
+// owner-dashboard so every welfare count treats "terminal" identically (C4).
+
+// ============================================================================
+// Maltrato list WHERE-clause builder (E4 followup)
+//
+// Consolidates every filter that was previously applied in JS post-fetch into
+// a composable Drizzle WHERE condition. Exported to allow unit testing without
+// a full DB round-trip.
+// ============================================================================
+
+export type MaltratoQueue = "urgent" | "mine" | "all" | "overdue" | "unassigned";
+
+export type MaltratoListFilters = {
+  actor: DashboardActor;
+  /** Intersected (assignment ∩ UI selection) jurisdiction set from the page. */
+  filteredJurisdictions: DashboardJurisdiction[];
+  queue: MaltratoQueue;
+  kind?: string | null;
+  severity?: string | null;
+  /** Status narrow filter — restores parity with the old JS ?status= param handling. */
+  status?: string | null;
+  /**
+   * For ADMIN only: canonical province name selected in the URL (?province=).
+   * Govt callers must NOT pass this — their scope is already enforced by
+   * filteredJurisdictions; passing selectedProvince for govt could widen the scope.
+   */
+  selectedProvince?: string | null;
+  /**
+   * For ADMIN only: canonical locality name selected in the URL (?locality=).
+   * See selectedProvince. Ignored unless selectedProvince is also set.
+   */
+  selectedLocality?: string | null;
+  currentUserId: string;
+};
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Returns a Drizzle SQL condition that encodes every filter for the maltrato
+ * triage list:
+ *   - Jurisdiction scope (intersected assignments — never widens beyond them)
+ *   - Moderation exclusion (flagged but not yet admin-resolved)
+ *   - Kind / severity narrow filters
+ *   - Queue predicate (urgent / mine / overdue / all)
+ *
+ * Returns `sql\`false\`` when a govt user has no jurisdiction assignments so
+ * the query will always produce zero rows.
+ */
+export function buildMaltratoListConditions(filters: MaltratoListFilters) {
+  const {
+    actor,
+    filteredJurisdictions,
+    queue,
+    kind,
+    severity,
+    status,
+    selectedProvince,
+    selectedLocality,
+    currentUserId,
+  } = filters;
+
+  // Short-circuit: govt with no assignments can never see any row.
+  if (actor.role === "govt" && filteredJurisdictions.length === 0) {
+    return sql`false`;
+  }
+
+  const conditions = [];
+
+  // 1. Jurisdiction scope (govt only — admin is unscoped by welfareReportsScopeClause).
+  const scope = welfareReportsScopeClause(actor, filteredJurisdictions);
+  if (scope) conditions.push(sql`(${scope})`);
+
+  // 2. Admin province/locality filter — applies when an admin selects a province
+  //    or province+locality via the URL (?province= / ?locality=). Govt users must
+  //    NOT pass these fields; their scope is already enforced by filteredJurisdictions
+  //    (intersection of assignments ∩ URL selection, computed in the page layer).
+  if (actor.role === "admin" && selectedProvince) {
+    if (selectedLocality) {
+      conditions.push(
+        and(
+          eq(welfareReports.jurisdictionProvince, selectedProvince),
+          eq(welfareReports.jurisdictionLocality, selectedLocality),
+        ),
+      );
+    } else {
+      conditions.push(eq(welfareReports.jurisdictionProvince, selectedProvince));
+    }
+  }
+
+  // 3. Moderation exclusion — hide flagged rows awaiting admin review.
+  conditions.push(
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  );
+
+  // 4. Kind narrow filter.
+  if (kind) conditions.push(eq(welfareReports.kind, kind as never));
+
+  // 5. Severity narrow filter.
+  if (severity) conditions.push(eq(welfareReports.severity, severity as never));
+
+  // 6. Status narrow filter — restores parity with the old ?status= JS filtering.
+  if (status) conditions.push(eq(welfareReports.status, status as never));
+
+  // 7. Queue predicate.
+  switch (queue) {
+    case "urgent":
+      // Critical or high severity, not yet in a terminal status.
+      // S-1: if severity is set to a non-(critical|high) value AND queue=urgent,
+      // the AND of these two conditions is always false — contradictory filter → no rows by design.
+      conditions.push(inArray(welfareReports.severity, ["critical", "high"]));
+      conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
+      break;
+    case "mine":
+      // Assigned to the current user (any non-terminal status).
+      conditions.push(eq(welfareReports.assignedToUserId, currentUserId));
+      break;
+    case "unassigned":
+      // No operator assigned yet AND not in a terminal status — the exact
+      // predicate behind the "Sin asignar" KPI (fetchWelfareMetrics.unassignedCount).
+      // Keeps the KPI tile's drill-down honest: the list it opens is the same
+      // set the tile counts.
+      conditions.push(isNull(welfareReports.assignedToUserId));
+      conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
+      break;
+    case "overdue":
+      // Status still open AND created more than 7 days ago without triage.
+      conditions.push(eq(welfareReports.status, "open"));
+      conditions.push(lt(welfareReports.createdAt, new Date(Date.now() - SEVEN_DAYS_MS)));
+      break;
+    default:
+      // "all" — no extra filter.
+      break;
+  }
+
+  return and(...conditions);
+}
+
+export type WelfareMetrics = {
+  /** Welfare reports in scope with assigned_to_user_id IS NULL AND status NOT in closed/invalid/duplicate. */
+  unassignedCount: number;
+  /** Welfare reports in scope assigned to currentUserId, status open|triaged|in_progress. */
+  myCount: number;
+  /** Welfare reports in scope with status='in_progress'. */
+  inProgressCount: number;
+  /** Welfare reports in scope closed in the last 30 days. */
+  closedMonth: number;
+};
+
+// KPI↔list parity (filter-honesty fix 2026-07): the maltrato KPI tiles used to
+// ignore kind/severity/status/admin-province entirely, so a filtered list
+// (buildMaltratoListConditions) and its "totals" tiles disagreed. This mirrors
+// ONLY the domain axes (kind/severity/status) + jurisdiction/admin scope —
+// deliberately excludes `queue`, which is a WORKFLOW lens over the list, not a
+// domain filter, and must never skew a KPI count.
+export type WelfareMetricsFilters = Pick<
+  MaltratoListFilters,
+  "kind" | "severity" | "status" | "selectedProvince" | "selectedLocality"
+>;
+
+export async function fetchWelfareMetrics(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  currentUserId: string,
+  filters?: WelfareMetricsFilters,
+): Promise<WelfareMetrics> {
+  const scope = welfareReportsScopeClause(actor, jurisdictions);
+
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    return { unassignedCount: 0, myCount: 0, inProgressCount: 0, closedMonth: 0 };
+  }
+
+  const since30d = new Date(Date.now() - 30 * DAY_MS);
+  const { kind, severity, status, selectedProvince, selectedLocality } = filters ?? {};
+
+  // Domain narrow filters — the SAME eq() clauses buildMaltratoListConditions
+  // applies to the list (identical enums, identical scope logic), so a tile
+  // and the list it drills into always agree under the same filter set.
+  const domainConditions: SQL[] = [];
+  if (scope) domainConditions.push(sql`(${scope})`);
+  if (actor.role === "admin" && selectedProvince) {
+    if (selectedLocality) {
+      domainConditions.push(
+        and(
+          eq(welfareReports.jurisdictionProvince, selectedProvince),
+          eq(welfareReports.jurisdictionLocality, selectedLocality),
+        ) as SQL,
+      );
+    } else {
+      domainConditions.push(eq(welfareReports.jurisdictionProvince, selectedProvince) as SQL);
+    }
+  }
+  if (kind) domainConditions.push(eq(welfareReports.kind, kind as never) as SQL);
+  if (severity) domainConditions.push(eq(welfareReports.severity, severity as never) as SQL);
+  if (status) domainConditions.push(eq(welfareReports.status, status as never) as SQL);
+  // Moderation-exclusion — mirror buildMaltratoListConditions exactly: a flagged
+  // report stays OUT of the work queue until moderation resolves it, so the KPI
+  // tiles must exclude it too. Without this a flagged-but-unresolved report is
+  // counted by a tile but absent from the list it drills into — the very
+  // KPI↔list divergence this parity fix exists to eliminate, on the moderation
+  // axis instead of kind/severity/status.
+  domainConditions.push(
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  );
+
+  // 1. Unassigned: assigned_to_user_id IS NULL AND status NOT IN terminal.
+  const unassignedConditions = [
+    isNull(welfareReports.assignedToUserId),
+    not(inArray(welfareReports.status, [...TERMINAL_STATUSES])),
+    ...domainConditions,
+  ];
+
+  // 2. Mine: assigned to currentUserId, status in non-terminal active states.
+  const myConditions = [
+    eq(welfareReports.assignedToUserId, currentUserId),
+    not(inArray(welfareReports.status, [...TERMINAL_STATUSES])),
+    ...domainConditions,
+  ];
+
+  // 3. In-progress: status='in_progress'.
+  const inProgressConditions = [eq(welfareReports.status, "in_progress"), ...domainConditions];
+
+  // 4. Closed in last 30 days: status='closed' AND closed_at >= 30d ago.
+  const closedMonthConditions = [
+    eq(welfareReports.status, "closed"),
+    gte(welfareReports.closedAt, since30d),
+    ...domainConditions,
+  ];
+
+  const [unassignedRows, myRows, inProgressRows, closedMonthRows] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...unassignedConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...myConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...inProgressConditions)),
+    db
+      .select({ n: count() })
+      .from(welfareReports)
+      .where(and(...closedMonthConditions)),
+  ]);
+
+  return {
+    unassignedCount: unassignedRows[0]?.n ?? 0,
+    myCount: myRows[0]?.n ?? 0,
+    inProgressCount: inProgressRows[0]?.n ?? 0,
+    closedMonth: closedMonthRows[0]?.n ?? 0,
+  };
+}
+
+// ============================================================================
+// Welfare timeline — E4
+// ============================================================================
+
+export type TimelineEvent = {
+  id: string;
+  occurredAt: Date;
+  /** e.g. 'created', 'triaged', 'assigned', 'in_progress', 'closed', 'invalid', 'duplicate', 'pet_event' */
+  kind: string;
+  actorName?: string;
+  summary: string;
+};
+
+/**
+ * Derives a chronological list of timeline events for a welfare report.
+ *
+ * Sources:
+ *  1. Synthetic 'created' event from welfare_reports.created_at.
+ *  2. Synthetic 'triaged' event from welfare_reports.triaged_at (if present).
+ *  3. Synthetic 'closed' / status event from welfare_reports.closed_at + status.
+ *  4. Synthetic 'assigned' event from welfare_reports.assigned_to_user_id (if set).
+ *  5. pet_events linked via welfare_reports.case_id → cases → pet_events (optional enrichment).
+ *
+ * Actor names resolved from profiles in a single batch query.
+ */
+/**
+ * Map a case_events row to a gov-timeline summary string. Returns null for
+ * entry types that should NOT surface in the gov welfare timeline. The org
+ * display name is read from the payload when present.
+ *
+ * Exported for testing (UI-7 Part C).
+ */
+export function caseEventTimelineSummary(
+  entryType: string,
+  notes: string | null,
+  payload: unknown,
+): string | null {
+  const orgName =
+    payload && typeof payload === "object" && "orgDisplayName" in payload
+      ? String((payload as Record<string, unknown>).orgDisplayName)
+      : null;
+  const trimmedNotes = notes?.trim() ? notes.trim() : null;
+
+  switch (entryType) {
+    case "reporter_comment":
+      return trimmedNotes
+        ? `Comentario del denunciante: ${trimmedNotes}`
+        : "El denunciante agregó un comentario.";
+    case "org_intervention_taken":
+      return orgName
+        ? `${orgName} tomó la denuncia y está interviniendo.`
+        : "La organización tomó la denuncia y está interviniendo.";
+    case "org_intervention_note":
+      return trimmedNotes
+        ? `Nota de intervención${orgName ? ` (${orgName})` : ""}: ${trimmedNotes}`
+        : "La organización agregó una nota de intervención.";
+    case "org_intervention_return":
+      return `${orgName ?? "La organización"} devolvió la denuncia${
+        trimmedNotes ? `: ${trimmedNotes}` : "."
+      }`;
+    default:
+      return null;
+  }
+}
+
+export async function fetchWelfareTimeline(reportId: string): Promise<TimelineEvent[]> {
+  const [report] = await db
+    .select()
+    .from(welfareReports)
+    .where(eq(welfareReports.id, reportId))
+    .limit(1);
+
+  if (!report) return [];
+
+  const events: TimelineEvent[] = [];
+
+  // Collect actor IDs to batch-resolve display names.
+  const actorIdSet = new Set<string>();
+  if (report.reporterUserId) actorIdSet.add(report.reporterUserId);
+  if (report.triagedByUserId) actorIdSet.add(report.triagedByUserId);
+  if (report.assignedToUserId) actorIdSet.add(report.assignedToUserId);
+
+  // Pull pet_events linked via the case if available.
+  let linkedPetEvents: Array<{
+    id: string;
+    eventType: string;
+    occurredAt: Date;
+    recordedByUserId: string | null;
+  }> = [];
+  // Pull case_events (reporter comments + org intervention notes) so the gov
+  // timeline shows them. These live in case_events, NOT welfare_reports, so the
+  // gov detail was previously blind to them (UI-7 Part C).
+  let linkedCaseEvents: Array<{
+    id: string;
+    entryType: string;
+    occurredAt: Date;
+    notes: string | null;
+    payload: unknown;
+    recordedByUserId: string | null;
+  }> = [];
+  if (report.caseId) {
+    linkedCaseEvents = await db
+      .select({
+        id: caseEvents.id,
+        entryType: caseEvents.entryType,
+        occurredAt: caseEvents.occurredAt,
+        notes: caseEvents.notes,
+        payload: caseEvents.payload,
+        recordedByUserId: caseEvents.recordedByUserId,
+      })
+      .from(caseEvents)
+      .where(eq(caseEvents.caseId, report.caseId))
+      .orderBy(desc(caseEvents.occurredAt))
+      .limit(50);
+
+    for (const e of linkedCaseEvents) {
+      if (e.recordedByUserId) actorIdSet.add(e.recordedByUserId);
+    }
+
+    const [linkedCase] = await db
+      .select({ primaryPetId: cases.primaryPetId })
+      .from(cases)
+      .where(eq(cases.id, report.caseId))
+      .limit(1);
+
+    if (linkedCase?.primaryPetId) {
+      linkedPetEvents = await db
+        .select({
+          id: petEvents.id,
+          eventType: petEvents.eventType,
+          occurredAt: petEvents.occurredAt,
+          recordedByUserId: petEvents.recordedByUserId,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, linkedCase.primaryPetId),
+            gte(petEvents.occurredAt, report.createdAt),
+          ),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(20);
+
+      for (const e of linkedPetEvents) {
+        if (e.recordedByUserId) actorIdSet.add(e.recordedByUserId);
+      }
+    }
+  }
+
+  // Batch-resolve actor names.
+  const actorIds = [...actorIdSet];
+  const actorNames = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const nameRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, actorIds));
+    for (const r of nameRows) actorNames.set(r.id, r.displayName);
+  }
+
+  // 1. Created event.
+  events.push({
+    id: `created-${report.id}`,
+    occurredAt: report.createdAt,
+    kind: "created",
+    actorName: report.reporterUserId
+      ? (actorNames.get(report.reporterUserId) ?? undefined)
+      : undefined,
+    summary: "Denuncia registrada en el sistema.",
+  });
+
+  // 2. Triaged event.
+  if (report.triagedAt) {
+    events.push({
+      id: `triaged-${report.id}`,
+      occurredAt: report.triagedAt,
+      kind: "triaged",
+      actorName: report.triagedByUserId
+        ? (actorNames.get(report.triagedByUserId) ?? undefined)
+        : undefined,
+      summary: "Denuncia revisada por la autoridad.",
+    });
+  }
+
+  // 3. Assigned event (synthetic — we know it's assigned but not when; use triagedAt or now).
+  if (report.assignedToUserId) {
+    const assignedName = actorNames.get(report.assignedToUserId) ?? "un agente";
+    events.push({
+      id: `assigned-${report.id}`,
+      occurredAt: report.triagedAt ?? report.createdAt,
+      kind: "assigned",
+      actorName: assignedName,
+      summary: `Caso asignado a ${assignedName}.`,
+    });
+  }
+
+  // 4. In-progress / closed / terminal status events.
+  if (report.status === "in_progress" && report.triagedAt) {
+    events.push({
+      id: `in_progress-${report.id}`,
+      occurredAt: report.triagedAt,
+      kind: "in_progress",
+      summary: "Seguimiento activo iniciado.",
+    });
+  }
+  if (report.closedAt) {
+    const closedKindLabel =
+      report.status === "invalid"
+        ? "Cerrada por falta de sustento."
+        : report.status === "duplicate"
+          ? "Marcada como duplicada."
+          : "Denuncia cerrada con resolución.";
+    events.push({
+      id: `closed-${report.id}`,
+      occurredAt: report.closedAt,
+      kind: report.status,
+      summary: closedKindLabel,
+    });
+  }
+
+  // 5. Pet events linked via case.
+  for (const e of linkedPetEvents) {
+    events.push({
+      id: `pet-event-${e.id}`,
+      occurredAt: e.occurredAt,
+      kind: "pet_event",
+      actorName: e.recordedByUserId ? (actorNames.get(e.recordedByUserId) ?? undefined) : undefined,
+      summary: `Evento de mascota: ${e.eventType.replace(/_/g, " ")}.`,
+    });
+  }
+
+  // 6. Case events — reporter comments + org intervention notes (UI-7 Part C).
+  // Surfaced to gov so the maltrato detail shows the full case conversation.
+  for (const e of linkedCaseEvents) {
+    const summary = caseEventTimelineSummary(e.entryType, e.notes, e.payload);
+    if (!summary) continue; // skip unknown / internal entry types
+    events.push({
+      id: `case-event-${e.id}`,
+      occurredAt: e.occurredAt,
+      kind: e.entryType,
+      actorName: e.recordedByUserId ? (actorNames.get(e.recordedByUserId) ?? undefined) : undefined,
+      summary,
+    });
+  }
+
+  // Sort chronologically.
+  return events.sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
+}
