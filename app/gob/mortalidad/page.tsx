@@ -29,8 +29,12 @@ import {
   OpKpiSm,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
-import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
+import {
+  fetchMortalityDisposition,
+  fetchPrevMortalityTotal,
+} from "@/lib/analytics/mortality-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -107,12 +111,17 @@ export default async function GobMortalidadPage({
     adminLocality,
   });
   // Snapshot projection + the D1 cause-by-period trend + death sparkline run in
-  // parallel over the same scoped death_recorded population.
-  const [m, causesTrend, deathSparkline] = await Promise.all([
+  // parallel over the same scoped death_recorded population. fetchPrevMortalityTotal
+  // adds ONE new query (same scope, shifted one period back) purely to power the
+  // "Muertes (período)" deltaV2 chip — mirrors campaign-metrics.ts' fetchPrevTotals.
+  const [m, causesTrend, deathSparkline, prevTotal] = await Promise.all([
     fetchMortalityDisposition(ctx),
     fetchDeathCausesTrend(ctx),
     fetchKpiTrend("death_recorded", ctx),
+    fetchPrevMortalityTotal(ctx),
   ]);
+
+  const deathsDelta = formatDelta(m.total, prevTotal, "vs período anterior");
 
   const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
   const localityCells = m.byLocality.value;
@@ -172,6 +181,7 @@ export default async function GobMortalidadPage({
           value={hasDeaths ? m.total.toLocaleString("es-AR") : "—"}
           sub={hasDeaths ? "fallecimientos registrados" : "Sin datos en el período"}
           tone={!hasDeaths ? "neutral" : undefined}
+          deltaV2={hasDeaths ? (deathsDelta ?? undefined) : undefined}
           sparkline={deathSparkline.points.map((p) => p.y)}
           info={{
             definition:

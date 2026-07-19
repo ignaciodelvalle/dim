@@ -288,6 +288,45 @@ export async function fetchMortalityHeadline(ctx: ProjectionContext): Promise<Mo
   return { total, traceableRate: pct(agg?.traceable ?? 0, total) };
 }
 
+/**
+ * Prior-period death_recorded total, for the /gob/mortalidad deltaV2 chip.
+ *
+ * Mirrors fetchMortalityHeadline's `total` query EXACTLY (same event type,
+ * same petsScopeClause scope) but shifted one full period back — same pattern
+ * as campaign-metrics.ts' fetchPrevTotals: prevUntil = ctx.period.since,
+ * prevSince = since − duration, where duration = ctx.period.until −
+ * ctx.period.since. Consumed via formatDelta (lib/analytics/campaign-metrics.ts)
+ * for an honest "vs período anterior" comparison scoped identically to the
+ * headline value.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchPrevMortalityTotal(ctx: ProjectionContext): Promise<number> {
+  if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return 0;
+  }
+
+  const scope = petsScopeClause(ctx);
+  const duration = ctx.period.until.getTime() - ctx.period.since.getTime();
+  const prevSince = new Date(ctx.period.since.getTime() - duration);
+  const prevUntil = ctx.period.since;
+
+  const conditions = [
+    eq(petEvents.eventType, "death_recorded"),
+    gte(petEvents.occurredAt, prevSince),
+    lte(petEvents.occurredAt, prevUntil),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const [row] = await db
+    .select({ n: count() })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...conditions));
+
+  return row?.n ?? 0;
+}
+
 function emptyResult(): MortalityDisposition {
   const empty = suppressSmallCells<Cell>([], {
     count: (c) => c.count,

@@ -240,6 +240,43 @@ export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<Custod
   };
 }
 
+/**
+ * Prior-period adoption_finalized count, for the /gob/adopciones deltaV2 chip.
+ *
+ * Mirrors fetchCustodyFunnel's "adoption" stage EXACTLY (same event type, same
+ * petsScopeClause scope, same admin drill-down via ctx.adminProvince/Locality)
+ * but shifted one full period back — same pattern as campaign-metrics.ts'
+ * fetchPrevTotals: prevUntil = ctx.period.since, prevSince = since − duration,
+ * where duration = ctx.period.until − ctx.period.since. Consumed via
+ * formatDelta (lib/analytics/campaign-metrics.ts) for an honest "vs período
+ * anterior" comparison scoped identically to the headline value.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchPrevAdoptionCount(ctx: ProjectionContext): Promise<number> {
+  if (isEmptyScope(ctx)) return 0;
+
+  const scope = petsScopeClause(ctx);
+  const duration = ctx.period.until.getTime() - ctx.period.since.getTime();
+  const prevSince = new Date(ctx.period.since.getTime() - duration);
+  const prevUntil = ctx.period.since;
+
+  const conditions = [
+    eq(petEvents.eventType, "adoption_finalized"),
+    gte(petEvents.occurredAt, prevSince),
+    lte(petEvents.occurredAt, prevUntil),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const [row] = await db
+    .select({ n: count() })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...conditions));
+
+  return row?.n ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // fetchTimeInState — median + p75 days per ownerships role
 // ---------------------------------------------------------------------------

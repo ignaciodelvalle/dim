@@ -406,6 +406,51 @@ export async function fetchReproductiveOutcomes(
   };
 }
 
+/**
+ * Prior-period registeredBirths count, for the /gob/poblacion deltaV2 chip on
+ * "Nacimientos registrados".
+ *
+ * Mirrors fetchReproductiveOutcomes' live_birth filter EXACTLY (same
+ * sub_kind='pregnancy' + pregnancy_phase='ended' + outcome='live_birth'
+ * predicate, read through the SAME amendedPayloadText overlay so a vet
+ * correction moves the prior-period bucket too, same petsScopeClause scope)
+ * but shifted one full period back — same pattern as campaign-metrics.ts'
+ * fetchPrevTotals: prevUntil = ctx.period.since, prevSince = since − duration.
+ * Consumed via formatDelta (lib/analytics/campaign-metrics.ts).
+ *
+ * NATALIDAD CAVEAT applies here too — see module header. The delta compares
+ * two under-counted numbers, so it is directional (more/fewer TRACKED births),
+ * not a claim about real natalidad trend.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchPrevRegisteredBirths(ctx: ProjectionContext): Promise<number> {
+  if (isEmptyScope(ctx)) return 0;
+
+  const scope = petsScopeClause(ctx);
+  const duration = ctx.period.until.getTime() - ctx.period.since.getTime();
+  const prevSince = new Date(ctx.period.since.getTime() - duration);
+  const prevUntil = ctx.period.since;
+
+  const conditions = [
+    eq(petEvents.eventType, "clinical_info_logged"),
+    sql`${petEvents.payload}->>'sub_kind' = ${"pregnancy"}`,
+    sql`${petEvents.payload}->>'pregnancy_phase' = ${"ended"}`,
+    sql`${amendedPayloadText("outcome")} = ${"live_birth"}`,
+    gte(petEvents.occurredAt, prevSince),
+    lte(petEvents.occurredAt, prevUntil),
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const [row] = await db
+    .select({ n: count() })
+    .from(petEvents)
+    .innerJoin(pets, eq(pets.id, petEvents.petId))
+    .where(and(...conditions));
+
+  return row?.n ?? 0;
+}
+
 // ---------------------------------------------------------------------------
 // Net growth
 // ---------------------------------------------------------------------------

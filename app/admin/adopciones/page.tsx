@@ -18,6 +18,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
+import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
@@ -25,6 +26,7 @@ import {
   fetchAdoptionTrend,
   fetchCustodyFunnel,
   fetchFosterPoolUtilization,
+  fetchPrevAdoptionCount,
   fetchReturnRate,
   fetchShelterOccupancyNational,
   fetchTimeInState,
@@ -49,15 +51,28 @@ export default async function AdminAdopcionesPage({
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
-  const [funnel, timeInState, returnRateValue, fosterPool, shelterOccupancy, adoptionTrend] =
-    await Promise.all([
-      fetchCustodyFunnel(ctx),
-      fetchTimeInState(ctx),
-      fetchReturnRate(ctx),
-      fetchFosterPoolUtilization(ctx),
-      fetchShelterOccupancyNational(ctx),
-      fetchAdoptionTrend(ctx),
-    ]);
+  // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
+  // back) purely to power the "Adopciones" deltaV2 chip — mirrors
+  // campaign-metrics.ts' fetchPrevTotals pattern (same as /gob/adopciones).
+  const [
+    funnel,
+    timeInState,
+    returnRateValue,
+    fosterPool,
+    shelterOccupancy,
+    adoptionTrend,
+    prevAdoptionCount,
+  ] = await Promise.all([
+    fetchCustodyFunnel(ctx),
+    fetchTimeInState(ctx),
+    fetchReturnRate(ctx),
+    fetchFosterPoolUtilization(ctx),
+    fetchShelterOccupancyNational(ctx),
+    fetchAdoptionTrend(ctx),
+    fetchPrevAdoptionCount(ctx),
+  ]);
+
+  const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
 
   const fPct = funnelBarWidths(funnel);
 
@@ -125,6 +140,7 @@ export default async function AdminAdopcionesPage({
           label="Adopciones"
           value={funnel.adoption.toLocaleString("es-AR")}
           sub="adopciones finalizadas en el período"
+          deltaV2={funnel.adoption > 0 ? (adoptionDelta ?? undefined) : undefined}
           sparkline={
             adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined
           }

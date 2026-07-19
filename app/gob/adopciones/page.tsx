@@ -18,6 +18,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -27,6 +28,7 @@ import {
   fetchAdoptionTrend,
   fetchCustodyFunnel,
   fetchFosterPoolUtilization,
+  fetchPrevAdoptionCount,
   fetchReturnRate,
   fetchShelterOccupancyNational,
   fetchTimeInState,
@@ -102,6 +104,9 @@ export default async function GobAdopcionesPage({
     adminLocality,
   });
 
+  // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
+  // back) purely to power the "Adopciones" deltaV2 chip — mirrors
+  // campaign-metrics.ts' fetchPrevTotals pattern.
   const [
     funnel,
     timeInState,
@@ -110,6 +115,7 @@ export default async function GobAdopcionesPage({
     shelterOccupancy,
     adoptionTrend,
     appFunnel,
+    prevAdoptionCount,
   ] = await Promise.all([
     fetchCustodyFunnel(ctx),
     fetchTimeInState(ctx),
@@ -118,7 +124,10 @@ export default async function GobAdopcionesPage({
     fetchShelterOccupancyNational(ctx),
     fetchAdoptionTrend(ctx),
     fetchAdoptionApplicationFunnel(ctx),
+    fetchPrevAdoptionCount(ctx),
   ]);
+
+  const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
 
   const fPct = funnelBarWidths(funnel);
 
@@ -202,6 +211,7 @@ export default async function GobAdopcionesPage({
           label="Adopciones"
           value={funnel.adoption > 0 ? funnel.adoption.toLocaleString("es-AR") : "—"}
           sub="adopciones finalizadas en el período y la cobertura"
+          deltaV2={funnel.adoption > 0 ? (adoptionDelta ?? undefined) : undefined}
           sparkline={
             adoptionTrend.points.length > 0 ? adoptionTrend.points.map((p) => p.y) : undefined
           }

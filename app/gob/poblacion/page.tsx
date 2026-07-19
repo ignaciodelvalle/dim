@@ -24,6 +24,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
+import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -32,6 +33,7 @@ import {
   fetchActivePregnancies,
   fetchDewormingCoverage,
   fetchNetGrowth,
+  fetchPrevRegisteredBirths,
   fetchReproductiveOutcomes,
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
@@ -137,6 +139,9 @@ export default async function GobPoblacionPage({
 
   // Bound the fetcher set with a deadline so a degraded DB yields an honest
   // "reintentar" state instead of an unbounded hang (parity with /admin/poblacion).
+  // fetchPrevRegisteredBirths adds ONE new query (same scope, shifted one
+  // period back) purely to power the "Nacimientos registrados" deltaV2 chip —
+  // mirrors campaign-metrics.ts' fetchPrevTotals pattern.
   const load = await loadWithTimeout(
     Promise.all([
       fetchSterilizationCoverage(ctx),
@@ -146,6 +151,7 @@ export default async function GobPoblacionPage({
       fetchSterilizationNatalidadRatio(ctx),
       fetchSterilizationTrend(ctx),
       fetchDewormingCoverage(ctx),
+      fetchPrevRegisteredBirths(ctx),
     ]),
   );
 
@@ -170,7 +176,14 @@ export default async function GobPoblacionPage({
     sterilNatalidadRatio,
     sterilTrend,
     deworming,
+    prevRegisteredBirths,
   ] = load.value;
+
+  const registeredBirthsDelta = formatDelta(
+    outcomes.registeredBirths,
+    prevRegisteredBirths,
+    "vs período anterior",
+  );
 
   const hasData = coverage.total > 0;
   const dewormingTone = toneForTarget(deworming.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
@@ -250,6 +263,7 @@ export default async function GobPoblacionPage({
           value={outcomes.registeredBirths.toLocaleString("es-AR")}
           sub={natalidadCaveatText}
           tone="neutral"
+          deltaV2={registeredBirthsDelta ?? undefined}
           info={{
             definition:
               "Eventos clinical_info_logged con sub_kind='pregnancy', pregnancy_phase='ended' y outcome='live_birth' en el período seleccionado, en el scope de jurisdicción.",

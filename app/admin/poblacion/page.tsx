@@ -23,6 +23,7 @@ import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFa
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
+import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -30,6 +31,7 @@ import {
   buildProjectionContext,
   fetchActivePregnancies,
   fetchNetGrowth,
+  fetchPrevRegisteredBirths,
   fetchReproductiveOutcomes,
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
@@ -72,6 +74,9 @@ export default async function AdminPoblacionPage({
   );
 
   // D2: bound the fetcher set with a deadline (see /admin/censo).
+  // fetchPrevRegisteredBirths adds ONE new query (same scope, shifted one
+  // period back) purely to power the "Nacimientos registrados" deltaV2 chip —
+  // mirrors campaign-metrics.ts' fetchPrevTotals pattern (same as /gob/poblacion).
   const load = await loadWithTimeout(
     Promise.all([
       fetchSterilizationCoverage(ctx),
@@ -80,6 +85,7 @@ export default async function AdminPoblacionPage({
       fetchNetGrowth(ctx),
       fetchSterilizationNatalidadRatio(ctx),
       fetchSterilizationTrend(ctx),
+      fetchPrevRegisteredBirths(ctx),
     ]),
   );
 
@@ -95,8 +101,21 @@ export default async function AdminPoblacionPage({
     );
   }
 
-  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio, sterilTrend] =
-    load.value;
+  const [
+    coverage,
+    activePregnancies,
+    outcomes,
+    netGrowth,
+    sterilNatalidadRatio,
+    sterilTrend,
+    prevRegisteredBirths,
+  ] = load.value;
+
+  const registeredBirthsDelta = formatDelta(
+    outcomes.registeredBirths,
+    prevRegisteredBirths,
+    "vs período anterior",
+  );
 
   const hasData = coverage.total > 0;
   const hasTrend = sterilTrend.points.length > 0;
@@ -163,6 +182,7 @@ export default async function AdminPoblacionPage({
           value={outcomes.registeredBirths.toLocaleString("es-AR")}
           sub={natalidadCaveatText}
           tone="neutral"
+          deltaV2={registeredBirthsDelta ?? undefined}
           info={{
             definition:
               "Eventos clinical_info_logged con sub_kind='pregnancy', pregnancy_phase='ended' y outcome='live_birth' en el período seleccionado, a nivel nacional.",
