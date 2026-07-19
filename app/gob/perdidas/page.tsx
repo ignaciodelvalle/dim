@@ -261,7 +261,7 @@ export default async function GobPerdidasPage({
           tone="ok"
           info={{
             definition: "Mascotas que pasaron de estado 'lost' a 'active' en los últimos 30 días.",
-            formula: "COUNT(pet_events WHERE event_type='pet_found', últimos 30d) scoped",
+            formula: "COUNT(pet_events WHERE event_type='status_changed', 'lost'→'active', últimos 30d) scoped",
           }}
         />
         <OpKpi
