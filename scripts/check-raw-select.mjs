@@ -28,12 +28,14 @@ import { globSync, readFileSync } from "node:fs";
 
 /** Total literal `<select` occurrences across app/ and components/ (comment
  *  lines and the two field-primitive definition files excluded), measured
- *  on 2026-07-19 (consistency-fences pass, design-system ratchets).
+ *  on 2026-07-19 (filtros/surface-hidden pass: /gob/moderacion + /admin/moderacion
+ *  migrated their 3 hand-rolled status/kind/severity selects each to
+ *  OpFilterBar axes + UrlTabs).
  *  Target: 0, via migration to LnSelect (citizen) / OpSelect (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 75;
+const BASELINE = 69;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;

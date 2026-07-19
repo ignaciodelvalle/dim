@@ -11,11 +11,31 @@
 //
 // Gated by requireDenunciaModerationPrincipal ('denuncia.moderate'): admin sees
 // the queue universally (empty jurisdictions), govt sees only their assignments.
+//
+// Filter controls (consistency pass, 2026-07-19): the 3 filters were rendered
+// as loose hand-rolled <select>s in their own <form>. Status keeps its real
+// (non-"all") default "pending" — a workflow lens, same role as /gob/perdidas'
+// status tabs — so it moves to UrlTabs, not an OpFilterBar axis (whose
+// null-default "Todas" semantics don't fit a filter whose default is a real
+// subset). Kind/severity genuinely default to "no filter" (blank = "Todos"/
+// "Todas"), the exact shape OpFilterBar axes were built for (mirrors
+// /gob/maltrato's kind/severity axes) — those two move into the bar. Behavior
+// preserved: same params, same defaults, same query.
+
+import { Suspense } from "react";
 
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
-import { OpButton, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
+import {
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import {
   type ModerationQueueStatus,
@@ -46,11 +66,20 @@ const SEVERITY_PILL: Record<string, SeverityTone> = {
   low: "neutral",
 };
 
-const MOD_STATUS_OPTIONS = [
+const STATUS_TABS: UrlTabItem[] = [
   { value: "pending", label: "Pendientes" },
   { value: "resolved", label: "Resueltas" },
   { value: "all", label: "Todas" },
-] as const;
+];
+
+const KIND_OPTIONS = WELFARE_REPORT_KINDS.map((k) => ({
+  value: k,
+  label: welfareReportKindLabel(k),
+}));
+const SEVERITY_OPTIONS = WELFARE_REPORT_SEVERITIES.map((s) => ({
+  value: s,
+  label: welfareReportSeverityLabel(s),
+}));
 
 const PAGE_SIZE = 50;
 
@@ -79,7 +108,6 @@ export default async function GobModeracionPage({
       ? (sp.severity as WelfareReportSeverity)
       : null;
 
-  const hasFilters = statusFilter !== "pending" || kindFilter !== null || severityFilter !== null;
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
   // Shared moderation predicate + jurisdiction scope (govt sees only their
@@ -145,175 +173,145 @@ export default async function GobModeracionPage({
         </div>
       )}
 
-      {/* Filter form */}
-      <form action="/gob/moderacion" method="get" className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="mod-status" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
-            Estado
-          </label>
-          <select
-            id="mod-status"
-            name="status"
-            defaultValue={statusFilter}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            {MOD_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Domain filters — kind + severity (genuine "no filter" defaults). No
+          period/jurisdiction control here: this queue has neither today. */}
+      <OpFilterBar
+        showPeriod={false}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "kind",
+              label: "Tipo de denuncia",
+              paramKey: "kind",
+              options: KIND_OPTIONS,
+              current: kindFilter,
+              allLabel: "Todos los tipos",
+            },
+            {
+              id: "severity",
+              label: "Severidad",
+              paramKey: "severity",
+              options: SEVERITY_OPTIONS,
+              current: severityFilter,
+              allLabel: "Todas las severidades",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
-        <div className="flex flex-col gap-1">
-          <label htmlFor="mod-kind" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
-            Tipo de denuncia
-          </label>
-          <select
-            id="mod-kind"
-            name="kind"
-            defaultValue={kindFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            <option value="">Todos los tipos</option>
-            {WELFARE_REPORT_KINDS.map((k) => (
-              <option key={k} value={k}>
-                {welfareReportKindLabel(k)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="mod-severity"
-            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-          >
-            Severidad
-          </label>
-          <select
-            id="mod-severity"
-            name="severity"
-            defaultValue={severityFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            <option value="">Todas las severidades</option>
-            {WELFARE_REPORT_SEVERITIES.map((s) => (
-              <option key={s} value={s}>
-                {welfareReportSeverityLabel(s)}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <OpButton type="submit" variant="primary" size="sm">
-          Filtrar
-        </OpButton>
-        {hasFilters && (
-          <a
-            href="/gob/moderacion"
-            className="text-sm text-ln-op-mute underline underline-offset-4"
-          >
-            Limpiar filtros
-          </a>
-        )}
-      </form>
-
-      {rows.length === 0 ? (
-        <OpCallout
-          title={statusFilter === "pending" ? "Cola vacía" : "Sin resultados"}
-          body={
-            statusFilter === "pending"
-              ? "No hay denuncias pendientes de moderación en tus localidades."
-              : "No hay denuncias que coincidan con los filtros aplicados."
-          }
-        />
-      ) : (
-        <ul className="space-y-2">
-          {rows.map((r) => {
-            const reasons = (r.flagReasons as string[]) ?? [];
-            const severityTone: SeverityTone = SEVERITY_PILL[r.severity] ?? "neutral";
-            return (
-              <li key={r.id}>
-                <OpCard accent="warn">
-                  <Link
-                    href={`/gob/moderacion/${r.referenceCode}`}
-                    className="block no-underline transition-colors hover:bg-ln-op-stripe"
-                  >
-                    <OpCardBody>
-                      <div className="flex items-baseline justify-between gap-3">
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
-                              {welfareReportKindLabel(r.kind)}
-                            </p>
-                            <OpPill tone={severityTone}>
-                              {welfareReportSeverityLabel(r.severity)}
-                            </OpPill>
-                          </div>
-                          <ul className="space-y-0.5">
-                            {reasons.map((reason) => (
-                              <li key={reason} className="text-sm text-ln-op-warn">
-                                {"• "}
-                                {reasonLabel(reason as FlagReason)}
-                              </li>
-                            ))}
-                          </ul>
-                          <p className="font-mono text-xs text-ln-op-faint">
-                            {r.referenceCode}
-                            {" · "}
-                            {[r.jurisdictionLocality, r.jurisdictionProvince]
-                              .filter(Boolean)
-                              .join(", ")}
-                            {" · "}
-                            {r.flaggedAt && formatDateTime(r.flaggedAt)}
-                            {r.moderationResolvedAt && (
-                              <span className="ml-2 inline-flex items-center gap-1 text-ln-op-ok">
-                                <Icon name="check" size={13} decorative /> resuelta{" "}
-                                {formatDate(r.moderationResolvedAt)}
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <span className="text-sm font-semibold text-ln-op-azul">{"→"}</span>
-                      </div>
-                    </OpCardBody>
-                  </Link>
-                </OpCard>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {/* Pagination footer — keyset (seek) links preserve active filters. */}
-      {(newerLink || olderLink) && (
-        <nav
-          aria-label="Paginación de moderación"
-          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+      {/* Status — a workflow lens with a real ("pending") default, not a
+          "show all" axis, so it stays a tab control (same idiom as /gob/perdidas
+          and /gob/servicios). The single content region below always matches
+          the current tab (the query is already server-filtered by statusFilter). */}
+      <Suspense>
+        <UrlTabs
+          paramKey="status"
+          defaultValue="pending"
+          tabs={STATUS_TABS}
+          aria-label="Filtrar por estado de moderación"
         >
-          <div>
-            {newerLink && (
-              <Link
-                href={newerLink}
-                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
-              >
-                ← Más recientes
-              </Link>
-            )}
-          </div>
-          <div>
-            {olderLink && (
-              <Link
-                href={olderLink}
-                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
-              >
-                Ver más antiguas →
-              </Link>
-            )}
-          </div>
-        </nav>
-      )}
+          <UrlTabsContent value={statusFilter}>
+            <div className="mt-4 space-y-6">
+              {rows.length === 0 ? (
+                <OpCallout
+                  title={statusFilter === "pending" ? "Cola vacía" : "Sin resultados"}
+                  body={
+                    statusFilter === "pending"
+                      ? "No hay denuncias pendientes de moderación en tus localidades."
+                      : "No hay denuncias que coincidan con los filtros aplicados."
+                  }
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {rows.map((r) => {
+                    const reasons = (r.flagReasons as string[]) ?? [];
+                    const severityTone: SeverityTone = SEVERITY_PILL[r.severity] ?? "neutral";
+                    return (
+                      <li key={r.id}>
+                        <OpCard accent="warn">
+                          <Link
+                            href={`/gob/moderacion/${r.referenceCode}`}
+                            className="block no-underline transition-colors hover:bg-ln-op-stripe"
+                          >
+                            <OpCardBody>
+                              <div className="flex items-baseline justify-between gap-3">
+                                <div className="min-w-0 space-y-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+                                      {welfareReportKindLabel(r.kind)}
+                                    </p>
+                                    <OpPill tone={severityTone}>
+                                      {welfareReportSeverityLabel(r.severity)}
+                                    </OpPill>
+                                  </div>
+                                  <ul className="space-y-0.5">
+                                    {reasons.map((reason) => (
+                                      <li key={reason} className="text-sm text-ln-op-warn">
+                                        {"• "}
+                                        {reasonLabel(reason as FlagReason)}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <p className="font-mono text-xs text-ln-op-faint">
+                                    {r.referenceCode}
+                                    {" · "}
+                                    {[r.jurisdictionLocality, r.jurisdictionProvince]
+                                      .filter(Boolean)
+                                      .join(", ")}
+                                    {" · "}
+                                    {r.flaggedAt && formatDateTime(r.flaggedAt)}
+                                    {r.moderationResolvedAt && (
+                                      <span className="ml-2 inline-flex items-center gap-1 text-ln-op-ok">
+                                        <Icon name="check" size={13} decorative /> resuelta{" "}
+                                        {formatDate(r.moderationResolvedAt)}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                                <span className="text-sm font-semibold text-ln-op-azul">{"→"}</span>
+                              </div>
+                            </OpCardBody>
+                          </Link>
+                        </OpCard>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {/* Pagination footer — keyset (seek) links preserve active filters. */}
+              {(newerLink || olderLink) && (
+                <nav
+                  aria-label="Paginación de moderación"
+                  className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+                >
+                  <div>
+                    {newerLink && (
+                      <Link
+                        href={newerLink}
+                        className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
+                      >
+                        ← Más recientes
+                      </Link>
+                    )}
+                  </div>
+                  <div>
+                    {olderLink && (
+                      <Link
+                        href={olderLink}
+                        className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
+                      >
+                        Ver más antiguas →
+                      </Link>
+                    )}
+                  </div>
+                </nav>
+              )}
+            </div>
+          </UrlTabsContent>
+        </UrlTabs>
+      </Suspense>
     </div>
   );
 }

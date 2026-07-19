@@ -275,16 +275,24 @@ export type ServiceDogCredentialSearchResult = {
   jurisdictionLocality: string | null;
 };
 
-// Search pets holding an active (credential_status='vigente') RUPGA
-// service-dog credential. Mirrors searchOrganizations: admin sees all, govt
-// is scoped to a (jurisdiction_province, jurisdiction_locality) match.
-// Only "vigente" is listed — "revocada" has nothing left to act on, and
-// "en_entrenamiento"/"pendiente_verificacion" aren't credentials yet (no
-// verified RUPGA number to revoke). "vencida" is a natural expiry, not
-// something a govt/admin acts on here.
+// Search pets holding a RUPGA service-dog credential. Mirrors
+// searchOrganizations: admin sees all, govt is scoped to a
+// (jurisdiction_province, jurisdiction_locality) match.
+//
+// Status filter (honesty fix, 2026-07-19): defaults to "vigente" (previous
+// hardcoded behavior, unchanged unless the caller opts in) — "revocada" and
+// "all" let the operator review past revocations/history instead of them
+// being permanently invisible. "en_entrenamiento"/"pendiente_verificacion"
+// aren't credentials yet (no verified RUPGA number to revoke/review) and
+// "vencida" is a natural expiry — neither is exposed by this filter; "all"
+// only widens across the two review-relevant states (vigente/revocada), it
+// does not surface every credentialStatus value in the enum.
+export type ServiceDogCredentialStatusFilter = "vigente" | "revocada" | "all";
+
 export async function searchServiceDogCredentials(
   query: string,
   scope: { role: "admin" | "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] },
+  filters: { status?: ServiceDogCredentialStatusFilter } = {},
 ): Promise<{ items: ServiceDogCredentialSearchResult[]; truncated: boolean }> {
   // Govt with zero assignments sees nothing; skip the query entirely.
   if (scope.role === "govt" && scope.jurisdictions.length === 0)
@@ -313,7 +321,9 @@ export async function searchServiceDogCredentials(
           ),
         );
 
-  const statusPredicate = eq(petServiceDog.credentialStatus, "vigente");
+  const statusFilter = filters.status ?? "vigente";
+  const statusPredicate =
+    statusFilter === "all" ? undefined : eq(petServiceDog.credentialStatus, statusFilter);
 
   const activeClauses = [textPredicate, scopePredicate, statusPredicate].filter(
     (c): c is NonNullable<typeof c> => c !== undefined,

@@ -1,13 +1,28 @@
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+} from "@/components/ui/dashboard";
 import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { DISEASES } from "@/lib/reference/diseases";
 import { pluralizeEs } from "@/lib/utils/format";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { ScrollToSignal } from "../_components/ScrollToSignal";
 import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
+
+// Disease/zoonosis axis — the page already reads the disease_code from each
+// signal's payload, and fetchSurveillanceSignals applies `disease_code = X`
+// when filters.diseaseCode is set (previously wired but never surfaced — the
+// TODO this axis replaces). Options come from the SAME curated catalog
+// (lib/reference/diseases.ts) the disease-diagnosis form and mortality
+// disposition screens use — never an invented list.
+const DISEASE_OPTIONS = DISEASES.map((d) => ({ value: d.code, label: d.label }));
 
 export default async function GobVigilanciaBrotesPage({
   searchParams,
@@ -20,6 +35,7 @@ export default async function GobVigilanciaBrotesPage({
     soloVerificados?: string;
     province?: string;
     locality?: string;
+    diseaseCode?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -35,7 +51,16 @@ export default async function GobVigilanciaBrotesPage({
     params: { province: sp.province, locality: sp.locality },
   });
 
-  const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, { since });
+  // Validate against the real catalog — an unrecognized/stale code in the URL
+  // is dropped rather than silently sent to the DB as a narrowing predicate
+  // that would (dishonestly) return zero rows.
+  const diseaseCode =
+    sp.diseaseCode && DISEASES.some((d) => d.code === sp.diseaseCode) ? sp.diseaseCode : undefined;
+
+  const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, {
+    since,
+    diseaseCode,
+  });
 
   // A.5: tier-based filter — "Solo verificados institucionalmente"
   // When the checkbox is active, filter to signals where tier >= professional_verified.
@@ -79,18 +104,28 @@ export default async function GobVigilanciaBrotesPage({
         </p>
       </header>
 
-      {/* Unified filter bar — period + jurisdiction, same rail as vigilancia's
-          own /gob/vigilancia. A.5's confidence-tier toggle ("solo verificados
-          institucionalmente") is a per-screen boolean, not a select-driven
-          axis, so it lives in the free-form `children` slot — the OpCheckbox
-          itself commits via the SAME serverNavCommit path as the bar's own
-          controls (see VerifiedFilterCheckbox), so toggling it never drops
-          the active period/jurisdiction the way the old hidden-input <form>
-          did. */}
-      {/* TODO(future): filter by disease_code + confirmation_strength chips */}
+      {/* Unified filter bar — period + jurisdiction + disease axis, same rail as
+          vigilancia's own /gob/vigilancia. A.5's confidence-tier toggle ("solo
+          verificados institucionalmente") is a per-screen boolean, not a
+          select-driven axis, so it lives in the free-form `children` slot —
+          the OpCheckbox itself commits via the SAME serverNavCommit path as
+          the bar's own controls (see VerifiedFilterCheckbox), so toggling it
+          never drops the active period/jurisdiction/disease the way the old
+          hidden-input <form> did. */}
       <OpFilterBar
         period={{ defaultPreset: "30d" }}
         jurisdiction={{ allowedProvinces, localities }}
+        axes={
+          [
+            {
+              id: "diseaseCode",
+              label: "Enfermedad",
+              paramKey: "diseaseCode",
+              options: DISEASE_OPTIONS,
+              current: diseaseCode ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
       >
         <VerifiedFilterCheckbox defaultChecked={soloVerificados} />
       </OpFilterBar>
