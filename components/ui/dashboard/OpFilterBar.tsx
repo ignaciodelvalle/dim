@@ -27,6 +27,9 @@ import { serverNavCommit } from "@/lib/ui/filter-commit";
  * Three regions, top to bottom:
  *   1. Header — a compact "Filtros" eyebrow (filter icon + micro-caps label)
  *      that gives the bar an identity instead of an invisible aria-label only.
+ *      Page-level `actions` (e.g. "Exportar CSV →") render here too, grouped
+ *      with "Copiar vista" at the far right — an export link is a per-screen
+ *      action, not a filter, so it lives in the header rather than the rail.
  *   2. Unified rail — period (<PeriodPicker>), optional jurisdiction
  *      (<JurisdictionSwitcher>), and the screen-specific domain axes all flow
  *      and WRAP together in one `flex-wrap` row (not a hard grid), so on a wide
@@ -128,6 +131,13 @@ export type OpFilterBarProps = {
    * form, the existing status/queue tabs…). Rendered in the domain-axes region.
    */
   children?: ReactNode;
+  /**
+   * Page-level action(s) — typically an "Exportar CSV →" link. Rendered in the
+   * HEADER row, grouped with "Copiar vista" at the far right, so a screen's
+   * export action lives INSIDE the bar instead of floating as a page-level
+   * sibling next to it.
+   */
+  actions?: ReactNode;
   className?: string;
 };
 
@@ -254,6 +264,7 @@ export function OpFilterBar({
   axes = [],
   resetParamsOnChange = [],
   children,
+  actions,
   className = "",
 }: OpFilterBarProps) {
   const searchParams = useSearchParams();
@@ -306,11 +317,20 @@ export function OpFilterBar({
     commit(updates);
   }
 
+  // Sparse case (only period and/or jurisdiction — no domain axes and no
+  // free-form children, e.g. censo/poblacion/adopciones/campanas): the bar
+  // renders just the header + one scope row, so the same p-4/space-y-4 rhythm
+  // used for the rich axes screens (perdidas/maltrato) reads as an oversized
+  // empty box. Tighten padding + rhythm a notch ONLY in that case — rich-axes
+  // screens are untouched (hasDomainGroup is true there).
+  const hasDomainGroup = axes.length > 0 || Boolean(children);
+
   return (
     <section
       aria-label="Filtros"
       className={[
-        "space-y-4 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4",
+        hasDomainGroup ? "space-y-4 p-4" : "space-y-3 p-3.5",
+        "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card",
         className,
       ]
         .filter(Boolean)
@@ -318,9 +338,11 @@ export function OpFilterBar({
     >
       {/* Region 1 — header: bar identity + active-filter count at a glance
           (the count summarizes; the removable chips below carry the detail).
-          "Copiar vista" sits at the far right — the URL already carries every
+          Page-level `actions` (e.g. "Exportar CSV →") and "Copiar vista" are
+          grouped together at the far right — the URL already carries every
           active filter (period/jurisdiction/domain axes are all searchParams),
-          so it's a shareable/bookmarkable "saved view" one click away. */}
+          so "Copiar vista" is a shareable/bookmarkable "saved view" one click
+          away, and `actions` lives in the SAME bar instead of floating beside it. */}
       <div className="flex items-center gap-2 text-ln-op-mute">
         <Icon name="filter" size={15} decorative />
         <span className="text-xs font-semibold uppercase tracking-[0.08em]">Filtros</span>
@@ -332,7 +354,10 @@ export function OpFilterBar({
             {chips.length}
           </span>
         )}
-        <CopyViewButton className="ml-auto" />
+        <div className="flex items-center gap-2 ml-auto">
+          {actions}
+          <CopyViewButton />
+        </div>
       </div>
 
       {/* Region 2 — unified rail, grouped by kind: SCOPE (period + jurisdiction:

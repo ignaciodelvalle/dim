@@ -145,23 +145,18 @@ export default async function GobCampanasPage({
         </p>
       </header>
 
-      {/* Unified filter bar — jurisdiction + period. "Exportar CSV" is a
-          page-level action (not a filter), so it stays outside OpFilterBar,
-          aligned to its right (same pattern as /gob/censo). */}
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div className="flex-1">
-          <OpFilterBar
-            period={{ defaultPreset: "30d" }}
-            jurisdiction={{ allowedProvinces, localities }}
-          />
-        </div>
-        <a
-          href={exportHref}
-          className="shrink-0 text-[var(--text-md)] text-ln-op-azul hover:underline md:mt-1"
-        >
-          Exportar CSV →
-        </a>
-      </div>
+      {/* Unified filter bar — jurisdiction + period, with "Exportar CSV"
+          rendered via the bar's `actions` slot (header row) instead of
+          floating beside it (same pattern as /gob/censo). */}
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{ allowedProvinces, localities }}
+        actions={
+          <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+            Exportar CSV →
+          </a>
+        }
+      />
 
       {!hasData ? (
         // Empty state — jurisdiction with no active campaigns.
