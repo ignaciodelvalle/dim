@@ -8,9 +8,10 @@ import {
 } from "@/app/actions/auth";
 import { LocationFields } from "@/components/LocationFields";
 import { LnCheckbox, LnField, LnInput } from "@/components/ui/Field";
+import { useStepFocus } from "@/lib/ui/use-step-focus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 const initialAuthState: AuthFormState = { error: null };
 const initialIdentityState: IdentityFormState = { error: null };
@@ -44,6 +45,12 @@ export function SignupForm({
     completeIdentityAction,
     initialIdentityState,
   );
+  // A11y fix (2026-07 audit): each step below is a full early-return (its own
+  // JSX tree, not a shared shell), so only one of the two target elements is
+  // ever mounted at a time — the same ref object attaches to whichever one is
+  // currently rendered. See lib/ui/use-step-focus.ts.
+  const stepFocusRef = useRef<HTMLDivElement>(null);
+  useStepFocus(step, stepFocusRef);
 
   // Step 1 → step 2 transition.
   useEffect(() => {
@@ -69,7 +76,11 @@ export function SignupForm({
         </p>
 
         <div className="space-y-2">
-          <h2 className="font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h2
+            ref={stepFocusRef}
+            tabIndex={-1}
+            className="font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)] focus:outline-none"
+          >
             Contanos quién sos
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
@@ -156,7 +167,15 @@ export function SignupForm({
 
   return (
     <div className="space-y-5">
-      <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center">
+      {/* Step 1 is only ever reached on initial mount (no "back" from step 2),
+          so useStepFocus's mount-skip means this ref never actually fires
+          today — kept for symmetry with step 2 and in case a future "back"
+          affordance is added. */}
+      <p
+        ref={stepFocusRef}
+        tabIndex={-1}
+        className="text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center focus:outline-none"
+      >
         Paso 1 de 2
       </p>
 

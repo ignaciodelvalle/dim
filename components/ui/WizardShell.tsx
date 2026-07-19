@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+
+import { useStepFocus } from "@/lib/ui/use-step-focus";
 
 /**
  * LnWizardShell — generic multi-step wizard chrome (LN design system).
@@ -41,6 +43,7 @@ export function LnWizardShell({
   // and the final step renders as (n-1)/n until submission completes.
   const progressPct = Math.round(((currentStep - 1) / totalSteps) * 100);
   const stepLabel = stepLabels?.[currentStep - 1];
+  const stepFocusRef = useRef<HTMLDivElement>(null);
 
   // Reset scroll to the top on every step change. The AppShell's
   // `<main id="main-content">` is the overflow-auto scroll container (so a tall
@@ -51,6 +54,14 @@ export function LnWizardShell({
     document.getElementById("main-content")?.scrollTo({ top: 0 });
     window.scrollTo({ top: 0 });
   }, [currentStep]);
+
+  // A11y fix (2026-07 audit): move focus to the progressbar below on every
+  // step change. It already carries a dynamic aria-label ("Paso X de Y"), so
+  // this both announces the transition to screen readers AND repositions
+  // keyboard focus so the next Tab press lands inside the new step's content
+  // instead of on a control that may have unmounted. Every wizard built on
+  // <LnWizardShell> gets this for free — see lib/ui/use-step-focus.ts.
+  useStepFocus(currentStep, stepFocusRef);
 
   return (
     <div className="bg-[var(--color-ln-card)] flex flex-col">
@@ -95,7 +106,8 @@ export function LnWizardShell({
 
       {totalSteps > 1 && (
         <div
-          className="h-0.5 bg-[var(--color-ln-stripe)] mx-4 rounded-full overflow-hidden"
+          ref={stepFocusRef}
+          className="h-0.5 bg-[var(--color-ln-stripe)] mx-4 rounded-full overflow-hidden focus:outline-none"
           role="progressbar"
           tabIndex={-1}
           aria-valuenow={currentStep}

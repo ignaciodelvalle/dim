@@ -23,6 +23,7 @@ import { LnGroupLabel, LnSheetBody, LnSheetHeader, LnSubCard } from "@/component
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggleGroup } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
+import { useStepFocus } from "@/lib/ui/use-step-focus";
 import { markLostActionLabel } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 
@@ -136,6 +137,13 @@ export function MarkLostWizard({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // A11y fix (2026-07 audit): this wizard hand-rolls its own step state (all
+  // steps stay mounted, hidden via sr-only/inert) instead of using
+  // <LnWizardShell>, so it needs its own focus target. Wraps LnSheetHeader
+  // (whose subtitle already reads "Paso X de Y · <label>") — see
+  // lib/ui/use-step-focus.ts.
+  const stepFocusRef = useRef<HTMLDivElement>(null);
+  useStepFocus(step, stepFocusRef);
 
   function goBack() {
     setErrorMessage(null);
@@ -191,12 +199,14 @@ export function MarkLostWizard({
 
   return (
     <>
-      <LnSheetHeader
-        tone="seal"
-        icon={<Icon name="lupa" decorative />}
-        title={`Marcar ${petName} como perdida`}
-        subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
-      />
+      <div ref={stepFocusRef} tabIndex={-1} className="focus:outline-none">
+        <LnSheetHeader
+          tone="seal"
+          icon={<Icon name="lupa" decorative />}
+          title={`Marcar ${petName} como perdida`}
+          subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
+        />
+      </div>
       <LnSheetBody>
         {/* Step progress bar */}
         <div className="flex gap-1.5">
