@@ -24,6 +24,7 @@ import { useState } from "react";
 
 import { markNovedadesSeenAction } from "@/app/actions/novedades";
 import { Icon } from "@/components/Icon";
+import { LnListRow } from "@/components/ui/ListRow";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { NovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { feedGroupLabel, feedQueueHref } from "@/lib/metrics/novedades-feed-links";
@@ -97,35 +98,44 @@ export function NovedadesCard({
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
               {groups.map((group) => (
-                <li
-                  key={group.key}
-                  className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    {/* Count badge: the map doubles as a status board. Groups
-                        with >1 subject get the count so 18 incidents no longer
-                        read as one row (Cowork M2). */}
-                    {group.count > 1 ? (
-                      <span className="shrink-0 rounded-full bg-ln-op-warn-bg px-2 py-0.5 text-xs font-semibold tabular-nums text-ln-op-warn">
-                        {group.count}
-                      </span>
-                    ) : null}
-                    <div className="min-w-0">
-                      <p className="text-[var(--text-md)] text-ln-op-ink">
-                        {feedGroupLabel(group.eventType)}
-                      </p>
-                      <p className="truncate text-sm text-ln-op-mute">
-                        {formatJurisdiction(group.province, group.locality)} ·{" "}
-                        {relativeTime(group.latestRecordedAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href={feedQueueHref(group.eventType)}
-                    className="shrink-0 text-sm text-ln-op-azul hover:underline no-underline"
+                <li key={group.key}>
+                  {/* The count badge lives inside `children`, not the `icon`
+                      slot: it's nested one level deeper (gap-2 from the label
+                      stack) than LnListRow's own icon/content/trailing gap-3,
+                      so folding it into `icon` would widen that inner gap and
+                      break pixel-parity with the pre-migration row. */}
+                  <LnListRow
+                    align="center"
+                    className="justify-between px-4 py-2.5 odd:bg-ln-op-stripe"
+                    trailing={
+                      <Link
+                        href={feedQueueHref(group.eventType)}
+                        className="shrink-0 text-sm text-ln-op-azul hover:underline no-underline"
+                      >
+                        Ver en su cola {"->"}
+                      </Link>
+                    }
                   >
-                    Ver en su cola {"->"}
-                  </Link>
+                    <div className="flex min-w-0 items-center gap-2">
+                      {/* Count badge: the map doubles as a status board. Groups
+                          with >1 subject get the count so 18 incidents no longer
+                          read as one row (Cowork M2). */}
+                      {group.count > 1 ? (
+                        <span className="shrink-0 rounded-full bg-ln-op-warn-bg px-2 py-0.5 text-xs font-semibold tabular-nums text-ln-op-warn">
+                          {group.count}
+                        </span>
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="text-[var(--text-md)] text-ln-op-ink">
+                          {feedGroupLabel(group.eventType)}
+                        </p>
+                        <p className="truncate text-sm text-ln-op-mute">
+                          {formatJurisdiction(group.province, group.locality)} ·{" "}
+                          {relativeTime(group.latestRecordedAt)}
+                        </p>
+                      </div>
+                    </div>
+                  </LnListRow>
                 </li>
               ))}
             </ul>
