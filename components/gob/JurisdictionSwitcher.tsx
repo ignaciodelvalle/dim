@@ -3,6 +3,8 @@
 import { useSearchParams } from "next/navigation";
 import { useId, useMemo } from "react";
 
+import { serverNavCommit } from "@/lib/ui/filter-commit";
+
 /**
  * Selector de jurisdicción: provincia → localidad.
  *
@@ -132,18 +134,9 @@ export function JurisdictionSwitcher({
   // browser's native GET cannot be silently dropped, and it always re-runs
   // the server component with the new searchParams.
   function updateParams(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === "") {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-    }
     // Scope change → drop any caller-nominated params tied to the OLD scope
     // (the panorama passes its camera keys; a stale frame must not survive).
-    for (const key of dropParamsOnNavigate) params.delete(key);
-    window.location.assign(`?${params.toString()}`);
+    serverNavCommit(searchParams.toString())(updates, dropParamsOnNavigate);
   }
 
   function commitScope(province: string | null, locality: string | null) {

@@ -19,6 +19,12 @@
  * (preserves the pre-existing default behaviour for all callers).
  */
 
+import {
+  DEFAULT_DASHBOARD_PRESET,
+  PANORAMA_DEFAULT_PRESET,
+  PRESET_WINDOW_DAYS,
+} from "@/lib/metrics/period-presets";
+
 export type AnalyticsPeriod = {
   since: Date;
   until: Date;
@@ -30,20 +36,12 @@ export type PeriodSearchParams = {
   to?: string;
 };
 
-/**
- * Default preset for admin/gob dashboards that use a trailing-12m server window.
- * Shared between server pages and <PeriodPicker defaultPreset> so the chip label
- * always matches the data window on first load (C32).
- */
-export const DEFAULT_DASHBOARD_PRESET = "trailing12m" as const;
-
-/**
- * Default preset for the Panorama situational console (map + time scrubber).
- * Panorama defaults to a multi-year window so the temporal reproduction spans
- * the seeded history (system "started" ~3 years ago) instead of a short recent
- * slice. Scoped to Panorama only — the detail dashboards keep their own defaults.
- */
-export const PANORAMA_DEFAULT_PRESET = "3y" as const;
+// DEFAULT_DASHBOARD_PRESET / PANORAMA_DEFAULT_PRESET are now single-sourced in
+// lib/metrics/period-presets.ts (RANK 1 consolidation), alongside the
+// (id, label) pairs and the id→window-length table this resolver reads
+// below. Re-exported here so existing importers of this module are
+// unaffected.
+export { DEFAULT_DASHBOARD_PRESET, PANORAMA_DEFAULT_PRESET };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -83,17 +81,14 @@ export function resolveAnalyticsPeriod(
 
   switch (sp.period) {
     case "7d":
-      return { since: new Date(now - 7 * DAY_MS), until };
     case "30d":
-      return { since: new Date(now - 30 * DAY_MS), until };
     case "90d":
-      return { since: new Date(now - 90 * DAY_MS), until };
     case "trailing12m":
-      return { since: new Date(now - 365 * DAY_MS), until };
     case "3y":
-      return { since: new Date(now - 3 * 365 * DAY_MS), until };
     case "5y":
-      return { since: new Date(now - 5 * 365 * DAY_MS), until };
+      // Day count is single-sourced in lib/metrics/period-presets.ts
+      // (PRESET_WINDOW_DAYS) — see that module for the id→window table.
+      return { since: new Date(now - PRESET_WINDOW_DAYS[sp.period] * DAY_MS), until };
     case "ytd": {
       const jan1 = new Date(`${new Date(now).getUTCFullYear()}-01-01T00:00:00Z`);
       return { since: jan1, until };

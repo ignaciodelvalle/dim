@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { type KeyboardEvent, type ReactNode, createContext, useContext, useRef } from "react";
 
 import { Icon, type IconName } from "@/components/Icon";
+import { serverNavCommit } from "@/lib/ui/filter-commit";
 import { pluralizeEs } from "@/lib/utils/format";
 
 /**
@@ -76,9 +77,7 @@ export function UrlTabs({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function handleTabClick(value: string) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set(paramKey, value);
-    window.location.assign(`?${params.toString()}`);
+    serverNavCommit(searchParams.toString())({ [paramKey]: value });
   }
 
   // APG Tabs keyboard pattern (automatic activation): Arrow Left/Right move

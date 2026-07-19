@@ -12,6 +12,7 @@ import {
   PRESET_YTD,
   type PeriodPresetId,
 } from "@/lib/metrics/period-presets";
+import { serverNavCommit } from "@/lib/ui/filter-commit";
 
 import { DateRangePicker } from "./DateRangePicker";
 import type { DateRange } from "./DateRangePicker";
@@ -132,15 +133,7 @@ export function PeriodPicker({
   // immune — the browser's native GET cannot be silently dropped, and it
   // always re-runs the server component with the new searchParams.
   function updateParams(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === "") {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-    }
-    window.location.assign(`?${params.toString()}`);
+    serverNavCommit(searchParams.toString())(updates);
   }
 
   function handlePresetClick(preset: PeriodPreset) {
