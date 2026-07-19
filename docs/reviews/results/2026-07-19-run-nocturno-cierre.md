@@ -41,8 +41,29 @@ Más los **6 quick-wins de performance** ya pusheados antes del run (crons N+1, 
 - **CTAs de mis-mascotas** copian las clases de `LnButton` inline (fix a11y correcto, pero las clases pueden divergir si el estilo del botón cambia — mantenibilidad).
 - **Flags de writers**: `MpfExportGate.tsx` tiene el mismo bug de `window.open` que arreglamos en `MpfExportButton` (follow-up); `item14-owner-hub.test.ts` tiene un `formatEventLabel` en inglés duplicado stale (test-as-doc desactualizado, no roto).
 
-## 5. Delta de reviews (re-corridas)
+## 5. Delta de reviews (re-corrida del deep review, fresh sobre el código nuevo)
 
-Re-corriendo el deep review de promesas de AGENTS.md **fresh sobre el código nuevo** para medir cuánto movimos la aguja. Resultado + comparación contra la corrida de anoche → se agrega abajo cuando termine.
+Re-corrí el deep review completo (41 agentes, verificado) contra el código post-fixes. **El delta confirma que lo que arreglamos quedó arreglado** y que la aguja se movió — pero también que hay una segunda capa más profunda.
 
-*(pendiente — completar con el delta)*
+### ✅ RESUELTO (aparecía anoche, YA NO)
+Ninguno de estos reaparece en la re-corrida — el fix funcionó:
+- **Honestidad de KPIs vacíos** (mortalidad/reunificación "0% rojo") — cerrado.
+- **A11y `inert`** en steps ocultos de wizards (WCAG 4.1.2) — cerrado.
+- **Adopción** bloqueando rechazados — cerrado.
+- **MPF export** `window.open` (button **y** gate) — cerrado.
+- **Libreta PDF** amendments + es-AR — cerrado (aunque ver abajo: aparece un gap NUEVO de libreta, distinto).
+- **Foster**: bajó de **CRÍTICO → HIGH-MED**. El re-review confirma "el toggle en pantalla ya cubre el caso, daño menor" — solo queda muerto el deep-link `?custodyKind=transito` (menor).
+- Revoke pill, surveillance alarm — cerrados.
+
+### 🆕 SEGUNDA CAPA (el código más limpio dejó ver más hondo)
+Los agentes ahora cavaron en dominios que anoche no llegó a auditar en profundidad. **La misma clase — deshonestidad de estados — pero en lugares nuevos:**
+- **Turnos (el dominio más débil ahora)**: un turno cancelado por la clínica se muestra badge verde **"Confirmado"**; y desaparece de la agenda pero **sigue contando** en el total ("3 turnos", aparecen 2).
+- **Libreta**: una vacuna **sin fecha de refuerzo** se sella verde **"VIGENTE"** — "no sabemos" leído como "vigente" en un documento médico. Y el PDF **pierde el peso** (`weight_kg` número vs `kg` string).
+- **Welfare**: banner "aún no se envió al gobierno" mostrado sobre denuncias que un funcionario **ya está trabajando**.
+- **Lost**: el link para compartir una mascota perdida con `SITE_URL=""` genera una **URL relativa no clickeable** (el canal principal de difusión — es el bug de QR conocido, otra instancia); banner "sin actividad en más de un año" es **factualmente falso** (la regla es 365d + 60d).
+- **Ruteo legal**: notificación de mordedura ruteada a la jurisdicción del **hogar** de la mascota, no del **incidente**; MPF export **cableado a CABA** ofrecido en toda jurisdicción.
+- **A11y (capa nueva, distinta del inert)**: **ningún wizard mueve el FOCO al cambiar de paso** (signup, alta, mark-lost, denuncia, mordedura, servicios) — un patrón compartido que amerita un helper; + modales de decomiso sin foco/Escape, OrgBiteForm victim-type sin radiogroup, FoundPetForm sin anuncio de éxito.
+- **Usabilidad**: la consola **Panorama no tiene tratamiento móvil** (overlays se tapan en 375px); dashboard de adopción linkea a ruta privada (**404 para staff**); **Aceptar** transferencia (irreversible) es de un clic mientras rechazar pide confirmación; `gob/organizaciones` hardcodea `/gob` y expulsa al admin.
+
+### Lectura
+No es que "aparecieron bugs nuevos": es que **al limpiar la primera capa, la auditoría alcanzó la segunda**. La honestidad-de-estados sigue siendo la dimensión más débil, ahora localizada en **Turnos, Libreta (detalle) y Welfare** — candidatos naturales para el próximo run. El foco-en-wizards es un a11y de clase, un helper compartido lo cierra en varios dominios de una. Reporte completo del re-review: el output del workflow (run `wf_d29d99dc`).
