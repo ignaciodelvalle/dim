@@ -136,10 +136,22 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
     // Optional banner on top; the rail+main row fills the rest (min-h-0 so the
     // inner scroll area — not the document — scrolls).
     <div className="op-surface fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
+      {/* Skip-link (a11y) — visually hidden until keyboard-focused, jumps past
+          the rail + topbar straight to the main content landmark below. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[var(--z-toast)] focus:rounded-[var(--radius-md)] focus:bg-ln-op-azul focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-white"
+      >
+        Saltar al contenido
+      </a>
       {banner}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {rail}
-        <main id="main-content" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden focus:outline-none"
+        >
           {topbar}
           <div data-scroll-reset className="min-h-0 flex-1 overflow-auto px-6 py-[22px]">
             <ScrollReset />

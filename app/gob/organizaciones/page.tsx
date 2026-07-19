@@ -181,7 +181,7 @@ export default async function OrganizacionesPage({
       />
 
       <p className="text-sm text-ln-op-mute">
-        <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+        <Link href={base} className="underline underline-offset-4 hover:text-ln-op-ink-2">
           {"←"} Volver al dashboard
         </Link>
       </p>
