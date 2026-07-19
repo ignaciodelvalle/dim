@@ -167,18 +167,29 @@ export default async function GobMortalidadPage({
         />
         <OpKpi
           label="Trazabilidad de disposición"
-          value={formatPercent(m.traceableRate)}
-          tone={toneForTarget(m.traceableRate, TARGETS.DISPOSAL_TRACEABILITY_PCT)}
-          bar={m.traceableRate}
+          // Honesty (backlog H1): with no deaths in scope every rate is 0/0 → 0%,
+          // which toneForTarget paints RED (false alarm) / GREEN (false success).
+          // Gate the rate tiles on hasDeaths → "—" neutral, like the count tile.
+          value={hasDeaths ? formatPercent(m.traceableRate) : "—"}
+          tone={
+            hasDeaths
+              ? toneForTarget(m.traceableRate, TARGETS.DISPOSAL_TRACEABILITY_PCT)
+              : "neutral"
+          }
+          bar={hasDeaths ? m.traceableRate : undefined}
           sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación (B3 · Ley 5470)`}
           info={getKpiInfo("mortality_disposal_traceability")}
         />
         <OpKpi
           label="Disposición desconocida"
-          value={formatPercent(m.unknownRate)}
-          tone={toneForTarget(m.unknownRate, TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT, {
-            higherIsBetter: false,
-          })}
+          value={hasDeaths ? formatPercent(m.unknownRate) : "—"}
+          tone={
+            hasDeaths
+              ? toneForTarget(m.unknownRate, TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT, {
+                  higherIsBetter: false,
+                })
+              : "neutral"
+          }
           sub="sin método registrado (B4)"
           info={{
             definition:
@@ -189,8 +200,8 @@ export default async function GobMortalidadPage({
         />
         <OpKpi
           label="Muertes notificables"
-          value={formatPercent(m.reportableShare)}
-          tone={m.reportableShare > 0 ? "warn" : undefined}
+          value={hasDeaths ? formatPercent(m.reportableShare) : "—"}
+          tone={hasDeaths && m.reportableShare > 0 ? "warn" : undefined}
           sub="del total (B9)"
           info={{
             definition:
@@ -271,17 +282,17 @@ export default async function GobMortalidadPage({
             <div className="grid grid-cols-3 gap-3">
               <OpKpiSm
                 label="Confirmado por vet"
-                value={formatPercent(m.contextSplits.vetConfirmedRate)}
+                value={hasDeaths ? formatPercent(m.contextSplits.vetConfirmedRate) : "—"}
                 sub="del total"
               />
               <OpKpiSm
                 label="En clínica"
-                value={formatPercent(m.contextSplits.deathAtClinicRate)}
+                value={hasDeaths ? formatPercent(m.contextSplits.deathAtClinicRate) : "—"}
                 sub="muertes en establecimiento"
               />
               <OpKpiSm
                 label="Crematorio privado"
-                value={formatPercent(m.contextSplits.privateCrematoriumRate)}
+                value={hasDeaths ? formatPercent(m.contextSplits.privateCrematoriumRate) : "—"}
                 sub="derivación del propietario"
               />
             </div>

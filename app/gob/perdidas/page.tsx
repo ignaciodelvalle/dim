@@ -203,9 +203,16 @@ export default async function GobPerdidasPage({
         {/* D4 — reunification rate over the selected period (benchmark: TARGETS.REUNIFICATION_PCT). */}
         <OpKpi
           label="Tasa de reunificación"
-          value={formatPercent(reunification.ratePct)}
-          tone={toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)}
-          bar={reunification.ratePct}
+          // Honesty (backlog H2): with zero lost episodes the rate is 0/0 → 0%,
+          // which toneForTarget paints RED "Peligro" — reads as total failure when
+          // there simply were no losses. Gate on lostEpisodes → "—" neutral.
+          value={reunification.lostEpisodes === 0 ? "—" : formatPercent(reunification.ratePct)}
+          tone={
+            reunification.lostEpisodes === 0
+              ? "neutral"
+              : toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)
+          }
+          bar={reunification.lostEpisodes === 0 ? undefined : reunification.ratePct}
           sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
           info={{
             definition: `Porcentaje de episodios de pérdida que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
