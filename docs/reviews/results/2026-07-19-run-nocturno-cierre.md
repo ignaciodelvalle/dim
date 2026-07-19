@@ -21,6 +21,8 @@ Se ejecutaron **9 tandas** en el rango `7d84def9..aafe34e2`, cada una implementa
 | `c5994e62` | A11y | `inert` en 10 wizards / 30 steps inactivos (WCAG 4.1.2). |
 | `2c34485c` | Foster + V8 | **CustodyKindToggle restaurado en el alta** (estaba vivo pero solo en modo edición → nunca aparecía; toda mascota se registraba como owner) + select opcional de método de adquisición. |
 | `aafe34e2` | PF3 + V9 | Libreta a server-`<Suspense>` reusando el acceso ya resuelto (elimina el re-auth por perfil, sin filtrar acceso); combobox de orgs en reasignar decomiso + verify en disputas. |
+| `1b654810` | Pulido | `MpfExportGate` (mismo `window.open` bug) + test stale a es-AR. |
+| `98625bf2` | 🆕 2ª capa honestidad (del re-review) | **Turnos**: cancelado-por-clínica ya no muestra "Confirmado" verde (+ fallback neutro) y el conteo del header coincide con lo mostrado. **Libreta**: vacuna sin fecha de refuerzo → "SIN DATO" neutral (no verde "VIGENTE"). **Welfare**: banner "no enviado" solo si `open`, "En revisión" para en-curso. **Lost**: link de compartir clickeable (`credentialQrUrl`) + copy real de caso vencido. |
 
 Más los **6 quick-wins de performance** ya pusheados antes del run (crons N+1, mortality headline, perfil Promise.all, rabies denom compartido, census cache en memoria, perdidas count-only) + LOW-1.
 
@@ -39,7 +41,9 @@ Más los **6 quick-wins de performance** ya pusheados antes del run (crons N+1, 
 - **Reasignación de decomiso lista orgs a nivel NACIONAL**, no scopeada por jurisdicción (`decomisos/page.tsx`). No es regresión (antes era UUID libre + el server re-valida), pero si la política es reasignar solo dentro de la jurisdicción, ese guard va en el use-case. **Decisión de política tuya.**
 - **AddPartyForm** permite submit de un target verificado-pero-inactivo (el server es el boundary real, sin impacto de seguridad; inconsistencia de UX menor).
 - **CTAs de mis-mascotas** copian las clases de `LnButton` inline (fix a11y correcto, pero las clases pueden divergir si el estilo del botón cambia — mantenibilidad).
-- **Flags de writers**: `MpfExportGate.tsx` tiene el mismo bug de `window.open` que arreglamos en `MpfExportButton` (follow-up); `item14-owner-hub.test.ts` tiene un `formatEventLabel` en inglés duplicado stale (test-as-doc desactualizado, no roto).
+- **Flags resueltos en el pulido** (ya no pendientes): `MpfExportGate.tsx` (mismo `window.open`) y el test stale `item14-owner-hub` — ambos arreglados en `1b654810`.
+- **Flag de la 2ª capa (tu decisión)**: el fix del link de mascota perdida (`LostCaseBlock`) ahora usa el resolver canónico `credentialQrUrl` — arregla la URL relativa no-clickeable en prod, pero **cambia el fallback de dev-local de `localhost:3000` a `mimar.ar`** cuando `SITE_URL` está vacío (había un comentario "localhost on purpose"). Si en dev local querés seguir viendo `localhost`, seteá `NEXT_PUBLIC_SITE_URL` en el `.env` local (en prod ya está seteado, así que no afecta).
+- **Follow-up de la 2ª capa**: la página PÚBLICA `app/(public)/denuncias/codigo/[code]/page.tsx` tiene el **mismo** bug del banner "no enviado" que arreglamos en la privada — quedó fuera de scope, mismo fix aplica.
 
 ## 5. Delta de reviews (re-corrida del deep review, fresh sobre el código nuevo)
 
