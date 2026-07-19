@@ -33,6 +33,7 @@ import {
   useState,
 } from "react";
 
+import { CustodyKindToggle } from "@/components/CustodyKindToggle";
 import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnCallout } from "@/components/ui/DocElements";
@@ -173,6 +174,13 @@ export function MinimalNewPetForm({
   const [sex, setSex] = useState<"female" | "male" | "unknown">("unknown");
   const [breed, setBreed] = useState("");
   const [color, setColor] = useState("");
+  // Custody kind (P1 fix, 2026-07-19 audit): defaults to "owner" — parsePetForm
+  // does the same when the field is absent — so this restore is additive and
+  // never changes behavior for an owner who doesn't touch the toggle.
+  const [custodyKind, setCustodyKind] = useState<"owner" | "foster_in_transit">("owner");
+  // Acquisition method (V8 fix): optional, left blank/null unless picked — the
+  // alta must stay just as easy to complete as before this field existed.
+  const [acquisitionMethod, setAcquisitionMethod] = useState("");
 
   // Resolved species string as parsePetForm expects it.
   const species = speciesPick === "other" ? otherSpecies : (speciesPick ?? "");
@@ -271,6 +279,11 @@ export function MinimalNewPetForm({
 
         {/* ── Paso 1 — Identidad ─────────────────────────────────────── */}
         <div hidden={step !== 1} className="flex flex-col gap-5">
+          {/* Custody kind — "es mi mascota" vs "la estoy cuidando" (vecino en
+              tránsito / foster). Defaults to owner; restores the foster path
+              that the alta previously had no way to reach. */}
+          <CustodyKindToggle value={custodyKind} onChange={setCustodyKind} />
+
           {/* Name */}
           <LnField label="Nombre" required>
             {({ id, describedBy, invalid }) => (
@@ -424,6 +437,29 @@ export function MinimalNewPetForm({
                     aria-describedby={describedBy}
                     autoComplete="off"
                   />
+                )}
+              </LnField>
+
+              {/* Acquisition method (V8 fix) — optional; feeds the /gob
+                  acquisition dashboard. Left blank = not specified, same as
+                  before this field existed. */}
+              <LnField label="¿Cómo te encontraste con esta mascota?">
+                {({ id, describedBy }) => (
+                  <LnSelect
+                    id={id}
+                    name="acquisitionMethod"
+                    value={acquisitionMethod}
+                    onChange={(e) => setAcquisitionMethod(e.target.value)}
+                    aria-describedby={describedBy}
+                  >
+                    <option value="">No especificar</option>
+                    <option value="adopted">Adoptado/a</option>
+                    <option value="purchased">Comprado/a</option>
+                    <option value="found_stray">Encontrado/a en la calle</option>
+                    <option value="gift">Regalado/a</option>
+                    <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
+                    <option value="other">Otro</option>
+                  </LnSelect>
                 )}
               </LnField>
             </div>

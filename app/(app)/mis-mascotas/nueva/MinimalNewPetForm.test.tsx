@@ -476,3 +476,74 @@ describe("MinimalNewPetForm — photo field", () => {
     expect(photo).not.toHaveAttribute("capture");
   });
 });
+
+// ---------------------------------------------------------------------------
+// P1 fix (2026-07-19 audit) — the only citizen alta had no custody selector,
+// so every pet was created as `owner` and the "vecino en tránsito" (foster)
+// pillar was unreachable, even though CustodyKindToggle + the custodyKind
+// parsing/mapping plumbing already existed end to end. Restored by rendering
+// CustodyKindToggle in paso 1.
+// ---------------------------------------------------------------------------
+
+describe("MinimalNewPetForm — custody kind (P1 fix)", () => {
+  it("defaults to owner when the owner doesn't touch the toggle", async () => {
+    const { action, calls } = makeRecordingAction([{ error: null }]);
+    render(<MinimalNewPetForm action={action} />);
+
+    await completeStep1();
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].custodyKind).toBe("owner");
+  });
+
+  it("posts custodyKind=foster_in_transit when 'la estoy cuidando' is picked — restores the foster path", async () => {
+    const { action, calls } = makeRecordingAction([{ error: null }]);
+    render(<MinimalNewPetForm action={action} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /la estoy cuidando/i }));
+    await completeStep1();
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].custodyKind).toBe("foster_in_transit");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// V8 fix — the alta never captured acquisition method, so the /gob
+// acquisition dashboard lost its primary input. Added as an OPTIONAL select in
+// paso 2's "Más datos" block; leaving it blank must not change the payload's
+// shape (empty string — the same value parsePetForm already treats as null).
+// ---------------------------------------------------------------------------
+
+describe("MinimalNewPetForm — acquisition method (V8 fix)", () => {
+  it("stays optional — left blank, the field posts as an empty value", async () => {
+    const { action, calls } = makeRecordingAction([{ error: null }]);
+    render(<MinimalNewPetForm action={action} />);
+
+    await completeStep1();
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].acquisitionMethod).toBe("");
+  });
+
+  it("posts the picked acquisition method", async () => {
+    const { action, calls } = makeRecordingAction([{ error: null }]);
+    render(<MinimalNewPetForm action={action} />);
+
+    await completeStep1();
+    fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
+    fireEvent.change(screen.getByLabelText(/cómo te encontraste con esta mascota/i), {
+      target: { value: "adopted" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].acquisitionMethod).toBe("adopted");
+  });
+});
