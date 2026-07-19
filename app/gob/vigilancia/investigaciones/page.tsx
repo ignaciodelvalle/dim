@@ -1,9 +1,15 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import {
+  OpBreach,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/infra/case-queries";
@@ -83,12 +89,11 @@ export default async function GobInvestigacionesPage({
         icon={<Icon name="alerta" decorative />}
       />
 
-      {/* Filters row — same JurisdictionSwitcher as /gob/vigilancia and
-          /gob/vigilancia/brotes; selecting a province/locality narrows the
-          list below (never widens beyond the operator's assignments). */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-      </div>
+      {/* Unified filter bar — jurisdiction only (no period control on this
+          screen, same as before migration); selecting a province/locality
+          narrows the list below (never widens beyond the operator's
+          assignments). */}
+      <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces, localities }} />
 
       <OpCard>
         <OpCardHead

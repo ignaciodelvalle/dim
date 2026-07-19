@@ -9,9 +9,7 @@
 //
 // Privacy invariant: both fetchers receive scope-restricted context/jurisdictions.
 
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -103,11 +101,11 @@ export default async function GobSistemaPage({
         </p>
       </header>
 
-      {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
-      </div>
+      {/* Unified filter bar — period + jurisdiction, same rail as programa/vigilancia. */}
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{ allowedProvinces, localities }}
+      />
 
       {/* Top KPI strip */}
       <section

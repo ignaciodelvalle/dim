@@ -26,10 +26,15 @@ import {
   toggleAlertSubscriptionAction,
 } from "@/app/actions/alert-subscriptions";
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpButton,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
@@ -169,10 +174,10 @@ export default async function GobProgramaPage({
     </header>
   );
   const filtersRow = (
-    <div className="grid md:grid-cols-2 gap-3">
-      <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-      <PeriodPicker defaultPreset="trailing12m" />
-    </div>
+    <OpFilterBar
+      period={{ defaultPreset: "trailing12m" }}
+      jurisdiction={{ allowedProvinces, localities }}
+    />
   );
 
   // Bound the fetcher set with a deadline so a degraded DB yields an honest

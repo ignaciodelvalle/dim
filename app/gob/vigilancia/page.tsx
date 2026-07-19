@@ -3,8 +3,6 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpBreach,
@@ -12,6 +10,7 @@ import {
   OpCard,
   OpCardBody,
   OpCardHead,
+  OpFilterBar,
   OpKpi,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
@@ -284,11 +283,11 @@ export default async function GobVigilanciaPage({
         </Link>
       </div>
 
-      {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
-      </div>
+      {/* Unified filter bar — period + jurisdiction, same rail as censo/perdidas/maltrato. */}
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{ allowedProvinces, localities }}
+      />
 
       {/* 4 KPI tiles */}
       <section

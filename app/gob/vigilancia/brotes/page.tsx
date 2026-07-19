@@ -1,7 +1,5 @@
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar } from "@/components/ui/dashboard";
 import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
@@ -81,30 +79,21 @@ export default async function GobVigilanciaBrotesPage({
         </p>
       </header>
 
-      {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        {/* TODO(future): filter by disease_code + confirmation_strength chips */}
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
-      </div>
-
-      {/* A.5: confidence tier filter */}
-      <div className="flex items-center gap-2">
-        <form method="GET" className="flex items-center gap-2">
-          {/* Preserve existing params */}
-          {sp.period && <input type="hidden" name="period" value={sp.period} />}
-          {sp.signalId && <input type="hidden" name="signalId" value={sp.signalId} />}
-          <VerifiedFilterCheckbox defaultChecked={soloVerificados} />
-          {soloVerificados && (
-            <a
-              href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}
-              className="text-sm text-ln-op-mute underline"
-            >
-              Quitar filtro
-            </a>
-          )}
-        </form>
-      </div>
+      {/* Unified filter bar — period + jurisdiction, same rail as vigilancia's
+          own /gob/vigilancia. A.5's confidence-tier toggle ("solo verificados
+          institucionalmente") is a per-screen boolean, not a select-driven
+          axis, so it lives in the free-form `children` slot — the OpCheckbox
+          itself commits via the SAME serverNavCommit path as the bar's own
+          controls (see VerifiedFilterCheckbox), so toggling it never drops
+          the active period/jurisdiction the way the old hidden-input <form>
+          did. */}
+      {/* TODO(future): filter by disease_code + confirmation_strength chips */}
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{ allowedProvinces, localities }}
+      >
+        <VerifiedFilterCheckbox defaultChecked={soloVerificados} />
+      </OpFilterBar>
 
       <OpCard aria-labelledby={panelId}>
         <OpCardHead
