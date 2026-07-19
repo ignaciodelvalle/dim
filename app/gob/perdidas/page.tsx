@@ -236,6 +236,20 @@ export default async function GobPerdidasPage({
         }
       />
 
+      {/* Honesty note (PO audit 2026-07-19): period only drives 2 of the 5 KPIs
+          plus the map/list (both derived from the same lostPets query, windowed
+          by lost-event date only when an explicit ?period is chosen — see the
+          G0 comment above). Without this line the picker reads as a global
+          filter; each affected/unaffected KPI also carries its own ⓘ caveat
+          below — this is the single legible summary. */}
+      <p className="text-xs text-ln-op-mute">
+        El Período de arriba filtra la Tasa de reunificación, la Mediana de recuperación, el mapa y
+        la lista por fecha de pérdida. Sin un período elegido, el mapa y la lista muestran el stock
+        completo de mascotas perdidas. &ldquo;Perdidas activas&rdquo;, &ldquo;Recuperados
+        (30d)&rdquo; y &ldquo;Antigüedad media&rdquo; son fotos del momento actual y no cambian con
+        el período.
+      </p>
+
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
         aria-label="Indicadores de perdidas"
@@ -249,6 +263,8 @@ export default async function GobPerdidasPage({
           info={{
             definition: "Mascotas con estado 'lost' actualmente en la jurisdicción del operador.",
             formula: "COUNT(pets WHERE status='lost') scoped to jurisdiction",
+            caveat:
+              "No se filtra por período: es un conteo instantáneo del stock actual, no cambia según la ventana elegida arriba.",
           }}
         />
         <OpKpi
@@ -258,6 +274,8 @@ export default async function GobPerdidasPage({
           info={{
             definition: "Mascotas que pasaron de estado 'lost' a 'active' en los últimos 30 días.",
             formula: "COUNT(pet_events WHERE event_type='pet_found', últimos 30d) scoped",
+            caveat:
+              "Ventana fija de 30 días — no se ajusta si elegís otro período arriba (a diferencia de la tasa de reunificación).",
           }}
         />
         <OpKpi
@@ -267,6 +285,7 @@ export default async function GobPerdidasPage({
             definition:
               "Promedio de días transcurridos desde la fecha de pérdida (evento pet_lost) hasta hoy, sobre el set actualmente perdido.",
             formula: "AVG(today − lost_at) WHERE status='lost'",
+            caveat: "Snapshot sobre el stock actual: no se filtra por período.",
           }}
         />
         {/* D4 — reunification rate over the selected period (benchmark: TARGETS.REUNIFICATION_PCT). */}
@@ -284,7 +303,7 @@ export default async function GobPerdidasPage({
           bar={reunification.lostEpisodes === 0 ? undefined : reunification.ratePct}
           sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
           info={{
-            definition: `Porcentaje de episodios de pérdida que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
+            definition: `Porcentaje de episodios de pérdida abiertos en el período seleccionado que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
             formula:
               "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en período) × 100",
             caveat:
@@ -296,7 +315,7 @@ export default async function GobPerdidasPage({
           value={String(reunification.medianDaysToRecovery)}
           info={{
             definition:
-              "Mediana de días entre la apertura del episodio de pérdida y su resolución (reunificación). Menor es mejor.",
+              "Mediana de días entre la apertura del episodio de pérdida y su resolución (reunificación), sobre los episodios del período seleccionado. Menor es mejor.",
             formula: "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_recovery)",
           }}
         />
