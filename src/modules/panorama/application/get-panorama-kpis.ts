@@ -150,6 +150,18 @@ export type PanoramaKpi = {
    */
   sparkline?: number[];
   /**
+   * Overrides the sparkline's a11y description when what it PLOTS differs
+   * from the tile's headline metric — e.g. `cobertura`'s headline is a
+   * PERCENTAGE (rate) but its sparkline (fetchRabiesVaccinationTrend) plots
+   * raw per-bucket vaccination VOLUME (countDistinct dogs vaccinated), not
+   * the coverage ratio. Without this, the generic "Tendencia de {label}"
+   * aria-label reads as if the trend line tracked the % — a click-through
+   * honesty mismatch for screen-reader users. Absent → the caller falls back
+   * to the generic "Tendencia de {shortLabel}" phrasing (headline and
+   * sparkline agree on what's plotted, e.g. mordeduras/zoonosis counts).
+   */
+  sparklineLabel?: string;
+  /**
    * Per-tile degradation (2026-07): TRUE when THIS tile's backing PRIMARY fetcher
    * rejected while others succeeded. The tile renders an honest, self-contained
    * "no disponible" placeholder (value "—", neutral, no numbers) instead of
@@ -638,6 +650,9 @@ export async function getPanoramaKpis(
       // / sparkline adornment rather than the whole tile (per-tile degradation).
       delta: priorCoverage ? deltaOf(coverage.current, priorCoverage.current, "pts") : undefined,
       sparkline: rabiesVaxTrend ? rabiesVaxTrend.points.map((p) => p.y) : undefined,
+      // Honesty fix (Panorama audit): the headline is a % coverage RATE, but the
+      // sparkline plots per-bucket vaccination VOLUME — say so, not "Cobertura".
+      sparklineLabel: "vacunación antirrábica registrada (volumen, no el % de cobertura)",
       info: {
         definition:
           "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón registrado es el primer denominador; el segundo es la población canina estimada. Obligación legal: Ley 22.953 (vacunación antirrábica obligatoria, vigente en casi todas las jurisdicciones). Meta de salud pública: 80%.",
@@ -873,7 +888,7 @@ export async function getPanoramaKpis(
           "Mascotas actualmente en estado «fallecida» registradas en MiMAR, en el alcance seleccionado. Es un estado actual (no depende del período).",
         formula: "COUNT(mascotas con status='deceased') en alcance",
         caveat:
-          "Solo cuenta fallecimientos registrados en MiMAR; la mortalidad real puede ser mayor. No depende de la línea de tiempo (estado actual).",
+          "Solo cuenta fallecimientos registrados en MiMAR; la mortalidad real puede ser mayor. No depende de la línea de tiempo (estado actual). El detalle (/gob/mortalidad) usa una definición distinta: fallecimientos ocurridos EN el período seleccionado (un flujo), no el stock actual de mascotas fallecidas — los dos números no van a coincidir.",
       },
     },
   ];

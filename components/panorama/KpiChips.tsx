@@ -126,7 +126,7 @@ function KpiCard({
             points={kpi.sparkline}
             width={64}
             height={18}
-            ariaLabel={`Tendencia de ${shortKpiLabel(presetId, kpi.id, kpi.label)}`}
+            ariaLabel={`Tendencia de ${kpi.sparklineLabel ?? shortKpiLabel(presetId, kpi.id, kpi.label)}`}
           />
         )}
       </div>

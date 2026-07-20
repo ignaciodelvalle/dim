@@ -142,18 +142,28 @@ describe("aggregateRowsByBarrio (CABA, via aggregateRowsByDepartment('AR-C', ...
     expect(untouched?.count).toBe(0);
   });
 
-  it("suppresses a below-k=5 barrio count; passes an at/above-k=5 count through real", async () => {
+  it("suppresses a below-k=5 barrio count; a lone at/above-k=5 sibling is ALSO complementarily suppressed", async () => {
     if (!catalogPopulated) return;
+    // Only Palermo and Recoleta carry non-zero counts; the other ~46 CABA
+    // barrios are honest zeros. Palermo (4) is primary-suppressed (k=5), and it
+    // is the ONLY suppressed cell in the (single-group) CABA set, with exactly
+    // one non-zero visible sibling (Recoleta). Per the differencing-attack
+    // defense (redactSmallSubregionCells now runs complementarySuppress, mirroring
+    // Panorama's repository pipeline): if CABA's province-map total is published
+    // unsuppressed elsewhere, Palermo's exact count would be recoverable as
+    // `total − Recoleta − 0s`, so Recoleta must be suppressed TOO — not because
+    // Recoleta itself is small, but because it is the sole cell that could expose
+    // Palermo by subtraction.
     const out = await aggregateRowsByDepartment(CABA, [
       { locality: "Palermo", value: 4 }, // below k=5
-      { locality: "Recoleta", value: 5 }, // at k=5
+      { locality: "Recoleta", value: 5 }, // at k=5, but the lone complement here
     ]);
     const palermo = out.find((r) => r.name === "Palermo");
     const recoleta = out.find((r) => r.name === "Recoleta");
     expect(palermo?.suppressed).toBe(true);
     expect(palermo?.count).toBe(0);
-    expect(recoleta?.suppressed).toBeFalsy();
-    expect(recoleta?.count).toBe(5);
+    expect(recoleta?.suppressed).toBe(true);
+    expect(recoleta?.count).toBe(0);
   });
 
   it("returns the full barrio set for CABA, excluding the province catch-all row", async () => {

@@ -20,7 +20,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, panoramaCube, panoramaCubeMeta, panoramaKpiCube, panoramaKpiCubeMeta } from "@/db";
-import type { AnalyticsPeriod, DashboardActor } from "@/lib/metrics";
+import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { buildProjectionContext } from "@/lib/metrics";
 import { fetchNetGrowth } from "@/lib/metrics/population-control";
 
@@ -193,6 +193,68 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
       }
     }
   }, 180_000);
+});
+
+// ---------------------------------------------------------------------------
+// Govt jurisdiction-scoped correctness (Panorama-level integration coverage,
+// not just scope.ts unit tests).
+// ---------------------------------------------------------------------------
+//
+// The layer cube is ADMIN-ONLY by design (load-layer-features-cube.ts header:
+// "govt stays live in v1") — a govt actor NEVER reads from it, always live.
+// So a govt request can't be cube-vs-cube parity-tested. What CAN be checked
+// at this integration level: a govt actor assigned a WHOLE province must see
+// EXACTLY the population the cube stores for that province.
+//
+// A whole-province govt assignment is NOT `{ locality: "" }` for an arbitrary
+// province — jurisdictionPairClause (lib/metrics/scope.ts) only widens to
+// province-only when isWholeProvinceLocality(province, locality) is true, and
+// that map (lib/domain/jurisdiction-canonical.ts WHOLE_PROVINCE_LOCALITY) has
+// exactly ONE entry: CABA's single INDEC locality-of-record. For every other
+// province (including the DRILL_PROVINCE used above), `locality: ""` is an
+// EXACT-MATCH predicate (`locality = ''`) that matches ~nothing — it does NOT
+// mean "whole province". So CABA is the only province where a govt actor's
+// assignment can legitimately be compared against an admin province drill
+// (adminProvince="CABA", no adminLocality) — both resolve to the identical
+// `province = 'CABA'` SQL predicate, hence the identical population.
+describe("govt jurisdiction-scoped correctness (field-diff live-govt vs cube admin drill)", () => {
+  const GOVT: DashboardActor = { role: "govt" };
+  // The whole-CABA INDEC locality (lib/domain/jurisdiction-canonical.ts
+  // WHOLE_PROVINCE_LOCALITY.CABA) — the ONE assignment form that subsumes
+  // every barrio, matching admin's adminProvince="CABA" (no adminLocality).
+  const WHOLE_CABA = "Ciudad Autónoma de Buenos Aires";
+  const GOVT_WHOLE_CABA: DashboardJurisdiction[] = [{ province: DRILL_CABA, locality: WHOLE_CABA }];
+
+  for (const layer of CHOROPLETH_LAYERS) {
+    for (const level of ["province", "locality"] as const) {
+      it(`${layer} @ ${level} — govt (whole CABA) live equals the cube admin drill`, async () => {
+        const [liveGovt, cubeAdmin] = await Promise.all([
+          getLayerFeatures(layer, GOVT, GOVT_WHOLE_CABA, PERIOD, level),
+          loadLayerFeaturesFromCube(layer, ADMIN, level, DRILL_CABA),
+        ]);
+        expect(cubeAdmin, "cube must serve this admin province drill").not.toBeNull();
+        const cubeResult = cubeAdmin as NonNullable<typeof cubeAdmin>;
+
+        // Envelope parity.
+        expect(liveGovt.level).toBe(cubeResult.result.level);
+        expect(liveGovt.suppressedCount).toBe(cubeResult.result.suppressedCount);
+        expect(liveGovt.noLocalityCount).toBe(cubeResult.result.noLocalityCount);
+        expect(liveGovt.truncated).toBe(cubeResult.result.truncated);
+
+        // Feature parity (order-independent, geometry + properties) — the same
+        // field-diff the admin parity block above runs, now under a real govt
+        // scope instead of an admin adminProvince drill.
+        expect(normFeatures(cubeResult.result)).toEqual(normFeatures(liveGovt));
+      }, 60_000);
+    }
+  }
+
+  it("the layer cube never serves a govt actor directly (admin-only invariant, checked at the integration boundary)", async () => {
+    for (const layer of CHOROPLETH_LAYERS) {
+      expect(await loadLayerFeaturesFromCube(layer, GOVT, "province", DRILL_CABA)).toBeNull();
+      expect(await loadLayerFeaturesFromCube(layer, GOVT, "locality", DRILL_CABA)).toBeNull();
+    }
+  });
 });
 
 describe("sub-k invariant (privacy floor baked into the readable surface)", () => {
