@@ -108,7 +108,10 @@ function truncBucket(unit: "week" | "month") {
  * (death_recorded). CADENCE = ctx.period, bucketed weekly/monthly.
  * SUPPRESSION = k-anon (k=5) per (bucket, cause) cell.
  */
-export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<StackedTrend> {
+export async function fetchDeathCausesTrend(
+  ctx: ProjectionContext,
+  opts?: { species?: string; cause?: string },
+): Promise<StackedTrend> {
   const granularity = bucketGranularityFor(ctx.period);
   if (isEmptyScope(ctx)) return EMPTY_STACKED(granularity);
 
@@ -121,6 +124,10 @@ export async function fetchDeathCausesTrend(ctx: ProjectionContext): Promise<Sta
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
+  if (opts?.cause) {
+    conditions.push(sql`COALESCE(${petEvents.payload}->>'cause', 'unknown') = ${opts.cause}`);
+  }
 
   const rows = await db
     .select({
@@ -329,10 +336,14 @@ export async function fetchRabiesVaccinationTrend(
  *
  * @param eventType - The exact `pet_events.event_type` value to count.
  * @param ctx       - ProjectionContext (actor + scope + period).
+ * @param opts      - Optional `species` narrowing (domain-axes work). Omitted →
+ *                    identical to the pre-existing unfiltered behavior. Every
+ *                    caller today joins `pets`, so this never needs a new join.
  */
 export async function fetchKpiTrend(
   eventType: string,
   ctx: ProjectionContext,
+  opts?: { species?: string },
 ): Promise<SingleSeriesTrend> {
   const granularity = bucketGranularityFor(ctx.period);
   if (isEmptyScope(ctx)) return EMPTY_SINGLE(granularity);
@@ -348,6 +359,7 @@ export async function fetchKpiTrend(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
   const rows = await db
     .select({

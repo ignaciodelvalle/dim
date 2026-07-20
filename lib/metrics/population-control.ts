@@ -162,11 +162,17 @@ export type SterilizationCoverageResult = {
  */
 export async function fetchSterilizationCoverage(
   ctx: ProjectionContext,
+  opts?: { species?: string },
 ): Promise<SterilizationCoverageResult> {
   const empty: SterilizationCoverageResult = { rate: 0, sterilized: 0, total: 0, byProvince: [] };
   if (isEmptyScope(ctx)) return empty;
 
   const activeCond = activePetsCondition(ctx);
+  // Species narrows total/sterilized/byProvince identically (domain-axes work:
+  // poblacion species filter). Undefined → populationCond === activeCond.
+  const populationCond = opts?.species
+    ? and(activeCond, eq(pets.species, opts.species))
+    : activeCond;
 
   // An active pet is "sterilized" if it has ≥1 sterilization_performed event.
   // EXISTS keeps the numerator/denominator on the SAME pet base (no fan-out).
@@ -178,12 +184,12 @@ export async function fetchSterilizationCoverage(
   )`;
 
   const [totalRows, sterilizedRows, provinceRows] = await Promise.all([
-    db.select({ n: count() }).from(pets).where(activeCond),
+    db.select({ n: count() }).from(pets).where(populationCond),
 
     db
       .select({ n: countDistinct(pets.id) })
       .from(pets)
-      .where(and(activeCond, sterilizedExists)),
+      .where(and(populationCond, sterilizedExists)),
 
     // Per-province sterilized/total for choropleth.
     db
@@ -193,7 +199,7 @@ export async function fetchSterilizationCoverage(
         sterilized: sql<number>`count(*) FILTER (WHERE ${sterilizedExists})::int`,
       })
       .from(pets)
-      .where(activeCond)
+      .where(populationCond)
       .groupBy(pets.jurisdictionProvince)
       .orderBy(sql`count(*) desc`),
   ]);
@@ -242,14 +248,19 @@ export async function fetchSterilizationCoverage(
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchActivePregnancies(ctx: ProjectionContext): Promise<number> {
+export async function fetchActivePregnancies(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<number> {
   if (isEmptyScope(ctx)) return 0;
 
   const activeCond = activePetsCondition(ctx);
+  const conditions = [activeCond, eq(pets.pregnancyStatus, "in_progress")];
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
   const rows = await db
     .select({ n: count() })
     .from(pets)
-    .where(and(activeCond, eq(pets.pregnancyStatus, "in_progress")));
+    .where(and(...conditions));
 
   return rows[0]?.n ?? 0;
 }
@@ -313,6 +324,7 @@ export type ReproductiveOutcomes = {
  */
 export async function fetchReproductiveOutcomes(
   ctx: ProjectionContext,
+  opts?: { species?: string },
 ): Promise<ReproductiveOutcomes> {
   const empty: ReproductiveOutcomes = {
     byClinicalOutcome: {
@@ -341,6 +353,7 @@ export async function fetchReproductiveOutcomes(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
   // AMENDMENT OVERLAY (corrections-supersede E3): clinical_info_logged is in
   // AMENDABLE_EVENT_TYPES, so `outcome` and `live_births_count` are mutable —
@@ -424,7 +437,10 @@ export async function fetchReproductiveOutcomes(
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchPrevRegisteredBirths(ctx: ProjectionContext): Promise<number> {
+export async function fetchPrevRegisteredBirths(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<number> {
   if (isEmptyScope(ctx)) return 0;
 
   const scope = petsScopeClause(ctx);
@@ -441,6 +457,7 @@ export async function fetchPrevRegisteredBirths(ctx: ProjectionContext): Promise
     lte(petEvents.occurredAt, prevUntil),
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
   const [row] = await db
     .select({ n: count() })
@@ -504,7 +521,10 @@ export type NetGrowthResult = {
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthResult> {
+export async function fetchNetGrowth(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<NetGrowthResult> {
   const empty: NetGrowthResult = { altas: 0, registeredBirths: 0, deaths: 0, net: 0 };
   if (isEmptyScope(ctx)) return empty;
 
@@ -517,6 +537,7 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
     sql`${pets.status} IN ('active', 'lost')`,
   ];
   if (scope) altasConditions.push(sql`(${scope})`);
+  if (opts?.species) altasConditions.push(eq(pets.species, opts.species));
 
   // deaths: death_recorded events in the period, scoped via JOIN to pets by the
   // pet's HOME jurisdiction (petsScopeClause). death_recorded carries no payload
@@ -530,6 +551,7 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) deathConditions.push(sql`(${scope})`);
+  if (opts?.species) deathConditions.push(eq(pets.species, opts.species));
 
   // registeredBirths: clinical_info_logged pregnancy-ended live_birth in the period.
   // AMENDMENT OVERLAY (E3): `outcome` is a mutable field on an amendable event —
@@ -544,6 +566,7 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) birthConditions.push(sql`(${scope})`);
+  if (opts?.species) birthConditions.push(eq(pets.species, opts.species));
 
   const [altasRows, deathRows, birthRows] = await Promise.all([
     db
@@ -610,6 +633,7 @@ export async function fetchNetGrowth(ctx: ProjectionContext): Promise<NetGrowthR
  */
 export async function fetchSterilizationNatalidadRatio(
   ctx: ProjectionContext,
+  opts?: { species?: string },
 ): Promise<number | null> {
   if (isEmptyScope(ctx)) return null;
 
@@ -626,6 +650,7 @@ export async function fetchSterilizationNatalidadRatio(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) sterilConditions.push(sql`(${scope})`);
+  if (opts?.species) sterilConditions.push(eq(pets.species, opts.species));
 
   // AMENDMENT OVERLAY (E3): `outcome` read through amendedPayloadText so a
   // corrected outcome supersedes the ratio denominator too.
@@ -638,6 +663,7 @@ export async function fetchSterilizationNatalidadRatio(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) birthConditions.push(sql`(${scope})`);
+  if (opts?.species) birthConditions.push(eq(pets.species, opts.species));
 
   const [sterilRows, birthRows] = await Promise.all([
     db
@@ -674,6 +700,9 @@ export async function fetchSterilizationNatalidadRatio(
  * sterilization_coverage_population's numerator (see kpi-catalog.ts). Reuses
  * fetchKpiTrend, so numerator/scope/k-anon (k=5) are identical to that helper.
  */
-export async function fetchSterilizationTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
-  return fetchKpiTrend("sterilization_performed", ctx);
+export async function fetchSterilizationTrend(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<SingleSeriesTrend> {
+  return fetchKpiTrend("sterilization_performed", ctx, opts);
 }

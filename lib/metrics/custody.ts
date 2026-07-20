@@ -201,7 +201,10 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<CustodyFunnel> {
+export async function fetchCustodyFunnel(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<CustodyFunnel> {
   const empty: CustodyFunnel = { intake: 0, foster: 0, adoption: 0, reversed: 0 };
   if (isEmptyScope(ctx)) return empty;
 
@@ -222,6 +225,7 @@ export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<Custod
         lte(petEvents.occurredAt, ctx.period.until),
       ];
       if (scope) conditions.push(sql`(${scope})`);
+      if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
       return db
         .select({ n: count() })
@@ -253,7 +257,10 @@ export async function fetchCustodyFunnel(ctx: ProjectionContext): Promise<Custod
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchPrevAdoptionCount(ctx: ProjectionContext): Promise<number> {
+export async function fetchPrevAdoptionCount(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<number> {
   if (isEmptyScope(ctx)) return 0;
 
   const scope = petsScopeClause(ctx);
@@ -267,6 +274,7 @@ export async function fetchPrevAdoptionCount(ctx: ProjectionContext): Promise<nu
     lte(petEvents.occurredAt, prevUntil),
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
   const [row] = await db
     .select({ n: count() })
@@ -297,7 +305,10 @@ export async function fetchPrevAdoptionCount(ctx: ProjectionContext): Promise<nu
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchTimeInState(ctx: ProjectionContext): Promise<TimeInStateRow[]> {
+export async function fetchTimeInState(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<TimeInStateRow[]> {
   if (isEmptyScope(ctx)) return [];
 
   const scope = petsScopeClause(ctx);
@@ -313,6 +324,7 @@ export async function fetchTimeInState(ctx: ProjectionContext): Promise<TimeInSt
     sql`(${ownerships.endedAt} IS NULL OR ${ownerships.endedAt} >= ${ctx.period.since.toISOString()})`,
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
   const rows = await db
     .select({
@@ -365,7 +377,10 @@ export async function fetchTimeInState(ctx: ProjectionContext): Promise<TimeInSt
  * @param ctx - ProjectionContext.
  * @returns returnRate (0–1+) or null when adoption_finalized === 0.
  */
-export async function fetchReturnRate(ctx: ProjectionContext): Promise<number | null> {
+export async function fetchReturnRate(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<number | null> {
   if (isEmptyScope(ctx)) return null;
 
   const scope = petsScopeClause(ctx);
@@ -377,6 +392,7 @@ export async function fetchReturnRate(ctx: ProjectionContext): Promise<number | 
       lte(petEvents.occurredAt, ctx.period.until),
     ];
     if (scope) conds.push(sql`(${scope})`);
+    if (opts?.species) conds.push(eq(pets.species, opts.species));
     return conds;
   };
 
@@ -553,6 +569,9 @@ export async function fetchShelterOccupancyNational(
  *
  * @param ctx - ProjectionContext.
  */
-export async function fetchAdoptionTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
-  return fetchKpiTrend("adoption_finalized", ctx);
+export async function fetchAdoptionTrend(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<SingleSeriesTrend> {
+  return fetchKpiTrend("adoption_finalized", ctx, opts);
 }

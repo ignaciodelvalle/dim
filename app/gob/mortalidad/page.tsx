@@ -23,6 +23,7 @@ import {
   OpCard,
   OpCardBody,
   OpCardHead,
+  type OpFilterAxis,
   OpFilterBar,
   OpKpi,
   OpKpiSm,
@@ -55,6 +56,35 @@ const BUCKET_LABELS: Record<string, string> = {
   other: "Otro / sin especificar",
 };
 
+// Species domain axis — mirrors /gob/perdidas' SPECIES_OPTIONS exactly.
+// pets.species is free text ('dog' | 'cat' | 'other' in practice); "other" is
+// the exact stored value the fetchers honor as-is (no query change).
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perro" },
+  { value: "cat", label: "Gato" },
+  { value: "other", label: "Otra" },
+];
+
+// Death-cause domain axis — the deathRecorded event schema's `cause` enum
+// (lib/events/event-schemas.ts) is a closed set; fetchMortalityDisposition
+// already COALESCEs a missing cause to 'unknown', so that value is included
+// here as a selectable option rather than only appearing unbidden in the chart.
+const DEATH_CAUSE_VALUES = [
+  "known",
+  "unknown",
+  "natural",
+  "disease",
+  "accident",
+  "euthanasia",
+  "sudden",
+  "violent",
+  "other",
+] as const;
+const CAUSE_OPTIONS = DEATH_CAUSE_VALUES.map((value) => ({
+  value,
+  label: deathCauseLabel(value),
+}));
+
 export default async function GobMortalidadPage({
   searchParams,
 }: {
@@ -64,6 +94,8 @@ export default async function GobMortalidadPage({
     to?: string;
     province?: string;
     locality?: string;
+    species?: string;
+    cause?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -103,6 +135,11 @@ export default async function GobMortalidadPage({
   // (same pattern as /gob/perdidas).
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+  const species = sp.species || undefined;
+  // Validate against the closed cause enum so an invalid URL value never
+  // drives the query (same discipline as /gob/perdidas' parseStatusFilter).
+  const cause =
+    sp.cause && (DEATH_CAUSE_VALUES as readonly string[]).includes(sp.cause) ? sp.cause : undefined;
 
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
@@ -113,11 +150,20 @@ export default async function GobMortalidadPage({
   // parallel over the same scoped death_recorded population. fetchPrevMortalityTotal
   // adds ONE new query (same scope, shifted one period back) purely to power the
   // "Muertes (período)" deltaV2 chip — mirrors campaign-metrics.ts' fetchPrevTotals.
+  //
+  // species + cause narrow every fetcher below identically (fetchMortalityDisposition
+  // shares ONE `where` across all its sub-queries) so the KPI row, disposition bars,
+  // context splits, causes-by-week chart, and locality breakdown all agree. The
+  // death sparkline (fetchKpiTrend) only takes species — "cause" is a
+  // death_recorded-payload-specific field, not something the generic
+  // event-type trend helper models; the sparkline is a decorative secondary
+  // signal, not the headline tile, so this is an accepted minor inconsistency
+  // when a cause filter is active.
   const [m, causesTrend, deathSparkline, prevTotal] = await Promise.all([
-    fetchMortalityDisposition(ctx),
-    fetchDeathCausesTrend(ctx),
-    fetchKpiTrend("death_recorded", ctx),
-    fetchPrevMortalityTotal(ctx),
+    fetchMortalityDisposition(ctx, { species, cause }),
+    fetchDeathCausesTrend(ctx, { species, cause }),
+    fetchKpiTrend("death_recorded", ctx, { species }),
+    fetchPrevMortalityTotal(ctx, { species, cause }),
   ]);
 
   const deathsDelta = formatDelta(m.total, prevTotal, "vs período anterior");
@@ -156,10 +202,29 @@ export default async function GobMortalidadPage({
         </p>
       </header>
 
-      {/* Unified filter bar — jurisdiction + period + active-filter chips. */}
+      {/* Unified filter bar — jurisdiction + period + species/cause axes +
+          active-filter chips. */}
       <OpFilterBar
         period={{ defaultPreset: "trailing12m" }}
         jurisdiction={{ allowedProvinces, localities }}
+        axes={
+          [
+            {
+              id: "species",
+              label: "Especie",
+              paramKey: "species",
+              options: SPECIES_OPTIONS,
+              current: species ?? null,
+            },
+            {
+              id: "cause",
+              label: "Causa",
+              paramKey: "cause",
+              options: CAUSE_OPTIONS,
+              current: cause ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
       />
 
       {/* Conditional breach banner — low disposal traceability */}

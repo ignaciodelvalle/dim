@@ -352,6 +352,16 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
 export async function registryCounts(
   ctx: ProjectionContext,
   dormantMonths: number = DORMANT_MONTHS_DEFAULT,
+  opts?: {
+    /**
+     * Optional species narrowing (e.g. "dog" | "cat" | "other" — pets.species is
+     * free text, not a DB enum). Applied as an additional AND predicate on every
+     * sub-query below so the total/active/dormant/incomplete/byLocality tiles
+     * stay internally consistent (domain-axes work: censo species filter).
+     * Omitted → identical to the pre-existing unfiltered behavior.
+     */
+    species?: string;
+  },
 ): Promise<RegistryCounts> {
   const empty: RegistryCounts = {
     total: 0,
@@ -364,6 +374,11 @@ export async function registryCounts(
 
   const scope = petsScopeClause(ctx);
   const activeCond = activePetsCondition(ctx);
+  // Species narrows the active/lost population base for every query below.
+  // Undefined opts.species → populationCond is activeCond, byte-identical to before.
+  const populationCond = opts?.species
+    ? and(activeCond, eq(pets.species, opts.species))
+    : activeCond;
 
   // Cutoff date for dormancy (N months ago from the period's `until` boundary).
   const dormancyCutoff = new Date(ctx.period.until);
@@ -399,31 +414,39 @@ export async function registryCounts(
     OR ${pets.jurisdictionLocality} IS NULL
   )`;
 
+  // active-only condition (status='active', excludes lost) + optional species narrowing.
+  const activeOnlyBase = scope
+    ? and(eq(pets.status, "active"), sql`(${scope})`)
+    : eq(pets.status, "active");
+  const activeOnlyCond = opts?.species
+    ? and(activeOnlyBase, eq(pets.species, opts.species))
+    : activeOnlyBase;
+
   const [totalRows, activeRows, dormantRows, incompleteRows, localityRows] = await Promise.all([
     // total = active/lost pets in scope
     db
       .select({ n: count() })
       .from(pets)
-      .where(activeCond),
+      .where(populationCond),
 
     // active = status='active' only (excludes lost)
     db
       .select({ n: count() })
       .from(pets)
-      .where(scope ? and(eq(pets.status, "active"), sql`(${scope})`) : eq(pets.status, "active")),
+      .where(activeOnlyCond),
 
     // dormant = active/lost with NO owner-activity event after the cutoff
     // (NOT EXISTS on the qualifying events subquery)
     db
       .select({ n: count() })
       .from(pets)
-      .where(and(activeCond, sql`NOT ${hasRecentOwnerActivity}`)),
+      .where(and(populationCond, sql`NOT ${hasRecentOwnerActivity}`)),
 
     // incomplete = active/lost missing chip OR unknown sex OR no locality
     db
       .select({ n: count() })
       .from(pets)
-      .where(and(activeCond, isIncomplete)),
+      .where(and(populationCond, isIncomplete)),
 
     // byLocality = per-locality count for k-anon choropleth
     db
@@ -432,7 +455,7 @@ export async function registryCounts(
         n: count(),
       })
       .from(pets)
-      .where(activeCond)
+      .where(populationCond)
       .groupBy(pets.jurisdictionLocality),
   ]);
 
@@ -465,7 +488,10 @@ export async function registryCounts(
  * scope, status IN active/lost). DENOMINATOR = n/a (a count series). SOURCE =
  * pets. CADENCE = ctx.period, bucketed weekly/monthly. SUPPRESSION = k=5.
  */
-export async function registrationTrend(ctx: ProjectionContext): Promise<SingleSeriesTrend> {
+export async function registrationTrend(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<SingleSeriesTrend> {
   const granularity = bucketGranularityFor(ctx.period);
   if (isEmptyScope(ctx)) return { granularity, points: [], suppressedCount: 0 };
 
@@ -481,6 +507,7 @@ export async function registrationTrend(ctx: ProjectionContext): Promise<SingleS
     sql`${pets.status} IN ('active', 'lost')`,
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
 
   const rows = await db
     .select({ bucket, n: count() })
@@ -531,11 +558,20 @@ export async function registrationTrend(ctx: ProjectionContext): Promise<SingleS
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function identificationFunnel(ctx: ProjectionContext): Promise<FunnelStages> {
+export async function identificationFunnel(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<FunnelStages> {
   if (isEmptyScope(ctx)) return { total: 0, chipped: 0, isoValid: 0, scanned: 0 };
 
   const scope = petsScopeClause(ctx);
   const activeCond = activePetsCondition(ctx);
+  // Species narrows every stage below so the funnel stays internally
+  // consistent (domain-axes work: censo species filter). Undefined →
+  // populationCond === activeCond, byte-identical to before.
+  const populationCond = opts?.species
+    ? and(activeCond, eq(pets.species, opts.species))
+    : activeCond;
 
   // Reuses the same EXISTS pattern as fetchMicrochipPenetration (lib/compliance-metrics.ts)
   const hasChipExists = sql`EXISTS (
@@ -559,7 +595,7 @@ export async function identificationFunnel(ctx: ProjectionContext): Promise<Funn
   // isoValid but not in chipped, violating the funnel monotonic assert and
   // 500ing /admin/censo the moment the data held one such pet. It also
   // counts DISTINCT pets (not identification rows) for the same reason.
-  const isoConditions = [sql`pi.kind = 'microchip_iso'`, sql`pi.status = 'active'`, activeCond];
+  const isoConditions = [sql`pi.kind = 'microchip_iso'`, sql`pi.status = 'active'`, populationCond];
   if (scope) isoConditions.push(sql`(${scope})`);
 
   // scanned: DISTINCT pets with a credential_scanned event in the ctx period.
@@ -570,6 +606,7 @@ export async function identificationFunnel(ctx: ProjectionContext): Promise<Funn
     gte(petEvents.occurredAt, ctx.period.since),
     lte(petEvents.occurredAt, ctx.period.until),
   ];
+  if (opts?.species) scanConditions.push(eq(pets.species, opts.species));
   // Scope scanned via JOIN to pets (scan events don't carry jurisdiction payload fields).
   const scopedScanQuery = db
     .select({ n: countDistinct(petEvents.petId) })
@@ -578,9 +615,9 @@ export async function identificationFunnel(ctx: ProjectionContext): Promise<Funn
     .where(scope ? and(...scanConditions, sql`(${scope})`) : and(...scanConditions));
 
   const [totalRows, chippedRows, isoRows, scannedRows] = await Promise.all([
-    db.select({ n: count() }).from(pets).where(activeCond),
+    db.select({ n: count() }).from(pets).where(populationCond),
 
-    db.select({ n: count() }).from(pets).where(and(activeCond, hasChipExists)),
+    db.select({ n: count() }).from(pets).where(and(populationCond, hasChipExists)),
 
     db
       .select({
@@ -626,10 +663,16 @@ export type ProvinceRegistryRow = {
  * DENOMINATOR = n/a (absolute count per province). SOURCE = pets. CADENCE =
  * point-in-time. SUPPRESSION = none (province cells are never small).
  */
-export async function registryByProvince(ctx: ProjectionContext): Promise<ProvinceRegistryRow[]> {
+export async function registryByProvince(
+  ctx: ProjectionContext,
+  opts?: { species?: string },
+): Promise<ProvinceRegistryRow[]> {
   if (isEmptyScope(ctx)) return [];
 
   const activeCond = activePetsCondition(ctx);
+  const populationCond = opts?.species
+    ? and(activeCond, eq(pets.species, opts.species))
+    : activeCond;
 
   const rows = await db
     .select({
@@ -637,7 +680,7 @@ export async function registryByProvince(ctx: ProjectionContext): Promise<Provin
       n: countDistinct(pets.id),
     })
     .from(pets)
-    .where(activeCond)
+    .where(populationCond)
     .groupBy(pets.jurisdictionProvince)
     .orderBy(sql`count(distinct ${pets.id}) desc`);
 

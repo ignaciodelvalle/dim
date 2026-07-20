@@ -13,7 +13,14 @@
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -36,6 +43,15 @@ import { formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
+// Species domain axis — mirrors /gob/perdidas' SPECIES_OPTIONS exactly.
+// pets.species is free text ('dog' | 'cat' | 'other' in practice); "other" is
+// the exact stored value the fetchers honor as-is (no query change).
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perro" },
+  { value: "cat", label: "Gato" },
+  { value: "other", label: "Otra" },
+];
+
 export default async function GobCensoPage({
   searchParams,
 }: {
@@ -45,6 +61,7 @@ export default async function GobCensoPage({
     to?: string;
     province?: string;
     locality?: string;
+    species?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -93,6 +110,7 @@ export default async function GobCensoPage({
   // (same pattern as /gob/perdidas).
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+  const species = sp.species || undefined;
 
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
@@ -122,6 +140,17 @@ export default async function GobCensoPage({
     <OpFilterBar
       period={{ defaultPreset: "trailing12m" }}
       jurisdiction={{ allowedProvinces, localities }}
+      axes={
+        [
+          {
+            id: "species",
+            label: "Especie",
+            paramKey: "species",
+            options: SPECIES_OPTIONS,
+            current: sp.species ?? null,
+          },
+        ] satisfies OpFilterAxis[]
+      }
       actions={
         <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
           Exportar CSV →
@@ -132,12 +161,14 @@ export default async function GobCensoPage({
 
   // Bound the fetcher set with a deadline so a degraded DB yields an honest
   // "reintentar" state instead of an unbounded hang (parity with /admin/censo).
+  // species narrows all four sub-queries identically so the KPI row, trend,
+  // funnel, and choropleth stay internally consistent (domain-axes work).
   const load = await loadWithTimeout(
     Promise.all([
-      registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
-      registrationTrend(ctx),
-      identificationFunnel(ctx),
-      registryByProvince(ctx),
+      registryCounts(ctx, DORMANT_MONTHS_DEFAULT, { species }),
+      registrationTrend(ctx, { species }),
+      identificationFunnel(ctx, { species }),
+      registryByProvince(ctx, { species }),
     ]),
   );
 

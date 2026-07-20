@@ -12,7 +12,14 @@
 
 import { Icon } from "@/components/Icon";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchCampaignDashboard, formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -24,10 +31,15 @@ import {
   toneForTarget,
   windows,
 } from "@/lib/metrics";
-import { findServiceKind } from "@/lib/reference/service-kinds";
+import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
 import { pluralizeEs } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
+
+// Service-kind domain axis — SERVICE_KINDS (lib/reference/service-kinds.ts) is
+// the closed catalog serviceOfferings.serviceKind is drawn from; reusing it
+// directly needs no new mapping and no new column.
+const SERVICE_KIND_OPTIONS = SERVICE_KINDS.map((k) => ({ value: k.code, label: k.label }));
 
 export default async function GobCampanasPage({
   searchParams,
@@ -38,6 +50,7 @@ export default async function GobCampanasPage({
     to?: string;
     province?: string;
     locality?: string;
+    kind?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -96,6 +109,9 @@ export default async function GobCampanasPage({
   // (same pattern as /gob/perdidas).
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+  // Validate against the closed SERVICE_KINDS catalog so an invalid URL value
+  // never drives the query (same discipline as /gob/perdidas' parseStatusFilter).
+  const serviceKind = sp.kind && findServiceKind(sp.kind) ? sp.kind : undefined;
 
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
 
@@ -103,7 +119,10 @@ export default async function GobCampanasPage({
     adminProvince,
     adminLocality,
   });
-  const dashboard = await fetchCampaignDashboard(ctx);
+  // serviceKind narrows resolveOfferingIds' offering list, which cascades to
+  // every downstream sub-fetch (offerings, outcomes, geo reach, sparkline,
+  // prevTotals) — the whole dashboard stays internally consistent.
+  const dashboard = await fetchCampaignDashboard(ctx, { serviceKind });
 
   // Determine the "period label" string for delta display.
   const periodLabel = "vs período anterior";
@@ -151,6 +170,17 @@ export default async function GobCampanasPage({
       <OpFilterBar
         period={{ defaultPreset: "30d" }}
         jurisdiction={{ allowedProvinces, localities }}
+        axes={
+          [
+            {
+              id: "kind",
+              label: "Tipo de servicio",
+              paramKey: "kind",
+              options: SERVICE_KIND_OPTIONS,
+              current: serviceKind ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
         actions={
           <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
             Exportar CSV →

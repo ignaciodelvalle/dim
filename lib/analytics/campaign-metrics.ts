@@ -174,8 +174,19 @@ export type CampaignDashboardData = {
 /**
  * Returns the list of service_offering IDs in scope for the given context.
  * Used to scope appointment queries without a JOIN that might fan out.
+ *
+ * `opts.serviceKind` (domain-axes work) narrows to offerings of a single
+ * SERVICE_KINDS code (lib/reference/service-kinds.ts), e.g. "vaccination_rabies".
+ * Because every downstream fetcher in this module (fetchOfferingStats,
+ * fetchOfferingOutcomes, fetchGeoReach, fetchEnrollmentSparkline,
+ * fetchPrevTotals) consumes this function's offeringIds output, narrowing HERE
+ * cascades consistently to every KPI/tile on the page in one place — no other
+ * query needs its own copy of the predicate.
  */
-async function resolveOfferingIds(ctx: ProjectionContext): Promise<string[]> {
+async function resolveOfferingIds(
+  ctx: ProjectionContext,
+  opts?: { serviceKind?: string },
+): Promise<string[]> {
   if (ctx.scope.kind === "global") {
     // Admin: fetch all approved/active offerings, narrowed to ctx.adminProvince
     // when a Panorama-style drill-down is active (additive-only — mirrors
@@ -190,6 +201,7 @@ async function resolveOfferingIds(ctx: ProjectionContext): Promise<string[]> {
         conditions.push(eq(serviceOfferings.jurisdictionLocality, ctx.adminLocality));
       }
     }
+    if (opts?.serviceKind) conditions.push(eq(serviceOfferings.serviceKind, opts.serviceKind));
     const rows = await db
       .select({ id: serviceOfferings.id })
       .from(serviceOfferings)
@@ -206,15 +218,16 @@ async function resolveOfferingIds(ctx: ProjectionContext): Promise<string[]> {
   );
   const scopeClause = sql.join(pairs, sql` OR `);
 
+  const conditions = [
+    inArray(serviceOfferings.status, ["approved", "pending_approval", "paused", "archived"]),
+    scopeClause,
+  ];
+  if (opts?.serviceKind) conditions.push(eq(serviceOfferings.serviceKind, opts.serviceKind));
+
   const rows = await db
     .select({ id: serviceOfferings.id })
     .from(serviceOfferings)
-    .where(
-      and(
-        inArray(serviceOfferings.status, ["approved", "pending_approval", "paused", "archived"]),
-        scopeClause,
-      ),
-    );
+    .where(and(...conditions));
 
   return rows.map((r) => r.id);
 }
@@ -556,8 +569,9 @@ async function fetchPrevTotals(
  */
 export async function fetchCampaignDashboard(
   ctx: ProjectionContext,
+  opts?: { serviceKind?: string },
 ): Promise<CampaignDashboardData> {
-  const offeringIds = await resolveOfferingIds(ctx);
+  const offeringIds = await resolveOfferingIds(ctx, opts);
 
   if (offeringIds.length === 0) {
     return {

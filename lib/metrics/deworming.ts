@@ -14,7 +14,7 @@
 // petsScopeClause against the pets table — never petEventsScopeClause (that would
 // be the ghost-payload bug: `false` for every scoped-govt row).
 
-import { and, count, countDistinct, sql } from "drizzle-orm";
+import { and, count, countDistinct, eq, sql } from "drizzle-orm";
 
 // Heavy read-only analytics — routed through the ANALYTICS pool (session pooler
 // in production; see db/index.ts dual-pool split), same as the sibling fetchers.
@@ -73,11 +73,17 @@ export type DewormingCoverageResult = {
  */
 export async function fetchDewormingCoverage(
   ctx: ProjectionContext,
+  opts?: { species?: string },
 ): Promise<DewormingCoverageResult> {
   const empty: DewormingCoverageResult = { rate: 0, dewormed: 0, total: 0, byProvince: [] };
   if (isEmptyScope(ctx)) return empty;
 
   const activeCond = activePetsCondition(ctx);
+  // Species narrows total/dewormed/byProvince identically (domain-axes work).
+  // Undefined → populationCond === activeCond, byte-identical to before.
+  const populationCond = opts?.species
+    ? and(activeCond, eq(pets.species, opts.species))
+    : activeCond;
 
   // Trailing 12 months ending at ctx.period.until. Bind the window bounds as ISO
   // strings — a raw JS Date interpolated into sql`` crashes postgres-js
@@ -97,12 +103,12 @@ export async function fetchDewormingCoverage(
   )`;
 
   const [totalRows, dewormedRows, provinceRows] = await Promise.all([
-    db.select({ n: count() }).from(pets).where(activeCond),
+    db.select({ n: count() }).from(pets).where(populationCond),
 
     db
       .select({ n: countDistinct(pets.id) })
       .from(pets)
-      .where(and(activeCond, dewormedExists)),
+      .where(and(populationCond, dewormedExists)),
 
     db
       .select({
@@ -111,7 +117,7 @@ export async function fetchDewormingCoverage(
         dewormed: sql<number>`count(*) FILTER (WHERE ${dewormedExists})::int`,
       })
       .from(pets)
-      .where(activeCond)
+      .where(populationCond)
       .groupBy(pets.jurisdictionProvince)
       .orderBy(sql`count(*) desc`),
   ]);

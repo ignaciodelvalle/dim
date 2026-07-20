@@ -73,6 +73,7 @@ export type AdoptionFunnelResult = {
  */
 export async function fetchAdoptionApplicationFunnel(
   ctx: ProjectionContext,
+  opts?: { species?: string },
 ): Promise<AdoptionFunnelResult> {
   const empty: AdoptionFunnelResult = {
     submitted: 0,
@@ -92,6 +93,7 @@ export async function fetchAdoptionApplicationFunnel(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) submittedConditions.push(sql`(${scope})`);
+  if (opts?.species) submittedConditions.push(eq(pets.species, opts.species));
 
   const resolvedConditions = [
     eq(petEvents.eventType, "adoption_application_resolved"),
@@ -99,6 +101,7 @@ export async function fetchAdoptionApplicationFunnel(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) resolvedConditions.push(sql`(${scope})`);
+  if (opts?.species) resolvedConditions.push(eq(pets.species, opts.species));
 
   const [submittedRows, resolvedRows] = await Promise.all([
     db

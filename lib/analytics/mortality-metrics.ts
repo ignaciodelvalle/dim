@@ -101,6 +101,17 @@ function pct(numerator: number, denominator: number): number {
  */
 export async function fetchMortalityDisposition(
   ctx: ProjectionContext,
+  opts?: {
+    /** Optional species narrowing (domain-axes work). */
+    species?: string;
+    /**
+     * Optional death-cause narrowing — one of the deathRecorded event schema's
+     * `cause` enum values (lib/events/event-schemas.ts), or "unknown" for
+     * events with no recorded cause (matches the COALESCE(...,'unknown') the
+     * B1 cause breakdown already applies).
+     */
+    cause?: string;
+  },
 ): Promise<MortalityDisposition> {
   // Govt with no assignments sees nothing.
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
@@ -114,6 +125,14 @@ export async function fetchMortalityDisposition(
     lte(petEvents.occurredAt, ctx.period.until),
   ];
   if (scope) baseConditions.push(sql`(${scope})`);
+  if (opts?.species) baseConditions.push(eq(pets.species, opts.species));
+  if (opts?.cause) {
+    baseConditions.push(sql`COALESCE(${petEvents.payload}->>'cause', 'unknown') = ${opts.cause}`);
+  }
+  // Single shared `where`, reused by every sub-query below (agg, buckets,
+  // cause-week, reportable-code, locality) — narrowing it here keeps every
+  // tile on the page internally consistent (domain-axes work: don't filter
+  // the list but not the headline).
   const where = and(...baseConditions);
 
   // --- 1. Scalar conditional aggregation (one round-trip) ------------------
@@ -301,7 +320,10 @@ export async function fetchMortalityHeadline(ctx: ProjectionContext): Promise<Mo
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
-export async function fetchPrevMortalityTotal(ctx: ProjectionContext): Promise<number> {
+export async function fetchPrevMortalityTotal(
+  ctx: ProjectionContext,
+  opts?: { species?: string; cause?: string },
+): Promise<number> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
     return 0;
   }
@@ -317,6 +339,10 @@ export async function fetchPrevMortalityTotal(ctx: ProjectionContext): Promise<n
     lte(petEvents.occurredAt, prevUntil),
   ];
   if (scope) conditions.push(sql`(${scope})`);
+  if (opts?.species) conditions.push(eq(pets.species, opts.species));
+  if (opts?.cause) {
+    conditions.push(sql`COALESCE(${petEvents.payload}->>'cause', 'unknown') = ${opts.cause}`);
+  }
 
   const [row] = await db
     .select({ n: count() })
