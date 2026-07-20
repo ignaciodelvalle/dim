@@ -13,6 +13,10 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
+import {
+  type ModerationQueueStatus,
+  buildModerationQueueConditions,
+} from "@/lib/analytics/govt-dashboards";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
@@ -24,7 +28,7 @@ import {
   welfareReportSeverityLabel,
 } from "@/src/modules/welfare/domain/types";
 import type { WelfareReportKind, WelfareReportSeverity } from "@/src/modules/welfare/domain/types";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, desc } from "drizzle-orm";
 
 type SeverityTone = "danger" | "open" | "neutral";
 
@@ -39,19 +43,15 @@ const SEVERITY_PILL: Record<string, SeverityTone> = {
 // OpFilterBar(kind/severity) split as /gob/moderacion — see that page's
 // header comment for the "workflow lens vs axis" reasoning.
 //
-// NOT unified to call the shared buildModerationQueueConditions (govt-
-// dashboards.ts) here, on purpose: that builder's "pending" branch excludes
-// moderationEscalatedAt IS NOT NULL rows ("not handed off to admin" — correct
-// for the GOVT actionable queue, which is what it was written for). This page
-// is the RECEIVING end of that hand-off — escalate-moderation-to-admin.ts's
-// own doc comment states the report "remains in the admin queue" once
-// escalated (only moderationResolvedAt gates it here). Calling the shared
-// builder as-is would hide every escalated-but-unresolved report from the
-// one queue meant to catch them — a real regression, not a refactor. Flagged
-// for the PO as a follow-up: either add an explicit
-// includeEscalated/forAdminQueue param to the shared builder, or accept the
-// two queues have genuinely different "pending" semantics and leave this
-// hand-rolled predicate as the documented admin-side contract.
+// Unified (PO decision, 2026-07-19): calls the shared buildModerationQueueConditions
+// (lib/analytics/dashboards/welfare.ts) with includeEscalated: true — this page
+// is the RECEIVING end of the govt hand-off (escalate-moderation-to-admin.ts's
+// doc comment: escalation is append-only, moderationResolvedAt stays NULL, so
+// the report "remains in the admin queue"). includeEscalated: true reproduces
+// this page's former hand-rolled predicate exactly: "pending" = flaggedAt IS
+// NOT NULL AND moderationResolvedAt IS NULL (no escalation exclusion).
+// /gob/moderacion omits includeEscalated (defaults false) — its actionable
+// queue still excludes escalated-but-unresolved reports.
 const STATUS_TABS: UrlTabItem[] = [
   { value: "pending", label: "Pendientes" },
   { value: "resolved", label: "Resueltas" },
@@ -88,7 +88,8 @@ export default async function ModeracionListPage({
   const sp = await searchParams;
 
   // Default to showing the actionable queue (pending = unresolved).
-  const statusFilter = sp.status === "resolved" || sp.status === "all" ? sp.status : "pending";
+  const statusFilter: ModerationQueueStatus =
+    sp.status === "resolved" || sp.status === "all" ? sp.status : "pending";
   const kindFilter =
     sp.kind && (WELFARE_REPORT_KINDS as readonly string[]).includes(sp.kind)
       ? (sp.kind as WelfareReportKind)
@@ -98,18 +99,17 @@ export default async function ModeracionListPage({
       ? (sp.severity as WelfareReportSeverity)
       : null;
 
-  // Build WHERE clauses — all pushed into SQL, not JS-side filtering.
-  const whereClauses = [isNotNull(welfareReports.flaggedAt)];
-  if (statusFilter === "pending") {
-    whereClauses.push(isNull(welfareReports.moderationResolvedAt));
-  } else if (statusFilter === "resolved") {
-    whereClauses.push(isNotNull(welfareReports.moderationResolvedAt));
-  }
-  // "all" = flagged rows regardless of resolution, no extra clause needed.
-  if (kindFilter) whereClauses.push(eq(welfareReports.kind, kindFilter));
-  if (severityFilter) whereClauses.push(eq(welfareReports.severity, severityFilter));
-
-  const baseWhere = and(...whereClauses);
+  // Shared moderation predicate — universal (admin: no jurisdiction scope) +
+  // includeEscalated: true (this page is the escalation inbox; see header
+  // comment above for the exact parity reasoning).
+  const baseWhere = buildModerationQueueConditions({
+    actor: { role: "admin" },
+    jurisdictions: [],
+    status: statusFilter,
+    kind: kindFilter,
+    severity: severityFilter,
+    includeEscalated: true,
+  });
 
   // Keyset (seek) pagination — same contract as /gob/maltrato and the outbox
   // lists: DESC on (flaggedAt, id); the cursor encodes the last row of the

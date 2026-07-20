@@ -45,11 +45,14 @@ export function welfareReportsScopeClause(
 // ============================================================================
 // Moderation queue WHERE-clause builder (jurisdiction denuncia moderation)
 //
-// The flagged-denuncia moderation queue. /admin/moderacion sees it universally;
-// /gob/moderacion sees ONLY the viewer's assigned localities (govt) with the
-// same predicate + the jurisdiction scope clause — so we don't fork a parallel
-// query. A flagged report with no/ambiguous jurisdiction never matches a govt
-// scope pair, so it stays admin-only (never invisible to everyone).
+// The flagged-denuncia moderation queue. /admin/moderacion sees it universally
+// (includeEscalated: true — it's the escalation inbox); /gob/moderacion sees
+// ONLY the viewer's assigned localities (govt) with includeEscalated omitted
+// (false) — its "pending" excludes reports already escalated to admin. Both
+// pages call this ONE builder + the jurisdiction scope clause, so there is no
+// forked query — only the includeEscalated flag differs. A flagged report
+// with no/ambiguous jurisdiction never matches a govt scope pair, so it stays
+// admin-only (never invisible to everyone).
 // ============================================================================
 
 export type ModerationQueueStatus = "pending" | "resolved" | "all";
@@ -58,10 +61,20 @@ export type ModerationQueueFilters = {
   actor: DashboardActor;
   /** The viewer's active jurisdiction assignments (empty for admin = universal). */
   jurisdictions: DashboardJurisdiction[];
-  /** pending = actionable (unresolved, not escalated); resolved; all = every flagged row in scope. */
+  /** pending = actionable (unresolved, not escalated unless includeEscalated); resolved; all = every flagged row in scope. */
   status: ModerationQueueStatus;
   kind?: string | null;
   severity?: string | null;
+  /**
+   * `false` (default) = govt actionable-queue semantics: "pending" excludes
+   * reports already escalated to admin (moderationEscalatedAt IS NOT NULL) —
+   * they've left the govt queue.
+   * `true` = admin escalation-inbox semantics: "pending" INCLUDES escalated-
+   * but-unresolved reports, because escalation is append-only (does NOT set
+   * moderationResolvedAt — see escalate-moderation-to-admin.ts) and
+   * /admin/moderacion is the receiving end of that hand-off.
+   */
+  includeEscalated?: boolean;
 };
 
 /**
@@ -70,14 +83,15 @@ export type ModerationQueueFilters = {
  *   - Only flagged rows (flaggedAt IS NOT NULL).
  *   - Jurisdiction scope (govt: assignment pairs; admin: universal). Rows with
  *     no jurisdiction never match a govt pair, so they stay admin-only.
- *   - status: pending = unresolved AND not escalated (the govt actionable queue);
- *     resolved = moderation already resolved; all = every flagged row in scope.
+ *   - status: pending = unresolved (and, unless includeEscalated, not
+ *     escalated) — the actionable queue; resolved = moderation already
+ *     resolved; all = every flagged row in scope.
  *   - Optional kind / severity narrow filters.
  *
  * Returns `sql\`false\`` when a govt viewer has no jurisdiction assignments.
  */
 export function buildModerationQueueConditions(filters: ModerationQueueFilters): SQL {
-  const { actor, jurisdictions, status, kind, severity } = filters;
+  const { actor, jurisdictions, status, kind, severity, includeEscalated = false } = filters;
 
   // Short-circuit: a govt with no assignments can never see any flagged row.
   if (actor.role === "govt" && jurisdictions.length === 0) {
@@ -92,9 +106,12 @@ export function buildModerationQueueConditions(filters: ModerationQueueFilters):
 
   // Status bucket.
   if (status === "pending") {
-    // Actionable queue: not yet resolved AND not handed off to admin.
+    // Actionable queue: not yet resolved.
     conditions.push(sql`(${welfareReports.moderationResolvedAt} IS NULL)`);
-    conditions.push(sql`(${welfareReports.moderationEscalatedAt} IS NULL)`);
+    if (!includeEscalated) {
+      // Govt queue: also exclude reports already handed off to admin.
+      conditions.push(sql`(${welfareReports.moderationEscalatedAt} IS NULL)`);
+    }
   } else if (status === "resolved") {
     conditions.push(sql`(${welfareReports.moderationResolvedAt} IS NOT NULL)`);
   }

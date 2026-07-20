@@ -157,6 +157,7 @@ async function insertReport(input: {
   flaggedAt?: Date | null;
   flagReasons?: string[] | null;
   moderationResolvedAt?: Date | null;
+  moderationEscalatedAt?: Date | null;
 }): Promise<string> {
   seqN += 1;
   const [row] = await db
@@ -178,6 +179,9 @@ async function insertReport(input: {
       ...(input.flagReasons !== undefined ? { flagReasons: input.flagReasons } : {}),
       ...(input.moderationResolvedAt !== undefined
         ? { moderationResolvedAt: input.moderationResolvedAt }
+        : {}),
+      ...(input.moderationEscalatedAt !== undefined
+        ? { moderationEscalatedAt: input.moderationEscalatedAt }
         : {}),
     })
     .returning({ id: welfareReports.id });
@@ -712,6 +716,71 @@ describe("flagged-vs-unflagged routing (integration)", () => {
       selectedProvince: "Salta",
     });
     expect(triageIds).toContain(resolvedId);
+  });
+});
+
+// ============================================================================
+// includeEscalated — govt vs admin "pending" parity (PO decision 2026-07-19:
+// unify /admin/moderacion's hand-rolled predicate into buildModerationQueueConditions)
+// ============================================================================
+
+describe("buildModerationQueueConditions — includeEscalated (integration)", () => {
+  it("default (includeEscalated omitted) EXCLUDES an escalated-but-unresolved report — govt queue", async () => {
+    const escalatedId = await insertReport({
+      province: "Salta",
+      locality: "Salta",
+      flaggedAt: new Date(),
+      flagReasons: ["short_description"],
+      moderationEscalatedAt: new Date(),
+    });
+
+    const govtIds = await queryModerationIds({
+      actor: { role: "govt" },
+      jurisdictions: [{ province: "Salta", locality: "Salta" }],
+      status: "pending",
+      // includeEscalated omitted — govt actionable-queue semantics.
+    });
+
+    expect(govtIds).not.toContain(escalatedId);
+  });
+
+  it("includeEscalated: true INCLUDES an escalated-but-unresolved report — admin inbox", async () => {
+    const escalatedId = await insertReport({
+      province: "Salta",
+      locality: "Salta",
+      flaggedAt: new Date(),
+      flagReasons: ["short_description"],
+      moderationEscalatedAt: new Date(),
+    });
+
+    const adminIds = await queryModerationIds({
+      actor: { role: "admin" },
+      jurisdictions: [],
+      status: "pending",
+      includeEscalated: true,
+    });
+
+    expect(adminIds).toContain(escalatedId);
+  });
+
+  it("includeEscalated: true still excludes a moderation-resolved report from pending", async () => {
+    const resolvedId = await insertReport({
+      province: "Salta",
+      locality: "Salta",
+      flaggedAt: new Date(),
+      flagReasons: ["short_description"],
+      moderationEscalatedAt: new Date(),
+      moderationResolvedAt: new Date(),
+    });
+
+    const adminIds = await queryModerationIds({
+      actor: { role: "admin" },
+      jurisdictions: [],
+      status: "pending",
+      includeEscalated: true,
+    });
+
+    expect(adminIds).not.toContain(resolvedId);
   });
 });
 
