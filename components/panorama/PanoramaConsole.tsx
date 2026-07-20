@@ -1686,9 +1686,10 @@ export function PanoramaConsole({
   // at mount (it is a per-load lens, not a runtime toggle).
   const [presentationMode] = useState(() => searchParams.get("presentation") === "1");
 
-  // ARCHETYPE A: the map's scale legends render OFF-canvas in the "Referencias"
-  // rail section (MapLegends). The province ramp + bivariate legends are derived
-  // there from mapLayers; these two descriptors are computed imperatively inside
+  // ARCHETYPE A: the map's scale legends render OFF-canvas in the dock's
+  // "Referencias" tab (MapLegends — moved from the LegendPill panel in the dock
+  // redesign). The province ramp + bivariate legends are derived there from
+  // mapLayers; these two descriptors are computed imperatively inside
   // SituationalMap's syncLayers (from the rendered data) and lifted here.
   const [divisionLegend, setDivisionLegend] = useState<DivisionLegendDescriptor | null>(null);
   const [graduatedScale, setGraduatedScale] = useState<GraduatedScale | null>(null);
@@ -4290,6 +4291,13 @@ export function PanoramaConsole({
   );
   const dockRegistros = (
     <div className="space-y-2">
+      {/* Dock redesign (PO ask, consistency + explanation): a one-line caption
+          naming what this pane IS — the raw records behind the current
+          filtered view — matching the caption idiom used elsewhere in the
+          dock (the disclosures right below, MapLegends' framing line). */}
+      <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+        Los registros crudos detrás de la vista filtrada actual.
+      </p>
       {/* Cowork QA ronda 3 §3: the EVENT total (Σ cell counts across the active
           count/event layers) — a DIFFERENT concept from the per-unit "Valor por
           unidad" table below. It counts events, not table rows, so "0 eventos" no
@@ -4402,6 +4410,15 @@ export function PanoramaConsole({
         Sin ranking para las capas activas en este alcance.
       </p>
     );
+  // Dock redesign (PO ask, consistency + explanation): name what the ranking
+  // IS — the metric + that it orders the units of the CURRENT scope — as the
+  // "Ranking de unidades" section's subtitle (PanoramaStatSection's existing
+  // caption slot). Absent when there is nothing active to rank (dockRanking
+  // already narrates that empty state in its own body).
+  const dockRankingSubtitle =
+    effectiveRankingKind !== null && rankingLayer !== null
+      ? `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.`
+      : undefined;
 
   // The calendar heatmap sits ABOVE the ranking as its own <section>, so a later
   // regroup into a "Tendencias" dock family (organizing principle, PO 2026-07-12)
@@ -4430,8 +4447,24 @@ export function PanoramaConsole({
           onDayClick={(date) => commitPeriod("custom", date, date)}
         />
       </PanoramaStatSection>
-      <PanoramaStatSection title="Ranking de unidades">{dockRanking}</PanoramaStatSection>
+      <PanoramaStatSection title="Ranking de unidades" subtitle={dockRankingSubtitle}>
+        {dockRanking}
+      </PanoramaStatSection>
     </div>
+  );
+
+  // Dock redesign (PO ask #3): the map's full scale legends — previously
+  // rendered inside LegendPill's expanded panel — now live in the dock's
+  // Referencias tab. Same props MapLegends always took; only the mount point
+  // moved, so the province ramp / division fill / graduated / bivariate
+  // legends still stay in lockstep with what the map paints.
+  const dockReferencias = (
+    <MapLegends
+      layers={mapLayers}
+      divisionLegend={divisionLegend}
+      graduatedScale={graduatedScale}
+      provinceSeqLegend={provinceSeqLegend}
+    />
   );
 
   // v2C legend pill — the compact strip's data. The ramp mirrors what the map
@@ -5116,6 +5149,7 @@ export function PanoramaConsole({
             // (with PNG + informe) — the dock bar no longer carries its own button.
             registros={dockRegistros}
             stats={dockStats}
+            referencias={dockReferencias}
             timeline={scrubberDock}
           />
         )}
@@ -5266,8 +5300,9 @@ export function PanoramaConsole({
         )}
         {/* v2C single-line legend pill (bottom-left, above the dock bar): base
             label + classed ramp + per-layer dots + the ALWAYS-VISIBLE k-anon
-            pill. Expands upward into the FULL reading: the real MapLegends
-            blocks + caption + honesty notices + the one-line auto-reading. */}
+            pill. Expands upward into caption + honesty notices + the one-line
+            auto-reading; the full MapLegends reading itself now lives in the
+            dock's Referencias tab (dock redesign, PO ask), not in this panel. */}
         <div
           className={`absolute left-3.5 z-10 max-w-[calc(100%-1.75rem)] ${
             // P5 presentation mode: the dock bar is hidden, so the legend pill
@@ -5343,14 +5378,11 @@ export function PanoramaConsole({
                   último evento para fijarla al borde en vivo.
                 </p>
               )}
-              {/* The full scale legends (province ramp / division fill /
-                  graduated circles / bivariate 3×3). */}
-              <MapLegends
-                layers={mapLayers}
-                divisionLegend={divisionLegend}
-                graduatedScale={graduatedScale}
-                provinceSeqLegend={provinceSeqLegend}
-              />
+              {/* The full scale legends (province ramp / division fill / graduated
+                  circles / bivariate 3×3) moved into the dock's Referencias tab
+                  (dock redesign, PO ask) — LegendPill keeps the glance-decode
+                  only; the full reading now lives one tab away, not one more
+                  click down inside this same disclosure. */}
               {/* panorama-event-points: honest points-mode disclosure. P4b: shown
                   while some active layer is in its NEAR band (declaration-driven). */}
               {activePointsLayerIds !== "" && Object.keys(pointsInfo).length > 0 && (

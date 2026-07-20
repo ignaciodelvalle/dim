@@ -170,6 +170,13 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
       className="space-y-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card px-3 py-2.5"
     >
       <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Referencias</h3>
+      {/* PO ask (dock redesign): a one-line top-level framing — the per-legend
+          titles below already name WHICH capa each block decodes; this states
+          WHAT the section is for, so a first-time operator does not have to
+          infer it from the blocks alone. */}
+      <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+        Cómo leer los colores y símbolos del mapa.
+      </p>
       <div className="space-y-2 text-ln-op-ink-2">
         {/* task #63: the bivariate legend IS the 3×3 matrix — coverage terciles
             (x, "Cobertura →") × signal terciles (y, "Señales ↑"). The risk corner

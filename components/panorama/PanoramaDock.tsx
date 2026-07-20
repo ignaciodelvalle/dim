@@ -18,19 +18,24 @@
 //
 // English identifiers, es-AR user copy (project invariant #4).
 
-import { type ReactNode, useRef, useState } from "react";
+import { Fragment, type ReactNode, useRef, useState } from "react";
 
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 
-export type PanoramaDockTab = "registros" | "stats" | "timeline";
+export type PanoramaDockTab = "registros" | "stats" | "referencias" | "timeline";
 
 const TAB_LABELS: Record<PanoramaDockTab, string> = {
-  registros: "Registros",
   stats: "Estadísticas",
+  registros: "Registros",
+  referencias: "Referencias",
   timeline: "Línea de tiempo",
 };
 
-const TAB_ORDER: readonly PanoramaDockTab[] = ["registros", "stats", "timeline"];
+// PO order: Estadísticas · Registros ‖ Referencias · Línea de tiempo — the DATA
+// pair (what happened) then a subtle divider then the TOOLS pair (how to read
+// the map / replay it over time). The divider renders between "registros" and
+// "referencias" (see the tablist map below); it is decorative only, never a tab.
+const TAB_ORDER: readonly PanoramaDockTab[] = ["stats", "registros", "referencias", "timeline"];
 
 type Props = {
   /** Expanded (true) or the collapsed slim bar (false — the default state). */
@@ -48,6 +53,8 @@ type Props = {
   /** Pane contents (rendered only while expanded; the active one shows). */
   registros: ReactNode;
   stats: ReactNode;
+  /** The map's scale legends (MapLegends) — the "how to read the map" pane. */
+  referencias: ReactNode;
   timeline: ReactNode;
 };
 
@@ -61,9 +68,10 @@ export function PanoramaDock({
   csvAction,
   registros,
   stats,
+  referencias,
   timeline,
 }: Props) {
-  const panes: Record<PanoramaDockTab, ReactNode> = { registros, stats, timeline };
+  const panes: Record<PanoramaDockTab, ReactNode> = { registros, stats, referencias, timeline };
 
   // Roving tabindex (WAI-ARIA APG tab pattern, MANUAL activation): only one tab
   // is Tab-stoppable — the active one, or the tab the operator has arrowed to.
@@ -134,47 +142,58 @@ export function PanoramaDock({
           {TAB_ORDER.map((key, index) => {
             const isActive = key === tab;
             return (
-              <button
-                key={key}
-                id={`pano-dock-tab-${key}`}
-                ref={(el) => {
-                  tabRefs.current[index] = el;
-                }}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                // The tabpanel is ALWAYS in the DOM now (hidden when collapsed),
-                // so aria-controls is a valid IDREF in both states — completing
-                // the WAI-ARIA tablist/tab/tabpanel contract the APG expects
-                // (prev: panel rendered only while expanded, so the relationship
-                // had to be dropped when collapsed — a11y review round 2).
-                aria-controls="pano-dock-panel"
-                // Roving tabindex: only the active/arrowed tab is Tab-stoppable.
-                tabIndex={index === rovingIndex ? 0 : -1}
-                onKeyDown={(e) => handleTabKeyDown(e, index)}
-                onClick={() => {
-                  onTabChange(key);
-                  // Sync the roving position to the clicked tab so a later
-                  // Tab-in / arrow-nav starts from where the mouse last acted
-                  // (prev: click left focusIndex stale, so mixed mouse+keyboard
-                  // could leave tabIndex={0} on the wrong tab — a11y review).
-                  setFocusIndex(index);
-                  // Spec: clicking any tab while collapsed also expands.
-                  if (!open) onOpenChange(true);
-                }}
-                className={`inline-flex items-center gap-1.5 border-b-2 px-3 text-sm transition-colors ${
-                  isActive
-                    ? "border-ln-op-azul font-semibold text-ln-op-azul"
-                    : "border-transparent text-ln-op-ink-2 hover:text-ln-op-ink"
-                }`}
-              >
-                {TAB_LABELS[key]}
-                {key === "registros" && (
-                  <span className="rounded-full bg-ln-op-azul/10 px-1.5 text-[var(--text-xs)] font-medium tabular-nums text-ln-op-azul">
-                    {recordCount.toLocaleString("es-AR")}
-                  </span>
+              <Fragment key={key}>
+                {/* DATA | TOOLS boundary: a subtle separator between the data
+                    panes (Estadísticas, Registros) and the tool panes
+                    (Referencias, Línea de tiempo) — decorative only, not a
+                    tab, so it never enters the roving-tabindex/arrow-key nav. */}
+                {key === "referencias" && (
+                  <span
+                    aria-hidden="true"
+                    className="my-2 w-px flex-none self-stretch bg-ln-op-line-2"
+                  />
                 )}
-              </button>
+                <button
+                  id={`pano-dock-tab-${key}`}
+                  ref={(el) => {
+                    tabRefs.current[index] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  // The tabpanel is ALWAYS in the DOM now (hidden when collapsed),
+                  // so aria-controls is a valid IDREF in both states — completing
+                  // the WAI-ARIA tablist/tab/tabpanel contract the APG expects
+                  // (prev: panel rendered only while expanded, so the relationship
+                  // had to be dropped when collapsed — a11y review round 2).
+                  aria-controls="pano-dock-panel"
+                  // Roving tabindex: only the active/arrowed tab is Tab-stoppable.
+                  tabIndex={index === rovingIndex ? 0 : -1}
+                  onKeyDown={(e) => handleTabKeyDown(e, index)}
+                  onClick={() => {
+                    onTabChange(key);
+                    // Sync the roving position to the clicked tab so a later
+                    // Tab-in / arrow-nav starts from where the mouse last acted
+                    // (prev: click left focusIndex stale, so mixed mouse+keyboard
+                    // could leave tabIndex={0} on the wrong tab — a11y review).
+                    setFocusIndex(index);
+                    // Spec: clicking any tab while collapsed also expands.
+                    if (!open) onOpenChange(true);
+                  }}
+                  className={`inline-flex items-center gap-1.5 border-b-2 px-3 text-sm transition-colors ${
+                    isActive
+                      ? "border-ln-op-azul font-semibold text-ln-op-azul"
+                      : "border-transparent text-ln-op-ink-2 hover:text-ln-op-ink"
+                  }`}
+                >
+                  {TAB_LABELS[key]}
+                  {key === "registros" && (
+                    <span className="rounded-full bg-ln-op-azul/10 px-1.5 text-[var(--text-xs)] font-medium tabular-nums text-ln-op-azul">
+                      {recordCount.toLocaleString("es-AR")}
+                    </span>
+                  )}
+                </button>
+              </Fragment>
             );
           })}
         </div>

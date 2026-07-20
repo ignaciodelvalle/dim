@@ -505,6 +505,16 @@ export function TimeScrubber({
         </div>
       </div>
 
+      {/* PO ask (dock redesign audit): a PERSISTENT temporal-basis label — the
+          Detalle-only "Base" toggle + its explanation sit further down (and
+          require scrubDetail to render), so an operator scanning just the
+          header could not tell whether the scrub is by fecha de ocurrencia
+          or fecha de registro. This one-liner is unconditional (independent
+          of scrubDetail/temporalAvailable) so the basis is always visible. */}
+      <p className="text-[var(--text-xs)] text-ln-op-mute">
+        Base: {basis === "transaction" ? "fecha de registro" : "fecha de ocurrencia"}
+      </p>
+
       {!temporalAvailable ? (
         // H13 (cowork QA): reconcile with the KPI sparkline. The sparkline is a
         // 12-month TREND of the metric; this control REPRODUCES temporal event

@@ -703,9 +703,10 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
 
     const dock = screen.getByTestId("panorama-dock");
     expect(dock).toBeVisible();
-    // The three tabs are reachable from the collapsed bar.
+    // The four tabs are reachable from the collapsed bar.
     expect(screen.getByRole("tab", { name: /Registros/ })).toBeVisible();
     expect(screen.getByRole("tab", { name: /Estadísticas/ })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Referencias/ })).toBeVisible();
     expect(screen.getByRole("tab", { name: /Línea de tiempo/ })).toBeVisible();
     // Collapsed: the tabpanel exists (APG completeness) but is `hidden` and
     // mounts no pane content — no scrubber, no table.
@@ -746,7 +747,7 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     const collapsedPanel = document.getElementById("pano-dock-panel");
     expect(collapsedPanel).not.toBeNull();
     expect(collapsedPanel).toHaveAttribute("hidden");
-    for (const name of [/Registros/, /Estadísticas/, /Línea de tiempo/]) {
+    for (const name of [/Registros/, /Estadísticas/, /Referencias/, /Línea de tiempo/]) {
       expect(screen.getByRole("tab", { name })).toHaveAttribute("aria-controls", "pano-dock-panel");
     }
 
@@ -761,8 +762,9 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
 
   it("A11Y M3 (ARIA APG): dock tablist uses roving tabindex + Arrow/Home/End, manual activation", () => {
     renderConsole();
-    const registros = screen.getByRole("tab", { name: /Registros/ });
     const stats = screen.getByRole("tab", { name: /Estadísticas/ });
+    const registros = screen.getByRole("tab", { name: /Registros/ });
+    const referencias = screen.getByRole("tab", { name: /Referencias/ });
     const timeline = screen.getByRole("tab", { name: /Línea de tiempo/ });
 
     // Only the active tab is Tab-stoppable. C10 (P3.6): the dock now defaults to
@@ -770,13 +772,16 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     // the selected + Tab-stoppable tab.
     expect(stats).toHaveAttribute("tabindex", "0");
     expect(registros).toHaveAttribute("tabindex", "-1");
+    expect(referencias).toHaveAttribute("tabindex", "-1");
     expect(timeline).toHaveAttribute("tabindex", "-1");
 
-    // ArrowRight moves FOCUS to the next tab, without switching the pane.
+    // ArrowRight moves FOCUS to the NEXT tab in DOM order (dock redesign order:
+    // Estadísticas · Registros ‖ Referencias · Línea de tiempo), without
+    // switching the pane.
     stats.focus();
     fireEvent.keyDown(stats, { key: "ArrowRight" });
-    expect(timeline).toHaveFocus();
-    expect(timeline).toHaveAttribute("tabindex", "0");
+    expect(registros).toHaveFocus();
+    expect(registros).toHaveAttribute("tabindex", "0");
     expect(stats).toHaveAttribute("tabindex", "-1");
     // Selection did NOT follow focus (manual activation): still collapsed,
     // Estadísticas still the selected tab.
@@ -784,11 +789,18 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     // Still collapsed: the panel is present but hidden (no pane switch on focus).
     expect(document.getElementById("pano-dock-panel")).toHaveAttribute("hidden");
 
+    // Continuing ArrowRight walks through the DATA | TOOLS boundary (the
+    // divider is decorative, not a stop) onto Referencias, then Línea de tiempo.
+    fireEvent.keyDown(registros, { key: "ArrowRight" });
+    expect(referencias).toHaveFocus();
+    fireEvent.keyDown(referencias, { key: "ArrowRight" });
+    expect(timeline).toHaveFocus();
+
     // End → last, Home → first.
     fireEvent.keyDown(timeline, { key: "End" });
     expect(timeline).toHaveFocus();
     fireEvent.keyDown(timeline, { key: "Home" });
-    expect(registros).toHaveFocus();
+    expect(stats).toHaveFocus();
   });
 
   it("A11Y (review round 2): a mouse click on a tab syncs the roving tabindex to the clicked tab", () => {
