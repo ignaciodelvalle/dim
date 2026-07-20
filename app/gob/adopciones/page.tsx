@@ -94,6 +94,7 @@ export default async function GobAdopcionesPage({
   if (sp.to) exportParams.set("to", sp.to);
   if (sp.province) exportParams.set("province", sp.province);
   if (sp.locality) exportParams.set("locality", sp.locality);
+  if (sp.species) exportParams.set("species", sp.species);
   const exportHref = `/gob/adopciones/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
 
   const {

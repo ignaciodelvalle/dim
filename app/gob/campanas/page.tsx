@@ -90,7 +90,6 @@ export default async function GobCampanasPage({
   if (sp.to) exportParams.set("to", sp.to);
   if (sp.province) exportParams.set("province", sp.province);
   if (sp.locality) exportParams.set("locality", sp.locality);
-  const exportHref = `/gob/campanas/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
 
   // Jurisdiction filter (same pattern as /gob/analytics).
   const {
@@ -112,6 +111,10 @@ export default async function GobCampanasPage({
   // Validate against the closed SERVICE_KINDS catalog so an invalid URL value
   // never drives the query (same discipline as /gob/perdidas' parseStatusFilter).
   const serviceKind = sp.kind && findServiceKind(sp.kind) ? sp.kind : undefined;
+  // Use the VALIDATED value (not raw sp.kind) so an invalid URL value never
+  // leaks into the export link either.
+  if (serviceKind) exportParams.set("kind", serviceKind);
+  const exportHref = `/gob/campanas/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
 
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
 

@@ -51,6 +51,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
   };
+  // Species domain axis — identical param + no-validation-needed pass-through
+  // as app/gob/poblacion/page.tsx (pets.species is free text, honored as-is).
+  const species = searchParams.get("species") ?? undefined;
 
   // Jurisdiction filter — identical logic to app/gob/poblacion/page.tsx so
   // the export always matches the active province/locality selection.
@@ -71,13 +74,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     adminLocality,
   });
 
+  // species narrows every fetcher identically to the page (domain-axes export
+  // parity fix) so the exported summary + per-province coverage match the
+  // on-screen KPI row/ratio/trend/map exactly under the same filter.
   const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio] =
     await Promise.all([
-      fetchSterilizationCoverage(ctx),
-      fetchActivePregnancies(ctx),
-      fetchReproductiveOutcomes(ctx),
-      fetchNetGrowth(ctx),
-      fetchSterilizationNatalidadRatio(ctx),
+      fetchSterilizationCoverage(ctx, { species }),
+      fetchActivePregnancies(ctx, { species }),
+      fetchReproductiveOutcomes(ctx, { species }),
+      fetchNetGrowth(ctx, { species }),
+      fetchSterilizationNatalidadRatio(ctx, { species }),
     ]);
 
   const summaryRows = [

@@ -38,6 +38,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
   };
+  // Service-kind domain axis — validated against the closed SERVICE_KINDS
+  // catalog so an invalid URL value never drives the query, identical
+  // discipline to app/gob/campanas/page.tsx.
+  const kindParam = searchParams.get("kind");
+  const serviceKind = kindParam && findServiceKind(kindParam) ? kindParam : undefined;
 
   // Jurisdiction filter — identical logic to app/gob/campanas/page.tsx.
   const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
@@ -59,7 +64,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     adminLocality,
   });
 
-  const dashboard = await fetchCampaignDashboard(ctx);
+  // serviceKind narrows resolveOfferingIds' offering list identically to the
+  // page (domain-axes export parity fix) — cascades to every downstream
+  // sub-fetch so the exported summary/per-offering/geo-reach sections match
+  // the on-screen dashboard exactly under the same filter.
+  const dashboard = await fetchCampaignDashboard(ctx, { serviceKind });
 
   const summaryRows = [
     {

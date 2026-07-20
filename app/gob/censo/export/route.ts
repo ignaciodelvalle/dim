@@ -43,6 +43,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
   };
+  // Species domain axis — identical param + no-validation-needed pass-through
+  // as app/gob/censo/page.tsx (pets.species is free text, honored as-is).
+  const species = searchParams.get("species") ?? undefined;
 
   // Jurisdiction filter — identical logic to app/gob/censo/page.tsx.
   const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
@@ -62,10 +65,13 @@ export async function GET(request: NextRequest): Promise<Response> {
     adminLocality,
   });
 
+  // species narrows all three sub-queries identically to the page (domain-axes
+  // export parity fix) so the exported summary + province breakdown match the
+  // on-screen KPI row/funnel/map exactly under the same filter.
   const [counts, funnel, provinceRows] = await Promise.all([
-    registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
-    identificationFunnel(ctx),
-    registryByProvince(ctx),
+    registryCounts(ctx, DORMANT_MONTHS_DEFAULT, { species }),
+    identificationFunnel(ctx, { species }),
+    registryByProvince(ctx, { species }),
   ]);
 
   const summaryRows = [

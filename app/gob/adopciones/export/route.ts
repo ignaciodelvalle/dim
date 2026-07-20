@@ -44,6 +44,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     from: searchParams.get("from") ?? undefined,
     to: searchParams.get("to") ?? undefined,
   };
+  // Species domain axis — identical param + no-validation-needed pass-through
+  // as app/gob/adopciones/page.tsx (pets.species is free text, honored as-is).
+  const species = searchParams.get("species") ?? undefined;
 
   // Jurisdiction filter — identical logic to app/gob/adopciones/page.tsx.
   const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
@@ -63,10 +66,15 @@ export async function GET(request: NextRequest): Promise<Response> {
     adminLocality,
   });
 
+  // species narrows funnel/timeInState/returnRate identically to the page
+  // (domain-axes export parity fix). fosterPool and shelterOccupancy
+  // deliberately do NOT take species — same honest skip as the page (foster
+  // pool is volunteer-level with no species dimension; shelter occupancy's
+  // capacity denominator is org-level and can't be split by species).
   const [funnel, timeInState, returnRateValue, fosterPool, shelterOccupancy] = await Promise.all([
-    fetchCustodyFunnel(ctx),
-    fetchTimeInState(ctx),
-    fetchReturnRate(ctx),
+    fetchCustodyFunnel(ctx, { species }),
+    fetchTimeInState(ctx, { species }),
+    fetchReturnRate(ctx, { species }),
     fetchFosterPoolUtilization(ctx),
     fetchShelterOccupancyNational(ctx),
   ]);
