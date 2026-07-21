@@ -4,7 +4,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
+import {
+  CasoEstadoFilter,
+  type OpFilterAxis,
+  OpFilterBar,
+  parseCasoEstado,
+} from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
@@ -14,16 +19,9 @@ import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/do
 
 const ADMIN_CASOS_PAGE_LIMIT = 50;
 
-// Status options for the filter bar's Estado axis.
-// "all" is a UI sentinel that maps to statusFilter=null (no SQL filter).
-// "open" is the default when no explicit status param is present.
-const STATUS_OPTIONS = [
-  { value: "open", label: "Abiertos" },
-  { value: "all", label: "Todos los estados" },
-  { value: "closed", label: "Cerrados" },
-];
 // Tipo/Provincia axis options — same shape as /gob/casos so the two casos
-// twins render identically.
+// twins render identically. Estado is NOT an axis option set anymore — see
+// CasoEstadoFilter (BUGFIX opfilterbar-sweep-2026-07-21).
 const KIND_OPTIONS = CASE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
 const PROVINCE_OPTIONS = PROVINCES.map((p) => ({ value: p.name, label: p.name }));
 
@@ -48,13 +46,12 @@ export default async function AdminCasosPage({
   // the triager's first paint is the actionable open-case view (fast + relevant)
   // rather than a 500-row full scan across all statuses. An explicit status=
   // (including the "all" sentinel value) overrides the default.
+  // 3-way Estado value ("open" default / "all" / "closed") for the
+  // CasoEstadoFilter control (BUGFIX opfilterbar-sweep-2026-07-21) — collapses
+  // to the SQL-facing open|closed|null via statusFilter below.
   const rawStatus = sp.status;
-  const statusFilter: "open" | "closed" | null =
-    rawStatus === "open" || rawStatus === "closed"
-      ? rawStatus
-      : rawStatus === "all"
-        ? null
-        : "open"; // default: show open cases
+  const casoEstado = parseCasoEstado(rawStatus);
+  const statusFilter: "open" | "closed" | null = casoEstado === "all" ? null : casoEstado;
   const kindFilter =
     sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
   const provinceFilter = sp.province?.trim() || null;
@@ -62,15 +59,13 @@ export default async function AdminCasosPage({
   // Whether the user explicitly changed from the default (open, no kind, no province).
   // Used to show/hide the "Limpiar filtros" link — the default open view is not
   // considered an active filter.
-  const statusExplicitlyOverridden = rawStatus === "closed" || rawStatus === "all";
+  const statusExplicitlyOverridden = casoEstado !== "open";
 
   const filterParams: Record<string, string | undefined> = {
     // Carry status in pagination links only when it differs from the default (open).
     // For status=all (null filter), use the "all" sentinel so the paginator
     // preserves the user's explicit choice.
-    ...(statusExplicitlyOverridden
-      ? { status: rawStatus === "all" ? "all" : (statusFilter ?? undefined) }
-      : {}),
+    ...(statusExplicitlyOverridden ? { status: casoEstado } : {}),
     ...(kindFilter ? { kind: kindFilter } : {}),
     ...(provinceFilter ? { province: provinceFilter } : {}),
   };
@@ -143,27 +138,23 @@ export default async function AdminCasosPage({
         </p>
       </header>
 
-      {/* Unified filter bar — Estado/Tipo/Provincia domain axes (migrated off
-          the bespoke <form>, mirrors /gob/casos so the two casos twins render
-          identically). The Estado axis omits `allLabel` (falls back to the
-          bar's generic "Todas") because the explicit "all" option ALREADY
-          carries the "Todos los estados" label — the default state is "open"
-          (not "all"), so the bar's own auto-cleared option is a distinct,
-          rarely-used third path to the same default, not a duplicate control.
-          A filter change drops the keyset `cursor` (page 1), matching the old
-          form's implicit reset (it never carried `cursor` as a field). */}
+      {/* Unified filter bar — Estado/Tipo/Provincia (migrated off the bespoke
+          <form>, mirrors /gob/casos so the two casos twins render
+          identically). Estado renders as a plain child control
+          (CasoEstadoFilter), NOT an `axis`: an axis ALWAYS gets OpFilterBar's
+          own injected blank "Todas" option (mapping to "no status param" =
+          the Abiertos default), which sat right beside the explicit "all"
+          option's OWN "Todos los estados" label — two visually-identical
+          "show everything" entries where only one actually did (BUGFIX
+          opfilterbar-sweep-2026-07-21: the injected blank silently reverted
+          to Abiertos instead of showing every case). A filter change drops
+          the keyset `cursor` (page 1), matching the old form's implicit reset
+          (it never carried `cursor` as a field). */}
       <OpFilterBar
         showPeriod={false}
         resetParamsOnChange={["cursor"]}
         axes={
           [
-            {
-              id: "status",
-              label: "Estado",
-              paramKey: "status",
-              options: STATUS_OPTIONS,
-              current: rawStatus === "all" ? "all" : (statusFilter ?? "open"),
-            },
             {
               id: "kind",
               label: "Tipo",
@@ -182,7 +173,9 @@ export default async function AdminCasosPage({
             },
           ] satisfies OpFilterAxis[]
         }
-      />
+      >
+        <CasoEstadoFilter value={casoEstado} />
+      </OpFilterBar>
 
       <Suspense>
         <CaseQueue

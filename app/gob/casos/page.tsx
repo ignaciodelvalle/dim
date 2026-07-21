@@ -39,7 +39,12 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
+import {
+  CasoEstadoFilter,
+  type OpFilterAxis,
+  OpFilterBar,
+  parseCasoEstado,
+} from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -56,17 +61,8 @@ const GOVT_CASOS_PAGE_LIMIT = 50;
 
 // Domain-axis options for the OpFilterBar (F-migration 2026-07-21, off the
 // bespoke <form>) — same values/labels the old hand-rolled selects used.
-const STATUS_OPTIONS = [
-  { value: "open", label: "Abiertos" },
-  { value: "closed", label: "Cerrados" },
-];
+// Estado is NOT here — see CasoEstadoFilter (BUGFIX opfilterbar-sweep-2026-07-21).
 const KIND_OPTIONS = CASE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
-
-function parseStatus(raw: string | undefined): "open" | "closed" | null {
-  if (raw === "open") return "open";
-  if (raw === "closed") return "closed";
-  return null;
-}
 
 type GovtCasosSearchParams = { cursor?: string; status?: string; kind?: string; province?: string };
 
@@ -82,7 +78,11 @@ type ViewerScope =
 // lives here; the component below only renders (#26 D2).
 async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope) {
   const rawCursor = sp.cursor;
-  const activeStatus = parseStatus(sp.status);
+  // 3-way Estado value ("open" default / "all" / "closed") for the
+  // CasoEstadoFilter control (BUGFIX opfilterbar-sweep-2026-07-21) — collapses
+  // to the SQL-facing open|closed|null via activeStatus below.
+  const casoEstado = parseCasoEstado(sp.status);
+  const activeStatus: "open" | "closed" | null = casoEstado === "all" ? null : casoEstado;
   const kindFilter =
     sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
 
@@ -132,7 +132,12 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   // Preserve the active filters across cursor links. Links always point back
   // at /gob/casos — an admin viewing this page stays in the /gob shell.
   const filterParams: Record<string, string | undefined> = {
-    ...(activeStatus ? { status: activeStatus } : {}),
+    // "open" is the default — omit it for a clean URL; "all"/"closed" are
+    // explicit choices and must survive pagination (BUGFIX
+    // opfilterbar-sweep-2026-07-21: previously keyed off `activeStatus`,
+    // which is null for BOTH "no param" and the explicit "all" choice —
+    // silently dropping "Todos" across a page turn).
+    ...(casoEstado !== "open" ? { status: casoEstado } : {}),
     ...(kindFilter ? { kind: kindFilter } : {}),
     ...(provinceFilter ? { province: provinceFilter } : {}),
   };
@@ -174,6 +179,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
 
   return {
     activeStatus,
+    casoEstado,
     kindFilter,
     provinceFilter,
     scopeProvinces,
@@ -181,7 +187,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     rawCursor,
     olderLink,
     newerLink,
-    hasFilters: activeStatus !== null || kindFilter !== null || provinceFilter !== null,
+    hasFilters: casoEstado !== "open" || kindFilter !== null || provinceFilter !== null,
     queueRows,
     totalCount,
     emptyMessage,
@@ -202,6 +208,7 @@ export default async function GovtCasosPage({
   const sp = await searchParams;
   const {
     activeStatus,
+    casoEstado,
     kindFilter,
     provinceFilter,
     scopeProvinces,
@@ -236,28 +243,25 @@ export default async function GovtCasosPage({
         />
       ) : (
         <>
-          {/* Unified filter bar — Estado/Tipo/Provincia domain axes (F-migration
-              2026-07-21, off the bespoke <form>). CaseQueue's own status CHIP
-              strip stays suppressed (showStatusChips=false below): its chip
-              links only encode kind+status (buildFilterHref), so clicking a
-              chip would silently drop an active province filter — the same
-              reason /admin/casos owns status itself instead of relying on the
-              chips once it has more than one filter axis. A filter change
-              drops the keyset `cursor` (page 1), matching the old form's
-              implicit reset (it never carried `cursor` as a field). */}
+          {/* Unified filter bar — Estado/Tipo/Provincia (F-migration
+              2026-07-21, off the bespoke <form>). Estado is rendered as a
+              plain child control (CasoEstadoFilter), NOT an `axis` — an axis
+              would get OpFilterBar's own injected blank "Todas" option, which
+              maps to "no status param" = the page's Abiertos default, giving
+              a dead second "Todos" beside the real one (BUGFIX
+              opfilterbar-sweep-2026-07-21). CaseQueue's own status CHIP strip
+              stays suppressed (showStatusChips=false below): its chip links
+              only encode kind+status (buildFilterHref), so clicking a chip
+              would silently drop an active province filter — the same reason
+              /admin/casos owns status itself instead of relying on the chips
+              once it has more than one filter axis. A filter change drops the
+              keyset `cursor` (page 1), matching the old form's implicit reset
+              (it never carried `cursor` as a field). */}
           <OpFilterBar
             showPeriod={false}
             resetParamsOnChange={["cursor"]}
             axes={
               [
-                {
-                  id: "status",
-                  label: "Estado",
-                  paramKey: "status",
-                  options: STATUS_OPTIONS,
-                  current: activeStatus,
-                  allLabel: "Todos los estados",
-                },
                 {
                   id: "kind",
                   label: "Tipo",
@@ -281,7 +285,9 @@ export default async function GovtCasosPage({
                   : []),
               ] satisfies OpFilterAxis[]
             }
-          />
+          >
+            <CasoEstadoFilter value={casoEstado} />
+          </OpFilterBar>
 
           <Suspense>
             <CaseQueue

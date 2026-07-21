@@ -189,7 +189,7 @@ export function LegendPill({
                 className="inline-block h-2 w-2 rounded-full border border-ln-op-line"
                 style={{ background: dot.color }}
               />
-              <span className="max-w-24 truncate text-[var(--text-xs)]">{dot.label}</span>
+              <span className="text-[var(--text-xs)]">{dot.label}</span>
             </span>
           ))}
           {/* k-anon pill — NEVER hidden (suppression stays visible on the

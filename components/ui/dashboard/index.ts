@@ -45,6 +45,8 @@ export type {
   CaseQueueBulkConfig,
   CaseQueueProps,
 } from "./CaseQueue";
+export { CasoEstadoFilter, parseCasoEstado } from "./CasoEstadoFilter";
+export type { CasoEstado } from "./CasoEstadoFilter";
 export {
   OpFormAlert,
   OpFieldLabel,
