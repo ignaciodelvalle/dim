@@ -39,13 +39,18 @@
 // but not the raw query string (accountability without leaking what a
 // colleague searched for).
 
-import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import {
+  type AuditHistoryScope,
+  buildAuditHistoryWhere,
+  resolveAuditHistoryActorOptions,
+} from "@/lib/infra/audit-history-query";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
 import { windows } from "@/lib/metrics";
@@ -55,7 +60,7 @@ import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filte
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -95,23 +100,20 @@ export default async function GobHistorialPage({
   const cursor = decodeCursor(rawCursor);
 
   // Jurisdiction scope (govt only — admin keeps universal scope, same as
-  // /admin/auditoria). `null` means "no actor restriction" (admin branch);
-  // an array (possibly empty) means "restrict to these actor ids".
-  const scopedActorIds = isAdmin ? null : await fetchJurisdictionActorIds(jurisdictions);
+  // /admin/auditoria). Shared with admin/historial via lib/infra/audit-history-query
+  // (#26 D1) — the scope predicate is the ONLY difference between the two
+  // pages' queries; both call the same WHERE-clause builder.
+  const scope: AuditHistoryScope = isAdmin
+    ? { kind: "admin" }
+    : { kind: "govt", actorIds: await fetchJurisdictionActorIds(jurisdictions) };
 
-  const filterClauses = [];
-  if (scopedActorIds !== null) {
-    filterClauses.push(
-      scopedActorIds.length > 0 ? inArray(auditLog.actorUserId, scopedActorIds) : sql`false`,
-    );
-  }
-  if (actionFilters.length > 0) filterClauses.push(inArray(auditLog.action, actionFilters));
-  if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
-  if (fromDate) filterClauses.push(gte(auditLog.performedAt, fromDate));
-  if (toDate) filterClauses.push(lte(auditLog.performedAt, toDate));
-  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
-  if (cursorClause) filterClauses.push(cursorClause);
-  const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
+  const whereClause = buildAuditHistoryWhere(scope, {
+    actionFilters,
+    actorFilter,
+    fromDate,
+    toDate,
+    cursor,
+  });
 
   const rawEntries = await db
     .select({
@@ -186,30 +188,16 @@ export default async function GobHistorialPage({
     }
   }
 
-  // Actor dropdown options.
-  // - govt: every actor in scope (bounded — govt users assigned to the same
-  //   jurisdiction), not just the ones on the current page.
-  // - admin: derived from the current page + selected extra (universal scope
-  //   is unbounded — mirrors /admin/auditoria's approach).
-  let actorOptions: { id: string; name: string }[];
-  if (scopedActorIds !== null && scopedActorIds.length > 0) {
-    const scopedProfiles = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(inArray(profiles.id, scopedActorIds));
-    actorOptions = scopedProfiles.map((p) => ({ id: p.id, name: p.displayName }));
-  } else {
-    actorOptions = actorIds.map((id) => ({ id, name: namesById.get(id) ?? "Desconocido" }));
-  }
-  if (actorFilter && !actorOptions.find((o) => o.id === actorFilter)) {
-    const [extra] = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(eq(profiles.id, actorFilter))
-      .limit(1);
-    if (extra) actorOptions.push({ id: extra.id, name: extra.displayName });
-  }
-  actorOptions.sort((a, b) => a.name.localeCompare(b.name, "es-AR"));
+  // Actor dropdown options — shared with admin/historial via
+  // resolveAuditHistoryActorOptions (#26 D1): govt lists every actor in
+  // scope (bounded), admin derives from the current page + selected extra
+  // (universal scope is unbounded — mirrors /admin/auditoria's approach).
+  const actorOptions = await resolveAuditHistoryActorOptions(
+    scope,
+    actorIds,
+    namesById,
+    actorFilter,
+  );
 
   // Deduped by visible label so aliased codes render one dropdown row each.
   const actionOptions = buildAuditActionOptions();

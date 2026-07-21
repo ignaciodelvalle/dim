@@ -1,60 +1,170 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+// /admin/historial — admin's audit trail, UNIVERSAL scope (#26 admin↔gob
+// drift unification, D1).
+//
+// BEFORE: hardcoded self-scope only (actorUserId = user.id), cursor-only
+// pagination — no action/actor/date filters.
+//
+// AFTER: ports the SAME action/actor/date filter surface as /gob/historial
+// (shared-PeriodPicker-based, see that page's header comment), but with
+// admin's UNIVERSAL scope — no jurisdiction/actor restriction at all. Both
+// pages share their WHERE-clause assembly and actor-dropdown resolution via
+// lib/infra/audit-history-query.ts; the ONLY difference is the scope value
+// passed in ({ kind: "admin" } here vs. { kind: "govt", actorIds } there).
+//
+// Scope is now wider than before (previously self-only) — an admin can see
+// every actor's actions by default, same as /admin/auditoria. Row-level
+// presentation intentionally stays SIMPLE (no grouping, no PII masking, no
+// target links) — those are /admin/auditoria's and /gob/historial's
+// features, out of scope for this port (only filters were requested).
+//
+// Filters (all via URL params so links/bookmarks are shareable):
+//   action         — one or more AuditLogAction codes, comma-separated.
+//   actor          — exact user id (unrestricted — universal scope).
+//   period/from/to — the shared <PeriodPicker> control, same param names +
+//                    resolveAnalyticsPeriod resolver as /gob/historial.
+//                    Absent `period`/`from` defaults to trailing 12 months.
+//   cursor         — keyset pagination (performed_at, id).
+
+import { desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
+import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import {
+  type AuditHistoryScope,
+  buildAuditHistoryWhere,
+  resolveAuditHistoryActorOptions,
+} from "@/lib/infra/audit-history-query";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { windows } from "@/lib/metrics";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/metrics/period-presets";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const ADMIN_HISTORIAL_PAGE_LIMIT = 100;
 
-export default async function AdminHistorialPage({
-  searchParams,
+type HistorialEntry = {
+  id: string;
+  actorUserId: string | null;
+  action: string;
+  performedAt: Date;
+  approvalRequestId: string | null;
+};
+
+// Extracted so the main page function's cognitive complexity stays under the
+// lint ceiling — same "shared row body" pattern /gob/historial's EntryBody
+// uses, minus grouping/PII/target-link logic (D1 scope: filters only).
+function HistorialRow({
+  entry,
+  tokenByReqId,
+  actorName,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  entry: HistorialEntry;
+  tokenByReqId: Map<string, string>;
+  actorName: (uid: string | null) => string;
 }) {
-  const { user } = await requireAdminOrRedirect();
-  const { cursor: rawCursor } = await searchParams;
+  const token = entry.approvalRequestId ? tokenByReqId.get(entry.approvalRequestId) : undefined;
+  return (
+    <li className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe">
+      <div className="min-w-0 space-y-0.5">
+        <p className="text-[13px] text-ln-op-ink">{auditActionLabel(entry.action)}</p>
+        <p className="text-[12px] text-ln-op-mute">{actorName(entry.actorUserId)}</p>
+        {entry.approvalRequestId &&
+          (token ? (
+            <Link
+              href={`/gob/cola/${token}`}
+              className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80"
+            >
+              Ver solicitud →
+            </Link>
+          ) : (
+            <p className="font-mono text-[11px] text-ln-op-mute">
+              req: {entry.approvalRequestId.slice(0, 8)}…
+            </p>
+          ))}
+      </div>
+      <time className="whitespace-nowrap text-sm text-ln-op-mute">
+        {new Date(entry.performedAt).toLocaleString("es-AR", {
+          dateStyle: "short",
+          timeStyle: "short",
+          timeZone: AR_TIME_ZONE,
+        })}
+      </time>
+    </li>
+  );
+}
+
+type AdminHistorialSearchParams = {
+  actor?: string;
+  action?: string;
+  period?: string;
+  from?: string;
+  to?: string;
+  cursor?: string;
+};
+
+// Extracted so the page component's own cognitive complexity stays under the
+// lint ceiling — all filter-parsing, querying, and pagination-link logic
+// lives here; the component below only renders. Universal admin scope (#26
+// D1): shares its WHERE-clause assembly + actor-dropdown resolution with
+// /gob/historial via lib/infra/audit-history-query.ts.
+async function loadAdminHistorial(sp: AdminHistorialSearchParams, viewerId: string) {
+  const actionFilters = parseAuditActions(sp.action);
+  const actorFilter = sp.actor?.trim() || null;
+  // Same conditional shape as /gob/historial: only ask the resolver to parse
+  // when the picker actually set something, otherwise fall back to the named
+  // trailing-12m window DEFAULT_DASHBOARD_PRESET visually highlights.
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const fromDate = period.since;
+  const toDate = period.until;
+  const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
-  // Keyset predicate — only rows older than cursor.
-  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
-  const whereClause = cursorClause
-    ? and(eq(auditLog.actorUserId, user.id), cursorClause)
-    : eq(auditLog.actorUserId, user.id);
+  const scope: AuditHistoryScope = { kind: "admin" };
+  const whereClause = buildAuditHistoryWhere(scope, {
+    actionFilters,
+    actorFilter,
+    fromDate,
+    toDate,
+    cursor,
+  });
 
-  // Entries and actor profile are independent — run in parallel.
   // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
-  const [[actor], rawEntries] = await Promise.all([
-    db
-      .select({ displayName: profiles.displayName })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1),
-    db
-      .select({
-        id: auditLog.id,
-        action: auditLog.action,
-        performedAt: auditLog.performedAt,
-        approvalRequestId: auditLog.approvalRequestId,
-      })
-      .from(auditLog)
-      .where(whereClause)
-      .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
-      .limit(ADMIN_HISTORIAL_PAGE_LIMIT + 1),
-  ]);
+  const rawEntries = await db
+    .select({
+      id: auditLog.id,
+      actorUserId: auditLog.actorUserId,
+      action: auditLog.action,
+      performedAt: auditLog.performedAt,
+      approvalRequestId: auditLog.approvalRequestId,
+    })
+    .from(auditLog)
+    .where(whereClause)
+    .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
+    .limit(ADMIN_HISTORIAL_PAGE_LIMIT + 1);
 
   const hasMore = rawEntries.length > ADMIN_HISTORIAL_PAGE_LIMIT;
   const entries = hasMore ? rawEntries.slice(0, ADMIN_HISTORIAL_PAGE_LIMIT) : rawEntries;
 
+  // Pagination links — changing a filter resets cursor to page 1.
+  const filterParams: Record<string, string | undefined> = {
+    ...(actionFilters.length > 0 ? { action: actionFilters.join(",") } : {}),
+    ...(actorFilter ? { actor: actorFilter } : {}),
+    ...(sp.period ? { period: sp.period } : {}),
+    ...(sp.from ? { from: sp.from } : {}),
+    ...(sp.to ? { to: sp.to } : {}),
+  };
   const lastEntry = entries.at(-1);
   const olderLink =
     hasMore && lastEntry
-      ? olderHref("/admin/historial", {}, { ts: lastEntry.performedAt, id: lastEntry.id })
+      ? olderHref("/admin/historial", filterParams, { ts: lastEntry.performedAt, id: lastEntry.id })
       : null;
-  const newerLink = rawCursor ? newerHref("/admin/historial", {}) : null;
+  const newerLink = rawCursor ? newerHref("/admin/historial", filterParams) : null;
 
   // Build a lookup from approvalRequestId → publicToken so we can link to the
   // detail page instead of showing raw UUIDs (P2 audit action labels).
@@ -68,18 +178,153 @@ export default async function AdminHistorialPage({
     for (const r of reqRows) tokenByReqId.set(r.id, r.publicToken);
   }
 
+  // Batch-resolve actor display names — scope is universal now, so a row's
+  // actor is no longer always the viewer; show who did it.
+  const actorIds = Array.from(
+    new Set(entries.map((e) => e.actorUserId).filter((id): id is string => id !== null)),
+  );
+  const namesById = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const rows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, actorIds));
+    for (const r of rows) namesById.set(r.id, r.displayName);
+  }
+
+  // Actor dropdown options — shared resolver with /gob/historial (#26 D1):
+  // admin derives options from the current page + selected extra (universal
+  // scope is unbounded, mirrors /admin/auditoria's approach).
+  const actorOptions = await resolveAuditHistoryActorOptions(
+    scope,
+    actorIds,
+    namesById,
+    actorFilter,
+  );
+
+  const actionOptions = buildAuditActionOptions();
+  const selectedActionOption =
+    actionFilters.length === 1
+      ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
+      : undefined;
+
+  const hasFilters =
+    actionFilters.length > 0 || actorFilter !== null || Boolean(sp.period) || Boolean(sp.from);
+
+  return {
+    entries,
+    olderLink,
+    newerLink,
+    tokenByReqId,
+    namesById,
+    actorOptions,
+    actionOptions,
+    selectedActionOption,
+    hasFilters,
+    isMineFilter: actorFilter === viewerId,
+    mineHref: `/admin/historial?actor=${viewerId}`,
+    actorFilter,
+  };
+}
+
+export default async function AdminHistorialPage({
+  searchParams,
+}: {
+  searchParams: Promise<AdminHistorialSearchParams>;
+}) {
+  const { user } = await requireAdminOrRedirect();
+  const sp = await searchParams;
+  const {
+    entries,
+    olderLink,
+    newerLink,
+    tokenByReqId,
+    namesById,
+    actorOptions,
+    actionOptions,
+    selectedActionOption,
+    hasFilters,
+    isMineFilter,
+    mineHref,
+    actorFilter,
+  } = await loadAdminHistorial(sp, user.id);
+  const actorName = (uid: string | null) =>
+    uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Mi historial</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Últimas {entries.length} acciones realizadas por{" "}
-          <span className="font-semibold">{actor?.displayName ?? user.id}</span>.
-        </p>
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Historial</h1>
+        <p className="text-[13px] text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
       </header>
 
+      <div className="flex flex-wrap items-end gap-4">
+        {/* Período — the shared <PeriodPicker> control, same as /gob/historial. */}
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
+          <span className="text-[var(--text-sm)] font-medium text-ln-op-mute">Período</span>
+          <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
+        </div>
+
+        <form action="/admin/historial" method="get" className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="historial-action"
+              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+            >
+              Acción
+            </label>
+            <OpSelect
+              id="historial-action"
+              name="action"
+              defaultValue={selectedActionOption?.value ?? ""}
+            >
+              <option value="">Todas las acciones</option>
+              {actionOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </OpSelect>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="historial-actor"
+              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+            >
+              Actor
+            </label>
+            <OpSelect id="historial-actor" name="actor" defaultValue={actorFilter ?? ""}>
+              <option value="">Todos los actores</option>
+              {actorOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </OpSelect>
+          </div>
+
+          <OpButton type="submit" variant="primary" size="sm">
+            Filtrar
+          </OpButton>
+          {!isMineFilter && (
+            <a href={mineHref} className="text-sm text-ln-op-azul underline underline-offset-4">
+              Ver solo mi actividad
+            </a>
+          )}
+          {hasFilters && (
+            <a
+              href="/admin/historial"
+              className="text-sm text-ln-op-mute underline underline-offset-4"
+            >
+              Limpiar filtros
+            </a>
+          )}
+        </form>
+      </div>
+
       {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No registraste acciones todavía.</p>
+        <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
       ) : (
         <OpCard>
           <OpCardHead
@@ -89,37 +334,12 @@ export default async function AdminHistorialPage({
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
               {entries.map((entry) => (
-                <li
+                <HistorialRow
                   key={entry.id}
-                  className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="text-[13px] text-ln-op-ink">{auditActionLabel(entry.action)}</p>
-                    {entry.approvalRequestId &&
-                      (() => {
-                        const token = tokenByReqId.get(entry.approvalRequestId);
-                        return token ? (
-                          <Link
-                            href={`/gob/cola/${token}`}
-                            className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80"
-                          >
-                            Ver solicitud →
-                          </Link>
-                        ) : (
-                          <p className="font-mono text-[11px] text-ln-op-mute">
-                            req: {entry.approvalRequestId.slice(0, 8)}…
-                          </p>
-                        );
-                      })()}
-                  </div>
-                  <time className="whitespace-nowrap text-sm text-ln-op-mute">
-                    {new Date(entry.performedAt).toLocaleString("es-AR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                      timeZone: AR_TIME_ZONE,
-                    })}
-                  </time>
-                </li>
+                  entry={entry}
+                  tokenByReqId={tokenByReqId}
+                  actorName={actorName}
+                />
               ))}
             </ul>
           </OpCardBody>
