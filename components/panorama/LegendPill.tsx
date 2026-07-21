@@ -93,7 +93,15 @@ export function LegendPill({
       // worst-case chrome (masthead + trigger + gap + a top margin) so the FULL
       // reading fits unclamped on ordinary viewports, while overflow-y-auto stays
       // as a safety net on very short ones (never lets the panel run off-screen).
-      panelClassName="left-0 max-h-[calc(100vh-10rem)] w-[19rem] overflow-y-auto"
+      //
+      // PO round-2 fix ("sigo viendo compresión, el punto de zoonosis/señal
+      // queda cortado"): w-[19rem] was too narrow for a full point-layer label
+      // ("Zoonosis / señales" and longer) once it was given a place to render
+      // unclamped below — 22rem gives that label real room to sit on one or two
+      // relaxed lines instead of squeezing every word. Capped at
+      // calc(100vw-1.75rem) (same viewport-edge margin the collapsed strip's
+      // outer container already reserves) so it never overflows a narrow phone.
+      panelClassName="left-0 max-h-[calc(100vh-10rem)] w-[22rem] max-w-[calc(100vw-1.75rem)] overflow-y-auto"
       summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-md hover:border-ln-op-celeste"
       summary={
         <>
@@ -202,6 +210,29 @@ export function LegendPill({
         </>
       }
     >
+      {/* PO fix ("el punto de zoonosis/señal queda cortado"): the collapsed
+          strip's dots above (`max-w-24 truncate`) are deliberately clipped —
+          that's the compact glance strip. But the <summary> stays visible even
+          while OPEN (native <details> markup), so its clipped label was the
+          ONLY place a point layer's name ever appeared — the full MapLegends
+          reading lives one tab away in the dock's Referencias tab (dock
+          redesign) and no longer restates it. Repeat the same layerDots here,
+          full label, wrapping instead of clipping, so expanding the pill
+          actually answers "which point layer is that dot" in full. */}
+      {layerDots.length > 0 && (
+        <div className="mb-2 flex flex-col gap-1 border-b border-ln-op-line-2 pb-2">
+          {layerDots.map((dot) => (
+            <span key={dot.label} className="flex items-start gap-1.5 text-[var(--text-xs)]">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full border border-ln-op-line"
+                style={{ background: dot.color }}
+              />
+              <span className="leading-snug text-ln-op-ink-2">{dot.label}</span>
+            </span>
+          ))}
+        </div>
+      )}
       {children}
     </OverlayDisclosure>
   );
