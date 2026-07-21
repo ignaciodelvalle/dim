@@ -1,11 +1,16 @@
 "use client";
 
 // Landing hero — Pampa's "credencial viva": a mini DNI-style credential card
-// that auto-cycles through the states a real pet moves through over a life
-// (PO landing redesign 2026-07-04). It replaces the old photo-with-halo motif.
+// that plays ONCE through the states a real pet moves through over a life,
+// then settles for good on "AL DÍA" — the calm, done resting state (PO
+// landing redesign 2026-07-04; calmer/institutional pass 2026-07-21: this
+// used to loop forever, which read as a consumer-product demo reel — a
+// public national registry should not look like it's still selling itself
+// after the first look).
 //
-// The credential loops: al día → perdida → encontrada (al día) → en
-// observación antirrábica → en tratamiento → requiere registro PPP → (loop).
+// The sequence plays once on load: al día → perdida → encontrada (al día) →
+// en observación antirrábica → en tratamiento → requiere registro PPP → back
+// to AL DÍA, where the interval clears itself and the card stops for good.
 // Two of these — "en observación antirrábica" and "requiere registro PPP" —
 // are landing-hero-only states with a landing-local tone treatment; the shared
 // LnPetStatus/LnStatusFlag type is intentionally NOT extended for them (each
@@ -13,21 +18,31 @@
 //
 // The WHOLE card tints per state: trim background, status badge, photo ring,
 // the one contextual read-only row, and the card border. Clicking a state dot
-// takes control (pauses the auto-cycle, which quietly resumes after 8s idle).
+// takes control (stops the one-shot cycle if it's still running) and just
+// shows that state — no auto-resume; once a person has taken the wheel, the
+// card stays wherever they left it.
 //
 // Flip: the card turns edge-on (rotateY → 90°), swaps the visible face, then
 // turns back — the same single-painted-face mechanism the product's FlipCard
 // uses (never two faces in a preserve-3d/backface context; see the FlipCard
 // comment + .ln-doc-turn in globals.css). The back is a mini libreta.
 //
-// Motion contract: the loop and the turn only run when motion is allowed. Under
-// prefers-reduced-motion (or before hydration / no-JS / SSR) the credential
-// sits on the first state, "al día", front face, never advances, and the flip
-// swaps instantly. The "lost" state keeps a subtle border pulse (motion-gated).
+// Motion contract: the one-shot cycle and the turn only run when motion is
+// allowed. Under prefers-reduced-motion (or before hydration / no-JS / SSR)
+// the credential sits on the resting state, "al día", front face, never
+// advances, and the flip swaps instantly. The "lost" state keeps a subtle
+// border pulse (motion-gated).
 //
 // The QR is REAL and scannable: server-generated SVG (qrcode package, same
 // pattern as /mis-mascotas/[publicToken]) pointing at the stable seeded demo
-// pet (DIM-HACH-0016) — unchanged as Pampa cycles through states.
+// pet (DIM-HACH-0016) — unchanged as Pampa plays through states.
+//
+// Sub-brand note: the serif "Libreta Nacional" display face used across the
+// landing (lp-display / --font-ln-serif, see globals.css) is an INTENTIONAL
+// departure from literal Poncho — Poncho supplies the palette + Encode Sans
+// body type, but the serif display motif is a deliberate sub-brand choice
+// (PO decision: keep it, make the page around it calmer). Don't "fix" it back
+// to a Poncho display font.
 
 import { PAMPA } from "@/components/landing/landing-content";
 import Image from "next/image";
@@ -67,7 +82,6 @@ const HERO_STATES: HeroState[] = [
 ];
 
 const CYCLE_MS = 2600;
-const RESUME_MS = 8000;
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
@@ -89,40 +103,41 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
 
   const cardRef = useRef<HTMLDivElement>(null);
   const cycleRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const resumeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flipTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const flippingRef = useRef(false);
 
-  const startCycle = useCallback(() => {
-    if (prefersReducedMotion()) return;
-    if (cycleRef.current) clearInterval(cycleRef.current);
-    cycleRef.current = setInterval(() => {
-      setIndex((n) => (n + 1) % HERO_STATES.length);
-    }, CYCLE_MS);
+  // Stop the one-shot cycle wherever it currently is (used by manual
+  // interaction and by the cycle itself once it completes a full lap).
+  const stopCycle = useCallback(() => {
+    if (cycleRef.current) {
+      clearInterval(cycleRef.current);
+      cycleRef.current = null;
+    }
   }, []);
 
-  // Manual interaction pauses the loop; it quietly resumes after 8s idle.
-  const pauseCycle = useCallback(() => {
-    if (cycleRef.current) clearInterval(cycleRef.current);
-    if (resumeRef.current) clearTimeout(resumeRef.current);
-    resumeRef.current = setTimeout(startCycle, RESUME_MS);
-  }, [startCycle]);
-
+  // Play the sequence exactly once, then settle back on "al día" and stop —
+  // no restart, ever. Reduced motion (or SSR/no-JS) never starts it at all,
+  // so the card simply sits on the initial resting state.
   useEffect(() => {
-    startCycle();
+    if (prefersReducedMotion()) return;
+    let step = 0;
+    cycleRef.current = setInterval(() => {
+      step += 1;
+      setIndex(step % HERO_STATES.length);
+      if (step >= HERO_STATES.length) stopCycle();
+    }, CYCLE_MS);
     return () => {
-      if (cycleRef.current) clearInterval(cycleRef.current);
-      if (resumeRef.current) clearTimeout(resumeRef.current);
+      stopCycle();
       for (const t of flipTimersRef.current) clearTimeout(t);
     };
-  }, [startCycle]);
+  }, [stopCycle]);
 
   const selectState = useCallback(
     (i: number) => {
-      pauseCycle();
+      stopCycle();
       setIndex(i);
     },
-    [pauseCycle],
+    [stopCycle],
   );
 
   // Edge-on flip: turn to 90°, swap the face at the invisible edge, turn back.
@@ -130,7 +145,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
   const flip = useCallback(() => {
     if (flippingRef.current) return;
     flippingRef.current = true;
-    pauseCycle();
+    stopCycle();
     const el = cardRef.current;
     const swap = () => setFace((f) => (f === "front" ? "back" : "front"));
     if (!el || prefersReducedMotion()) {
@@ -148,7 +163,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
       flipTimersRef.current.push(t2);
     }, 290);
     flipTimersRef.current.push(t1);
-  }, [pauseCycle]);
+  }, [stopCycle]);
 
   const state = HERO_STATES[index] ?? HERO_STATES[0];
   const mrz = buildMrz(publicToken);

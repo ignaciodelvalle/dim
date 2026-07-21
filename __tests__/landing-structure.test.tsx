@@ -170,9 +170,14 @@ describe("life moments + FAQ + trust row", () => {
     expect(details.length).toBe(5);
     expect(html).toContain("¿Cuánto cuesta?");
     expect(html).toContain('data-section="trust-row"');
-    expect(html).toContain("Ley 25.326");
     expect(html).toContain("Datos abiertos");
     expect(html).toContain(">beta<");
+    // Copy-trim decision (2026-07-21): "Ley 25.326" lives ONLY in the footer
+    // legal line now — the trust row's repeat of it was removed. Likewise
+    // "Gratis para siempre" stays in the hero + this section's cost FAQ
+    // answer only, not as a third badge here.
+    expect(html).not.toContain("Ley 25.326");
+    expect(html).not.toContain("Gratis para siempre");
   });
 });
 

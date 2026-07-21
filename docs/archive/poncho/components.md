@@ -1,4 +1,14 @@
-# Poncho Design System — Component Reference
+> **ARCHIVED — do not use.** This document is historical. `components/poncho/`
+> no longer exists in this codebase, and the `gob-*` Tailwind classes below
+> (`bg-gob-primary`, `text-gob-primary`, etc.) are not defined anywhere in
+> `app/globals.css` — they were removed along with the webfont this doc
+> assumed. If you're looking for the current design system, the app's
+> components live under `components/ui/` (Libreta Nacional tokens — see the
+> `--font-ln-serif` / `--color-ln-*` vars in `app/globals.css`), and the
+> public landing has its own components under `components/landing/`. Kept
+> here only for historical reference to the pre-rename Poncho phase.
+
+# Poncho Design System — Component Reference (historical)
 
 All components live in `components/poncho/` and are exported from `components/poncho/index.ts`.
 Convention: components carry **no** "Poncho" prefix — they are `Button`, `Badge`, `Photo`, etc.

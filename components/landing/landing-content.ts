@@ -7,6 +7,16 @@
 // PAMPA is the narrative pet of the story AND the real seeded flagship pet the
 // hero QR points at (see DEMO_PUBLIC_TOKEN below): portada name, QR target and
 // /p all resolve to the same animal, scannable against /p/[publicToken].
+//
+// Sub-brand note: the landing's serif display type ("Libreta Nacional" —
+// lp-display / --font-ln-serif in globals.css) is an INTENTIONAL departure
+// from literal Poncho. Poncho supplies the color palette and the Encode Sans
+// body/UI type; the serif display motif on headings and the credential's
+// libreta-style back face is a deliberate sub-brand identity (PO decision:
+// keep the sub-brand, just make the page around it calmer). Do not "fix" it
+// back to a Poncho display font — see docs/archive/poncho/components.md,
+// which is now archived precisely because Poncho's original component/token
+// set no longer matches what ships here.
 
 import type { IconName } from "@/components/Icon";
 
@@ -97,6 +107,17 @@ export type LandingChapter = {
   lead?: string;
 };
 
+// Order note (calmer/institutional pass 2026-07-21): "estado" was chapter 6
+// (dead last, after "libreta"). Promoted to chapter 5 — right after Pampa's
+// personal arc resolves (refugio) and before the closing "Todo quedó
+// escrito" beat — so the institutional credibility signal (the cartogram)
+// lands before the section's last word, not buried past it. This also reads
+// better: "Cuatro manos, una sola historia" now truly closes the story once
+// all four hands (dueño, vet, org, Estado) have appeared. Moving it any
+// earlier (e.g. right after the "se pierde" crisis chapter) was considered
+// and rejected: it would drop a cold institutional dashboard in the middle
+// of the lost-pet urgency, undercutting the emotional beat the story needs
+// there. Position/side data only — StorySection.tsx renders in array order.
 export const CHAPTERS: LandingChapter[] = [
   {
     key: "dueno",
@@ -130,6 +151,7 @@ export const CHAPTERS: LandingChapter[] = [
     title: "La recibe el refugio más cercano.",
     lead: "Verifican el chip, miMAR dice quién es, y Martín ya está en camino. Custodia devuelta — y registrada.",
   },
+  { key: "estado", hand: "Estado", state: "navy", full: true },
   {
     key: "libreta",
     hand: "miMAR",
@@ -138,7 +160,6 @@ export const CHAPTERS: LandingChapter[] = [
     title: "Todo quedó escrito.",
     lead: "Cuatro manos, una sola historia. La línea de vida es de Pampa: inmutable — nada se edita, nada se borra.",
   },
-  { key: "estado", hand: "Estado", state: "navy", full: true },
 ];
 
 // ---------------------------------------------------------------------------

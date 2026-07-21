@@ -24,18 +24,16 @@ export function FaqSection() {
           ))}
         </div>
         <div className="lp-trust-row lp-reveal" data-section="trust-row">
+          {/* "Gratis para siempre" and "Ley 25.326" already live in the
+              hero/FAQ answer and the footer legal line respectively (PO
+              copy-trim decision 2026-07-21) — kept out of this row so the
+              same claims aren't repeated a third/second time. */}
           <span>
             <Icon name="edificio" size="sm" decorative /> Operado por la autoridad sanitaria
             nacional
           </span>
           <span>
-            <Icon name="candado" size="sm" decorative /> Datos protegidos · Ley 25.326
-          </span>
-          <span>
             <Icon name="chart-line" size="sm" decorative /> Datos abiertos
-          </span>
-          <span>
-            <Icon name="check-circle" size="sm" decorative /> Gratis para siempre
           </span>
           <span>
             <LnBadge variant="info">beta</LnBadge>

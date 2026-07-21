@@ -21,7 +21,7 @@ export function LandingFooter() {
             </div>
             <p className="max-w-xs text-[var(--text-md)] leading-relaxed text-[var(--color-ln-mute)]">
               El registro nacional de identidad y salud de las mascotas de la Argentina. Una
-              iniciativa pública y gratuita.
+              iniciativa pública.
             </p>
           </div>
           {FOOTER_NAV.map(([heading, items]) => (
