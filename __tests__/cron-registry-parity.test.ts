@@ -35,6 +35,16 @@ const CRON_DIR = join(ROOT, "app", "api", "cron");
 // Hobby its schedule never fires and the cube stays inert (reader falls to live).
 const DISPATCHER_DIRS = ["daily", "refresh-cube"];
 
+// refresh-cube's vercel.json schedule was PAUSED (commit 489fc1a4): the cube build
+// (~105s) exceeds the daily-dispatcher budget and needs its own Vercel Pro function,
+// and on Hobby its schedule never fired anyway (the reader falls back to live). Its
+// route dir still exists (so it stays a DISPATCHER_DIR, excluded from job checks),
+// but it is no longer SCHEDULED in vercel.json. Re-add here if the schedule returns.
+const PAUSED_DISPATCHER_DIRS = ["refresh-cube"];
+const SCHEDULED_DISPATCHER_DIRS = DISPATCHER_DIRS.filter(
+  (d) => !PAUSED_DISPATCHER_DIRS.includes(d),
+);
+
 function snake(dir: string): string {
   return dir.replace(/-/g, "_");
 }
@@ -57,9 +67,9 @@ describe("cron fleet parity (vercel.json ⇄ dispatcher ⇄ registry ⇄ routes)
   const jobDirs = dirs.filter((d) => !DISPATCHER_DIRS.includes(d));
   const registryNames = new Set(CRON_REGISTRY.map((e) => e.cronName));
 
-  it("vercel.json schedules ONLY the dispatcher route(s)", () => {
+  it("vercel.json schedules ONLY the active (non-paused) dispatcher route(s)", () => {
     const pathDirs = vercelCronPaths().map((p) => p.replace("/api/cron/", ""));
-    expect([...pathDirs].sort()).toEqual([...DISPATCHER_DIRS].sort());
+    expect([...pathDirs].sort()).toEqual([...SCHEDULED_DISPATCHER_DIRS].sort());
   });
 
   it("every dispatcher has a route directory", () => {
