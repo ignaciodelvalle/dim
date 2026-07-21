@@ -89,183 +89,181 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
   const isActive = govt.deactivatedAt === null;
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Back nav */}
-        <p className="text-sm text-ln-op-mute">
-          <Link href="/admin/govts" className="underline underline-offset-4 hover:text-ln-op-ink-2">
-            {"←"} Volver a Gobiernos
-          </Link>
-        </p>
+    <div className="space-y-6">
+      {/* Back nav */}
+      <p className="text-sm text-ln-op-mute">
+        <Link href="/admin/govts" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+          {"←"} Volver a Gobiernos
+        </Link>
+      </p>
 
-        {/* Identity card */}
-        <OpCard>
-          <OpCardHead
-            title={govt.displayName}
-            actions={
-              <OpPill tone={isActive ? "ok" : "neutral"}>
-                {isActive ? "Activo" : "Desactivado"}
-              </OpPill>
-            }
-          />
-          <OpCardBody>
-            <p className="text-sm text-ln-op-mute mb-3">{email}</p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <dt className="text-ln-op-mute">Tipo de cuenta</dt>
-              <dd className="text-ln-op-ink">{accountTypeLabel(govt.accountType)}</dd>
-              <dt className="text-ln-op-mute">Rol</dt>
-              <dd className="text-ln-op-ink">Gobierno</dd>
-              <dt className="text-ln-op-mute">Creado</dt>
-              <dd className="text-ln-op-ink">{formatDateShort(govt.createdAt)}</dd>
-              {!isActive && govt.deactivatedAt && (
-                <>
-                  <dt className="text-ln-op-mute">Desactivado</dt>
-                  <dd className="text-ln-op-danger">{formatDateShort(govt.deactivatedAt)}</dd>
-                </>
-              )}
-            </dl>
-          </OpCardBody>
-        </OpCard>
+      {/* Identity card */}
+      <OpCard>
+        <OpCardHead
+          title={govt.displayName}
+          actions={
+            <OpPill tone={isActive ? "ok" : "neutral"}>
+              {isActive ? "Activo" : "Desactivado"}
+            </OpPill>
+          }
+        />
+        <OpCardBody>
+          <p className="text-sm text-ln-op-mute mb-3">{email}</p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <dt className="text-ln-op-mute">Tipo de cuenta</dt>
+            <dd className="text-ln-op-ink">{accountTypeLabel(govt.accountType)}</dd>
+            <dt className="text-ln-op-mute">Rol</dt>
+            <dd className="text-ln-op-ink">Gobierno</dd>
+            <dt className="text-ln-op-mute">Creado</dt>
+            <dd className="text-ln-op-ink">{formatDateShort(govt.createdAt)}</dd>
+            {!isActive && govt.deactivatedAt && (
+              <>
+                <dt className="text-ln-op-mute">Desactivado</dt>
+                <dd className="text-ln-op-danger">{formatDateShort(govt.deactivatedAt)}</dd>
+              </>
+            )}
+          </dl>
+        </OpCardBody>
+      </OpCard>
 
-        {/* Active localities */}
-        <section className="space-y-3">
-          <h2 className="text-[13px] font-semibold text-ln-op-ink">
-            Localidades activas ({activeAssignments.length})
-          </h2>
+      {/* Active localities */}
+      <section className="space-y-3">
+        <h2 className="text-[13px] font-semibold text-ln-op-ink">
+          Localidades activas ({activeAssignments.length})
+        </h2>
 
-          {activeAssignments.length === 0 ? (
-            <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
-          ) : (
-            <ul className="space-y-2">
-              {activeAssignments.map((a) => {
-                const label = `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
-                return (
-                  <li key={a.id}>
-                    <OpCard>
-                      <OpCardBody className="flex items-center justify-between gap-3">
-                        <span className="text-[13px] text-ln-op-ink">{label}</span>
-                        {isActive && (
-                          <RevokeLocalityRowActions assignmentId={a.id} localityLabel={label} />
-                        )}
-                      </OpCardBody>
-                    </OpCard>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+        {activeAssignments.length === 0 ? (
+          <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
+        ) : (
+          <ul className="space-y-2">
+            {activeAssignments.map((a) => {
+              const label = `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
+              return (
+                <li key={a.id}>
+                  <OpCard>
+                    <OpCardBody className="flex items-center justify-between gap-3">
+                      <span className="text-[13px] text-ln-op-ink">{label}</span>
+                      {isActive && (
+                        <RevokeLocalityRowActions assignmentId={a.id} localityLabel={label} />
+                      )}
+                    </OpCardBody>
+                  </OpCard>
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
-          {/* Assign locality — PR-C */}
-          {isActive && (
-            <div className="mt-2">
-              <AssignLocalityForm targetUserId={userId} />
-            </div>
-          )}
-        </section>
+        {/* Assign locality — PR-C */}
+        {isActive && (
+          <div className="mt-2">
+            <AssignLocalityForm targetUserId={userId} />
+          </div>
+        )}
+      </section>
 
-        {/* Revoked localities (collapsible) */}
-        {revokedAssignments.length > 0 && (
-          <details className="group">
-            <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
-              Localidades revocadas ({revokedAssignments.length})
-            </summary>
-            <ul className="mt-2 space-y-2">
-              {revokedAssignments.map((a) => (
-                <li key={a.id} className="text-sm text-ln-op-mute px-3 space-y-0.5">
-                  <span className="text-ln-op-ink-2">
-                    {a.jurisdictionLocality}, {a.jurisdictionProvince}
+      {/* Revoked localities (collapsible) */}
+      {revokedAssignments.length > 0 && (
+        <details className="group">
+          <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
+            Localidades revocadas ({revokedAssignments.length})
+          </summary>
+          <ul className="mt-2 space-y-2">
+            {revokedAssignments.map((a) => (
+              <li key={a.id} className="text-sm text-ln-op-mute px-3 space-y-0.5">
+                <span className="text-ln-op-ink-2">
+                  {a.jurisdictionLocality}, {a.jurisdictionProvince}
+                </span>
+                {a.revokedAt && (
+                  <span className="ml-2 text-ln-op-faint">
+                    (revocada {formatDateShort(a.revokedAt)})
                   </span>
-                  {a.revokedAt && (
-                    <span className="ml-2 text-ln-op-faint">
-                      (revocada {formatDateShort(a.revokedAt)})
+                )}
+                {a.revocationReason && (
+                  <p className="text-ln-op-mute">
+                    <span className="text-ln-op-faint">Motivo:</span> {a.revocationReason}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
+      {/* Account actions */}
+      {isActive && (
+        <section className="space-y-3">
+          <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
+          <div className="flex items-start gap-3 flex-wrap">
+            <DeactivateGovtActions
+              target={{
+                id: govt.id,
+                displayName: govt.displayName,
+                activeLocalityCount: activeAssignments.length,
+              }}
+            />
+            <ResetCredentialsButton
+              targetUserId={govt.id}
+              displayName={govt.displayName}
+              email={email}
+              detailPath={`/admin/govts/${govt.id}`}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Audit log tail */}
+      <section className="space-y-3">
+        <h2 className="text-[13px] font-semibold text-ln-op-ink">
+          Audit log (últimas {auditEntries.length} entradas)
+        </h2>
+        {auditEntries.length === 0 ? (
+          <p className="text-sm text-ln-op-mute">Sin registros.</p>
+        ) : (
+          <ul className="divide-y divide-ln-op-line-2">
+            {auditEntries.map((entry) => {
+              const view = describeAuditEntry(entry.action, entry.payload);
+              const actorName = entry.actorUserId
+                ? (auditActorNamesById.get(entry.actorUserId) ?? "Desconocido")
+                : "Sistema";
+              return (
+                <li key={entry.id} className="py-2 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
+                      {view.label}
                     </span>
-                  )}
-                  {a.revocationReason && (
-                    <p className="text-ln-op-mute">
-                      <span className="text-ln-op-faint">Motivo:</span> {a.revocationReason}
+                    <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
+                  </div>
+                  <p className="text-sm text-ln-op-mute">
+                    {actorName}
+                    <span className="mx-1 text-ln-op-faint">·</span>
+                    <span className="tabular-nums">
+                      {entry.performedAt.toLocaleString("es-AR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: AR_TIME_ZONE,
+                      })}
+                    </span>
+                  </p>
+                  {view.reason && (
+                    <p className="text-sm text-ln-op-ink-2">
+                      <span className="text-ln-op-mute">Motivo:</span> {view.reason}
                     </p>
+                  )}
+                  {view.evidenceCount !== undefined && (
+                    <p className="text-sm text-ln-op-mute">
+                      {view.evidenceCount} archivo(s) de evidencia
+                    </p>
+                  )}
+                  {view.resetMethod && (
+                    <p className="text-sm text-ln-op-mute">Método: {view.resetMethod}</p>
                   )}
                 </li>
-              ))}
-            </ul>
-          </details>
+              );
+            })}
+          </ul>
         )}
-
-        {/* Account actions */}
-        {isActive && (
-          <section className="space-y-3">
-            <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
-            <div className="flex items-start gap-3 flex-wrap">
-              <DeactivateGovtActions
-                target={{
-                  id: govt.id,
-                  displayName: govt.displayName,
-                  activeLocalityCount: activeAssignments.length,
-                }}
-              />
-              <ResetCredentialsButton
-                targetUserId={govt.id}
-                displayName={govt.displayName}
-                email={email}
-                detailPath={`/admin/govts/${govt.id}`}
-              />
-            </div>
-          </section>
-        )}
-
-        {/* Audit log tail */}
-        <section className="space-y-3">
-          <h2 className="text-[13px] font-semibold text-ln-op-ink">
-            Audit log (últimas {auditEntries.length} entradas)
-          </h2>
-          {auditEntries.length === 0 ? (
-            <p className="text-sm text-ln-op-mute">Sin registros.</p>
-          ) : (
-            <ul className="divide-y divide-ln-op-line-2">
-              {auditEntries.map((entry) => {
-                const view = describeAuditEntry(entry.action, entry.payload);
-                const actorName = entry.actorUserId
-                  ? (auditActorNamesById.get(entry.actorUserId) ?? "Desconocido")
-                  : "Sistema";
-                return (
-                  <li key={entry.id} className="py-2 space-y-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
-                        {view.label}
-                      </span>
-                      <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
-                    </div>
-                    <p className="text-sm text-ln-op-mute">
-                      {actorName}
-                      <span className="mx-1 text-ln-op-faint">·</span>
-                      <span className="tabular-nums">
-                        {entry.performedAt.toLocaleString("es-AR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                          timeZone: AR_TIME_ZONE,
-                        })}
-                      </span>
-                    </p>
-                    {view.reason && (
-                      <p className="text-sm text-ln-op-ink-2">
-                        <span className="text-ln-op-mute">Motivo:</span> {view.reason}
-                      </p>
-                    )}
-                    {view.evidenceCount !== undefined && (
-                      <p className="text-sm text-ln-op-mute">
-                        {view.evidenceCount} archivo(s) de evidencia
-                      </p>
-                    )}
-                    {view.resetMethod && (
-                      <p className="text-sm text-ln-op-mute">Método: {view.resetMethod}</p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
-      </div>
-    </main>
+      </section>
+    </div>
   );
 }

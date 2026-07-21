@@ -45,8 +45,12 @@ export type {
   CaseQueueBulkConfig,
   CaseQueueProps,
 } from "./CaseQueue";
-export { CasoEstadoFilter, parseCasoEstado } from "./CasoEstadoFilter";
-export type { CasoEstado } from "./CasoEstadoFilter";
+export { CasoEstadoFilter } from "./CasoEstadoFilter";
+// parseCasoEstado/CasoEstado live in ./caso-estado (no "use client") — a
+// Server Component calls parseCasoEstado directly, and every export of a
+// "use client" module is a client reference (ROOT-CAUSE FIX, R1).
+export { parseCasoEstado } from "./caso-estado";
+export type { CasoEstado } from "./caso-estado";
 export { DateRangeFilterFields } from "./DateRangeFilterFields";
 export type { DateRangeFilterFieldsProps } from "./DateRangeFilterFields";
 export { JurisdictionFilterFields } from "./JurisdictionFilterFields";

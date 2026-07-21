@@ -32,28 +32,23 @@
 // Visual parity: caption + control classes are copy-pasted from OpFilterBar's
 // own axis rendering (captionClasses / the axis <OpSelect> className) so this
 // renders indistinguishably from a "real" axis control.
+//
+// ROOT-CAUSE FIX (R1, 2026-07-21): `parseCasoEstado`/`CasoEstado` used to be
+// DEFINED in this file. Both /gob/casos and /admin/casos call
+// `parseCasoEstado` from their server-side data-loading function — but every
+// export of a "use client" module is a client reference, so calling it (not
+// rendering it) from a Server Component crashed at runtime with "Attempted
+// to call parseCasoEstado() from the server but parseCasoEstado is on the
+// client" (invisible to tsc — a bundler-level constraint, not a type error).
+// The pure parse/options now live in ./caso-estado (no "use client"); this
+// file only re-exports the component.
 
 import { useSearchParams } from "next/navigation";
 import { useId } from "react";
 
 import { OpSelect } from "@/components/ui/dashboard/OpField";
+import { CASO_ESTADO_OPTIONS, type CasoEstado } from "@/components/ui/dashboard/caso-estado";
 import { serverNavCommit } from "@/lib/ui/filter-commit";
-
-/** The 3 genuine states of the casos Estado filter. "open" is the default. */
-export type CasoEstado = "open" | "all" | "closed";
-
-/** Parses the raw `status` searchParam into the 3-way Estado value. Unknown/absent → "open" (default). */
-export function parseCasoEstado(raw: string | undefined): CasoEstado {
-  if (raw === "all") return "all";
-  if (raw === "closed") return "closed";
-  return "open";
-}
-
-const CASO_ESTADO_OPTIONS: ReadonlyArray<{ value: CasoEstado; label: string }> = [
-  { value: "open", label: "Abiertos" },
-  { value: "all", label: "Todos los estados" },
-  { value: "closed", label: "Cerrados" },
-];
 
 export function CasoEstadoFilter({ value }: { value: CasoEstado }) {
   const searchParams = useSearchParams();

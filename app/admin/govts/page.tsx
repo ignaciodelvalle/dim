@@ -2,7 +2,14 @@ import Link from "next/link";
 
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 
-import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+  SearchFilterField,
+} from "@/components/ui/dashboard";
 import { db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -20,8 +27,11 @@ import { likeContains } from "@/lib/utils/like-helpers";
 // more, so ~50 seed govts don't force a wall of unpaginated rows.
 const GOVTS_PAGE_LIMIT = 50;
 
-const STATUS_CHIPS: { value: GovtStatusFilter; label: string }[] = [
-  { value: "all", label: "Todos" },
+// Estado axis options (R4, opfilterbar-sweep-2026-07-21) — "all" IS the
+// genuine no-param default here (normalizeGovtStatus), unlike casos' "open"
+// default, so this is a SAFE registered `axis` — no default-trap (the
+// bar's own injected blank option maps to exactly this default).
+const STATUS_OPTIONS: { value: Exclude<GovtStatusFilter, "all">; label: string }[] = [
   { value: "active", label: "Activos" },
   { value: "dead", label: "Sin localidades" },
   { value: "inactive", label: "Desactivados" },
@@ -128,16 +138,6 @@ export default async function GovtsPage({
     ? govts
     : govts.filter((g) => !isTestAccount(g.displayName, g.email));
 
-  // Build hrefs that preserve the sibling filters when switching chips.
-  const chipHref = (s: GovtStatusFilter) => {
-    const params = new URLSearchParams();
-    if (query) params.set("q", query);
-    if (s !== "all") params.set("status", s);
-    if (showTestAccounts) params.set("test", "1");
-    const qs = params.toString();
-    return qs ? `/admin/govts?${qs}` : "/admin/govts";
-  };
-
   // Toggle for the test-account filter — preserves the active query + status.
   const testToggleHref = (() => {
     const params = new URLSearchParams();
@@ -149,124 +149,115 @@ export default async function GovtsPage({
   })();
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-xl font-semibold tracking-tight text-ln-op-ink">Gobiernos</h1>
-            <p className="text-sm text-ln-op-ink-2">
-              Operadores institucionales con rol de gobierno.
-            </p>
-          </div>
-          <Link
-            href="/admin/govts/new"
-            className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
-          >
-            + Crear gobierno
-          </Link>
-        </header>
+    <div className="space-y-6">
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-xl font-semibold tracking-tight text-ln-op-ink">Gobiernos</h1>
+          <p className="text-sm text-ln-op-ink-2">
+            Operadores institucionales con rol de gobierno.
+          </p>
+        </div>
+        <Link
+          href="/admin/govts/new"
+          className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
+        >
+          + Crear gobierno
+        </Link>
+      </header>
 
-        {/* Search — display name or email. Status chips preserve the query. */}
-        <form action="/admin/govts" method="get" className="flex items-center gap-2">
-          <input
-            type="text"
-            name="q"
-            defaultValue={query}
-            aria-label="Buscar gobiernos por nombre o email"
-            placeholder="Buscar por nombre o email"
-            className="flex-1 text-[var(--text-md)] rounded-[var(--radius-op-btn)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-          {status !== "all" && <input type="hidden" name="status" value={status} />}
-          {showTestAccounts && <input type="hidden" name="test" value="1" />}
-          <OpButton type="submit" variant="primary" size="sm">
-            Buscar
-          </OpButton>
-        </form>
+      {/* R4 fix (opfilterbar-sweep-2026-07-21): was a bespoke GET <form>
+          (submit-to-search) + a separate hand-rolled status chip <nav> —
+          the divergent pre-migration pattern every other roster screen had
+          already left behind. Estado is a registered axis ("Todos" is the
+          genuine no-param default — normalizeGovtStatus); the free-text
+          query is NOT an axis (unbounded value set), so it renders via the
+          shared SearchFilterField child, same split as /gob/usuarios. */}
+      <OpFilterBar
+        showPeriod={false}
+        axes={
+          [
+            {
+              id: "status",
+              label: "Estado",
+              paramKey: "status",
+              options: STATUS_OPTIONS,
+              current: status === "all" ? null : status,
+              allLabel: "Todos",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <SearchFilterField
+          paramKey="q"
+          value={query}
+          label="Buscar"
+          placeholder="Buscar por nombre o email"
+        />
+      </OpFilterBar>
 
-        <nav aria-label="Filtrar por estado" className="flex flex-wrap items-center gap-2">
-          {STATUS_CHIPS.map((chip) => {
-            const active = chip.value === status;
-            return (
+      {visibleGovts.length === 0 ? (
+        <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
+          <p className="text-sm text-ln-op-mute">
+            {hiddenTestCount > 0
+              ? "Solo hay cuentas de prueba en esta vista."
+              : query || status !== "all"
+                ? "Ningún gobierno coincide con la búsqueda."
+                : "Aún no hay gobiernos."}
+          </p>
+          {hiddenTestCount > 0 ? (
+            <Link
+              href={testToggleHref}
+              className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
+            >
+              Mostrar {hiddenTestCount} {pluralizeEs(hiddenTestCount, "cuenta")} de prueba
+            </Link>
+          ) : (
+            !query &&
+            status === "all" && (
               <Link
-                key={chip.value}
-                href={chipHref(chip.value)}
-                aria-current={active ? "true" : undefined}
-                className={
-                  active
-                    ? "rounded-full bg-ln-op-azul px-3 py-1 text-xs font-semibold text-white"
-                    : "rounded-full border border-ln-op-line px-3 py-1 text-xs font-medium text-ln-op-ink-2 hover:border-ln-op-azul"
-                }
-              >
-                {chip.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {visibleGovts.length === 0 ? (
-          <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
-            <p className="text-sm text-ln-op-mute">
-              {hiddenTestCount > 0
-                ? "Solo hay cuentas de prueba en esta vista."
-                : query || status !== "all"
-                  ? "Ningún gobierno coincide con la búsqueda."
-                  : "Aún no hay gobiernos."}
-            </p>
-            {hiddenTestCount > 0 ? (
-              <Link
-                href={testToggleHref}
+                href="/admin/govts/new"
                 className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
               >
-                Mostrar {hiddenTestCount} {pluralizeEs(hiddenTestCount, "cuenta")} de prueba
+                Crear el primer gobierno
               </Link>
-            ) : (
-              !query &&
-              status === "all" && (
-                <Link
-                  href="/admin/govts/new"
-                  className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
-                >
-                  Crear el primer gobierno
-                </Link>
-              )
-            )}
-          </div>
-        ) : (
-          <>
-            <ul className="space-y-2">
-              {visibleGovts.map((g) => (
-                <GovtRow key={g.id} govt={g} />
-              ))}
-            </ul>
-            {truncated && (
-              <p className="text-sm text-ln-op-mute">
-                Mostrando los primeros {GOVTS_PAGE_LIMIT}. Hay más — refiná la búsqueda o el filtro
-                de estado.
-              </p>
-            )}
-          </>
-        )}
+            )
+          )}
+        </div>
+      ) : (
+        <>
+          <ul className="space-y-2">
+            {visibleGovts.map((g) => (
+              <GovtRow key={g.id} govt={g} />
+            ))}
+          </ul>
+          {truncated && (
+            <p className="text-sm text-ln-op-mute">
+              Mostrando los primeros {GOVTS_PAGE_LIMIT}. Hay más — refiná la búsqueda o el filtro de
+              estado.
+            </p>
+          )}
+        </>
+      )}
 
-        {/* I3: test-account filter toggle. Only relevant when there is something
+      {/* I3: test-account filter toggle. Only relevant when there is something
             to reveal (hidden test rows) or to re-hide (currently showing them). */}
-        {(hiddenTestCount > 0 || showTestAccounts) && (
-          <Link
-            href={testToggleHref}
-            className="text-sm underline underline-offset-4 text-ln-op-mute hover:text-ln-op-ink-2"
-          >
-            {showTestAccounts
-              ? "Ocultar cuentas de prueba"
-              : `Mostrar cuentas de prueba (${hiddenTestCount})`}
-          </Link>
-        )}
+      {(hiddenTestCount > 0 || showTestAccounts) && (
+        <Link
+          href={testToggleHref}
+          className="text-sm underline underline-offset-4 text-ln-op-mute hover:text-ln-op-ink-2"
+        >
+          {showTestAccounts
+            ? "Ocultar cuentas de prueba"
+            : `Mostrar cuentas de prueba (${hiddenTestCount})`}
+        </Link>
+      )}
 
-        <p className="text-sm text-ln-op-mute">
-          <Link href="/admin" className="underline underline-offset-4 hover:text-ln-op-ink-2">
-            {"←"} Volver al dashboard
-          </Link>
-        </p>
-      </div>
-    </main>
+      <p className="text-sm text-ln-op-mute">
+        <Link href="/admin" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+          {"←"} Volver al dashboard
+        </Link>
+      </p>
+    </div>
   );
 }
 

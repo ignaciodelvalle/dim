@@ -102,132 +102,127 @@ export default async function AdminDetailPage({
   const isSelf = actorUser.id === userId;
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* Back nav */}
-        <p className="text-sm text-ln-op-mute">
-          <Link
-            href="/admin/admins"
-            className="underline underline-offset-4 hover:text-ln-op-ink-2"
-          >
-            {"←"} Volver a Administradores
-          </Link>
-        </p>
+    <div className="space-y-6">
+      {/* Back nav */}
+      <p className="text-sm text-ln-op-mute">
+        <Link href="/admin/admins" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+          {"←"} Volver a Administradores
+        </Link>
+      </p>
 
-        {/* Identity card */}
-        <OpCard>
-          <OpCardHead
-            title={
-              <span className="flex items-center gap-2">
-                {target.displayName}
-                {isSelf && <OpPill tone="open">Vos</OpPill>}
-              </span>
-            }
-            actions={
-              <OpPill tone={isActive ? "ok" : "neutral"}>
-                {isActive ? "Activo" : "Desactivado"}
-              </OpPill>
-            }
-          />
-          <OpCardBody>
-            <p className="text-sm text-ln-op-mute mb-3">{email}</p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <dt className="text-ln-op-mute">Tipo de cuenta</dt>
-              <dd className="text-ln-op-ink">{accountTypeLabel(target.accountType)}</dd>
-              <dt className="text-ln-op-mute">Rol</dt>
-              <dd className="text-ln-op-ink">Administrador</dd>
-              <dt className="text-ln-op-mute">Creado</dt>
-              <dd className="text-ln-op-ink">{formatDateShort(target.createdAt)}</dd>
-              {!isActive && target.deactivatedAt && (
-                <>
-                  <dt className="text-ln-op-mute">Desactivado</dt>
-                  <dd className="text-ln-op-danger">{formatDateShort(target.deactivatedAt)}</dd>
-                </>
-              )}
-            </dl>
-          </OpCardBody>
-        </OpCard>
+      {/* Identity card */}
+      <OpCard>
+        <OpCardHead
+          title={
+            <span className="flex items-center gap-2">
+              {target.displayName}
+              {isSelf && <OpPill tone="open">Vos</OpPill>}
+            </span>
+          }
+          actions={
+            <OpPill tone={isActive ? "ok" : "neutral"}>
+              {isActive ? "Activo" : "Desactivado"}
+            </OpPill>
+          }
+        />
+        <OpCardBody>
+          <p className="text-sm text-ln-op-mute mb-3">{email}</p>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <dt className="text-ln-op-mute">Tipo de cuenta</dt>
+            <dd className="text-ln-op-ink">{accountTypeLabel(target.accountType)}</dd>
+            <dt className="text-ln-op-mute">Rol</dt>
+            <dd className="text-ln-op-ink">Administrador</dd>
+            <dt className="text-ln-op-mute">Creado</dt>
+            <dd className="text-ln-op-ink">{formatDateShort(target.createdAt)}</dd>
+            {!isActive && target.deactivatedAt && (
+              <>
+                <dt className="text-ln-op-mute">Desactivado</dt>
+                <dd className="text-ln-op-danger">{formatDateShort(target.deactivatedAt)}</dd>
+              </>
+            )}
+          </dl>
+        </OpCardBody>
+      </OpCard>
 
-        {/* Account actions */}
-        {isActive && actorProfile && (
-          <section className="space-y-3">
-            <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
-            <div className="flex items-start gap-3 flex-wrap">
-              <DeactivateAdminActions
-                target={{ id: target.id, displayName: target.displayName }}
-                actor={{
-                  id: actorProfile.id,
-                  role: actorProfile.role as "owner" | "vet" | "govt" | "admin",
-                  accountType: actorProfile.accountType as "personal" | "institutional",
-                  deactivatedAt: actorProfile.deactivatedAt,
-                }}
-                activeAdminCount={Number(activeCount)}
-              />
-              {!isSelf && (
-                <ResetCredentialsButton
-                  targetUserId={target.id}
-                  displayName={target.displayName}
-                  email={email}
-                  detailPath={`/admin/admins/${target.id}`}
-                />
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Audit log tail */}
+      {/* Account actions */}
+      {isActive && actorProfile && (
         <section className="space-y-3">
-          <h2 className="text-[13px] font-semibold text-ln-op-ink">
-            Audit log (últimas {auditEntries.length} entradas)
-          </h2>
-          {auditEntries.length === 0 ? (
-            <p className="text-sm text-ln-op-mute">Sin registros.</p>
-          ) : (
-            <ul className="divide-y divide-ln-op-line-2">
-              {auditEntries.map((entry) => {
-                const view = describeAuditEntry(entry.action, entry.payload);
-                const actorName = entry.actorUserId
-                  ? (auditActorNamesById.get(entry.actorUserId) ?? "Desconocido")
-                  : "Sistema";
-                return (
-                  <li key={entry.id} className="py-2 space-y-0.5">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
-                        {view.label}
-                      </span>
-                      <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
-                    </div>
-                    <p className="text-sm text-ln-op-mute">
-                      {actorName}
-                      <span className="mx-1 text-ln-op-faint">·</span>
-                      <span className="tabular-nums">
-                        {entry.performedAt.toLocaleString("es-AR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                          timeZone: AR_TIME_ZONE,
-                        })}
-                      </span>
-                    </p>
-                    {view.reason && (
-                      <p className="text-sm text-ln-op-ink-2">
-                        <span className="text-ln-op-mute">Motivo:</span> {view.reason}
-                      </p>
-                    )}
-                    {view.evidenceCount !== undefined && (
-                      <p className="text-sm text-ln-op-mute">
-                        {view.evidenceCount} archivo(s) de evidencia
-                      </p>
-                    )}
-                    {view.resetMethod && (
-                      <p className="text-sm text-ln-op-mute">Método: {view.resetMethod}</p>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
+          <div className="flex items-start gap-3 flex-wrap">
+            <DeactivateAdminActions
+              target={{ id: target.id, displayName: target.displayName }}
+              actor={{
+                id: actorProfile.id,
+                role: actorProfile.role as "owner" | "vet" | "govt" | "admin",
+                accountType: actorProfile.accountType as "personal" | "institutional",
+                deactivatedAt: actorProfile.deactivatedAt,
+              }}
+              activeAdminCount={Number(activeCount)}
+            />
+            {!isSelf && (
+              <ResetCredentialsButton
+                targetUserId={target.id}
+                displayName={target.displayName}
+                email={email}
+                detailPath={`/admin/admins/${target.id}`}
+              />
+            )}
+          </div>
         </section>
-      </div>
-    </main>
+      )}
+
+      {/* Audit log tail */}
+      <section className="space-y-3">
+        <h2 className="text-[13px] font-semibold text-ln-op-ink">
+          Audit log (últimas {auditEntries.length} entradas)
+        </h2>
+        {auditEntries.length === 0 ? (
+          <p className="text-sm text-ln-op-mute">Sin registros.</p>
+        ) : (
+          <ul className="divide-y divide-ln-op-line-2">
+            {auditEntries.map((entry) => {
+              const view = describeAuditEntry(entry.action, entry.payload);
+              const actorName = entry.actorUserId
+                ? (auditActorNamesById.get(entry.actorUserId) ?? "Desconocido")
+                : "Sistema";
+              return (
+                <li key={entry.id} className="py-2 space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
+                      {view.label}
+                    </span>
+                    <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>
+                  </div>
+                  <p className="text-sm text-ln-op-mute">
+                    {actorName}
+                    <span className="mx-1 text-ln-op-faint">·</span>
+                    <span className="tabular-nums">
+                      {entry.performedAt.toLocaleString("es-AR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: AR_TIME_ZONE,
+                      })}
+                    </span>
+                  </p>
+                  {view.reason && (
+                    <p className="text-sm text-ln-op-ink-2">
+                      <span className="text-ln-op-mute">Motivo:</span> {view.reason}
+                    </p>
+                  )}
+                  {view.evidenceCount !== undefined && (
+                    <p className="text-sm text-ln-op-mute">
+                      {view.evidenceCount} archivo(s) de evidencia
+                    </p>
+                  )}
+                  {view.resetMethod && (
+                    <p className="text-sm text-ln-op-mute">Método: {view.resetMethod}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }
