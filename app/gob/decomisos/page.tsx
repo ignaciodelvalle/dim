@@ -5,7 +5,7 @@
 //
 // Query: cases WHERE caseKind='custody_episode'
 //          AND openedByOrganizationId = govtOrg.id
-//        ORDER BY openedAt DESC
+//        ORDER BY openedAt DESC, id DESC
 //
 // Columns: pet, status/phase, dias transcurridos, refugio receptor, accion Reasignar.
 // Auth: requireDecomisoPrincipal (admin sees all; govt scoped to their org).
@@ -110,7 +110,20 @@ export default async function DecomisosDashboardPage({
         ? and(eq(cases.caseKind, "custody_episode"), eq(cases.openedByOrganizationId, govtOrgId))
         : eq(cases.caseKind, "custody_episode"),
     )
-    .orderBy(desc(cases.openedAt))
+    // openedAt alone is not unique — most custody_episode rows share an
+    // identical batch-seeded timestamp (verified against the local DB), so
+    // `ORDER BY opened_at DESC` with no tiebreaker leaves ties in whatever
+    // order the seq scan happens to hand back, which for a bulk-inserted
+    // batch reads out in roughly insertion order — i.e. the oldest case in
+    // that tied block renders FIRST and the newest LAST, the exact "starts
+    // at the end" symptom reported. `id DESC` is the canonical tiebreak this
+    // project already uses for newest-first case lists (lib/infra/case-queries.ts
+    // listCasesForGovt/listCasesForAdmin), backed by the cases_opened_at_id_idx
+    // composite index on (opened_at DESC, id DESC) — this list just never
+    // adopted it. It doesn't recover "true" sub-second recency for genuine
+    // ties (id is a random UUID), but it does make the order deterministic
+    // and index-backed instead of scan-order-dependent.
+    .orderBy(desc(cases.openedAt), desc(cases.id))
     .limit(200);
 
   // Verified-orgs list for the Reasignar combobox (V9 usability fix): same

@@ -8,7 +8,7 @@
 // is empty by contract for admin), govt sees only rows matching one of their
 // active assignments.
 
-import { type SQL, and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { type SQL, and, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import {
@@ -238,6 +238,14 @@ export type VigilanciaMetrics = {
   petsRegisteredToday: number;
   /** pet_events where event_type='vaccination_administered' in scope, last 7 days. */
   vaccinationsThisWeek: number;
+  /**
+   * cases where caseKind='outbreak_investigation' AND status IN ('open','escalated').
+   * Mirrors the active-status filter listOutbreakInvestigationsForGovt uses
+   * (lib/infra/case-queries.ts) minus its 90-day recently-closed extension —
+   * this is a live stock (cases still under active investigation right now),
+   * not a period-bounded flow.
+   */
+  investigationActiveCount: number;
 };
 
 // Canonical list of Argentine provinces for /gob/* dashboard pages.
@@ -348,7 +356,16 @@ export async function fetchVigilanciaMetrics(
   // every scoped-govt viewer). The outbreak arm above keeps its payload scope.
   if (petsScope) vaccConditions.push(sql`(${petsScope})`);
 
-  const [outbreakRows, rabiesRows, petsRows, vaccRows] = await Promise.all([
+  // 5. Count cases under ACTIVE outbreak investigation (open or escalated —
+  // same "active" definition listOutbreakInvestigationsForGovt uses). Reuses
+  // casesScope (arm 2's clause) — same table, same jurisdiction predicate.
+  const investigationConditions = [
+    eq(cases.caseKind, "outbreak_investigation"),
+    inArray(cases.status, ["open", "escalated"]),
+  ];
+  if (casesScope) investigationConditions.push(sql`(${casesScope})`);
+
+  const [outbreakRows, rabiesRows, petsRows, vaccRows, investigationRows] = await Promise.all([
     db
       .select({ n: count() })
       .from(petEvents)
@@ -366,6 +383,10 @@ export async function fetchVigilanciaMetrics(
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .where(and(...vaccConditions)),
+    db
+      .select({ n: count() })
+      .from(cases)
+      .where(and(...investigationConditions)),
   ]);
 
   return {
@@ -373,6 +394,7 @@ export async function fetchVigilanciaMetrics(
     rabiesActiveCount: rabiesRows[0]?.n ?? 0,
     petsRegisteredToday: petsRows[0]?.n ?? 0,
     vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
+    investigationActiveCount: investigationRows[0]?.n ?? 0,
   };
 }
 

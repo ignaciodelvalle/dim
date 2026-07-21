@@ -264,35 +264,16 @@ export default async function GobVigilanciaPage({
         />
       )}
 
-      {/* Quick-access CTA: investigaciones. The former "Zoonosis" CTA (→
-          /gob/vigilancia/zoonosis) was removed — that screen was a
-          near-duplicate of this page's own disease-summary + trend panels
-          below and the route now redirects here. */}
-      <div className="grid grid-cols-1 sm:max-w-xs gap-3">
-        <Link
-          href="/gob/vigilancia/investigaciones"
-          className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
-        >
-          <span className="text-ln-op-azul" aria-hidden="true">
-            <Icon name="microscopio" size={24} decorative />
-          </span>
-          <div>
-            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">Investigaciones</p>
-            <p className="text-[var(--text-sm)] text-ln-op-mute">Casos bajo investigación activa</p>
-          </div>
-        </Link>
-      </div>
-
       {/* Unified filter bar — period + jurisdiction, same rail as censo/perdidas/maltrato. */}
       <OpFilterBar
         period={{ defaultPreset: "30d" }}
         jurisdiction={{ allowedProvinces, localities }}
       />
 
-      {/* 4 KPI tiles */}
+      {/* 5 KPI tiles */}
       <section
         aria-label="Indicadores de vigilancia"
-        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
       >
         <OpKpi
           label="Brotes activos"
@@ -341,6 +322,24 @@ export default async function GobVigilanciaPage({
             definition:
               "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
             formula: "COUNT(vaccination_administered, últimos 7d) scoped to jurisdiction",
+          }}
+        />
+        {/* Clickable KPI tile (v1 `href` — wraps the whole tile in an <a>,
+            same pattern as "Brotes activos" above): replaces the former
+            standalone "Investigaciones" CTA button. Reads as one of the
+            strip's tiles and drills into the same investigations route on
+            click. This is a live stock (cases currently under active
+            investigation, right now) — no period delta on a snapshot. */}
+        <OpKpi
+          label="Casos bajo investigación activa"
+          value={String(metrics.investigationActiveCount)}
+          tone={metrics.investigationActiveCount > 0 ? "warn" : "neutral"}
+          href="/gob/vigilancia/investigaciones"
+          info={{
+            definition:
+              "Cantidad de casos con caseKind='outbreak_investigation' y estado 'open' o 'escalated' en la jurisdicción — investigaciones de brote actualmente en curso.",
+            formula:
+              "COUNT(cases WHERE caseKind='outbreak_investigation' AND status IN ('open','escalated'))",
           }}
         />
       </section>

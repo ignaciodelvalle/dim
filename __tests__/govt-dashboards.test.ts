@@ -918,12 +918,13 @@ describe("fetchLostPets", () => {
 let caseSeq = 0;
 async function insertFixtureCase(input: {
   caseKind: string;
-  status?: "open" | "closed";
+  status?: "open" | "escalated" | "closed";
   province?: string;
   locality?: string;
   petId?: string;
 }): Promise<string> {
   caseSeq += 1;
+  const status = input.status ?? "open";
   const [row] = await db
     .insert(cases)
     .values({
@@ -931,7 +932,9 @@ async function insertFixtureCase(input: {
       caseKind: input.caseKind,
       primarySubjectKind: input.petId ? "registered_pet" : "general",
       primaryPetId: input.petId ?? null,
-      status: input.status ?? "open",
+      status,
+      // cases_closed_consistency requires closedAt whenever status='closed'.
+      closedAt: status === "closed" ? new Date() : null,
       jurisdictionProvince: input.province ?? null,
       jurisdictionLocality: input.locality ?? null,
     })
@@ -999,7 +1002,7 @@ async function emitVaccinationEvent(input: {
 // ============================================================================
 
 describe("fetchVigilanciaMetrics", () => {
-  it("returns all four metrics with correct shape", async () => {
+  it("returns all five metrics with correct shape", async () => {
     const pet = await insertFixturePet({
       name: "MetricsTestPet",
       species: "dog",
@@ -1026,6 +1029,7 @@ describe("fetchVigilanciaMetrics", () => {
     expect(typeof m.rabiesActiveCount).toBe("number");
     expect(typeof m.petsRegisteredToday).toBe("number");
     expect(typeof m.vaccinationsThisWeek).toBe("number");
+    expect(typeof m.investigationActiveCount).toBe("number");
     expect(m.outbreakActiveCount).toBeGreaterThanOrEqual(1);
     expect(m.rabiesActiveCount).toBeGreaterThanOrEqual(1);
     // pet inserted today → should be counted
@@ -1119,6 +1123,63 @@ describe("fetchVigilanciaMetrics", () => {
     // We verify the count is at least 1 (recent) and at most what we inserted
     // in this test (2 total, but only 1 is within 30d).
     expect(govtMetrics.outbreakActiveCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("investigationActiveCount counts open + escalated outbreak_investigation cases, excludes closed", async () => {
+    const province = "Tierra del Fuego";
+    const locality = `InvActive-${Date.now()}`;
+
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "open",
+      province,
+      locality,
+    });
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "escalated",
+      province,
+      locality,
+    });
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "closed",
+      province,
+      locality,
+    });
+
+    const m = await fetchVigilanciaMetrics({ role: "govt" }, [{ province, locality }]);
+    // Only the open + escalated cases count as "active" — the closed one must not.
+    expect(m.investigationActiveCount).toBe(2);
+  });
+
+  it("investigationActiveCount respects jurisdiction scope — govt never sees another jurisdiction's cases", async () => {
+    const localityA = `InvScopeA-${Date.now()}`;
+    const localityB = `InvScopeB-${Date.now()}`;
+
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "open",
+      province: "Chubut",
+      locality: localityA,
+    });
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "escalated",
+      province: "Chubut",
+      locality: localityB,
+    });
+
+    const adminMetrics = await fetchVigilanciaMetrics({ role: "admin" }, []);
+    const govtMetrics = await fetchVigilanciaMetrics({ role: "govt" }, [
+      { province: "Chubut", locality: localityA },
+    ]);
+
+    expect(adminMetrics.investigationActiveCount).toBeGreaterThanOrEqual(2);
+    expect(govtMetrics.investigationActiveCount).toBeGreaterThanOrEqual(1);
+    expect(govtMetrics.investigationActiveCount).toBeLessThan(
+      adminMetrics.investigationActiveCount,
+    );
   });
 });
 
