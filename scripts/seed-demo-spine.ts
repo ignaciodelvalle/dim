@@ -350,7 +350,19 @@ async function seedCarlaVetUpgrade(): Promise<void> {
     });
     log("OK", "Profile de Carla creado con DNI verificado");
   } else {
-    log("SKIP", "Profile de Carla ya existe");
+    // Idempotency backfill: an earlier run may have created Carla BEFORE the
+    // dni_hash line existed, leaving her without a DNI hash — so DNI search
+    // (hashDni equality) can't find her. Re-writing the hash on the existing row
+    // makes the seed self-healing instead of silently skipping the demo data.
+    await db
+      .update(schemas.profiles)
+      .set({
+        dniHash: hashDni("32145678"),
+        dniLast4: dniLast4("32145678"),
+        dniVerified: true,
+      })
+      .where(eq(schemas.profiles.id, authId));
+    log("OK", "Profile de Carla ya existía — DNI hash backfilled");
   }
 
   // 3) approval_request pendiente
