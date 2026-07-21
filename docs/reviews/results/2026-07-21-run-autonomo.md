@@ -63,16 +63,12 @@ Verify-before-build saved several redundant writers.
 - Bloque 5 `ee248de6`. Bloque 4 plan doc written (panorama-controls-plan).
 - RUN COMPLETE. Nothing pushed (PO/prod-gated). `pnpm build` never run (would clobber :3000).
 
-## Batched PO decisions (all proceeded with a defensible default — confirm/adjust)
-1. V9: govt operators see only IN-jurisdiction party candidates; out-of-jurisdiction
-   parties are admin-only. Intended tradeoff?
-2. F2a gob/historial: default scope shifted unbounded → trailing-12m; custom date
-   boundary AR-midnight → UTC-midnight (aligned to the shared PeriodPicker convention).
-3. F2b decomisos: bare from/to without period=custom falls back to 12m (pre-existing,
-   shared with campanas — not introduced here).
-4. #26 D1 admin/historial: default view changed from "own actions, unbounded" to
-   "all actors, trailing-12m" (matches universal-scope intent). Confirm.
-5. Panorama plan §2 organizing principle + opacity-control placement (in the doc).
+## Batched PO decisions — ALL CONFIRMED 2026-07-21 (no code change needed; as-built matches)
+1. ✅ V9: govt sees only IN-jurisdiction party candidates; out-of-jurisdiction = admin-only. CONFIRMED.
+2. ✅ F2a gob/historial: trailing-12m default + UTC-midnight custom boundaries (shared convention). CONFIRMED.
+3. (F2b decomisos 12m bare-from/to fallback — pre-existing/shared with campanas, not introduced; noted, no action.)
+4. ✅ #26 D1 admin/historial: "all actors, trailing-12m" (universal scope). CONFIRMED.
+5. ✅ Panorama plan §2 organizing principle — CONFIRMED, start there next session (opacity → the consolidated "Vista" cluster).
 
 ## Pre-push checklist (for when PO returns — pushes are PO/prod-gated)
 - Run the DB integration suites that needed Supabase: omnibox-search,
