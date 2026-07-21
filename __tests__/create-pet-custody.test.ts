@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isTransitRole } from "@/components/PetCard.helpers";
 import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -219,5 +220,27 @@ describe("createPet — custody path", () => {
         ),
       );
     expect(notifs).toHaveLength(1);
+  });
+
+  // foster-alta-2026-07-21: the downstream "En tránsito" projection
+  // (isTransitRole, feeding both the Mis mascotas list badge and the pet
+  // profile page's transit alert/situation) must actually recognize the
+  // ownership row the alta writes for a foster/tránsito registration — this
+  // is the concrete check that the foster pillar's registration path isn't a
+  // facade end-to-end, not just at the write.
+  it("foster_in_transit registration surfaces as 'En tránsito' in the projection", async () => {
+    const { ownershipRole } = await createPetWithCustody({
+      custodyKind: "foster_in_transit",
+      publicTokenSuffix: "TRANSIT-BADGE",
+    });
+    expect(isTransitRole(ownershipRole)).toBe(true);
+  });
+
+  it("owner registration does NOT surface as 'En tránsito' in the projection", async () => {
+    const { ownershipRole } = await createPetWithCustody({
+      custodyKind: "owner",
+      publicTokenSuffix: "OWNER-BADGE",
+    });
+    expect(isTransitRole(ownershipRole)).toBe(false);
   });
 });

@@ -53,6 +53,7 @@
 // and the `ppp.attested` prop below read the same fixed whitelist.
 // ---------------------------------------------------------------------------
 
+import { isTransitRole } from "@/components/PetCard.helpers";
 import { PetOpenCasesSection } from "@/components/PetOpenCasesSection";
 import { PregnancyInProgressCard } from "@/components/PregnancyInProgressCard";
 import { CredentialFace } from "@/components/pet-profile/CredentialFace";
@@ -354,13 +355,14 @@ export default async function PetDetailPage({
   const photoUrl = petPhotoUrl(photoRow?.storagePath);
   const editPhotoUrl = photoUrl;
 
-  // isTransit = true for users with an active foster ownership row.
-  // Note: shelter_custody is an org-level role (ownerOrganizationId), not a
-  // user-level role, so it cannot appear here via the ownerUserId path.
+  // isTransit = true for users with an active foster row (org-linked
+  // placement) OR an active shelter_custody row (vecino-helps-stray, no org
+  // involved — AGENTS.md; also what the alta's CustodyKindToggle writes for
+  // "la estoy cuidando"). Single source of truth: isTransitRole.
   let isTransit = false;
   let ownershipRole: string | null = null;
   if (accessPath === "owner") {
-    isTransit = ownerRow?.role === "foster";
+    isTransit = isTransitRole(ownerRow?.role ?? "");
     ownershipRole = ownerRow?.role ?? null;
   }
 
@@ -700,7 +702,19 @@ export default async function PetDetailPage({
     petAlerts.push({
       id: "transit",
       tone: "warning",
-      node: <TransitBanner petName={pet.name} petPublicToken={pet.publicToken} />,
+      // "Convertir en mi mascota" / "Buscar nuevo hogar" are org-mediated
+      // foster actions (FosterRepository.findActiveFosterByUser, /buscar-hogar
+      // require role='foster') — a vecino-helps-stray shelter_custody row has
+      // no org link, so those CTAs would dead-end for it. Only offer them to
+      // the actual org-linked foster role; the vecino still gets the banner
+      // text + badge, just not actions that assume an org relationship.
+      node: (
+        <TransitBanner
+          petName={pet.name}
+          petPublicToken={pet.publicToken}
+          canManageFosterActions={ownershipRole === "foster"}
+        />
+      ),
     });
   }
   if (allCases.some((c) => c.status === "open" || c.status === "escalated")) {
@@ -1224,9 +1238,12 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
 function TransitBanner({
   petName,
   petPublicToken,
+  canManageFosterActions,
 }: {
   petName: string;
   petPublicToken: string;
+  /** True only for an org-linked `role='foster'` row — see call site. */
+  canManageFosterActions: boolean;
 }) {
   return (
     <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-3.5 space-y-[10px]">
@@ -1234,15 +1251,17 @@ function TransitBanner({
         Estás cuidando a <strong>{petName}</strong> en tránsito. La libreta sanitaria que armes acá
         viaja con la mascota.
       </p>
-      <div className="flex flex-wrap gap-2">
-        <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
-        <Link
-          href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
-          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] px-2.5 py-1.5 text-[var(--text-md)] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
-        >
-          Buscar nuevo hogar
-        </Link>
-      </div>
+      {canManageFosterActions && (
+        <div className="flex flex-wrap gap-2">
+          <ConvertFosterButton petPublicToken={petPublicToken} petName={petName} />
+          <Link
+            href={`/mis-mascotas/${petPublicToken}/buscar-hogar`}
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] px-2.5 py-1.5 text-[var(--text-md)] text-[var(--color-ln-warn)] no-underline hover:bg-white transition-colors"
+          >
+            Buscar nuevo hogar
+          </Link>
+        </div>
+      )}
     </section>
   );
 }

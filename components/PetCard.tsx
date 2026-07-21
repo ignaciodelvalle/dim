@@ -12,9 +12,10 @@ import { type PriorityBadge, getPriorityBadge, isTransitRole } from "./PetCard.h
 // snippet), and future surfaces. Self-contained — only depends on the
 // Pet row + the photo URL (caller resolves it via petPhotoUrl).
 //
-// "En tránsito" badge fires when the owner's ownership is a
-// shelter_custody row (vecino-en-tránsito helping a stray, not a real
-// owner). Keeps the visual contract identical to the inline original.
+// "En tránsito" badge fires when the owner's ownership is a foster row
+// (org-linked placement) or a shelter_custody row (vecino-en-tránsito
+// helping a stray, no org involved) — see isTransitRole in PetCard.helpers.ts.
+// Keeps the visual contract identical to the inline original.
 //
 // Priority badge (right side): lost > deceased > vaccine > none. See
 // PetCard.helpers.ts for the rule.

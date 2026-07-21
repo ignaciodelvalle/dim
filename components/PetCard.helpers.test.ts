@@ -37,11 +37,9 @@ describe("getPriorityBadge — PetCard priority logic", () => {
   });
 });
 
-describe("isTransitRole — 'En tránsito' badge predicate (AF-H2)", () => {
-  it("fires for a foster placement (the role that surfaces in Mis mascotas)", () => {
-    // A fostered pet joins on ownerUserId=user.id with role='foster'; it must
-    // render the "En tránsito" badge. This is the exact case the dead
-    // shelter_custody predicate silently missed.
+describe("isTransitRole — 'En tránsito' badge predicate (AF-H2 / foster-alta-2026-07-21)", () => {
+  it("fires for an org-linked foster placement", () => {
+    // A fostered pet joins on ownerUserId=user.id with role='foster'.
     expect(isTransitRole("foster")).toBe(true);
   });
 
@@ -49,10 +47,18 @@ describe("isTransitRole — 'En tránsito' badge predicate (AF-H2)", () => {
     expect(isTransitRole("owner")).toBe(false);
   });
 
-  it("does not fire for shelter_custody (org-level, never in the personal list)", () => {
-    // The old predicate matched here — which is precisely why the badge was
-    // dead: shelter_custody rows have ownerUserId=null and never join into this
-    // list. Guards against regressing to the broken behavior.
-    expect(isTransitRole("shelter_custody")).toBe(false);
+  it("fires for shelter_custody (vecino-helps-stray, no org involved)", () => {
+    // AGENTS.md "Shelter custody is temporary by definition": a citizen who
+    // picks up a stray (or self-declares custody via the alta's
+    // CustodyKindToggle "la estoy cuidando") gets ownerUserId set +
+    // role='shelter_custody', with no org link. Both "Mis mascotas" and the
+    // pet profile page scope their ownership query to ownerUserId=user.id, so
+    // a shelter_custody row reaching this predicate is guaranteed to be this
+    // vecino case — an org-held shelter_custody row has ownerUserId=null and
+    // never joins into a user-scoped query. (2026-07-21: restored after AF-H2
+    // had narrowed this to foster-only under the false assumption that
+    // shelter_custody is always org-level, which silently made the alta's
+    // "la estoy cuidando" registration invisible as "En tránsito".)
+    expect(isTransitRole("shelter_custody")).toBe(true);
   });
 });

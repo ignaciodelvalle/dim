@@ -34,15 +34,25 @@ export function getPriorityBadge(
 }
 
 /**
- * Whether a personal-list ownership row is a tránsito (foster) placement.
+ * Whether a personal-list ownership row is a tránsito (not-a-definitive-owner)
+ * placement. Two distinct DB shapes both count (AGENTS.md "Shelter custody is
+ * temporary by definition"):
  *
- * The "Mis mascotas" list joins ownerships on ownerUserId = user.id, so only
- * user-held roles appear here. A foster is `role='foster'`; shelter_custody is
- * org-level (ownerUserId is null) and NEVER surfaces in this list. Matching on
- * "shelter_custody" therefore made the "En tránsito" badge permanently dead
- * (AF-H2) — fostered pets rendered as owned. The pet profile page keys the same
- * badge off role==='foster', which this mirrors as the single source of truth.
+ *  - `role='foster'` — an org-linked foster placement. The org's
+ *    `shelter_custody` row stays active alongside this one.
+ *  - `role='shelter_custody'` — the vecino-helps-stray case: a citizen who
+ *    picked up a stray and registered it (or self-declared custody via the
+ *    alta's CustodyKindToggle), with NO organization involved.
+ *
+ * Both "Mis mascotas" and the pet profile page join ownerships scoped to
+ * `ownerUserId = user.id`, so a `shelter_custody` row reaching this predicate
+ * is guaranteed to be the vecino case — an org-held `shelter_custody` row has
+ * `ownerUserId = null` (polymorphic-holder CHECK) and can never join into a
+ * user-scoped query. Restored 2026-07-21: a prior fix (AF-H2) assumed
+ * `shelter_custody` was always org-level and narrowed this to `foster` only,
+ * which silently made the alta's "la estoy cuidando" registration invisible
+ * as "En tránsito" everywhere in the citizen-facing UI.
  */
 export function isTransitRole(ownershipRole: string): boolean {
-  return ownershipRole === "foster";
+  return ownershipRole === "foster" || ownershipRole === "shelter_custody";
 }
