@@ -1,6 +1,13 @@
-// Govt-scope case index. Lists every case whose jurisdiction matches
-// the govt's active assignments (province + locality). Admins see the
-// same view but redirected via /admin/casos.
+// Govt/admin-scope case index rendered under the /gob operator shell. Lists
+// every case in scope for the viewer: a govt operator sees cases whose
+// jurisdiction matches their active assignments (province + locality); an
+// admin browsing /gob (rather than /admin) sees the SAME shell but with
+// UNIVERSAL scope — no redirect to /admin/casos. This mirrors the
+// admin-viewing-a-/gob-screen pattern established in
+// app/gob/mascotas/[token]/page.tsx (search/omnibox-upgrade): the viewer's
+// ROLE picks the query scope, the ROUTE stays /gob. Removing a prior
+// `redirect("/admin/casos")` here was a PO decision (2026-07-21) — admins
+// browsing /gob should not get yanked into the admin portal.
 //
 // Migrated to the shared CaseQueue (Wave B systemic — master-detail /
 // shared-component adoption). Previously this surface hand-rolled a divergent
@@ -14,20 +21,34 @@
 // listCasesForGovt/countCasesForGovt (lib/infra/case-queries.ts) — the SAME
 // kind/status clause builder admin uses (buildCaseKindStatusClauses), ANDed
 // onto the mandatory jurisdiction-membership predicate that bounds every
-// query to session.jurisdictions. The province filter is shown ONLY when the
-// viewer's assignments span MORE than one province — a single-province govt
-// operator has nothing to choose (their whole scope is already that one
-// province), so the selector would be a no-op control.
+// govt query to session.jurisdictions. An admin viewer instead uses
+// listCasesForAdmin/countCasesForAdmin (the SAME universal functions
+// /admin/casos calls) — no jurisdiction predicate at all, matching the
+// universal scope admins already have there. SECURITY: the govt branch is
+// UNCHANGED and remains fail-closed on session.jurisdictions — only the
+// admin branch is universal, and admins already had universal case access
+// via /admin/casos, so this does not widen anyone's scope.
+//
+// The province filter selector is shown ONLY when it is meaningful for the
+// viewer: for govt, only when their assignments span MORE than one province
+// (a single-province govt operator has nothing to choose — the selector
+// would be a no-op control); for admin it always shows, offering every
+// province, same as /admin/casos.
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpButton, OpSelect } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import { countCasesForGovt, listCasesForGovt } from "@/lib/infra/case-queries";
+import {
+  countCasesForAdmin,
+  countCasesForGovt,
+  listCasesForAdmin,
+  listCasesForGovt,
+} from "@/lib/infra/case-queries";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
@@ -41,49 +62,67 @@ function parseStatus(raw: string | undefined): "open" | "closed" | null {
 
 type GovtCasosSearchParams = { cursor?: string; status?: string; kind?: string; province?: string };
 
+// Viewer scope for this page — mirrors the shape used in
+// app/gob/mascotas/[token]/page.tsx. Admin = universal (no jurisdiction
+// fence); govt = fenced to the account's active jurisdiction assignments.
+type ViewerScope =
+  | { role: "admin" }
+  | { role: "govt"; jurisdictions: ReadonlyArray<{ province: string; locality: string }> };
+
 // Extracted so the page component's own cognitive complexity stays under the
 // lint ceiling — all filter-parsing, querying, and pagination-link logic
 // lives here; the component below only renders (#26 D2).
-async function loadGovtCasos(
-  sp: GovtCasosSearchParams,
-  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
-) {
+async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope) {
   const rawCursor = sp.cursor;
   const activeStatus = parseStatus(sp.status);
   const kindFilter =
     sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
 
-  // Province filter — only offered (and only honored) when the viewer's own
-  // assignments span more than one province. A value outside this list is
-  // ignored here AND would be intersected to zero rows by
-  // listCasesForGovt/countCasesForGovt's mandatory jurisdiction predicate
-  // even if it slipped through — defense in depth, never a scope widening.
-  const scopeProvinces = Array.from(new Set(jurisdictions.map((j) => j.province))).sort((a, b) =>
-    a.localeCompare(b, "es-AR"),
-  );
-  const showProvinceFilter = scopeProvinces.length > 1;
+  // Province filter — scope-dependent:
+  //  - admin: universal, every province is a valid choice, same as
+  //    /admin/casos' province selector.
+  //  - govt: only offered (and only honored) when the viewer's own
+  //    assignments span more than one province. A value outside this list is
+  //    ignored here AND would be intersected to zero rows by
+  //    listCasesForGovt/countCasesForGovt's mandatory jurisdiction predicate
+  //    even if it slipped through — defense in depth, never a scope widening.
+  const scopeProvinces =
+    scope.role === "admin"
+      ? PROVINCES.map((p) => p.name)
+      : Array.from(new Set(scope.jurisdictions.map((j) => j.province))).sort((a, b) =>
+          a.localeCompare(b, "es-AR"),
+        );
+  const showProvinceFilter = scope.role === "admin" ? true : scopeProvinces.length > 1;
   const provinceFilter =
     showProvinceFilter && sp.province && scopeProvinces.includes(sp.province) ? sp.province : null;
 
+  const filters = { status: activeStatus, kind: kindFilter, province: provinceFilter };
+
   // Fetch limit+1 to detect hasMore, plus the true total behind the cap (M4,
   // mirrors /admin/casos) so the header can read "N más recientes de M" when
-  // more exist. The count uses the SAME filters as the list.
-  const [rawItems, totalCount] = await Promise.all([
-    listCasesForGovt(jurisdictions, {
-      limit: GOVT_CASOS_PAGE_LIMIT + 1,
-      cursor: rawCursor,
-      filters: { status: activeStatus, kind: kindFilter, province: provinceFilter },
-    }),
-    countCasesForGovt(jurisdictions, {
-      status: activeStatus,
-      kind: kindFilter,
-      province: provinceFilter,
-    }),
-  ]);
+  // more exist. The count uses the SAME filters as the list. Admin uses the
+  // universal admin queries (no jurisdiction predicate); govt keeps the
+  // mandatory jurisdiction-membership predicate — this branch is the ONLY
+  // place scope diverges.
+  const [rawItems, totalCount] =
+    scope.role === "admin"
+      ? await Promise.all([
+          listCasesForAdmin({ limit: GOVT_CASOS_PAGE_LIMIT + 1, cursor: rawCursor, filters }),
+          countCasesForAdmin(filters),
+        ])
+      : await Promise.all([
+          listCasesForGovt(scope.jurisdictions, {
+            limit: GOVT_CASOS_PAGE_LIMIT + 1,
+            cursor: rawCursor,
+            filters,
+          }),
+          countCasesForGovt(scope.jurisdictions, filters),
+        ]);
   const hasMore = rawItems.length > GOVT_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, GOVT_CASOS_PAGE_LIMIT) : rawItems;
 
-  // Preserve the active filters across cursor links.
+  // Preserve the active filters across cursor links. Links always point back
+  // at /gob/casos — an admin viewing this page stays in the /gob shell.
   const filterParams: Record<string, string | undefined> = {
     ...(activeStatus ? { status: activeStatus } : {}),
     ...(kindFilter ? { kind: kindFilter } : {}),
@@ -117,11 +156,13 @@ async function loadGovtCasos(
   }));
 
   const emptyMessage =
-    activeStatus === "open"
-      ? "No hay casos abiertos en tu jurisdicción."
-      : activeStatus === "closed"
-        ? "No hay casos cerrados en tu jurisdicción."
-        : "Sin casos en tu jurisdicción por ahora.";
+    scope.role === "admin"
+      ? "Sin casos registrados para los filtros aplicados."
+      : activeStatus === "open"
+        ? "No hay casos abiertos en tu jurisdicción."
+        : activeStatus === "closed"
+          ? "No hay casos cerrados en tu jurisdicción."
+          : "Sin casos en tu jurisdicción por ahora.";
 
   return {
     activeStatus,
@@ -145,7 +186,10 @@ export default async function GovtCasosPage({
   searchParams: Promise<GovtCasosSearchParams>;
 }) {
   const session = await requireAdminOrGovtOrRedirect();
-  if (session.profile.role === "admin") redirect("/admin/casos");
+  const scope: ViewerScope =
+    session.profile.role === "admin"
+      ? { role: "admin" }
+      : { role: "govt", jurisdictions: session.jurisdictions };
 
   const sp = await searchParams;
   const {
@@ -161,7 +205,7 @@ export default async function GovtCasosPage({
     queueRows,
     totalCount,
     emptyMessage,
-  } = await loadGovtCasos(sp, session.jurisdictions);
+  } = await loadCasosForViewer(sp, scope);
 
   return (
     <div className="space-y-6">
@@ -170,10 +214,14 @@ export default async function GovtCasosPage({
           Casos regulatorios
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Casos</h1>
-        <p className="text-[13px] text-ln-op-mute">Expedientes en tu jurisdicción asignada.</p>
+        <p className="text-[13px] text-ln-op-mute">
+          {scope.role === "admin"
+            ? "Expedientes en todo el sistema. Vista universal admin."
+            : "Expedientes en tu jurisdicción asignada."}
+        </p>
       </header>
 
-      {session.jurisdictions.length === 0 ? (
+      {scope.role === "govt" && scope.jurisdictions.length === 0 ? (
         <LnEmptyState
           icon="usuarios"
           title="No tenés jurisdicciones asignadas todavía."
@@ -181,13 +229,13 @@ export default async function GovtCasosPage({
         />
       ) : (
         <>
-          {/* Status + kind (+ province, when in scope) filter form — all three
-              axes in ONE form, mirroring /admin/casos. CaseQueue's own status
-              CHIP strip is suppressed (showStatusChips=false below): its chip
-              links only encode kind+status (buildFilterHref), so clicking a
-              chip would silently drop an active province filter — the same
-              reason /admin/casos owns status itself instead of relying on the
-              chips once it has more than one filter axis. */}
+          {/* Status + kind (+ province) filter form — all three axes in ONE
+              form, mirroring /admin/casos. CaseQueue's own status CHIP strip
+              is suppressed (showStatusChips=false below): its chip links only
+              encode kind+status (buildFilterHref), so clicking a chip would
+              silently drop an active province filter — the same reason
+              /admin/casos owns status itself instead of relying on the chips
+              once it has more than one filter axis. */}
           <form action="/gob/casos" method="get" className="mb-4 flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
               <label htmlFor="casos-status" className="block text-xs font-medium text-ln-op-ink-2">
@@ -223,7 +271,9 @@ export default async function GovtCasosPage({
                   Provincia
                 </label>
                 <OpSelect id="casos-province" name="province" defaultValue={provinceFilter ?? ""}>
-                  <option value="">Todas tus provincias</option>
+                  <option value="">
+                    {scope.role === "admin" ? "Todas las provincias" : "Todas tus provincias"}
+                  </option>
                   {scopeProvinces.map((p) => (
                     <option key={p} value={p}>
                       {p}
@@ -249,7 +299,11 @@ export default async function GovtCasosPage({
               filters={{ status: activeStatus, kind: kindFilter }}
               filterBase="/gob/casos"
               showStatusChips={false}
-              caption="Cola de casos de tu jurisdicción"
+              caption={
+                scope.role === "admin"
+                  ? "Cola de casos — vista universal admin"
+                  : "Cola de casos de tu jurisdicción"
+              }
               // "más recientes de N" is a first-page affordance; on a keyset
               // page (cursor set) these are the NEXT 50, not the most recent.
               totalCount={rawCursor ? undefined : totalCount}
