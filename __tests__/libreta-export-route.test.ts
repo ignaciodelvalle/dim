@@ -148,4 +148,48 @@ describe("GET /api/mis-mascotas/[publicToken]/libreta-export", () => {
     const html = await res.text();
     expect(html).toContain("12.50 kg");
   });
+
+  it("prints the AMENDED weight, not the pre-correction value (H7 regression)", async () => {
+    // Event sourcing: a correction is a new event_amended row layered on top of
+    // the original via overlayAmendments — the original weight_recorded row is
+    // never touched. The official libreta PDF must reflect the corrected
+    // ("current") value, mirroring the on-screen libreta (get-libreta-face-data.ts),
+    // not the stale as-typed one.
+    const [original] = await db
+      .insert(petEvents)
+      .values({
+        petId: fixturePet.id,
+        eventType: "weight_recorded",
+        occurredAt: new Date("2026-06-01T10:00:00Z"),
+        recordedAt: new Date("2026-06-01T10:00:00Z"),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: { payload_version: 1, kg: "9.00" },
+      })
+      .returning();
+
+    await db.insert(petEvents).values({
+      petId: fixturePet.id,
+      eventType: "event_amended",
+      occurredAt: new Date("2026-06-02T10:00:00Z"),
+      recordedAt: new Date("2026-06-02T10:00:00Z"),
+      recordedByUserId: ownerUserId,
+      authorRole: "owner",
+      payload: {
+        target_event_id: original.id,
+        changes: [{ field: "kg", old: "9.00", new: "22.75" }],
+        reason: "Error de tipeo al cargar el peso",
+      },
+    });
+
+    mockAuthAs(ownerUserId);
+    const { GET } = await import("@/app/api/mis-mascotas/[publicToken]/libreta-export/route");
+    const res = await GET(buildRequest() as never, {
+      params: Promise.resolve({ publicToken: PET_TOKEN }),
+    });
+
+    const html = await res.text();
+    expect(html).toContain("22.75 kg");
+    expect(html).not.toContain("9.00 kg");
+  });
 });
