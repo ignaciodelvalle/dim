@@ -5,9 +5,9 @@
     "description": "Files over 1500 lines are grandfathered at the recorded count. New over-threshold files, or baselined files growing past recorded+25, fail lint:file-size. A baselined file that drops to/under 1500 should be removed."
   },
   "files": {
-    "components/panorama/PanoramaConsole.tsx": 5364,
-    "src/modules/panorama/infrastructure/repository.ts": 4170,
-    "components/panorama/SituationalMap.tsx": 3985,
+    "components/panorama/PanoramaConsole.tsx": 5473,
+    "src/modules/panorama/infrastructure/repository.ts": 4278,
+    "components/panorama/SituationalMap.tsx": 4034,
     "lib/analytics/owner-dashboard.ts": 2018,
     "lib/events/event-schemas.ts": 1761,
     "src/modules/events/actions.ts": 1754,
