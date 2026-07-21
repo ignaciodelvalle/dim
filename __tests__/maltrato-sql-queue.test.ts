@@ -21,6 +21,8 @@ import {
   fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
 
+import { assertKpiListParity } from "./helpers/kpi-list-parity";
+
 // ============================================================================
 // Unit tests — no DB required
 // ============================================================================
@@ -928,5 +930,127 @@ describe("buildMaltratoListConditions — admin province/locality filter (integr
     // COUNT and list must agree.
     expect(n).toBe(listRows.length);
     expect(listRows.map((r) => r.id)).toContain(id);
+  });
+});
+
+// ============================================================================
+// KPI↔list parity harness (task #57) — reusable assertKpiListParity, wired
+// against fetchWelfareMetrics.unassignedCount (the "Sin asignar" KPI tile)
+// vs the "unassigned" queue list. This is the maltrato half of the two
+// dashboard wirings; the second (perdidas) lives in
+// __tests__/govt-dashboards.test.ts. Goes beyond the bare-queue parity test
+// above (queue: unassigned (integration) — "the unassigned queue count
+// equals the Sin asignar KPI metric") by exercising kind/severity domain
+// filters through the SAME harness, since the original filter-honesty bug
+// (welfare.ts's "KPI↔list parity" note) was specifically about the KPI
+// tiles ignoring kind/severity/status while the list honored them.
+// ============================================================================
+
+describe("KPI↔list parity harness (assertKpiListParity) — maltrato unassignedCount", () => {
+  it("unassignedCount matches the unassigned-queue list length when a kind filter narrows both sides", async () => {
+    const prov = "Chaco";
+    const loc = `parity-kind-${Date.now()}`;
+
+    const neglectOpen = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      kind: "neglect",
+      assignedToUserId: null,
+    });
+    const hoardingOpen = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      kind: "hoarding",
+      assignedToUserId: null,
+    });
+    const neglectAssigned = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      kind: "neglect",
+      assignedToUserId: adminUserId,
+    });
+    void hoardingOpen;
+    void neglectAssigned;
+
+    const scope = [{ province: prov, locality: loc }];
+
+    await assertKpiListParity({
+      filters: { kind: "neglect" as const },
+      getKpiCount: async (f) =>
+        (await fetchWelfareMetrics({ role: "govt" }, scope, adminUserId, { kind: f.kind }))
+          .unassignedCount,
+      getListRows: async (f) =>
+        queryIds({
+          actor: { role: "govt" },
+          filteredJurisdictions: scope,
+          queue: "unassigned",
+          kind: f.kind,
+          currentUserId: adminUserId,
+        }),
+      label: "maltrato — unassigned queue, kind=neglect",
+    });
+
+    // Sanity: the fixture actually exercised the kind filter (neglect-open
+    // present, hoarding-open and the assigned neglect row excluded) — without
+    // this the parity assertion above could pass vacuously at 0 == 0.
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: scope,
+      queue: "unassigned",
+      kind: "neglect",
+      currentUserId: adminUserId,
+    });
+    expect(ids).toEqual([neglectOpen]);
+  });
+
+  it("unassignedCount matches the unassigned-queue list length when a severity filter narrows both sides", async () => {
+    const prov = "Chaco";
+    const loc = `parity-severity-${Date.now()}`;
+
+    const criticalOpen = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      severity: "critical",
+      assignedToUserId: null,
+    });
+    const lowOpen = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      severity: "low",
+      assignedToUserId: null,
+    });
+    void lowOpen;
+
+    const scope = [{ province: prov, locality: loc }];
+
+    await assertKpiListParity({
+      filters: { severity: "critical" as const },
+      getKpiCount: async (f) =>
+        (await fetchWelfareMetrics({ role: "govt" }, scope, adminUserId, { severity: f.severity }))
+          .unassignedCount,
+      getListRows: async (f) =>
+        queryIds({
+          actor: { role: "govt" },
+          filteredJurisdictions: scope,
+          queue: "unassigned",
+          severity: f.severity,
+          currentUserId: adminUserId,
+        }),
+      label: "maltrato — unassigned queue, severity=critical",
+    });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: scope,
+      queue: "unassigned",
+      severity: "critical",
+      currentUserId: adminUserId,
+    });
+    expect(ids).toEqual([criticalOpen]);
   });
 });

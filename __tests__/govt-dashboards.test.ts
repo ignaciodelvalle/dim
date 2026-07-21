@@ -37,6 +37,7 @@ import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { assertKpiListParity } from "./helpers/kpi-list-parity";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -1527,6 +1528,93 @@ describe("fetchPerdidasMetrics", () => {
     // avgDaysActive should be approximately 3 (± 1 due to timing).
     expect(m.avgDaysActive).toBeGreaterThanOrEqual(2);
     expect(m.avgDaysActive).toBeLessThanOrEqual(5);
+  });
+
+  // --------------------------------------------------------------------------
+  // KPI↔list parity harness (task #57) — activeCount (the "Perdidas activas"
+  // KPI) must always equal fetchLostPets()'s row count under the SAME
+  // actor/jurisdiction/admin-drilldown filters. This is the second dashboard
+  // wiring for the reusable assertKpiListParity helper; the maltrato wiring
+  // lives in __tests__/maltrato-sql-queue.test.ts.
+  // --------------------------------------------------------------------------
+  describe("KPI↔list parity harness (assertKpiListParity)", () => {
+    it("govt scope: activeCount matches fetchLostPets row count for an isolated locality", async () => {
+      const prov = "Entre Ríos";
+      const loc = `parity-govt-${Date.now()}`;
+      const petA = await insertFixturePet({
+        name: "ParityGovtA",
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      const petB = await insertFixturePet({
+        name: "ParityGovtB",
+        species: "cat",
+        province: prov,
+        locality: loc,
+      });
+      await markLostFixture(petA, 1);
+      await markLostFixture(petB, 30);
+
+      const scope = [{ province: prov, locality: loc }];
+      await assertKpiListParity({
+        filters: { actor: { role: "govt" as const }, jurisdictions: scope },
+        getKpiCount: async (f) =>
+          (await fetchPerdidasMetrics(f.actor, f.jurisdictions)).activeCount,
+        getListRows: async (f) => fetchLostPets(f.actor, f.jurisdictions),
+        label: "perdidas — govt scope, no display filters",
+      });
+    });
+
+    it("admin province+locality drill-down: activeCount matches fetchLostPets row count, excluding out-of-drilldown pets", async () => {
+      const prov = "Formosa";
+      const loc = `parity-admin-${Date.now()}`;
+      const petA = await insertFixturePet({
+        name: "ParityAdminA",
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      const petB = await insertFixturePet({
+        name: "ParityAdminB",
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      // Out-of-drilldown pet: must be excluded from BOTH sides identically, or
+      // this test would catch a KPI/list drift the same way the real bug did.
+      const outOfScope = await insertFixturePet({
+        name: "ParityAdminOutOfScope",
+        species: "dog",
+        province: "Jujuy",
+        locality: "San Salvador de Jujuy",
+      });
+      await markLostFixture(petA, 1);
+      await markLostFixture(petB, 5);
+      await markLostFixture(outOfScope, 1);
+
+      await assertKpiListParity({
+        filters: {
+          actor: { role: "admin" as const },
+          jurisdictions: [],
+          adminProvince: prov,
+          adminLocality: loc,
+        },
+        getKpiCount: async (f) =>
+          (
+            await fetchPerdidasMetrics(f.actor, f.jurisdictions, {
+              adminProvince: f.adminProvince,
+              adminLocality: f.adminLocality,
+            })
+          ).activeCount,
+        getListRows: async (f) =>
+          fetchLostPets(f.actor, f.jurisdictions, {
+            adminProvince: f.adminProvince,
+            adminLocality: f.adminLocality,
+          }),
+        label: "perdidas — admin province+locality drill-down",
+      });
+    });
   });
 });
 
