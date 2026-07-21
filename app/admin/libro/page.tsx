@@ -163,7 +163,7 @@ export default async function AdminLibroPage({
   const viewRows = rows.map(toLedgerRowView);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 px-8 py-7 pb-12">
+    <div className="space-y-6">
       {/* Header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">

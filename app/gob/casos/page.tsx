@@ -164,7 +164,7 @@ export default async function GovtCasosPage({
   } = await loadGovtCasos(sp, session.jurisdictions);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
+    <div className="space-y-6">
       <header className="mb-6 space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Casos regulatorios
@@ -287,6 +287,6 @@ export default async function GovtCasosPage({
           </div>
         </nav>
       )}
-    </main>
+    </div>
   );
 }

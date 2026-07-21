@@ -108,9 +108,7 @@ export default async function ObservacionesPage() {
     return (
       <div className="space-y-6">
         <header className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            {"Admin · Vigilancia"}
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
           <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
             Observaciones antirrábicas
           </h1>
@@ -166,9 +164,7 @@ export default async function ObservacionesPage() {
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          {"Admin · Vigilancia"}
-        </p>
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Observaciones antirrábicas
         </h1>
