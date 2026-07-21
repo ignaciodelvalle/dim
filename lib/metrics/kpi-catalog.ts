@@ -54,6 +54,7 @@ export type KpiId =
   | "ppp_registry_compliance"
   | "open_welfare_reports"
   | "mortality_disposal_traceability"
+  | "mortality_deaths_12m"
   | "active_pregnancies"
   | "sterilization_natalidad_ratio"
   | "data_quality_completeness"
@@ -469,6 +470,27 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       caveat:
         "Umbral de alerta: por debajo de la meta programática (ver TARGETS.DISPOSAL_TRACEABILITY_PCT). Un valor menor al 50% se considera incumplimiento grave (B3).",
     },
+  },
+
+  mortality_deaths_12m: {
+    id: "mortality_deaths_12m",
+    label: "Fallecimientos registrados (12 meses)",
+    numerator:
+      "COUNT death_recorded events where occurred_at falls within the trailing 12 months, in scope",
+    denominator:
+      "n/a — absolute count (flow, not a ratio). The SAME query's traceableRate field (shown alongside on /gob home) is a ratio: COUNT death_recorded events with a known disposal method (NOT NULL and <> 'unknown') AND a disposal facility present, divided by this same 12-month total",
+    source: "pets, pet_events (death_recorded)",
+    fetcherName: "fetchMortalityHeadline",
+    fetcherPath: "lib/analytics/mortality-metrics.ts",
+    cadence:
+      "FIXED trailing 12 months (ctx12m — /gob home has no period picker), recomputed on every render",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Perf-motivated split (2026-07-19 qw#2) of mortality_disposal_traceability's first query: /gob home only ever rendered `total` + `traceableRate`, not the other four sequential queries (method/cause-week/code/locality breakdowns) fetchMortalityDisposition also runs for /gob/mortalidad — so this fetcher runs ONLY that first aggregation, cutting four serial round-trips per home render. traceableRate here uses the IDENTICAL predicate as mortality_disposal_traceability's ratio (same TRACEABLE condition) — it is not a new or different definition, just the same math computed over a fixed 12m window via a cheaper single-query path instead of the full five-query fetcher.",
+    window: "12m",
+    species: "all_species",
+    basis: "flow",
   },
 
   active_pregnancies: {
