@@ -586,6 +586,88 @@ export async function listCaseKindDistributionForOrg(orgId: string): Promise<Cas
   return rows.map((r) => r.caseKind).filter(isCaseKind) as CaseKind[];
 }
 
+// ---------------------------------------------------------------------------
+// Kind + status filters — shared between admin and govt case lists (#26 D2).
+//
+// buildAdminCaseFilterClauses (admin) and listCasesForGovt/countCasesForGovt
+// (govt) both filter by kind and status identically; the ONLY thing that
+// differs between the two callers is the jurisdiction predicate:
+//   - admin: buildAdminCaseFilterClauses' OPTIONAL province clause has no
+//     scope boundary — it is the sole jurisdiction axis admin has, applied
+//     with no bounding OR-of-assignments.
+//   - govt: listCasesForGovt/countCasesForGovt AND this onto a MANDATORY
+//     jurisdiction-membership OR-clause (jurisdictionFilter, below) that
+//     bounds every query to the caller's own govt_assignments. An optional
+//     `province` narrowing (only meaningful for a multi-province operator)
+//     is intersected with that OR-clause, so an out-of-scope value can only
+//     narrow results to zero rows — it can never widen what the caller sees.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the kind + status predicate clauses shared by the admin and govt
+ * case-list filters. Exported so pages/tests can inspect the exact SQL shape
+ * without hitting the DB.
+ */
+export function buildCaseKindStatusClauses(filters: {
+  kind?: CaseKind | null;
+  status?: "open" | "closed" | null;
+}): ReturnType<typeof and>[] {
+  const clauses: ReturnType<typeof and>[] = [];
+  if (filters.kind) clauses.push(eq(cases.caseKind, filters.kind) as ReturnType<typeof and>);
+  if (filters.status === "open") clauses.push(isNull(cases.closedAt) as ReturnType<typeof and>);
+  if (filters.status === "closed")
+    clauses.push(isNotNull(cases.closedAt) as ReturnType<typeof and>);
+  return clauses;
+}
+
+export interface ListCasesForGovtFilters {
+  /** Filter by case kind. Null = all kinds. */
+  kind?: CaseKind | null;
+  /** Filter by open/closed status. Null = all. */
+  status?: "open" | "closed" | null;
+  /**
+   * Narrow WITHIN the caller's own jurisdiction scope to one province. Only
+   * meaningful for a govt operator whose assignments span multiple
+   * provinces — callers should omit this (or pass null) for single-province
+   * operators. ANDed onto the mandatory jurisdiction-membership clause, so a
+   * value outside `jurisdictions` can only narrow to zero rows, never widen.
+   */
+  province?: string | null;
+}
+
+/**
+ * Build the govt case-list WHERE clause: a MANDATORY jurisdiction-membership
+ * predicate (OR of exact (province, locality) pairs — `sql\`false\`` when
+ * `jurisdictions` is empty, never "no restriction") ANDed with the SAME
+ * kind/status clauses admin uses, an optional province narrowing, and an
+ * optional cursor clause. Shared by listCasesForGovt and countCasesForGovt so
+ * their filtered numerator/denominator can never diverge (#26 D2). Exported
+ * so tests can inspect the exact SQL shape — incl. the jurisdiction
+ * predicate — without hitting the DB.
+ */
+export function buildGovtCaseWhereClause(
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  filters: ListCasesForGovtFilters,
+  cursorClause?: SQL,
+): SQL {
+  const jurisdictionFilter: SQL =
+    jurisdictions.length > 0
+      ? (or(
+          ...jurisdictions.map((j) =>
+            and(
+              eq(cases.jurisdictionProvince, j.province),
+              eq(cases.jurisdictionLocality, j.locality),
+            ),
+          ),
+        ) as SQL)
+      : sql`false`;
+  const filterClauses = buildCaseKindStatusClauses(filters);
+  if (filters.province) {
+    filterClauses.push(eq(cases.jurisdictionProvince, filters.province) as ReturnType<typeof and>);
+  }
+  return and(jurisdictionFilter, ...filterClauses, cursorClause) as SQL;
+}
+
 // opts.cursor enables keyset pagination (PERF-5): when provided, only rows
 // OLDER than the cursor are returned — (openedAt, id) < (cursorTs, cursorId).
 // Callers should fetch limit+1 to detect hasMore; render limit rows only.
@@ -596,23 +678,12 @@ export async function listCasesForGovt(
   opts?: {
     limit?: number;
     cursor?: KeysetCursor;
-    filters?: { status?: "open" | "closed" | null };
+    filters?: ListCasesForGovtFilters;
   },
 ): Promise<CaseListItem[]> {
   if (jurisdictions.length === 0) return [];
-  const jurisdictionFilter = or(
-    ...jurisdictions.map((j) =>
-      and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
-    ),
-  );
-  const statusClause =
-    opts?.filters?.status === "open"
-      ? isNull(cases.closedAt)
-      : opts?.filters?.status === "closed"
-        ? isNotNull(cases.closedAt)
-        : undefined;
   const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
-  const whereClause = and(jurisdictionFilter, statusClause, cursorClause);
+  const whereClause = buildGovtCaseWhereClause(jurisdictions, opts?.filters ?? {}, cursorClause);
   const limit = opts?.limit ?? 300;
   const rows = await db
     .select({
@@ -626,6 +697,28 @@ export async function listCasesForGovt(
     .orderBy(desc(cases.openedAt), desc(cases.id))
     .limit(limit);
   return rows.map(mapListRow);
+}
+
+/**
+ * Jurisdiction-scoped total count of govt cases matching `filters` — the
+ * denominator behind the capped keyset list, mirroring countCasesForAdmin
+ * (#26 D2). Reuses buildGovtCaseWhereClause (no cursor) — the SAME kind/
+ * status clauses AND the same mandatory jurisdiction-membership predicate as
+ * listCasesForGovt — so N always describes the exact filtered,
+ * jurisdiction-bounded set the page shows, never a wider denominator.
+ * `jurisdictions` empty (no active assignment) → 0, never an unscoped count.
+ */
+export async function countCasesForGovt(
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+  filters: ListCasesForGovtFilters = {},
+): Promise<number> {
+  if (jurisdictions.length === 0) return 0;
+  const whereClause = buildGovtCaseWhereClause(jurisdictions, filters);
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(cases)
+    .where(whereClause);
+  return row?.count ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -649,11 +742,7 @@ export interface ListCasesForAdminFilters {
 export function buildAdminCaseFilterClauses(
   filters: ListCasesForAdminFilters,
 ): ReturnType<typeof and>[] {
-  const clauses: ReturnType<typeof and>[] = [];
-  if (filters.kind) clauses.push(eq(cases.caseKind, filters.kind) as ReturnType<typeof and>);
-  if (filters.status === "open") clauses.push(isNull(cases.closedAt) as ReturnType<typeof and>);
-  if (filters.status === "closed")
-    clauses.push(isNotNull(cases.closedAt) as ReturnType<typeof and>);
+  const clauses = buildCaseKindStatusClauses(filters);
   if (filters.province)
     clauses.push(eq(cases.jurisdictionProvince, filters.province) as ReturnType<typeof and>);
   return clauses;
