@@ -96,6 +96,7 @@ export default async function GobCensoPage({
   const exportHref = `/gob/censo/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
 
   const {
+    selectedProvince,
     filteredJurisdictions,
     localities,
     allowedProvinces,
@@ -199,6 +200,17 @@ export default async function GobCensoPage({
 
   // task #31c dedup: shared toChoroplethData (same shaping as /gob/poblacion)
   const choroplethData = toChoroplethData(provinceRows, (r) => r.count);
+
+  // Camera lockdown (gob/map-zoom-lockdown, 2026-07-21): censo has no
+  // department/barrio subregion drill (unlike perdidas/vigilancia's
+  // scopedChoroplethProps) — it stays at province grain. But the jurisdiction
+  // filter should still lock the map's viewport to the selected province
+  // instead of always showing the national extent: `visibleCodes` is
+  // MapChoropleth's existing render-only filter (no data/privacy effect —
+  // `choroplethData` itself is unchanged), so passing the single selected
+  // province's code narrows the rendered GeoJSON to that province and its
+  // own fitBounds tightens the camera to it.
+  const mapScopeProps = selectedProvince ? { visibleCodes: [selectedProvince.code] } : {};
 
   const maxFunnel = funnel.total;
 
@@ -459,11 +471,18 @@ export default async function GobCensoPage({
           <OpCardHead title={<span id={panelMapId}>Distribución por provincia</span>} />
           <OpCardBody>
             <MapChoroplethDynamic
+              // Camera lockdown (gob/map-zoom-lockdown, 2026-07-21): keying on
+              // the resolved scope forces a clean remount whenever the
+              // jurisdiction filter changes, so the locked-down viewport
+              // always fitBounds to the newly selected area (see
+              // mapScopeProps above) instead of silently keeping the old one.
+              key={selectedProvince?.code ?? "national"}
               data={choroplethData}
               level="province"
               scaleLabel="Mascotas registradas"
               fallbackTableLabel="Mascotas registradas por provincia"
               height={400}
+              {...mapScopeProps}
             />
           </OpCardBody>
         </OpCard>

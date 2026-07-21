@@ -624,6 +624,16 @@ export default async function GobVigilanciaPage({
           <OpCardHead title={<span id={panelMapId}>{mapCardTitle}</span>} />
           <OpCardBody>
             <MapChoroplethDynamic
+              // Camera lockdown (gob/map-zoom-lockdown, 2026-07-21): `level`/
+              // `geojsonUrl`/`visibleCodes` only seed MapChoropleth's initial
+              // state — a prop change alone does not re-init the map or
+              // refit the (now non-pannable) camera. Keying on the resolved
+              // scope forces a clean remount whenever the jurisdiction
+              // filter changes, so the locked-down viewport always fitBounds
+              // to the newly selected area instead of silently keeping the
+              // old one. `selectedProvinceIso` is exactly what
+              // scopedChoroplethProps (mapProps) was built from above.
+              key={selectedProvinceIso ?? "national"}
               {...mapProps}
               fallbackTableLabel={mapCardTitle}
               scaleLabel="Casos abiertos"

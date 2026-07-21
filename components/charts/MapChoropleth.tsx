@@ -345,6 +345,20 @@ export function MapChoropleth({
         center,
         zoom,
         attributionControl: false,
+        // Camera lockdown (gob/map-zoom-lockdown, 2026-07-21): the viewport is
+        // fully determined by the selected jurisdiction filter (see the
+        // fitBounds call below), never by free user panning/zooming — every
+        // operator sees the same framing for the same scope. This turns OFF
+        // only camera navigation; region click (drill/cross-filter) and hover
+        // (tooltip) stay wired below, unaffected.
+        dragPan: false,
+        scrollZoom: false,
+        boxZoom: false,
+        doubleClickZoom: false,
+        touchZoomRotate: false,
+        dragRotate: false,
+        keyboard: false,
+        touchPitch: false,
       });
 
       mapRef.current = map;
@@ -585,12 +599,25 @@ export function MapChoropleth({
                 latMax > latMin;
 
               if (validBbox) {
+                // Camera lockdown: this is the ONLY place the viewport moves —
+                // derived from the real geometry of whatever is actually
+                // rendered (visibleCodes-filtered features), never a fixed
+                // per-level zoom. National (~24 provinces) naturally lands
+                // around z3.5 (Argentina's bbox is tall/narrow — height-bound,
+                // already close to the tightest fit a landscape container
+                // allows); a single province lands higher; a department/barrio
+                // scope (e.g. CABA) lands higher still. `maxZoom: 9` used to
+                // cap every scope at the SAME ceiling, which was tight enough
+                // for national but silently held CABA/department views back
+                // from their natural (much higher, ~11+) fit — the reported
+                // "CABA looks too far / tiny" bug. 13 is a generous ceiling
+                // that only ever engages for small, dense scopes.
                 map.fitBounds(
                   [
                     [lngMin, latMin],
                     [lngMax, latMax],
                   ],
-                  { padding: 24, animate: false, maxZoom: 9 },
+                  { padding: 24, animate: false, maxZoom: 13 },
                 );
               }
             } catch {
