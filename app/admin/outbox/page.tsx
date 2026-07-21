@@ -6,8 +6,8 @@
 // matching rows beyond position 200 (P1-12).
 // Filter form uses <form method="get"> — no JS required.
 
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpBreach, OpButton, OpCard } from "@/components/ui/dashboard";
@@ -19,16 +19,12 @@ import {
   buildStatusLabel,
 } from "@/components/ui/dashboard/OutboxTable";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
-import type { OutboxStatus, OutboxTargetKind } from "@/db";
+import type { OutboxStatus } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
+import { OUTBOX_PAGE_LIMIT, buildOutboxWhere } from "@/lib/infra/outbox-query";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { pluralizeEs } from "@/lib/utils/format";
-
-// Set of canonical province names for filter validation.
-const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
-
-const OUTBOX_PAGE_LIMIT = 200;
 
 export default async function AdminOutboxPage({
   searchParams,
@@ -55,54 +51,11 @@ export default async function AdminOutboxPage({
 
   const hasFilters = Object.values(filters).some(Boolean);
 
-  // Build SQL WHERE clauses for each active filter so the LIMIT is applied
-  // AFTER narrowing — prevents silently missing matching rows beyond 200 (P1-12).
-  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous Drizzle SQL expression union
-  const conditions: any[] = [];
-  // When breach=yes, status is implied to be 'pending' — skip the standalone status
-  // condition to avoid the always-false contradiction (e.g. status='delivered' AND status='pending').
-  if (
-    filters.status &&
-    filters.breach !== "yes" &&
-    (["pending", "delivered", "failed"] as string[]).includes(filters.status)
-  ) {
-    conditions.push(eq(eventNotificationOutbox.status, filters.status as OutboxStatus));
-  }
-  if (
-    filters.target_kind &&
-    (["govt_webhook", "eno_authority", "audit_export", "internal_dashboard"] as string[]).includes(
-      filters.target_kind,
-    )
-  ) {
-    conditions.push(
-      eq(eventNotificationOutbox.targetKind, filters.target_kind as OutboxTargetKind),
-    );
-  }
-  // Province: only push condition when the value is a known canonical province name.
-  if (filters.province && VALID_PROVINCE_NAMES.has(filters.province)) {
-    conditions.push(eq(eventNotificationOutbox.targetJurisdictionProvince, filters.province));
-  }
-  // breach filter: "yes" → pending AND slaDueAt < now() (skip separate status condition —
-  // breach already implies pending, combining them produces status='delivered' AND status='pending'
-  // which is always-false); "no" → NOT (pending AND slaDueAt < now()).
-  if (filters.breach === "yes") {
-    conditions.push(lt(eventNotificationOutbox.slaDueAt, sql`now()`));
-    conditions.push(eq(eventNotificationOutbox.status, "pending"));
-  } else if (filters.breach === "no") {
-    conditions.push(
-      sql`NOT (${eventNotificationOutbox.status} = 'pending' AND ${eventNotificationOutbox.slaDueAt} < now())`,
-    );
-  }
-
-  // Keyset predicate — AND-composed with filter conditions so limit is applied after narrowing.
-  const cursorClause = keysetWhere(
-    eventNotificationOutbox.createdAt,
-    eventNotificationOutbox.id,
-    cursor,
-  );
-  if (cursorClause) conditions.push(cursorClause);
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  // Shared builder with /gob/outbox (#26 D3) — admin passes NO jurisdiction
+  // scope (universal). The filter-building SQL (status/target_kind/province/
+  // breach + keyset cursor) lives in lib/infra/outbox-query.ts so the two
+  // surfaces can never silently diverge again.
+  const whereClause = buildOutboxWhere(filters, { cursor });
 
   // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
   const rawRows = await db

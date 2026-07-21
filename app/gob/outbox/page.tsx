@@ -1,23 +1,28 @@
 // /gob/outbox — ENO SLA / notification monitor scoped to jurisdiction.
 //
-// Adapted from /admin/outbox/page.tsx.
+// Filter-building SQL is shared with /admin/outbox via
+// lib/infra/outbox-query.ts (#26 D3, was a self-admitted copy-paste fork —
+// see git history for the old duplicated inline builder). The ONLY
+// difference between the two pages is the jurisdiction scope passed to
+// buildOutboxWhere:
 //
-// Key difference: for govt role, a jurisdiction WHERE clause is added to the
-// outbox query so only rows matching the govt's assigned localities are visible:
+//   admin           → { cursor } (no `jurisdiction` key — universal, no clause)
+//   /gob/outbox+govt → { jurisdiction: jurisdictions, cursor } — an OR of
+//                      (targetJurisdictionProvince = j.province AND
+//                       targetJurisdictionLocality = j.locality) over the
+//                      govt's own active assignments (whole-province
+//                      subsumption via jurisdictionPairClause)
 //
-//   OR of (targetJurisdictionProvince = j.province
-//          AND targetJurisdictionLocality = j.locality)
-//   over filteredJurisdictions
-//
-// Admin sees all rows (no jurisdiction filter).
-//
-// Privacy invariant: the WHERE clause below is the cross-tenant-leak boundary.
-// A govt with assignments [{province:"Buenos Aires", locality:"La Plata"}] will
-// see ONLY rows where (targetJurisdictionProvince='Buenos Aires' AND
-// targetJurisdictionLocality='La Plata'). They cannot widen this because
-// resolveScopedJurisdictions already ensured filteredJurisdictions ⊆ assignments.
+// Privacy invariant: that jurisdiction clause is the cross-tenant-leak
+// boundary. A govt with assignments [{province:"Buenos Aires",
+// locality:"La Plata"}] will see ONLY rows where
+// (targetJurisdictionProvince='Buenos Aires' AND
+// targetJurisdictionLocality='La Plata'). They cannot widen this — an
+// admin viewing THIS SAME page passes no jurisdiction scope (sees all rows),
+// but a govt viewer always does (see the `profile.role === "govt"` branch
+// below), and buildOutboxWhere fails CLOSED for an empty scope array.
 
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -31,19 +36,19 @@ import {
   buildStatusLabel,
 } from "@/components/ui/dashboard/OutboxTable";
 import { db, eventNotificationOutbox } from "@/db";
-import type { OutboxStatus, OutboxTargetKind } from "@/db";
+import type { OutboxStatus } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue } from "@/lib/infra/outbox-list";
-import { buildProjectionContext, jurisdictionPairClause } from "@/lib/metrics";
+import {
+  OUTBOX_PAGE_LIMIT,
+  VALID_PROVINCE_NAMES,
+  buildOutboxWhere,
+} from "@/lib/infra/outbox-query";
+import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { pluralizeEs } from "@/lib/utils/format";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-
-// Set of canonical province names for filter validation.
-const VALID_PROVINCE_NAMES = new Set<string>(PROVINCES.map((p) => p.name));
-
-const OUTBOX_PAGE_LIMIT = 200;
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 export default async function GobOutboxPage({
   searchParams,
@@ -103,66 +108,16 @@ export default async function GobOutboxPage({
 
   const hasFilters = Object.values(filters).some(Boolean);
 
-  // biome-ignore lint/suspicious/noExplicitAny: heterogeneous Drizzle SQL expression union
-  const conditions: any[] = [];
-
-  // --- Jurisdiction WHERE (privacy invariant) ---
-  // For govt role: restrict to assigned (province, locality) pairs.
-  // For admin: no restriction — all rows visible.
-  if (profile.role === "govt" && jurisdictions.length > 0) {
-    // Whole-province subsumption (jurisdictionPairClause): a whole-CABA operator
-    // sees every CABA row — barrio-scoped or null-locality — not only rows whose
-    // locality string exactly equals the whole-province name. A barrio-specific
-    // assignment (CABA / Palermo) still keeps the exact pair. Previously this
-    // hand-rolled an exact (province AND locality) pair, so a whole-province
-    // operator saw "sin entregas" for deliveries it legitimately governs.
-    const jurisClause = jurisdictionPairClause(
-      jurisdictions,
-      sql`${eventNotificationOutbox.targetJurisdictionProvince}`,
-      sql`${eventNotificationOutbox.targetJurisdictionLocality}`,
-    );
-    if (jurisClause) conditions.push(jurisClause);
-  }
-
-  // --- User-facing filter conditions ---
-  if (
-    filters.status &&
-    filters.breach !== "yes" &&
-    (["pending", "delivered", "failed"] as string[]).includes(filters.status)
-  ) {
-    conditions.push(eq(eventNotificationOutbox.status, filters.status as OutboxStatus));
-  }
-  if (
-    filters.target_kind &&
-    (["govt_webhook", "eno_authority", "audit_export", "internal_dashboard"] as string[]).includes(
-      filters.target_kind,
-    )
-  ) {
-    conditions.push(
-      eq(eventNotificationOutbox.targetKind, filters.target_kind as OutboxTargetKind),
-    );
-  }
-  // Province filter: always applied within the jurisdiction WHERE above.
-  if (filters.province && VALID_PROVINCE_NAMES.has(filters.province)) {
-    conditions.push(eq(eventNotificationOutbox.targetJurisdictionProvince, filters.province));
-  }
-  if (filters.breach === "yes") {
-    conditions.push(lt(eventNotificationOutbox.slaDueAt, sql`now()`));
-    conditions.push(eq(eventNotificationOutbox.status, "pending"));
-  } else if (filters.breach === "no") {
-    conditions.push(
-      sql`NOT (${eventNotificationOutbox.status} = 'pending' AND ${eventNotificationOutbox.slaDueAt} < now())`,
-    );
-  }
-
-  const cursorClause = keysetWhere(
-    eventNotificationOutbox.createdAt,
-    eventNotificationOutbox.id,
+  // Shared builder with /admin/outbox (#26 D3). Jurisdiction scope (privacy
+  // invariant, see module doc comment): govt passes its own active
+  // assignments (hasAccess above already guarantees jurisdictions.length > 0
+  // whenever profile.role === "govt" reaches this point); admin passes
+  // `undefined` (omit the key) — no jurisdiction clause, universal scope,
+  // identical to /admin/outbox.
+  const whereClause = buildOutboxWhere(filters, {
+    jurisdiction: profile.role === "govt" ? jurisdictions : undefined,
     cursor,
-  );
-  if (cursorClause) conditions.push(cursorClause);
-
-  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  });
 
   const rawRows = await db
     .select()
