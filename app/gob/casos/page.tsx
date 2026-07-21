@@ -39,7 +39,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpButton, OpSelect } from "@/components/ui/dashboard";
+import { type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -53,6 +53,14 @@ import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const GOVT_CASOS_PAGE_LIMIT = 50;
+
+// Domain-axis options for the OpFilterBar (F-migration 2026-07-21, off the
+// bespoke <form>) — same values/labels the old hand-rolled selects used.
+const STATUS_OPTIONS = [
+  { value: "open", label: "Abiertos" },
+  { value: "closed", label: "Cerrados" },
+];
+const KIND_OPTIONS = CASE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
 
 function parseStatus(raw: string | undefined): "open" | "closed" | null {
   if (raw === "open") return "open";
@@ -201,7 +209,6 @@ export default async function GovtCasosPage({
     rawCursor,
     olderLink,
     newerLink,
-    hasFilters,
     queueRows,
     totalCount,
     emptyMessage,
@@ -229,69 +236,52 @@ export default async function GovtCasosPage({
         />
       ) : (
         <>
-          {/* Status + kind (+ province) filter form — all three axes in ONE
-              form, mirroring /admin/casos. CaseQueue's own status CHIP strip
-              is suppressed (showStatusChips=false below): its chip links only
-              encode kind+status (buildFilterHref), so clicking a chip would
-              silently drop an active province filter — the same reason
-              /admin/casos owns status itself instead of relying on the chips
-              once it has more than one filter axis. */}
-          <form action="/gob/casos" method="get" className="mb-4 flex flex-wrap items-end gap-2">
-            <div className="flex flex-col gap-1">
-              <label htmlFor="casos-status" className="block text-xs font-medium text-ln-op-ink-2">
-                Estado
-              </label>
-              <OpSelect id="casos-status" name="status" defaultValue={activeStatus ?? ""}>
-                <option value="">Todos los estados</option>
-                <option value="open">Abiertos</option>
-                <option value="closed">Cerrados</option>
-              </OpSelect>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label htmlFor="casos-kind" className="block text-xs font-medium text-ln-op-ink-2">
-                Tipo
-              </label>
-              <OpSelect id="casos-kind" name="kind" defaultValue={kindFilter ?? ""}>
-                <option value="">Todos los tipos</option>
-                {CASE_KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {caseKindLabel(k)}
-                  </option>
-                ))}
-              </OpSelect>
-            </div>
-
-            {showProvinceFilter && (
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor="casos-province"
-                  className="block text-xs font-medium text-ln-op-ink-2"
-                >
-                  Provincia
-                </label>
-                <OpSelect id="casos-province" name="province" defaultValue={provinceFilter ?? ""}>
-                  <option value="">
-                    {scope.role === "admin" ? "Todas las provincias" : "Todas tus provincias"}
-                  </option>
-                  {scopeProvinces.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </OpSelect>
-              </div>
-            )}
-
-            <OpButton type="submit" variant="primary" size="sm">
-              Filtrar
-            </OpButton>
-            {hasFilters && (
-              <a href="/gob/casos" className="text-sm text-ln-op-mute underline underline-offset-4">
-                Limpiar filtros
-              </a>
-            )}
-          </form>
+          {/* Unified filter bar — Estado/Tipo/Provincia domain axes (F-migration
+              2026-07-21, off the bespoke <form>). CaseQueue's own status CHIP
+              strip stays suppressed (showStatusChips=false below): its chip
+              links only encode kind+status (buildFilterHref), so clicking a
+              chip would silently drop an active province filter — the same
+              reason /admin/casos owns status itself instead of relying on the
+              chips once it has more than one filter axis. A filter change
+              drops the keyset `cursor` (page 1), matching the old form's
+              implicit reset (it never carried `cursor` as a field). */}
+          <OpFilterBar
+            showPeriod={false}
+            resetParamsOnChange={["cursor"]}
+            axes={
+              [
+                {
+                  id: "status",
+                  label: "Estado",
+                  paramKey: "status",
+                  options: STATUS_OPTIONS,
+                  current: activeStatus,
+                  allLabel: "Todos los estados",
+                },
+                {
+                  id: "kind",
+                  label: "Tipo",
+                  paramKey: "kind",
+                  options: KIND_OPTIONS,
+                  current: kindFilter,
+                  allLabel: "Todos los tipos",
+                },
+                ...(showProvinceFilter
+                  ? [
+                      {
+                        id: "province",
+                        label: "Provincia",
+                        paramKey: "province",
+                        options: scopeProvinces.map((p) => ({ value: p, label: p })),
+                        current: provinceFilter,
+                        allLabel:
+                          scope.role === "admin" ? "Todas las provincias" : "Todas tus provincias",
+                      } satisfies OpFilterAxis,
+                    ]
+                  : []),
+              ] satisfies OpFilterAxis[]
+            }
+          />
 
           <Suspense>
             <CaseQueue

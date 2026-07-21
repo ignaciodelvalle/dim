@@ -28,14 +28,14 @@ import { globSync, readFileSync } from "node:fs";
 
 /** Total literal `<select` occurrences across app/ and components/ (comment
  *  lines and the two field-primitive definition files excluded), measured
- *  on 2026-07-19 (filtros/surface-hidden pass: /gob/moderacion + /admin/moderacion
- *  migrated their 3 hand-rolled status/kind/severity selects each to
- *  OpFilterBar axes + UrlTabs).
+ *  on 2026-07-21 (casos/outbox filter-bar sweep: /gob/casos + /admin/casos
+ *  + /gob/outbox + /admin/outbox migrated their bespoke <form> filter rows
+ *  to OpFilterBar axes — the outbox pair's 4 raw <select>s each are gone).
  *  Target: 0, via migration to LnSelect (citizen) / OpSelect (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 69;
+const BASELINE = 61;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;

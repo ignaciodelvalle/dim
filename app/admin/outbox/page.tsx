@@ -4,26 +4,22 @@
 // into the SQL WHERE clause so the result set is correct regardless of total
 // outbox size — the previous JS-side filter over LIMIT 200 silently missed
 // matching rows beyond position 200 (P1-12).
-// Filter form uses <form method="get"> — no JS required.
+// Filter row is the canonical OpFilterBar (F-migration 2026-07-21, was a
+// bespoke <form method="get">) — every axis change commits via a full-document
+// navigation (serverNavCommit), so the URL/query contract is unchanged.
 
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpButton, OpCard } from "@/components/ui/dashboard";
-import {
-  OUTBOX_STATUS_VALUES,
-  OUTBOX_TARGET_KIND_LABEL,
-  OUTBOX_TARGET_KIND_VALUES,
-  OutboxTable,
-  buildStatusLabel,
-} from "@/components/ui/dashboard/OutboxTable";
+import { OpBreach, OpCard, type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
+import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
-import type { OutboxStatus } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { OUTBOX_PAGE_LIMIT, buildOutboxWhere } from "@/lib/infra/outbox-query";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
 import { pluralizeEs } from "@/lib/utils/format";
 
 export default async function AdminOutboxPage({
@@ -127,67 +123,29 @@ export default async function AdminOutboxPage({
         />
       )}
 
-      {/* Filters */}
-      <form action="/admin/outbox" method="get" className="flex items-center gap-2 flex-wrap">
-        <select
-          name="status"
-          defaultValue={filters.status ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todos los estados</option>
-          {OUTBOX_STATUS_VALUES.map((s) => (
-            <option key={s} value={s}>
-              {buildStatusLabel(s as OutboxStatus)}
-            </option>
-          ))}
-        </select>
-
-        <select
-          name="target_kind"
-          defaultValue={filters.target_kind ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todos los destinos</option>
-          {OUTBOX_TARGET_KIND_VALUES.map((k) => (
-            <option key={k} value={k}>
-              {OUTBOX_TARGET_KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
-
-        <select
-          name="breach"
-          defaultValue={filters.breach ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todos (breach o no)</option>
-          <option value="yes">Solo incumplimientos SLA</option>
-          <option value="no">Solo dentro de SLA</option>
-        </select>
-
-        <select
-          name="province"
-          defaultValue={filters.province ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todas las provincias</option>
-          {PROVINCES.map((p) => (
-            <option key={p.code} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-
-        <OpButton type="submit" variant="primary" size="sm">
-          Filtrar
-        </OpButton>
-
-        {hasFilters && (
-          <a href="/admin/outbox" className="text-sm text-ln-op-mute underline underline-offset-4">
-            Limpiar filtros
-          </a>
-        )}
-      </form>
+      {/* Unified filter bar — Estado/Destino/SLA/Provincia domain axes
+          (migrated off the bespoke <form>, mirrors /gob/outbox so the two
+          outbox twins render identically). status/target_kind/breach axis
+          defs are shared via buildOutboxDomainAxes (#26 D3 lineage). A filter
+          change drops the keyset `cursor` (page 1), matching the old form's
+          implicit reset (it never carried `cursor` as a field). */}
+      <OpFilterBar
+        showPeriod={false}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            ...buildOutboxDomainAxes(filters),
+            {
+              id: "province",
+              label: "Provincia",
+              paramKey: "province",
+              options: PROVINCES.map((p) => ({ value: p.name, label: p.name })),
+              current: filters.province ?? null,
+              allLabel: "Todas las provincias",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       {/* Table */}
       {rows.length === 0 ? (

@@ -26,17 +26,10 @@ import { desc } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpBreach, OpButton, OpCard } from "@/components/ui/dashboard";
+import { OpBreach, OpCard, type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import {
-  OUTBOX_STATUS_VALUES,
-  OUTBOX_TARGET_KIND_LABEL,
-  OUTBOX_TARGET_KIND_VALUES,
-  OutboxTable,
-  buildStatusLabel,
-} from "@/components/ui/dashboard/OutboxTable";
+import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
 import { db, eventNotificationOutbox } from "@/db";
-import type { OutboxStatus } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue } from "@/lib/infra/outbox-list";
 import {
@@ -47,6 +40,7 @@ import {
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
 import { pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
@@ -91,7 +85,7 @@ export default async function GobOutboxPage({
   // Build a scoped ProjectionContext for DashboardFreshnessFooter.
   // The outbox page has no period picker — trailing12m is the default window.
   // This page has no JurisdictionSwitcher/resolveJurisdictionScope — it uses its
-  // own `province` <select> (below) as the sole scope narrowing, applied directly
+  // own `province` filter axis (below) as the sole scope narrowing, applied directly
   // in the WHERE clause for BOTH roles. For an admin, that dropdown IS the
   // equivalent of the JurisdictionSwitcher's province drill-down elsewhere, so
   // it's threaded into the ctx too — otherwise the freshness footer's "último
@@ -175,70 +169,30 @@ export default async function GobOutboxPage({
         />
       )}
 
-      {/* Filters */}
-      <form action="/gob/outbox" method="get" className="flex items-center gap-2 flex-wrap">
-        <select
-          name="status"
-          defaultValue={filters.status ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todos los estados</option>
-          {OUTBOX_STATUS_VALUES.map((s) => (
-            <option key={s} value={s}>
-              {buildStatusLabel(s as OutboxStatus)}
-            </option>
-          ))}
-        </select>
-
-        <select
-          name="target_kind"
-          defaultValue={filters.target_kind ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todos los destinos</option>
-          {OUTBOX_TARGET_KIND_VALUES.map((k) => (
-            <option key={k} value={k}>
-              {OUTBOX_TARGET_KIND_LABEL[k]}
-            </option>
-          ))}
-        </select>
-
-        <select
-          name="breach"
-          defaultValue={filters.breach ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">Todos (breach o no)</option>
-          <option value="yes">Solo incumplimientos SLA</option>
-          <option value="no">Solo dentro de SLA</option>
-        </select>
-
-        {/* Province filter: restricted to assigned provinces for govt */}
-        <select
-          name="province"
-          defaultValue={filters.province ?? ""}
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          <option value="">
-            {profile.role === "govt" ? "Todas tus provincias" : "Todas las provincias"}
-          </option>
-          {allowedProvinces.map((p) => (
-            <option key={p.code} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </select>
-
-        <OpButton type="submit" variant="primary" size="sm">
-          Filtrar
-        </OpButton>
-
-        {hasFilters && (
-          <a href="/gob/outbox" className="text-sm text-ln-op-mute underline underline-offset-4">
-            Limpiar filtros
-          </a>
-        )}
-      </form>
+      {/* Unified filter bar — Estado/Destino/SLA/Provincia domain axes
+          (migrated off the bespoke <form>, mirrors /admin/outbox so the two
+          outbox twins render identically). status/target_kind/breach axis
+          defs are shared via buildOutboxDomainAxes (#26 D3 lineage — same
+          module the WHERE-clause builder already shares). A filter change
+          drops the keyset `cursor` (page 1), matching the old form's implicit
+          reset (it never carried `cursor` as a field). */}
+      <OpFilterBar
+        showPeriod={false}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            ...buildOutboxDomainAxes(filters),
+            {
+              id: "province",
+              label: "Provincia",
+              paramKey: "province",
+              options: allowedProvinces.map((p) => ({ value: p.name, label: p.name })),
+              current: filters.province ?? null,
+              allLabel: profile.role === "govt" ? "Todas tus provincias" : "Todas las provincias",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       {/* Table */}
       {rows.length === 0 ? (

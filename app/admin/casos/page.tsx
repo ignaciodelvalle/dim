@@ -4,9 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
-import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
@@ -15,14 +14,18 @@ import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/do
 
 const ADMIN_CASOS_PAGE_LIMIT = 50;
 
-// Status options for the filter form.
+// Status options for the filter bar's Estado axis.
 // "all" is a UI sentinel that maps to statusFilter=null (no SQL filter).
 // "open" is the default when no explicit status param is present.
 const STATUS_OPTIONS = [
   { value: "open", label: "Abiertos" },
   { value: "all", label: "Todos los estados" },
   { value: "closed", label: "Cerrados" },
-] as const;
+];
+// Tipo/Provincia axis options — same shape as /gob/casos so the two casos
+// twins render identically.
+const KIND_OPTIONS = CASE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
+const PROVINCE_OPTIONS = PROVINCES.map((p) => ({ value: p.name, label: p.name }));
 
 export default async function AdminCasosPage({
   searchParams,
@@ -60,7 +63,6 @@ export default async function AdminCasosPage({
   // Used to show/hide the "Limpiar filtros" link — the default open view is not
   // considered an active filter.
   const statusExplicitlyOverridden = rawStatus === "closed" || rawStatus === "all";
-  const hasFilters = statusExplicitlyOverridden || kindFilter !== null || provinceFilter !== null;
 
   const filterParams: Record<string, string | undefined> = {
     // Carry status in pagination links only when it differs from the default (open).
@@ -141,62 +143,46 @@ export default async function AdminCasosPage({
         </p>
       </header>
 
-      {/* Filter form */}
-      <form action="/admin/casos" method="get" className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="casos-status" className="block text-xs font-medium text-ln-op-ink-2">
-            Estado
-          </label>
-          <OpSelect
-            id="casos-status"
-            name="status"
-            defaultValue={rawStatus === "all" ? "all" : (statusFilter ?? "open")}
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </OpSelect>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="casos-kind" className="block text-xs font-medium text-ln-op-ink-2">
-            Tipo
-          </label>
-          <OpSelect id="casos-kind" name="kind" defaultValue={kindFilter ?? ""}>
-            <option value="">Todos los tipos</option>
-            {CASE_KINDS.map((k) => (
-              <option key={k} value={k}>
-                {caseKindLabel(k)}
-              </option>
-            ))}
-          </OpSelect>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label htmlFor="casos-province" className="block text-xs font-medium text-ln-op-ink-2">
-            Provincia
-          </label>
-          <OpSelect id="casos-province" name="province" defaultValue={provinceFilter ?? ""}>
-            <option value="">Todas las provincias</option>
-            {PROVINCES.map((p) => (
-              <option key={p.code} value={p.name}>
-                {p.name}
-              </option>
-            ))}
-          </OpSelect>
-        </div>
-
-        <OpButton type="submit" variant="primary" size="sm">
-          Filtrar
-        </OpButton>
-        {hasFilters && (
-          <a href="/admin/casos" className="text-sm text-ln-op-mute underline underline-offset-4">
-            Limpiar filtros
-          </a>
-        )}
-      </form>
+      {/* Unified filter bar — Estado/Tipo/Provincia domain axes (migrated off
+          the bespoke <form>, mirrors /gob/casos so the two casos twins render
+          identically). The Estado axis omits `allLabel` (falls back to the
+          bar's generic "Todas") because the explicit "all" option ALREADY
+          carries the "Todos los estados" label — the default state is "open"
+          (not "all"), so the bar's own auto-cleared option is a distinct,
+          rarely-used third path to the same default, not a duplicate control.
+          A filter change drops the keyset `cursor` (page 1), matching the old
+          form's implicit reset (it never carried `cursor` as a field). */}
+      <OpFilterBar
+        showPeriod={false}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "status",
+              label: "Estado",
+              paramKey: "status",
+              options: STATUS_OPTIONS,
+              current: rawStatus === "all" ? "all" : (statusFilter ?? "open"),
+            },
+            {
+              id: "kind",
+              label: "Tipo",
+              paramKey: "kind",
+              options: KIND_OPTIONS,
+              current: kindFilter,
+              allLabel: "Todos los tipos",
+            },
+            {
+              id: "province",
+              label: "Provincia",
+              paramKey: "province",
+              options: PROVINCE_OPTIONS,
+              current: provinceFilter,
+              allLabel: "Todas las provincias",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       <Suspense>
         <CaseQueue
