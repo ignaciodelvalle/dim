@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
-import { addDisputePartyAction, lookupTransferTargetAction } from "@/app/actions/custody-disputes";
+import { addDisputePartyAction, searchPartyCandidatesAction } from "@/app/actions/custody-disputes";
+import type { PartyCandidate } from "@/app/actions/custody-disputes";
 import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
@@ -17,72 +18,150 @@ const ROLE_OPTIONS = [
 
 type RoleValue = (typeof ROLE_OPTIONS)[number]["value"];
 
-// Verify-before-submit (V9 usability fix): reuses the SAME dispute-scoped
-// lookupTransferTargetAction ResolveDisputeForm already calls on this page —
-// no new server code, same tenant-isolation gate (lookup-transfer-target.ts).
-// This isn't a full search combobox (no org/user directory browse here), but
-// it turns "paste a UUID and hope" into "paste an ID and see who it resolves
-// to before submitting."
-type VerifyState =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "ok"; displayName: string; active: boolean }
-  | { status: "error"; message: string };
+const DEBOUNCE_MS = 200;
+const MIN_QUERY_LENGTH = 2;
 
+// Real search/select picker (V9 usability fix): this used to be a raw-UUID
+// text input with a separate "Verificar" round-trip before submit. It now
+// searches by name over searchPartyCandidatesAction, which wraps the SAME
+// audited searchUsers/searchOrganizations queries lib/infra/admin-search.ts
+// already runs for /gob/usuarios and /gob/organizaciones, gated by the same
+// dispute-scoped tenant-isolation check lookupTransferTargetAction used for
+// its exact-ID lookup (see search-party-candidates.ts).
+//
+// The dropdown/keyboard interaction (debounced search, mousedown-before-blur
+// select, Arrow/Enter/Escape nav) mirrors OpOmnibox
+// (components/ui/dashboard/OpOmnibox.tsx) — the operator-skinned (ln-op-*)
+// combobox pattern already used for the topbar global search — rather than
+// LnCombobox/LocalityPickerAcross, which hardcode the CITIZEN-skinned ln-*
+// tokens (see the LnCheckbox cross-skin note in components/ui/Field.tsx).
+//
+// The old verify-before-submit step is GONE: once the operator picks a named
+// result from the dropdown there is nothing left to verify — the picker IS
+// the verification (it already shows the real displayName plus a flag for a
+// deactivated user / unverified org, the same signal the old "Verificar"
+// button surfaced after a round trip).
 export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
   const [partyKind, setPartyKind] = useState<"user" | "org">("user");
-  const [partyUserId, setPartyUserId] = useState("");
-  const [partyOrgId, setPartyOrgId] = useState("");
+  const [query, setQuery] = useState("");
+  const [candidates, setCandidates] = useState<PartyCandidate[]>([]);
+  const [selected, setSelected] = useState<PartyCandidate | null>(null);
+  const [listOpen, setListOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchErrored, setSearchErrored] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [partyRole, setPartyRole] = useState<RoleValue>("claimant_owner");
   const [positionSummary, setPositionSummary] = useState("");
-  const [verifyState, setVerifyState] = useState<VerifyState>({ status: "idle" });
   const [error, setError] = useState<string | null>(null);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const currentId = partyKind === "user" ? partyUserId : partyOrgId;
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < MIN_QUERY_LENGTH) {
+      setCandidates([]);
+      setListOpen(false);
+      setSearched(false);
+      setActiveIndex(-1);
+      return;
+    }
+    // A pick sets query to the candidate's own displayName — skip the
+    // re-search that would otherwise fire immediately after and pop the
+    // dropdown back open right after the operator just closed it.
+    if (selected && selected.displayName === trimmed) return;
 
-  function handleIdChange(value: string) {
-    if (partyKind === "user") setPartyUserId(value);
-    else setPartyOrgId(value);
-    setVerifyState({ status: "idle" });
-  }
+    let cancelled = false;
+    setSearchLoading(true);
+    const handle = setTimeout(async () => {
+      const result = await searchPartyCandidatesAction({
+        disputeToken,
+        kind: partyKind,
+        query: trimmed,
+      });
+      if (cancelled) return;
+      if ("candidates" in result) {
+        setCandidates(result.candidates);
+        setListOpen(true);
+        setSearchErrored(false);
+      } else {
+        setCandidates([]);
+        setSearchErrored(true);
+      }
+      setSearched(true);
+      setActiveIndex(-1);
+      setSearchLoading(false);
+    }, DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [query, partyKind, disputeToken, selected]);
+
+  useEffect(
+    () => () => {
+      if (blurTimer.current) clearTimeout(blurTimer.current);
+    },
+    [],
+  );
 
   function handleKindChange(kind: "user" | "org") {
     setPartyKind(kind);
-    setVerifyState({ status: "idle" });
+    setQuery("");
+    setCandidates([]);
+    setSelected(null);
+    setListOpen(false);
+    setSearched(false);
   }
 
-  function verify() {
-    const id = currentId.trim();
-    if (!id) return;
-    setVerifyState({ status: "loading" });
-    startTransition(async () => {
-      const result = await lookupTransferTargetAction({ kind: partyKind, id, disputeToken });
-      if (!result.found) {
-        setVerifyState({ status: "error", message: result.error });
-      } else {
-        setVerifyState({ status: "ok", displayName: result.displayName, active: result.active });
+  function handleSelect(candidate: PartyCandidate) {
+    setSelected(candidate);
+    setQuery(candidate.displayName);
+    setListOpen(false);
+  }
+
+  function handleQueryChange(value: string) {
+    setQuery(value);
+    setSelected(null);
+  }
+
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!listOpen || candidates.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % candidates.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + candidates.length) % candidates.length);
+    } else if (e.key === "Enter") {
+      if (activeIndex >= 0 && candidates[activeIndex]) {
+        e.preventDefault();
+        handleSelect(candidates[activeIndex]);
       }
-    });
+    } else if (e.key === "Escape") {
+      setListOpen(false);
+    }
+  }
+
+  function handleInputBlur() {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    // Delay so a mousedown pick on an option registers before the list closes.
+    blurTimer.current = setTimeout(() => setListOpen(false), 150);
   }
 
   function submit() {
     setError(null);
-    const id = partyKind === "user" ? partyUserId.trim() : partyOrgId.trim();
-    if (!id) {
-      setError("Pega el ID del usuario u organizacion.");
-      return;
-    }
-    if (verifyState.status !== "ok") {
-      setError("Verificá el ID antes de sumar la parte.");
+    if (!selected) {
+      setError("Buscá y elegí un usuario u organización de la lista.");
       return;
     }
     startTransition(async () => {
       const result = await addDisputePartyAction({
         disputeToken,
-        partyUserId: partyKind === "user" ? id : null,
-        partyOrgId: partyKind === "org" ? id : null,
+        partyUserId: partyKind === "user" ? selected.id : null,
+        partyOrgId: partyKind === "org" ? selected.id : null,
         partyRole,
         positionSummary: positionSummary.trim() || null,
       });
@@ -91,10 +170,10 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
         return;
       }
       setOpen(false);
-      setPartyUserId("");
-      setPartyOrgId("");
+      setQuery("");
+      setCandidates([]);
+      setSelected(null);
       setPositionSummary("");
-      setVerifyState({ status: "idle" });
       // Full document reload so the SSR page reflects the mutation
       // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
       navigateAfterActionSuccess(window.location.href);
@@ -109,9 +188,13 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
     );
   }
 
+  const showNoResults =
+    searched && !searchLoading && !searchErrored && candidates.length === 0 && !selected;
+  const showDropdown = listOpen && (candidates.length > 0 || showNoResults);
+
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">Sumar parte a la disputa</p>
+      <p className="text-[var(--text-md)] font-medium text-ln-op-ink">Sumar parte a la disputa</p>
 
       <div className="flex gap-2 text-sm">
         <button
@@ -138,43 +221,84 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
         </button>
       </div>
 
-      <div>
-        <label htmlFor="party-id" className="block text-sm text-ln-op-mute mb-1">
-          {partyKind === "user" ? "ID de usuario (UUID)" : "ID de organización (UUID)"}
+      <div className="relative">
+        <label htmlFor="party-search" className="block text-sm text-ln-op-mute mb-1">
+          {partyKind === "user" ? "Buscar usuario por nombre" : "Buscar organización por nombre"}
         </label>
-        <div className="flex gap-2">
-          <input
-            id="party-id"
-            type="text"
-            value={currentId}
-            onChange={(e) => handleIdChange(e.target.value)}
-            placeholder="00000000-0000-0000-0000-000000000000"
-            className="flex-1 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-          />
-          <OpButton
-            type="button"
-            onClick={verify}
-            disabled={pending || !currentId.trim()}
-            variant="ghost"
-            className="px-3 py-2 whitespace-nowrap"
-          >
-            {verifyState.status === "loading" ? "Verificando..." : "Verificar"}
-          </OpButton>
-        </div>
+        <input
+          id="party-search"
+          type="text"
+          role="combobox"
+          aria-expanded={showDropdown}
+          aria-controls="party-search-listbox"
+          aria-autocomplete="list"
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          onFocus={() => {
+            if (candidates.length > 0 || showNoResults) setListOpen(true);
+          }}
+          onBlur={handleInputBlur}
+          onKeyDown={handleInputKeyDown}
+          placeholder={partyKind === "user" ? "Ej: María Gómez" : "Ej: Refugio Huellas"}
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+        />
 
-        {verifyState.status === "ok" && (
-          <p
-            className={`text-sm mt-1 flex items-center gap-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
+        {/* role="listbox"/"option" on <ul>/<li> — same APG combobox pattern as
+            components/ui/LnCombobox.tsx and OpOmnibox.tsx, which need the
+            identical biome a11y override (see biome.json). */}
+        {showDropdown && (
+          <ul
+            id="party-search-listbox"
+            role="listbox"
+            tabIndex={-1}
+            className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card shadow-lg"
           >
-            <Icon name={verifyState.active ? "check" : "close"} size={14} decorative />
+            {candidates.length === 0
+              ? showNoResults && (
+                  <li className="px-3 py-2 text-sm text-ln-op-mute">Sin resultados.</li>
+                )
+              : candidates.map((c, index) => (
+                  <li
+                    key={c.id}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={index === activeIndex}
+                    onMouseDown={(e) => {
+                      // mousedown (not click) so selection fires before onBlur closes the list.
+                      e.preventDefault();
+                      handleSelect(c);
+                    }}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    className={`px-3 py-2 cursor-pointer ${
+                      index === activeIndex ? "bg-ln-op-stripe" : "hover:bg-ln-op-stripe"
+                    }`}
+                  >
+                    <p className="text-[var(--text-md)] text-ln-op-ink">{c.displayName}</p>
+                    <p className="text-sm text-ln-op-mute">
+                      {c.secondaryLabel}
+                      {c.flagLabel && <span className="text-ln-op-danger"> · {c.flagLabel}</span>}
+                    </p>
+                  </li>
+                ))}
+          </ul>
+        )}
+
+        {searchLoading && <p className="text-sm text-ln-op-mute mt-1">Buscando…</p>}
+        {searchErrored && (
+          <p className="text-sm text-ln-op-danger mt-1">No pudimos buscar ahora. Probá de nuevo.</p>
+        )}
+        {selected && (
+          <p
+            className={`text-sm mt-1 flex items-center gap-1 ${
+              selected.flagLabel ? "text-ln-op-danger" : "text-ln-op-ok"
+            }`}
+          >
+            <Icon name={selected.flagLabel ? "close" : "check"} size={14} decorative />
             <span>
-              {verifyState.displayName}
-              {!verifyState.active && " — desactivado"}
+              {selected.displayName}
+              {selected.flagLabel && ` — ${selected.flagLabel}`}
             </span>
           </p>
-        )}
-        {verifyState.status === "error" && (
-          <p className="text-sm text-ln-op-danger mt-1">{verifyState.message}</p>
         )}
       </div>
 
@@ -186,7 +310,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           id="party-role"
           value={partyRole}
           onChange={(e) => setPartyRole(e.target.value as RoleValue)}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
@@ -206,17 +330,17 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setPositionSummary(e.target.value)}
           rows={2}
           placeholder="Resumen de la posicion de esta parte"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-[var(--text-md)] text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
         <OpButton
           type="button"
           onClick={submit}
-          disabled={pending || verifyState.status !== "ok"}
+          disabled={pending || !selected}
           variant="primary"
           size="sm"
         >

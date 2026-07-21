@@ -76,6 +76,31 @@ export type LookupTransferTargetResult =
   | { found: false; error: string };
 
 // ---------------------------------------------------------------------------
+// SearchPartyCandidates
+// ---------------------------------------------------------------------------
+
+export type SearchPartyCandidatesInput = {
+  kind: "user" | "org";
+  query: string;
+  // Same tenant-isolation binding as LookupTransferTarget — the search only
+  // runs for a caller in scope of THIS dispute (admin, or a govt agent whose
+  // jurisdiction covers it), never as an open user/org directory search.
+  disputeToken: string;
+};
+
+export type PartyCandidate = {
+  id: string;
+  displayName: string;
+  /** es-AR label for the entity: role for a user, org type for an org. */
+  secondaryLabel: string;
+  /** Set when the candidate is deactivated (user) or unverified (org) — the
+   * picker surfaces this inline instead of requiring a separate verify step. */
+  flagLabel: string | null;
+};
+
+export type SearchPartyCandidatesResult = { candidates: PartyCandidate[] } | { error: string };
+
+// ---------------------------------------------------------------------------
 // EscalateDispute
 // ---------------------------------------------------------------------------
 

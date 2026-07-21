@@ -204,7 +204,11 @@
       }
     },
     {
-      "include": ["components/ui/dashboard/OpOmnibox.tsx", "components/ui/LnCombobox.tsx"],
+      "include": [
+        "components/ui/dashboard/OpOmnibox.tsx",
+        "components/ui/LnCombobox.tsx",
+        "app/gob/disputas/[disputeToken]/AddPartyForm.tsx"
+      ],
       "linter": {
         "rules": {
           "a11y": {

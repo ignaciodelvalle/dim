@@ -20,6 +20,7 @@ import { addDisputePartyUseCase } from "@/src/modules/custody-disputes/applicati
 import { escalateDisputeUseCase } from "@/src/modules/custody-disputes/application/escalate-dispute";
 import { lookupTransferTargetUseCase } from "@/src/modules/custody-disputes/application/lookup-transfer-target";
 import { resolveDisputeUseCase } from "@/src/modules/custody-disputes/application/resolve-dispute";
+import { searchPartyCandidatesUseCase } from "@/src/modules/custody-disputes/application/search-party-candidates";
 import { withdrawDisputeUseCase } from "@/src/modules/custody-disputes/application/withdraw-dispute";
 import type {
   AddPartyInput,
@@ -30,6 +31,8 @@ import type {
   LookupTransferTargetResult,
   ResolveDisputeInput,
   ResolveDisputeResult,
+  SearchPartyCandidatesInput,
+  SearchPartyCandidatesResult,
   WithdrawDisputeInput,
   WithdrawDisputeResult,
 } from "@/src/modules/custody-disputes/domain/types";
@@ -51,6 +54,11 @@ export type {
 export type {
   LookupTransferTargetInput,
   LookupTransferTargetResult,
+} from "@/src/modules/custody-disputes/domain/types";
+export type {
+  PartyCandidate,
+  SearchPartyCandidatesInput,
+  SearchPartyCandidatesResult,
 } from "@/src/modules/custody-disputes/domain/types";
 export type {
   EscalateDisputeInput,
@@ -102,6 +110,14 @@ export async function lookupTransferTargetAction(
 ): Promise<LookupTransferTargetResult> {
   const session = await requireAdminOrGovtOrRedirect();
   return lookupTransferTargetUseCase(session, input);
+}
+
+// Read-only — no revalidatePath. Powers AddPartyForm's search/select picker.
+export async function searchPartyCandidatesAction(
+  input: SearchPartyCandidatesInput,
+): Promise<SearchPartyCandidatesResult> {
+  const session = await requireAdminOrGovtOrRedirect();
+  return searchPartyCandidatesUseCase(session, input);
 }
 
 export async function escalateDisputeAction(
