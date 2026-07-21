@@ -75,3 +75,24 @@ Verify-before-build saved several redundant writers.
   gob-pet-subview-jurisdiction-fence (Bloque 0 wrote them; Supabase is up now).
 - Fresh adversarial review over the whole commit range (d6e81b75..HEAD).
 - Full `pnpm verify` (incl. build) on a clean tree, then rebuild :3000.
+
+## Ronda QA en vivo 2026-07-21 (PO testing) — hechos + pendientes
+DONE this round:
+- DNI search: code was correct; seed didn't backfill Carla's hash (fixed, `ec6bfdc5`).
+- Panorama: descriptor folded into KPI header, legend un-clipped (`994ffb9d`); admin
+  first-paint degraded-flash (`e5c1d4ab`); bivariate province-grain fallback nationally (`2427c017`).
+- Shell consistency: libro un-centered, gob/casos shell, observaciones eyebrow (`5f80fe95`).
+- Admin no longer bounced from /gob/casos → universal scope in the /gob shell (`a0742db9`).
+
+PO decisions this round (locked):
+- Admin bounce → NO bounce, admin views /gob with universal scope (done for casos; casos
+  was the only bounce).
+- Bivariate → province-grain fallback nationally (done).
+- OpFilterBar sweep → YES, migrate ALL bespoke filter rows to OpFilterBar.
+
+PENDING — OpFilterBar consistency sweep (audit spec in engram 'panorama-polish'/this run):
+Group 2 (has filters, not via OpFilterBar → migrate): admin/inteligencia, gob+admin/casos,
+gob+admin/outbox, admin/auditoria, gob+admin/historial, gob/usuarios, admin/programa,
+admin/libro, admin/alertas. Group 3 (no filter, add one): admin/observaciones. Group 4
+(divergent idiom, design call): gob/programa "Alertas y suscripciones" sub-panel (form-lists
+vs card/queue rows) — needs restyle-or-promote decision. This is the next big batch.
