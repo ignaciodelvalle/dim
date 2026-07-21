@@ -62,7 +62,6 @@ import type {
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
-import { ViewCaption } from "@/components/panorama/ViewCaption";
 import { coalescedGet } from "@/components/panorama/coalesced-get";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
@@ -5239,6 +5238,17 @@ export function PanoramaConsole({
                   Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
                 </p>
               )}
+              {/* PO decision (panorama polish 2026-07-21): fold the floating
+                  ViewCaption strip that used to sit over the map (line-clamped to
+                  2 lines behind a "Ver más") INTO this header instead — the SAME
+                  honest one-line view description (explainViewState — "Copiar
+                  vista" and the informe print use it too), now a fully-visible
+                  subtitle under the vista title. No clamp, no toggle: it just
+                  wraps. Declutters the map surface (item 3) without losing the
+                  "¿qué estoy viendo?" answer (Epic C1). */}
+              <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+                {viewExplanation}
+              </p>
               {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
                   changes the board silently; one tap returns to the vista left. */}
               {personalizadaFrom !== null && activePresetId === null && (
@@ -5327,15 +5337,11 @@ export function PanoramaConsole({
           }`}
         >
           {/* C1 — the perennial "¿qué estoy viendo y de dónde son estos datos?"
-              answered PERSISTENTLY on the map surface: the honest one-line view
-              description (explainViewState — the same sentence "Copiar vista" and
-              the print informe use), always visible above the legend so the
-              operator never has to open a popover to know the scope + período +
-              capas of the frame. ViewCaption clamps to 2 lines but exposes a
-              "Ver más" toggle when the text overflows, so a long caption (Brotes
-              Activos) is never silently clipped; the legend pill still owns the
-              encoding detail below it. */}
-          <ViewCaption text={viewExplanation} />
+              answer USED to float here as its own ViewCaption strip (line-clamped
+              behind a "Ver más"). PO decision (panorama polish 2026-07-21): folded
+              into the "Vista · X" header over the map instead (fully visible, no
+              clamp) — decluttering this map-edge surface; the legend pill still
+              owns the encoding detail below it. */}
           <LegendPill
             baseLabel={legendRampLabel}
             rampColors={legendRampColors}

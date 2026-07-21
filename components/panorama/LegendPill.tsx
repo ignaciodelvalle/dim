@@ -85,7 +85,15 @@ export function LegendPill({
   return (
     <OverlayDisclosure
       side="up"
-      panelClassName="left-0 max-h-[55vh] w-[19rem] overflow-y-auto"
+      // PO fix ("el panel de referencias queda cortado"): the old max-h-[55vh]
+      // clamp cut the legend body well before the viewport actually ran out,
+      // forcing a scroll even on tall screens. The panel opens UPWARD from a
+      // trigger pinned near the bottom of the map (bottom-16, or bottom-3.5 in
+      // presentation mode) under a masthead — calc(100vh-10rem) reserves that
+      // worst-case chrome (masthead + trigger + gap + a top margin) so the FULL
+      // reading fits unclamped on ordinary viewports, while overflow-y-auto stays
+      // as a safety net on very short ones (never lets the panel run off-screen).
+      panelClassName="left-0 max-h-[calc(100vh-10rem)] w-[19rem] overflow-y-auto"
       summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-md hover:border-ln-op-celeste"
       summary={
         <>
