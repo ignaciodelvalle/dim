@@ -154,9 +154,10 @@ export default async function AdminAlertasPage({
           axis's injected blank "Todas" would silently collide with that
           default instead of clearing it). Desde/Hasta have NO default bound
           (genuinely unbounded, not a preset period) — see
-          DateRangeFilterFields for why they stay a two-field + "Aplicar" child
-          instead of OpFilterBar's `period` prop. No pagination on this page,
-          so no `cursor` to reset. */}
+          DateRangeFilterFields for why they stay a two-field `children`
+          control (rather than OpFilterBar's `period` prop) that commits on
+          change, no "Aplicar". No pagination on this page, so no `cursor` to
+          reset. */}
       <OpFilterBar
         showPeriod={false}
         axes={

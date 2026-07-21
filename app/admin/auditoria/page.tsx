@@ -269,8 +269,9 @@ export default async function AdminAuditoriaPage({
               (Decisiones 7d) renders as a locked chip that a single-select
               axis can't represent.
             - Desde/Hasta (DateRangeFilterFields) — no default bound
-              (genuinely unbounded), and needs its own "Aplicar" (a per-
-              keystroke commit would fire on every partial masked digit).
+              (genuinely unbounded); commits on change like any axis (no
+              "Aplicar" — see DateRangeFilterFields for how a masked dd/mm/aaaa
+              field commits safely without a submit button).
           Because neither is a registered axis, OpFilterBar's "Limpiar todo"
           can't reach them — the "Limpiar filtros" link below is kept
           (identical href/behavior to the pre-migration <form>) as the

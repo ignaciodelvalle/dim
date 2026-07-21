@@ -47,6 +47,18 @@ type Props = {
     provinceCode?: string;
     query: string;
   }) => Promise<SearchLocalitiesResult>;
+  /** Called with the new province NAME whenever the province choice changes
+   * (in addition to the internal state update that re-scopes the locality
+   * search). Lets a commit-on-change consumer (e.g. LibroFilterFields) fire
+   * its own URL commit without owning a form/"Aplicar". */
+  onProvinceChange?: (provinceName: string) => void;
+  /** Forwarded to LocalityPickerAcross's `onSelect` — fires only on an actual
+   * pick from the results list, never per keystroke. */
+  onLocalitySelect?: (localityName: string | null) => void;
+  /** Forwarded to LocalityPickerAcross's `onQueryChange` — fires on every
+   * keystroke (typing, not just a pick). A commit-on-change consumer that
+   * only cares about a full CLEAR should ignore every call except `""`. */
+  onLocalityQueryChange?: (query: string) => void;
 };
 
 export function JurisdictionFilter({
@@ -59,6 +71,9 @@ export function JurisdictionFilter({
   labelClassName,
   selectClassName,
   searchAction,
+  onProvinceChange,
+  onLocalitySelect,
+  onLocalityQueryChange,
 }: Props) {
   const [provinceName, setProvinceName] = useState(defaultProvince);
 
@@ -73,7 +88,10 @@ export function JurisdictionFilter({
         <select
           name={provinceParam}
           value={provinceName}
-          onChange={(e) => setProvinceName(e.target.value)}
+          onChange={(e) => {
+            setProvinceName(e.target.value);
+            onProvinceChange?.(e.target.value);
+          }}
           className={selectClassName}
         >
           <option value="">Todas</option>
@@ -101,6 +119,8 @@ export function JurisdictionFilter({
           }}
           placeholder={provinceName ? "Buscar localidad…" : "Elegí una provincia"}
           searchAction={searchAction}
+          onSelect={onLocalitySelect ? (r) => onLocalitySelect(r?.localityName ?? null) : undefined}
+          onQueryChange={onLocalityQueryChange}
         />
       </label>
     </>

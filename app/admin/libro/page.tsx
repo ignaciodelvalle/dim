@@ -190,16 +190,12 @@ export default async function AdminLibroPage({
           on NAMES (JurisdictionFilter's wire contract), and Desde/Hasta has NO
           default bound (genuinely unbounded, same as /admin/alertas +
           /admin/auditoria), so neither is the bar's own axis/`period`
-          mechanism. ROOT-CAUSE FIX (R2): libro used to compose the shared
-          <JurisdictionFilterFields> AND <DateRangeFilterFields> side by
-          side — each owns its own <form> + "Aplicar", so together they
-          rendered TWO "Aplicar" buttons (no other screen has even one extra).
-          LibroFilterFields merges both field groups into a SINGLE form with a
-          SINGLE "Aplicar" that commits all four params together, still
-          dropping the keyset `cursor` on commit (resetParamsOnChange).
-          "Limpiar" (clears every filter, including this non-axis child —
-          axis-only "Limpiar todo" can't reach it) stays a plain link in the
-          header actions slot. */}
+          mechanism. LibroFilterFields commits EACH of the four params on
+          change (no "Aplicar" button, PO consistency fix 2026-07-21), always
+          preserving the other three and dropping the keyset `cursor` on
+          commit (resetParamsOnChange). "Limpiar" (clears every filter,
+          including this non-axis child — axis-only "Limpiar todo" can't
+          reach it) stays a plain link in the header actions slot. */}
       <OpFilterBar
         showPeriod={false}
         resetParamsOnChange={["cursor"]}
