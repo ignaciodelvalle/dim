@@ -3,7 +3,7 @@
 // The canonical microchip state is the ACTIVE `pet_identifications` row. This
 // projection reconstructs that same state PURELY from events so the drift
 // harness compares one model against itself (stored canonical row vs derived
-// replay), and consumers like owner-nudges' `hasChip` stay in sync:
+// replay):
 //
 //   - microchip_implanted binds the chip. EARLIEST wins while a chip is active
 //     ("a chip is a permanent implant — never overwrite existing chip data").

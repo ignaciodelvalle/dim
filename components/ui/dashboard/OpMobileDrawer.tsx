@@ -1,5 +1,6 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { BRANDING } from "@/lib/ui/branding";
 import Link from "next/link";
@@ -26,19 +27,6 @@ function isActive(item: NavItem, pathname: string | null): boolean {
   if (!pathname) return false;
   if (item.matchPrefix) return pathname.startsWith(item.matchPrefix);
   return pathname === item.href;
-}
-
-function HamburgerIcon() {
-  return (
-    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M3 6h18M3 12h18M3 18h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
 }
 
 export function OpMobileDrawer({
@@ -69,7 +57,7 @@ export function OpMobileDrawer({
           aria-label="Abrir menú"
           className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-ln-op-line text-ln-op-ink hover:border-ln-op-line-2 md:hidden"
         >
-          <HamburgerIcon />
+          <Icon name="menu" size="md" decorative />
         </button>
       </Drawer.Trigger>
       <Drawer.Portal>
@@ -101,14 +89,7 @@ export function OpMobileDrawer({
                 aria-label="Cerrar menú"
                 className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.08)]"
               >
-                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M6 6l12 12M18 6L6 18"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <Icon name="close" size="sm" decorative />
               </button>
             </Drawer.Close>
           </div>

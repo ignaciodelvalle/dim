@@ -6,9 +6,8 @@
 // row must show its REAL compliance status ("ok"), not the "registered"
 // placeholder fallback.
 //
-// The old /inicio page had to fetch compliance over a UNION of health-nudge ids
-// and carousel ids because fetchPetHealthNudges filters ownerships.role="owner"
-// and would drop a foster pet. The index has no such filter — it computes
+// The old /inicio page computed compliance only over an owner-role-only pet
+// set, dropping a foster pet. The index has no such filter — it computes
 // compliance over EVERY active owned pet — so the bug cannot recur here; this
 // test locks that in against a future refactor.
 //
@@ -80,8 +79,8 @@ beforeAll(async () => {
     .returning({ id: pets.id });
   petId = pet.id;
 
-  // Transit/foster ownership — excluded from fetchPetHealthNudges (owner-role
-  // filter), included in the index's own active-pet compliance pass.
+  // Transit/foster ownership — included in the index's own active-pet
+  // compliance pass (no role filter, unlike the historical owner-only fetch).
   await db.insert(ownerships).values({ petId, ownerUserId: userId, role: "foster" });
 
   const occurredAt = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);

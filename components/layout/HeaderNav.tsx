@@ -43,27 +43,6 @@ function isActive(item: NavItem, currentPath: string | null): boolean {
   return currentPath === item.href;
 }
 
-/** SVGs inline para hamburguesa y cerrar — icono-arg no los incluye. */
-function HamburgerIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M3 6h18M3 12h18M3 18h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-function CloseIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /**
  * Nav del header — desktop inline + drawer mobile.
  * Marca el link activo automáticamente con usePathname() (sin necesidad de middleware).
@@ -156,7 +135,11 @@ export function HeaderNav({ nav, user }: Props) {
           onClick={() => setOpen((v) => !v)}
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-ln-line text-ln-azul hover:border-ln-line-strong"
         >
-          {open ? <CloseIcon /> : <HamburgerIcon />}
+          {open ? (
+            <Icon name="close" size="lg" decorative />
+          ) : (
+            <Icon name="menu" size="lg" decorative />
+          )}
         </button>
       </div>
 
@@ -187,7 +170,7 @@ export function HeaderNav({ nav, user }: Props) {
                 aria-label="Cerrar menú"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md text-ln-ink-2 hover:bg-ln-stripe"
               >
-                <CloseIcon size={20} />
+                <Icon name="close" size="md" decorative />
               </button>
             </div>
 

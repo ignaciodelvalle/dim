@@ -15,34 +15,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import type { ShellSession, SwitcherTarget } from "@/lib/ui/shell-nav";
 import { buildSwitcher } from "@/lib/ui/shell-nav";
 
 type Props = {
   session: ShellSession | null;
 };
-
-/** Chevron-down icon (inline SVG, no icon-lib dep). */
-function ChevronIcon() {
-  return (
-    <svg
-      width={12}
-      height={12}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className="opacity-60"
-    >
-      <path
-        d="M6 9l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 /** Single destination row inside the dropdown. */
 function SwitcherItem({
@@ -118,7 +97,7 @@ export function ContextSwitcher({ session }: Props) {
         className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-ln-op-line px-2.5 py-[5px] text-sm text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
       >
         <span className="max-w-[160px] truncate">{triggerLabel}</span>
-        <ChevronIcon />
+        <Icon name="chevron-down" size="sm" decorative className="opacity-60" />
       </button>
 
       {open && (

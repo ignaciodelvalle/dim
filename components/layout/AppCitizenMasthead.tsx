@@ -27,6 +27,7 @@ import { useEffect, useRef, useState } from "react";
 import { Drawer } from "vaul";
 
 import { logoutAction } from "@/app/actions/auth";
+import { Icon } from "@/components/Icon";
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { isNavItemActive } from "@/components/layout/nav-active";
 import { BRANDING } from "@/lib/ui/branding";
@@ -61,27 +62,6 @@ type Props = {
    */
   primaryNavInTabBar?: boolean;
 };
-
-function HamburgerIcon() {
-  return (
-    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M3 6h18M3 12h18M3 18h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function CloseIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 export function AppCitizenMasthead({
   nav,
@@ -195,19 +175,7 @@ export function AppCitizenMasthead({
             className="inline-flex min-h-11 min-w-11 items-center justify-center text-white/80 transition-colors hover:text-white active:text-white"
           >
             <span className="relative">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-[18px] w-[18px]"
-                aria-hidden="true"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
+              <Icon name="bell" size="md" decorative />
               {unreadCount > 0 && (
                 <span
                   aria-hidden="true"
@@ -346,22 +314,7 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
         className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
       >
         <span className="max-w-[160px] truncate">{triggerLabel}</span>
-        <svg
-          width={12}
-          height={12}
-          viewBox="0 0 24 24"
-          fill="none"
-          aria-hidden="true"
-          className="opacity-70"
-        >
-          <path
-            d="M6 9l6 6 6-6"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <Icon name="chevron-down" size="sm" decorative className="opacity-70" />
       </button>
       {open && (
         <div
@@ -416,7 +369,7 @@ function CitizenMobileDrawer({
           aria-label="Abrir menú"
           className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/80 hover:text-white active:bg-white/10 md:hidden"
         >
-          <HamburgerIcon />
+          <Icon name="menu" size="lg" decorative />
         </button>
       </Drawer.Trigger>
       <Drawer.Portal>
@@ -444,7 +397,7 @@ function CitizenMobileDrawer({
                 aria-label="Cerrar menú"
                 className="ml-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-md text-white/60 hover:bg-white/10 hover:text-white active:bg-white/10"
               >
-                <CloseIcon />
+                <Icon name="close" size="md" decorative />
               </button>
             </Drawer.Close>
           </div>

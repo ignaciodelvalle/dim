@@ -71,7 +71,7 @@ describe("vaccine_due notification ctaUrl (notice→action contract)", () => {
   });
 
   it("actionHref in nudges points to the right form per kind", () => {
-    // nudge.actionHref values from lib/owner-nudges.ts (derivePetHealthStatus).
+    // Pins the actionHref pattern nudge-style CTAs must follow.
     const token = "DIM-3K4F-9P2X";
 
     const vaccineHref = `/mis-mascotas/${token}/eventos/nuevo/vacuna`;

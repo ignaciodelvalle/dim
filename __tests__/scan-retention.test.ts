@@ -12,9 +12,6 @@
 //   - Keeps credential_scanned events that are 90 days old or less.
 //   - Does NOT delete events from other author_roles (owner, system, vet…).
 //   - Does NOT delete other event types authored by 'scanner'.
-//   - The owner-dashboard scan-activity window (90 days) aligns with the TTL,
-//     so countRecentExternalScans in lib/owner-nudges.ts never counts a row that
-//     would have been purged.
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";

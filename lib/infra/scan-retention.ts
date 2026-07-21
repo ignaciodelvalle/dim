@@ -18,8 +18,6 @@
 //   After TTL_DAYS the event is purged, which is what bounds retention of ALL
 //   location fields: they exist only on scanner-role rows deleted here.
 //   Self-scans (author_role='owner', never purged) carry no location fields.
-//   The owner-dashboard scan-activity metric (lib/owner-nudges.ts) uses the
-//   same 90-day window, so the nudge remains accurate within the retained period.
 //
 // APPEND-ONLY CONTRACT:
 //   pet_events is governed by the enforce_pet_events_append_only() trigger.

@@ -12,8 +12,6 @@
 // PRIVACY CONTRACT (Item 28):
 //   - Scanner events (author_role='scanner') have a 90-day TTL.
 //   - The payload never stores IP or geolocation (audited in app/actions/scans.ts).
-//   - The owner-dashboard scan-activity metric (lib/owner-nudges.ts) uses the same
-//     90-day window, so it stays accurate within the retained period.
 //
 // Returns: { ok: true, scanEventsDeleted, durationMs, runId }
 

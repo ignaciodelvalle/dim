@@ -31,6 +31,29 @@ import { RegionRankingTable } from "./_components/RegionRankingTable";
 
 export const dynamic = "force-dynamic";
 
+type AnalyticsSearchParams = {
+  period?: string;
+  from?: string;
+  to?: string;
+  province?: string;
+  locality?: string;
+};
+
+// "Exportar datos" mirrors the active period + jurisdiction filters — the
+// export page (export/page.tsx) reads these same searchParam keys to
+// pre-fill its PeriodPicker/JurisdictionSwitcher (same pattern as
+// censo/poblacion/adopciones/campanas' `exportHref`, dec0f58f). Pulled out of
+// the page component to keep its cognitive-complexity score under budget.
+function buildAnalyticsExportHref(sp: AnalyticsSearchParams): string {
+  const exportParams = new URLSearchParams();
+  if (sp.period) exportParams.set("period", sp.period);
+  if (sp.from) exportParams.set("from", sp.from);
+  if (sp.to) exportParams.set("to", sp.to);
+  if (sp.province) exportParams.set("province", sp.province);
+  if (sp.locality) exportParams.set("locality", sp.locality);
+  return `/gob/analytics/export${exportParams.size > 0 ? `?${exportParams}` : ""}`;
+}
+
 export default async function GobAnalyticsPage({
   searchParams,
 }: {
@@ -88,6 +111,8 @@ export default async function GobAnalyticsPage({
   // (same pattern as /gob/perdidas).
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+
+  const exportHref = buildAnalyticsExportHref(sp);
 
   const period = resolveAnalyticsPeriod(sp);
   const { since } = period;
@@ -176,10 +201,16 @@ export default async function GobAnalyticsPage({
       {/* Page header */}
       {header}
 
-      {/* Unified filter bar — jurisdiction + period (same pattern as /gob/censo). */}
+      {/* Unified filter bar — jurisdiction + period, with "Exportar datos" rendered
+          via the bar's `actions` slot (same pattern as /gob/censo's "Exportar CSV"). */}
       <OpFilterBar
         period={{ defaultPreset: "trailing12m" }}
         jurisdiction={{ allowedProvinces, localities }}
+        actions={
+          <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+            Exportar datos →
+          </a>
+        }
       />
 
       {/* 4 KPI tiles */}
@@ -237,11 +268,8 @@ export default async function GobAnalyticsPage({
         />
       </section>
 
-      {/* Acquisition trend. The "Exportar CSV →" link to /gob/analytics/export
-          was removed — that export flow is half-wired (see the DEFERRED BY
-          DESIGN header comment on that route) and was never meant to be
-          reachable from nav; the route file itself is left in place for when
-          the export flow is picked back up. */}
+      {/* Acquisition trend. The "Exportar datos" CTA lives in the filter bar's
+          `actions` slot above (2026-07-21 rewire) — not beside this panel. */}
       <OpCard aria-labelledby={panelAcquisitionId}>
         <OpCardHead title={<span id={panelAcquisitionId}>Adquisición por método</span>} />
         <OpCardBody>
