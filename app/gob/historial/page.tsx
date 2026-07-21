@@ -12,13 +12,25 @@
 // "Mi actividad" survives as an actor-filter preset, not a separate mode.
 //
 // Filters (all via URL params so links/bookmarks are shareable):
-//   action  — one or more AuditLogAction codes, comma-separated (dropdown of
-//             known labels; an aliased label selects every code it groups)
-//   actor   — exact user id, constrained to the jurisdiction scope by the
-//             SQL AND (a stale/foreign id in the URL just yields zero rows —
-//             never a scope bypass)
-//   from/to — YYYY-MM-DD inclusive date range on performed_at
-//   cursor  — keyset pagination (performed_at, id), same helper as /admin/*
+//   action        — one or more AuditLogAction codes, comma-separated
+//                   (dropdown of known labels; an aliased label selects
+//                   every code it groups)
+//   actor         — exact user id, constrained to the jurisdiction scope by
+//                   the SQL AND (a stale/foreign id in the URL just yields
+//                   zero rows — never a scope bypass)
+//   period/from/to — the shared <PeriodPicker> date-range control (same
+//                   param names + resolveAnalyticsPeriod resolver every
+//                   other /gob dashboard uses — see
+//                   lib/analytics/analytics-period.ts). Absent `period` and
+//                   `from` defaults to trailing 12 months
+//                   (DEFAULT_DASHBOARD_PRESET), matching the chip
+//                   PeriodPicker highlights on first load (C32 convention) —
+//                   this REPLACES the screen's former unbounded-by-default,
+//                   AR-midnight-anchored bespoke parser (see git history);
+//                   resolveAnalyticsPeriod's custom-range parsing anchors on
+//                   UTC midnight, not AR midnight, same as every sibling.
+//   cursor        — keyset pagination (performed_at, id), same helper as
+//                   /admin/*
 //
 // PII note: pii_queried rows carry a free-text `query` field (whatever the
 // operator searched — may itself be a citizen's name/DNI). Now that the view
@@ -30,11 +42,14 @@
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { DateInputAr } from "@/components/ui/DateInputAr";
+import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
+import { windows } from "@/lib/metrics";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/metrics/period-presets";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
@@ -46,24 +61,13 @@ export const dynamic = "force-dynamic";
 
 const GOB_HISTORIAL_PAGE_LIMIT = 100;
 
-/**
- * Accepts only YYYY-MM-DD; anything else (absent, malformed) → no bound.
- * The day is an ARGENTINE calendar day (PO decision 2026-07-16): parsed at AR
- * midnight via a fixed -03:00 offset (AR is UTC-3 year-round, no DST), so a
- * "2026-07-18" filter spans 2026-07-18T00:00 AR through 24:00 AR.
- */
-function parseDateParam(raw: string | undefined): Date | null {
-  if (!raw || !/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-  const d = new Date(`${raw}T00:00:00-03:00`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 export default async function GobHistorialPage({
   searchParams,
 }: {
   searchParams: Promise<{
     actor?: string;
     action?: string;
+    period?: string;
     from?: string;
     to?: string;
     cursor?: string;
@@ -79,11 +83,14 @@ export default async function GobHistorialPage({
   // /admin/auditoria.
   const actionFilters = parseAuditActions(sp.action);
   const actorFilter = sp.actor?.trim() || null;
-  const fromDate = parseDateParam(sp.from);
-  // `to` is inclusive of the whole AR day — bump to the end of that day
-  // (23:59:59.999 AR).
-  const toDateRaw = parseDateParam(sp.to);
-  const toDate = toDateRaw ? new Date(toDateRaw.getTime() + 86_400_000 - 1) : null;
+  // Same conditional shape as /gob/vigilancia and /admin/programa: only ask
+  // the resolver to parse when the picker actually set something, otherwise
+  // fall back to the named trailing-12m window that DEFAULT_DASHBOARD_PRESET
+  // (below) visually highlights — keeps the chip and the query in sync on a
+  // bare first load.
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const fromDate = period.since;
+  const toDate = period.until;
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
@@ -128,6 +135,7 @@ export default async function GobHistorialPage({
   const filterParams: Record<string, string | undefined> = {
     ...(actionFilters.length > 0 ? { action: actionFilters.join(",") } : {}),
     ...(actorFilter ? { actor: actorFilter } : {}),
+    ...(sp.period ? { period: sp.period } : {}),
     ...(sp.from ? { from: sp.from } : {}),
     ...(sp.to ? { to: sp.to } : {}),
   };
@@ -213,8 +221,12 @@ export default async function GobHistorialPage({
       ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
       : undefined;
 
+  // fromDate/toDate are now always populated (the trailing-12m default), so
+  // "has an active filter" is judged off the raw params instead — same test
+  // vigilancia's own conditional (`sp.period || sp.from`) uses to decide
+  // whether the resolver ran at all.
   const hasFilters =
-    actionFilters.length > 0 || actorFilter !== null || fromDate !== null || toDate !== null;
+    actionFilters.length > 0 || actorFilter !== null || Boolean(sp.period) || Boolean(sp.from);
   const isMineFilter = actorFilter === user.id;
 
   const groups = groupConsecutiveAuditRows(entries);
@@ -346,95 +358,80 @@ export default async function GobHistorialPage({
         <p className="text-[13px] text-ln-op-mute">{scopeCopy}</p>
       </header>
 
-      <form action="/gob/historial" method="get" className="flex flex-wrap items-end gap-2">
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="historial-action"
-            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-          >
-            Acción
-          </label>
-          <select
-            id="historial-action"
-            name="action"
-            defaultValue={selectedActionOption?.value ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            <option value="">Todas las acciones</option>
-            {actionOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+      <div className="flex flex-wrap items-end gap-4">
+        {/* Período — the shared <PeriodPicker> control (same param names and
+            full-navigation commit strategy as /gob/vigilancia and every other
+            /gob dashboard). It commits independently of the action/actor form
+            below (own click handlers, not a submit), so it lives outside the
+            <form> but on the same filter row. */}
+        <div className="flex w-full flex-col gap-1 sm:w-auto">
+          <span className="text-[var(--text-sm)] font-medium text-ln-op-mute">Período</span>
+          <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
         </div>
 
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="historial-actor"
-            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-          >
-            Actor
-          </label>
-          <select
-            id="historial-actor"
-            name="actor"
-            defaultValue={actorFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            <option value="">Todos los actores</option>
-            {actorOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <form action="/gob/historial" method="get" className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="historial-action"
+              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+            >
+              Acción
+            </label>
+            <select
+              id="historial-action"
+              name="action"
+              defaultValue={selectedActionOption?.value ?? ""}
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            >
+              <option value="">Todas las acciones</option>
+              {actionOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="historial-from"
-            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-          >
-            Desde
-          </label>
-          <DateInputAr
-            id="historial-from"
-            name="from"
-            defaultValue={sp.from}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-        </div>
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="historial-actor"
+              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
+            >
+              Actor
+            </label>
+            <select
+              id="historial-actor"
+              name="actor"
+              defaultValue={actorFilter ?? ""}
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            >
+              <option value="">Todos los actores</option>
+              {actorOptions.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="historial-to"
-            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-          >
-            Hasta
-          </label>
-          <DateInputAr
-            id="historial-to"
-            name="to"
-            defaultValue={sp.to}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-        </div>
-
-        <OpButton type="submit" variant="primary" size="sm">
-          Filtrar
-        </OpButton>
-        {!isMineFilter && (
-          <a href={mineHref} className="text-sm text-ln-op-azul underline underline-offset-4">
-            Ver solo mi actividad
-          </a>
-        )}
-        {hasFilters && (
-          <a href="/gob/historial" className="text-sm text-ln-op-mute underline underline-offset-4">
-            Limpiar filtros
-          </a>
-        )}
-      </form>
+          <OpButton type="submit" variant="primary" size="sm">
+            Filtrar
+          </OpButton>
+          {!isMineFilter && (
+            <a href={mineHref} className="text-sm text-ln-op-azul underline underline-offset-4">
+              Ver solo mi actividad
+            </a>
+          )}
+          {hasFilters && (
+            <a
+              href="/gob/historial"
+              className="text-sm text-ln-op-mute underline underline-offset-4"
+            >
+              Limpiar filtros
+            </a>
+          )}
+        </form>
+      </div>
 
       {entries.length === 0 ? (
         <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
