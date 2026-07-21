@@ -1,7 +1,14 @@
 import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
-import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+  SearchFilterField,
+} from "@/components/ui/dashboard";
 import type { OrgTypeFilter, OrgVerifiedFilter } from "@/lib/infra/admin-search";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -87,43 +94,51 @@ export default async function OrganizacionesPage({
         </p>
       </header>
 
-      <form action={`${base}/organizaciones`} method="get" className="flex items-center gap-2">
-        <input
-          type="text"
-          name="q"
-          defaultValue={query}
-          aria-label="Buscar organizaciones por nombre, razón social o CUIT"
+      {/* Unified filter bar (opfilterbar-sweep2-2026-07-21 item 2) — migrated
+          off the bespoke GET form. Verificación and Tipo are both genuinely
+          "all shows everything" by default (no default-trap: the bespoke
+          raw selects already defaulted to "all", same semantics as an
+          OpFilterBar axis's own implicit blank "Todas" option), so both are
+          registered axes. Free-text query is NOT an axis (no enumerable
+          option set) — it renders via the shared SearchFilterField child,
+          same pattern as /gob/usuarios and /admin/casos. No time dimension on
+          a roster screen, so showPeriod={false}. Query param contract (q,
+          verified, orgType) and scope/permission behavior are unchanged. */}
+      <OpFilterBar
+        showPeriod={false}
+        axes={
+          [
+            {
+              id: "verified",
+              label: "Verificación",
+              paramKey: "verified",
+              options: (["verified", "pending"] as OrgVerifiedFilter[]).map((v) => ({
+                value: v,
+                label: VERIFIED_FILTER_LABELS[v],
+              })),
+              current: verifiedFilter === "all" ? null : verifiedFilter,
+              allLabel: "Todas",
+            },
+            {
+              id: "orgType",
+              label: "Tipo",
+              paramKey: "orgType",
+              options: (Object.keys(ORG_TYPE_FILTER_LABELS) as OrgTypeFilter[])
+                .filter((k) => k !== "all")
+                .map((k) => ({ value: k, label: ORG_TYPE_FILTER_LABELS[k] })),
+              current: orgTypeFilter === "all" ? null : orgTypeFilter,
+              allLabel: "Todos los tipos",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <SearchFilterField
+          paramKey="q"
+          value={query}
+          label="Buscar"
           placeholder="Buscar por nombre, razón social o CUIT"
-          className="flex-1 text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
-        <select
-          name="verified"
-          defaultValue={verifiedFilter}
-          aria-label="Filtrar por estado de verificación"
-          className="text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          {(Object.keys(VERIFIED_FILTER_LABELS) as OrgVerifiedFilter[]).map((key) => (
-            <option key={key} value={key}>
-              {VERIFIED_FILTER_LABELS[key]}
-            </option>
-          ))}
-        </select>
-        <select
-          name="orgType"
-          defaultValue={orgTypeFilter}
-          aria-label="Filtrar por tipo de organización"
-          className="text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          {(Object.keys(ORG_TYPE_FILTER_LABELS) as OrgTypeFilter[]).map((key) => (
-            <option key={key} value={key}>
-              {ORG_TYPE_FILTER_LABELS[key]}
-            </option>
-          ))}
-        </select>
-        <OpButton type="submit" variant="primary" size="sm">
-          Buscar
-        </OpButton>
-      </form>
+      </OpFilterBar>
 
       <p className="text-sm text-ln-op-mute">
         {results.length === 0

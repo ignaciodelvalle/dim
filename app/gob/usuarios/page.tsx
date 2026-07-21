@@ -7,22 +7,21 @@ import {
   OpCardBody,
   type OpFilterAxis,
   OpFilterBar,
-  OpKpi,
   OpPill,
   SearchFilterField,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
+import { fetchChipReplacementSignal } from "@/lib/analytics/compliance-metrics";
 import type { UserRoleFilter } from "@/lib/infra/admin-search";
 import { searchUsers } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { isTestAccount } from "@/lib/infra/test-accounts";
-import { TARGETS, buildProjectionContext, toneForTarget } from "@/lib/metrics";
+import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 import { deriveTargetHref } from "@/lib/ui/audit-target-link";
 import { portalBase } from "@/lib/ui/portal-base";
-import { formatPercent, pluralizeEs } from "@/lib/utils/format";
+import { pluralizeEs } from "@/lib/utils/format";
 import { logPiiReadSafely } from "@/src/modules/organizations/application/admin-proposals/log-pii-query";
 
 import { ProposeUserActions } from "./ProposeUserActions";
@@ -95,18 +94,21 @@ export default async function UsuariosPage({
     return qs ? `${base}/usuarios?${qs}` : `${base}/usuarios`;
   })();
 
-  // Registro & cumplimiento (Item 4): C2 ISO-validity (population-state) and C5
-  // chip-fraud signal (microchip_replaced flagged fraud/duplicate, last 12m).
-  // C5 surfaces replacements for HUMAN REVIEW only — it does not auto-classify.
+  // Registro & cumplimiento (Item 4): C5 chip-fraud signal (microchip_replaced
+  // flagged fraud/duplicate, last 12m) — surfaces replacements for HUMAN
+  // REVIEW only, it does not auto-classify. (The C2 ISO-validity KPI that used
+  // to sit alongside this was removed from this screen —
+  // opfilterbar-sweep2-2026-07-21 item 1: it's a chip/pet ISO-compliance
+  // metric, not a users-roster metric — it had nowhere to attach on a page
+  // about human accounts. The same ISO-validity signal already lives, in
+  // context, in the censo identification funnel — lib/metrics/census.ts's
+  // identificationFunnel() `isoValid` stage — so no coverage is lost.)
   const complianceCtx = buildProjectionContext(
     { role: profile.role },
     jurisdictions,
     windows.trailing12m(),
   );
-  const [isoValidity, chipSignal] = await Promise.all([
-    fetchIsoValidity(complianceCtx),
-    fetchChipReplacementSignal(complianceCtx),
-  ]);
+  const chipSignal = await fetchChipReplacementSignal(complianceCtx);
 
   // AC2: every PII read leaves a trail — both the typed-query search AND the
   // no-query landing (which still exposes the first N users' name/id/role).
@@ -135,35 +137,6 @@ export default async function UsuariosPage({
           detail={`${chipSignal.byReason.fraud_detected ?? 0} por fraude · ${chipSignal.byReason.duplicate_detected ?? 0} por duplicado · ${chipSignal.total} reemplazos en total (12m)`}
         />
       )}
-
-      {/* C2 — ISO-validity rate (Item 4, Res. SENASA 284/2024). */}
-      <section
-        aria-label="Registro y cumplimiento"
-        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
-      >
-        <OpKpi
-          label="Validez ISO de chips"
-          value={isoValidity.chipped === 0 ? "—" : formatPercent(isoValidity.ratePct)}
-          tone={
-            isoValidity.chipped === 0
-              ? "neutral"
-              : toneForTarget(isoValidity.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)
-          }
-          bar={isoValidity.chipped === 0 ? undefined : isoValidity.ratePct}
-          sub={
-            isoValidity.chipped === 0
-              ? "sin chips en cobertura"
-              : `${isoValidity.valid} de ${isoValidity.chipped} chips · meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ISO 11784/11785`
-          }
-          info={{
-            definition:
-              "Porcentaje de chips registrados en la cobertura que cumplen con la norma ISO 11784/11785 (identificación electrónica de animales). Meta interna: 80%.",
-            formula:
-              "COUNT(pet_identifications WHERE kind='microchip_iso' AND status='active' AND is_valid_iso=true) / COUNT(pet_identifications WHERE kind='microchip_iso' AND status='active') × 100",
-            caveat: `Meta recomendada: ${TARGETS.MICROCHIP_PENETRATION_PCT}%. Solo cuenta microchips con registro ISO activo en miMAR.`,
-          }}
-        />
-      </section>
 
       {/* Unified filter bar (F-migration 2026-07-21, off the bespoke GET
           <form>) — Rol is a registered axis ("todos los roles" is genuinely

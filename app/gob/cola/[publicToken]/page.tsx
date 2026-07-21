@@ -124,148 +124,144 @@ export default async function ReviewRequestPage({
   }
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Back link */}
-        <div>
-          <Link
-            href={`${base}/cola`}
-            className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
-          >
-            ← Volver a la cola
-          </Link>
+    <div className="space-y-6">
+      {/* Back link */}
+      <div>
+        <Link
+          href={`${base}/cola`}
+          className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
+        >
+          ← Volver a la cola
+        </Link>
+      </div>
+
+      {/* Page header */}
+      <header className="space-y-2">
+        <div className="flex items-center gap-2">
+          <OpPill tone={STATUS_PILL_TONE[request.status] ?? "neutral"}>
+            {STATUS_LABELS[request.status] ?? request.status}
+          </OpPill>
         </div>
+        <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
+          {TYPE_LABELS[request.type] ?? request.type}
+        </h1>
+        <p className="text-sm text-ln-op-mute flex flex-wrap gap-x-2 gap-y-1 items-center">
+          <OpCodeBadge tone="neutral">{request.publicToken}</OpCodeBadge>
+          <span>·</span>
+          <span>
+            {request.jurisdictionLocality}, {request.jurisdictionProvince}
+          </span>
+          <span>·</span>
+          <span>
+            creada{" "}
+            {new Date(request.createdAt).toLocaleString("es-AR", {
+              dateStyle: "short",
+              timeStyle: "short",
+              timeZone: AR_TIME_ZONE,
+            })}
+          </span>
+        </p>
+      </header>
 
-        {/* Page header */}
-        <header className="space-y-2">
-          <div className="flex items-center gap-2">
-            <OpPill tone={STATUS_PILL_TONE[request.status] ?? "neutral"}>
-              {STATUS_LABELS[request.status] ?? request.status}
-            </OpPill>
-          </div>
-          <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
-            {TYPE_LABELS[request.type] ?? request.type}
-          </h1>
-          <p className="text-sm text-ln-op-mute flex flex-wrap gap-x-2 gap-y-1 items-center">
-            <OpCodeBadge tone="neutral">{request.publicToken}</OpCodeBadge>
-            <span>·</span>
-            <span>
-              {request.jurisdictionLocality}, {request.jurisdictionProvince}
-            </span>
-            <span>·</span>
-            <span>
-              creada{" "}
-              {new Date(request.createdAt).toLocaleString("es-AR", {
-                dateStyle: "short",
-                timeStyle: "short",
-                timeZone: AR_TIME_ZONE,
-              })}
-            </span>
-          </p>
-        </header>
-
-        {/* Applicant — the DISPLAY NAME is the identity headline (UI/UX audit
+      {/* Applicant — the DISPLAY NAME is the identity headline (UI/UX audit
             2026-07); the email is demoted to a contact line below it. The
             approver verifies a PERSON, not an inbox. */}
-        <Section title="Aplicante">
-          <p className="text-[15px] font-semibold text-ln-op-ink">
-            {applicant?.displayName ?? "Usuario"}
-          </p>
+      <Section title="Aplicante">
+        <p className="text-[15px] font-semibold text-ln-op-ink">
+          {applicant?.displayName ?? "Usuario"}
+        </p>
+        <p className="text-sm text-ln-op-mute">
+          Rol actual: {ROLE_LABELS[applicant?.role ?? "owner"] ?? applicant?.role ?? "Dueño/a"}
+        </p>
+        {applicantEmail && <p className="text-sm text-ln-op-mute">Contacto: {applicantEmail}</p>}
+      </Section>
+
+      {/* Target org */}
+      {targetOrg && (
+        <Section title="Organización a verificar">
+          <p className="text-[13px] text-ln-op-ink">{targetOrg.displayName}</p>
           <p className="text-sm text-ln-op-mute">
-            Rol actual: {ROLE_LABELS[applicant?.role ?? "owner"] ?? applicant?.role ?? "Dueño/a"}
+            {targetOrg.legalName} ·{" "}
+            <OpCodeBadge tone="neutral">
+              {ORG_TYPE_LABELS[targetOrg.orgType] ?? targetOrg.orgType}
+            </OpCodeBadge>
           </p>
-          {applicantEmail && <p className="text-sm text-ln-op-mute">Contacto: {applicantEmail}</p>}
         </Section>
+      )}
 
-        {/* Target org */}
-        {targetOrg && (
-          <Section title="Organización a verificar">
-            <p className="text-[13px] text-ln-op-ink">{targetOrg.displayName}</p>
-            <p className="text-sm text-ln-op-mute">
-              {targetOrg.legalName} ·{" "}
-              <OpCodeBadge tone="neutral">
-                {ORG_TYPE_LABELS[targetOrg.orgType] ?? targetOrg.orgType}
-              </OpCodeBadge>
-            </p>
-          </Section>
+      {/* Detalle de la solicitud — curated fields only (no raw payload). */}
+      <Section title="Detalle de la solicitud">
+        {payloadRows.length === 0 ? (
+          <p className="text-sm text-ln-op-mute">
+            Esta solicitud no tiene datos estructurados adicionales.
+          </p>
+        ) : (
+          <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr]">
+            {payloadRows.map((row) => (
+              <div key={row.label} className="contents">
+                <dt className="text-sm text-ln-op-mute">{row.label}</dt>
+                <dd className="text-[13px] text-ln-op-ink">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
         )}
+      </Section>
 
-        {/* Detalle de la solicitud — curated fields only (no raw payload). */}
-        <Section title="Detalle de la solicitud">
-          {payloadRows.length === 0 ? (
-            <p className="text-sm text-ln-op-mute">
-              Esta solicitud no tiene datos estructurados adicionales.
-            </p>
-          ) : (
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[max-content_1fr]">
-              {payloadRows.map((row) => (
-                <div key={row.label} className="contents">
-                  <dt className="text-sm text-ln-op-mute">{row.label}</dt>
-                  <dd className="text-[13px] text-ln-op-ink">{row.value}</dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </Section>
-
-        {/* Matrícula: official-registry consultation aid (UI/UX audit 2026-07).
+      {/* Matrícula: official-registry consultation aid (UI/UX audit 2026-07).
             The matrícula number above is SELF-DECLARED — this block gives the
             approver the jurisdiction's college page to check it against. Every
             link is a documented public search page ("consulta manual"): no
             authoritative deep-link registry exists in the reference data. */}
-        {isVetMatricula && (
-          <Section title="Consulta del registro oficial">
-            {registryLink ? (
-              <p className="text-[13px] text-ln-op-ink">
-                <a
-                  href={registryLink.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-ln-op-azul underline underline-offset-4"
-                >
-                  {registryLink.label}
-                </a>{" "}
-                <OpCodeBadge tone="neutral">consulta manual</OpCodeBadge>
-              </p>
-            ) : (
-              <p className="text-sm text-ln-op-mute">
-                Sin registro en línea conocido para
-                {matriculaJurisdiccion
-                  ? ` “${matriculaJurisdiccion}”`
-                  : " la jurisdicción declarada"}
-                . Consultá al colegio profesional de esa jurisdicción antes de aprobar.
-              </p>
-            )}
-            <p className="text-sm text-ln-op-mute">
-              El número de matrícula es autodeclarado por el aplicante: verificalo contra el
-              registro antes de decidir.
-            </p>
-          </Section>
-        )}
-
-        {/* Decision section */}
-        {request.status === "pending" ? (
-          <Section title="Decidir">
-            <ReviewActions publicToken={request.publicToken} requestType={request.type} />
-          </Section>
-        ) : (
-          <Section title="Decisión">
+      {isVetMatricula && (
+        <Section title="Consulta del registro oficial">
+          {registryLink ? (
             <p className="text-[13px] text-ln-op-ink">
-              {STATUS_LABELS[request.status]}
-              {request.decidedAt &&
-                ` el ${new Date(request.decidedAt).toLocaleString("es-AR", {
-                  dateStyle: "short",
-                  timeStyle: "short",
-                  timeZone: AR_TIME_ZONE,
-                })}`}
+              <a
+                href={registryLink.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-ln-op-azul underline underline-offset-4"
+              >
+                {registryLink.label}
+              </a>{" "}
+              <OpCodeBadge tone="neutral">consulta manual</OpCodeBadge>
             </p>
-            {request.decisionNotes && (
-              <p className="text-sm text-ln-op-mute mt-1">Notas: {request.decisionNotes}</p>
-            )}
-          </Section>
-        )}
-      </div>
-    </main>
+          ) : (
+            <p className="text-sm text-ln-op-mute">
+              Sin registro en línea conocido para
+              {matriculaJurisdiccion ? ` “${matriculaJurisdiccion}”` : " la jurisdicción declarada"}
+              . Consultá al colegio profesional de esa jurisdicción antes de aprobar.
+            </p>
+          )}
+          <p className="text-sm text-ln-op-mute">
+            El número de matrícula es autodeclarado por el aplicante: verificalo contra el registro
+            antes de decidir.
+          </p>
+        </Section>
+      )}
+
+      {/* Decision section */}
+      {request.status === "pending" ? (
+        <Section title="Decidir">
+          <ReviewActions publicToken={request.publicToken} requestType={request.type} />
+        </Section>
+      ) : (
+        <Section title="Decisión">
+          <p className="text-[13px] text-ln-op-ink">
+            {STATUS_LABELS[request.status]}
+            {request.decidedAt &&
+              ` el ${new Date(request.decidedAt).toLocaleString("es-AR", {
+                dateStyle: "short",
+                timeStyle: "short",
+                timeZone: AR_TIME_ZONE,
+              })}`}
+          </p>
+          {request.decisionNotes && (
+            <p className="text-sm text-ln-op-mute mt-1">Notas: {request.decisionNotes}</p>
+          )}
+        </Section>
+      )}
+    </div>
   );
 }
 

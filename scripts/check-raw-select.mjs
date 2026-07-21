@@ -35,11 +35,14 @@ import { globSync, readFileSync } from "node:fs";
  *  audit/history family): /admin/alertas, /admin/auditoria, /gob/historial,
  *  /admin/historial migrated their bespoke <form>/OpCard filter rows to
  *  OpFilterBar (7 raw <select>s replaced by OpSelect-based axes/children).
+ *  Lowered again same day (consistency-sweep2-2026-07-21 item 2): /gob/org
+ *  (+ /admin/org re-export) migrated its bespoke Verificación/Tipo <select>s
+ *  to OpFilterBar axes — 2 raw <select>s gone (49 -> 48).
  *  Target: 0, via migration to LnSelect (citizen) / OpSelect (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 50;
+const BASELINE = 48;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;

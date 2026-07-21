@@ -80,104 +80,102 @@ export default async function ColaPage({
   const newerLink = rawCursor ? newerHref(`${base}/cola`, filterParams) : null;
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
-            {pageTitle}
-          </h1>
-          {subtitle && <p className="text-[13px] text-ln-op-mute">{subtitle}</p>}
-        </header>
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
+          {pageTitle}
+        </h1>
+        {subtitle && <p className="text-[13px] text-ln-op-mute">{subtitle}</p>}
+      </header>
 
-        {/*
-         * Type filter chips — links drop ?cursor so filters reset to page 1.
-         *
-         * NOTE on component choice: `OpPill` (components/ui/dashboard/OpPill.tsx)
-         * is a read-only STATUS/tone badge (open|escalated|closed|ok|…) — it has
-         * no Link/active-state API and is used exactly that way everywhere else
-         * in the codebase (see app/gob/cola/[publicToken]/page.tsx's status
-         * pill). Wrapping it as a clickable nav filter would be a misuse of its
-         * contract, not a kit migration. The kit's own `CaseQueue` component
-         * (components/ui/dashboard/CaseQueue.tsx:182-204) faces the identical
-         * problem — a URL-driven filter Link with an active/inactive style —
-         * and hand-rolls the SAME pattern rather than delegating to OpPill.
-         * That inline pattern (Link + aria-pressed + border/bg swap) is the
-         * closest thing this codebase has to a "canonical" filter chip, so
-         * these chips are aligned to CaseQueue's exact classes (added
-         * aria-pressed, matching hover:bg-ln-op-stripe) instead of forcing a
-         * status-badge component into a navigation role.
-         */}
-        <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
+      {/*
+       * Type filter chips — links drop ?cursor so filters reset to page 1.
+       *
+       * NOTE on component choice: `OpPill` (components/ui/dashboard/OpPill.tsx)
+       * is a read-only STATUS/tone badge (open|escalated|closed|ok|…) — it has
+       * no Link/active-state API and is used exactly that way everywhere else
+       * in the codebase (see app/gob/cola/[publicToken]/page.tsx's status
+       * pill). Wrapping it as a clickable nav filter would be a misuse of its
+       * contract, not a kit migration. The kit's own `CaseQueue` component
+       * (components/ui/dashboard/CaseQueue.tsx:182-204) faces the identical
+       * problem — a URL-driven filter Link with an active/inactive style —
+       * and hand-rolls the SAME pattern rather than delegating to OpPill.
+       * That inline pattern (Link + aria-pressed + border/bg swap) is the
+       * closest thing this codebase has to a "canonical" filter chip, so
+       * these chips are aligned to CaseQueue's exact classes (added
+       * aria-pressed, matching hover:bg-ln-op-stripe) instead of forcing a
+       * status-badge component into a navigation role.
+       */}
+      <nav aria-label="Filtrar por tipo" className="flex flex-wrap gap-2">
+        <Link
+          href={`${base}/cola`}
+          aria-pressed={!activeType}
+          className={[
+            "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
+            !activeType
+              ? "border-ln-op-azul bg-ln-op-azul text-white"
+              : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
+          ].join(" ")}
+        >
+          Todas
+        </Link>
+        {(APPROVAL_REQUEST_TYPES as readonly ApprovalRequestType[]).map((t) => (
           <Link
-            href={`${base}/cola`}
-            aria-pressed={!activeType}
+            key={t}
+            href={`${base}/cola?type=${t}`}
+            aria-pressed={activeType === t}
             className={[
               "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
-              !activeType
+              activeType === t
                 ? "border-ln-op-azul bg-ln-op-azul text-white"
                 : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
             ].join(" ")}
           >
-            Todas
+            {TYPE_LABELS[t]}
           </Link>
-          {(APPROVAL_REQUEST_TYPES as readonly ApprovalRequestType[]).map((t) => (
-            <Link
-              key={t}
-              href={`${base}/cola?type=${t}`}
-              aria-pressed={activeType === t}
-              className={[
-                "inline-flex items-center rounded-full border px-3.5 py-1 text-sm font-medium no-underline transition-colors",
-                activeType === t
-                  ? "border-ln-op-azul bg-ln-op-azul text-white"
-                  : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe",
-              ].join(" ")}
-            >
-              {TYPE_LABELS[t]}
-            </Link>
-          ))}
+        ))}
+      </nav>
+
+      <BulkApprovalQueueList
+        detailUrlPrefix={`${base}/cola`}
+        items={pending.map((req) => ({
+          publicToken: req.publicToken,
+          type: req.type,
+          typeLabel: TYPE_LABELS[req.type] ?? req.type,
+          applicantName: namesById.get(req.applicantUserId) ?? "Usuario",
+          jurisdiction: `${req.jurisdictionLocality}, ${req.jurisdictionProvince}`,
+          createdAt: formatDateShort(req.createdAt),
+        }))}
+      />
+
+      {/* Pagination footer */}
+      {(newerLink || olderLink) && (
+        <nav
+          aria-label="Paginación de cola"
+          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+        >
+          <div>
+            {newerLink && (
+              <Link
+                href={newerLink}
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                ← Más recientes
+              </Link>
+            )}
+          </div>
+          <div>
+            {olderLink && (
+              <Link
+                href={olderLink}
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
+              >
+                Ver más antiguos →
+              </Link>
+            )}
+          </div>
         </nav>
-
-        <BulkApprovalQueueList
-          detailUrlPrefix={`${base}/cola`}
-          items={pending.map((req) => ({
-            publicToken: req.publicToken,
-            type: req.type,
-            typeLabel: TYPE_LABELS[req.type] ?? req.type,
-            applicantName: namesById.get(req.applicantUserId) ?? "Usuario",
-            jurisdiction: `${req.jurisdictionLocality}, ${req.jurisdictionProvince}`,
-            createdAt: formatDateShort(req.createdAt),
-          }))}
-        />
-
-        {/* Pagination footer */}
-        {(newerLink || olderLink) && (
-          <nav
-            aria-label="Paginación de cola"
-            className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
-          >
-            <div>
-              {newerLink && (
-                <Link
-                  href={newerLink}
-                  className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
-                >
-                  ← Más recientes
-                </Link>
-              )}
-            </div>
-            <div>
-              {olderLink && (
-                <Link
-                  href={olderLink}
-                  className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
-                >
-                  Ver más antiguos →
-                </Link>
-              )}
-            </div>
-          </nav>
-        )}
-      </div>
-    </main>
+      )}
+    </div>
   );
 }

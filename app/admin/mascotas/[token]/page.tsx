@@ -33,13 +33,11 @@ export default async function AdminMascotaPage({ params }: PageProps) {
   if (!pet) notFound();
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <Link href="/admin" className="text-sm text-ln-op-mute hover:text-ln-op-ink-2">
-          ← Volver al panel
-        </Link>
-        <PetSubView pet={pet} />
-      </div>
-    </main>
+    <div className="space-y-6">
+      <Link href="/admin" className="text-sm text-ln-op-mute hover:text-ln-op-ink-2">
+        ← Volver al panel
+      </Link>
+      <PetSubView pet={pet} />
+    </div>
   );
 }

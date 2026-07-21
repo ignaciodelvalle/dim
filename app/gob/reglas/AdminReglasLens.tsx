@@ -10,12 +10,19 @@
 import { isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  SearchFilterField,
+} from "@/components/ui/dashboard";
 import { db, govtBusinessRules } from "@/db";
 import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { pluralizeEs } from "@/lib/utils/format";
+import { normalizeText } from "@/lib/utils/text-normalize";
 
 import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
@@ -25,9 +32,24 @@ type Props = {
    * 2026-07-02) — this lens renders under both /admin/reglas and /gob/reglas.
    */
   base: "/admin" | "/gob";
+  /**
+   * Free-text filter over jurisdiction (provincia/localidad) names
+   * (opfilterbar-sweep2-2026-07-21 item 3). Empty/undefined = show all.
+   *
+   * Why jurisdiction, not rule name/type: this screen is the index of the
+   * rules console, not a flat rules table — each provincia row shows an
+   * AGGREGATE COUNT per rule type, not individually named rule rows (those
+   * only exist one jurisdiction at a time, on the [country]/[province]/
+   * [locality] drill-down, capped at the ~9 GOVT_BUSINESS_RULE_TYPES — too
+   * short a list to benefit from search). The field an admin actually wants
+   * to search by HERE, scanning 24 provincias plus their localities, is the
+   * jurisdiction name itself, to jump straight to e.g. "Córdoba" or "San
+   * Isidro" instead of scrolling.
+   */
+  query?: string;
 };
 
-export async function AdminReglasLens({ base }: Props) {
+export async function AdminReglasLens({ base, query = "" }: Props) {
   // Defense in depth (R1.9): the parent page already branches on
   // profile.role === "admin", but this component re-asserts the stricter
   // admin-only guard independently.
@@ -81,6 +103,20 @@ export async function AdminReglasLens({ base }: Props) {
     localitiesByProvince.set(r.province, existing);
   }
 
+  // Search (item 3, see the `query` prop doc above) — accent/case-insensitive
+  // substring match, same normalizeText helper the admins/govts roster fix
+  // uses. A province is kept if ITS OWN name matches, or if any locality
+  // under it (one that already has a rule override) matches — so searching
+  // "san isidro" surfaces the Buenos Aires card, not a dead end.
+  const normalizedQuery = normalizeText(query);
+  const visibleProvinces = normalizedQuery
+    ? PROVINCES.filter((p) => {
+        if (normalizeText(p.name).includes(normalizedQuery)) return true;
+        const localities = localitiesByProvince.get(p.name) ?? [];
+        return localities.some((l) => normalizeText(l.locality).includes(normalizedQuery));
+      })
+    : PROVINCES;
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -93,6 +129,18 @@ export async function AdminReglasLens({ base }: Props) {
           {" → "}se usan los valores nacionales por defecto.
         </p>
       </header>
+
+      {/* Unified filter bar (opfilterbar-sweep2-2026-07-21 item 3) — this
+          screen had no filter at all. No period/jurisdiction axis (this IS
+          the jurisdiction browser), so just the free-text search child. */}
+      <OpFilterBar showPeriod={false}>
+        <SearchFilterField
+          paramKey="q"
+          value={query}
+          label="Buscar"
+          placeholder="Buscar provincia o localidad"
+        />
+      </OpFilterBar>
 
       {/* Country-level */}
       <OpCard>
@@ -123,8 +171,11 @@ export async function AdminReglasLens({ base }: Props) {
       <OpCard>
         <OpCardHead title="Provincias" />
         <OpCardBody className="p-0">
+          {visibleProvinces.length === 0 && (
+            <p className="px-4 py-3 text-[13px] text-ln-op-mute">Sin resultados.</p>
+          )}
           <ul>
-            {PROVINCES.map((p) => {
+            {visibleProvinces.map((p) => {
               const pwCount = provinceWideCount.get(p.name) ?? 0;
               const localities = localitiesByProvince.get(p.name) ?? [];
               const localityRuleCount = localities.reduce((sum, l) => sum + l.count, 0);

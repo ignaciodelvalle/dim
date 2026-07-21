@@ -26,12 +26,23 @@ const SOURCE_LABEL: Record<string, string> = {
   locality: "Override localidad",
 };
 
-export default async function ReglasPage() {
+export default async function ReglasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const { jurisdictions, profile } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
 
   if (profile.role === "admin") {
-    return <AdminReglasLens base={base} />;
+    // Search (opfilterbar-sweep2-2026-07-21 item 3) only applies to the admin
+    // lens: it's the jurisdiction browser (24 provincias + their localities),
+    // the screen that actually grows unwieldy to scan. The govt read-only
+    // cascade view below is pre-scoped to the viewer's own few assigned
+    // localities — always a short, already-filtered list — so a search
+    // control there would filter almost nothing.
+    const { q } = await searchParams;
+    return <AdminReglasLens base={base} query={(q ?? "").trim()} />;
   }
 
   return <GovtReglasReadOnlyView jurisdictions={jurisdictions} />;

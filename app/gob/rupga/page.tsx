@@ -2,14 +2,19 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
-import { OpButton, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpFilterBar,
+  OpPill,
+  SearchFilterField,
+} from "@/components/ui/dashboard";
 import {
   type ServiceDogCredentialStatusFilter,
   searchServiceDogCredentials,
 } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_TYPE_LABELS } from "@/lib/infra/service-dog-labels";
-import { portalBase } from "@/lib/ui/portal-base";
 import { pluralizeEs } from "@/lib/utils/format";
 
 import { RevokeServiceDogActions } from "./RevokeServiceDogActions";
@@ -57,7 +62,6 @@ export default async function RupgaPage({
   const query = (sp.q ?? "").trim();
   const statusFilter = parseCredentialStatus(sp.status);
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-  const base = await portalBase();
   const { items: results, truncated } = await searchServiceDogCredentials(
     query,
     { role: profile.role, jurisdictions },
@@ -80,21 +84,23 @@ export default async function RupgaPage({
         </p>
       </header>
 
-      <form action={`${base}/rupga`} method="get" className="flex items-center gap-2">
-        {/* Preserve the active status tab so a new search doesn't reset it. */}
-        {sp.status && <input type="hidden" name="status" value={sp.status} />}
-        <input
-          type="text"
-          name="q"
-          defaultValue={query}
-          aria-label="Buscar credenciales RUPGA por mascota, token o número"
+      {/* Unified filter bar (opfilterbar-sweep2-2026-07-21 item 5b) — migrated
+          off the bespoke GET <form>. Estado stays on UrlTabs (unchanged): its
+          real default is "vigente", not "show all" (honesty fix 2026-07-19
+          comment above) — the exact default-trap an OpFilterBar axis's own
+          implicit blank "Todas" option would reintroduce, so it is
+          deliberately NOT ported into an axis here. serverNavCommit merges
+          into the CURRENT query string, so the active status tab survives a
+          search commit with no hidden input needed (safer than the old
+          form's manual hidden field, which a future new param could forget). */}
+      <OpFilterBar showPeriod={false}>
+        <SearchFilterField
+          paramKey="q"
+          value={query}
+          label="Buscar"
           placeholder="Buscar por nombre de la mascota, token o número RUPGA"
-          className="flex-1 text-[var(--text-sm)] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
-        <OpButton type="submit" variant="primary" size="sm">
-          Buscar
-        </OpButton>
-      </form>
+      </OpFilterBar>
 
       <Suspense>
         <UrlTabs
