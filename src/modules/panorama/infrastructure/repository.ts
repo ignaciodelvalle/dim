@@ -1862,6 +1862,21 @@ export type AggregatedPointRows = {
    */
   noLocalityCount: number;
   truncated: boolean;
+  /**
+   * PROVINCE-grain fallback for the bivariate "riesgo de brotes" join (task
+   * panorama-bivariate-2026-07-21). Populated ONLY by `loadZoonosisByUnit` at
+   * `level === "province"` (the national overview — the console's own
+   * `resolveDataLevel` never requests "province" once a jurisdiction is
+   * drilled, so this is unambiguously the national case). Independent from
+   * `cells` above: the STANDALONE zoonosis point layer keeps painting the
+   * PO 2026-07-16 department-grain bubbles (`cells`) unchanged; this is a
+   * SEPARATE province-level rollup + k=5 pass consumed ONLY by the bivariate
+   * signal axis, whose coverage partner (cobertura) is province-grain — the
+   * ~500 near-empty department cells were almost all sub-k, so the 3×3 join
+   * refused at national scope 100% of the time. Undefined for every other
+   * loader / level.
+   */
+  provinceSignal?: AggregatedPointCell[];
 };
 
 /**
@@ -2384,6 +2399,84 @@ export async function loadDenunciasByUnit(
 // centroid. Mirrors loadOutbreakSignals in scope + period clauses.
 // ---------------------------------------------------------------------------
 
+/**
+ * Fold a per-(province, locality) rollup up to PROVINCE grain (sum counts —
+ * each event lives in exactly one locality, so summing is exact, never an
+ * estimate) and apply k=5 suppression at THAT grain (task
+ * panorama-bivariate-2026-07-21 — the bivariate join's province-grain
+ * fallback; see `AggregatedPointRows.provinceSignal`).
+ *
+ * Complementary suppression groups ALL rows into ONE national bucket — NOT
+ * per-province like the department fold's `group: r => r.province` (there,
+ * many department siblings share a province to protect against; here, each
+ * row IS a province, so the sibling pool is the whole country). This defends
+ * against the SAME differencing attack one level up: `loadZoonosisSignalScopeTotal`
+ * publishes the unsuppressed NATIONAL sum for the KPI, so a lone suppressed
+ * province would otherwise be recoverable as `nationalTotal − Σ(visible
+ * provinces)`. With ≥2 provinces suppressed the subtraction is ambiguous
+ * (textbook complementary-suppression logic), so only the n===1 case needs
+ * (and gets) a promoted sibling.
+ *
+ * Never lowers k, never fabricates a count: a suppressed province still
+ * carries `count: null` — its exact value is as unrecoverable here as at
+ * department grain, just aggregated over a coarser (larger, safer) unit.
+ */
+function toProvinceSignalCells(rollup: readonly RollupRow[]): AggregatedPointCell[] {
+  const byProvince = new Map<string, number>();
+  for (const r of rollup) {
+    byProvince.set(r.province, (byProvince.get(r.province) ?? 0) + r.count);
+  }
+  type ProvinceRow = {
+    key: string;
+    province: string;
+    centroidLat: string | null;
+    centroidLng: string | null;
+    count: number;
+  };
+  const provinceRows: ProvinceRow[] = Array.from(byProvince, ([province, n]) => ({
+    key: province,
+    province,
+    ...provinceRepresentativeCentroid(province),
+    count: n,
+  }));
+  const primary = suppressSmallCells(provinceRows, {
+    count: (r) => r.count,
+    key: (r) => r.key,
+    k: 5,
+  });
+  const { visible, suppressed } = complementarySuppress(
+    primary.visible as unknown as readonly ProvinceRow[],
+    primary.suppressed,
+    { group: () => "national", count: (r) => r.count },
+  );
+  const cells: AggregatedPointCell[] = [];
+  for (const r of visible) {
+    cells.push({
+      key: r.key,
+      province: r.province,
+      locality: null,
+      departmentCode: null,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: r.count,
+      suppressed: false,
+    });
+  }
+  for (const r of suppressed) {
+    cells.push({
+      key: r.key,
+      province: r.province,
+      locality: null,
+      departmentCode: null,
+      centroidLat: r.centroidLat,
+      centroidLng: r.centroidLng,
+      count: null,
+      suppressed: true,
+    });
+  }
+  return cells;
+}
+
 export async function loadZoonosisByUnit(
   level: AggregationLevel,
   actor: DashboardActor,
@@ -2497,7 +2590,22 @@ export async function loadZoonosisByUnit(
   // department signal (count < 5) is suppressed, never rendered raw. `truncated` still
   // reflects the LOCALITY query cap (the fold only shrinks).
   const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
-  return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
+  // Bivariate province-grain fallback (task panorama-bivariate-2026-07-21): ONLY
+  // at the national overview (level="province" — the console's resolveDataLevel
+  // never requests this once a jurisdiction is drilled in, so this IS the national
+  // case). Folds the SAME raw pre-suppression `rollup` straight to province (skips
+  // the department step entirely) and suppresses at k=5 there — 24 provinces
+  // instead of ~500 departments, so a real signal clears k almost everywhere
+  // instead of almost nowhere. Independent of `cells` above: the STANDALONE
+  // zoonosis point layer keeps its PO 2026-07-16 department bubbles untouched.
+  const provinceSignal = level === "province" ? toProvinceSignalCells(rollup) : undefined;
+  return {
+    cells,
+    suppressedCount,
+    noLocalityCount,
+    truncated: rollup.length >= PER_LAYER_CAP,
+    provinceSignal,
+  };
 }
 
 /**

@@ -160,6 +160,92 @@ describe("outbreak/zoonosis surfaces count REAL outbreak_signal events (schema-d
     expect(cell?.count).toBeNull();
   }, 30_000);
 
+  // task panorama-bivariate-2026-07-21: the bivariate join's signal axis was
+  // refused at national scope because loadZoonosisByUnit's k=5 suppression ran
+  // at DEPARTMENT grain (~500 units, almost all sub-k). This proves the NEW
+  // `provinceSignal` fallback (a) PAINTS well-populated provinces at national
+  // scope, (b) still HONESTLY SUPPRESSES a genuinely sparse one — k-anon is
+  // never weakened, just applied at a coarser (safer) unit — and (c) still runs
+  // COMPLEMENTARY suppression a level up from the department grain: with
+  // loadZoonosisSignalScopeTotal publishing the unsuppressed NATIONAL sum for
+  // the KPI, a LONE suppressed province would otherwise be recoverable by
+  // subtracting the visible provinces from that total, so the smallest visible
+  // province must ALSO fold into suppression whenever exactly one primary
+  // suppression happens nationally.
+  it("loadZoonosisByUnit's provinceSignal fallback clears k=5, suppresses a sparse province, and complements the lone suppression", async () => {
+    const BIG_PROVINCE = "PANORAMA-BIVAR-PROV-BIG"; // 10 — safely visible
+    const MED_PROVINCE = "PANORAMA-BIVAR-PROV-MED"; // 5 — clears k ALONE, but is the
+    // smallest VISIBLE province nationally, so it gets promoted (complementary).
+    const SMALL_PROVINCE = "PANORAMA-BIVAR-PROV-SMALL"; // 2 — primary-suppressed
+    const insertOutbreak = (province: string, locality: string) =>
+      insertEvent("outbreak_signal", {
+        triggered_by: "direct_diagnosis",
+        source_symptom_event_id: null,
+        source_disease_diagnosis_event_id: randomUUID(),
+        disease_code: "rabies_suspected",
+        disease_label: "Rabia (sospechada)",
+        match_strength: { high_count: 0, medium_count: 0, low_count: 0, matched_symptom_codes: [] },
+        pet_jurisdiction_country: "AR",
+        pet_jurisdiction_province: province,
+        pet_jurisdiction_locality: locality,
+        pet_species: "dog",
+      });
+
+    // 10 signals (clears k=5) in the "big" province, spread over two synthetic
+    // localities — provinceSignal sums ACROSS localities independent of the
+    // department fold `cells` uses, proving the two grains are computed
+    // separately from the same raw rollup.
+    for (let i = 0; i < 5; i += 1) await insertOutbreak(BIG_PROVINCE, "PANORAMA-BIVAR-LOC-1");
+    for (let i = 0; i < 5; i += 1) await insertOutbreak(BIG_PROVINCE, "PANORAMA-BIVAR-LOC-2");
+    // 5 signals — clears k=5 alone, but is the smallest VISIBLE province once
+    // SMALL_PROVINCE below is primary-suppressed.
+    for (let i = 0; i < 5; i += 1) await insertOutbreak(MED_PROVINCE, "PANORAMA-BIVAR-LOC-3");
+    // 2 signals (sub-k) — primary-suppressed. Needs to be the ONLY suppressed
+    // province in the national scope this query sees for the n===1 promotion
+    // rule to fire — see the PROVINCE/LOCALITY top-up below.
+    await insertOutbreak(SMALL_PROVINCE, "PANORAMA-BIVAR-LOC-4");
+    await insertOutbreak(SMALL_PROVINCE, "PANORAMA-BIVAR-LOC-4");
+    // This suite's OWN beforeAll already seeded ONE outbreak_signal for
+    // (PROVINCE, LOCALITY) = ("Santa Fe", "PANORAMA-ZOON-ISO") within the SAME
+    // SINCE window — an ambient 2nd sub-k province that would make
+    // suppressedPerGroup["national"] === 2 and SILENTLY DISABLE the n===1
+    // complementary-promotion path this test exists to prove. Top it up to 5
+    // (clears k on its own) so SMALL_PROVINCE stays the lone suppressed cell.
+    await insertOutbreak(PROVINCE, LOCALITY);
+    await insertOutbreak(PROVINCE, LOCALITY);
+    await insertOutbreak(PROVINCE, LOCALITY);
+    await insertOutbreak(PROVINCE, LOCALITY);
+
+    // Admin, no jurisdictions/adminProvince → national, unrestricted scope
+    // (jurisdictionColumnsScope: "admin, no province → null (no restriction)").
+    const res = await loadZoonosisByUnit("province", { role: "admin" }, [], SINCE);
+    expect(res.provinceSignal).toBeDefined();
+    const cells = res.provinceSignal ?? [];
+
+    const big = cells.find((c) => c.province === BIG_PROVINCE);
+    expect(big).toBeDefined();
+    expect(big?.suppressed).toBe(false);
+    expect(big?.count).toBe(10);
+
+    const small = cells.find((c) => c.province === SMALL_PROVINCE);
+    expect(small).toBeDefined();
+    expect(small?.suppressed).toBe(true);
+    expect(small?.count).toBeNull();
+
+    // Complementary suppression: MED clears k=5 on its own, but is the smallest
+    // VISIBLE province nationally while exactly one OTHER province (SMALL) is
+    // primary-suppressed — so it is ALSO withheld (never a raw count), closing
+    // the `nationalTotal − Σvisible` differencing gap.
+    const med = cells.find((c) => c.province === MED_PROVINCE);
+    expect(med).toBeDefined();
+    expect(med?.suppressed).toBe(true);
+    expect(med?.count).toBeNull();
+
+    // These synthetic events share `petId` with the suite's fixture pet, so the
+    // shared `cleanup()` in afterAll deletes them too — nothing extra to tear
+    // down here.
+  }, 30_000);
+
   it("loadUnitHistory('zoonosis') returns the outbreak_signal", async () => {
     const hist = await loadUnitHistory({
       layer: "zoonosis",

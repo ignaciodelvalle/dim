@@ -212,6 +212,13 @@ type ApiResponse = {
   /** Honesty (panorama QA 2026-07-14): the server returned its budget/failure
    *  fallback — an empty that must never read as a real "sin datos". */
   degraded?: boolean;
+  /**
+   * task panorama-bivariate-2026-07-21: province-grain, k=5-suppressed fallback
+   * for the bivariate "riesgo de brotes" join's signal axis. Present only on the
+   * zoonosis response at `level=province` (the national overview); undefined
+   * everywhere else. See `LayerFeaturesResult.bivariateSignal` server-side jsdoc.
+   */
+  bivariateSignal?: FeatureCollection;
 };
 
 // The two choropleth layer ids — the only layers the aggregation level affects.
@@ -698,6 +705,16 @@ export function PanoramaConsole({
         : new Map();
     })(),
   );
+
+  // task panorama-bivariate-2026-07-21: the province-grain, k=5-suppressed
+  // fallback for the bivariate join's signal axis (currently only "zoonosis"
+  // populates it — see ApiResponse.bivariateSignal jsdoc). Kept SEPARATE from
+  // provinceDataRef so the standalone signal layer keeps painting its PO
+  // 2026-07-16 department-grain bubbles unchanged; only the two bivariate
+  // read sites below consult this cache. No server seed (first-visit cold
+  // start behaves like any other not-yet-fetched cache: the bivariate
+  // eligibility memos already treat a missing entry as "not computed yet").
+  const bivariateSignalRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
 
   // U5 aggregation axis — the granularity TOGGLE. Distinct from the scope filter
   // (JurisdictionSwitcher narrows WHAT is shown; this changes HOW the choropleth
@@ -1305,6 +1322,7 @@ export function PanoramaConsole({
     }
     asOfDataRef.current.clear();
     provinceDataRef.current.clear();
+    bivariateSignalRef.current.clear();
     for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
     for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
     setAsOf(null);
@@ -1359,6 +1377,7 @@ export function PanoramaConsole({
           const body = (await res.json()) as ApiResponse;
           if (currentLevel === "province") {
             provinceDataRef.current.set(l.id, body.features);
+            if (body.bivariateSignal) bivariateSignalRef.current.set(l.id, body.bivariateSignal);
           } else {
             dataRef.current.set(l.id, body.features);
           }
@@ -1976,8 +1995,12 @@ export function PanoramaConsole({
         });
         if (!res.ok) return null;
         const body = (await res.json()) as ApiResponse;
-        if (lvl === "province") provinceDataRef.current.set(id, body.features);
-        else dataRef.current.set(id, body.features);
+        if (lvl === "province") {
+          provinceDataRef.current.set(id, body.features);
+          if (body.bivariateSignal) bivariateSignalRef.current.set(id, body.bivariateSignal);
+        } else {
+          dataRef.current.set(id, body.features);
+        }
         return body;
       } catch (err) {
         // RETHROW aborts: `null` means "failed" to callers (they run the
@@ -2069,6 +2092,7 @@ export function PanoramaConsole({
             const body = (await res.json()) as ApiResponse;
             if (levelSensitive && lvl === "province") {
               provinceDataRef.current.set(id, body.features);
+              if (body.bivariateSignal) bivariateSignalRef.current.set(id, body.bivariateSignal);
             } else {
               dataRef.current.set(id, body.features);
             }
@@ -2168,6 +2192,7 @@ export function PanoramaConsole({
       // locality entries).
       asOfDataRef.current.clear();
       provinceDataRef.current.clear();
+      bivariateSignalRef.current.clear();
       for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
       for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
       setAsOf(null);
@@ -2647,7 +2672,15 @@ export function PanoramaConsole({
     void asOfVersion;
     if (!bivariateEligible || !bivariatePair) return null;
     const cov = provinceDataRef.current.get(bivariatePair.coverage);
-    const sig = provinceDataRef.current.get(bivariatePair.signal);
+    // task panorama-bivariate-2026-07-21: prefer the province-grain bivariate
+    // fallback (currently only zoonosis populates it) over the standalone
+    // province cache, which for zoonosis carries PO 2026-07-16 department-grain
+    // cells — near-empty at national scope, refusing on "count" almost always.
+    // Falls back to provinceDataRef for a signal that isn't national-department
+    // grain (e.g. mordeduras in the ppp×mordeduras pair), unaffected either way.
+    const sig =
+      bivariateSignalRef.current.get(bivariatePair.signal) ??
+      provinceDataRef.current.get(bivariatePair.signal);
     if (!cov || !sig || cov.features.length === 0) return null;
     return bivariateRefusalReason(cov, sig, BIVARIATE_MIN_UNITS);
   }, [bivariateEligible, bivariatePair, levelVersion, asOfVersion]);
@@ -2739,7 +2772,10 @@ export function PanoramaConsole({
     }
     if (!bivariateActive || !bivariatePair) return activeLayers;
     const cov = provinceDataRef.current.get(bivariatePair.coverage);
-    const sig = provinceDataRef.current.get(bivariatePair.signal);
+    // Mirrors the eligibility memo above — same province-grain fallback preference.
+    const sig =
+      bivariateSignalRef.current.get(bivariatePair.signal) ??
+      provinceDataRef.current.get(bivariatePair.signal);
     if (!cov || !sig || cov.features.length === 0) return activeLayers;
     const cells = buildBivariateCells(cov, sig);
     return activeLayers
@@ -2990,6 +3026,7 @@ export function PanoramaConsole({
         // Clear all caches — an explicit preset commit always starts fresh.
         dataRef.current.clear();
         provinceDataRef.current.clear();
+        bivariateSignalRef.current.clear();
         asOfDataRef.current.clear();
         setAsOf(null);
       }
@@ -3197,6 +3234,7 @@ export function PanoramaConsole({
       // province rollups, and the period-sensitive locality entries.
       asOfDataRef.current.clear();
       provinceDataRef.current.clear();
+      bivariateSignalRef.current.clear();
       for (const id of CHOROPLETH_IDS) dataRef.current.delete(id);
       for (const l of AGGREGATED_POINT_LAYERS) dataRef.current.delete(l.id);
       setAsOf(null);
@@ -3546,6 +3584,7 @@ export function PanoramaConsole({
     if (periodChanged) {
       dataRef.current.clear();
       provinceDataRef.current.clear();
+      bivariateSignalRef.current.clear();
       asOfDataRef.current.clear();
     }
     presetCommittedQsRef.current = scopePeriodQsOf(nextParams);

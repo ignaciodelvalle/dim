@@ -548,6 +548,73 @@ describe("getLayerFeatures — zoonosis (F1 aggregated signal point)", () => {
     expect(mockLoadZoonosis).toHaveBeenCalledOnce();
     expect(result.mode).toBeUndefined();
   });
+
+  // task panorama-bivariate-2026-07-21: the province-grain fallback for the
+  // bivariate join's signal axis. `loadZoonosisByUnit` carries it as
+  // `provinceSignal` on the AggregatedPointRows envelope; getLayerFeatures must
+  // surface it as `bivariateSignal` — a SEPARATE FeatureCollection from the
+  // primary (still department-grain) `features` the standalone layer paints.
+  it("surfaces provinceSignal as a separate bivariateSignal FeatureCollection", async () => {
+    mockLoadZoonosis.mockResolvedValue(
+      aggRows({
+        provinceSignal: [
+          {
+            key: "Buenos Aires",
+            province: "Buenos Aires",
+            locality: null,
+            centroidLat: "-36.6769000",
+            centroidLng: "-60.5588000",
+            count: 55,
+            suppressed: false,
+          },
+          {
+            key: "Tierra del Fuego",
+            province: "Tierra del Fuego",
+            locality: null,
+            centroidLat: "-54.0000000",
+            centroidLng: "-68.0000000",
+            count: null,
+            suppressed: true,
+          },
+        ],
+      }),
+    );
+
+    const result = await getLayerFeatures(
+      "zoonosis",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(result.bivariateSignal).toBeDefined();
+    expect(result.bivariateSignal?.features).toHaveLength(2);
+    const props = result.bivariateSignal?.features.map((f) => f.properties);
+    expect(props).toContainEqual(
+      expect.objectContaining({ province: "Buenos Aires", count: 55, suppressed: false }),
+    );
+    expect(props).toContainEqual(
+      expect.objectContaining({ province: "Tierra del Fuego", count: null, suppressed: true }),
+    );
+    // The primary `features` (department-grain, the standalone layer's paint
+    // data) stays independent of the bivariate fallback — untouched by it.
+    expect(result.features).not.toBe(result.bivariateSignal);
+  });
+
+  it("leaves bivariateSignal undefined when the loader doesn't set provinceSignal (e.g. at locality level)", async () => {
+    mockLoadZoonosis.mockResolvedValue(aggRows());
+
+    const result = await getLayerFeatures(
+      "zoonosis",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "locality",
+    );
+
+    expect(result.bivariateSignal).toBeUndefined();
+  });
 });
 
 describe("getLayerFeatures — sintomas (F1 aggregated point, panorama-operator-ia port)", () => {

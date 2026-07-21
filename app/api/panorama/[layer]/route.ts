@@ -224,6 +224,10 @@ export async function GET(request: Request, ctx: { params: Promise<{ layer: stri
         mode: result.mode,
         sinUbicacionCount: result.sinUbicacionCount ?? 0,
         degraded: result.degraded ?? false,
+        // task panorama-bivariate-2026-07-21: province-grain fallback for the
+        // bivariate join's signal axis — set only for zoonosis at level=province
+        // (see LayerFeaturesResult.bivariateSignal jsdoc). Undefined elsewhere.
+        bivariateSignal: result.bivariateSignal,
       },
       { headers },
     );

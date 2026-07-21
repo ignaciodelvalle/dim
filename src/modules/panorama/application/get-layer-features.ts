@@ -125,6 +125,17 @@ export type LayerFeaturesResult = {
    * "no pudimos calcular esta capa a tiempo" state instead of an empty map.
    */
   degraded?: boolean;
+  /**
+   * Bivariate province-grain fallback (task panorama-bivariate-2026-07-21).
+   * Set ONLY by the "zoonosis" case at `level === "province"` (the national
+   * overview) — a SEPARATE province-level rollup, k=5-suppressed at that grain,
+   * for the "riesgo de brotes" bivariate join's signal axis. The primary
+   * `features` above are UNCHANGED (still the PO 2026-07-16 department-grain
+   * bubbles the standalone zoonosis layer paints); this is additional, join-only
+   * data so the 3×3 encoding's cells match its cobertura partner's province
+   * grain instead of refusing on ~500 near-empty department cells.
+   */
+  bivariateSignal?: FeatureCollection;
 };
 
 const empty = (): LayerFeaturesResult => ({
@@ -172,6 +183,12 @@ function aggregatedPointResult(
     // surface the residual the same way the choropleth path does. 0 at province level.
     noLocalityCount: result.noLocalityCount,
     level,
+    // task panorama-bivariate-2026-07-21: only `loadZoonosisByUnit` ever sets
+    // `provinceSignal` (province-grain, k=5-suppressed at that grain); every other
+    // aggregated-point loader leaves it undefined, so this is a no-op for them.
+    bivariateSignal: result.provinceSignal
+      ? buildAggregatedPointFeatures(result.provinceSignal)
+      : undefined,
   };
 }
 
