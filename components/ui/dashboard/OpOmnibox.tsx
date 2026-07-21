@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
+import { Icon, type IconName } from "@/components/Icon";
 import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
 import type { CaseStatus } from "@/db/schema";
 import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
@@ -56,6 +57,15 @@ type Group = {
   key: "pets" | "persons" | "cases";
   label: string;
   items: OmniboxResult[];
+};
+
+// One glyph per entity type — lets the operator scan the grouped dropdown by
+// shape, not just by reading the heading. Names resolve in the central Icon
+// registry (@/components/Icon).
+const GROUP_ICON: Record<Group["key"], IconName> = {
+  pets: "paw",
+  persons: "users",
+  cases: "nota",
 };
 
 // Flatten the grouped results into a single ordered list so arrow-key
@@ -214,6 +224,12 @@ export function OpOmnibox({
 
   return (
     <div className="relative">
+      <Icon
+        name="search"
+        size={15}
+        decorative
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ln-op-mute"
+      />
       <input
         ref={inputRef}
         type="text"
@@ -237,8 +253,8 @@ export function OpOmnibox({
           setTimeout(() => setOpen(false), 150);
         }}
         onKeyDown={onInputKeyDown}
-        placeholder={orgToken ? "Buscar mascota…" : "Buscar persona o caso…"}
-        className="w-48 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-64 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-56 md:focus:w-72 transition-[width]"
+        placeholder={orgToken ? "Buscar mascota…" : "Buscar nombre, DNI o caso…"}
+        className="w-48 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-64 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-56 md:focus:w-72 transition-[width]"
       />
 
       {/* Keyboard shortcut hint — only when empty + unfocused-ish (always shown
@@ -296,7 +312,7 @@ export function OpOmnibox({
                   ? "Probá con el nombre de la mascota o su código (DIM-…)."
                   : queriedDimToken
                     ? "El buscador de operadores no accede al padrón de mascotas. Una mascota aparece acá solo si tiene un caso (CAS-…) o una denuncia (DEN-…) asociada: buscá por ese código."
-                    : "Probá con un código de caso (CAS-…), de denuncia (DEN-…), o nombre y apellido."}
+                    : "Probá con un código de caso (CAS-…), de denuncia (DEN-…), o nombre, apellido o DNI."}
               </p>
             </div>
           )}
@@ -304,7 +320,8 @@ export function OpOmnibox({
           {!loading &&
             groups.map((group) => (
               <div key={group.key} className="border-b border-ln-op-line-2 last:border-b-0">
-                <p className="px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                <p className="flex items-center gap-1.5 px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                  <Icon name={GROUP_ICON[group.key]} size={12} decorative />
                   {group.label}
                 </p>
                 {group.items.map((item) => {

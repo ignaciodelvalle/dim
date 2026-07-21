@@ -21,7 +21,15 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db, organizations, ownerships, petServiceDog, pets, profiles } from "@/db";
 import type { ServiceDogType, orgTypeEnum } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
+import { hashDni } from "@/lib/utils/dni-hash";
 import { likeContains } from "@/lib/utils/like-helpers";
+
+// A trimmed query that is ALL DIGITS and 7-8 chars long is treated as a DNI
+// (Argentine DNI space) rather than a name fragment — operators paste the
+// number they have on hand, not a partial name that happens to be numeric.
+function looksLikeDni(trimmed: string): boolean {
+  return /^\d{7,8}$/.test(trimmed);
+}
 
 export type UserSearchResult = {
   id: string;
@@ -60,12 +68,12 @@ const SEARCH_LIMIT = 25;
 // Larger limit for the default (no-query) paginated listing.
 const DEFAULT_LIST_LIMIT = 50;
 
-// Look up users by display_name.
+// Look up users by display_name, OR by exact DNI when the query looks like one.
 // Wave 5 Item 25a: DNI is no longer stored in plaintext — prefix search on
-// dni_number is removed. Searching by exact DNI now requires the full number
-// to compute its hash (hashDni(input)) and match against profiles.dni_hash.
-// That capability (exact-hash lookup) can be wired in a future item when the
-// admin search UX explicitly requests it.
+// dni_number is removed. Exact DNI lookup (search/omnibox-upgrade, 2026-07-19)
+// computes hashDni(query) and matches profiles.dni_hash by equality — see the
+// looksLikeDni / textPredicate construction below for the union with the name
+// search.
 //
 // Empty query returns a default list ordered by role priority then display
 // name, limited to DEFAULT_LIST_LIMIT rows so the page is always useful on
@@ -151,9 +159,21 @@ export async function searchUsers(
   const pattern = likeContains(trimmed);
   // Use unaccent() so "gonzalez" finds "González" (Postgres ILIKE folds case
   // but NOT diacritics). Wildcard-safe via likeContains().
-  // Wave 5 Item 25a: dni_number is gone — search by display_name only.
-  // Exact DNI lookup (future): hashDni(input) → WHERE dni_hash = <hash>.
-  const textPredicate = sql`unaccent(${profiles.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`;
+  //
+  // Wave 5 Item 25a removed dni_number (plaintext); dni_hash is the only DNI
+  // column left, and it is an equality-only column — it cannot support a
+  // "contains" search. When the trimmed query LOOKS like a DNI (all digits,
+  // 7-8 chars, looksLikeDni above) we ALSO match on hashDni(query) = dni_hash,
+  // unioned (OR) with the name search rather than replacing it — an operator
+  // pasting a DNI should never lose the ability to instead be typing a numeric
+  // display name fragment. hashDni() is deterministic (HMAC-SHA256 + server
+  // pepper, lib/utils/dni-hash.ts): computing it here and comparing by
+  // equality never touches plaintext DNI storage, preserving the "no DNI in
+  // plaintext" invariant while still giving operators exact-match lookup.
+  const namePredicate = sql`unaccent(${profiles.displayName}) ILIKE unaccent(${pattern}) ESCAPE '\'`;
+  const textPredicate = looksLikeDni(trimmed)
+    ? or(namePredicate, eq(profiles.dniHash, hashDni(trimmed)))
+    : namePredicate;
   const whereClause =
     scopeConditions.length > 0 ? and(textPredicate, ...scopeConditions) : textPredicate;
 

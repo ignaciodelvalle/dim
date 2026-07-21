@@ -34,7 +34,9 @@ vi.mock("@/db", () => ({
     displayName: "profiles.displayName",
     role: "profiles.role",
     matriculaJurisdiccion: "profiles.matriculaJurisdiccion",
-    // Wave 5 Item 25a: no plaintext DNI — displayName search only.
+    // Wave 5 Item 25a: no plaintext DNI. search/omnibox-upgrade: a DNI-shaped
+    // query additionally matches dniHash by equality (hashDni), unioned with
+    // the display_name search — still under the SAME jurisdiction scope.
     dniHash: "profiles.dniHash",
     // Migration 0109 — excludes system/service accounts from admin rosters.
     isSystem: "profiles.isSystem",
@@ -88,6 +90,27 @@ describe("searchUsers — jurisdiction scope guard", () => {
     });
     expect(result).toEqual([]);
     // No early return: the search query actually executed.
+    expect(mockSelect).toHaveBeenCalledTimes(1);
+  });
+
+  // search/omnibox-upgrade — DNI search must NOT become a jurisdiction-scope
+  // bypass. The DNI-hash predicate lives inside textPredicate, which is ANDed
+  // with the same scope conditions as the name search, so these guards must
+  // hold identically for a DNI-shaped query ("12345678") as for a name.
+  it("a DNI-shaped query still short-circuits a govt viewer with zero assignments — WITHOUT querying", async () => {
+    const result = await searchUsers("12345678", { role: "govt", jurisdictions: [] });
+    expect(result).toEqual([]);
+    // The DNI path does not punch a hole in the fail-closed guard.
+    expect(mockSelect).not.toHaveBeenCalled();
+  });
+
+  it("a DNI-shaped query for a govt viewer with a jurisdiction reaches the scoped query", async () => {
+    const result = await searchUsers("12345678", {
+      role: "govt",
+      jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
+    });
+    expect(result).toEqual([]);
+    // Reaches the DB — under the same jurisdiction scope as the name search.
     expect(mockSelect).toHaveBeenCalledTimes(1);
   });
 });
