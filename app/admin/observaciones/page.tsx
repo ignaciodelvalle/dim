@@ -1,12 +1,29 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpCallout, OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import {
+  OpBreach,
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+} from "@/components/ui/dashboard";
+import { db, ownerships, petEvents, profiles } from "@/db";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import {
+  type ObservacionesScope,
+  fetchObservaciones,
+  parseObservacionEstado,
+} from "@/lib/metrics/observaciones-query";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { formatDateShort, speciesLabel } from "@/lib/utils/format";
-import type { RabiesObservationStatus } from "@/src/modules/surveillance/domain/rabies-observation";
+import {
+  RABIES_OBSERVATION_STATUSES,
+  type RabiesObservationStatus,
+} from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -41,81 +58,99 @@ function formatRelative(date: Date | null): string {
   return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
 }
 
-export default async function ObservacionesPage() {
+export default async function ObservacionesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string; province?: string; locality?: string }>;
+}) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const eyebrow = surveillanceEyebrow(profile.role);
 
-  // Active observations + recently completed (last 30 days).
-  const since30 = new Date(Date.now() - 30 * DAY_MS);
-  const baseConditions = [
-    sql`(
-      ${pets.rabiesObservationStatus} = 'in_progress'
-      OR EXISTS (
-        SELECT 1 FROM ${petEvents}
-        WHERE ${petEvents.petId} = ${pets.id}
-          AND ${petEvents.eventType} = 'rabies_observation_ended'
-          AND ${petEvents.occurredAt} >= ${since30.toISOString()}
-      )
-    )`,
-  ];
+  const header = (
+    <header className="space-y-1">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
+      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        Observaciones antirrábicas
+      </h1>
+    </header>
+  );
 
-  if (profile.role === "govt") {
-    if (jurisdictions.length === 0) {
-      return (
-        <div className="space-y-6">
-          <header className="space-y-1">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-              {eyebrow}
-            </p>
-            <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-              Observaciones antirrábicas
-            </h1>
-          </header>
-          <OpBreach
-            title="Sin localidades asignadas"
-            detail="Pedí a un administrador que te asigne al menos una localidad para operar."
-          />
-        </div>
-      );
-    }
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+  // Govt with zero assignments has nothing to scope a filter bar over —
+  // same early-return precedent as /gob/casos, /gob/vigilancia.
+  if (profile.role === "govt" && jurisdictions.length === 0) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <OpBreach
+          title="Sin localidades asignadas"
+          detail="Pedí a un administrador que te asigne al menos una localidad para operar."
+        />
+      </div>
     );
-    baseConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
   }
 
-  const rows = await db
-    .select({
-      petId: pets.id,
-      petPublicToken: pets.publicToken,
-      petName: pets.name,
-      species: pets.species,
-      province: pets.jurisdictionProvince,
-      locality: pets.jurisdictionLocality,
-      status: pets.rabiesObservationStatus,
-    })
-    .from(pets)
-    .where(and(...baseConditions))
-    // W1: the single "En curso" observation must LEAD — it is the only row that
-    // needs a professional cierre. Recently-completed rows are reference only, so
-    // they sort AFTER the active ones (the badge counts in_progress; the list
-    // must not bury it under ~20 "Cerrada negativa"). Name is a stable tiebreak.
-    .orderBy(sql`(${pets.rabiesObservationStatus} = 'in_progress') DESC`, pets.name)
-    .limit(500);
+  const sp = searchParams ? await searchParams : {};
+  const statusFilter = parseObservacionEstado(sp.status);
+
+  // THE FENCE — same resolver every other govt/admin scoped screen uses
+  // (/gob/vigilancia, /gob/programa): govt narrowing only ever intersects
+  // DOWN against the session's own jurisdiction assignments; admin gets a
+  // universal scope with an optional province/locality drill.
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
+
+  const scope: ObservacionesScope =
+    profile.role === "admin"
+      ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
+      : { role: "govt", jurisdictions: filteredJurisdictions };
+
+  const rows = await fetchObservaciones(scope, { status: statusFilter });
+
+  // Unified filter bar (F-migration 2026-07-21 — observaciones previously had
+  // NO filter at all, PO: "observaciones directamente no tiene filtro").
+  // Estado is a registered axis: the no-param default is the composite
+  // in_progress+recent-completed view above, which IS genuinely "all
+  // statuses" (not one specific status), so OpFilterBar's own injected blank
+  // "Todas" option is honest here — no CasoEstadoFilter-style trap.
+  // Jurisdiction reuses the same scoped allowedProvinces/localities every
+  // other govt/admin screen wires through `jurisdiction`, preserving the
+  // govt-fenced / admin-universal split.
+  const filterBar = (
+    <OpFilterBar
+      showPeriod={false}
+      jurisdiction={{ allowedProvinces, localities }}
+      axes={
+        [
+          {
+            id: "status",
+            label: "Estado",
+            paramKey: "status",
+            options: RABIES_OBSERVATION_STATUSES.map((s) => ({ value: s, label: STATUS_LABEL[s] })),
+            current: statusFilter,
+            allLabel: "Todas",
+          },
+        ] satisfies OpFilterAxis[]
+      }
+    />
+  );
 
   if (rows.length === 0) {
     return (
       <div className="space-y-6">
-        <header className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Observaciones antirrábicas
-          </h1>
-        </header>
+        {header}
+        {filterBar}
         <OpCallout
-          title="Sin observaciones activas"
-          body="No hay observaciones activas ni cierres recientes en tu cobertura."
+          title="Sin observaciones"
+          body="No hay observaciones que coincidan con estos filtros en tu cobertura."
         />
       </div>
     );
@@ -163,22 +198,18 @@ export default async function ObservacionesPage() {
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Observaciones antirrábicas
-        </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas
-          requieren cierre profesional cuando hubo síntomas escalables; las completadas se muestran
-          como referencia (últimos 30 días).
-        </p>
-      </header>
+      {header}
+      <p className="text-[13px] text-ln-op-ink-2">
+        Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas requieren
+        cierre profesional cuando hubo síntomas escalables; las completadas se muestran como
+        referencia (últimos 30 días) salvo que filtres por un estado específico.
+      </p>
+      {filterBar}
 
       <ul className="space-y-2">
         {rows.map((r) => {
           const started = startedByPet.get(r.petId);
-          const status = (r.status ?? "in_progress") as RabiesObservationStatus;
+          const status = r.status;
           return (
             <li key={r.petId}>
               <OpCard>

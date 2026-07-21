@@ -16,9 +16,8 @@
 // no individual-level scoring of citizens anywhere in this pipeline, and none
 // may be added. k=5 suppression is applied or inherited on all three surfaces.
 
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -194,9 +193,11 @@ export default async function AdminInteligenciaPage({
     <div className="space-y-6">
       {header}
 
-      <div className="flex justify-end">
-        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
-      </div>
+      {/* Unified filter bar — period only (F-migration 2026-07-21, off the
+          bare <PeriodPicker>), same bar chrome as every other operator
+          dashboard. No domain axes: every number here is already a
+          territorial aggregate, not a filterable per-row list. */}
+      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
 
       {/* KPI row */}
       <section

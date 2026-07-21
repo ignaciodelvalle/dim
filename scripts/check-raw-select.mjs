@@ -39,7 +39,7 @@ import { globSync, readFileSync } from "node:fs";
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 54;
+const BASELINE = 50;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;

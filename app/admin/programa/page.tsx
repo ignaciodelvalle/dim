@@ -21,9 +21,16 @@ import { toggleAlertSubscriptionAction } from "@/app/actions/alert-subscriptions
 import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertSubscriptionButton";
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpButton, OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import {
+  OpButton,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
@@ -218,10 +225,11 @@ export default async function AdminProgramaPage({
       {/* Page header */}
       {header}
 
-      {/* Period filter */}
-      <div className="flex justify-end">
-        <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
-      </div>
+      {/* Unified filter bar — period only (F-migration 2026-07-21, off the
+          bare <PeriodPicker>). Admin scope is universal (parity with
+          /gob/programa's OpFilterBar, minus the jurisdiction axis that only
+          makes sense for a govt viewer with assignments). */}
+      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
 
       {/* North-Star KPI strip */}
       <section

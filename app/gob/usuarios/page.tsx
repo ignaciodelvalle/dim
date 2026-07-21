@@ -1,7 +1,16 @@
 import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
-import { OpBreach, OpButton, OpCard, OpCardBody, OpKpi, OpPill } from "@/components/ui/dashboard";
+import {
+  OpBreach,
+  OpCard,
+  OpCardBody,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+  OpPill,
+  SearchFilterField,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchChipReplacementSignal, fetchIsoValidity } from "@/lib/analytics/compliance-metrics";
 import type { UserRoleFilter } from "@/lib/infra/admin-search";
@@ -156,30 +165,37 @@ export default async function UsuariosPage({
         />
       </section>
 
-      <form action={`${base}/usuarios`} method="get" className="flex items-center gap-2">
-        <input
-          type="text"
-          name="q"
-          defaultValue={query}
+      {/* Unified filter bar (F-migration 2026-07-21, off the bespoke GET
+          <form>) — Rol is a registered axis ("todos los roles" is genuinely
+          the no-param default). The free-text "Buscar" query is NOT an axis
+          (a free-text value has no enumerable option set — an axis's
+          implicit "" ⇒ blank-"Todas" option only fits a bounded value set),
+          so it renders via the shared SearchFilterField child instead. */}
+      <OpFilterBar
+        showPeriod={false}
+        axes={
+          [
+            {
+              id: "role",
+              label: "Rol",
+              paramKey: "role",
+              options: (["owner", "vet", "govt", "admin"] as UserRoleFilter[]).map((r) => ({
+                value: r,
+                label: ROLE_FILTER_LABELS[r],
+              })),
+              current: roleFilter === "all" ? null : roleFilter,
+              allLabel: "Todos los roles",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <SearchFilterField
+          paramKey="q"
+          value={query}
+          label="Buscar"
           placeholder="Buscar por nombre"
-          className="flex-1 text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
-        <select
-          name="role"
-          defaultValue={roleFilter}
-          aria-label="Filtrar por rol"
-          className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        >
-          {(Object.keys(ROLE_FILTER_LABELS) as UserRoleFilter[]).map((key) => (
-            <option key={key} value={key}>
-              {ROLE_FILTER_LABELS[key]}
-            </option>
-          ))}
-        </select>
-        <OpButton type="submit" variant="primary" size="sm">
-          Buscar
-        </OpButton>
-      </form>
+      </OpFilterBar>
 
       <p className="text-sm text-ln-op-mute">
         {results.length === 0

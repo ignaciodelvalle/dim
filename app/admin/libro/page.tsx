@@ -12,10 +12,16 @@
 
 import Link from "next/link";
 
-import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { EventLedgerTable } from "@/components/admin/EventLedgerTable";
-import { DateInputAr } from "@/components/ui/DateInputAr";
-import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import {
+  DateRangeFilterFields,
+  JurisdictionFilterFields,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
@@ -176,91 +182,73 @@ export default async function AdminLibroPage({
         </p>
       </header>
 
-      {/* Filter bar — GET form, resets the keyset cursor on submit */}
-      <form
-        method="get"
-        action="/admin/libro"
-        className="flex flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3"
-        aria-label="Filtros del libro de eventos"
-      >
-        <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
-          Tipo de evento
-          <select
-            name="tipo"
-            defaultValue={sp.tipo ?? ""}
-            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-          >
-            <option value="">Todos</option>
-            {FILTER_EVENT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {eventTypeLabel(t)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
-          Rol del actor
-          <select
-            name="rol"
-            defaultValue={sp.rol ?? ""}
-            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-          >
-            <option value="">Todos</option>
-            {FILTER_AUTHOR_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {AUTHOR_ROLE_OPTION_LABELS[r]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Canonical province <select> + province-scoped locality typeahead —
-            replaces the old free-text inputs so only existing jurisdictions can
-            be filtered. Shared <JurisdictionFilter> (used across the system). */}
-        <JurisdictionFilter
-          provinceParam="provincia"
-          localityParam="localidad"
-          defaultProvince={sp.provincia ?? ""}
-          defaultLocality={sp.localidad ?? ""}
-          labelClassName="flex flex-col gap-1 text-[11px] text-ln-op-mute"
-          selectClassName="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-        />
-
-        <label htmlFor="libro-desde" className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
-          Desde
-          <DateInputAr
-            id="libro-desde"
-            name="desde"
-            defaultValue={sp.desde}
-            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-          />
-        </label>
-
-        <label htmlFor="libro-hasta" className="flex flex-col gap-1 text-[11px] text-ln-op-mute">
-          Hasta
-          <DateInputAr
-            id="libro-hasta"
-            name="hasta"
-            defaultValue={sp.hasta}
-            className="h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[13px] text-ln-op-ink"
-          />
-        </label>
-
-        <div className="flex items-center gap-2">
-          <OpButton type="submit" variant="primary" className="h-11 px-4">
-            Aplicar
-          </OpButton>
-          {hasActiveFilters && (
+      {/* Unified filter bar (F-migration 2026-07-21, off the bespoke GET
+          <form>) — Tipo/Rol are registered axes (both no-param defaults are
+          genuinely "todos", no blank-option trap). Provincia/Localidad and
+          Desde/Hasta render as `children` — OpFilterBar's own `jurisdiction`
+          prop targets <JurisdictionSwitcher> (ISO code + locality slug); this
+          screen's existing filter is keyed on NAMES (JurisdictionFilter's
+          wire contract), so it renders via the dedicated
+          JurisdictionFilterFields child instead of forcing a scheme
+          conversion. Desde/Hasta has NO default bound (genuinely unbounded,
+          same as /admin/alertas + /admin/auditoria), so it is NOT the bar's
+          own `period` prop — DateRangeFilterFields owns that contract.
+          Both children forms drop the keyset `cursor` on commit, same as the
+          axes (resetParamsOnChange). "Limpiar" (clears every filter,
+          including the two non-axis children — axis-only "Limpiar todo"
+          can't reach them) stays a plain link in the header actions slot. */}
+      <OpFilterBar
+        showPeriod={false}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "tipo",
+              label: "Tipo de evento",
+              paramKey: "tipo",
+              options: FILTER_EVENT_TYPES.map((t) => ({ value: t, label: eventTypeLabel(t) })),
+              current: eventType ?? null,
+              allLabel: "Todos",
+            },
+            {
+              id: "rol",
+              label: "Rol del actor",
+              paramKey: "rol",
+              options: FILTER_AUTHOR_ROLES.map((r) => ({
+                value: r,
+                label: AUTHOR_ROLE_OPTION_LABELS[r],
+              })),
+              current: authorRole ?? null,
+              allLabel: "Todos",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+        actions={
+          hasActiveFilters ? (
             <Link
               href="/admin/libro"
-              className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-stripe"
+              className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
             >
               Limpiar
             </Link>
-          )}
-        </div>
-      </form>
+          ) : null
+        }
+      >
+        <JurisdictionFilterFields
+          provinceParam="provincia"
+          localityParam="localidad"
+          provinceValue={sp.provincia}
+          localityValue={sp.localidad}
+          resetParamsOnChange={["cursor"]}
+        />
+        <DateRangeFilterFields
+          fromKey="desde"
+          toKey="hasta"
+          fromValue={sp.desde}
+          toValue={sp.hasta}
+          resetParamsOnChange={["cursor"]}
+        />
+      </OpFilterBar>
 
       {/* Stream + amendment + replay */}
       <OpCard>

@@ -49,6 +49,10 @@ export { CasoEstadoFilter, parseCasoEstado } from "./CasoEstadoFilter";
 export type { CasoEstado } from "./CasoEstadoFilter";
 export { DateRangeFilterFields } from "./DateRangeFilterFields";
 export type { DateRangeFilterFieldsProps } from "./DateRangeFilterFields";
+export { JurisdictionFilterFields } from "./JurisdictionFilterFields";
+export type { JurisdictionFilterFieldsProps } from "./JurisdictionFilterFields";
+export { SearchFilterField } from "./SearchFilterField";
+export type { SearchFilterFieldProps } from "./SearchFilterField";
 export { AuditMineToggle } from "./AuditMineToggle";
 export type { AuditMineToggleProps } from "./AuditMineToggle";
 export {
