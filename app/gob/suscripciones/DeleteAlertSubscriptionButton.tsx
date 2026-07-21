@@ -2,11 +2,14 @@
 
 // C10 — 2-step inline confirmation for deleting an alert subscription.
 //
-// The page (/admin/programa) is a server component; only this button is a
-// client component. It posts to the existing deleteAlertSubscriptionAction
-// server action via a plain <form>, gated behind an idle → confirming step
-// (mirrors DeleteRuleButton's pattern). No reason capture — alert subscriptions
-// are operator-owned config, not an audited destructive action.
+// Moved from app/admin/programa/ (2026-07-21, page promotion): this is now
+// used by the canonical /gob/suscripciones page (and by extension its
+// /admin/suscripciones thin wrapper). The page is a server component; only
+// this button is a client component. It posts to the existing
+// deleteAlertSubscriptionAction server action via a plain <form>, gated
+// behind an idle → confirming step (mirrors DeleteRuleButton's pattern). No
+// reason capture — alert subscriptions are operator-owned config, not an
+// audited destructive action.
 
 import { useState } from "react";
 

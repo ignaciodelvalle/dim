@@ -1,7 +1,7 @@
 // /admin/programa — Resumen ejecutivo del programa (Paquete H).
 //
 // Executive summary: North-Star KPIs + outliers + PII oversight + data quality
-// + cron health + threshold alert subscriptions.
+// + cron health.
 //
 // Data sources:
 //   fetchEnoSla          ← lib/surveillance-metrics.ts  (A7)
@@ -13,17 +13,17 @@
 //   registryCounts       ← lib/metrics/census.ts  (total registradas)
 //   fetchSterilizationCoverage ← lib/metrics/population-control.ts
 //   fetchMicrochipPenetration  ← lib/compliance-metrics.ts
-//   evaluateAlertSubscriptions ← lib/metrics/alert-evaluation.ts
+//
+// MOVED (2026-07-21): the embedded "Alertas y suscripciones" panel
+// (evaluateAlertSubscriptions + create/toggle/delete) was promoted to its own
+// page at /admin/suscripciones (thin wrapper over /gob/suscripciones) — see
+// that file for the full rationale. This page keeps only a discovery link.
 
 import { inArray } from "drizzle-orm";
 
-import { toggleAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
-import { DeleteAlertSubscriptionButton } from "@/app/admin/programa/DeleteAlertSubscriptionButton";
-import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
-  OpButton,
   OpCard,
   OpCardBody,
   OpCardHead,
@@ -47,7 +47,6 @@ import {
   TARGETS,
   buildProjectionContext,
   enoSlaTone,
-  evaluateAlertSubscriptions,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
   fetchPiiOversight,
@@ -56,10 +55,9 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
-import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
-import { createClient } from "@/lib/supabase/server";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { AR_TIME_ZONE, formatDateShort, formatPercent } from "@/lib/utils/format";
 
@@ -83,20 +81,6 @@ const METRIC_LABEL: Record<string, string> = {
   microchip: "Microchip",
 };
 
-const ALERT_METRIC_LABEL: Record<string, string> = {
-  active_zoonosis: KPI_CATALOG.active_zoonosis_signals.label,
-  eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
-  queue_oldest_days: "Días sin atender (solicitud más antigua)",
-  sterilization_coverage_pct: "Cobertura de esterilización (%)",
-  microchip_penetration_pct: "Penetración de microchip (%)",
-  open_welfare_reports: "Denuncias de maltrato abiertas",
-};
-
-const ALERT_DIRECTION_LABEL: Record<string, string> = {
-  above: "encima de",
-  below: "debajo de",
-};
-
 // es-AR labels for the PII-oversight "surface" dimension (operator search origin).
 const SURFACE_LABEL: Record<string, string> = {
   users: "Usuarios",
@@ -110,13 +94,6 @@ export default async function AdminProgramaPage({
   searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
   await requireAdminOrRedirect();
-
-  // Resolve the current user id for alert subscription evaluation.
-  const supabase = await createClient();
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
-  const currentUserId = currentUser?.id ?? null;
 
   const sp = searchParams ? await searchParams : {};
   const { resolveAnalyticsPeriod } = await import("@/lib/metrics/period");
@@ -134,6 +111,12 @@ export default async function AdminProgramaPage({
       <p className="text-[13px] text-ln-op-mute">
         KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII.
       </p>
+      <a
+        href="/admin/suscripciones"
+        className="inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+      >
+        Alertas y suscripciones →
+      </a>
     </header>
   );
 
@@ -149,9 +132,6 @@ export default async function AdminProgramaPage({
       fetchDataQuality(adminCtx),
       fetchCrossJurisdictionOutliers(adminCtx),
       fetchPiiOversight(adminCtx),
-      currentUserId
-        ? evaluateAlertSubscriptions(currentUserId, { role: "admin" })
-        : Promise.resolve([]),
       fetchRabiesVaccinationTrend(adminCtx),
     ]),
   );
@@ -178,7 +158,6 @@ export default async function AdminProgramaPage({
     dataQuality,
     outliers,
     piiOversight,
-    alertEvals,
     rabiesTrend,
   ] = load.value;
 
@@ -189,8 +168,6 @@ export default async function AdminProgramaPage({
   // counts axis. The coverage-% forecast is deferred to Fase J3.
   const rabiesForecast = projectSeries(rabiesTrend.points, { horizon: 3 });
   const hasRabiesTrend = rabiesTrend.points.length > 0;
-
-  const breachingAlerts = alertEvals.filter((a) => a.breaching);
 
   // Batch-resolve actor UUIDs in the PII oversight table to display names.
   const actorIds = piiOversight
@@ -218,7 +195,6 @@ export default async function AdminProgramaPage({
   const panelPiiId = "admin-programa-pii-titulo";
   const panelQualityId = "admin-programa-calidad-titulo";
   const panelCronsId = "admin-programa-crons-titulo";
-  const panelAlertasId = "admin-programa-alertas-titulo";
 
   return (
     <div className="space-y-6">
@@ -641,112 +617,6 @@ export default async function AdminProgramaPage({
           </OpCardBody>
         </OpCard>
       </div>
-
-      {/* Alertas / suscripciones — Paquete H */}
-      <OpCard
-        aria-labelledby={panelAlertasId}
-        accent={breachingAlerts.length > 0 ? "danger" : undefined}
-      >
-        <OpCardHead title={<span id={panelAlertasId}>Alertas y suscripciones</span>} />
-        <OpCardBody>
-          {/* (a) Alertas activas — breaching subscriptions */}
-          <section aria-label="Alertas activas" className="mb-5">
-            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
-              Alertas activas
-            </h4>
-            {breachingAlerts.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">Sin alertas activas.</p>
-            ) : (
-              <ul className="space-y-2">
-                {breachingAlerts.map((a) => (
-                  <li
-                    key={a.id}
-                    className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[13px] text-ln-op-danger"
-                  >
-                    <span className="font-semibold">
-                      {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
-                    </span>
-                    {a.jurisdictionProvince ? (
-                      <span className="ml-1 text-[11px] text-ln-op-mute">
-                        ({a.jurisdictionProvince})
-                      </span>
-                    ) : null}
-                    {" — "}
-                    actual{" "}
-                    <span className="font-semibold">
-                      {a.currentValue !== null ? a.currentValue.toLocaleString("es-AR") : "—"}
-                    </span>{" "}
-                    {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction} umbral{" "}
-                    <span className="font-semibold">
-                      {Number(a.threshold).toLocaleString("es-AR")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* (b) Mis suscripciones — all subscriptions list with delete / toggle */}
-          <section aria-label="Mis suscripciones" className="mb-5">
-            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
-              Mis suscripciones
-            </h4>
-            {alertEvals.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">
-                Sin suscripciones configuradas. Creá una abajo.
-              </p>
-            ) : (
-              <ul className="divide-y divide-ln-op-line-2">
-                {alertEvals.map((a) => (
-                  <li key={a.id} className="flex items-center gap-3 py-2 text-[13px]">
-                    <div className="flex-1">
-                      <span className={a.isActive ? "text-ln-op-ink" : "text-ln-op-mute"}>
-                        {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
-                      </span>
-                      {a.jurisdictionProvince ? (
-                        <span className="ml-1 text-[11px] text-ln-op-mute">
-                          ({a.jurisdictionProvince})
-                        </span>
-                      ) : null}
-                      <span className="ml-2 text-[11px] text-ln-op-mute">
-                        {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction}{" "}
-                        {Number(a.threshold).toLocaleString("es-AR")}
-                      </span>
-                      {!a.isActive && (
-                        <span className="ml-2 text-[11px] text-ln-op-mute italic">(inactiva)</span>
-                      )}
-                    </div>
-                    {/* Toggle active/inactive */}
-                    <form action={toggleAlertSubscriptionAction}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <input type="hidden" name="isActive" value={a.isActive ? "false" : "true"} />
-                      <OpButton
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
-                        className="h-11 px-3"
-                      >
-                        {a.isActive ? "Pausar" : "Activar"}
-                      </OpButton>
-                    </form>
-                    {/* Delete — 2-step inline confirmation (C10) */}
-                    <DeleteAlertSubscriptionButton subscriptionId={a.id} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* (c) Crear suscripción form */}
-          <section aria-label="Crear suscripción">
-            <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
-              Crear suscripción
-            </h4>
-            <AlertSubscriptionForm />
-          </section>
-        </OpCardBody>
-      </OpCard>
 
       <DashboardFreshnessFooter ctx={adminCtx} />
     </div>

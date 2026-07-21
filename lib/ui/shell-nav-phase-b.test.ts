@@ -51,6 +51,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
   // operators (2026-07-09 audit), matches nav-presets.test.ts.
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
+  "/gob/suscripciones", // promoted out of /gob/programa's alert sub-panel (2026-07-21)
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
@@ -74,6 +75,7 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/moderacion",
   "/admin/casos",
   "/admin/alertas", // WS-K — bandeja de alertas + triage
+  "/admin/suscripciones", // promoted out of /admin/programa's alert sub-panel (2026-07-21)
   "/admin/censo", // Paquete E — censo poblacional & salud del registro
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
   "/admin/poblacion", // Paquete G — control poblacional (North Star)

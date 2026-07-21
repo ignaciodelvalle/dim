@@ -5,9 +5,10 @@
 // Business logic moved to:
 //   src/modules/alerts/application/subscriptions/
 //
-// This file provides thin action wrappers (used by /admin/programa and
-// /gob/programa) that add the auth guard + revalidatePath, plus the input
-// type. The bare ForUser writers are NOT exported here (authz triage
+// This file provides thin action wrappers (used by /gob/suscripciones and
+// its /admin/suscripciones thin wrapper — moved out of /admin/programa and
+// /gob/programa on 2026-07-21) that add the auth guard + revalidatePath, plus
+// the input type. The bare ForUser writers are NOT exported here (authz triage
 // 2026-07-04): every export of a "use server" file is an independently-
 // addressable server action, so a bare writer taking a caller-supplied
 // userId would let any client manage another user's subscriptions. Callers
@@ -62,7 +63,8 @@ export async function createAlertSubscriptionAction(
   const result = await _createAlertSubscriptionForUser(user.id, input);
   if ("error" in result) return result;
 
-  revalidatePath("/admin/programa");
+  revalidatePath("/gob/suscripciones");
+  revalidatePath("/admin/suscripciones");
   return { ok: true, id: result.id };
 }
 
@@ -73,7 +75,8 @@ export async function deleteAlertSubscriptionAction(formData: FormData): Promise
   if (!id) return;
 
   await _deleteAlertSubscriptionForUser(user.id, id);
-  revalidatePath("/admin/programa");
+  revalidatePath("/gob/suscripciones");
+  revalidatePath("/admin/suscripciones");
 }
 
 export async function toggleAlertSubscriptionAction(formData: FormData): Promise<void> {
@@ -84,5 +87,6 @@ export async function toggleAlertSubscriptionAction(formData: FormData): Promise
   const isActive = formData.get("isActive") === "true";
 
   await _toggleAlertSubscriptionForUser(user.id, id, isActive);
-  revalidatePath("/admin/programa");
+  revalidatePath("/gob/suscripciones");
+  revalidatePath("/admin/suscripciones");
 }

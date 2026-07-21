@@ -398,6 +398,14 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       // the one unique figure (total ENO notifications) moved into Programa's
       // SLA KPI. /gob/sistema still exists as a redirect for deep links.
       { href: "/gob/outbox", label: "Bandeja de salida", matchPrefix: "/gob/outbox" },
+      // Promoted out of the /gob/programa "Alertas y suscripciones" sub-panel
+      // (2026-07-21) — threshold alert subscription management now has its
+      // own destination. Admin twin: /admin/suscripciones.
+      {
+        href: "/gob/suscripciones",
+        label: "Alertas y suscripciones",
+        matchPrefix: "/gob/suscripciones",
+      },
     ],
   },
   {
@@ -461,6 +469,15 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       // admin chrome. The old /admin→/gob 308s for these paths are GONE.
       { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
       { href: "/admin/alertas", label: "Alertas", matchPrefix: "/admin/alertas" },
+      // Promoted out of the /admin/programa "Alertas y suscripciones"
+      // sub-panel (2026-07-21) — thin wrapper over /gob/suscripciones
+      // (portal-follows-viewer). Sits next to the alert INBOX (/admin/alertas)
+      // since both are part of the same threshold-alert domain.
+      {
+        href: "/admin/suscripciones",
+        label: "Alertas y suscripciones",
+        matchPrefix: "/admin/suscripciones",
+      },
       { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
       { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
       { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },

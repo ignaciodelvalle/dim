@@ -4,10 +4,14 @@
 //   KEEP: registryCounts, fetchSterilizationCoverage, fetchMicrochipPenetration,
 //         fetchEnoSla, fetchDataQuality, fetchCrossJurisdictionOutliers (relabeled
 //         "Tus provincias" — returns only the govt's assigned provinces),
-//         fetchPiiOversight (scoped to govt actors in their jurisdiction),
-//         evaluateAlertSubscriptions (per-user, unchanged).
+//         fetchPiiOversight (scoped to govt actors in their jurisdiction).
 //   REPLACE: fetchQueueHealth() → fetchQueueHealthScoped(filteredJurisdictions)
 //   DROP: fetchCronRuns() — platform infra, admin-meta, not gov data.
+//
+// MOVED (2026-07-21): the embedded "Alertas y suscripciones" panel
+// (evaluateAlertSubscriptions + create/toggle/delete) was promoted to its own
+// page at /gob/suscripciones — see that file for the full rationale. This
+// page keeps only a discovery link to it.
 //
 // Fold from /gob/sistema (2026-07-09 audit, PO-ratified): for a govt operator,
 // /gob/sistema's KPIs (ENO SLA %, scoped queue aging) were already rendered
@@ -21,20 +25,8 @@
 
 import { inArray } from "drizzle-orm";
 
-import {
-  deleteAlertSubscriptionAction,
-  toggleAlertSubscriptionAction,
-} from "@/app/actions/alert-subscriptions";
-import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import {
-  OpButton,
-  OpCard,
-  OpCardBody,
-  OpCardHead,
-  OpFilterBar,
-  OpKpi,
-} from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
@@ -49,36 +41,20 @@ import {
   TARGETS,
   buildProjectionContext,
   enoSlaTone,
-  evaluateAlertSubscriptions,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
   fetchPiiOversight,
   toneForTarget,
 } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
-import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
-import { createClient } from "@/lib/supabase/server";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { formatDateShort, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
-
-const ALERT_METRIC_LABEL: Record<string, string> = {
-  active_zoonosis: KPI_CATALOG.active_zoonosis_signals.label,
-  eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
-  queue_oldest_days: "Días sin atender (solicitud más antigua)",
-  sterilization_coverage_pct: "Cobertura de esterilización (%)",
-  microchip_penetration_pct: "Penetración de microchip (%)",
-  open_welfare_reports: "Denuncias de maltrato abiertas",
-};
-
-const ALERT_DIRECTION_LABEL: Record<string, string> = {
-  above: "encima de",
-  below: "debajo de",
-};
 
 const METRIC_LABEL: Record<string, string> = {
   rabies: "Antirrábica",
@@ -125,13 +101,6 @@ export default async function GobProgramaPage({
     );
   }
 
-  // Resolve current user for alert subscription evaluation.
-  const supabase = await createClient();
-  const {
-    data: { user: currentUser },
-  } = await supabase.auth.getUser();
-  const currentUserId = currentUser?.id ?? null;
-
   const sp = await searchParams;
 
   const {
@@ -171,6 +140,12 @@ export default async function GobProgramaPage({
           ? "Vista universal — todas las jurisdicciones."
           : "KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII en tu cobertura asignada."}
       </p>
+      <a
+        href="/gob/suscripciones"
+        className="inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+      >
+        Alertas y suscripciones →
+      </a>
     </header>
   );
   const filtersRow = (
@@ -192,7 +167,6 @@ export default async function GobProgramaPage({
       fetchDataQuality(ctx),
       fetchCrossJurisdictionOutliers(ctx),
       fetchPiiOversight(ctx),
-      currentUserId ? evaluateAlertSubscriptions(currentUserId, actor) : Promise.resolve([]),
     ]),
   );
 
@@ -209,19 +183,9 @@ export default async function GobProgramaPage({
     );
   }
 
-  const [
-    registry,
-    sterilization,
-    microchip,
-    enoSla,
-    queue,
-    dataQuality,
-    outliers,
-    piiOversight,
-    alertEvals,
-  ] = load.value;
+  const [registry, sterilization, microchip, enoSla, queue, dataQuality, outliers, piiOversight] =
+    load.value;
 
-  const breachingAlerts = alertEvals.filter((a) => a.breaching);
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
@@ -246,7 +210,6 @@ export default async function GobProgramaPage({
   const panelPiiId = "gob-programa-pii-titulo";
   const panelQualityId = "gob-programa-calidad-titulo";
   const panelQueueId = "gob-programa-cola-titulo";
-  const panelAlertasId = "gob-programa-alertas-titulo";
 
   return (
     <div className="space-y-6">
@@ -615,121 +578,6 @@ export default async function GobProgramaPage({
           </OpCardBody>
         </OpCard>
       </div>
-
-      {/* Alert subscriptions — per-user, unchanged */}
-      <OpCard
-        aria-labelledby={panelAlertasId}
-        accent={breachingAlerts.length > 0 ? "danger" : undefined}
-      >
-        <OpCardHead title={<span id={panelAlertasId}>Alertas y suscripciones</span>} />
-        <OpCardBody>
-          {/* (a) Active breaching alerts */}
-          <section aria-label="Alertas activas" className="mb-5">
-            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
-              Alertas activas
-            </h4>
-            {breachingAlerts.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">Sin alertas activas.</p>
-            ) : (
-              <ul className="space-y-2">
-                {breachingAlerts.map((a) => (
-                  <li
-                    key={a.id}
-                    className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[13px] text-ln-op-danger"
-                  >
-                    <span className="font-semibold">
-                      {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
-                    </span>
-                    {a.jurisdictionProvince ? (
-                      <span className="ml-1 text-[11px] text-ln-op-mute">
-                        ({a.jurisdictionProvince})
-                      </span>
-                    ) : null}
-                    {" — "}
-                    actual{" "}
-                    <span className="font-semibold">
-                      {a.currentValue !== null ? a.currentValue.toLocaleString("es-AR") : "—"}
-                    </span>{" "}
-                    {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction} umbral{" "}
-                    <span className="font-semibold">
-                      {Number(a.threshold).toLocaleString("es-AR")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* (b) My subscriptions list with delete / toggle */}
-          <section aria-label="Mis suscripciones" className="mb-5">
-            <h4 className="mb-2 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
-              Mis suscripciones
-            </h4>
-            {alertEvals.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">
-                Sin suscripciones configuradas. Creá una abajo.
-              </p>
-            ) : (
-              <ul className="divide-y divide-ln-op-line-2">
-                {alertEvals.map((a) => (
-                  <li key={a.id} className="flex items-center gap-3 py-2 text-[13px]">
-                    <div className="flex-1">
-                      <span className={a.isActive ? "text-ln-op-ink" : "text-ln-op-mute"}>
-                        {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
-                      </span>
-                      {a.jurisdictionProvince ? (
-                        <span className="ml-1 text-[11px] text-ln-op-mute">
-                          ({a.jurisdictionProvince})
-                        </span>
-                      ) : null}
-                      <span className="ml-2 text-[11px] text-ln-op-mute">
-                        {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction}{" "}
-                        {Number(a.threshold).toLocaleString("es-AR")}
-                      </span>
-                      {!a.isActive && (
-                        <span className="ml-2 text-[11px] text-ln-op-mute italic">(inactiva)</span>
-                      )}
-                    </div>
-                    <form action={toggleAlertSubscriptionAction}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <input type="hidden" name="isActive" value={a.isActive ? "false" : "true"} />
-                      <OpButton
-                        type="submit"
-                        variant="ghost"
-                        size="sm"
-                        aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
-                        className="h-11 px-3"
-                      >
-                        {a.isActive ? "Pausar" : "Activar"}
-                      </OpButton>
-                    </form>
-                    <form action={deleteAlertSubscriptionAction}>
-                      <input type="hidden" name="id" value={a.id} />
-                      <OpButton
-                        type="submit"
-                        variant="danger"
-                        size="sm"
-                        aria-label="Eliminar suscripción"
-                        className="h-11 px-3"
-                      >
-                        Eliminar
-                      </OpButton>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* (c) Create subscription form */}
-          <section aria-label="Crear suscripción">
-            <h4 className="mb-3 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
-              Crear suscripción
-            </h4>
-            <AlertSubscriptionForm />
-          </section>
-        </OpCardBody>
-      </OpCard>
 
       <DashboardFreshnessFooter ctx={ctx} />
     </div>

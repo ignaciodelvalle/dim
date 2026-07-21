@@ -1,7 +1,9 @@
 "use client";
 
 // AlertSubscriptionForm — create a new threshold alert subscription.
-// Used inside /admin/programa to configure metric breach alerts.
+// Used inside /gob/suscripciones (and its /admin/suscripciones thin wrapper)
+// to configure metric breach alerts. Formerly embedded in /admin/programa and
+// /gob/programa — moved with the panel promotion, 2026-07-21.
 // Accessible: all inputs have visible labels; select elements use native <select>.
 
 import { useRef, useState, useTransition } from "react";
