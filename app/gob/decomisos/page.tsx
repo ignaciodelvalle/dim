@@ -13,18 +13,25 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead, OpKpi, OpPill } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { cases, db, organizations, pets } from "@/db";
 import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
-import { windows } from "@/lib/metrics/period";
 import { formatDate, speciesLabel } from "@/lib/utils/format";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
 import { DevolverAlDuenoButton } from "./_components/DevolverAlDuenoButton";
 import { ReasignarButton } from "./_components/ReasignarButton";
+import { resolveDecomisosPeriod } from "./resolve-decomisos-period";
 
 // Human-readable labels for the seizure_motive enum (event-schemas.ts).
 const SEIZURE_MOTIVE_LABELS: Record<string, string> = {
@@ -57,7 +64,11 @@ function daysElapsed(openedAt: Date): number {
   return Math.floor((Date.now() - openedAt.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-export default async function DecomisosDashboardPage() {
+export default async function DecomisosDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+}) {
   const session = await requireDecomisoPrincipal();
 
   // Admin sees every custody_episode. Govt is scoped to cases opened by their
@@ -76,6 +87,12 @@ export default async function DecomisosDashboardPage() {
     }
     govtOrgId = govtOrg.id;
   }
+
+  const sp = await searchParams;
+  // Default stays trailing 30d (pre-existing hardcoded behavior) — see
+  // resolve-decomisos-period.ts for why this can't just be
+  // resolveAnalyticsPeriod(sp) directly.
+  const period = resolveDecomisosPeriod(sp);
 
   const rows = await db
     .select({
@@ -119,12 +136,13 @@ export default async function DecomisosDashboardPage() {
     .limit(200);
 
   // D5 seizures (Item 4) — shelter_intake_recorded(intake_reason='seizure')
-  // in the last 30 days, grouped by seizure_motive, jurisdiction-scoped.
-  // Admin sees universal scope; govt is scoped to their assigned jurisdictions.
+  // in the selected period (default trailing 30d), grouped by seizure_motive,
+  // jurisdiction-scoped. Admin sees universal scope; govt is scoped to their
+  // assigned jurisdictions.
   const seizuresCtx = buildProjectionContext(
     { role: session.profile.role },
     session.jurisdictions,
-    windows.trailing30d(),
+    period,
   );
   const seizures = await fetchSeizures(seizuresCtx);
 
@@ -150,25 +168,31 @@ export default async function DecomisosDashboardPage() {
         </Link>
       </header>
 
-      {/* D5 — seizures this period (last 30d) + by-motive breakdown (Ley 14.346). */}
+      {/* Unified filter bar — period only (no jurisdiction/domain axes: rows
+          are org-scoped via govtOrgId above, and the seizures KPI below is
+          the only period-aware element on this screen). Default preset "30d"
+          matches the pre-existing hardcoded windows.trailing30d() behavior. */}
+      <OpFilterBar period={{ defaultPreset: "30d" }} />
+
+      {/* D5 — seizures this period (default trailing 30d) + by-motive breakdown (Ley 14.346). */}
       <section aria-label="Decomisos del período" className="space-y-3">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <OpKpi
-            label="Decomisos (30d)"
+            label="Decomisos del período"
             value={String(seizures.total)}
             tone={seizures.total > 0 ? "warn" : "neutral"}
             sub="incautaciones por Ley 14.346"
             info={{
               definition:
-                "Total de eventos shelter_intake_recorded con intake_reason='seizure' en los últimos 30 días, scoped a la jurisdicción del operador.",
+                "Total de eventos shelter_intake_recorded con intake_reason='seizure' en el período seleccionado, scoped a la jurisdicción del operador.",
               formula:
-                "COUNT(shelter_intake_recorded WHERE intake_reason='seizure', últimos 30d) scoped",
+                "COUNT(shelter_intake_recorded WHERE intake_reason='seizure', período seleccionado) scoped",
             }}
           />
         </div>
         {seizures.byMotive.length > 0 && (
           <OpCard>
-            <OpCardHead title="Decomisos por motivo (30d)" />
+            <OpCardHead title="Decomisos por motivo (período seleccionado)" />
             <OpCardBody className="p-0">
               <ul className="divide-y divide-ln-op-line-2">
                 {seizures.byMotive.map((m) => (
