@@ -18,6 +18,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
 import type { DashboardJurisdiction } from "@/lib/metrics/context";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
@@ -74,11 +75,19 @@ export async function fetchObservaciones(scope: ObservacionesScope, filters: Obs
   }
 
   if (scope.role === "govt") {
-    const pairs = scope.jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
+    // jurisdictionPairClause applies whole-province subsumption (a CABA-wide
+    // assignment matches every barrio, not just the sentinel locality string)
+    // — see lib/metrics/scope.ts. Raw per-assignment pairs would under-scope a
+    // whole-province operator (fail-closed but wrong; pre-push review 2026-07-21).
+    // scope.jurisdictions.length === 0 already returned [] above, so this is
+    // never null here, but the `?? sql\`false\`` keeps the fail-closed contract.
+    conditions.push(
+      jurisdictionPairClause(
+        [...scope.jurisdictions],
+        sql`${pets.jurisdictionProvince}`,
+        sql`${pets.jurisdictionLocality}`,
+      ) ?? sql`false`,
     );
-    conditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
   } else {
     if (scope.province) conditions.push(eq(pets.jurisdictionProvince, scope.province));
     if (scope.locality) conditions.push(eq(pets.jurisdictionLocality, scope.locality));

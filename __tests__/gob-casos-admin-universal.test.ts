@@ -40,10 +40,17 @@ const PET_TOKEN = "DIM-GOBCASOS-59-PET";
 // row, not the pet, so one pet fixture is enough (mirrors the fence test).
 const CABA_PALERMO = { province: "CABA", locality: "Palermo" };
 const SALTA = { province: "Salta", locality: "Salta" };
+// Whole-province subsumption fixtures (pre-push review 2026-07-21): a govt
+// operator assigned the WHOLE CABA jurisdiction (province="CABA",
+// locality=the INDEC whole-province sentinel) must match every barrio,
+// including one the fixture above didn't already cover (Almagro).
+const CABA_ALMAGRO = { province: "CABA", locality: "Almagro" };
+const CABA_WHOLE = { province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" };
 
 let petId: string;
 let caseCabaId: string;
 let caseSaltaId: string;
+let caseAlmagroId: string;
 
 async function scrub() {
   await withMutationOverride(async (tx) => {
@@ -99,11 +106,28 @@ beforeAll(async () => {
     },
   });
   caseSaltaId = saltaCase.id;
+
+  // Different kind than caseCabaId (bite_incident) — the partial unique index
+  // cases_open_per_pet_kind_idx forbids two OPEN cases of the SAME kind for
+  // the same pet.
+  const almagroCase = await openCase({
+    kind: "microchip_remediation",
+    primarySubjectKind: "registered_pet",
+    primaryPetId: petId,
+    jurisdictionProvince: CABA_ALMAGRO.province,
+    jurisdictionLocality: CABA_ALMAGRO.locality,
+    openedReason: {
+      code: "microchip_replaced",
+      reason: "duplicate_detected",
+      duplicateDetected: false,
+    },
+  });
+  caseAlmagroId = almagroCase.id;
 });
 
 afterAll(async () => {
   await withMutationOverride(async (tx) => {
-    for (const id of [caseCabaId, caseSaltaId]) {
+    for (const id of [caseCabaId, caseSaltaId, caseAlmagroId]) {
       await tx.execute(sql`UPDATE cases SET welfare_report_id = NULL WHERE id = ${id}`);
       await tx.execute(sql`DELETE FROM cases WHERE id = ${id}`);
     }
@@ -144,5 +168,32 @@ describe("gob/casos — admin universal scope, govt stays fenced (2026-07-21)", 
   it("admin (countCasesForAdmin) count is non-zero and unaffected by jurisdiction", async () => {
     const count = await countCasesForAdmin({});
     expect(count).toBeGreaterThan(0);
+  });
+});
+
+describe("gob/casos — whole-province subsumption (pre-push review 2026-07-21)", () => {
+  it("a whole-CABA assignment (province='CABA', locality=INDEC sentinel) matches BOTH the Palermo and Almagro cases", async () => {
+    // THE BUG: buildGovtCaseWhereClause used to build raw per-assignment
+    // AND(province=X, locality=Y) pairs, so a whole-province assignment only
+    // matched the literal sentinel locality string — never a real barrio like
+    // "Palermo" or "Almagro". Routing through jurisdictionPairClause fixes
+    // this: the whole-province branch collapses to a province-only predicate.
+    const items = await listCasesForGovt([CABA_WHOLE], { limit: 500 });
+    const ids = items.map((c) => c.id);
+    expect(ids).toContain(caseCabaId);
+    expect(ids).toContain(caseAlmagroId);
+    // Still cross-province excluded — subsumption never widens beyond CABA.
+    expect(ids).not.toContain(caseSaltaId);
+
+    const count = await countCasesForGovt([CABA_WHOLE], {});
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it("a barrio-specific assignment (CABA/Palermo) stays exact-match — does not widen to Almagro", async () => {
+    const items = await listCasesForGovt([CABA_PALERMO], { limit: 500 });
+    const ids = items.map((c) => c.id);
+    expect(ids).toContain(caseCabaId);
+    expect(ids).not.toContain(caseAlmagroId);
+    expect(ids).not.toContain(caseSaltaId);
   });
 });

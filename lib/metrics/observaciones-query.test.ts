@@ -25,6 +25,14 @@ const PROV_A = "Santa Fe";
 const LOC_A = "Rosario";
 const PROV_B = "Córdoba";
 const LOC_B = "Córdoba";
+// Whole-province subsumption fixtures (pre-push review 2026-07-21): CABA is
+// modeled by INDEC as a two-tier jurisdiction (lib/domain/jurisdiction-canonical.ts
+// WHOLE_PROVINCE_LOCALITY) — the whole-province sentinel locality vs. specific
+// barrios. A govt assignment on the sentinel must subsume every barrio.
+const PROV_CABA = "CABA";
+const LOC_CABA_WHOLE = "Ciudad Autónoma de Buenos Aires";
+const LOC_PALERMO = "Palermo";
+const LOC_ALMAGRO = "Almagro";
 
 let createdPetIds: string[] = [];
 
@@ -33,6 +41,8 @@ let petCompletedRecentAId = "";
 let petCompletedOldAId = "";
 let petCompletedPositiveAId = "";
 let petInProgressBId = "";
+let petCabaPalermoId = "";
+let petCabaAlmagroId = "";
 
 async function insertPet(opts: {
   token: string;
@@ -123,6 +133,20 @@ beforeAll(async () => {
     token: `${PREFIX}IN-PROGRESS-B`,
     province: PROV_B,
     locality: LOC_B,
+    status: "in_progress",
+  });
+
+  petCabaPalermoId = await insertPet({
+    token: `${PREFIX}CABA-PALERMO`,
+    province: PROV_CABA,
+    locality: LOC_PALERMO,
+    status: "in_progress",
+  });
+
+  petCabaAlmagroId = await insertPet({
+    token: `${PREFIX}CABA-ALMAGRO`,
+    province: PROV_CABA,
+    locality: LOC_ALMAGRO,
     status: "in_progress",
   });
 }, 30_000);
@@ -221,5 +245,36 @@ describe("fetchObservaciones — govt stays jurisdiction-fenced", () => {
   it("zero assignments short-circuits to an empty result (fail-closed)", async () => {
     const rows = await fetchObservaciones({ role: "govt", jurisdictions: [] }, { status: null });
     expect(rows).toEqual([]);
+  });
+});
+
+describe("fetchObservaciones — whole-province subsumption (pre-push review 2026-07-21)", () => {
+  it("a whole-CABA assignment (province='CABA', locality=INDEC sentinel) matches a pet in a specific barrio (Palermo)", async () => {
+    // Before the fix, the govt branch built raw AND(province=X, locality=Y)
+    // pairs, so a whole-province assignment only matched the literal sentinel
+    // locality string — never a real barrio like "Palermo". This is the
+    // regression the fix (routing through jurisdictionPairClause) closes.
+    const rows = await fetchObservaciones(
+      { role: "govt", jurisdictions: [{ province: PROV_CABA, locality: LOC_CABA_WHOLE }] },
+      { status: null },
+    );
+    const ids = rows.map((r) => r.petId);
+
+    expect(ids).toContain(petCabaPalermoId);
+    expect(ids).toContain(petCabaAlmagroId);
+    // Still cross-province excluded.
+    expect(ids).not.toContain(petInProgressAId);
+    expect(ids).not.toContain(petInProgressBId);
+  });
+
+  it("a barrio-specific assignment (CABA/Palermo) stays exact-match — does not widen to the whole province", async () => {
+    const rows = await fetchObservaciones(
+      { role: "govt", jurisdictions: [{ province: PROV_CABA, locality: LOC_PALERMO }] },
+      { status: null },
+    );
+    const ids = rows.map((r) => r.petId);
+
+    expect(ids).toContain(petCabaPalermoId);
+    expect(ids).not.toContain(petCabaAlmagroId);
   });
 });

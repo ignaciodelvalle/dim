@@ -650,17 +650,18 @@ export function buildGovtCaseWhereClause(
   filters: ListCasesForGovtFilters,
   cursorClause?: SQL,
 ): SQL {
+  // jurisdictionPairClause applies whole-province subsumption (a CABA-wide
+  // assignment matches every barrio in CABA, not just the sentinel locality
+  // string) — see lib/metrics/scope.ts. Raw per-assignment AND(province,
+  // locality) pairs would under-scope a whole-province operator down to
+  // literal sentinel-locality rows only (fail-closed but wrong; caught by
+  // pre-push review 2026-07-21).
   const jurisdictionFilter: SQL =
-    jurisdictions.length > 0
-      ? (or(
-          ...jurisdictions.map((j) =>
-            and(
-              eq(cases.jurisdictionProvince, j.province),
-              eq(cases.jurisdictionLocality, j.locality),
-            ),
-          ),
-        ) as SQL)
-      : sql`false`;
+    jurisdictionPairClause(
+      [...jurisdictions],
+      sql`${cases.jurisdictionProvince}`,
+      sql`${cases.jurisdictionLocality}`,
+    ) ?? sql`false`;
   const filterClauses = buildCaseKindStatusClauses(filters);
   if (filters.province) {
     filterClauses.push(eq(cases.jurisdictionProvince, filters.province) as ReturnType<typeof and>);

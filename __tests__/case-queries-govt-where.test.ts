@@ -99,6 +99,35 @@ describe("buildGovtCaseWhereClause — jurisdiction predicate (#26 D2)", () => {
     expect(params).toEqual(expect.arrayContaining(["Buenos Aires", "La Plata", "Córdoba"]));
   });
 
+  it("whole-province (CABA) assignment subsumes a specific barrio — no locality equality against the sentinel string (pre-push review 2026-07-21)", () => {
+    // A govt operator assigned the WHOLE CABA jurisdiction (province="CABA",
+    // locality=the INDEC whole-province sentinel "Ciudad Autónoma de Buenos
+    // Aires") must match every barrio in CABA — e.g. a case whose
+    // jurisdiction_locality is "Palermo". Before the fix, buildGovtCaseWhereClause
+    // built raw AND(province=X, locality=Y) pairs per assignment, so this
+    // whole-province assignment rendered `locality = 'Ciudad Autónoma de Buenos
+    // Aires'` — a literal-string match that NEVER matches "Palermo". Routing
+    // through jurisdictionPairClause collapses the whole-province branch to a
+    // province-only predicate, so the param list must NOT contain the sentinel
+    // locality string at all.
+    const clause = buildGovtCaseWhereClause(
+      [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }],
+      {},
+    );
+    const { sql: text, params } = render(clause);
+    expect(text).toContain("jurisdiction_province");
+    expect(params).toContain("CABA");
+    expect(params).not.toContain("Ciudad Autónoma de Buenos Aires");
+  });
+
+  it("a barrio-specific assignment stays exact-match — does not widen to the whole province", () => {
+    const clause = buildGovtCaseWhereClause([{ province: "CABA", locality: "Palermo" }], {});
+    const { sql: text, params } = render(clause);
+    expect(text).toContain("jurisdiction_province");
+    expect(text).toContain("jurisdiction_locality");
+    expect(params).toEqual(expect.arrayContaining(["CABA", "Palermo"]));
+  });
+
   it("appends the cursor clause last when provided", () => {
     const cursorClause = keysetWhere(cases.openedAt, cases.id, {
       ts: "2026-07-01T00:00:00.000Z",
