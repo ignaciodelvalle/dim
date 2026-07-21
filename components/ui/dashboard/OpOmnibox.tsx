@@ -277,7 +277,7 @@ export function OpOmnibox({
           role="listbox"
           tabIndex={-1}
           aria-label="Resultados de búsqueda"
-          className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)]"
+          className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 max-w-[92vw] overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)] sm:w-96"
         >
           {loading && (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-ln-op-mute">
@@ -350,8 +350,8 @@ export function OpOmnibox({
                         isActive ? "bg-ln-op-stripe" : "",
                       ].join(" ")}
                     >
-                      <p className="truncate text-[13px] text-ln-op-ink">{resultLabel(item)}</p>
-                      <p className="truncate text-[11px] text-ln-op-mute">{resultMeta(item)}</p>
+                      <p className="text-[13px] leading-snug text-ln-op-ink">{resultLabel(item)}</p>
+                      <p className="text-[11px] leading-snug text-ln-op-mute">{resultMeta(item)}</p>
                     </div>
                   );
                 })}

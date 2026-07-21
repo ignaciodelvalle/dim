@@ -171,9 +171,11 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
               inmutable, compartido por todas las manos que la cuidan.
             </p>
             <div className="lp-hero-cta lp-reveal" data-d="3">
-              <Link href="/signup" className="lp-btn lp-btn--primary">
-                Crear tu miMAR <span className="lp-ar">→</span>
-              </Link>
+              {/* The primary "Crear tu miMAR" CTA that used to live here was
+                  removed (PO feedback 2026-07-21): it duplicated LandingNav's
+                  "Crear mi miMAR" (/signup), both visible above the fold at
+                  once. "Cómo funciona" is a distinct secondary action (scrolls
+                  to #idea) and stays as the hero's own CTA. */}
               <a href="#idea" className="lp-btn lp-btn--ghost">
                 Cómo funciona
               </a>
