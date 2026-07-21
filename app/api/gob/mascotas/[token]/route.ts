@@ -3,11 +3,15 @@
 // Second level of the SAME inspector: from a case, an operator drills into the
 // subject pet in place (&mascota=<token>). This route re-runs the full
 // institutional gate and delegates the LINKING-CASE jurisdiction check to
-// loadGobPetSubView:
+// loadGobPetSubView — this is ONE of two pet access paths (see
+// lib/infra/gob-pet-subview.ts module header):
 //
-//   - a pet is reachable ONLY when it is the subject of a welfare report OR the
-//     primary pet of a case inside the caller's jurisdiction (PO decision — no
-//     pet directory, no omnibox pet search for operators).
+//   - a pet is reachable through THIS route ONLY when it is the subject of a
+//     welfare report OR the primary pet of a case inside the caller's
+//     jurisdiction. The OTHER path (app/gob/mascotas/[token],
+//     app/admin/mascotas/[token], fed by the omnibox pet search — search/
+//     omnibox-upgrade) gates by jurisdiction alone, via
+//     loadOperatorPetSubView — a distinct loader, not this one.
 //   - not reachable OR non-existent → 404 with a stable body (never leak that
 //     the pet exists).
 

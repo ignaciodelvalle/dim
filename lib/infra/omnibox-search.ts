@@ -2,7 +2,12 @@
 // across the three operator entities: pets, persons and cases.
 //
 // Wave 2 Item 10.1 (docs/superpowers/specs/2026-06-18-wave2-ux-hardening-handoff.md).
-// UX 1.1: org variant (pet-only, held by the org); admin/govt variant drops pets.
+// UX 1.1 → search/omnibox-upgrade: org variant stays pet-only (held by the
+// org); admin/govt now ALSO returns jurisdiction-scoped pets (by token/name/
+// chip) — the prior UX-1.1 fence dropping pets for admin/govt is lifted now
+// that an operator pet destination exists (app/gob/mascotas/[token],
+// app/admin/mascotas/[token], backed by loadOperatorPetSubView — see
+// lib/infra/gob-pet-subview.ts).
 //
 // Security model (mirrors lib/admin-search.ts + app/actions/decomiso-pet-lookup.ts):
 //   - admin: universal scope. session.jurisdictions is empty by contract; the
@@ -14,6 +19,12 @@
 //     Returns pets only — operators cannot search persons or cases via org portal.
 //
 // Scope predicates per entity:
+//   - pet (admin/govt): pets.(jurisdictionProvince, jurisdictionLocality)
+//     matches one of the viewer's assignments (jurisdictionPairClause, same
+//     subsumption-aware predicate as case/report scoping below). The result
+//     href points at the operator route, which re-gates via
+//     loadOperatorPetSubView — the omnibox scoping here is defense-in-depth,
+//     not the sole trust boundary.
 //   - person: reuses searchUsers() which scopes via the ownerships→pets
 //     jurisdiction semi-join already audited for /gob/usuarios (P1-2).
 //   - case: cases.(province, locality) matches one of the viewer's assignments
@@ -94,6 +105,76 @@ function caseJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | 
       sql`${cases.jurisdictionLocality}`,
     ) ?? sql`false`
   );
+}
+
+// Jurisdiction scope for the admin/govt pet search (search/omnibox-upgrade).
+// Same subsumption-aware predicate as caseJurisdictionScope, applied to
+// pets.(jurisdictionProvince, jurisdictionLocality) instead of cases. Fail-
+// closed: a govt scope with no assignments (should already be short-circuited
+// upstream by the searchOmnibox zero-assignment guard) yields `false`, never
+// an unscoped leak.
+function petJurisdictionScope(scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>) {
+  if (scope.role === "admin") return undefined;
+  return (
+    jurisdictionPairClause(
+      [...scope.jurisdictions],
+      sql`${pets.jurisdictionProvince}`,
+      sql`${pets.jurisdictionLocality}`,
+    ) ?? sql`false`
+  );
+}
+
+/**
+ * Search pets for an admin/govt operator, scoped to the viewer's jurisdiction
+ * (search/omnibox-upgrade — re-adds pet search after the UX-1.1 fence, now
+ * that an operator pet destination exists). Matches token (exact when
+ * DIM-shaped, prefix otherwise), name, or active identification chip code —
+ * same text-match strategy as searchOrgPets. Results link into the operator
+ * route (app/gob/mascotas or app/admin/mascotas), which re-gates server-side
+ * via loadOperatorPetSubView — this scoping is defense-in-depth, not the sole
+ * trust boundary.
+ */
+async function searchAdminGovtPets(
+  query: string,
+  scope: Extract<OmniboxScope, { role: "admin" } | { role: "govt" }>,
+): Promise<OmniboxPetResult[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const isToken = DIM_TOKEN_PATTERN.test(trimmed);
+
+  const namePredicate = sql`unaccent(${pets.name}) ILIKE unaccent(${likeContains(trimmed)}) ESCAPE '\'`;
+  const tokenPredicate = isToken
+    ? ilike(pets.publicToken, trimmed)
+    : ilike(pets.publicToken, likeContains(trimmed));
+  const chipPredicate = sql`EXISTS (
+    SELECT 1 FROM ${petIdentifications}
+    WHERE ${petIdentifications.petId} = ${pets.id}
+      AND ${petIdentifications.status} = 'active'
+      AND ${petIdentifications.code} ILIKE ${likeContains(trimmed)} ESCAPE '\'
+  )`;
+
+  const textPredicate = or(tokenPredicate, namePredicate, chipPredicate);
+  const scopePredicate = petJurisdictionScope(scope);
+  const where = scopePredicate
+    ? and(sql`${pets.deletedAt} IS NULL`, scopePredicate, textPredicate)
+    : and(sql`${pets.deletedAt} IS NULL`, textPredicate);
+
+  const rows = await db
+    .select({ id: pets.id, publicToken: pets.publicToken, name: pets.name, species: pets.species })
+    .from(pets)
+    .where(where)
+    .limit(PER_TYPE_LIMIT);
+
+  return rows.map((r) => ({
+    type: "pet" as const,
+    id: r.id,
+    publicToken: r.publicToken,
+    name: r.name,
+    species: r.species,
+    href:
+      scope.role === "govt" ? `/gob/mascotas/${r.publicToken}` : `/admin/mascotas/${r.publicToken}`,
+  }));
 }
 
 /**
@@ -293,7 +374,8 @@ async function searchWelfareReports(
  * Runs the scoped omnibox search.
  *
  * - org scope  → pets only (pets the org currently holds via shelter_custody).
- * - admin/govt → persons + cases (incl. welfare denuncias by DEN- code); no pets.
+ * - admin/govt → pets (jurisdiction-scoped, search/omnibox-upgrade) + persons +
+ *   cases (incl. welfare denuncias by DEN- code).
  *
  * Security guarantees:
  *   - govt with zero jurisdiction assignments → empty result, NO db hit.
@@ -313,11 +395,12 @@ export async function searchOmnibox(query: string, scope: OmniboxScope): Promise
     return { pets: petResults, persons: [], cases: [], total: petResults.length };
   }
 
-  // admin / govt branch — no pet results for operators (UX 1.1).
-  // govt-with-no-assignments must see nothing without touching the DB.
+  // admin / govt branch. govt-with-no-assignments must see nothing without
+  // touching the DB — fail-closed, no unscoped pet/person/case leak.
   if (scope.role === "govt" && scope.jurisdictions.length === 0) return EMPTY_RESULTS;
 
-  const [personResults, caseResults, welfareResults] = await Promise.all([
+  const [petResults, personResults, caseResults, welfareResults] = await Promise.all([
+    searchAdminGovtPets(trimmed, scope),
     searchPersons(trimmed, scope),
     searchCases(trimmed, scope),
     searchWelfareReports(trimmed, scope),
@@ -328,9 +411,9 @@ export async function searchOmnibox(query: string, scope: OmniboxScope): Promise
   const allCases = [...caseResults, ...welfareResults];
 
   return {
-    pets: [],
+    pets: petResults,
     persons: personResults,
     cases: allCases,
-    total: personResults.length + allCases.length,
+    total: petResults.length + personResults.length + allCases.length,
   };
 }

@@ -1,22 +1,31 @@
 import "server-only";
 
-// Shared server loader for the govt/admin PET sub-view of the inspector (#12).
+// Shared server loaders for the govt/admin PET sub-view (#12, search/omnibox-
+// upgrade). Two independent access paths reach the SAME read-only projection
+// (identity, species/sex/status, microchip, owner-of-record, open cases):
 //
-// FENCE INVARIANT (PO decision — do not loosen): govt/admin operators have NO
-// pet directory and NO omnibox pet search (omnibox already drops pets for
-// operators, lib/infra/omnibox-search.ts). A pet is reachable through the
-// inspector ONLY when it is the SUBJECT of a welfare report OR the PRIMARY pet
-// of a case that lies INSIDE the caller's jurisdiction:
+//   1. loadGobPetSubView — the maltrato INSPECTOR path. A pet is reachable
+//      ONLY when it is the SUBJECT of a welfare report OR the PRIMARY pet of a
+//      case that lies INSIDE the caller's jurisdiction (linking-case gate):
+//        - govt: at least one linking welfare report / case whose (province,
+//          locality) passes jurisdictionScopeContains (whole-province
+//          subsumption).
+//        - admin: at least one linking welfare report / case in ANY
+//          jurisdiction (universal scope still REQUIRES a linking record — a
+//          pet with no welfare nexus is never reachable this way).
+//      No linking record in scope → { ok: false } → the route 404s.
 //
-//   - govt: at least one linking welfare report / case whose (province,
-//     locality) passes jurisdictionScopeContains (whole-province subsumption).
-//   - admin: at least one linking welfare report / case in ANY jurisdiction
-//     (universal scope still REQUIRES a linking record — a pet with no welfare
-//     nexus is never reachable).
-//
-// No linking record in scope → { ok: false } → the route answers 404 and never
-// leaks that the pet exists. Read-only projection: identity, species/sex/status,
-// microchip, owner-of-record, open cases.
+//   2. loadOperatorPetSubView — the OPERATOR ROUTE path (app/gob/mascotas,
+//      app/admin/mascotas), fed by the omnibox pet search
+//      (lib/infra/omnibox-search.ts). Gates by JURISDICTION ALONE, no linking
+//      record required:
+//        - admin: universal (no jurisdiction predicate).
+//        - govt: the pet's (jurisdictionProvince, jurisdictionLocality) must
+//          be in the viewer's assignments (jurisdictionScopeContains).
+//          Fail-closed: zero assignments → null, never a DB hit that could leak
+//          existence.
+//      Out of scope or missing → null → the route 404s, never leaking
+//      existence.
 
 import {
   cases,
@@ -29,6 +38,7 @@ import {
   welfareReports,
 } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
 import { type PetOpenCase, findOpenCasesForPetWithCodes } from "@/lib/infra/case-queries";
 import type { WelfareReportStatus } from "@/src/modules/welfare/domain/types";
 import { isTerminalStatus } from "@/src/modules/welfare/domain/welfare-status-rules";
@@ -57,6 +67,15 @@ export type GobPetSubView = {
 };
 
 export type GobPetSubViewResult = { ok: true; pet: GobPetSubView } | { ok: false };
+
+// Scope for the operator-route loader (path 2, see module header). Mirrors the
+// admin/govt discriminant of OmniboxScope (lib/infra/omnibox-search.ts) — kept
+// as a local type so this module's public surface doesn't depend on the
+// omnibox module (the dependency should point the other way: omnibox hrefs
+// point AT these routes, not the reverse).
+export type OperatorPetScope =
+  | { role: "admin" }
+  | { role: "govt"; jurisdictions: readonly AdminOrGovtJurisdiction[] };
 
 // Sentinel pet id for the timing-oracle-hardening linking lookups when the token
 // resolves to no pet: a valid UUID that matches no row, keeping the query shape
@@ -147,6 +166,41 @@ export async function loadGobPetSubView(
   const hasLink = reportRows.some(reportGrants) || caseRows.some(caseGrants);
   if (!pet || !hasLink) return { ok: false };
 
+  // Fence the open-cases list to the caller's jurisdiction (task #59) — see
+  // loadPetSubViewTail. Admin keeps universal visibility (undefined → unfiltered).
+  return { ok: true, pet: await loadPetSubViewTail(pet, isGovt ? jurisdictions : undefined) };
+}
+
+// Row shape shared by both loaders' initial `pets` SELECT.
+type PetRow = {
+  id: string;
+  publicToken: string;
+  name: string;
+  species: string;
+  sex: string;
+  status: string;
+  breed: string | null;
+  color: string | null;
+  jurisdictionProvince: string | null;
+  jurisdictionLocality: string | null;
+};
+
+/**
+ * Shared tail: resolves microchip, owner-of-record, and the jurisdiction-fenced
+ * open-cases list, and assembles the GobPetSubView. Both loaders call this once
+ * their respective gate has already confirmed the caller may see `pet` — this
+ * function does no additional authorization, only projection.
+ *
+ * `openCasesScope`: `undefined` = admin/universal (unfiltered). A govt array
+ * fences the open-cases list to the caller's jurisdiction (task #59) — a govt
+ * operator who legitimately reaches a pet must NOT see cases in provinces they
+ * do not govern (case existence + publicCode + kind + open-date would leak
+ * cross-fence otherwise). Same subsumption-aware predicate as the caller's gate.
+ */
+async function loadPetSubViewTail(
+  pet: PetRow,
+  openCasesScope: ReadonlyArray<{ province: string; locality: string }> | undefined,
+): Promise<GobPetSubView> {
   // Active microchip (canonical pet_identifications row).
   const [chip] = await db
     .select({ code: petIdentifications.code })
@@ -191,29 +245,67 @@ export async function loadGobPetSubView(
     ownerOfRecord = ownerOrg?.displayName ?? null;
   }
 
-  // Fence the open-cases list to the caller's jurisdiction (task #59). A govt
-  // operator who legitimately reaches this pet through an in-scope welfare nexus
-  // must NOT see cases in provinces they do not govern — the case existence +
-  // publicCode + kind + open-date would leak cross-fence otherwise. Same scope
-  // (and whole-province subsumption) as the linking-case gate above. Admin keeps
-  // universal visibility (undefined → unfiltered).
-  const openCases = await findOpenCasesForPetWithCodes(pet.id, isGovt ? jurisdictions : undefined);
+  const openCases = await findOpenCasesForPetWithCodes(pet.id, openCasesScope);
 
   return {
-    ok: true,
-    pet: {
-      publicToken: pet.publicToken,
-      name: pet.name,
-      species: pet.species,
-      sex: pet.sex,
-      status: pet.status,
-      breed: pet.breed,
-      color: pet.color,
-      jurisdictionProvince: pet.jurisdictionProvince,
-      jurisdictionLocality: pet.jurisdictionLocality,
-      microchipCode: chip?.code ?? null,
-      ownerOfRecord,
-      openCases,
-    },
+    publicToken: pet.publicToken,
+    name: pet.name,
+    species: pet.species,
+    sex: pet.sex,
+    status: pet.status,
+    breed: pet.breed,
+    color: pet.color,
+    jurisdictionProvince: pet.jurisdictionProvince,
+    jurisdictionLocality: pet.jurisdictionLocality,
+    microchipCode: chip?.code ?? null,
+    ownerOfRecord,
+    openCases,
   };
+}
+
+/**
+ * Load the operator-route pet sub-view, gating by JURISDICTION ALONE (no
+ * linking welfare report / case required — see module header, path 2). Fed by
+ * app/gob/mascotas/[token], app/admin/mascotas/[token], and the omnibox pet
+ * search (lib/infra/omnibox-search.ts).
+ *
+ * Returns null when the pet does not exist, is soft-deleted, or is out of the
+ * caller's jurisdiction — the route maps all three to notFound() so existence
+ * never leaks. Fail-closed: a govt scope with zero assignments returns null
+ * WITHOUT querying the pet row (mirrors searchUsers / searchOmnibox).
+ */
+export async function loadOperatorPetSubView(
+  publicToken: string,
+  scope: OperatorPetScope,
+): Promise<GobPetSubView | null> {
+  if (scope.role === "govt" && scope.jurisdictions.length === 0) return null;
+
+  const [pet] = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      name: pets.name,
+      species: pets.species,
+      sex: pets.sex,
+      status: pets.status,
+      breed: pets.breed,
+      color: pets.color,
+      jurisdictionProvince: pets.jurisdictionProvince,
+      jurisdictionLocality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .where(and(eq(pets.publicToken, publicToken), isNull(pets.deletedAt)))
+    .limit(1);
+  if (!pet) return null;
+
+  if (scope.role === "govt") {
+    const inScope = jurisdictionScopeContains(
+      scope.jurisdictions,
+      pet.jurisdictionProvince,
+      pet.jurisdictionLocality,
+    );
+    if (!inScope) return null;
+  }
+
+  return loadPetSubViewTail(pet, scope.role === "govt" ? scope.jurisdictions : undefined);
 }

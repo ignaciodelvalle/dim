@@ -8,16 +8,21 @@
 //     3. A pet whose custody has ended is NOT returned.
 //     4. A multi-custody pet appears exactly once per org query.
 //
-//   admin scope (UX 1.1 — pet results dropped):
-//     5. searchOmnibox returns pets: [] for admin; persons + cases unaffected.
+//   admin/govt scope — pets (search/omnibox-upgrade, re-adds pet search after
+//   the operator pet destination page shipped):
+//     5. admin (universal) finds a pet by token regardless of jurisdiction.
+//     6. govt scoped to CABA finds a CABA pet but NOT a Mendoza pet.
+//     7. govt-with-zero-assignments returns pets: [] (fail-closed, no leak).
+//     8. a pet result's href points at the operator route (/gob or /admin
+//        /mascotas/[token]), never a citizen route.
 //
-//   govt scope:
-//     6. Jurisdiction scoping for cases still works (CABA vs Mendoza).
-//     7. govt-with-zero-assignments → empty, no leak.
+//   govt scope (cases):
+//     9. Jurisdiction scoping for cases still works (CABA vs Mendoza).
+//    10. govt-with-zero-assignments → empty, no leak.
 //
 //   PII logging:
-//     8. searchOmniboxAction writes a single pii_queried audit row.
-//     9. Short queries (<2 chars) are not logged and return empty.
+//    11. searchOmniboxAction writes a single pii_queried audit row.
+//    12. Short queries (<2 chars) are not logged and return empty.
 
 import { randomUUID } from "node:crypto";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
@@ -180,7 +185,10 @@ async function makeOrg(): Promise<{ id: string; publicToken: string }> {
   return { id: row.id, publicToken: token };
 }
 
-async function makePet(nameSuffix: string): Promise<{ id: string; publicToken: string }> {
+async function makePet(
+  nameSuffix: string,
+  jurisdiction?: { province: string; locality: string },
+): Promise<{ id: string; publicToken: string }> {
   const token = nextToken("DIM");
   const [row] = await db
     .insert(pets)
@@ -189,6 +197,8 @@ async function makePet(nameSuffix: string): Promise<{ id: string; publicToken: s
       name: `OmbPet ${nameSuffix} ${RUN_ID}`,
       species: "dog",
       sex: "unknown",
+      jurisdictionProvince: jurisdiction?.province,
+      jurisdictionLocality: jurisdiction?.locality,
     })
     .returning({ id: pets.id });
   ephemeralPetIds.push(row.id);
@@ -303,20 +313,54 @@ describe("searchOmnibox — org scope", () => {
 });
 
 // ---------------------------------------------------------------------------
-// admin scope — pet results must be empty (UX 1.1)
+// admin/govt scope — jurisdiction-scoped pet search (search/omnibox-upgrade)
 // ---------------------------------------------------------------------------
 
-describe("searchOmnibox — admin scope drops pet results", () => {
-  it("returns pets: [] even when a matching pet exists in custody", async () => {
-    const org = await makeOrg();
-    const pet = await makePet("Luna");
-    await makeCustody(pet.id, org.id);
+describe("searchOmnibox — admin/govt pet search (search/omnibox-upgrade)", () => {
+  it("admin (universal) finds a pet by token regardless of jurisdiction", async () => {
+    const pet = await makePet("Rex", { province: "Mendoza", locality: "Mendoza" });
 
-    const results = await searchOmnibox(`OmbPet Luna ${RUN_ID}`, ADMIN_SCOPE);
+    const results = await searchOmnibox(pet.publicToken, ADMIN_SCOPE);
+
+    const found = results.pets.find((p) => p.publicToken === pet.publicToken);
+    expect(found).toBeDefined();
+    expect(found?.href).toBe(`/admin/mascotas/${pet.publicToken}`);
+    expect(results.total).toBe(results.pets.length + results.persons.length + results.cases.length);
+  });
+
+  it("govt scoped to CABA finds a CABA pet but NOT a Mendoza pet", async () => {
+    const cabaPet = await makePet("Toby", { province: "CABA", locality: "Buenos Aires" });
+    const mendozaPet = await makePet("Fido", { province: "Mendoza", locality: "Mendoza" });
+
+    const cabaResults = await searchOmnibox(cabaPet.publicToken, GOVT_CABA);
+    expect(cabaResults.pets.some((p) => p.publicToken === cabaPet.publicToken)).toBe(true);
+    expect(cabaResults.pets.find((p) => p.publicToken === cabaPet.publicToken)?.href).toBe(
+      `/gob/mascotas/${cabaPet.publicToken}`,
+    );
+
+    const mendozaMiss = await searchOmnibox(mendozaPet.publicToken, GOVT_CABA);
+    expect(mendozaMiss.pets.some((p) => p.publicToken === mendozaPet.publicToken)).toBe(false);
+  });
+
+  it("govt with zero jurisdiction assignments returns pets: [] (fail-closed)", async () => {
+    const pet = await makePet("Nina", { province: "CABA", locality: "Buenos Aires" });
+
+    const results = await searchOmnibox(pet.publicToken, { role: "govt", jurisdictions: [] });
 
     expect(results.pets).toHaveLength(0);
-    // total is persons + cases only
-    expect(results.total).toBe(results.persons.length + results.cases.length);
+    expect(results.total).toBe(0);
+  });
+
+  it("a pet result never points at a citizen route (only /gob or /admin /mascotas)", async () => {
+    const pet = await makePet("Coco", { province: "CABA", locality: "Buenos Aires" });
+
+    for (const scope of [ADMIN_SCOPE, GOVT_CABA]) {
+      const r = await searchOmnibox(pet.publicToken, scope);
+      const found = r.pets.find((p) => p.publicToken === pet.publicToken);
+      expect(found).toBeDefined();
+      expect(found?.href).not.toMatch(/^\/(mis-mascotas|casos)\//);
+      expect(found?.href).toMatch(/^\/(gob|admin)\/mascotas\//);
+    }
   });
 });
 

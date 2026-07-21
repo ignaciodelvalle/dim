@@ -89,7 +89,7 @@ describe("<OpOmnibox> — empty state", () => {
     expect(html).toContain('role="combobox"');
     expect(html).toContain('aria-autocomplete="list"');
     expect(html).toContain('aria-label="Búsqueda global"');
-    expect(html).toContain("Buscar persona o caso…");
+    expect(html).toContain("Buscar mascota, nombre, DNI o caso…");
   });
 
   it("shows the / keyboard shortcut hint when empty", () => {
@@ -133,11 +133,10 @@ describe("<OpOmnibox> — no results state", () => {
     expect(html).toContain("Sin coincidencias en tu jurisdicción");
   });
 
-  // The operator variant cannot return pets (searchOmnibox hardcodes pets: []
-  // for admin/govt — the no-pet-directory fence). Suggesting "DIM-…" here sent
-  // two QA testers hunting for a pet the omnibox can never surface, and both
-  // filed the search as broken. The hint must never advertise that format.
-  it("does not offer the DIM- format to operators on a free-text miss", () => {
+  // search/omnibox-upgrade: admin/govt CAN now search pets (jurisdiction-scoped
+  // — see lib/infra/omnibox-search.ts searchAdminGovtPets), so the generic hint
+  // must advertise the DIM- token format alongside case/denuncia codes.
+  it("offers the DIM- format to operators on a free-text miss", () => {
     const html = renderWithState({
       query: "zzz",
       results: EMPTY,
@@ -146,15 +145,14 @@ describe("<OpOmnibox> — no results state", () => {
       activeIndex: -1,
       searched: true,
     });
-    expect(html).not.toContain("DIM-…");
+    expect(html).toContain("DIM-…");
     expect(html).toContain("CAS-…");
     expect(html).toContain("DEN-…");
   });
 
-  // A pasted DIM token is the exact case that broke trust: the pet is real, the
-  // operator is right, and the fence — not a miss — is why there is no result.
-  // Say so, instead of letting "Sin coincidencias" imply the pet does not exist.
-  it("names the pet-directory fence when the query is a DIM token", () => {
+  // A pasted DIM token that misses is now an ORDINARY jurisdiction-scoped miss
+  // (the pet-directory fence this used to name is gone — pets are searchable).
+  it("reads a DIM-token miss as a normal jurisdiction-scoped miss (no fence copy)", () => {
     const html = renderWithState({
       query: "DIM-PAMP-0001",
       results: EMPTY,
@@ -163,9 +161,8 @@ describe("<OpOmnibox> — no results state", () => {
       activeIndex: -1,
       searched: true,
     });
-    expect(html).toContain("no accede al padrón de mascotas");
-    expect(html).toContain("CAS-…");
-    expect(html).toContain("DEN-…");
+    expect(html).not.toContain("no accede al padrón de mascotas");
+    expect(html).toContain("No encontramos esa mascota en tu jurisdicción.");
   });
 });
 
