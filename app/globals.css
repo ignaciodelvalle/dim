@@ -196,6 +196,28 @@
   --radius-lg: 8px;
 
   /* =========================================================================
+     Spacing scale (decision: NO parallel --space-* scale)
+     Tailwind's default spacing scale already names every step the de-facto
+     rhythm needs — this is deliberate, not an oversight; it is NOT duplicated
+     with redundant custom properties.
+     The off-grid arbitrary values found in the audit (3,5,7,9,11,13px) are
+     all 1px below an existing Tailwind step and round UP to it (same
+     round-up convention as the text/radius scales above) — e.g.
+     py-[13px] → py-3.5, NOT a new token:
+       3px  → p-1    (4px)
+       5px  → p-1.5  (6px)
+       7px  → p-2    (8px)
+       9px  → p-2.5  (10px)
+       11px → p-3    (12px)
+       13px → p-3.5  (14px)
+     One exception: 18px recurs as a genuine, deliberate value — LnSheet's
+     header/body/footer gutter (components/ui/Card.tsx) — with no Tailwind
+     step between p-4 (16px) and p-5 (20px). Named semantically below, same
+     precedent as --text-title.
+     ========================================================================= */
+  --space-sheet: 18px; /* LnSheet gutter — px-[18px]/py-[18px] in Card.tsx */
+
+  /* =========================================================================
      Shadow scale
      Three standard elevations for the operator and citizen surfaces.
      Uses var() so future theming can swap without touching utilities.

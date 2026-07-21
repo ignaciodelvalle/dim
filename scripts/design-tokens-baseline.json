@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2325,
+    "totalViolations": 2052,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -27,22 +27,8 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "components/BulkApprovalQueueList.tsx": {
-      "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "components/CasesWidget.tsx": {
       "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "components/EventCatcher.tsx": {
-      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -63,8 +49,8 @@
       "hexStyle": 0
     },
     "components/PetForm.tsx": {
-      "text": 20,
-      "space": 2,
+      "text": 18,
+      "space": 1,
       "rounded": 4,
       "shadow": 0,
       "hexStyle": 0
@@ -90,6 +76,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/ui/Button.test.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 1,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/ui/Button.tsx": {
       "text": 2,
       "space": 3,
@@ -97,10 +90,17 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/ui/CaptureConfidenceCard.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 1,
+      "hexStyle": 0
+    },
     "components/ui/Card.tsx": {
-      "text": 3,
-      "space": 6,
-      "rounded": 1,
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
       "shadow": 2,
       "hexStyle": 0
     },
@@ -259,7 +259,7 @@
       "hexStyle": 0
     },
     "components/ui/dashboard/OpButton.tsx": {
-      "text": 2,
+      "text": 0,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -274,14 +274,14 @@
     },
     "components/ui/dashboard/OpCard.tsx": {
       "text": 0,
-      "space": 2,
+      "space": 3,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/dashboard/OpCardSkeleton.tsx": {
       "text": 0,
-      "space": 2,
+      "space": 3,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -294,8 +294,15 @@
       "hexStyle": 0
     },
     "components/ui/dashboard/OpKpi.tsx": {
-      "text": 8,
-      "space": 0,
+      "text": 2,
+      "space": 2,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/dashboard/OpKpiSkeleton.tsx": {
+      "text": 0,
+      "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -384,13 +391,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "components/pet-profile/LostPublicCredential.tsx": {
-      "text": 2,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "components/pet-profile/LostScanFeed.tsx": {
       "text": 5,
       "space": 0,
@@ -415,6 +415,13 @@
     "components/panorama/PanoramaDemoDisclosure.tsx": {
       "text": 1,
       "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaKpiTile.tsx": {
+      "text": 0,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -489,6 +496,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/admin/QueueHealthCockpit.tsx": {
+      "text": 0,
+      "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/admin/RuleImpactBanner.tsx": {
       "text": 4,
       "space": 0,
@@ -504,14 +518,14 @@
       "hexStyle": 5
     },
     "app/r/invite/[token]/page.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 5,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/page.tsx": {
-      "text": 9,
+      "text": 7,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -525,14 +539,14 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/page.tsx": {
-      "text": 19,
+      "text": 18,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/voluntarios/page.tsx": {
-      "text": 8,
+      "text": 7,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -546,7 +560,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/voluntarios/propuestas/page.tsx": {
-      "text": 5,
+      "text": 4,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -560,14 +574,14 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/transitos/page.tsx": {
-      "text": 6,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/page.tsx": {
-      "text": 4,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -588,14 +602,14 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/recibidas/page.tsx": {
-      "text": 3,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/nueva/page.tsx": {
-      "text": 10,
+      "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -609,7 +623,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/servicios/page.tsx": {
-      "text": 5,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -623,7 +637,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/servicios/[offeringToken]/page.tsx": {
-      "text": 5,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -637,14 +651,14 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/servicios/[offeringToken]/agenda/page.tsx": {
-      "text": 12,
+      "text": 11,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/servicios/nuevo/page.tsx": {
-      "text": 4,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -658,7 +672,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/pets/no-aptas/page.tsx": {
-      "text": 4,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -672,7 +686,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mordedura/nuevo/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -700,7 +714,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/miembros/page.tsx": {
-      "text": 8,
+      "text": 7,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -728,7 +742,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/miembros/invitar/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -749,7 +763,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/page.tsx": {
-      "text": 9,
+      "text": 7,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -777,7 +791,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/transfer/page.tsx": {
-      "text": 8,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -805,7 +819,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/foster/page.tsx": {
-      "text": 10,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -826,7 +840,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoption/page.tsx": {
-      "text": 10,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -840,7 +854,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoptar/page.tsx": {
-      "text": 9,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -854,14 +868,14 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/maltrato/recibidos/page.tsx": {
-      "text": 6,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/maltrato/nuevo/page.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -875,7 +889,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/intake/page.tsx": {
-      "text": 9,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -889,7 +903,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/intake/match/[matchedPetToken]/page.tsx": {
-      "text": 6,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -903,7 +917,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/configuracion/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -917,70 +931,70 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/cobertura/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/checkins/page.tsx": {
-      "text": 16,
+      "text": 14,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/censo/page.tsx": {
-      "text": 7,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/casos/page.tsx": {
-      "text": 2,
-      "space": 1,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/atender/page.tsx": {
-      "text": 2,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/atender/[publicToken]/page.tsx": {
-      "text": 3,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/org/[orgToken]/agenda/page.tsx": {
       "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/org/[orgToken]/casos/page.tsx": {
+      "text": 1,
+      "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/atender/page.tsx": {
+      "text": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/atender/[publicToken]/page.tsx": {
+      "text": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/agenda/page.tsx": {
+      "text": 5,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/org/[orgToken]/agenda/turnos/[appointmentToken]/page.tsx": {
-      "text": 3,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/adopciones/page.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/adopciones/[appEventId]/page.tsx": {
-      "text": 7,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -994,21 +1008,21 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/admin/layout.tsx": {
-      "text": 4,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/admin/permisos/CapabilityMatrix.tsx": {
-      "text": 9,
+      "text": 4,
       "space": 0,
       "rounded": 4,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/admin/permisos/page.tsx": {
-      "text": 8,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1050,7 +1064,7 @@
       "hexStyle": 0
     },
     "app/gob/vigilancia/investigaciones/page.tsx": {
-      "text": 6,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1064,7 +1078,7 @@
       "hexStyle": 0
     },
     "app/gob/vigilancia/investigaciones/[caseCode]/page.tsx": {
-      "text": 12,
+      "text": 11,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -1078,42 +1092,42 @@
       "hexStyle": 0
     },
     "app/gob/vigilancia/investigaciones/nuevo/page.tsx": {
-      "text": 3,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/vigilancia/brotes/page.tsx": {
       "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/gob/vigilancia/brotes/page.tsx": {
+      "text": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/gob/usuarios/page.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/sistema/page.tsx": {
-      "text": 8,
+      "text": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/servicios/page.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/servicios/[offeringToken]/page.tsx": {
-      "text": 10,
+      "text": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1134,7 +1148,7 @@
       "hexStyle": 0
     },
     "app/gob/reglas/page.tsx": {
-      "text": 4,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1148,7 +1162,7 @@
       "hexStyle": 0
     },
     "app/gob/reglas/[country]/[province]/[locality]/page.tsx": {
-      "text": 7,
+      "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1162,7 +1176,7 @@
       "hexStyle": 0
     },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1197,56 +1211,49 @@
       "hexStyle": 0
     },
     "app/gob/reglas/[country]/[province]/[locality]/editar/[ruleId]/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/programa/page.tsx": {
-      "text": 22,
+      "text": 13,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/poblacion/page.tsx": {
-      "text": 9,
+      "text": 8,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/perdidas/page.tsx": {
-      "text": 5,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/outreach/page.tsx": {
-      "text": 10,
+      "text": 8,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/outbox/page.tsx": {
-      "text": 7,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/organizaciones/page.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/mortalidad/page.tsx": {
-      "text": 7,
+      "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1268,13 +1275,6 @@
     },
     "app/gob/maltrato/[id]/DerivationPanel.tsx": {
       "text": 3,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/maltrato/[id]/MpfExportButton.tsx": {
-      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1302,21 +1302,14 @@
       "hexStyle": 0
     },
     "app/gob/historial/page.tsx": {
-      "text": 3,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/gob/disputas/page.tsx": {
       "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/disputas/[disputeToken]/AddPartyForm.tsx": {
-      "text": 5,
+    "app/gob/disputas/page.tsx": {
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1330,7 +1323,7 @@
       "hexStyle": 0
     },
     "app/gob/disputas/[disputeToken]/page.tsx": {
-      "text": 10,
+      "text": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1351,21 +1344,21 @@
       "hexStyle": 0
     },
     "app/gob/decomisos/page.tsx": {
-      "text": 10,
+      "text": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/decomisos/_components/ReasignarButton.tsx": {
-      "text": 5,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/decomisos/nuevo/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1379,7 +1372,7 @@
       "hexStyle": 0
     },
     "app/gob/cola/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1393,21 +1386,28 @@
       "hexStyle": 0
     },
     "app/gob/censo/page.tsx": {
-      "text": 10,
+      "text": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/casos/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/gob/campanas/page.tsx": {
+      "text": 0,
+      "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/gob/analytics/page.tsx": {
-      "text": 6,
+      "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1428,7 +1428,7 @@
       "hexStyle": 0
     },
     "app/gob/analytics/export/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1442,7 +1442,7 @@
       "hexStyle": 0
     },
     "app/admin/page.tsx": {
-      "text": 4,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1456,56 +1456,49 @@
       "hexStyle": 0
     },
     "app/admin/sistema/page.tsx": {
-      "text": 6,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/admin/programa/page.tsx": {
-      "text": 23,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/admin/poblacion/page.tsx": {
-      "text": 8,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/admin/outbox/page.tsx": {
-      "text": 7,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/admin/outbox/[id]/page.tsx": {
-      "text": 22,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/admin/observaciones/page.tsx": {
       "text": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/admin/programa/page.tsx": {
+      "text": 13,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/poblacion/page.tsx": {
+      "text": 7,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/outbox/page.tsx": {
+      "text": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/observaciones/page.tsx": {
+      "text": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/admin/observaciones/[publicToken]/page.tsx": {
-      "text": 10,
+      "text": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/admin/observaciones/[publicToken]/microchip/reemplazar/page.tsx": {
-      "text": 3,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1519,7 +1512,7 @@
       "hexStyle": 0
     },
     "app/admin/moderacion/page.tsx": {
-      "text": 9,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1533,7 +1526,7 @@
       "hexStyle": 0
     },
     "app/admin/moderacion/[id]/page.tsx": {
-      "text": 7,
+      "text": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1547,7 +1540,7 @@
       "hexStyle": 0
     },
     "app/admin/libro/page.tsx": {
-      "text": 16,
+      "text": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1582,14 +1575,14 @@
       "hexStyle": 0
     },
     "app/admin/censo/page.tsx": {
-      "text": 13,
+      "text": 12,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/admin/casos/page.tsx": {
-      "text": 2,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1603,14 +1596,14 @@
       "hexStyle": 0
     },
     "app/admin/alertas/page.tsx": {
-      "text": 8,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/admin/adopciones/page.tsx": {
-      "text": 16,
+      "text": 14,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1728,6 +1721,13 @@
       "shadow": 0,
       "hexStyle": 0
     },
+    "app/(public)/p/[publicToken]/DegradedCredentialCard.tsx": {
+      "text": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 1,
+      "hexStyle": 0
+    },
     "app/(public)/p/[publicToken]/opengraph-image.tsx": {
       "text": 0,
       "space": 0,
@@ -1736,14 +1736,14 @@
       "hexStyle": 3
     },
     "app/(public)/p/[publicToken]/page.tsx": {
-      "text": 22,
+      "text": 21,
       "space": 11,
       "rounded": 0,
       "shadow": 2,
       "hexStyle": 1
     },
     "app/(public)/p/[publicToken]/Tier2MedicalView.tsx": {
-      "text": 9,
+      "text": 8,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -1876,8 +1876,8 @@
       "hexStyle": 0
     },
     "app/(public)/adoptar/[petToken]/page.tsx": {
-      "text": 17,
-      "space": 15,
+      "text": 16,
+      "space": 13,
       "rounded": 2,
       "shadow": 0,
       "hexStyle": 3
@@ -1890,7 +1890,7 @@
       "hexStyle": 1
     },
     "app/(public)/adoptar/[petToken]/postular/page.tsx": {
-      "text": 12,
+      "text": 10,
       "space": 5,
       "rounded": 4,
       "shadow": 0,
@@ -1918,7 +1918,7 @@
       "hexStyle": 0
     },
     "app/(auth)/signup/SignupForm.tsx": {
-      "text": 1,
+      "text": 0,
       "space": 0,
       "rounded": 3,
       "shadow": 0,
@@ -2016,8 +2016,8 @@
       "hexStyle": 0
     },
     "app/(app)/notificaciones/page.tsx": {
-      "text": 7,
-      "space": 2,
+      "text": 5,
+      "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
@@ -2044,14 +2044,14 @@
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/page.tsx": {
-      "text": 6,
-      "space": 3,
+      "text": 2,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/page.tsx": {
-      "text": 7,
+      "text": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -2431,7 +2431,7 @@
     "app/(app)/mis-mascotas/[publicToken]/anotar/CaptureBox.tsx": {
       "text": 0,
       "space": 0,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
@@ -2505,41 +2505,6 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/inicio/loading.tsx": {
-      "text": 0,
-      "space": 1,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/inicio/page.tsx": {
-      "text": 7,
-      "space": 3,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/inicio/_components/CredentialRail.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 2,
-      "hexStyle": 0
-    },
-    "app/(app)/inicio/_components/IntentApplyBanner.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/inicio/_components/PetHealthStatusStrip.tsx": {
-      "text": 4,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/denuncias/[id]/page.tsx": {
       "text": 19,
       "space": 0,
@@ -2569,7 +2534,7 @@
       "hexStyle": 0
     },
     "app/(app)/cuenta/page.tsx": {
-      "text": 17,
+      "text": 15,
       "space": 7,
       "rounded": 4,
       "shadow": 0,
@@ -2614,13 +2579,6 @@
       "text": 4,
       "space": 0,
       "rounded": 2,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/cuenta/transitos/page.tsx": {
-      "text": 5,
-      "space": 3,
-      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
@@ -2743,13 +2701,6 @@
       "shadow": 2,
       "hexStyle": 0
     },
-    "app/(app)/cuenta/editar/page.tsx": {
-      "text": 2,
-      "space": 1,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/cuenta/desactivar/GovtSelfDeactivateForm.tsx": {
       "text": 0,
       "space": 0,
@@ -2772,13 +2723,6 @@
       "hexStyle": 0
     },
     "app/(app)/cuenta/crear-consultorio/page.tsx": {
-      "text": 2,
-      "space": 1,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/cuenta/casos/page.tsx": {
       "text": 2,
       "space": 1,
       "rounded": 0,

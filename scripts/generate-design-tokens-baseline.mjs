@@ -13,8 +13,11 @@ const filtered = files.filter((f) => {
 });
 
 const textRe = /text-\[\d+\.?\d*px\]/g;
+// Kept in sync with ARBITRARY_SPACING_PX in check-design-tokens.ts (also matches
+// 2-4 value compound shorthand, e.g. p-[14px_16px]) — this generator has its own
+// copy of the regex rather than importing it, so both must be updated together.
 const spaceRe =
-  /\b(?:p|m|gap|space|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap-x|gap-y)-\[\d+\.?\d*(?:px|rem)\]/g;
+  /\b(?:p|m|gap|space|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap-x|gap-y)-\[\d+\.?\d*(?:px|rem)(?:_\d+\.?\d*(?:px|rem)){0,3}\]/g;
 const roundedRe = /rounded-\[\d+\.?\d*px\]/g;
 const shadowRe = /shadow-\[[^\]]+\]/g;
 const hexStyleRe =

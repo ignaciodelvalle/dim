@@ -69,7 +69,7 @@ export function LnCardHead({ title, label, icon, actions, className = "" }: LnCa
         .join(" ")}
     >
       {icon && <span className="text-[var(--color-ln-mute)]">{icon}</span>}
-      <h3 className="m-0 font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+      <h3 className="m-0 font-[var(--font-ln-serif)] text-[var(--text-base)] font-semibold leading-tight text-[var(--color-ln-ink)]">
         {title}
       </h3>
       {(label || actions) && (
@@ -151,7 +151,7 @@ export function LnSheet({
     >
       {/* Route chip */}
       {routeChip && (
-        <span className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-[3px] font-[var(--font-ln-mono)] text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
+        <span className="absolute left-[var(--space-sheet)] top-3 rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-1 font-[var(--font-ln-mono)] text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
           {routeChip}
         </span>
       )}
@@ -159,7 +159,7 @@ export function LnSheet({
       {/* Card */}
       <div
         className={[
-          "flex w-full flex-col overflow-hidden rounded-[5px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.14)]",
+          "flex w-full flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.14)]",
           wide ? "max-w-[620px]" : "max-w-[560px]",
         ]
           .filter(Boolean)
@@ -168,7 +168,7 @@ export function LnSheet({
         {/* Header */}
         <div
           className={[
-            "flex items-center gap-[13px] border-b border-[var(--color-ln-line)] border-t-[3px] px-[18px] py-4",
+            "flex items-center gap-3.5 border-b border-[var(--color-ln-line)] border-t-[3px] px-[var(--space-sheet)] py-4",
             toneTopBorder[tone],
           ]
             .filter(Boolean)
@@ -210,11 +210,11 @@ export function LnSheet({
         </div>
 
         {/* Body */}
-        <div className="flex flex-col gap-3.5 p-[18px]">{children}</div>
+        <div className="flex flex-col gap-3.5 p-[var(--space-sheet)]">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center gap-2.5 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+          <div className="flex items-center gap-2.5 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[var(--space-sheet)] py-3.5">
             {footer}
           </div>
         )}
@@ -258,10 +258,10 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <p className="m-0 font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-base)] font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
-        {meta && <p className="mt-px text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
+        {meta && <p className="mt-px text-[var(--text-sm)] text-[var(--color-ln-mute)]">{meta}</p>}
       </div>
 
       {/* Change link */}

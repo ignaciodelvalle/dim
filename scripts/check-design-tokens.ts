@@ -165,9 +165,13 @@ export const OP_TOKEN_UTILITY =
 export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
 
 // Rule 5: Arbitrary spacing — p/m/gap/space etc. with [Npx] or [Nrem].
+// Also matches Tailwind's compound shorthand (2-4 underscore-separated values,
+// e.g. p-[14px_16px]) — a single-value-only regex missed this entirely
+// (verified: p-[14px_16px] in OpCard.tsx/OpKpi.tsx produced zero matches
+// before this extension).
 // Note: p-[var(--space-*)] etc. are intentionally NOT matched (correct token form).
 export const ARBITRARY_SPACING_PX =
-  /\b(?:p|m|gap|space|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap-x|gap-y)-\[\d+\.?\d*(?:px|rem)\]/g;
+  /\b(?:p|m|gap|space|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap-x|gap-y)-\[\d+\.?\d*(?:px|rem)(?:_\d+\.?\d*(?:px|rem)){0,3}\]/g;
 
 // Rule 6: Arbitrary radius — rounded-[Npx].
 // Note: rounded-[var(--radius-*)] is intentionally NOT matched (correct token form).

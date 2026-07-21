@@ -178,7 +178,7 @@ function InfoButton({ info }: { info: InfoTooltip }) {
               leading-snug definition so it reads as one system, not a bespoke box. */}
           <div
             role="tooltip"
-            className="absolute z-50 bottom-full left-0 mb-2 w-72 space-y-1.5 rounded-lg border border-ln-line bg-ln-card p-3 text-[11px] leading-snug text-ln-ink shadow-lg"
+            className="absolute z-50 bottom-full left-0 mb-2 w-72 space-y-1.5 rounded-lg border border-ln-line bg-ln-card p-3 text-[var(--text-sm)] leading-snug text-ln-ink shadow-lg"
           >
             <p className="font-medium text-ln-ink-2">{info.definition}</p>
             {info.formula && (
@@ -321,13 +321,13 @@ export function OpKpi({
       )}
 
       {/* Sub */}
-      {sub && <div className="mt-auto pt-1.5 text-[11px] text-ln-op-mute">{sub}</div>}
+      {sub && <div className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-mute">{sub}</div>}
 
       {/* Drill link (v2) */}
       {drillHref && (
         <a
           href={drillHref}
-          className="mt-auto pt-1.5 text-[11px] text-ln-op-azul hover:underline self-start"
+          className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-azul hover:underline self-start"
           onClick={(e) => e.stopPropagation()}
         >
           Ver detalle →
@@ -364,7 +364,7 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
 
   const content = (
     <>
-      <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+      <div className="mb-1 text-[var(--text-xs)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         {label}
       </div>
       <div
