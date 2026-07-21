@@ -116,14 +116,30 @@ export default async function DecomisosDashboardPage({
     // order the seq scan happens to hand back, which for a bulk-inserted
     // batch reads out in roughly insertion order — i.e. the oldest case in
     // that tied block renders FIRST and the newest LAST, the exact "starts
-    // at the end" symptom reported. `id DESC` is the canonical tiebreak this
-    // project already uses for newest-first case lists (lib/infra/case-queries.ts
-    // listCasesForGovt/listCasesForAdmin), backed by the cases_opened_at_id_idx
-    // composite index on (opened_at DESC, id DESC) — this list just never
-    // adopted it. It doesn't recover "true" sub-second recency for genuine
-    // ties (id is a random UUID), but it does make the order deterministic
-    // and index-backed instead of scan-order-dependent.
-    .orderBy(desc(cases.openedAt), desc(cases.id))
+    // at the end" symptom reported.
+    //
+    // `createdAt` recovers TRUE insertion recency for these ties: no writer
+    // (production openCase() in cases-repository.ts, nor any seed script)
+    // ever sets `created_at` explicitly — it is always the DB-side
+    // `defaultNow()` timestamp captured at the moment the row actually landed.
+    // Seed scripts DO deliberately backdate `opened_at` (a business-semantic
+    // date) to a shared value across a batch, but each `cases` row is still
+    // inserted via its own sequential, non-transactional `INSERT` statement
+    // (verified: no `db.transaction` wraps the seed loops), so `created_at`
+    // is a real, monotonically increasing timestamp distinguishing "which of
+    // these same-opened_at rows landed most recently." (In real production
+    // writes, `openedAt` is never set explicitly either — both columns get
+    // the identical `defaultNow()` snapshot from the same INSERT, so
+    // `createdAt` adds no information there; it only resolves the seed-batch
+    // case, which is exactly the reported symptom.)
+    //
+    // `id DESC` remains the final determinism guard this project already uses
+    // for newest-first case lists (lib/infra/case-queries.ts
+    // listCasesForGovt/listCasesForAdmin) for the residual case where even
+    // `created_at` ties (e.g. a hypothetical future batch INSERT). It does
+    // NOT recover true sub-second recency on its own (id is a random UUID) —
+    // `createdAt` is what does that here.
+    .orderBy(desc(cases.openedAt), desc(cases.createdAt), desc(cases.id))
     .limit(200);
 
   // Verified-orgs list for the Reasignar combobox (V9 usability fix): same

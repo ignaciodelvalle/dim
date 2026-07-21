@@ -1,5 +1,6 @@
 // Regression test for the gob/decomisos custody_episode list ordering fix
-// (2026-07-21 operator-screen consistency pass, item B).
+// (2026-07-21 operator-screen consistency pass, item B; refined the same day
+// to tiebreak on a real timestamp instead of a random UUID).
 //
 // Bug: the list query ordered by `desc(cases.openedAt)` alone. Most seed
 // custody_episode rows share an identical batch-import timestamp (verified
@@ -8,12 +9,15 @@
 // roughly insertion order, meaning the oldest case in a tied block rendered
 // FIRST and the newest LAST: "the list starts at the end" symptom reported.
 //
-// Fix: add `desc(cases.id)` as a tiebreak (app/gob/decomisos/page.tsx),
-// mirroring the canonical newest-first pattern lib/infra/case-queries.ts
-// already uses for listCasesForGovt/listCasesForAdmin, backed by the
-// cases_opened_at_id_idx composite index on (opened_at DESC, id DESC).
+// Fix: tiebreak on `desc(cases.createdAt)` (app/gob/decomisos/page.tsx) —
+// unlike `openedAt` (a business-semantic date seed scripts deliberately
+// backdate to a shared value per batch), `createdAt` is never set explicitly
+// by any writer, so it carries the REAL, monotonic DB-insertion timestamp —
+// a true recency signal, not a random tiebreak. `desc(cases.id)` stays as
+// the final determinism guard for the residual case where even `createdAt`
+// ties (e.g. a hypothetical multi-row batch INSERT in one statement).
 //
-// SQL guarantees a multi-column ORDER BY breaks ties on the second key
+// SQL guarantees a multi-column ORDER BY breaks ties on the next key
 // regardless of physical row layout, so these assertions are fully
 // deterministic (not flaky) once the tiebreak is in place.
 
@@ -24,7 +28,7 @@ import { cases, db } from "@/db";
 
 const insertedIds: string[] = [];
 
-async function insertCustodyEpisode(openedAt: Date): Promise<string> {
+async function insertCustodyEpisode(openedAt: Date, createdAt?: Date): Promise<string> {
   const [row] = await db
     .insert(cases)
     .values({
@@ -33,6 +37,7 @@ async function insertCustodyEpisode(openedAt: Date): Promise<string> {
       primarySubjectKind: "general",
       status: "open",
       openedAt,
+      ...(createdAt ? { createdAt } : {}),
     })
     .returning({ id: cases.id });
   insertedIds.push(row.id);
@@ -46,28 +51,46 @@ describe("gob/decomisos custody_episode list ordering (B)", () => {
     }
   });
 
-  it("breaks ties on an identical openedAt by id DESC — matches the page's fixed ORDER BY", async () => {
+  it("breaks ties on an identical openedAt by TRUE insertion recency (createdAt), not id order", async () => {
     const tiedAt = new Date("2026-06-20T00:00:00.000Z");
+    // Sequential, non-transactional inserts (mirrors the seed scripts) — each
+    // gets its own DB-side `createdAt` `now()`, strictly increasing.
     const idA = await insertCustodyEpisode(tiedAt);
     const idB = await insertCustodyEpisode(tiedAt);
     const idC = await insertCustodyEpisode(tiedAt);
 
-    // Independent reference order: id DESC alone, for the same three rows.
-    const idOrderRows = await db
-      .select({ id: cases.id })
-      .from(cases)
-      .where(inArray(cases.id, [idA, idB, idC]))
-      .orderBy(desc(cases.id));
-    const expectedOrder = idOrderRows.map((r) => r.id);
-
-    // The page's exact fixed ORDER BY: opened_at DESC, id DESC. With all
-    // three rows sharing the same openedAt, this must collapse to the
-    // id-DESC order above — not scan/insertion order.
+    // The page's exact fixed ORDER BY: opened_at DESC, created_at DESC, id
+    // DESC. With all three rows sharing the same openedAt, this must read
+    // out in REVERSE insertion order (C, B, A) — real recency, not
+    // scan/id order.
     const tieRows = await db
       .select({ id: cases.id })
       .from(cases)
       .where(and(eq(cases.caseKind, "custody_episode"), inArray(cases.id, [idA, idB, idC])))
-      .orderBy(desc(cases.openedAt), desc(cases.id));
+      .orderBy(desc(cases.openedAt), desc(cases.createdAt), desc(cases.id));
+
+    expect(tieRows.map((r) => r.id)).toEqual([idC, idB, idA]);
+  });
+
+  it("falls back to id DESC when both openedAt and createdAt are tied", async () => {
+    const tiedAt = new Date("2026-06-20T00:00:00.000Z");
+    // Force an identical createdAt too (explicit override) — the one
+    // residual case id DESC still guards.
+    const idA = await insertCustodyEpisode(tiedAt, tiedAt);
+    const idB = await insertCustodyEpisode(tiedAt, tiedAt);
+
+    const idOrderRows = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(inArray(cases.id, [idA, idB]))
+      .orderBy(desc(cases.id));
+    const expectedOrder = idOrderRows.map((r) => r.id);
+
+    const tieRows = await db
+      .select({ id: cases.id })
+      .from(cases)
+      .where(and(eq(cases.caseKind, "custody_episode"), inArray(cases.id, [idA, idB])))
+      .orderBy(desc(cases.openedAt), desc(cases.createdAt), desc(cases.id));
 
     expect(tieRows.map((r) => r.id)).toEqual(expectedOrder);
   });
@@ -82,7 +105,7 @@ describe("gob/decomisos custody_episode list ordering (B)", () => {
       .select({ id: cases.id })
       .from(cases)
       .where(and(eq(cases.caseKind, "custody_episode"), inArray(cases.id, [idOld, idNew])))
-      .orderBy(desc(cases.openedAt), desc(cases.id));
+      .orderBy(desc(cases.openedAt), desc(cases.createdAt), desc(cases.id));
 
     expect(rows[0]?.id).toBe(idNew);
     expect(rows[1]?.id).toBe(idOld);

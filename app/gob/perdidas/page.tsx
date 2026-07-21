@@ -2,16 +2,15 @@ import { Suspense } from "react";
 
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnInput } from "@/components/ui/Field";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
-  OpButton,
   OpCard,
   OpCardBody,
   OpCardHead,
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  SearchFilterField,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { aggregateChoroplethData, scopedChoroplethProps } from "@/lib/analytics/choropleth-data";
@@ -219,11 +218,19 @@ export default async function GobPerdidasPage({
         </div>
       )}
 
-      {/* Unified filter bar — jurisdiction + species axis + active-filter chips.
-          Status (tabs) and search (q) keep their own controls below. Period is
-          OMITTED: perdidas is a currently-lost STOCK view (PO decision
-          2026-07-19), not a period-scoped report — a date filter conceptually
-          doesn't apply, mirrors /gob/maltrato's showPeriod={false}. */}
+      {/* Unified filter bar — jurisdiction + species axis + free-text search +
+          active-filter chips. Status keeps its own UrlTabs control below (a
+          queue-style tab set, not an OpFilterBar axis). Search (q) migrated
+          into the bar's children slot via the shared SearchFilterField
+          (gob-perdidas-search-migration, 2026-07-21) — same pattern as
+          /gob/organizaciones and /gob/usuarios: q is a plain searchParam
+          fetchLostPets already applies server-side, not a client-side map
+          filter, so folding it in is a pure UI consistency move (the map's
+          choroplethData is built FROM the already-q-filtered `lostPets`, so
+          its scope is unchanged either way). Period is OMITTED: perdidas is a
+          currently-lost STOCK view (PO decision 2026-07-19), not a
+          period-scoped report — a date filter conceptually doesn't apply,
+          mirrors /gob/maltrato's showPeriod={false}. */}
       <OpFilterBar
         showPeriod={false}
         jurisdiction={{ allowedProvinces, localities }}
@@ -238,7 +245,14 @@ export default async function GobPerdidasPage({
             },
           ] satisfies OpFilterAxis[]
         }
-      />
+      >
+        <SearchFilterField
+          paramKey="q"
+          value={q}
+          label="Buscar"
+          placeholder="Buscar por nombre de mascota o dueño/a"
+        />
+      </OpFilterBar>
 
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
@@ -329,32 +343,6 @@ export default async function GobPerdidasPage({
           />
         </OpCardBody>
       </OpCard>
-
-      {/* Search form */}
-      <form action="/gob/perdidas" method="get" className="flex items-center gap-2">
-        {/* Preserve other active searchParams so the form doesn't reset species/status */}
-        {sp.species && <input type="hidden" name="species" value={sp.species} />}
-        {sp.status && <input type="hidden" name="status" value={sp.status} />}
-        <LnInput
-          type="search"
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Buscar por nombre de mascota o dueño/a"
-          className="flex-1"
-          aria-label="Buscar mascotas"
-        />
-        <OpButton type="submit" variant="primary" size="sm" className="whitespace-nowrap">
-          Buscar
-        </OpButton>
-        {q && (
-          <a
-            href={`/gob/perdidas${sp.status ? `?status=${sp.status}` : ""}`}
-            className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-2 whitespace-nowrap"
-          >
-            Limpiar
-          </a>
-        )}
-      </form>
 
       {/* Status tabs + list panel */}
       <Suspense>

@@ -17,7 +17,7 @@ vi.mock("@/lib/infra/gov-scope", async (importOriginal) => {
 
 import { jurisdictionBounds } from "@/lib/infra/gov-scope";
 
-import { AR_BBOX, type Bbox, fitBoundsOptions } from "./map-bounds";
+import { AR_BBOX, type Bbox, GOB_MAP_HEIGHT, fitBoundsOptions } from "./map-bounds";
 import { boundsForScope } from "./map-bounds.server";
 
 describe("AR_BBOX", () => {
@@ -59,6 +59,22 @@ describe("fitBoundsOptions", () => {
       maxZoom: 14,
       animate: true,
     });
+  });
+});
+
+describe("GOB_MAP_HEIGHT", () => {
+  // Regression guard for the national-read refinement (2026-07-21): pins the
+  // exact clamp() string so a future edit doesn't silently drift, and asserts
+  // floor < mid-coefficient-implied-range < ceiling stay in a sane order.
+  it("is the refined clamp(420px, 66vh, 800px)", () => {
+    expect(GOB_MAP_HEIGHT).toBe("clamp(420px, 66vh, 800px)");
+  });
+
+  it("keeps the floor strictly below the ceiling (a valid clamp range)", () => {
+    const match = GOB_MAP_HEIGHT.match(/^clamp\((\d+)px, (\d+)vh, (\d+)px\)$/);
+    expect(match).not.toBeNull();
+    const [, floor, , ceiling] = match as RegExpMatchArray;
+    expect(Number(floor)).toBeLessThan(Number(ceiling));
   });
 });
 

@@ -52,16 +52,33 @@ export function fitBoundsOptions(opts?: Partial<FitBoundsOptions>): FitBoundsOpt
 
 /**
  * Shared national-map container height (gob/map-zoom-lockdown follow-up,
- * 2026-07-21): Argentina's bbox is tall/narrow (~2.8:1 height:width), so a
- * flat 400px under-fills a wide card — fitBounds letterboxes the territory
- * and the national view "looks far". A CSS `clamp()` keeps the fix purely a
- * container-size change (the camera/fitBounds logic is untouched — MapLibre
- * re-derives its fit from the container's actual rendered aspect at
- * fitBounds time, so a taller box alone makes the territory fill more of the
- * frame): floors at 420px on short/mobile viewports, scales with viewport
- * height on desktop, caps at 720px so it never runs away on very tall
- * monitors. Used identically by MapChoropleth and SituationalMap (via
- * PanoramaEmbed) so all 4 gob map screens (perdidas, censo, vigilancia,
- * poblacion) get the SAME height treatment.
+ * 2026-07-21; refined same day — national-read pass): Argentina's bbox is
+ * tall/narrow (~2.8:1 height:width), so a short/underfilled card leaves
+ * fitBounds letterboxing the territory and the national view "reads far".
+ * A CSS `clamp()` keeps the fix purely a container-size change (the
+ * camera/fitBounds logic is untouched — MapLibre re-derives its fit from the
+ * container's actual rendered aspect at fitBounds time, so a taller box
+ * alone makes the territory fill more of the frame).
+ *
+ * Refinement rationale: the first pass (420px/60vh/720px) still read "a
+ * touch far" nationally. The math showed WHY the 720px ceiling rarely even
+ * engages: at the vh term alone, a typical laptop viewport (~800-950px tall)
+ * only reaches ~480-570px — well under the OLD 720px cap — so for most
+ * everyday desktop sessions the vh COEFFICIENT, not the ceiling, was the
+ * binding constraint; only unusually tall viewports (>1200px, e.g. a
+ * maximized browser on a 1440p+ monitor) ever hit the old cap at all. Bumped
+ * BOTH terms a proportionate ~10%: 60vh → 66vh (moves the needle for the
+ * common desktop case) and 720px → 800px (keeps helping the tall-monitor
+ * case the ceiling already existed for). Floor held at 420px on purpose —
+ * short/mobile viewports (<~640px tall) are still governed by the floor and
+ * see effectively no change, so mobile framing is untouched.
+ *
+ * Used identically by MapChoropleth and SituationalMap (via PanoramaEmbed)
+ * so all 4 gob map screens (perdidas, censo, vigilancia, poblacion) get the
+ * SAME height treatment. Province/CABA framing is unaffected in substance:
+ * `maxZoom: 13` (MapChoropleth.tsx) already caps how far any scope can zoom
+ * in regardless of container size, so a taller box for those scopes only
+ * ever adds a little vertical padding around an already-well-fit view, never
+ * a wrong zoom level.
  */
-export const GOB_MAP_HEIGHT = "clamp(420px, 60vh, 720px)";
+export const GOB_MAP_HEIGHT = "clamp(420px, 66vh, 800px)";
