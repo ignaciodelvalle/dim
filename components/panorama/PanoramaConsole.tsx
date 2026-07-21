@@ -1109,13 +1109,29 @@ export function PanoramaConsole({
     Promise.resolve(kpisPromise)
       .then((resolved) => {
         if (cancelled) return;
-        if (!clientKpiTookOverRef.current) setKpis(resolved);
-        setKpisPending(false);
+        // Gate the pending-clear the SAME way as setKpis: if a client fetch has
+        // already taken over the strip (scope drill / period commit / scrub /
+        // popstate) but hasn't settled yet, clearing pending here would expose the
+        // gap where `kpis` is still the empty cold-start value — and the shared
+        // `kpisDegraded = (…|| kpis.length===0) && !kpisPending` formula would flash
+        // the honest-degraded copy ("No pudimos…") on BOTH the strip and the
+        // informe before the owning fetch lands. That flash is a lie: nothing
+        // failed, the seed just hadn't arrived. The owning fetch clears pending on
+        // its own settle (every takeover site does), so leaving it pending here is
+        // safe. Only the un-superseded seed clears pending. (Bug: /admin/panorama
+        // first-paint flash — the national fan-out's wider pending window exposed it.)
+        if (!clientKpiTookOverRef.current) {
+          setKpis(resolved);
+          setKpisPending(false);
+        }
       })
       .catch(() => {
         if (cancelled) return;
-        // Never leave the strip stuck pending on an unexpected rejection.
-        setKpisPending(false);
+        // Same gate: an owning client fetch clears pending itself; only clear here
+        // when the seed is still the strip's source, so a rejected-but-superseded
+        // seed can't flip pending off under a slower live fetch. Never leaves the
+        // strip stuck pending in the un-superseded case.
+        if (!clientKpiTookOverRef.current) setKpisPending(false);
       });
     return () => {
       cancelled = true;
