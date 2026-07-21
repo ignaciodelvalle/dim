@@ -11,7 +11,7 @@
 //   - it is keyboard-operable and label-associable.
 
 import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { DateInputAr } from "./DateInputAr";
 
@@ -118,5 +118,47 @@ describe("DateInputAr", () => {
       </>,
     );
     expect(textbox(container).id).toBe("audit-from");
+  });
+
+  describe("onValueChange (commit-worthy signal)", () => {
+    it("fires with the ISO value once a date becomes complete and valid", () => {
+      const onValueChange = vi.fn();
+      const { container } = render(<DateInputAr name="from" onValueChange={onValueChange} />);
+      const input = textbox(container);
+      fireEvent.change(input, { target: { value: "1" } });
+      fireEvent.change(input, { target: { value: "15" } });
+      fireEvent.change(input, { target: { value: "1507" } });
+      expect(onValueChange).not.toHaveBeenCalled();
+      fireEvent.change(input, { target: { value: "15072026" } });
+      expect(onValueChange).toHaveBeenCalledTimes(1);
+      expect(onValueChange).toHaveBeenLastCalledWith("2026-07-15");
+    });
+
+    it("fires with an empty string once the field is fully cleared", () => {
+      const onValueChange = vi.fn();
+      const { container } = render(
+        <DateInputAr name="from" defaultValue="2026-07-03" onValueChange={onValueChange} />,
+      );
+      fireEvent.change(textbox(container), { target: { value: "" } });
+      expect(onValueChange).toHaveBeenCalledTimes(1);
+      expect(onValueChange).toHaveBeenLastCalledWith("");
+    });
+
+    it("does NOT fire while a complete-but-impossible date is mid-typed", () => {
+      const onValueChange = vi.fn();
+      const { container } = render(<DateInputAr name="from" onValueChange={onValueChange} />);
+      fireEvent.change(textbox(container), { target: { value: "32132026" } });
+      expect(onValueChange).not.toHaveBeenCalled();
+    });
+
+    it("does NOT fire again on blur (blur has no separate commit signal)", () => {
+      const onValueChange = vi.fn();
+      const { container } = render(<DateInputAr name="from" onValueChange={onValueChange} />);
+      const input = textbox(container);
+      fireEvent.change(input, { target: { value: "15072026" } });
+      onValueChange.mockClear();
+      fireEvent.blur(input);
+      expect(onValueChange).not.toHaveBeenCalled();
+    });
   });
 });

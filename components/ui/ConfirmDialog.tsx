@@ -72,6 +72,9 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useRef(`confirm-dialog-title-${Math.random().toString(36).slice(2)}`).current;
+  // Tracks whether THIS instance has actually been open, so the focus-restore
+  // effect below only fires on a real open→close transition — see its comment.
+  const wasOpenRef = useRef(false);
 
   // Open/close the native dialog imperatively.
   useEffect(() => {
@@ -97,9 +100,25 @@ export function ConfirmDialog({
     return () => el.removeEventListener("cancel", handleCancel);
   }, [onClose]);
 
-  // Return focus to the trigger when the dialog closes.
+  // Return focus to the trigger when the dialog closes — but ONLY on a real
+  // open→close transition, not on initial mount (`open` starts `false`).
+  // ROOT CAUSE (QA 2026-07-21, /gob/decomisos landing scrolled to the bottom
+  // row on every load and after every filter change): a page can render MANY
+  // ConfirmDialog instances at once — one per list row (Reasignar/Devolver al
+  // dueño per decomiso). Every instance mounts with `open=false`, so without
+  // `wasOpenRef` this effect fired on EVERY instance's mount, each one
+  // stealing focus via `triggerRef.current.focus()`; the LAST instance in DOM
+  // order (the bottom-most row) always won the race, and the browser
+  // auto-scrolled that now-focused button into view — silently landing the
+  // whole page at the bottom instead of the top. `wasOpenRef` gates the
+  // refocus so it only happens after THIS instance was genuinely opened
+  // (user clicked its trigger) and then closed.
   useEffect(() => {
-    if (!open && triggerRef?.current) {
+    if (open) {
+      wasOpenRef.current = true;
+      return;
+    }
+    if (wasOpenRef.current && triggerRef?.current) {
       triggerRef.current.focus();
     }
   }, [open, triggerRef]);

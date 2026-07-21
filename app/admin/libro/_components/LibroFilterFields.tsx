@@ -6,23 +6,32 @@
 //
 // ROOT-CAUSE FIX (R2, opfilterbar-sweep-2026-07-21): libro was the ONLY
 // screen composing BOTH shared <JurisdictionFilterFields> AND
-// <DateRangeFilterFields> side by side. Each of those shared components owns
-// its OWN <form> + "Aplicar" submit button (by design — a per-keystroke
-// axis-style commit would fire mid-typing into the masked date input / the
-// locality typeahead, so both fields need to commit together on an explicit
-// click) — but putting BOTH components in the same bar meant TWO independent
-// forms, so libro rendered TWO "Aplicar" buttons. Every other OpFilterBar
-// screen has zero (axes commit on-change) or exactly one batched group.
+// <DateRangeFilterFields> side by side, each owning its OWN <form> +
+// "Aplicar" — so libro rendered TWO "Aplicar" buttons where every other
+// OpFilterBar screen had zero or one.
 //
 // FIX: libro gets its own combined control, built from the underlying
 // fields-only primitives (<JurisdictionFilter>, <DateInputAr> — neither
 // renders its own <form> or button) inside a SINGLE <form> with a SINGLE
 // "Aplicar" that commits all four params (provincia/localidad/desde/hasta)
 // in one full-document nav via the same serverNavCommit primitive every
-// other OpFilterBar control uses. <JurisdictionFilterFields> and
-// <DateRangeFilterFields> are UNCHANGED — /admin/auditoria and
-// /admin/alertas keep using <DateRangeFilterFields> alone (one field-group,
-// one button already) and are unaffected.
+// other OpFilterBar control uses.
+//
+// KNOWN CONSISTENCY GAP (2026-07-21, DateRangeFilterFields on-change fix):
+// <DateRangeFilterFields> itself no longer owns a <form>/"Aplicar" — its two
+// DateInputAr fields now commit on change (see that file), which is why
+// /admin/auditoria and /admin/alertas lost their button entirely. Libro's
+// Desde/Hasta pair here is built from the SAME <DateInputAr> primitive but
+// still batches behind this shared <form>, because it shares that form with
+// <JurisdictionFilter> — and JurisdictionFilter's locality field is a
+// typeahead (LocalityPickerAcross) that has no safe "complete value" signal
+// to commit on per keystroke the way a masked date does. Wiring the province
+// <select> (plain onChange) + locality `onSelect` (fires only on an actual
+// pick, never per keystroke) to commit immediately, with a province change
+// resetting locality, would let libro drop this "Aplicar" too — deliberately
+// NOT done here: it's a distinct, riskier change (province-change-clears-
+// locality semantics need care) than the date-only fix, so it's left for a
+// follow-up rather than bundled in.
 import { useSearchParams } from "next/navigation";
 import { type FormEvent, useId } from "react";
 

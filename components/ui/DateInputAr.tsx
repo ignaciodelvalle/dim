@@ -48,9 +48,25 @@ export type DateInputArProps = {
   ariaLabel?: string;
   /** Classes applied to the visible text input (preserves per-surface styling). */
   className?: string;
+  /**
+   * Fires with the current ISO value ONLY when it is COMMIT-WORTHY: a
+   * complete, calendar-valid date, or the field was fully cleared (empty
+   * string). Never fires for a partial/incomplete/invalid in-progress edit —
+   * so a caller can wire this straight into a per-keystroke-unsafe action
+   * (e.g. a URL-navigating filter commit) without debouncing or a submit
+   * button; see DateRangeFilterFields for the canonical consumer.
+   */
+  onValueChange?: (iso: string) => void;
 };
 
-export function DateInputAr({ name, defaultValue, id, ariaLabel, className }: DateInputArProps) {
+export function DateInputAr({
+  name,
+  defaultValue,
+  id,
+  ariaLabel,
+  className,
+  onValueChange,
+}: DateInputArProps) {
   const reactId = useId();
   const inputId = id ?? `${reactId}-date`;
   const errorId = `${reactId}-error`;
@@ -77,10 +93,15 @@ export function DateInputAr({ name, defaultValue, id, ariaLabel, className }: Da
     // leaves it that way).
     if (masked === "") {
       setIso("");
+      onValueChange?.("");
       return;
     }
     const parsed = parseArDateToIso(masked);
     setIso(parsed ?? "");
+    // Only a COMPLETE, calendar-valid date is commit-worthy — a partial or
+    // impossible in-progress date (parsed === null) must not fire, or a
+    // caller committing straight to a URL nav would navigate mid-keystroke.
+    if (parsed) onValueChange?.(parsed);
   }
 
   function handleBlur() {
