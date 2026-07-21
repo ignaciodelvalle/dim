@@ -1,8 +1,15 @@
 import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
 import Link from "next/link";
 
-import { DateInputAr } from "@/components/ui/DateInputAr";
-import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import {
+  DateRangeFilterFields,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
@@ -15,6 +22,8 @@ import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { formatDateTime } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+
+import { AuditActionFilter } from "./_components/AuditActionFilter";
 
 const AUDITORIA_PAGE_LIMIT = 200;
 
@@ -251,103 +260,58 @@ export default async function AdminAuditoriaPage({
         </p>
       </header>
 
-      <form action="/admin/auditoria" method="get" className="flex flex-wrap items-end gap-2">
-        {/* Action filter. A single/absent action uses the dropdown; a multi-action
-            drill (e.g. Decisiones 7d = aprobadas + rechazadas) can't be shown in a
-            single-select, so it renders as a read-only chip backed by a hidden
-            input — keeping exactly one `action` field and preserving both codes
-            across pagination and re-submits. */}
-        {multiActionLabels ? (
-          <div className="flex flex-col gap-1">
-            <span className="text-[var(--text-sm)] font-medium text-ln-op-mute">Acción</span>
-            <span className="inline-flex items-center gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink">
-              {multiActionLabels.join(" + ")}
-            </span>
-            <input type="hidden" name="action" value={actionFilters.join(",")} />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="audit-action"
-              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-            >
-              Acción
-            </label>
-            <select
-              id="audit-action"
-              name="action"
-              defaultValue={selectedActionOption?.value ?? ""}
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-            >
-              <option value="">Todas las acciones</option>
-              {actionOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Date-range filter — date-only bounds (to is inclusive). */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="audit-from" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
-            Desde
-          </label>
-          <DateInputAr
-            id="audit-from"
-            name="from"
-            defaultValue={fromValid}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="audit-to" className="text-[var(--text-sm)] font-medium text-ln-op-mute">
-            Hasta
-          </label>
-          <DateInputAr
-            id="audit-to"
-            name="to"
-            defaultValue={toValid}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          />
-        </div>
-
-        {/* Actor filter — dropdown of names present in the current result page */}
-        <div className="flex flex-col gap-1">
-          <label
-            htmlFor="audit-actor"
-            className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-          >
-            Actor
-          </label>
-          <select
-            id="audit-actor"
-            name="actor"
-            defaultValue={actorFilter ?? ""}
-            className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-          >
-            <option value="">Todos los actores</option>
-            {actorOptions.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <OpButton type="submit" variant="primary" size="sm">
-          Filtrar
-        </OpButton>
+      {/* Unified filter bar — Actor as a registered axis (its no-param default
+          is genuinely "todos los actores", so it gets OpFilterBar's own
+          chip + "Limpiar todo" for free). Acción and Desde/Hasta stay
+          `children`:
+            - Acción (AuditActionFilter) — not a default-value trap (its
+              default is genuinely "all" too), but a multi-action KPI drill
+              (Decisiones 7d) renders as a locked chip that a single-select
+              axis can't represent.
+            - Desde/Hasta (DateRangeFilterFields) — no default bound
+              (genuinely unbounded), and needs its own "Aplicar" (a per-
+              keystroke commit would fire on every partial masked digit).
+          Because neither is a registered axis, OpFilterBar's "Limpiar todo"
+          can't reach them — the "Limpiar filtros" link below is kept
+          (identical href/behavior to the pre-migration <form>) as the
+          full-reset fallback. A filter change drops the keyset `cursor`
+          (page 1). */}
+      <OpFilterBar
+        showPeriod={false}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "actor",
+              label: "Actor",
+              paramKey: "actor",
+              options: actorOptions.map((o) => ({ value: o.id, label: o.name })),
+              current: actorFilter,
+              allLabel: "Todos los actores",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <AuditActionFilter
+          actionOptions={actionOptions}
+          selectedValue={selectedActionOption?.value ?? ""}
+          multiActionLabels={multiActionLabels}
+          resetParamsOnChange={["cursor"]}
+        />
+        <DateRangeFilterFields
+          fromValue={fromValid}
+          toValue={toValid}
+          resetParamsOnChange={["cursor"]}
+        />
         {hasFilters && (
           <a
             href="/admin/auditoria"
-            className="text-sm text-ln-op-mute underline underline-offset-4"
+            className="self-center text-sm text-ln-op-mute underline underline-offset-4"
           >
             Limpiar filtros
           </a>
         )}
-      </form>
+      </OpFilterBar>
 
       {entries.length === 0 ? (
         <p className="text-[var(--text-md)] text-ln-op-mute">No hay entradas que coincidan.</p>

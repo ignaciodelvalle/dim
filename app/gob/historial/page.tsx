@@ -42,8 +42,15 @@
 import { desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { OpButton, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import {
+  AuditMineToggle,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
@@ -209,12 +216,6 @@ export default async function GobHistorialPage({
       ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
       : undefined;
 
-  // fromDate/toDate are now always populated (the trailing-12m default), so
-  // "has an active filter" is judged off the raw params instead — same test
-  // vigilancia's own conditional (`sp.period || sp.from`) uses to decide
-  // whether the resolver ran at all.
-  const hasFilters =
-    actionFilters.length > 0 || actorFilter !== null || Boolean(sp.period) || Boolean(sp.from);
   const isMineFilter = actorFilter === user.id;
 
   const groups = groupConsecutiveAuditRows(entries);
@@ -234,8 +235,6 @@ export default async function GobHistorialPage({
     if (uid) params.set("actor", uid);
     return `/gob/historial?${params.toString()}`;
   };
-
-  const mineHref = `/gob/historial?actor=${user.id}`;
 
   const scopeCopy = isAdmin
     ? "Vista universal — todas las jurisdicciones."
@@ -346,80 +345,44 @@ export default async function GobHistorialPage({
         <p className="text-[13px] text-ln-op-mute">{scopeCopy}</p>
       </header>
 
-      <div className="flex flex-wrap items-end gap-4">
-        {/* Período — the shared <PeriodPicker> control (same param names and
-            full-navigation commit strategy as /gob/vigilancia and every other
-            /gob dashboard). It commits independently of the action/actor form
-            below (own click handlers, not a submit), so it lives outside the
-            <form> but on the same filter row. */}
-        <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <span className="text-[var(--text-sm)] font-medium text-ln-op-mute">Período</span>
-          <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
-        </div>
-
-        <form action="/gob/historial" method="get" className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="historial-action"
-              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-            >
-              Acción
-            </label>
-            <select
-              id="historial-action"
-              name="action"
-              defaultValue={selectedActionOption?.value ?? ""}
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-            >
-              <option value="">Todas las acciones</option>
-              {actionOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="historial-actor"
-              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-            >
-              Actor
-            </label>
-            <select
-              id="historial-actor"
-              name="actor"
-              defaultValue={actorFilter ?? ""}
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-            >
-              <option value="">Todos los actores</option>
-              {actorOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <OpButton type="submit" variant="primary" size="sm">
-            Filtrar
-          </OpButton>
-          {!isMineFilter && (
-            <a href={mineHref} className="text-sm text-ln-op-azul underline underline-offset-4">
-              Ver solo mi actividad
-            </a>
-          )}
-          {hasFilters && (
-            <a
-              href="/gob/historial"
-              className="text-sm text-ln-op-mute underline underline-offset-4"
-            >
-              Limpiar filtros
-            </a>
-          )}
-        </form>
-      </div>
+      {/* Unified filter bar — Período (shared PeriodPicker, same param names
+          and default preset as before) + Acción/Actor as registered axes
+          (both no-param defaults are genuinely "todas/todos" — no
+          blank-option trap). "Ver solo mi actividad" is a TOGGLE
+          (AuditMineToggle) in `children`, not an axis: it defaults OFF ("todos
+          los actores", the same default the Actor axis already has) and just
+          writes the SAME `actor` param the axis does — mirrors the
+          pre-migration page's two affordances (dropdown + quick link) over
+          one param (F-migration 2026-07-21, off the bespoke <form> +
+          hand-rolled Período row). A filter change drops the keyset `cursor`
+          (page 1); "Limpiar todo" now covers period+action+actor in one click
+          (same reset the old bare "Limpiar filtros" link produced). */}
+      <OpFilterBar
+        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "action",
+              label: "Acción",
+              paramKey: "action",
+              options: actionOptions,
+              current: selectedActionOption?.value ?? null,
+              allLabel: "Todas las acciones",
+            },
+            {
+              id: "actor",
+              label: "Actor",
+              paramKey: "actor",
+              options: actorOptions.map((o) => ({ value: o.id, label: o.name })),
+              current: actorFilter,
+              allLabel: "Todos los actores",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
+      </OpFilterBar>
 
       {entries.length === 0 ? (
         <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>

@@ -10,8 +10,14 @@
 // Auth: requireAdminOrRedirect (admin-only; govt + everyone else → /).
 
 import { AlertInboxTable } from "@/components/admin/AlertInboxTable";
-import { DateInputAr } from "@/components/ui/DateInputAr";
-import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import {
+  DateRangeFilterFields,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+} from "@/components/ui/dashboard";
 import {
   ALERT_FIRING_STATUSES,
   ALERT_METRIC_KEYS,
@@ -26,6 +32,8 @@ import {
 } from "@/lib/metrics/alert-firing-inbox";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+
+import { AlertEstadoFilter } from "./_components/AlertEstadoFilter";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +63,21 @@ const STATUS_FILTER_LABEL: Record<string, string> = {
   resuelta: "Resuelta",
   descartada: "Descartada",
 };
+
+// Domain-axis/child-control options for the OpFilterBar (F-migration
+// 2026-07-21, off the bespoke <form>) — same values/labels the old hand-rolled
+// selects used. Estado is NOT an axis — see AlertEstadoFilter (BUGFIX
+// opfilterbar-sweep-2026-07-21: its default is the specific "open" subset,
+// not "all").
+const METRIC_OPTIONS = ALERT_METRIC_KEYS.map((m) => ({
+  value: m,
+  label: METRIC_LABEL[m] ?? m,
+}));
+const PROVINCE_OPTIONS = PROVINCES.map((p) => ({ value: p.name, label: p.name }));
+const ESTADO_OPTIONS = Object.entries(STATUS_FILTER_LABEL).map(([value, label]) => ({
+  value,
+  label,
+}));
 
 function parseFilters(sp: Record<string, string | undefined>): AlertInboxFilters {
   const status = sp.status;
@@ -107,9 +130,6 @@ export default async function AdminAlertasPage({
     ).catch(() => undefined);
   }
 
-  const inputCls =
-    "h-11 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-sm text-ln-op-ink";
-
   return (
     <div className="space-y-6">
       <header className="space-y-2">
@@ -126,80 +146,43 @@ export default async function AdminAlertasPage({
         </p>
       </header>
 
-      <OpCard>
-        <OpCardHead title="Filtros" />
-        <OpCardBody>
-          <form method="get" className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute">
-              Estado
-              <select name="status" defaultValue={filters.status ?? "open"} className={inputCls}>
-                {Object.entries(STATUS_FILTER_LABEL).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute">
-              Métrica
-              <select name="metric" defaultValue={filters.metricKey ?? ""} className={inputCls}>
-                <option value="">Todas</option>
-                {ALERT_METRIC_KEYS.map((m) => (
-                  <option key={m} value={m}>
-                    {METRIC_LABEL[m] ?? m}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute">
-              Provincia
-              <select name="province" defaultValue={filters.province ?? ""} className={inputCls}>
-                <option value="">Todas</option>
-                {PROVINCES.map((p) => (
-                  <option key={p.code} value={p.name}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label
-              htmlFor="alertas-from"
-              className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute"
-            >
-              Desde
-              {/* Browser-independent dd/mm/aaaa entry (DateInputAr): native
-                  date inputs render mm/dd/yyyy outside Chromium, which produced
-                  wrong ranges. The submitted value stays ISO. */}
-              <DateInputAr
-                id="alertas-from"
-                name="from"
-                defaultValue={filters.from}
-                className={inputCls}
-              />
-            </label>
-
-            <label
-              htmlFor="alertas-to"
-              className="flex flex-col gap-1 text-[11px] font-semibold text-ln-op-mute"
-            >
-              Hasta
-              <DateInputAr
-                id="alertas-to"
-                name="to"
-                defaultValue={filters.to}
-                className={inputCls}
-              />
-            </label>
-
-            <OpButton type="submit" variant="primary" size="sm" className="h-11 px-4">
-              Aplicar
-            </OpButton>
-          </form>
-        </OpCardBody>
-      </OpCard>
+      {/* Unified filter bar — Métrica/Provincia axes + Estado/Desde/Hasta as
+          children (F-migration 2026-07-21, off the divergent OpCard-wrapped
+          <form> the PO flagged as "otro tipo de filtro, raro"). Estado is NOT
+          an axis — see AlertEstadoFilter (BUGFIX opfilterbar-sweep-2026-07-21:
+          its no-param default is the specific "open" subset, not "all" — an
+          axis's injected blank "Todas" would silently collide with that
+          default instead of clearing it). Desde/Hasta have NO default bound
+          (genuinely unbounded, not a preset period) — see
+          DateRangeFilterFields for why they stay a two-field + "Aplicar" child
+          instead of OpFilterBar's `period` prop. No pagination on this page,
+          so no `cursor` to reset. */}
+      <OpFilterBar
+        showPeriod={false}
+        axes={
+          [
+            {
+              id: "metric",
+              label: "Métrica",
+              paramKey: "metric",
+              options: METRIC_OPTIONS,
+              current: filters.metricKey ?? null,
+              allLabel: "Todas",
+            },
+            {
+              id: "province",
+              label: "Provincia",
+              paramKey: "province",
+              options: PROVINCE_OPTIONS,
+              current: filters.province ?? null,
+              allLabel: "Todas",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <AlertEstadoFilter value={filters.status ?? "open"} options={ESTADO_OPTIONS} />
+        <DateRangeFilterFields fromValue={filters.from} toValue={filters.to} />
+      </OpFilterBar>
 
       <OpCard>
         <OpCardHead

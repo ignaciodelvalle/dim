@@ -31,11 +31,15 @@ import { globSync, readFileSync } from "node:fs";
  *  on 2026-07-21 (casos/outbox filter-bar sweep: /gob/casos + /admin/casos
  *  + /gob/outbox + /admin/outbox migrated their bespoke <form> filter rows
  *  to OpFilterBar axes — the outbox pair's 4 raw <select>s each are gone).
+ *  Lowered again same day (opfilterbar-sweep-2026-07-21 cluster 2 — alerts/
+ *  audit/history family): /admin/alertas, /admin/auditoria, /gob/historial,
+ *  /admin/historial migrated their bespoke <form>/OpCard filter rows to
+ *  OpFilterBar (7 raw <select>s replaced by OpSelect-based axes/children).
  *  Target: 0, via migration to LnSelect (citizen) / OpSelect (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 61;
+const BASELINE = 54;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;

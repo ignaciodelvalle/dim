@@ -28,9 +28,14 @@
 import { desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
-import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { OpSelect } from "@/components/ui/dashboard/OpField";
+import {
+  AuditMineToggle,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+} from "@/components/ui/dashboard";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
@@ -208,9 +213,6 @@ async function loadAdminHistorial(sp: AdminHistorialSearchParams, viewerId: stri
       ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
       : undefined;
 
-  const hasFilters =
-    actionFilters.length > 0 || actorFilter !== null || Boolean(sp.period) || Boolean(sp.from);
-
   return {
     entries,
     olderLink,
@@ -220,9 +222,7 @@ async function loadAdminHistorial(sp: AdminHistorialSearchParams, viewerId: stri
     actorOptions,
     actionOptions,
     selectedActionOption,
-    hasFilters,
     isMineFilter: actorFilter === viewerId,
-    mineHref: `/admin/historial?actor=${viewerId}`,
     actorFilter,
   };
 }
@@ -243,9 +243,7 @@ export default async function AdminHistorialPage({
     actorOptions,
     actionOptions,
     selectedActionOption,
-    hasFilters,
     isMineFilter,
-    mineHref,
     actorFilter,
   } = await loadAdminHistorial(sp, user.id);
   const actorName = (uid: string | null) =>
@@ -258,70 +256,41 @@ export default async function AdminHistorialPage({
         <p className="text-[13px] text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
       </header>
 
-      <div className="flex flex-wrap items-end gap-4">
-        {/* Período — the shared <PeriodPicker> control, same as /gob/historial. */}
-        <div className="flex w-full flex-col gap-1 sm:w-auto">
-          <span className="text-[var(--text-sm)] font-medium text-ln-op-mute">Período</span>
-          <PeriodPicker defaultPreset={DEFAULT_DASHBOARD_PRESET} />
-        </div>
-
-        <form action="/admin/historial" method="get" className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="historial-action"
-              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-            >
-              Acción
-            </label>
-            <OpSelect
-              id="historial-action"
-              name="action"
-              defaultValue={selectedActionOption?.value ?? ""}
-            >
-              <option value="">Todas las acciones</option>
-              {actionOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </OpSelect>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label
-              htmlFor="historial-actor"
-              className="text-[var(--text-sm)] font-medium text-ln-op-mute"
-            >
-              Actor
-            </label>
-            <OpSelect id="historial-actor" name="actor" defaultValue={actorFilter ?? ""}>
-              <option value="">Todos los actores</option>
-              {actorOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </OpSelect>
-          </div>
-
-          <OpButton type="submit" variant="primary" size="sm">
-            Filtrar
-          </OpButton>
-          {!isMineFilter && (
-            <a href={mineHref} className="text-sm text-ln-op-azul underline underline-offset-4">
-              Ver solo mi actividad
-            </a>
-          )}
-          {hasFilters && (
-            <a
-              href="/admin/historial"
-              className="text-sm text-ln-op-mute underline underline-offset-4"
-            >
-              Limpiar filtros
-            </a>
-          )}
-        </form>
-      </div>
+      {/* Unified filter bar — twin of /gob/historial's (#26 D1 parity): Período
+          + Acción/Actor as registered axes (both no-param defaults are
+          genuinely "todas/todos" — no blank-option trap) + "Ver solo mi
+          actividad" as a children TOGGLE (AuditMineToggle), not an axis — it
+          defaults OFF ("todos los actores", the Actor axis's own default) and
+          writes the SAME `actor` param the axis does (F-migration
+          2026-07-21, off the bespoke <form> + hand-rolled Período row). A
+          filter change drops the keyset `cursor` (page 1); "Limpiar todo"
+          now covers period+action+actor in one click. */}
+      <OpFilterBar
+        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "action",
+              label: "Acción",
+              paramKey: "action",
+              options: actionOptions,
+              current: selectedActionOption?.value ?? null,
+              allLabel: "Todas las acciones",
+            },
+            {
+              id: "actor",
+              label: "Actor",
+              paramKey: "actor",
+              options: actorOptions.map((o) => ({ value: o.id, label: o.name })),
+              current: actorFilter,
+              allLabel: "Todos los actores",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
+      </OpFilterBar>
 
       {entries.length === 0 ? (
         <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
