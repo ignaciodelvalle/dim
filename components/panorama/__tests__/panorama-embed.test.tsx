@@ -104,4 +104,15 @@ describe("PanoramaEmbed (P5 gift)", () => {
     await waitFor(() => expect(mapProps).not.toBeNull());
     expect(mapProps?.label).toBe(explainViewState(view));
   });
+
+  it("locks the camera (gob/map-zoom-lockdown follow-up, 2026-07-21): passes interactive={false}, unlike the console", async () => {
+    // The embed is the ONLY caller that opts into the lockdown — see the
+    // sibling assertion in PanoramaConsole.test.tsx proving the full
+    // /gob/panorama console never sets this prop (stays interactive by
+    // SituationalMap's own default).
+    const view = makeViewState({ layers: ["denuncias"] });
+    render(<PanoramaEmbed viewState={view} />);
+    await waitFor(() => expect(mapProps).not.toBeNull());
+    expect(mapProps?.interactive).toBe(false);
+  });
 });

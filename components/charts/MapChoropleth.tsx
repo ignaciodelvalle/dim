@@ -16,6 +16,7 @@ import {
   isCABA,
   joinChoroplethData,
 } from "@/lib/infra/geo-join";
+import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { escapeHtml } from "@/lib/utils/escape-html";
 import type maplibregl from "maplibre-gl";
 import { useSearchParams } from "next/navigation";
@@ -80,8 +81,12 @@ export type MapChoroplethProps = {
   center?: [number, number];
   /** Zoom inicial. Default 4. */
   zoom?: number;
-  /** Alto del mapa en px. Default 400. */
-  height?: number;
+  /**
+   * Alto del mapa: número (px) o cualquier valor CSS válido (p.ej. un
+   * `clamp()`). Default: `GOB_MAP_HEIGHT` (lib/ui/map-bounds.ts) — el
+   * tratamiento de altura compartido por los 4 mapas de gob.
+   */
+  height?: number | string;
   className?: string;
   /** Etiqueta de la tabla a11y. */
   fallbackTableLabel?: string;
@@ -209,7 +214,7 @@ export function MapChoropleth({
   colorScale = RAMP_BLUE,
   center = [-63.6167, -38.4161],
   zoom = 4,
-  height = 400,
+  height = GOB_MAP_HEIGHT,
   className = "",
   fallbackTableLabel = "Datos del mapa",
   visibleCodes,

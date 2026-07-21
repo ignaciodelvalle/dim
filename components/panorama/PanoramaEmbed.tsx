@@ -17,7 +17,13 @@
 //  - live view only (PO 2026-07-14: replay is live view, no ?basis=) — asOf IS
 //    honored when the frozen view carries one (a scrubbed snapshot embeds
 //    honestly);
-//  - read-only data surface: native pan/zoom stays, no drill/scope commits.
+//  - read-only data surface, no drill/scope commits. Camera lockdown (gob/
+//    map-zoom-lockdown follow-up, 2026-07-21, PO-approved reversal of the v1
+//    "native pan/zoom stays" call above): the embed now passes
+//    `interactive={false}` to SituationalMap, mirroring the choropleth
+//    screens' locked-down camera — an operator can never pan/zoom this map
+//    away from its scope. The full /gob/panorama console (SituationalMap's
+//    other consumer) never sets this prop, so it stays fully interactive.
 //
 // Fetches each layer once from /api/panorama/[layer] with the view's scope /
 // period / asOf / verified — the SAME authz-fenced route the console uses, so an
@@ -47,8 +53,8 @@ type Props = {
   /** The frozen view to render. Layers/scope/period/asOf/verified are honored;
    *  camera/preset/encoding are chrome-level concerns the embed ignores in v1. */
   viewState: PanoramaViewState;
-  /** Map height in px (SituationalMap's own default when omitted). */
-  height?: number;
+  /** Map height: px number or CSS value (SituationalMap's own default when omitted). */
+  height?: number | string;
 };
 
 /** The data axis of the frozen view — scope-only, exactly the console's P4c rule. */
@@ -128,5 +134,17 @@ export function PanoramaEmbed({ viewState, height }: Props) {
   // the frozen view shows.
   const label = useMemo(() => explainViewState(viewState), [viewState]);
 
-  return <SituationalMapDynamic layers={layers} label={label} height={height} fill={false} />;
+  return (
+    <SituationalMapDynamic
+      layers={layers}
+      label={label}
+      height={height}
+      fill={false}
+      // Camera lockdown (gob/map-zoom-lockdown follow-up, 2026-07-21): the
+      // ONLY caller that opts into the locked-down camera — see the header
+      // comment above. The full /gob/panorama console never passes this
+      // prop and keeps `interactive`'s default `true` (fully interactive).
+      interactive={false}
+    />
+  );
 }

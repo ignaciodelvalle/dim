@@ -49,3 +49,19 @@ export function fitBoundsOptions(opts?: Partial<FitBoundsOptions>): FitBoundsOpt
     animate: opts?.animate ?? false,
   };
 }
+
+/**
+ * Shared national-map container height (gob/map-zoom-lockdown follow-up,
+ * 2026-07-21): Argentina's bbox is tall/narrow (~2.8:1 height:width), so a
+ * flat 400px under-fills a wide card — fitBounds letterboxes the territory
+ * and the national view "looks far". A CSS `clamp()` keeps the fix purely a
+ * container-size change (the camera/fitBounds logic is untouched — MapLibre
+ * re-derives its fit from the container's actual rendered aspect at
+ * fitBounds time, so a taller box alone makes the territory fill more of the
+ * frame): floors at 420px on short/mobile viewports, scales with viewport
+ * height on desktop, caps at 720px so it never runs away on very tall
+ * monitors. Used identically by MapChoropleth and SituationalMap (via
+ * PanoramaEmbed) so all 4 gob map screens (perdidas, censo, vigilancia,
+ * poblacion) get the SAME height treatment.
+ */
+export const GOB_MAP_HEIGHT = "clamp(420px, 60vh, 720px)";

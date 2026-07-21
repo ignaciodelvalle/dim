@@ -97,7 +97,7 @@ import {
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
-import { AR_BBOX } from "@/lib/ui/map-bounds";
+import { AR_BBOX, GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { MAPLIBRE_LOCALE_ES } from "@/lib/ui/maplibre-locale";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -262,8 +262,8 @@ type Props = {
   layers: ActiveLayer[];
   /** Accessible name for the map region. */
   label: string;
-  /** Map height in px. */
-  height?: number;
+  /** Map height: a px number, or any valid CSS height (e.g. a `clamp()`). */
+  height?: number | string;
   /**
    * Fired when an INDIVIDUAL feature is clicked (not a cluster — clusters zoom).
    * Bubbles the layer id + the feature's GeoJSON properties up to the console,
@@ -404,6 +404,23 @@ type Props = {
    * card grows/shrinks with the viewport.
    */
   fill?: boolean;
+  /**
+   * Camera lockdown (gob/map-zoom-lockdown follow-up, 2026-07-21): when
+   * explicitly `false`, disables ALL free camera navigation — dragPan,
+   * scrollZoom, boxZoom, doubleClickZoom, touchZoomRotate, dragRotate,
+   * keyboard, touchPitch, PLUS the manual affordances that bypass those
+   * MapLibre handlers entirely (the NavigationControl/Scale/Fullscreen
+   * controls, the "Vista nacional" reset button, and the custom
+   * arrow-key pan handler) — mirrors MapChoropleth's embed lockdown
+   * exactly. Region click-to-drill and hover/click tooltips stay wired;
+   * only camera movement is gated.
+   *
+   * Defaults to `true` (fully interactive) so the full `/gob/panorama`
+   * console — which never passes this prop — is completely unaffected.
+   * `PanoramaEmbed` (the read-only `/gob/poblacion` surface) is currently
+   * the ONLY caller that passes `false`.
+   */
+  interactive?: boolean;
   /**
    * ARCHETYPE A: the time scrubber, DOCKED to the map card's bottom edge (inside
    * the map's own chrome, always visible with the map) rather than floating as a
@@ -660,7 +677,7 @@ async function fetchGeojsonFeatures(url: string): Promise<DivisionRawFeature[] |
 export function SituationalMap({
   layers,
   label,
-  height = 560,
+  height = GOB_MAP_HEIGHT,
   onFeatureClick,
   onProvinceDrill,
   onReturnNational,
@@ -689,6 +706,7 @@ export function SituationalMap({
   onProvinceSeqLegendChange,
   overlayChrome = false,
   registerExportPng,
+  interactive = true,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -961,7 +979,23 @@ export function SituationalMap({
         center: AR_CENTER,
         zoom: AR_ZOOM,
         attributionControl: false,
+        // Camera lockdown (gob/map-zoom-lockdown follow-up, 2026-07-21):
+        // `interactive` defaults to `true` — the full /gob/panorama console
+        // never passes it, so free pan/zoom/rotate/touch stays EXACTLY as
+        // before for every console operator. Only `PanoramaEmbed` (the
+        // read-only /gob/poblacion surface) passes `false`, which turns OFF
+        // every free-camera handler MapChoropleth's embed lockdown already
+        // disables. dragRotate stays hard-false unconditionally (rotation was
+        // never allowed, in either mode). Region click (drill) and hover/click
+        // tooltips are unaffected either way — only camera input is gated.
+        dragPan: interactive,
+        scrollZoom: interactive,
+        boxZoom: interactive,
+        doubleClickZoom: interactive,
+        touchZoomRotate: interactive,
         dragRotate: false,
+        keyboard: interactive,
+        touchPitch: interactive,
         // RESILIENCE (2026-07-10, PO instrumented-review re-confirm): a single
         // wheel tick over the canvas used to zoom the map AND scroll the page at
         // once — the operator lost their place every time they scrolled past the
@@ -969,7 +1003,8 @@ export function SituationalMap({
         // behind two fingers on touch), so a plain scroll moves the PAGE, never
         // the map. Help text localized below. P4c (design §5.5): EVERY operator
         // gets this — the admin wheel-hierarchy takeover is gone; scroll is
-        // camera-only and drilling is a click.
+        // camera-only and drilling is a click. (Moot when `interactive` is
+        // false — scrollZoom is already off — but harmless to leave set.)
         cooperativeGestures: true,
         // map-QOL zoom bounds: pan/zoom clamped to the national territory —
         // the operator can never get lost in the open ocean or zoom out to
@@ -1041,22 +1076,31 @@ export function SituationalMap({
         ro.observe(containerRef.current);
         resizeObsRef.current = ro;
       }
-      // v2C: the zoom column lives BOTTOM-RIGHT (the top-right corner belongs
-      // to the scope/period/actions cluster). Offset above the floating dock
-      // bar via the [data-pano-map] CSS rule in globals.css.
-      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-      // map-QOL read-only controls — a metric distance scale + a fullscreen
-      // toggle, both alongside the zoom column (bottom-right). These are pure
-      // camera/UI chrome: no scope, no data, no writes to our ViewState. The
-      // ScaleControl reads the camera; FullscreenControl fullscreens the map
-      // CONTAINER. exportPng captures map.getCanvas() (the GL canvas, unaffected by
-      // the container going fullscreen), so PNG export keeps targeting the right
-      // element in either mode.
-      map.addControl(
-        new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }),
-        "bottom-right",
-      );
-      map.addControl(new maplibregl.FullscreenControl(), "bottom-right");
+      // Camera lockdown (gob/map-zoom-lockdown follow-up, 2026-07-21): these
+      // controls call map.zoomIn()/zoomOut()/requestFullscreen() directly —
+      // they bypass the dragPan/scrollZoom/etc. handler flags above entirely,
+      // so a locked-down (`interactive={false}`) map must not render them or
+      // the zoom buttons would be a loophole around the lockdown. Skipped
+      // outright for PanoramaEmbed; unaffected for the console (interactive
+      // defaults true).
+      if (interactive) {
+        // v2C: the zoom column lives BOTTOM-RIGHT (the top-right corner belongs
+        // to the scope/period/actions cluster). Offset above the floating dock
+        // bar via the [data-pano-map] CSS rule in globals.css.
+        map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+        // map-QOL read-only controls — a metric distance scale + a fullscreen
+        // toggle, both alongside the zoom column (bottom-right). These are pure
+        // camera/UI chrome: no scope, no data, no writes to our ViewState. The
+        // ScaleControl reads the camera; FullscreenControl fullscreens the map
+        // CONTAINER. exportPng captures map.getCanvas() (the GL canvas, unaffected by
+        // the container going fullscreen), so PNG export keeps targeting the right
+        // element in either mode.
+        map.addControl(
+          new maplibregl.ScaleControl({ maxWidth: 120, unit: "metric" }),
+          "bottom-right",
+        );
+        map.addControl(new maplibregl.FullscreenControl(), "bottom-right");
+      }
       // a11y (review round 2): MapLibre stamps its own <canvas> with tabIndex=0,
       // so the map was TWO redundant Tab stops — the role="application" wrapper
       // (which owns the arrow-key pan via handleCanvasKeyDown) AND the inner
@@ -3517,6 +3561,11 @@ export function SituationalMap({
   // glide) and preventDefault so the arrows pan the map instead of scrolling the
   // page. Zoom stays on the tab-reachable NavigationControl buttons.
   function handleCanvasKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    // Camera lockdown (gob/map-zoom-lockdown follow-up, 2026-07-21): this
+    // handler calls map.panBy(...) directly — it bypasses MapLibre's
+    // `keyboard` option entirely, so it must be neutralized separately when
+    // `interactive` is false, or arrow keys would still pan a "locked" map.
+    if (!interactive) return;
     const map = mapRef.current;
     if (!map) return;
     const STEP = 80; // px per keypress — a comfortable, deterministic nudge.
@@ -3632,7 +3681,7 @@ export function SituationalMap({
           role="application"
           // biome-ignore lint/a11y/noNoninteractiveTabindex: intentional — this IS an interactive widget (role="application" + arrow-key pan via onKeyDown); biome doesn't classify "application" as interactive, but the element must be focusable to receive the pan keystrokes.
           tabIndex={0}
-          aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista. Usá las flechas para desplazar el mapa.`}
+          aria-label={`${label}. ${renderableCount} ${renderableCount === 1 ? "punto" : "puntos"} en la vista.${interactive ? " Usá las flechas para desplazar el mapa." : ""}`}
           onKeyDown={handleCanvasKeyDown}
         />
         {/* cursor Part2: CABA/AMBA inset — a docked barrio-scale mini-map so the
@@ -3709,30 +3758,37 @@ export function SituationalMap({
             extent). fitToScope re-frames the camera to the operator's scope
             default (national for admin/universal; the jurisdiction frame for
             scoped govt). The accessible label + tooltip name the destination
-            honestly per operator type; the visible control is the icon. */}
-          <button
-            type="button"
-            onClick={fitToScope}
-            title={resetViewLabelText}
-            aria-label={resetViewLabelText}
-            className="pointer-events-auto flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-md hover:bg-ln-op-stripe"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+            honestly per operator type; the visible control is the icon.
+            Camera lockdown (gob/map-zoom-lockdown follow-up, 2026-07-21): a
+            "reset camera" affordance is meaningless (and dishonest chrome) on
+            a map that never moves, so it's hidden outright when `interactive`
+            is false — matches MapChoropleth's embed, which renders no camera
+            controls at all. */}
+          {interactive && (
+            <button
+              type="button"
+              onClick={fitToScope}
+              title={resetViewLabelText}
+              aria-label={resetViewLabelText}
+              className="pointer-events-auto flex items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1.5 text-ln-op-ink-2 shadow-md hover:bg-ln-op-stripe"
             >
-              <circle cx="12" cy="12" r="9" />
-              <path d="M3 12h18" />
-              <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
-            </svg>
-          </button>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18" />
+                <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
+              </svg>
+            </button>
+          )}
           {/* ARCHETYPE A: aggregation-level badge — announces WHAT a map mark
             aggregates now ("Provincias" vs "Departamentos/partidos"/"Comunas"),
             so the reader knows the granularity's meaning changed on drill. */}

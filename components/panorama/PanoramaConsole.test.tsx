@@ -2655,3 +2655,14 @@ describe("PanoramaConsole — per-cápita encoding (panorama-percapita v1)", () 
     ).not.toBeInTheDocument();
   });
 });
+
+describe("PanoramaConsole — camera lockdown opt-in stays OUT of the console (gob/map-zoom-lockdown follow-up, 2026-07-21)", () => {
+  it("never passes `interactive` to SituationalMap — the console keeps free pan/zoom (SituationalMap's own default)", () => {
+    renderConsole();
+    // `interactive` is undefined here, NOT `false` — the console must not be
+    // the one flipping the lock. SituationalMap defaults `interactive` to
+    // `true` when the prop is absent, so free camera navigation is preserved
+    // exactly as before this change. Only PanoramaEmbed (poblacion) opts in.
+    expect(mapProps?.interactive).toBeUndefined();
+  });
+});

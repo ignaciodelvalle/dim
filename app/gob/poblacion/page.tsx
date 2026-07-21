@@ -47,6 +47,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
+import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { formatPercent, formatRate } from "@/lib/utils/format";
 import { gobEmbedView } from "@/src/modules/panorama/domain/embed-view";
 
@@ -435,7 +436,10 @@ export default async function GobPoblacionPage({
                 esta vista.
               </p>
             )}
-            <PanoramaEmbed viewState={gobEmbedView("esterilizacion", "trailing12m")} height={400} />
+            <PanoramaEmbed
+              viewState={gobEmbedView("esterilizacion", "trailing12m")}
+              height={GOB_MAP_HEIGHT}
+            />
           </OpCardBody>
         </OpCard>
       )}

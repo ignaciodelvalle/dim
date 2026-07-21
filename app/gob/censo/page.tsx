@@ -39,6 +39,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
+import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
@@ -481,7 +482,7 @@ export default async function GobCensoPage({
               level="province"
               scaleLabel="Mascotas registradas"
               fallbackTableLabel="Mascotas registradas por provincia"
-              height={400}
+              height={GOB_MAP_HEIGHT}
               {...mapScopeProps}
             />
           </OpCardBody>

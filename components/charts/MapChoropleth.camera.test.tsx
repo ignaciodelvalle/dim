@@ -211,4 +211,16 @@ describe("<MapChoropleth> — camera lockdown", () => {
     const span = (b: typeof cabaBbox) => (b[1][0] - b[0][0]) * (b[1][1] - b[0][1]);
     expect(span(cabaBbox)).toBeLessThan(span(nationalBbox));
   });
+
+  // NOTE (map-height-increase follow-up, 2026-07-21): a DOM-rendered assertion
+  // of the default `height` (GOB_MAP_HEIGHT, a CSS clamp() string) was tried
+  // here and dropped — jsdom's cssstyle package rejects `clamp()` as an
+  // invalid value for `height` and silently no-ops the assignment (verified:
+  // `el.style.height = "clamp(...)"` leaves `style.height === ""` and never
+  // even sets the `style` attribute), even though real browsers have
+  // supported `clamp()` in `height` since ~2020. The default wiring is
+  // covered by source review instead: MapChoropleth.tsx's `height` default and
+  // SituationalMap.tsx's `height` default both reference the SAME exported
+  // `GOB_MAP_HEIGHT` constant (lib/ui/map-bounds.ts) as their single source of
+  // truth, so there is nowhere for the two to drift apart.
 });
