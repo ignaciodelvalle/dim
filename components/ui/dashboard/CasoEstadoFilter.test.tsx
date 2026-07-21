@@ -34,7 +34,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
-import { CasoEstadoFilter, parseCasoEstado } from "./CasoEstadoFilter";
+import { CasoEstadoFilter } from "./CasoEstadoFilter";
+import { parseCasoEstado } from "./caso-estado";
 
 function setUrl(url: string) {
   window.history.replaceState(null, "", url);
