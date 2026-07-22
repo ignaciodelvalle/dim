@@ -119,3 +119,15 @@ Ola I: C2 lenguaje + C5 seed + C1 arranque. Secuencial (norma un-writer-por-árb
 NEXT — Ola II: barrido C1 (~80 tiles al descriptor) + C3 ViewScope + C4 epistémico.
 PO-gated: migración 0155 a remoto · validación visual (SLA badges, maltrato default, renombres,
 KPIs guardeados) · upgrade Vercel Pro (frescura).
+
+### OLA II COMPLETA (2026-07-22)
+- C3 ViewScope `701c106d`: describeMandate chrome honesto · ViewScopeCaption "Vista: X" ·
+  censusEligibleProvince (vista resuelta, no asignaciones) · **period-drift #27 REPRO'D+FIXED**
+  (committedPeriod ignoraba ?period= explícito) · lint:view-scope · scope-fence re-keyed por
+  conteos (line-shift-immune tras romperse 3×).
+- C4 epistémico `29dd8e07`: nature measured-zero|no-signal en EmptyState/OpCallout ·
+  vigilancia/observaciones/mortalidad/analytics "ciego, no tranquilo" · lint:states Rule 5.
+- C1 sweep `67bca443`: **80 → 0 tiles sin descriptor** (~50 entradas nuevas de catálogo leídas
+  de los fetchers) · hostile-reader +5 narrativas · pantalla nueva con KPI sin contrato = CI falla.
+NEXT — Ola III: C6 (IA 5 capas + workqueues, PO-dirigida, sobre los contratos).
+PO-gated sin cambios: 0155 remoto · Vercel Pro · validación visual · push/#760.
