@@ -25,6 +25,7 @@ import {
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
+import { formatDate } from "@/lib/utils/format";
 import type { BivariateCell, BivariatePair } from "@/src/modules/panorama/domain/bivariate";
 import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
@@ -722,7 +723,7 @@ export function pointPopupHtml(layer: ActiveLayer, props: Record<string, unknown
     const name = String(props.name ?? "Mascota");
     const when =
       typeof props.lastSeenAt === "string" && props.lastSeenAt
-        ? new Date(props.lastSeenAt).toLocaleDateString("es-AR")
+        ? formatDate(props.lastSeenAt)
         : null;
     const precision =
       props.locationSource === "gps"
