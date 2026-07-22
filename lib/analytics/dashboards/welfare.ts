@@ -238,8 +238,17 @@ export function buildMaltratoListConditions(filters: MaltratoListFilters) {
       conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
       break;
     case "mine":
-      // Assigned to the current user (any non-terminal status).
+      // Assigned to the current user, non-terminal status only — the exact
+      // predicate behind the "Mías" KPI (fetchWelfareMetrics.myCount /
+      // fetchMyAssignedWelfareCount). Before this fix the terminal exclusion
+      // was documented in this comment but NEVER applied to the query, so the
+      // "Mías" KPI tile (which DOES exclude closed/invalid/duplicate) and the
+      // list its href drills into (?queue=mine, which showed EVERY status)
+      // silently disagreed — the KPI↔list parity bug class this module's own
+      // docblock warns about (see "KPI↔list parity" note below), just never
+      // covered by a test for this queue. C6c workqueue-grammar fix.
       conditions.push(eq(welfareReports.assignedToUserId, currentUserId));
+      conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
       break;
     case "unassigned":
       // No operator assigned yet AND not in a terminal status — the exact

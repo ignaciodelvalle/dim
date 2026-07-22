@@ -25,10 +25,15 @@ export function WelfareRowLink({
   casoParam,
   href,
   children,
+  className,
 }: {
   casoParam: string;
   href: string;
   children: ReactNode;
+  /** Extra classes merged onto the anchor — used by WelfareDenunciaRow (C6c
+   * workqueue grammar) to make this link a flex sibling of the row's
+   * Tomar/Actuar buttons instead of the row's sole element. */
+  className?: string;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -45,6 +50,10 @@ export function WelfareRowLink({
     const currentHasCaso = params.has("caso");
     params.set("caso", casoParam);
     params.delete("mascota");
+    // A plain row click always opens on "Resumen" — strip any `panel=acciones`
+    // left over from a previous ActuarButton selection (C6c workqueue
+    // grammar), so this generic click never inherits that shortcut.
+    params.delete("panel");
     selectCaso(`${pathname}?${params.toString()}`, currentHasCaso);
   }
 
@@ -58,7 +67,7 @@ export function WelfareRowLink({
         selected
           ? "border-l-2 border-l-ln-op-azul bg-ln-op-stripe"
           : "border-l-2 border-l-transparent hover:bg-ln-op-stripe"
-      }`}
+      } ${className ?? ""}`}
     >
       {children}
     </a>

@@ -303,6 +303,149 @@ describe("buildMaltratoListConditions — queue: mine (integration)", () => {
     expect(ids).toContain(mineId);
     expect(ids).not.toContain(notMineId);
   });
+
+  // C6c workqueue grammar (2026-07-22) — KPI↔list parity fix. Before this fix
+  // the "mine" queue predicate only checked assignedToUserId (no terminal
+  // exclusion), while the "Mías" KPI tile (fetchWelfareMetrics.myCount) DID
+  // exclude closed/invalid/duplicate — so the tile and the list its href
+  // (?queue=mine) drilled into silently disagreed. Mirrors the "Sin asignar"
+  // parity tests below for the same bug class.
+  it("excludes closed/invalid/duplicate reports assigned to currentUserId (matches the Mías KPI)", async () => {
+    const prov = "Chaco";
+    const loc = `mine-terminal-${Date.now()}`;
+
+    const myOpenId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: adminUserId,
+    });
+    const myTriagedId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "triaged",
+      assignedToUserId: adminUserId,
+    });
+    const myClosedId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "closed",
+      closedAt: new Date(),
+      assignedToUserId: adminUserId,
+    });
+    const myInvalidId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "invalid",
+      closedAt: new Date(),
+      assignedToUserId: adminUserId,
+    });
+
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: [{ province: prov, locality: loc }],
+      queue: "mine",
+      currentUserId: adminUserId,
+    });
+
+    expect(ids).toContain(myOpenId);
+    expect(ids).toContain(myTriagedId);
+    expect(ids).not.toContain(myClosedId);
+    expect(ids).not.toContain(myInvalidId);
+  });
+
+  it("the mine queue count equals the Mías KPI metric for the same scope (KPI↔list parity)", async () => {
+    // The Mías KPI links to ?queue=mine; this asserts the destination list
+    // and the counted metric are the SAME set — the wayfinding contract
+    // (mirrors the "unassigned queue count equals Sin asignar KPI" test).
+    const prov = "Chaco";
+    const loc = `mine-kpi-${Date.now()}`;
+
+    await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: adminUserId,
+    });
+    await insertReport({
+      province: prov,
+      locality: loc,
+      status: "triaged",
+      assignedToUserId: adminUserId,
+    });
+    await insertReport({
+      province: prov,
+      locality: loc,
+      status: "closed",
+      closedAt: new Date(),
+      assignedToUserId: adminUserId,
+    });
+    await insertReport({ province: prov, locality: loc, status: "open", assignedToUserId: null });
+
+    const scope = [{ province: prov, locality: loc }];
+    const ids = await queryIds({
+      actor: { role: "govt" },
+      filteredJurisdictions: scope,
+      queue: "mine",
+      currentUserId: adminUserId,
+    });
+    const metrics = await fetchWelfareMetrics({ role: "govt" }, scope, adminUserId);
+
+    // Two non-terminal rows assigned to adminUserId; the KPI and its
+    // drill-down agree.
+    expect(ids).toHaveLength(2);
+    expect(metrics.myCount).toBe(ids.length);
+  });
+});
+
+// ============================================================================
+// C6c workqueue grammar — "Tomar" (self-assign) row-membership behavior
+// ============================================================================
+//
+// TomarButton (app/gob/maltrato/_components/TomarButton.tsx) calls
+// assignWelfareToMeAction, which performs the exact same setAssignee mutation
+// exercised directly here (see assign-welfare.test.ts for the use-case's own
+// unit coverage of the assignment guard). This integration test asserts the
+// OBSERVABLE queue-membership effect the grammar promises: a self-assigned
+// row leaves "Sin asignar" and appears in "Mías".
+
+describe("Tomar (self-assign) — row moves out of the unassigned view (integration)", () => {
+  it("assigning an unassigned report to currentUserId removes it from queue=unassigned and adds it to queue=mine", async () => {
+    const prov = "Chaco";
+    const loc = `tomar-${Date.now()}`;
+
+    const reportId = await insertReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: null,
+    });
+
+    const scope = [{ province: prov, locality: loc }];
+    const filtersFor = (queue: MaltratoListFilters["queue"]): MaltratoListFilters => ({
+      actor: { role: "govt" },
+      filteredJurisdictions: scope,
+      queue,
+      currentUserId: adminUserId,
+    });
+
+    const beforeUnassigned = await queryIds(filtersFor("unassigned"));
+    expect(beforeUnassigned).toContain(reportId);
+    const beforeMine = await queryIds(filtersFor("mine"));
+    expect(beforeMine).not.toContain(reportId);
+
+    // The "Tomar" mutation — identical setAssignee effect as
+    // assignWelfareToMeAction → assignWelfare use-case.
+    await db
+      .update(welfareReports)
+      .set({ assignedToUserId: adminUserId })
+      .where(eq(welfareReports.id, reportId));
+
+    const afterUnassigned = await queryIds(filtersFor("unassigned"));
+    expect(afterUnassigned).not.toContain(reportId);
+    const afterMine = await queryIds(filtersFor("mine"));
+    expect(afterMine).toContain(reportId);
+  });
 });
 
 describe("buildMaltratoListConditions — queue: unassigned (integration)", () => {

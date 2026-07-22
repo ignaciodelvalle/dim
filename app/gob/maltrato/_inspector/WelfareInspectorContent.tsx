@@ -46,11 +46,18 @@ const TABS: { value: Tab; label: string }[] = [
 export function WelfareInspectorContent({
   detail,
   onOpenMascota,
+  initialTab,
 }: {
   detail: WelfareInspectorDetail;
   onOpenMascota: (token: string) => void;
+  /** C6c workqueue grammar: ActuarButton selects a case with `&panel=acciones`
+   * so the inspector opens straight on the tab that hosts the primary
+   * next-step verb, instead of defaulting to "Resumen". The caller
+   * (InspectorMounter) keys this component by case id, so a fresh selection
+   * always re-seeds this initial value rather than carrying over a stale tab. */
+  initialTab?: Tab;
 }) {
-  const [tab, setTab] = useState<Tab>("resumen");
+  const [tab, setTab] = useState<Tab>(initialTab ?? "resumen");
 
   return (
     <div className="space-y-4">

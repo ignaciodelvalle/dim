@@ -8,10 +8,14 @@ import type {
   WelfareReportSeverity,
   WelfareReportStatus,
 } from "@/src/modules/welfare/domain/types";
+import { primaryWelfareAction } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
+import { ActuarButton } from "./ActuarButton";
+import { TomarButton } from "./TomarButton";
 import { WelfareRowLink } from "./WelfareRowLink";
+import { resolveAssignmentDisplay } from "./welfare-row-assignment";
 
 // Severity → OpPill tone mapping.
 // critical/high → danger, medium → open (warn), low → triaged (blue), unknown → neutral.
@@ -32,6 +36,15 @@ const STATUS_TONE: Record<
   closed: "closed",
   invalid: "neutral",
   duplicate: "neutral",
+};
+
+// C6c workqueue grammar — the row's primary "Actuar" CTA label per
+// primaryWelfareAction(status). Kept here (presentation) rather than in the
+// domain module, which only owns the state-machine ranking, not Spanish copy.
+const PRIMARY_ACTION_LABEL: Record<"triage" | "start" | "close", string> = {
+  triage: "Marcar revisada",
+  start: "Iniciar seguimiento",
+  close: "Cerrar con resolución",
 };
 
 /** Compact time-ago label for a past date, in Spanish. AR-calendar days —
@@ -59,9 +72,21 @@ export type WelfareDenunciaRowProps = {
     createdAt: Date;
     assignedToUserId: string | null;
   };
+  /** Resolved display name for report.assignedToUserId — null when there is
+   * no assignee, OR when the row can't resolve a name (falls back to "un
+   * agente" — mirrors the detail page's assignedToName rationale). Never
+   * looked up here: the page batch-resolves names once for the whole list. */
+  assignedToName: string | null;
+  /** The viewing operator's own id — distinguishes "Mía" from "Asignada a
+   * {nombre}" for the SAME assignedToUserId value. */
+  currentUserId: string;
 };
 
-export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
+export function WelfareDenunciaRow({
+  report,
+  assignedToName,
+  currentUserId,
+}: WelfareDenunciaRowProps) {
   const severityTone = SEVERITY_TONE[report.severity] ?? "neutral";
   const statusTone = STATUS_TONE[report.status] ?? "neutral";
 
@@ -70,6 +95,23 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
   // A CRITICAL row is visually escalated with the error tokens (thick danger
   // left edge) so it reads as "peligro inmediato" before any text is parsed.
   const isCritical = report.severity === "critical";
+
+  // C6c workqueue grammar (plan-maestro-integridad.md §C6) — the row states
+  // its assignment plainly instead of the old terse "· Asignada" suffix that
+  // never said WHO or whether it was the viewer's own case. Pure logic lives
+  // in welfare-row-assignment.ts (unit-tested there, no React/mocking needed).
+  const isUnassigned = report.assignedToUserId === null;
+  const { tone: assignmentTone, label: assignmentLabel } = resolveAssignmentDisplay(
+    report.assignedToUserId,
+    assignedToName,
+    currentUserId,
+  );
+
+  // The row's ONE primary next-step verb (triage → en curso → resolución),
+  // surfaced as a shortcut into the inspector's Acciones tab. null for
+  // terminal statuses — a closed/invalid/duplicate row has no action left.
+  const primaryAction = primaryWelfareAction(report.status);
+  const detailHref = `/gob/maltrato/${report.referenceCode}`;
 
   return (
     <li
@@ -80,40 +122,60 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
         .filter(Boolean)
         .join(" ")}
     >
-      <WelfareRowLink
-        casoParam={report.referenceCode}
-        href={`/gob/maltrato/${report.referenceCode}`}
-      >
-        <div className="flex items-baseline justify-between gap-3">
-          <div className="min-w-0 space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-[13px] font-medium text-ln-op-ink">
-                {welfareReportKindLabel(report.kind)}
+      <div className="flex items-stretch">
+        <WelfareRowLink
+          casoParam={report.referenceCode}
+          href={detailHref}
+          className="min-w-0 flex-1"
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-[13px] font-medium text-ln-op-ink">
+                  {welfareReportKindLabel(report.kind)}
+                </p>
+                <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
+                {/* SlaBadge (C2 language contract 2026-07-22) OWNS the SLA
+                    semantic — it derives breached/historical/in-plazo itself
+                    from severity+status+createdAt, so this row can never
+                    mislabel a severity TIER as a days-overdue count (the #1
+                    trust bug the contract kills). Renders nothing for terminal
+                    statuses. */}
+                <SlaBadge severity={report.severity} status={report.status} createdAt={createdAt} />
+              </div>
+              <p className="text-[11px] text-ln-op-mute">
+                {report.jurisdictionLocality && report.jurisdictionProvince
+                  ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
+                  : "Sin jurisdicción declarada"}
+                {" · "}
+                {timeAgo(new Date(report.createdAt))}
               </p>
-              <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
-              {/* SlaBadge (C2 language contract 2026-07-22) OWNS the SLA
-                  semantic — it derives breached/historical/in-plazo itself
-                  from severity+status+createdAt, so this row can never
-                  mislabel a severity TIER as a days-overdue count (the #1
-                  trust bug the contract kills). Renders nothing for terminal
-                  statuses. */}
-              <SlaBadge severity={report.severity} status={report.status} createdAt={createdAt} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-xs text-ln-op-mute font-mono">{report.referenceCode}</p>
+                <OpPill tone={assignmentTone}>{assignmentLabel}</OpPill>
+              </div>
             </div>
-            <p className="text-[11px] text-ln-op-mute">
-              {report.jurisdictionLocality && report.jurisdictionProvince
-                ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
-                : "Sin jurisdicción declarada"}
-              {" · "}
-              {timeAgo(new Date(report.createdAt))}
-            </p>
-            <p className="text-xs text-ln-op-mute font-mono">
-              {report.referenceCode}
-              {report.assignedToUserId ? " · Asignada" : ""}
-            </p>
+            <OpPill tone={statusTone}>{welfareReportStatusLabel(report.status)}</OpPill>
           </div>
-          <OpPill tone={statusTone}>{welfareReportStatusLabel(report.status)}</OpPill>
-        </div>
-      </WelfareRowLink>
+        </WelfareRowLink>
+
+        {/* Row-level workqueue actions — SIBLINGS of the row's anchor above,
+            never nested inside it (an interactive control nested inside
+            another anchor is invalid HTML and breaks screen-reader
+            semantics). */}
+        {(isUnassigned || primaryAction) && (
+          <div className="flex shrink-0 flex-col items-end justify-center gap-1.5 border-l border-ln-op-line px-2.5 py-2">
+            {isUnassigned && <TomarButton reportId={report.id} />}
+            {primaryAction && (
+              <ActuarButton
+                casoParam={report.referenceCode}
+                href={detailHref}
+                label={PRIMARY_ACTION_LABEL[primaryAction]}
+              />
+            )}
+          </div>
+        )}
+      </div>
     </li>
   );
 }

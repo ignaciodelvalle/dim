@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   TERMINAL_STATUSES,
   isTerminalStatus,
+  primaryWelfareAction,
   statusTransitionAllowed,
 } from "./welfare-status-rules";
 
@@ -171,5 +172,29 @@ describe("TERMINAL_STATUSES", () => {
     expect(TERMINAL_STATUSES).not.toContain("open");
     expect(TERMINAL_STATUSES).not.toContain("triaged");
     expect(TERMINAL_STATUSES).not.toContain("in_progress");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// primaryWelfareAction — C6c workqueue grammar's row-level "Actuar" CTA
+// ---------------------------------------------------------------------------
+
+describe("primaryWelfareAction", () => {
+  it("open → triage (first step of triage → en curso → resolución)", () => {
+    expect(primaryWelfareAction("open")).toBe("triage");
+  });
+
+  it("triaged → start", () => {
+    expect(primaryWelfareAction("triaged")).toBe("start");
+  });
+
+  it("in_progress → close", () => {
+    expect(primaryWelfareAction("in_progress")).toBe("close");
+  });
+
+  it("returns null for every terminal status (no primary action left)", () => {
+    expect(primaryWelfareAction("closed")).toBeNull();
+    expect(primaryWelfareAction("invalid")).toBeNull();
+    expect(primaryWelfareAction("duplicate")).toBeNull();
   });
 });

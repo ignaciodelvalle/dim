@@ -40,3 +40,23 @@ export function statusTransitionAllowed(
 export function isTerminalStatus(status: WelfareReportStatus): boolean {
   return (TERMINAL_STATUSES as readonly string[]).includes(status);
 }
+
+// ---------------------------------------------------------------------------
+// C6c workqueue grammar — the row's single PRIMARY next-step verb.
+// ---------------------------------------------------------------------------
+
+/** The one legal transition surfaced as a row's primary "Actuar" CTA. Mirrors
+ * TriageActions.tsx's own canTriage/canStart/canClose gating (open allows all
+ * three; this picks the FIRST step of the triage → en curso → resolución
+ * sequence so a single button reads as "the next thing to do", not just "a
+ * thing you could do"). Does NOT invent a new state — it is a presentation
+ * ranking over the existing statusTransitionAllowed matrix. `null` for a
+ * terminal status (no action left). */
+export type PrimaryWelfareAction = "triage" | "start" | "close";
+
+export function primaryWelfareAction(status: WelfareReportStatus): PrimaryWelfareAction | null {
+  if (status === "open") return "triage";
+  if (status === "triaged") return "start";
+  if (status === "in_progress") return "close";
+  return null;
+}

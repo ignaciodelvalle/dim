@@ -11,7 +11,7 @@ import {
   OpKpi,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
-import { db, welfareReports } from "@/db";
+import { db, profiles, welfareReports } from "@/db";
 import {
   type MaltratoQueue,
   buildMaltratoListConditions,
@@ -32,7 +32,7 @@ import {
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
-import { and, asc, count, sql } from "drizzle-orm";
+import { and, asc, count, inArray, sql } from "drizzle-orm";
 
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 import { InspectorMounter } from "./_inspector/InspectorMounter";
@@ -208,6 +208,22 @@ export default async function GobMaltratoPage({
   const totalCount = totalRow?.n ?? 0;
   const hasMore = rawRows.length > PAGE_SIZE;
   const rows = hasMore ? rawRows.slice(0, PAGE_SIZE) : rawRows;
+
+  // C6c workqueue grammar — batch-resolve assignee display names for THIS
+  // page's rows only (never per-row queries). Mirrors the detail page's
+  // actorNames pattern (app/gob/maltrato/[id]/page.tsx) at list scale: one
+  // extra query, bounded by PAGE_SIZE distinct assignees.
+  const assigneeIds = [
+    ...new Set(rows.map((r) => r.assignedToUserId).filter((id): id is string => id !== null)),
+  ];
+  const assigneeNames = new Map<string, string>();
+  if (assigneeIds.length > 0) {
+    const assigneeRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, assigneeIds));
+    for (const a of assigneeRows) assigneeNames.set(a.id, a.displayName);
+  }
 
   // Filter params preserved across cursor links — never includes `cursor`
   // itself, which olderHref/newerHref set/strip.
@@ -411,7 +427,16 @@ export default async function GobMaltratoPage({
                       ) : (
                         <ul className="space-y-2">
                           {rows.map((r) => (
-                            <WelfareDenunciaRow key={r.id} report={r} />
+                            <WelfareDenunciaRow
+                              key={r.id}
+                              report={r}
+                              assignedToName={
+                                r.assignedToUserId
+                                  ? (assigneeNames.get(r.assignedToUserId) ?? null)
+                                  : null
+                              }
+                              currentUserId={user.id}
+                            />
                           ))}
                         </ul>
                       )}

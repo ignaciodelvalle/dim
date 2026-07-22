@@ -45,6 +45,10 @@ export function InspectorMounter() {
   const searchParams = useSearchParams();
   const caso = searchParams.get("caso");
   const mascota = searchParams.get("mascota");
+  // C6c workqueue grammar: ActuarButton selects a case with `&panel=acciones`
+  // so the inspector opens straight on the Acciones tab (see
+  // WelfareInspectorContent's initialTab prop).
+  const panel = searchParams.get("panel");
 
   const { signalFor } = useKeyedAbort();
   const [detail, setDetail] = useState<Fetch<WelfareInspectorDetail>>({ status: "idle" });
@@ -127,11 +131,12 @@ export function InspectorMounter() {
     };
   }, [mascota, signalFor]);
 
-  // URL with caso + mascota stripped — the state a full close returns to.
+  // URL with caso + mascota + panel stripped — the state a full close returns to.
   const cleanListUrl = useCallback((): string => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete("caso");
     params.delete("mascota");
+    params.delete("panel");
     const qs = params.toString();
     return qs ? `${pathname}?${qs}` : pathname;
   }, [pathname, searchParams]);
@@ -185,7 +190,13 @@ export function InspectorMounter() {
         : detail.status === "notfound"
           ? "No encontrada"
           : "Denuncia";
-    body = <CaseBody state={detail} onOpenMascota={handleOpenMascota} />;
+    body = (
+      <CaseBody
+        state={detail}
+        onOpenMascota={handleOpenMascota}
+        initialTab={panel === "acciones" ? "acciones" : undefined}
+      />
+    );
   }
 
   return (
@@ -210,9 +221,15 @@ export function InspectorMounter() {
 function CaseBody({
   state,
   onOpenMascota,
+  initialTab,
 }: {
   state: Fetch<WelfareInspectorDetail>;
   onOpenMascota: (token: string) => void;
+  /** C6c workqueue grammar — forces the inspector open on "Acciones" when the
+   * selection came from ActuarButton. `key={state.data.id}` below remounts
+   * WelfareInspectorContent per case so this always re-seeds instead of
+   * inheriting whatever tab a PREVIOUS case selection landed on. */
+  initialTab?: "resumen" | "timeline" | "acciones" | "export";
 }) {
   if (state.status === "loading" || state.status === "idle") return <Loading />;
   if (state.status === "notfound") {
@@ -221,7 +238,14 @@ function CaseBody({
   if (state.status === "error") {
     return <Notice text="No pudimos cargar la denuncia. Reintentá en unos segundos." />;
   }
-  return <WelfareInspectorContent detail={state.data} onOpenMascota={onOpenMascota} />;
+  return (
+    <WelfareInspectorContent
+      key={state.data.id}
+      detail={state.data}
+      onOpenMascota={onOpenMascota}
+      initialTab={initialTab}
+    />
+  );
 }
 
 function PetBody({ state }: { state: Fetch<GobPetSubView> }) {
