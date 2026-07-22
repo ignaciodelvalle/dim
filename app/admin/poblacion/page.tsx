@@ -17,7 +17,14 @@
 import { ForecastChartDynamic } from "@/components/charts/ForecastChartDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -44,10 +51,20 @@ import { formatPercent, formatRate } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
+// Species domain axis — mirrors /gob/poblacion's SPECIES_OPTIONS exactly
+// (twin port, Fase B "regalos olvidados"). pets.species is free text ('dog' |
+// 'cat' | 'other' in practice); "other" is the exact stored value the
+// fetchers honor as-is (no query change).
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perro" },
+  { value: "cat", label: "Gato" },
+  { value: "other", label: "Otra" },
+];
+
 export default async function AdminPoblacionPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams?: Promise<{ period?: string; from?: string; to?: string; species?: string }>;
 }) {
   await requireAdminOrRedirect();
 
@@ -55,6 +72,7 @@ export default async function AdminPoblacionPage({
   const sp = searchParams ? await searchParams : {};
   const { resolveAnalyticsPeriod } = await import("@/lib/metrics/period");
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const species = sp.species || undefined;
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
@@ -76,15 +94,18 @@ export default async function AdminPoblacionPage({
   // fetchPrevRegisteredBirths adds ONE new query (same scope, shifted one
   // period back) purely to power the "Nacimientos registrados" deltaV2 chip —
   // mirrors campaign-metrics.ts' fetchPrevTotals pattern (same as /gob/poblacion).
+  // species narrows every fetcher below identically (twin of /gob/poblacion's
+  // domain-axes work) so the KPI row, ratio tile, net-growth breakdown, trend,
+  // and ranked table all agree.
   const load = await loadWithTimeout(
     Promise.all([
-      fetchSterilizationCoverage(ctx),
-      fetchActivePregnancies(ctx),
-      fetchReproductiveOutcomes(ctx),
-      fetchNetGrowth(ctx),
-      fetchSterilizationNatalidadRatio(ctx),
-      fetchSterilizationTrend(ctx),
-      fetchPrevRegisteredBirths(ctx),
+      fetchSterilizationCoverage(ctx, { species }),
+      fetchActivePregnancies(ctx, { species }),
+      fetchReproductiveOutcomes(ctx, { species }),
+      fetchNetGrowth(ctx, { species }),
+      fetchSterilizationNatalidadRatio(ctx, { species }),
+      fetchSterilizationTrend(ctx, { species }),
+      fetchPrevRegisteredBirths(ctx, { species }),
     ]),
   );
 
@@ -142,8 +163,22 @@ export default async function AdminPoblacionPage({
       {/* Page header */}
       {header}
 
-      {/* Unified filter bar — period only (no jurisdiction for admin — universal scope) */}
-      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
+      {/* Unified filter bar — period + species (no jurisdiction for admin —
+          universal scope). Twin of /gob/poblacion's rail. */}
+      <OpFilterBar
+        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+        axes={
+          [
+            {
+              id: "species",
+              label: "Especie",
+              paramKey: "species",
+              options: SPECIES_OPTIONS,
+              current: sp.species ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       {/* KPI row */}
       <section

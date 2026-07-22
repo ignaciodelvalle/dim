@@ -14,7 +14,14 @@
 
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
@@ -37,22 +44,40 @@ import { windows } from "@/lib/metrics/period";
 
 export const dynamic = "force-dynamic";
 
+// Species domain axis — mirrors /gob/adopciones' SPECIES_OPTIONS exactly
+// (twin port, Fase B "regalos olvidados"). pets.species is free text ('dog' |
+// 'cat' | 'other' in practice); "other" is the exact stored value the
+// fetchers honor as-is (no query change).
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perro" },
+  { value: "cat", label: "Gato" },
+  { value: "other", label: "Otra" },
+];
+
 export default async function AdminAdopcionesPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams?: Promise<{ period?: string; from?: string; to?: string; species?: string }>;
 }) {
   await requireAdminOrRedirect();
 
   const sp = searchParams ? await searchParams : {};
   const { resolveAnalyticsPeriod } = await import("@/lib/metrics/period");
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const species = sp.species || undefined;
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
   // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
   // back) purely to power the "Adopciones" deltaV2 chip — mirrors
   // campaign-metrics.ts' fetchPrevTotals pattern (same as /gob/adopciones).
+  //
+  // species narrows funnel/timeInState/returnRate/adoptionTrend/
+  // prevAdoptionCount identically (twin of /gob/adopciones' domain-axes
+  // work). fosterPool and shelterOccupancy deliberately do NOT take species —
+  // same reasoning as /gob/adopciones: fosterPool's counts are volunteer-level
+  // (no species dimension) and shelterOccupancy's capacity denominator is
+  // org-level config that can't be split by species.
   const [
     funnel,
     timeInState,
@@ -62,13 +87,13 @@ export default async function AdminAdopcionesPage({
     adoptionTrend,
     prevAdoptionCount,
   ] = await Promise.all([
-    fetchCustodyFunnel(ctx),
-    fetchTimeInState(ctx),
-    fetchReturnRate(ctx),
+    fetchCustodyFunnel(ctx, { species }),
+    fetchTimeInState(ctx, { species }),
+    fetchReturnRate(ctx, { species }),
     fetchFosterPoolUtilization(ctx),
     fetchShelterOccupancyNational(ctx),
-    fetchAdoptionTrend(ctx),
-    fetchPrevAdoptionCount(ctx),
+    fetchAdoptionTrend(ctx, { species }),
+    fetchPrevAdoptionCount(ctx, { species }),
   ]);
 
   const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
@@ -104,9 +129,23 @@ export default async function AdminAdopcionesPage({
         </p>
       </header>
 
-      {/* Unified filter bar — period only (no JurisdictionSwitcher: admin is a
-          national/universal view). Same pattern as /admin/censo, /admin/poblacion. */}
-      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
+      {/* Unified filter bar — period + species (no JurisdictionSwitcher:
+          admin is a national/universal view). Twin of /gob/adopciones' rail;
+          same pattern as /admin/censo, /admin/poblacion. */}
+      <OpFilterBar
+        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+        axes={
+          [
+            {
+              id: "species",
+              label: "Especie",
+              paramKey: "species",
+              options: SPECIES_OPTIONS,
+              current: sp.species ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       {/* KPI row */}
       <section

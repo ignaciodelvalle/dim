@@ -12,7 +12,14 @@
 
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpKpi,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -35,10 +42,20 @@ import { formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
+// Species domain axis — mirrors /gob/censo's SPECIES_OPTIONS exactly (twin
+// port, Fase B "regalos olvidados"). pets.species is free text ('dog' | 'cat'
+// | 'other' in practice); "other" is the exact stored value the fetchers
+// honor as-is (no query change).
+const SPECIES_OPTIONS = [
+  { value: "dog", label: "Perro" },
+  { value: "cat", label: "Gato" },
+  { value: "other", label: "Otra" },
+];
+
 export default async function AdminCensoPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams?: Promise<{ period?: string; from?: string; to?: string; species?: string }>;
 }) {
   await requireAdminOrRedirect();
 
@@ -47,6 +64,7 @@ export default async function AdminCensoPage({
   const sp = searchParams ? await searchParams : {};
   const { resolveAnalyticsPeriod } = await import("@/lib/metrics/period");
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const species = sp.species || undefined;
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
@@ -68,12 +86,15 @@ export default async function AdminCensoPage({
 
   // D2: bound the fetcher set with a deadline so a pathological query degrades
   // to an honest "tardando… reintentar" state instead of hanging the page.
+  // species narrows all four sub-queries identically (twin of /gob/censo's
+  // domain-axes work) so the KPI row, trend, funnel, and choropleth stay
+  // internally consistent.
   const load = await loadWithTimeout(
     Promise.all([
-      registryCounts(ctx, DORMANT_MONTHS_DEFAULT),
-      registrationTrend(ctx),
-      identificationFunnel(ctx),
-      registryByProvince(ctx),
+      registryCounts(ctx, DORMANT_MONTHS_DEFAULT, { species }),
+      registrationTrend(ctx, { species }),
+      identificationFunnel(ctx, { species }),
+      registryByProvince(ctx, { species }),
     ]),
   );
 
@@ -109,8 +130,22 @@ export default async function AdminCensoPage({
       {/* Page header */}
       {header}
 
-      {/* Unified filter bar — period only (no jurisdiction for admin — universal scope) */}
-      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
+      {/* Unified filter bar — period + species (no jurisdiction for admin —
+          universal scope). Twin of /gob/censo's rail. */}
+      <OpFilterBar
+        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+        axes={
+          [
+            {
+              id: "species",
+              label: "Especie",
+              paramKey: "species",
+              options: SPECIES_OPTIONS,
+              current: sp.species ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
 
       {/* KPI row */}
       <section
