@@ -98,3 +98,9 @@ PO decisions: adoption_reversed = custody→org + re-publish explícito (HECHO);
 ## Defaults taken (PO to adjust at wave boundaries)
 - E3 owner-nudges: DELETE the orphaned dead module (re-mounting the nudge feature is a
   product decision, not resurrected without intent) — flagged for PO.
+
+## PLAN MAESTRO DE INTEGRIDAD — ejecución (PO approved 2026-07-22, doc e7480bfe)
+Ola I: C2 lenguaje + C5 seed + C1 arranque. Secuencial (norma un-writer-por-árbol).
+- ⏳ C2: SlaBadge tipado + CTAs + bivariado + RUPGA + glosario + ENO labels + fence copy-contract
+- ⬜ C5: seed hygiene (display_name/welfare desc, lucas@ CABA-entera, edad↔status, multi-org) + lint:no-seed-ids
+- ⬜ C1: descriptor ejecutable + renderer con guardas + primeros 8 consumidores
