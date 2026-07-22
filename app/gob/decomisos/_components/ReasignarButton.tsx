@@ -93,7 +93,7 @@ export function ReasignarButton({
         onClose={() => !isPending && setOpen(false)}
         onConfirm={handleSubmit}
         title={`Reasignar decomiso — ${casePublicCode}`}
-        description={`Receptor actual: ${currentReceiverName}`}
+        description={`Esto transfiere la custodia del caso a otro refugio/red de rescate verificado. ${currentReceiverName} deja de ser responsable del caso.`}
         confirmLabel="Confirmar reasignación"
         tone="neutral"
         pending={isPending}

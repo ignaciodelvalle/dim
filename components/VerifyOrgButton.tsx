@@ -13,6 +13,7 @@
 import { useState, useTransition } from "react";
 
 import { verifyOrgAction } from "@/app/actions/admin-org-verification";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Org = {
   id: string;
@@ -48,6 +49,10 @@ export function VerifyOrgButton({ org }: { org: Org }) {
         setError(result.error);
       } else {
         setDone(true);
+        // No reload here — the toast is the confirmation (mutation-feedback
+        // convention, lib/ui/action-feedback.ts). The inline panel above
+        // stays too, since it carries the "admins were notified" detail.
+        notifySaved("Organización verificada");
       }
     });
   }

@@ -54,11 +54,19 @@ import { globSync, readFileSync } from "node:fs";
  *  trigger carries a `ref` for ConfirmDialog's focus-restore, which OpButton
  *  cannot forward (+2). Same change converted OrgBiteForm.tsx's victim-type
  *  button trio into native radio inputs (-3). Net: baseline lowered 51 → 52.
+ *  2026-07-21: audit-3-feedback §C2 — IncomingTransferActions.tsx converted
+ *  its accept/reject inline mode-switch panel onto ConfirmDialog (matching
+ *  friction to the citizen-facing AcceptTransferActions.tsx equivalent for
+ *  a custody-changing action); both triggers carry a `ref` for
+ *  ConfirmDialog's focus-restore, same OpButton limitation as above (+2).
+ *  The surface had also drifted down to 51 (unrelated cleanup) since the
+ *  52 baseline was set, so the net change lands at 53, not 54.
+ *  Baseline set 52 → 53.
  *  Target: 0, via migration to LnButton (citizen) / OpButton (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const OPERATOR_BASELINE = 52;
+const OPERATOR_BASELINE = 53;
 const OPERATOR_SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 

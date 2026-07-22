@@ -10,6 +10,35 @@
 // Design tokens: supports both ln-* (owner tier) and ln-op-* (operator tier).
 // Tone prop controls the destructive-action button color.
 //
+// THE RULE for irreversible/destructive actions (audit-3-feedback §C2,
+// 2026-07-21) — never a bare one-click, and never a bespoke ad-hoc inline
+// panel invented per-component. Two tiers, chosen by whether the action
+// needs an audit-log justification:
+//
+//   1. ConfirmDialog (this component) — the default for any irreversible
+//      action that does NOT require a recorded reason/evidence: a single
+//      confirm step naming the consequence (see `description`) is enough
+//      weight. Use this unless tier 2 applies.
+//   2. Inline mode-switch + mandatory reason (and, for the highest-stakes
+//      admin/govt actions, a required evidence upload + explicit
+//      acknowledgment checkbox) — for actions whose audit trail must carry
+//      a motivo, e.g. RevokeOrgActions.tsx / RevokeUserActions.tsx
+//      (org/role revocation), ResetCredentialsButton.tsx (credential
+//      rotation). This tier is intentionally HEAVIER than ConfirmDialog,
+//      not a lighter shortcut around it — the checkbox-acknowledgment
+//      pattern is stronger, not weaker, confirmation. Do not use a bare
+//      inline panel with no reason field for an action that would
+//      otherwise warrant one.
+//
+// Either tier is acceptable; picking a THIRD, unweighted pattern (a plain
+// one-click button, or an inline panel with no reason field pretending to
+// be tier 2) for a genuinely irreversible action is the violation.
+//
+// `description` must state the CONSEQUENCE ("Esto revoca el acceso de X
+// y..."), not just ask "¿Estás seguro?" — a bare confirmation question
+// with no stated outcome forces the user to already know what happens,
+// which defeats the point of a confirm step.
+//
 // Usage:
 //   const [open, setOpen] = useState(false);
 //   const triggerRef = useRef<HTMLButtonElement>(null);

@@ -14,6 +14,7 @@ import {
   type EmergencyContactValues,
 } from "@/components/pet-profile/EmergencyContactFields";
 import { LnButton } from "@/components/ui/Button";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Props = {
   petPublicToken: string;
@@ -42,6 +43,11 @@ export function EmergencyContactSheet({ petPublicToken, initialValues, onSaved }
         return;
       }
       setSaved(true);
+      // This sheet never navigates/reloads on save — the toast is the
+      // confirmation (mutation-feedback convention, lib/ui/action-feedback.ts).
+      // The inline "Guardado." output below stays too: it's the durable
+      // signal for anyone who dismisses the toast before reading it.
+      notifySaved("Se guardó");
       onSaved?.();
     });
   }

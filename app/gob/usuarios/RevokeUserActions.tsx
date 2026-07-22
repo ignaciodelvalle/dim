@@ -24,6 +24,7 @@ import { OpButton } from "@/components/ui/dashboard";
 import { canRevoke } from "@/lib/domain/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/domain/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Target = {
   id: string;
@@ -180,6 +181,12 @@ function RevokeVetForm({
         setError(result.error);
       } else {
         onDone();
+        // Full document reload so the SSR page reflects the revoked role —
+        // mirrors RevokeOrgActions.tsx (audit-3-feedback §C2 asymmetry #4:
+        // this file previously left the page stale after an equally
+        // irreversible action). router.refresh() is banned — see
+        // lib/ui/full-page-action-nav.ts.
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }

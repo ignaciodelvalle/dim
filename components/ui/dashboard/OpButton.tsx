@@ -40,6 +40,13 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 const base =
   "inline-flex items-center justify-center gap-[7px] font-semibold " +
   "rounded-[var(--radius-op-btn,6px)] border transition-colors cursor-pointer select-none " +
+  // Pressed feedback, mirrored from LnButton (Button.tsx:56-58) — operator
+  // console had no touch/pressed affordance beyond hover, a real
+  // citizen-vs-operator parity gap (audit-3-feedback §1). transition-colors
+  // above intentionally does NOT include transform, so this scale/opacity
+  // change applies instantly rather than animating — already reduced-motion
+  // safe without needing a motion-reduce: override, same as LnButton.
+  "active:scale-[0.98] active:opacity-90 " +
   "disabled:cursor-not-allowed disabled:opacity-60 " +
   "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-op-celeste-050)]";
 
