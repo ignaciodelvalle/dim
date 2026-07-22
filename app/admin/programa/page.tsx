@@ -29,6 +29,7 @@ import {
   OpCardHead,
   OpFilterBar,
   OpKpi,
+  OpKpiGroup,
   OpPill,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
@@ -207,80 +208,96 @@ export default async function AdminProgramaPage({
           makes sense for a govt viewer with assignments). */}
       <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
 
-      {/* North-Star KPI strip */}
-      <section
-        aria-label="KPIs principales del programa"
-        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
-      >
-        <OpKpi
-          label="Total registradas"
-          value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
-          sub="mascotas activas o extraviadas"
-          href="/admin/censo"
-          info={{
-            definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
-            formula: "COUNT(pets) WHERE status IN ('active','lost')",
-          }}
-        />
-        <OpKpi
-          label="Esterilización"
-          value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
-          tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
-          sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
-          href="/admin/poblacion"
-          info={getKpiInfo("sterilization_coverage_population")}
-        />
-        <OpKpi
-          label="Microchip"
-          value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
-          tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
-          sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
-          href="/admin/censo"
-          info={getKpiInfo("microchip_penetration")}
-        />
-        <OpKpi
-          label="SLA ENO (resueltos)"
-          value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
-          tone={enoSlaTone(enoSla)}
-          sub={
-            enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} en incumplimiento activo`
-              : "sin incumplimientos activos"
-          }
-          href="/admin/outbox"
-          info={getKpiInfo("eno_sla_compliance")}
-        />
-        <OpKpi
-          label="Cola más vieja"
-          value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
-          tone={
-            queue.oldestPendingDaysAgo !== null
-              ? queue.oldestPendingDaysAgo > 30
-                ? "danger"
-                : queue.oldestPendingDaysAgo > 14
-                  ? "warn"
-                  : "ok"
-              : undefined
-          }
-          sub={`${queue.pendingTotal} pendientes`}
-          href="/admin/cola"
-          info={{
-            definition: "Días de antigüedad de la solicitud pendiente más antigua.",
-            formula: "now() - min(created_at) WHERE status='pending'",
-          }}
-        />
-        <OpKpi
-          label="Provincias en alerta"
-          value={outlierCount.toLocaleString("es-AR")}
-          tone={outlierCount === 0 ? "ok" : outlierCount > 5 ? "danger" : "warn"}
-          sub="combinaciones provincia×métrica bajo meta"
-          info={{
-            definition:
-              "Número de combinaciones (provincia × métrica) con cobertura por debajo de la meta programática.",
-            formula: "COUNT rows WHERE rate < target",
-          }}
-        />
-      </section>
+      {/* KPI hierarchy (Ola 4 / decision-density audit, 2026-07-21): the former
+          6-tile North-Star strip gave every number the same weight, even
+          though 2 of them (Esterilización, Microchip) already have their own
+          dedicated dashboards (/admin/poblacion, /admin/censo). "Provincias
+          en alerta" is the one number unique to this executive-summary page
+          — a synthesized cross-jurisdiction exception count — so it anchors
+          the group; the rest support it. */}
+      <OpKpiGroup
+        ariaLabel="KPIs principales del programa"
+        secondaryLabel="KPIs de apoyo"
+        secondaryCols={5}
+        primary={
+          <OpKpi
+            variant="primary"
+            label="Provincias en alerta"
+            value={outlierCount.toLocaleString("es-AR")}
+            tone={outlierCount === 0 ? "ok" : outlierCount > 5 ? "danger" : "warn"}
+            sub="combinaciones provincia×métrica bajo meta"
+            info={{
+              definition:
+                "Número de combinaciones (provincia × métrica) con cobertura por debajo de la meta programática.",
+              formula: "COUNT rows WHERE rate < target",
+            }}
+          />
+        }
+        secondary={[
+          <OpKpi
+            key="total"
+            label="Total registradas"
+            value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
+            sub="mascotas activas o extraviadas"
+            href="/admin/censo"
+            info={{
+              definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
+              formula: "COUNT(pets) WHERE status IN ('active','lost')",
+            }}
+          />,
+          <OpKpi
+            key="esterilizacion"
+            label="Esterilización"
+            value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
+            tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
+            sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
+            href="/admin/poblacion"
+            info={getKpiInfo("sterilization_coverage_population")}
+          />,
+          <OpKpi
+            key="microchip"
+            label="Microchip"
+            value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
+            tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
+            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
+            href="/admin/censo"
+            info={getKpiInfo("microchip_penetration")}
+          />,
+          <OpKpi
+            key="eno-sla"
+            label="SLA ENO (resueltos)"
+            value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
+            tone={enoSlaTone(enoSla)}
+            sub={
+              enoSla.breachedOpen > 0
+                ? `${enoSla.breachedOpen} en incumplimiento activo`
+                : "sin incumplimientos activos"
+            }
+            href="/admin/outbox"
+            info={getKpiInfo("eno_sla_compliance")}
+          />,
+          <OpKpi
+            key="cola"
+            label="Cola más vieja"
+            value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
+            tone={
+              queue.oldestPendingDaysAgo !== null
+                ? queue.oldestPendingDaysAgo > 30
+                  ? "danger"
+                  : queue.oldestPendingDaysAgo > 14
+                    ? "warn"
+                    : "ok"
+                : undefined
+            }
+            sub={`${queue.pendingTotal} pendientes`}
+            href="/admin/cola"
+            info={{
+              definition: "Días de antigüedad de la solicitud pendiente más antigua.",
+              formula: "now() - min(created_at) WHERE status='pending'",
+            }}
+          />,
+        ]}
+      />
 
       {/* Antirrábica vaccination forecast — Paquete J (additive) */}
       <OpCard aria-labelledby={panelRabiesForecastId}>
@@ -420,203 +437,230 @@ export default async function AdminProgramaPage({
         </OpCardBody>
       </OpCard>
 
-      {/* PII oversight */}
-      <OpCard aria-labelledby={panelPiiId}>
-        <OpCardHead
-          title={<span id={panelPiiId}>Supervisión de PII — ¿quién consultó qué?</span>}
-        />
-        <OpCardBody>
-          {piiOversight.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">
-              Sin consultas PII registradas en el período.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
-                <caption className="sr-only">
-                  Top actores por cantidad de consultas PII-sensibles en el período. Datos del
-                  audit_log (pii_queried, welfare_location_viewed).
-                </caption>
-                <thead>
-                  <tr className="border-b border-ln-op-line">
-                    <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
-                      Actor
-                    </th>
-                    <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
-                      Acción
-                    </th>
-                    <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
-                      Superficie
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Consultas
-                    </th>
-                    <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
-                      Última
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {piiOversight.map((row) => (
-                    <tr
-                      key={`${row.actorUserId ?? "deleted"}-${row.action}-${row.surface ?? ""}`}
-                      className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
-                    >
-                      <td className="py-2 pr-4 text-[13px] text-ln-op-ink-2">
-                        {row.actorUserId
-                          ? (actorNameMap.get(row.actorUserId) ?? "Operador desconocido")
-                          : "Usuario eliminado"}
-                      </td>
-                      <td className="py-2 pr-4 text-ln-op-ink-2" title={row.action}>
-                        {auditActionLabel(row.action)}
-                      </td>
-                      <td className="py-2 pr-4 text-ln-op-mute">
-                        {row.surface ? (SURFACE_LABEL[row.surface] ?? row.surface) : "—"}
-                      </td>
-                      <td className="py-2 pr-4 text-right tabular-nums font-medium">
-                        {row.count.toLocaleString("es-AR")}
-                      </td>
-                      <td className="py-2 text-right text-[11px] text-ln-op-mute">
-                        {formatDateShort(row.lastAt)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </OpCardBody>
-      </OpCard>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {/* Data quality scorecard */}
-        <OpCard aria-labelledby={panelQualityId}>
-          <OpCardHead title={<span id={panelQualityId}>Calidad de datos</span>} />
-          <OpCardBody>
-            {dataQuality.total === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">Sin mascotas activas en el padrón.</p>
-            ) : (
-              <div className="space-y-3">
-                {/* Completeness bar */}
-                <div>
-                  <div className="flex justify-between items-baseline mb-1">
-                    <span className="text-sm text-ln-op-mute">Completitud</span>
-                    <span
-                      className={[
-                        "text-[13px] font-semibold tabular-nums",
-                        dataQuality.completenessPct >= 80
-                          ? "text-ln-op-ok"
-                          : dataQuality.completenessPct >= 60
-                            ? "text-ln-op-warn"
-                            : "text-ln-op-danger",
-                      ].join(" ")}
-                      aria-label={`Completitud: ${dataQuality.completenessPct}%`}
-                    >
-                      {dataQuality.completenessPct}%
-                    </span>
-                  </div>
-                  <div
-                    className="h-2 rounded bg-ln-op-stripe overflow-hidden"
-                    aria-hidden="true"
-                    role="presentation"
-                  >
-                    <div
-                      className={[
-                        "h-full rounded transition-all",
-                        dataQuality.completenessPct >= 80
-                          ? "bg-ln-op-ok"
-                          : dataQuality.completenessPct >= 60
-                            ? "bg-ln-op-warn"
-                            : "bg-ln-op-danger",
-                      ].join(" ")}
-                      style={{ width: `${dataQuality.completenessPct}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Missing field counts */}
-                <ul className="space-y-1.5 text-sm" aria-label="Campos faltantes por categoría">
-                  <li className="flex justify-between items-baseline">
-                    <span className="text-ln-op-mute">Sin localidad</span>
-                    <span className="tabular-nums text-ln-op-ink">
-                      {dataQuality.missingLocality.toLocaleString("es-AR")}
-                    </span>
-                  </li>
-                  <li className="flex justify-between items-baseline">
-                    <span className="text-ln-op-mute">Sexo desconocido</span>
-                    <span className="tabular-nums text-ln-op-ink">
-                      {dataQuality.missingSex.toLocaleString("es-AR")}
-                    </span>
-                  </li>
-                  <li className="flex justify-between items-baseline">
-                    <span className="text-ln-op-mute">Sin microchip activo</span>
-                    <span className="tabular-nums text-ln-op-ink">
-                      {dataQuality.missingChip.toLocaleString("es-AR")}
-                    </span>
-                  </li>
-                  <li className="flex justify-between items-baseline border-t border-ln-op-line pt-1.5">
-                    <span className="text-ln-op-mute">Huérfanas (sin propietario)</span>
-                    <span
-                      className={[
-                        "tabular-nums font-medium",
-                        dataQuality.orphans > 0 ? "text-ln-op-warn" : "text-ln-op-ink",
-                      ].join(" ")}
-                    >
-                      {dataQuality.orphans.toLocaleString("es-AR")}
-                    </span>
-                  </li>
-                </ul>
-
-                <p className="text-xs text-ln-op-mute">
-                  Completitud = mascotas sin ningún campo faltante (localidad + sexo + chip) ÷
-                  total. Huérfanas: sin ninguna fila en ownerships.
+      {/* Diagnóstico (Ola 4 / decision-density audit, 2026-07-21): PII
+          oversight + data quality + cron health are operational detail, not
+          the executive headline — collapsed behind a disclosure so they read
+          as secondary depth instead of co-equal with the KPI hierarchy and
+          the rabies-forecast/outliers story above. */}
+      <details className="group">
+        <summary className="cursor-pointer select-none text-sm font-semibold text-ln-op-ink-2 hover:text-ln-op-ink">
+          Diagnóstico — PII, calidad de datos y crons
+        </summary>
+        <div className="mt-4 space-y-4">
+          {/* PII oversight */}
+          <OpCard aria-labelledby={panelPiiId}>
+            <OpCardHead
+              title={<span id={panelPiiId}>Supervisión de PII — ¿quién consultó qué?</span>}
+            />
+            <OpCardBody>
+              {piiOversight.length === 0 ? (
+                <p className="text-[13px] text-ln-op-mute">
+                  Sin consultas PII registradas en el período.
                 </p>
-              </div>
-            )}
-          </OpCardBody>
-        </OpCard>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+                    <caption className="sr-only">
+                      Top actores por cantidad de consultas PII-sensibles en el período. Datos del
+                      audit_log (pii_queried, welfare_location_viewed).
+                    </caption>
+                    <thead>
+                      <tr className="border-b border-ln-op-line">
+                        <th
+                          scope="col"
+                          className="text-left py-2 pr-4 font-semibold text-ln-op-mute"
+                        >
+                          Actor
+                        </th>
+                        <th
+                          scope="col"
+                          className="text-left py-2 pr-4 font-semibold text-ln-op-mute"
+                        >
+                          Acción
+                        </th>
+                        <th
+                          scope="col"
+                          className="text-left py-2 pr-4 font-semibold text-ln-op-mute"
+                        >
+                          Superficie
+                        </th>
+                        <th
+                          scope="col"
+                          className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                        >
+                          Consultas
+                        </th>
+                        <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
+                          Última
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {piiOversight.map((row) => (
+                        <tr
+                          key={`${row.actorUserId ?? "deleted"}-${row.action}-${row.surface ?? ""}`}
+                          className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
+                        >
+                          <td className="py-2 pr-4 text-[13px] text-ln-op-ink-2">
+                            {row.actorUserId
+                              ? (actorNameMap.get(row.actorUserId) ?? "Operador desconocido")
+                              : "Usuario eliminado"}
+                          </td>
+                          <td className="py-2 pr-4 text-ln-op-ink-2" title={row.action}>
+                            {auditActionLabel(row.action)}
+                          </td>
+                          <td className="py-2 pr-4 text-ln-op-mute">
+                            {row.surface ? (SURFACE_LABEL[row.surface] ?? row.surface) : "—"}
+                          </td>
+                          <td className="py-2 pr-4 text-right tabular-nums font-medium">
+                            {row.count.toLocaleString("es-AR")}
+                          </td>
+                          <td className="py-2 text-right text-[11px] text-ln-op-mute">
+                            {formatDateShort(row.lastAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </OpCardBody>
+          </OpCard>
 
-        {/* Cron health */}
-        <OpCard aria-labelledby={panelCronsId}>
-          <OpCardHead title={<span id={panelCronsId}>Salud de crons</span>} />
-          <OpCardBody>
-            {crons.length === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">Sin crons registrados.</p>
-            ) : (
-              <ul className="space-y-2" aria-label="Estado de los crons del sistema">
-                {crons.map((c) => (
-                  <li
-                    key={c.cronName}
-                    className="flex items-baseline justify-between gap-3 text-sm"
-                    aria-label={`${c.cronName}: ${c.lastStatus ?? "desconocido"}`}
-                  >
-                    {/* M2 (cowork demo): es-AR label; raw key on `title`. */}
-                    <span className="text-ln-op-ink-2 truncate max-w-[160px]" title={c.cronName}>
-                      {cronDisplayLabel(c.cronName)}
-                    </span>
-                    <span className="flex items-center gap-1.5 tabular-nums text-[11px] shrink-0">
-                      {c.lastRunAt
-                        ? new Date(c.lastRunAt).toLocaleString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            timeZone: AR_TIME_ZONE,
-                          })
-                        : "—"}
-                      {c.lastStatus && (
-                        <OpPill tone={CRON_STATUS_TONE[c.lastStatus] ?? "neutral"}>
-                          {CRON_STATUS_LABEL[c.lastStatus] ?? c.lastStatus}
-                        </OpPill>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </OpCardBody>
-        </OpCard>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Data quality scorecard */}
+            <OpCard aria-labelledby={panelQualityId}>
+              <OpCardHead title={<span id={panelQualityId}>Calidad de datos</span>} />
+              <OpCardBody>
+                {dataQuality.total === 0 ? (
+                  <p className="text-[13px] text-ln-op-mute">Sin mascotas activas en el padrón.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Completeness bar */}
+                    <div>
+                      <div className="flex justify-between items-baseline mb-1">
+                        <span className="text-sm text-ln-op-mute">Completitud</span>
+                        <span
+                          className={[
+                            "text-[13px] font-semibold tabular-nums",
+                            dataQuality.completenessPct >= 80
+                              ? "text-ln-op-ok"
+                              : dataQuality.completenessPct >= 60
+                                ? "text-ln-op-warn"
+                                : "text-ln-op-danger",
+                          ].join(" ")}
+                          aria-label={`Completitud: ${dataQuality.completenessPct}%`}
+                        >
+                          {dataQuality.completenessPct}%
+                        </span>
+                      </div>
+                      <div
+                        className="h-2 rounded bg-ln-op-stripe overflow-hidden"
+                        aria-hidden="true"
+                        role="presentation"
+                      >
+                        <div
+                          className={[
+                            "h-full rounded transition-all",
+                            dataQuality.completenessPct >= 80
+                              ? "bg-ln-op-ok"
+                              : dataQuality.completenessPct >= 60
+                                ? "bg-ln-op-warn"
+                                : "bg-ln-op-danger",
+                          ].join(" ")}
+                          style={{ width: `${dataQuality.completenessPct}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Missing field counts */}
+                    <ul className="space-y-1.5 text-sm" aria-label="Campos faltantes por categoría">
+                      <li className="flex justify-between items-baseline">
+                        <span className="text-ln-op-mute">Sin localidad</span>
+                        <span className="tabular-nums text-ln-op-ink">
+                          {dataQuality.missingLocality.toLocaleString("es-AR")}
+                        </span>
+                      </li>
+                      <li className="flex justify-between items-baseline">
+                        <span className="text-ln-op-mute">Sexo desconocido</span>
+                        <span className="tabular-nums text-ln-op-ink">
+                          {dataQuality.missingSex.toLocaleString("es-AR")}
+                        </span>
+                      </li>
+                      <li className="flex justify-between items-baseline">
+                        <span className="text-ln-op-mute">Sin microchip activo</span>
+                        <span className="tabular-nums text-ln-op-ink">
+                          {dataQuality.missingChip.toLocaleString("es-AR")}
+                        </span>
+                      </li>
+                      <li className="flex justify-between items-baseline border-t border-ln-op-line pt-1.5">
+                        <span className="text-ln-op-mute">Huérfanas (sin propietario)</span>
+                        <span
+                          className={[
+                            "tabular-nums font-medium",
+                            dataQuality.orphans > 0 ? "text-ln-op-warn" : "text-ln-op-ink",
+                          ].join(" ")}
+                        >
+                          {dataQuality.orphans.toLocaleString("es-AR")}
+                        </span>
+                      </li>
+                    </ul>
+
+                    <p className="text-xs text-ln-op-mute">
+                      Completitud = mascotas sin ningún campo faltante (localidad + sexo + chip) ÷
+                      total. Huérfanas: sin ninguna fila en ownerships.
+                    </p>
+                  </div>
+                )}
+              </OpCardBody>
+            </OpCard>
+
+            {/* Cron health */}
+            <OpCard aria-labelledby={panelCronsId}>
+              <OpCardHead title={<span id={panelCronsId}>Salud de crons</span>} />
+              <OpCardBody>
+                {crons.length === 0 ? (
+                  <p className="text-[13px] text-ln-op-mute">Sin crons registrados.</p>
+                ) : (
+                  <ul className="space-y-2" aria-label="Estado de los crons del sistema">
+                    {crons.map((c) => (
+                      <li
+                        key={c.cronName}
+                        className="flex items-baseline justify-between gap-3 text-sm"
+                        aria-label={`${c.cronName}: ${c.lastStatus ?? "desconocido"}`}
+                      >
+                        {/* M2 (cowork demo): es-AR label; raw key on `title`. */}
+                        <span
+                          className="text-ln-op-ink-2 truncate max-w-[160px]"
+                          title={c.cronName}
+                        >
+                          {cronDisplayLabel(c.cronName)}
+                        </span>
+                        <span className="flex items-center gap-1.5 tabular-nums text-[11px] shrink-0">
+                          {c.lastRunAt
+                            ? new Date(c.lastRunAt).toLocaleString("es-AR", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                timeZone: AR_TIME_ZONE,
+                              })
+                            : "—"}
+                          {c.lastStatus && (
+                            <OpPill tone={CRON_STATUS_TONE[c.lastStatus] ?? "neutral"}>
+                              {CRON_STATUS_LABEL[c.lastStatus] ?? c.lastStatus}
+                            </OpPill>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </OpCardBody>
+            </OpCard>
+          </div>
+        </div>
+      </details>
 
       <DashboardFreshnessFooter ctx={adminCtx} />
     </div>

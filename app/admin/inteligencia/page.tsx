@@ -445,10 +445,17 @@ export default async function AdminInteligenciaPage({
             />
           ) : (
             <div className="overflow-x-auto">
+              {/* Ola 4 / decision-density audit (2026-07-21): this table had 9
+                  columns — the densest in the portal. Rank + score + the one
+                  ready-to-act signal (Fantasma, also the headline KPI above)
+                  stay visible; the other 5 completeness-diagnostic columns
+                  (localidad/chip/titular/inactivas/chips reemplazados) move
+                  behind a disclosure — still fully honest/reachable, just not
+                  co-equal with the decision-relevant columns by default. */}
               <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
                 <caption className="sr-only">
-                  Ranking de provincias por puntaje de calidad de datos, con señales de completitud
-                  y conciliación.
+                  Ranking de provincias por puntaje de calidad de datos, con la señal de registros
+                  fantasma.
                 </caption>
                 <thead>
                   <tr className="border-b border-ln-op-line">
@@ -470,23 +477,8 @@ export default async function AdminInteligenciaPage({
                     <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
                       Registros
                     </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Sin localidad
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Sin chip
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Sin titular
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Inactivas
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Fantasma
-                    </th>
                     <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
-                      Chips reemplaz.
+                      Fantasma
                     </th>
                   </tr>
                 </thead>
@@ -501,12 +493,7 @@ export default async function AdminInteligenciaPage({
                       <td className="py-2 pr-4 text-right tabular-nums">
                         {row.total.toLocaleString("es-AR")}
                       </td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{row.missingLocality}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{row.missingChip}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{row.orphans}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{row.dormant}</td>
-                      <td className="py-2 pr-4 text-right tabular-nums">{row.ghosts}</td>
-                      <td className="py-2 text-right tabular-nums">{row.replacedChips}</td>
+                      <td className="py-2 text-right tabular-nums">{row.ghosts}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -514,7 +501,7 @@ export default async function AdminInteligenciaPage({
               <p className="mt-2 text-xs text-ln-op-mute">
                 Puntaje = promedio con pesos iguales de cinco señales de completitud (localidad,
                 sexo, chip, titularidad, actividad). Fantasma = sin titular y sin actividad en 12
-                meses (conciliación de registros). Chips reemplazados no descuentan puntaje.
+                meses (conciliación de registros).
                 {quality.suppressedProvinces > 0 && (
                   <>
                     {" "}
@@ -531,6 +518,65 @@ export default async function AdminInteligenciaPage({
                   </>
                 )}
               </p>
+
+              <details className="group mt-3">
+                <summary className="cursor-pointer select-none text-sm font-semibold text-ln-op-ink-2 hover:text-ln-op-ink">
+                  Ver desglose completo de completitud (localidad, chip, titular, inactivas, chips
+                  reemplazados)
+                </summary>
+                <table className="mt-2 w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
+                  <caption className="sr-only">
+                    Desglose de completitud por provincia: registros sin localidad, sin chip, sin
+                    titular, inactivos y chips reemplazados.
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-ln-op-line">
+                      <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
+                        Provincia
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                      >
+                        Sin localidad
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                      >
+                        Sin chip
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                      >
+                        Sin titular
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                      >
+                        Inactivas
+                      </th>
+                      <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
+                        Chips reemplaz.
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quality.rows.map((row: ProvinceDataQualityRow) => (
+                      <tr key={row.province} className="border-b border-ln-op-line last:border-0">
+                        <td className="py-2 pr-4">{row.province}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{row.missingLocality}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{row.missingChip}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{row.orphans}</td>
+                        <td className="py-2 pr-4 text-right tabular-nums">{row.dormant}</td>
+                        <td className="py-2 text-right tabular-nums">{row.replacedChips}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
             </div>
           )}
         </OpCardBody>

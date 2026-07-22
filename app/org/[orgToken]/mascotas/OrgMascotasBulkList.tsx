@@ -33,25 +33,14 @@ import { OpBulkResultPanel, OpButton, OpStateBadge } from "@/components/ui/dashb
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { pluralizeEs, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
+import { type CtaTone, type PetCardData, buildMascotaCtas } from "./mascota-ctas";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type PetCardData = {
-  petId: string;
-  publicToken: string;
-  name: string;
-  species: string;
-  breed: string | null;
-  color: string | null;
-  dateOfBirth: string | null;
-  birthDateIsEstimated: boolean;
-  status: string;
-  adoptionEligible: boolean | null;
-  adoptionListedAt: string | null;
-  adoptionListingPausedAt: string | null;
-  ownershipRole: string;
-  startedAt: string;
-};
+// PetCardData's canonical definition lives in mascota-ctas.tsx (the pure,
+// server-action-free module) — re-exported here so existing importers of
+// this path (e.g. __tests__/pet-pipeline.test.ts) are unaffected.
+export type { PetCardData } from "./mascota-ctas";
 
 type Props = {
   cards: PetCardData[];
@@ -107,6 +96,14 @@ const INELIGIBLE_REASON_LABELS: Record<(typeof BULK_INELIGIBLE_REASONS)[number],
 };
 
 const BULK_MAX = 500;
+
+// Per-card CTA ranking now lives in buildMascotaCtas (./mascota-ctas.tsx) —
+// pure and unit-tested there, independent of this component's server-action
+// imports. This file only owns the PRIMARY-tile styling.
+const PRIMARY_CTA_CLS: Record<CtaTone, string> = {
+  azul: "inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700",
+  ok: "inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-ok text-white hover:opacity-90",
+};
 
 function calcAge(dob: string): string {
   const birth = new Date(dob);
@@ -293,23 +290,17 @@ export function OrgMascotasBulkList({
               ? `${card.birthDateIsEstimated ? "~" : ""}${calcAge(card.dateOfBirth)}`
               : "edad desconocida";
             const hasFoster = fosteredSet.has(card.petId);
-            const showFosterCta =
-              canAssignFoster && card.ownershipRole === "shelter_custody" && !hasFoster;
-            const showTransferCta =
-              canTransfer &&
-              (card.ownershipRole === "shelter_custody" || card.ownershipRole === "owner");
-            const hasPendingProposal = pendingProposalSet.has(card.petId);
-            const showReturnToOwnerCta =
-              canReturnToOwner &&
-              card.ownershipRole === "shelter_custody" &&
-              card.status === "lost" &&
-              !hasPendingProposal;
-            const anyCta =
-              showFosterCta ||
-              (canEndFoster && hasFoster) ||
-              (canFinalizeAdoption && card.ownershipRole === "shelter_custody") ||
-              showTransferCta ||
-              showReturnToOwnerCta;
+            const [primaryCta, ...secondaryCtas] = buildMascotaCtas(card, orgToken, {
+              canIntake,
+              canAssignFoster,
+              canEndFoster,
+              canFinalizeAdoption,
+              canTransfer,
+              canReturnToOwner,
+              canManageAdoptionListing,
+              hasFoster,
+              hasPendingProposal: pendingProposalSet.has(card.petId),
+            });
 
             const adState = deriveAdoptionState(card);
 
@@ -374,79 +365,34 @@ export function OrgMascotasBulkList({
                 <p className="text-sm text-ln-op-mute">
                   <code className="font-ln-mono">{card.publicToken}</code>
                 </p>
-                {anyCta && (
-                  <div className="pt-1 flex flex-wrap gap-2">
-                    {showFosterCta && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}/foster`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                      >
-                        Asignar tránsito
-                      </Link>
-                    )}
-                    {canEndFoster && hasFoster && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=fin-transito`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                      >
-                        Cerrar tránsito
-                      </Link>
-                    )}
-                    {canIntake && card.ownershipRole === "shelter_custody" && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=elegibilidad`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                      >
-                        {card.adoptionEligible === true ? (
-                          <span className="inline-flex items-center gap-1">
-                            Apta <Icon name="check" size={13} decorative />
-                          </span>
-                        ) : card.adoptionEligible === false ? (
-                          "NO apta"
-                        ) : (
-                          "Elegibilidad"
-                        )}
-                      </Link>
-                    )}
-                    {canManageAdoptionListing && card.ownershipRole === "shelter_custody" && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}/adoptar`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                      >
-                        {card.adoptionListedAt && !card.adoptionListingPausedAt ? (
-                          <span className="inline-flex items-center gap-1">
-                            Publicada <Icon name="check" size={13} decorative />
-                          </span>
-                        ) : card.adoptionListedAt && card.adoptionListingPausedAt ? (
-                          "Pausada"
-                        ) : (
-                          "Publicar"
-                        )}
-                      </Link>
-                    )}
-                    {canFinalizeAdoption && card.ownershipRole === "shelter_custody" && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}/adoption`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] bg-ln-op-ok text-white hover:opacity-90"
-                      >
-                        Finalizar adopción
-                      </Link>
-                    )}
-                    {showReturnToOwnerCta && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}?sheet=devolver-al-dueno`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
-                      >
-                        Devolver al dueño
-                      </Link>
-                    )}
-                    {showTransferCta && (
-                      <Link
-                        href={`/org/${orgToken}/mascotas/${card.publicToken}/transfer`}
-                        className="inline-block text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-ink hover:bg-ln-op-line-2"
-                      >
-                        Transferir
-                      </Link>
+                {primaryCta && (
+                  <div className="pt-1 flex items-center gap-2 flex-wrap">
+                    <Link href={primaryCta.href} className={PRIMARY_CTA_CLS[primaryCta.tone]}>
+                      {primaryCta.label}
+                    </Link>
+                    {secondaryCtas.length > 0 && (
+                      // Native <details> as the overflow menu — no client state
+                      // needed, keyboard-accessible by default (Enter/Space
+                      // toggles), consistent with the collapsed-disclosure
+                      // convention used elsewhere in the admin/gob/org consoles.
+                      <details className="relative">
+                        <summary className="list-none inline-flex items-center gap-1 cursor-pointer text-sm px-2 py-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe text-ln-op-mute hover:text-ln-op-ink select-none [&::-webkit-details-marker]:hidden">
+                          <Icon name="ellipsis" size={14} decorative />
+                          Más
+                          <span className="sr-only">acciones</span>
+                        </summary>
+                        <div className="absolute left-0 z-10 mt-1 min-w-[190px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-1 shadow-lg space-y-0.5">
+                          {secondaryCtas.map((c) => (
+                            <Link
+                              key={c.key}
+                              href={c.href}
+                              className="block px-2 py-1.5 rounded-[var(--radius-sm)] text-sm text-ln-op-ink hover:bg-ln-op-stripe"
+                            >
+                              {c.label}
+                            </Link>
+                          ))}
+                        </div>
+                      </details>
                     )}
                   </div>
                 )}

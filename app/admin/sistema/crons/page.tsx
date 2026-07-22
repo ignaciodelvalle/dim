@@ -76,7 +76,19 @@ export default async function AdminSistemaCronsPage() {
           </Link>{" "}
           · Crons
         </p>
-        <h1 className="text-lg font-semibold text-ln-op-ink">Salud de crons</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-lg font-semibold text-ln-op-ink">Salud de crons</h1>
+          {/* Ola 4 / decision-density audit (2026-07-21): a read-only ops
+              screen with zero in-UI action — already grouped under
+              "Confiabilidad" in the admin nav (not alongside product screens
+              like Cola/Moderación), but the disclosure that this is tooling,
+              not a decision surface, used to live only in the legend at the
+              bottom of the page. Promoted here so WHERE AM I is answered
+              immediately, not after scrolling. */}
+          <span className="inline-flex items-center rounded-full border border-ln-op-line bg-ln-op-stripe px-2 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-ln-op-mute">
+            Herramienta de sistema · solo lectura
+          </span>
+        </div>
         <p className="text-sm text-ln-op-ink-2">
           Estado de cada cron registrado en vercel.json — lectura de cronRuns en vivo. Solo admin.
         </p>

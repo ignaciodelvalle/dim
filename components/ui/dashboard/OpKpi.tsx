@@ -52,6 +52,16 @@ type Props = {
   href?: string;
   size?: "default" | "sm";
 
+  /**
+   * Hierarchy role within an OpKpiGroup (or standalone). Optional and
+   * backward-compatible: omitted (default) renders exactly as before every
+   * existing dashboard already does. "primary" renders a larger, more
+   * prominent tile — the single headline metric a screen wants read first.
+   * "secondary" is visually identical to the default/omitted case; it exists
+   * so callers can be explicit when pairing with a "primary" sibling.
+   */
+  variant?: "primary" | "secondary";
+
   // --- New v2 optional props ---
 
   /**
@@ -225,10 +235,14 @@ export function OpKpi({
   deltaV2,
   sparkline,
   drillHref,
+  variant,
 }: Props) {
+  const isPrimary = variant === "primary";
+
   const cardCls = [
-    "flex flex-col rounded-[var(--radius-md)] border p-[14px_16px]",
-    "min-h-[112px] no-underline text-inherit",
+    "flex flex-col rounded-[var(--radius-md)] border",
+    isPrimary ? "p-5 min-h-[136px]" : "p-[14px_16px] min-h-[112px]",
+    "no-underline text-inherit",
     toneCard[tone],
   ].join(" ");
 
@@ -244,7 +258,12 @@ export function OpKpi({
             <span className="sr-only">{TONE_LABELS[tone]}:</span>
           </>
         )}
-        <span className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <span
+          className={[
+            "font-bold uppercase tracking-[0.12em] text-ln-op-mute",
+            isPrimary ? "text-[var(--text-md)]" : "text-xs",
+          ].join(" ")}
+        >
           {label}
         </span>
         {info && <InfoButton info={info} />}
@@ -253,7 +272,8 @@ export function OpKpi({
       {/* Value */}
       <div
         className={[
-          "font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums",
+          "font-ln-serif font-semibold leading-none tracking-[-0.02em] tabular-nums",
+          isPrimary ? "text-4xl" : "text-[30px]",
           toneValue[tone],
         ].join(" ")}
       >
