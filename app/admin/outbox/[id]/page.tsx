@@ -22,7 +22,7 @@ import {
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
+import { buildBreachCue, buildStatusLabel, enoExternalDeliveryNote } from "@/lib/infra/outbox-list";
 import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
 
 import { RetryOutboxButton } from "./RetryOutboxButton";
@@ -172,6 +172,17 @@ export default async function AdminOutboxDetailPage({
               )}
             </dd>
           </dl>
+
+          {/* ENO honest-delivery note (C2, 2026-07-22): an eno_authority row's
+              "Entregado" status means our outbox pipeline processed it, not
+              that the external health authority received it — no receiving
+              endpoint exists yet. States reality; never "próximamente" (the
+              pipeline itself is real and running today). */}
+          {enoExternalDeliveryNote(row.targetKind) && (
+            <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+              {enoExternalDeliveryNote(row.targetKind)}
+            </p>
+          )}
 
           {row.lastError && (
             <div className="mt-3 space-y-1">

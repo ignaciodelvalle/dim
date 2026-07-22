@@ -75,7 +75,10 @@ import { petsScopeClause } from "./scope";
 export {
   FEED_EVENT_TYPES,
   type FeedEventType,
+  type FeedDestinationCapability,
   feedQueueHref,
+  feedDestinationCapability,
+  feedDestinationLabel,
   feedGroupLabel,
 } from "./novedades-feed-links";
 

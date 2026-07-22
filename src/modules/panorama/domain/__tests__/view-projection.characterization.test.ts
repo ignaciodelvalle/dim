@@ -84,7 +84,8 @@ function isMeta(layer: PanoramaLayer): boolean {
 }
 
 /** bivariate eligibility — PanoramaConsole.tsx:2134-2138. The SOLE gate for the
- *  "Riesgo de brotes" 3×3 encoding: the brotes-activos preset, province level,
+ *  "Intensidad de reporte (brotes)" 3×3 encoding (renamed from "Riesgo de
+ *  brotes" — C2, 2026-07-22): the brotes-activos preset, province level,
  *  with both cobertura (base) and zoonosis (signal) active. Reconstructed via the
  *  registry predicate it IMPLIES (no preset-id string in the eventual gate). */
 function bivariateEligible(

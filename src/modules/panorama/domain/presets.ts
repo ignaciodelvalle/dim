@@ -168,7 +168,8 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     framing: { kind: "national" },
     // panorama-vista-redesign: the metrics column for "¿dónde hay brotes?".
     metrics: ["cobertura", "zoonosis", "mordeduras"],
-    // P5: the "Riesgo (bivariado)" toggle is a display encoding WITHIN this
+    // P5: the "Intensidad de reporte (bivariado)" toggle (renamed from "Riesgo
+    // (bivariado)" — C2, 2026-07-22) is a display encoding WITHIN this
     // vista — selecting it keeps the badge on "Brotes activos" and round-trips
     // the URL (?encoding=bivariate) so a shared link reproduces the view.
     encodings: ["bivariate"],

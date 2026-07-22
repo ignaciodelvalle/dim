@@ -38,7 +38,7 @@ export function LnMaintenanceScreen({ className }: LnMaintenanceScreenProps = {}
         </div>
         <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">En mantenimiento</h1>
         <p className="text-sm text-[var(--color-ln-mute)]">
-          Volvé en unos minutos. Estamos actualizando MiMAR; tu información está segura.
+          Volvé en unos minutos. Estamos actualizando miMAR; tu información está segura.
         </p>
       </output>
     </main>

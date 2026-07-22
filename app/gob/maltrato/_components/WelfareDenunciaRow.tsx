@@ -1,4 +1,4 @@
-import { OpPill } from "@/components/ui/dashboard";
+import { OpPill, SlaBadge } from "@/components/ui/dashboard";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -11,7 +11,6 @@ import type {
 
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
-import { isSlaBreached, slaDaysForSeverity } from "../_lib/welfare-sla";
 import { WelfareRowLink } from "./WelfareRowLink";
 
 // Severity → OpPill tone mapping.
@@ -66,11 +65,7 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
   const severityTone = SEVERITY_TONE[report.severity] ?? "neutral";
   const statusTone = STATUS_TONE[report.status] ?? "neutral";
 
-  // Inline SLA badge (UI/UX audit 2026-07): severity-tiered days from
-  // ../_lib/welfare-sla.ts — badge only when BREACHED (still actionable and
-  // older than its tier), so the list stays quiet until the SLA actually slips.
   const createdAt = new Date(report.createdAt);
-  const slaBreached = isSlaBreached(report.severity, report.status, createdAt);
 
   // A CRITICAL row is visually escalated with the error tokens (thick danger
   // left edge) so it reads as "peligro inmediato" before any text is parsed.
@@ -96,11 +91,13 @@ export function WelfareDenunciaRow({ report }: WelfareDenunciaRowProps) {
                 {welfareReportKindLabel(report.kind)}
               </p>
               <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
-              {slaBreached && (
-                <OpPill tone="danger">
-                  {`SLA vencido (${slaDaysForSeverity(report.severity)} d)`}
-                </OpPill>
-              )}
+              {/* SlaBadge (C2 language contract 2026-07-22) OWNS the SLA
+                  semantic — it derives breached/historical/in-plazo itself
+                  from severity+status+createdAt, so this row can never
+                  mislabel a severity TIER as a days-overdue count (the #1
+                  trust bug the contract kills). Renders nothing for terminal
+                  statuses. */}
+              <SlaBadge severity={report.severity} status={report.status} createdAt={createdAt} />
             </div>
             <p className="text-[11px] text-ln-op-mute">
               {report.jurisdictionLocality && report.jurisdictionProvince

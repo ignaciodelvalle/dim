@@ -163,7 +163,13 @@ export default async function GobiernoDashboardPage({
           href="/gob/maltrato"
           className="rounded-[var(--radius-md)] border border-ln-op-danger px-3 py-1.5 text-[var(--text-md)] font-medium text-ln-op-danger hover:bg-ln-op-danger-bg transition-colors no-underline"
         >
-          Acta de infracción
+          {/* C2 language contract (2026-07-22): /gob/maltrato is a triage
+              QUEUE — no acta-emitting flow exists. "Acta de infracción" named
+              a legal instrument this destination cannot produce (label ≠
+              destination capability, S2 §2). Danger tone stays — it is a
+              genuinely urgent queue — but the label now says what's actually
+              behind the link. */}
+          Denuncias de maltrato
         </Link>
       </div>
     </header>

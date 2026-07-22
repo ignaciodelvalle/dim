@@ -574,6 +574,49 @@ describe("parsePage — unit", () => {
 });
 
 // ============================================================================
+// parseQueue default — unit tests (C2 language contract, 2026-07-22:
+// PO-locked default tab = "sin asignar abiertas", not "Todas")
+// ============================================================================
+
+// Inline copy of the page's parseQueue (private fn — mirrors the parsePage
+// inline-copy convention above). VALID_QUEUES/DEFAULT_QUEUE mirror
+// app/gob/maltrato/page.tsx exactly.
+const VALID_QUEUES_COPY = ["urgent", "unassigned", "mine", "all", "overdue"];
+const DEFAULT_QUEUE_COPY = "unassigned";
+function parseQueue(raw: string | undefined): string {
+  if (!raw) return DEFAULT_QUEUE_COPY;
+  return VALID_QUEUES_COPY.includes(raw) ? raw : DEFAULT_QUEUE_COPY;
+}
+
+describe("parseQueue — unit (maltrato default tab)", () => {
+  it("defaults to 'unassigned' (sin asignar abiertas) when no ?queue= param is present", () => {
+    expect(parseQueue(undefined)).toBe("unassigned");
+  });
+
+  it("falls back to 'unassigned' for an invalid/unknown queue value", () => {
+    expect(parseQueue("bogus")).toBe("unassigned");
+  });
+
+  it("an explicit ?queue= param still wins — including 'all'", () => {
+    expect(parseQueue("all")).toBe("all");
+    expect(parseQueue("urgent")).toBe("urgent");
+    expect(parseQueue("mine")).toBe("mine");
+    expect(parseQueue("overdue")).toBe("overdue");
+  });
+});
+
+describe("app/gob/maltrato/page.tsx — source stays in sync with the default-tab contract", () => {
+  it("DEFAULT_QUEUE is 'unassigned' and both parseQueue + UrlTabs use it (no drift from this test's inline copy)", async () => {
+    const fs = await import("node:fs");
+    const src = fs.readFileSync("app/gob/maltrato/page.tsx", "utf8");
+    expect(src).toMatch(/DEFAULT_QUEUE:\s*MaltratoQueue\s*=\s*"unassigned"/);
+    expect(src).toMatch(/defaultValue=\{DEFAULT_QUEUE\}/);
+    // The old landing default must not still be hardcoded as the fallback.
+    expect(src).not.toMatch(/if \(!raw\) return "all";/);
+  });
+});
+
+// ============================================================================
 // CABA two-tier locality scope (jurisdiction-scoping class bug — 2026-07-07)
 //
 // INDEC models CABA as ONE locality ("Ciudad Autónoma de Buenos Aires"); the 48

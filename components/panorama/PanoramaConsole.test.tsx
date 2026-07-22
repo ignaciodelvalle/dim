@@ -1803,7 +1803,9 @@ describe("PanoramaConsole — bivariate is honest under a scrub (CRITICAL-2)", (
     // toggle is offered.
     openVista();
     fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
-    const bivariateBtn = await screen.findByRole("button", { name: "Riesgo (bivariado)" });
+    const bivariateBtn = await screen.findByRole("button", {
+      name: "Intensidad de reporte (bivariado)",
+    });
     expect(bivariateBtn).toBeEnabled();
 
     // Start a scrub — cobertura is non-temporal (frozen), so a bivariate join would
@@ -1814,7 +1816,9 @@ describe("PanoramaConsole — bivariate is honest under a scrub (CRITICAL-2)", (
     fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Riesgo (bivariado)" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Intensidad de reporte (bivariado)" }),
+      ).toBeDisabled();
     });
     expect(screen.getByText(/solo al último evento/i)).toBeInTheDocument();
   });

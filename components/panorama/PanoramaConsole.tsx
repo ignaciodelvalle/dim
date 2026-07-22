@@ -4260,20 +4260,28 @@ export function PanoramaConsole({
   // hold): the join can't mix a frozen cobertura with an as-of zoonosis frame
   // (live-edge only) and needs enough comparable units to classify (WARNING 7).
   // #33 modes (delta/lag/as-of/heatmap) append options here, never new toggles.
+  // C2 language contract (2026-07-22, red-team #5): the bivariate join crosses
+  // LOW COVERAGE × HIGH SIGNALS — that is reporting/registration INTENSITY,
+  // not epidemiological risk (a province can rank "high" here purely because
+  // its padrón is thin, with zero actual outbreaks). "Riesgo (bivariado)" read
+  // as a risk verdict; every render site below now says "intensidad de
+  // reporte" instead, and the computation is UNCHANGED (only the label lies
+  // less).
   const MODE_LABELS: Record<string, string> = {
     auto: "Capas",
-    bivariate: "Riesgo (bivariado)",
+    bivariate: "Intensidad de reporte (bivariado)",
     percapita: "Per cápita (por 10.000 hab.)",
   };
   // Item 2: distinct es-AR copy per refusal reason. "count" → not enough
   // comparable jurisdictions (privacy suppression or missing data); "tercile" →
-  // the values are too alike to cut into honest risk levels (no amount of data
-  // fixes a flat distribution). Split from the old single "requiere N unidades".
+  // the values are too alike to cut into honest intensity levels (no amount
+  // of data fixes a flat distribution). Split from the old single "requiere N
+  // unidades".
   const bivariateRefusalNote =
     bivariateDegenerateReason === "count"
-      ? `El riesgo combinado necesita al menos ${BIVARIATE_MIN_UNITS} jurisdicciones con datos comparables en ambas capas; en esta vista hay menos (por supresión de privacidad o falta de datos).`
+      ? `La intensidad de reporte combinada necesita al menos ${BIVARIATE_MIN_UNITS} jurisdicciones con datos comparables en ambas capas; en esta vista hay menos (por supresión de privacidad o falta de datos).`
       : bivariateDegenerateReason === "tercile"
-        ? "Los valores de esta vista son demasiado parecidos para cortar en niveles de riesgo honestos."
+        ? "Los valores de esta vista son demasiado parecidos para cortar en niveles de intensidad honestos."
         : null;
   // panorama-percapita: honest per-cápita notes.
   //  - Drilled below province while the selection is on → EXPLICIT count
@@ -4308,7 +4316,7 @@ export function PanoramaConsole({
     title:
       id === "bivariate"
         ? scrubbing
-          ? "Riesgo bivariado — solo al último evento"
+          ? "Intensidad de reporte — solo al último evento"
           : (bivariateRefusalNote ?? undefined)
         : undefined,
   }));
@@ -4357,7 +4365,7 @@ export function PanoramaConsole({
       sub={
         bivariateEligible
           ? (bivariatePair?.switcherSub ??
-            "Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas")
+            "Cómo se pinta la vista — la intensidad de reporte cruza cobertura baja × señales altas")
           : "Cómo se pinta la vista — per cápita normaliza por población del censo"
       }
       note={
@@ -4365,7 +4373,7 @@ export function PanoramaConsole({
         // even before the operator selects it (only while an encoding is offered
         // at all — ModeSwitcher hides itself when mapModes is just ["auto"]).
         bivariateEligible && scrubbing
-          ? "Riesgo bivariado — solo al último evento (la cobertura no se reconstruye en el tiempo)."
+          ? "Intensidad de reporte — solo al último evento (la cobertura no se reconstruye en el tiempo)."
           : bivariateEligible && bivariateRefusalNote
             ? bivariateRefusalNote
             : (percapitaPointsNote ?? percapitaDrillNote ?? percapitaNoCensusNote)
@@ -4394,7 +4402,7 @@ export function PanoramaConsole({
   // for the method footnotes. Honesty invariants (demo banner + k-anon disclosure
   // + method notes) live inside buildInformeModel and are never dropped.
   const informeCaption = bivariateActive
-    ? "Riesgo combinado por provincia: cobertura antirrábica (terciles) × señales de zoonosis (terciles). El rincón de riesgo — cobertura baja · señales altas — resalta en rosa."
+    ? "Intensidad de reporte combinada por provincia: cobertura antirrábica (terciles) × señales de zoonosis (terciles). El rincón de mayor intensidad — cobertura baja · señales altas — resalta en rosa."
     : captionLayer
       ? percapitaActive && percapitaCensusMeta
         ? `${captionFor(captionLayer, level, captionPeriod, { perCapita: true })} ${percapitaFooterLabel(percapitaCensusMeta)}.`
@@ -5051,11 +5059,11 @@ export function PanoramaConsole({
                   encoding it explains the 3×3 matrix + tercile method instead. */}
               {bivariateActive ? (
                 <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
-                  Riesgo combinado por provincia: cobertura antirrábica (terciles) × señales de
-                  zoonosis (terciles). El rincón de riesgo — cobertura baja · señales altas —
-                  resalta en rosa. Terciles calculados sobre la distribución del alcance actual. Una
-                  provincia protegida por privacidad (k-anonimato) se muestra con trama, nunca con
-                  color.
+                  Intensidad de reporte combinada por provincia: cobertura antirrábica (terciles) ×
+                  señales de zoonosis (terciles). El rincón de mayor intensidad — cobertura baja ·
+                  señales altas — resalta en rosa. Terciles calculados sobre la distribución del
+                  alcance actual. Una provincia protegida por privacidad (k-anonimato) se muestra
+                  con trama, nunca con color.
                 </p>
               ) : (
                 <>

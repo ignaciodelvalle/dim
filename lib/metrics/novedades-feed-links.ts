@@ -25,18 +25,68 @@ export const FEED_EVENT_TYPES = [
 
 export type FeedEventType = (typeof FEED_EVENT_TYPES)[number];
 
-/** The gob queue page that handles each feed event type (admin+govt guarded). */
-const FEED_QUEUE_HREF: Record<FeedEventType, string> = {
-  outbreak_signal: "/gob/vigilancia",
-  disease_reported: "/gob/vigilancia",
-  rabies_observation_started: "/gob/vigilancia",
-  incident_reported: "/gob/vigilancia",
-  custody_dispute_raised: "/gob/disputas",
+// ---------------------------------------------------------------------------
+// Destination registry (C2 language contract, 2026-07-22) — the structural
+// fix for "Ver en su cola →" pointing at /gob/vigilancia, which is a MAP
+// ("Mapa de vigilancia"), not a queue. 4 of the 5 feed event types land on
+// that map; only custody_dispute_raised lands on a genuine triage queue
+// (/gob/disputas, CaseQueue). A free-text label next to an href can drift
+// from what the destination actually is — this registry makes that
+// impossible: every entry declares its destination's CAPABILITY CLASS, and
+// the label is DERIVED from the class (never retyped per event type), so a
+// future feed type can only ever say what its destination really does.
+// ---------------------------------------------------------------------------
+
+/** The kind of surface a feed link lands on — the vocabulary every operator
+ * nav/CTA registry in the app should eventually share (C2). */
+export type FeedDestinationCapability = "queue" | "map" | "form" | "report" | "config";
+
+type FeedDestination = {
+  href: string;
+  /** What /gob/vigilancia (a map) or /gob/disputas (a queue) actually IS —
+   * the label below is derived from this, never written inline per type. */
+  capability: FeedDestinationCapability;
 };
 
-/** Route to the queue page that handles a feed event type ("Ver en su cola →"). */
+/** The gob page that handles each feed event type (admin+govt guarded),
+ * plus the capability class that destination actually delivers. */
+const FEED_DESTINATION: Record<FeedEventType, FeedDestination> = {
+  // /gob/vigilancia is "Mapa de vigilancia" — a map, not a queue. A feed row
+  // routed here shows "Ver en el mapa →", never "Ver en su/la cola →".
+  outbreak_signal: { href: "/gob/vigilancia", capability: "map" },
+  disease_reported: { href: "/gob/vigilancia", capability: "map" },
+  rabies_observation_started: { href: "/gob/vigilancia", capability: "map" },
+  incident_reported: { href: "/gob/vigilancia", capability: "map" },
+  // /gob/disputas IS a genuine triage queue (CaseQueue, tomar→actuar→cerrar).
+  custody_dispute_raised: { href: "/gob/disputas", capability: "queue" },
+};
+
+/** One canonical label per capability class — the ONLY place feed-link copy
+ * is written. Adding a capability here is a deliberate, reviewed choice;
+ * nothing downstream can retype a mismatched label for an existing class. */
+const CAPABILITY_LABEL: Record<FeedDestinationCapability, string> = {
+  queue: "Ver en la cola →",
+  map: "Ver en el mapa →",
+  form: "Completar →",
+  report: "Ver el reporte →",
+  config: "Configurar →",
+};
+
+/** Route to the page that handles a feed event type. */
 export function feedQueueHref(eventType: FeedEventType): string {
-  return FEED_QUEUE_HREF[eventType];
+  return FEED_DESTINATION[eventType].href;
+}
+
+/** The destination's capability class — queue|map|form|report|config. */
+export function feedDestinationCapability(eventType: FeedEventType): FeedDestinationCapability {
+  return FEED_DESTINATION[eventType].capability;
+}
+
+/** The honest CTA label for a feed row, DERIVED from the destination's
+ * capability class — never a free string a caller could mismatch against
+ * the actual href (the "Ver en su cola →"→map bug this registry kills). */
+export function feedDestinationLabel(eventType: FeedEventType): string {
+  return CAPABILITY_LABEL[FEED_DESTINATION[eventType].capability];
 }
 
 /**

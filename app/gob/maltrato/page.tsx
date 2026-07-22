@@ -41,9 +41,17 @@ import { decodeRiskCursor, encodeRiskCursor, severityRank } from "./_lib/welfare
 const PAGE_SIZE = 50;
 const VALID_QUEUES: MaltratoQueue[] = ["urgent", "unassigned", "mine", "all", "overdue"];
 
+// Default queue (C2 language contract, 2026-07-22 — PO-locked: "sin asignar
+// abiertas", not "Todas"). "Todas" as a landing view buries the actionable
+// triage work under every terminal/closed/historical row ever filed — the
+// exact "default 'Todas' in maltrato" symptom named by S6 in the plan-maestro
+// audit. `unassigned` already means "no operator assigned AND not terminal"
+// (buildMaltratoListConditions), i.e. exactly "sin asignar abiertas".
+const DEFAULT_QUEUE: MaltratoQueue = "unassigned";
+
 function parseQueue(raw: string | undefined): MaltratoQueue {
-  if (!raw) return "all";
-  return (VALID_QUEUES as string[]).includes(raw) ? (raw as MaltratoQueue) : "all";
+  if (!raw) return DEFAULT_QUEUE;
+  return (VALID_QUEUES as string[]).includes(raw) ? (raw as MaltratoQueue) : DEFAULT_QUEUE;
 }
 
 function parseKind(raw: string | undefined): WelfareReportKind | null {
@@ -368,7 +376,12 @@ export default async function GobMaltratoPage({
             Cola de trabajo
           </p>
           <Suspense>
-            <UrlTabs paramKey="queue" defaultValue="all" tabs={TABS} aria-label="Cola de denuncias">
+            <UrlTabs
+              paramKey="queue"
+              defaultValue={DEFAULT_QUEUE}
+              tabs={TABS}
+              aria-label="Cola de denuncias"
+            >
               {TABS.map((tab) => (
                 <UrlTabsContent key={tab.value} value={tab.value}>
                   <OpCard className="mt-4">

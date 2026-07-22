@@ -185,7 +185,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
         {bivariateLayer !== null && (
           <div className={CARD}>
             <div className="mb-1.5 font-medium text-ln-op-ink-2">
-              {bivariateLayer.bivariatePair?.legendTitle ?? "Riesgo de brotes"}
+              {bivariateLayer.bivariatePair?.legendTitle ?? "Intensidad de reporte"}
               <span className="font-normal text-ln-op-mute"> — {bivariateLayer.label}</span>
             </div>
             <div className="flex items-stretch gap-1.5">
@@ -207,7 +207,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                       title={
                         sw.risk
                           ? (bivariateLayer.bivariatePair?.riskCornerNote ??
-                            "Riesgo alto: cobertura baja · señales altas")
+                            "Intensidad alta: cobertura baja · señales altas")
                           : undefined
                       }
                       aria-hidden="true"

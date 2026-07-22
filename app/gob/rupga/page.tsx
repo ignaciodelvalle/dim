@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
   OpCard,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_TYPE_LABELS } from "@/lib/infra/service-dog-labels";
+import { acronymPurpose, expandAcronym } from "@/lib/ui/operator-vocabulary";
 import { pluralizeEs } from "@/lib/utils/format";
 
 import { RevokeServiceDogActions } from "./RevokeServiceDogActions";
@@ -77,9 +79,14 @@ export default async function RupgaPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Credenciales RUPGA
         </h1>
+        {/* C2 glossary primitive (lib/ui/operator-vocabulary.ts) — first-use
+            expansion + one-line purpose, so RUPGA is never assumed knowledge
+            for a first-time operator (S2 "RUPGA sin expandir"). */}
+        <p className="text-[var(--text-sm)] text-ln-op-mute">{expandAcronym("RUPGA")}</p>
+        <p className="text-[var(--text-sm)] text-ln-op-ink-2">{acronymPurpose("RUPGA")}</p>
         <p className="text-[var(--text-sm)] text-ln-op-ink-2">
           {profile.role === "admin"
-            ? "Credenciales de perro de asistencia. Buscá por nombre de la mascota, token o número RUPGA. Tu vista es universal."
+            ? "Buscá por nombre de la mascota, token o número RUPGA. Tu vista es universal."
             : `Credenciales en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
         </p>
       </header>
@@ -110,15 +117,29 @@ export default async function RupgaPage({
           aria-label="Filtrar por estado de la credencial"
         >
           <UrlTabsContent value={statusFilter}>
-            <p className="mt-4 text-sm text-ln-op-mute">
-              {results.length === 0
-                ? query
-                  ? "Sin resultados."
-                  : "No hay credenciales en tu alcance para este estado."
-                : truncated
+            {results.length === 0 ? (
+              query ? (
+                <p className="mt-4 text-sm text-ln-op-mute">Sin resultados.</p>
+              ) : (
+                // Actionable empty state (C2 — first RUPGA consumer, S2 "RUPGA
+                // sin expandir"): names WHAT this registry is, WHY it might be
+                // empty (nobody in scope has presented a credential in this
+                // status yet), and WHAT populates it (the owner-facing
+                // asistencia form → ANDIS issues the RUPGA number).
+                <LnEmptyState
+                  icon="huella"
+                  title="Sin credenciales RUPGA en este estado"
+                  description="RUPGA acredita a personas usuarias de perro guía o de asistencia (ANDIS). Vacío no es un error: se completa cuando un dueño/a carga su perro de asistencia (Mis mascotas → Asistencia) y ANDIS emite el número RUPGA — o cuando cambiás de estado/localidad arriba."
+                  className="mt-4"
+                />
+              )
+            ) : (
+              <p className="mt-4 text-sm text-ln-op-mute">
+                {truncated
                   ? `Mostrando las primeras ${results.length} ${pluralizeEs(results.length, "credencial")}. Usá el buscador para acotar la lista.`
                   : `${results.length} ${pluralizeEs(results.length, "credencial")}`}
-            </p>
+              </p>
+            )}
 
             <div className="space-y-3 mt-3">
               {results.map((c) => {

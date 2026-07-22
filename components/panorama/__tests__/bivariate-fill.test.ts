@@ -101,7 +101,7 @@ describe("pinned-popup readout", () => {
     const rows = bivariateReadouts(cell({ coverageValue: 48, signalValue: 12 }));
     expect(rows[0]).toMatchObject({ label: "Cobertura", valueText: "48% (baja)" });
     expect(rows[1]).toMatchObject({ label: "Señales", valueText: "12 (altas)" });
-    expect(rows[2]).toMatchObject({ label: "Riesgo", valueText: "alto" });
+    expect(rows[2]).toMatchObject({ label: "Intensidad", valueText: "alto" });
   });
 
   it("a suppressed cell reports the protected state, never a value", () => {

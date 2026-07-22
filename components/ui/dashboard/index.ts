@@ -16,6 +16,8 @@ export type { KpiStripProps } from "./KpiStrip";
 export { OpPill } from "./OpPill";
 export { OpStatusPill } from "./OpStatusPill";
 export type { StatusTone } from "./OpStatusPill";
+export { SlaBadge } from "./SlaBadge";
+export type { SlaBadgeProps } from "./SlaBadge";
 export { OpCodeBadge } from "./OpCodeBadge";
 export { OpCard, OpCardHead, OpCardBody } from "./OpCard";
 export { OpFilterBar } from "./OpFilterBar";

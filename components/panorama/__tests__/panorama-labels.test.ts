@@ -360,7 +360,7 @@ describe("legendRampTitle — the collapsed legend pill names the layer that PAI
         captionPaintsProvinceRamp: true,
         divisionRampLabel: "Cobertura antirrábica (perros, 12m)",
       }),
-    ).toBe("Riesgo combinado");
+    ).toBe("Intensidad combinada");
   });
 
   it("no ramp at all → falls back to the caption label (names the point overlay's dots)", () => {

@@ -10,6 +10,7 @@ import {
   applyOutboxFilters,
   buildBreachCue,
   buildStatusLabel,
+  enoExternalDeliveryNote,
   isSlaBreached,
 } from "@/lib/infra/outbox-list";
 
@@ -54,6 +55,29 @@ describe("buildStatusLabel", () => {
 
   it("maps pending to the expected Spanish label", () => {
     expect(buildStatusLabel("pending")).toBe("Pendiente");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enoExternalDeliveryNote — C2 honest-delivery note (2026-07-22)
+// ---------------------------------------------------------------------------
+
+describe("enoExternalDeliveryNote", () => {
+  it("returns the honest external-transmission note for eno_authority", () => {
+    const note = enoExternalDeliveryNote("eno_authority");
+    expect(note).toBe(
+      "Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor.",
+    );
+  });
+
+  it("never says 'próximamente' (the pipeline itself is real, running today)", () => {
+    expect(enoExternalDeliveryNote("eno_authority")).not.toMatch(/próximamente/i);
+  });
+
+  it("returns null for every other target_kind (a real, already-built destination)", () => {
+    expect(enoExternalDeliveryNote("govt_webhook")).toBeNull();
+    expect(enoExternalDeliveryNote("audit_export")).toBeNull();
+    expect(enoExternalDeliveryNote("internal_dashboard")).toBeNull();
   });
 });
 

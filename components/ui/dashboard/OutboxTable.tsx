@@ -17,7 +17,12 @@ import Link from "next/link";
 
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { OutboxStatus } from "@/db";
-import { type BreachCue, buildBreachCue, buildStatusLabel } from "@/lib/infra/outbox-list";
+import {
+  type BreachCue,
+  buildBreachCue,
+  buildStatusLabel,
+  enoExternalDeliveryNote,
+} from "@/lib/infra/outbox-list";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -159,6 +164,19 @@ export function OutboxTable({
                 </td>
                 <td className="py-2 px-3 whitespace-nowrap text-sm text-ln-op-ink-2">
                   {OUTBOX_TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}
+                  {/* ENO honest-delivery note (C2, 2026-07-22): "Entregado" on
+                      this row means our outbox pipeline processed it, not
+                      that the external health authority received it — no
+                      receiving endpoint exists yet. */}
+                  {enoExternalDeliveryNote(row.targetKind) && (
+                    <span
+                      className="ml-1 cursor-help text-ln-op-mute"
+                      title={enoExternalDeliveryNote(row.targetKind) ?? undefined}
+                      aria-label={enoExternalDeliveryNote(row.targetKind) ?? undefined}
+                    >
+                      ⓘ
+                    </span>
+                  )}
                 </td>
                 <td className="py-2 px-3 text-[11px] text-ln-op-ink-2">{jurisdiction || "—"}</td>
                 <td className="py-2 px-3">
@@ -207,7 +225,7 @@ export function OutboxTable({
                       href={detailHref}
                       className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-2 hover:underline whitespace-nowrap"
                     >
-                      {"Detalle ->"}
+                      Detalle {"→"}
                     </a>
                   ) : (
                     <span className="text-[11px] text-ln-op-mute">—</span>

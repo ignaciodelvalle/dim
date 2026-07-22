@@ -39,7 +39,7 @@ export function OpMaintenanceScreen({ className }: OpMaintenanceScreenProps = {}
           En mantenimiento
         </h1>
         <p className="text-[var(--text-md)] text-[var(--color-ln-op-mute)]">
-          Volvé en unos minutos. Estamos actualizando MiMAR; tu información está segura.
+          Volvé en unos minutos. Estamos actualizando miMAR; tu información está segura.
         </p>
       </output>
     </main>

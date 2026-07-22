@@ -3,8 +3,9 @@
 //
 // The page fetches the feed (fetchNovedadesFeed) and passes it in, so this
 // stays render-only and inherits the page's data-load budget. Ledger-style
-// rows — es-AR event label + jurisdiction + relative time + a per-item
-// "Ver en su cola ->" link to the queue that handles that event type.
+// rows — es-AR event label + jurisdiction + relative time + a per-item link
+// to the surface that handles that event type, labeled by its ACTUAL
+// capability class (queue vs map — lib/metrics/novedades-feed-links.ts).
 //
 // Client component (Epic D): a `collapsible` variant adds a Mostrar/Ocultar
 // toggle so the /admin home can DEMOTE the feed below the operational cockpit
@@ -27,7 +28,11 @@ import { Icon } from "@/components/Icon";
 import { LnListRow } from "@/components/ui/ListRow";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { NovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
-import { feedGroupLabel, feedQueueHref } from "@/lib/metrics/novedades-feed-links";
+import {
+  feedDestinationLabel,
+  feedGroupLabel,
+  feedQueueHref,
+} from "@/lib/metrics/novedades-feed-links";
 import { relativeTime } from "@/lib/utils/format";
 
 function formatJurisdiction(province: string | null, locality: string | null): string {
@@ -112,7 +117,11 @@ export function NovedadesCard({
                         href={feedQueueHref(group.eventType)}
                         className="shrink-0 text-sm text-ln-op-azul hover:underline no-underline"
                       >
-                        Ver en su cola {"->"}
+                        {/* Label DERIVED from the destination's capability
+                            class (C2 — novedades-feed-links.ts registry), not
+                            hardcoded "Ver en su cola" — 4 of 5 event types
+                            land on /gob/vigilancia, a MAP, not a queue. */}
+                        {feedDestinationLabel(group.eventType)}
                       </Link>
                     }
                   >

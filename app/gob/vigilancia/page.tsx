@@ -488,8 +488,14 @@ export default async function GobVigilanciaPage({
                 {enoSla.medianLatencyHours === null ? "—" : `${enoSla.medianLatencyHours} h`}
               </dd>
             </dl>
+            {/* C2 language contract (2026-07-22): states reality instead of
+                implying external delivery — the pipeline genuinely generates,
+                queues, SLA-tracks and audit-logs every ENO notification;
+                external transmission to the health authority awaits a
+                receiving endpoint. Never "próximamente" (this pipeline is
+                real and running today). */}
             <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
-              Mide nuestra cola de notificación interna, no la entrega externa.
+              Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor.
             </p>
           </OpCardBody>
         </OpCard>

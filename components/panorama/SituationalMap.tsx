@@ -2501,7 +2501,10 @@ export function SituationalMap({
         } else if (cell.suppressed) {
           valueLine = `<span style="color:#94a3b8">Dato protegido (k-anonimato)</span>`;
         } else if (cell.coverageClass !== null && cell.signalClass !== null) {
-          valueLine = `<strong>Riesgo ${escapeHtml(riskLabel(cell.coverageClass, cell.signalClass))}</strong>`;
+          // C2 (2026-07-22): "Riesgo" → "Intensidad" — low coverage × high
+          // signals is reporting intensity, not measured epidemiological
+          // risk. riskLabel's bajo/medio/alto classification is unchanged.
+          valueLine = `<strong>Intensidad ${escapeHtml(riskLabel(cell.coverageClass, cell.signalClass))}</strong>`;
         } else {
           valueLine = `<span style="color:#94a3b8">Sin datos</span>`;
         }

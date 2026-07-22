@@ -63,6 +63,25 @@ export function buildStatusLabel(status: OutboxStatus): string {
 }
 
 /**
+ * ENO honest-delivery note (C2 language contract, 2026-07-22 — PO-locked).
+ *
+ * Our outbox pipeline genuinely generates, queues, SLA-tracks and audit-logs
+ * every ENO notification (AGENTS.md: "Measures OUR outbox pipeline, not
+ * external delivery"). But an eno_authority row's status can still read
+ * "Entregado" (buildStatusLabel) — which a reader parses as "the health
+ * authority received this", when no external receiving endpoint exists yet.
+ * This note states reality instead of implying external transmission, and
+ * deliberately never says "próximamente" (the pipeline is real and running
+ * TODAY; only the external leg is missing). Returns null for every other
+ * target_kind — govt_webhook/audit_export/internal_dashboard all resolve to a
+ * real, already-built destination with no such gap.
+ */
+export function enoExternalDeliveryNote(targetKind: string): string | null {
+  if (targetKind !== "eno_authority") return null;
+  return "Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor.";
+}
+
+/**
  * Returns a traffic-light cue value for a row based on its status and SLA deadline.
  *
  * Cue values (rendered in page.tsx as emoji or color classes):

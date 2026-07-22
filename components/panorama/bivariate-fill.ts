@@ -162,8 +162,11 @@ const DEFAULT_READOUT_LABELS: BivariateReadoutLabels = {
 
 /**
  * Build the pinned-popup rows for a bivariate cell: BOTH raw values with their
- * class, plus the combined risk band — e.g.
- *   Cobertura → "48% (baja)"   Señales → "12 (altas)"   Riesgo → "alto".
+ * class, plus the combined intensity band — e.g.
+ *   Cobertura → "48% (baja)"   Señales → "12 (altas)"   Intensidad → "alta".
+ * (C2, 2026-07-22: row renamed from "Riesgo" — low coverage × high signals is
+ * reporting intensity, not measured epidemiological risk; riskLabel's
+ * underlying bajo/medio/alto classification is UNCHANGED, only the row label.)
  * A suppressed cell shows the protected state on every value row (never a class),
  * so the popup can no more infer a hidden value than the color can.
  */
@@ -196,7 +199,7 @@ export function bivariateReadouts(
   });
   if (cell.coverageClass !== null && cell.signalClass !== null) {
     rows.push({
-      label: "Riesgo",
+      label: "Intensidad",
       valueText: riskLabel(cell.coverageClass, cell.signalClass),
     });
   }

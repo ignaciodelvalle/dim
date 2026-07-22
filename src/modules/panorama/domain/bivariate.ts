@@ -61,14 +61,20 @@ export const BIVARIATE_PAIRS: readonly BivariatePair[] = [
   {
     coverage: "cobertura",
     signal: "zoonosis",
-    mapLabel: "Riesgo de brotes (cobertura × señales)",
+    // C2 language contract (2026-07-22, red-team #5): this pair crosses LOW
+    // VACCINE-REGISTRY COVERAGE × HIGH SIGNAL COUNT — reporting/registration
+    // INTENSITY, not measured epidemiological risk (a thin padrón alone can
+    // rank a province "high" here with zero real outbreaks). Renamed from
+    // "Riesgo de brotes" — the computation is unchanged, only the copy.
+    mapLabel: "Intensidad de reporte de brotes (cobertura × señales)",
     coverageLabel: "Cobertura",
     signalLabel: "Señales",
     coverageAxis: "Cobertura →",
     signalAxis: "Señales ↑",
-    legendTitle: "Riesgo de brotes",
-    switcherSub: "Cómo se pinta la vista — el riesgo cruza cobertura baja × señales altas",
-    riskCornerNote: "Riesgo alto: cobertura baja · señales altas",
+    legendTitle: "Intensidad de reporte (brotes)",
+    switcherSub:
+      "Cómo se pinta la vista — la intensidad de reporte cruza cobertura baja × señales altas",
+    riskCornerNote: "Intensidad alta: cobertura baja · señales altas",
   },
   {
     coverage: "ppp",

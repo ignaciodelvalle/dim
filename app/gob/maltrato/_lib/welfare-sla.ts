@@ -78,6 +78,41 @@ export function isSlaBreached(
 }
 
 // ---------------------------------------------------------------------------
+// Historical backlog demotion (C2 language contract, 2026-07-22 — PO-locked).
+//
+// A non-terminal report can be legitimately ancient (a seed/import row, or a
+// genuinely stale case nobody closed). Rendering "SLA vencido (1 d)" — the
+// SEVERITY TIER, not days overdue — on a 900-day-old row read as "overdue by
+// 1 day" (the #1 trust bug this contract kills). SlaBadge fixes the honesty
+// of the BREACHED case, but a 900-day-old breach is still a different KIND of
+// signal than one that slipped yesterday: it is backlog, not an active alarm.
+// This threshold demotes it from urgency chrome — the breach math above
+// stays TRUE (nothing is hidden from the data), only the PRESENTATION calms
+// down for rows this old.
+//
+// 180 days (~6 months) is a defensible cutoff: it is well past every SLA tier
+// (max 14 days, low severity) — a report can only be "historical" once it has
+// ALSO been breached for months — while staying inside a single operational
+// year, so a report does not sit in limbo indefinitely before being named.
+export const HISTORICAL_BACKLOG_DAYS = 180;
+
+/**
+ * True when a NON-TERMINAL report is old enough to be presented as historical
+ * backlog rather than an active SLA alarm. Always false for terminal reports
+ * (nothing to demote — they never breach in the first place) and false for
+ * anything younger than HISTORICAL_BACKLOG_DAYS, even if already breached.
+ */
+export function isHistoricalBacklog(
+  status: WelfareReportStatus | string,
+  createdAt: Date,
+  now: Date = new Date(),
+): boolean {
+  if (isTerminalStatus(status as WelfareReportStatus)) return false;
+  const ageMs = now.getTime() - createdAt.getTime();
+  return ageMs > HISTORICAL_BACKLOG_DAYS * DAY_MS;
+}
+
+// ---------------------------------------------------------------------------
 // Risk keyset cursor — (rank, createdAt, id).
 //
 // The shared lib/utils/keyset-pagination cursor is (ts, id) under a plain
