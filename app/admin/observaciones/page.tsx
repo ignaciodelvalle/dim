@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import {
   OpBreach,
   OpCallout,
@@ -148,9 +149,16 @@ export default async function ObservacionesPage({
       <div className="space-y-6">
         {header}
         {filterBar}
+        {/* C4 (2026-07-22, §S4 / red-team #6 "690 mordeduras sin escalar"):
+            an observation only exists here if a bite/exposure was escalated
+            into one — an empty queue reads as "controlado" when it may mean
+            "sin escalar". no-signal, pointing at the escalation-gap tile
+            (Vigilancia) that carries the same reading. */}
         <OpCallout
-          title="Sin observaciones"
-          body="No hay observaciones que coincidan con estos filtros en tu cobertura."
+          nature="no-signal"
+          icon={<Icon name="eye-off" decorative />}
+          title="Sin observaciones registradas en MiMAR"
+          body="La ausencia de observaciones no implica ausencia de casos por escalar — no hay observaciones que coincidan con estos filtros en tu cobertura. Revisá la brecha de escalamiento (mordeduras vs. observaciones) en Vigilancia."
         />
       </div>
     );

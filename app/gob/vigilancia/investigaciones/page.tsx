@@ -108,8 +108,15 @@ export default async function GobInvestigacionesPage({
         <OpCardBody className="p-0">
           {investigations.length === 0 ? (
             <div className="px-4 py-3">
+              {/* C4 (2026-07-22, §S4): unlike the disease-signal panels above
+                  this is an internal work queue — investigations are opened
+                  by staff, not passively reported in, and the underlying
+                  signal count ("Brotes activos") is already visible
+                  side-by-side on /gob/vigilancia. A real, verified zero:
+                  measured-zero. */}
               <LnEmptyState
                 icon="shield-check"
+                nature="measured-zero"
                 title="Sin investigaciones en este periodo"
                 description="No hay investigaciones de brote en tu cobertura en los últimos 90 días."
               />

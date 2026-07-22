@@ -263,12 +263,14 @@ export default async function GobVigilanciaPage({
       {/* Page header */}
       {header}
 
-      {/* No-scope warning */}
+      {/* No-scope warning — a verified DB fact (0 jurisdiction assignments),
+          not a surveillance signal gap: measured-zero. */}
       {noScope && (
         <OpCallout
           title="Sin localidades asignadas"
           body="Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos una."
           icon={<Icon name="alerta" decorative />}
+          nature="measured-zero"
         />
       )}
 
@@ -354,11 +356,15 @@ export default async function GobVigilanciaPage({
             jurisdiction can show 0 open rabies observations while carrying
             hundreds of unescalated bite reports; an empty queue reads as
             "controlado" when it may mean "sin escalar". Pair, not a ratio —
-            semaphore: none (no target either number is judged against). */}
+            semaphore: none (no target either number is judged against).
+            C4 (same date): sub-copy aligned to the one epistemic phrasing
+            pattern ("la ausencia de X no implica ausencia de Y") shared with
+            LnEmptyState/OpCallout's nature="no-signal" copy below — one
+            phrasing, not two. */}
         <OpKpi
           label={KPI_CATALOG.bite_escalation_gap.label}
           value={String(escalationGap.bites12m)}
-          sub={`vs ${escalationGap.openObservations} observaciones rábicas abiertas — los reportes sin escalamiento no implican ausencia de riesgo`}
+          sub={`vs ${escalationGap.openObservations} observaciones rábicas abiertas — la ausencia de escalamiento no implica ausencia de riesgo`}
           href={`#${panelComplianceId}`}
           descriptorId="bite_escalation_gap"
         />
@@ -533,10 +539,15 @@ export default async function GobVigilanciaPage({
             </div>
             {reportableCells.length === 0 ? (
               <div className="px-4 py-3">
+                {/* C4 (2026-07-22, §S4): a reportable-disease event only
+                    exists in MiMAR if a professional registered one — the
+                    empty table can't tell "no reportable disease occurred"
+                    apart from "nobody diagnosed/notified one". no-signal. */}
                 <LnEmptyState
-                  icon="shield-check"
-                  title="Sin enfermedades reportables en el período"
-                  description="No se registraron eventos reportables en el rango seleccionado."
+                  icon="eye-off"
+                  nature="no-signal"
+                  title="Sin notificaciones registradas en MiMAR"
+                  description="La ausencia de notificaciones no implica ausencia de enfermedades reportables — depende de que un profesional la registre."
                 />
               </div>
             ) : (
@@ -596,10 +607,16 @@ export default async function GobVigilanciaPage({
         <OpCardHead title={<span id={panelMovementId}>Movilidad registrada (período)</span>} />
         <OpCardBody>
           {movement.total === 0 ? (
+            // C4 (2026-07-22, §S4): mobility is itself an epidemiological
+            // vector (comment above — a moved animal carries its exposure
+            // into a new jurisdiction) and every row here depends on someone
+            // logging the transfer/CVI in MiMAR — an unlogged movement reads
+            // identically to zero. no-signal, not "all quiet".
             <LnEmptyState
-              icon="shield-check"
-              title="Sin movimientos en el período"
-              description="No se registraron movimientos de mascotas en el rango y la cobertura seleccionados."
+              icon="eye-off"
+              nature="no-signal"
+              title="Sin movimientos registrados en MiMAR"
+              description="La ausencia de registro no implica ausencia de movimiento — depende de que se registre el traslado en la plataforma."
             />
           ) : (
             <>
@@ -683,10 +700,15 @@ export default async function GobVigilanciaPage({
           <OpCardBody className="p-0">
             {signals.length === 0 ? (
               <div className="px-4 py-3">
+                {/* C4 (2026-07-22, §S4 / red-team #10 "zeros=green"): a
+                    disease signal only exists here if someone reported one —
+                    "sin señales" reads as "todo tranquilo" when the honest
+                    read is "MiMAR no recibió señales". no-signal. */}
                 <LnEmptyState
-                  icon="shield-check"
-                  title="Sin señales activas en este período"
-                  description="No se detectaron señales de zoonosis en el rango seleccionado."
+                  icon="eye-off"
+                  nature="no-signal"
+                  title="Sin señales registradas en MiMAR"
+                  description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un caso en este período."
                 />
               </div>
             ) : (

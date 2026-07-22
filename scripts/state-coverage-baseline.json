@@ -1,12 +1,16 @@
 {
   "_meta": {
     "generatedAt": "2026-07-22",
-    "description": "Wave 2 state-coverage fence baseline. minLoadingSegments is a FLOOR (only raise it, via --write-baseline, after adding new segment loading.tsx files — never lower it by hand). emptyStateGaps grandfathers list-shaped pages (OpFilterBar signal) with no EmptyState/OpCallout/`.length === 0` signal in their own directory; curing a gap lets its entry be removed — new gaps not in this list fail lint:states. 2026-07-22 manual audit: 14 of the original 17 baselined gaps were false positives caused by too-narrow signal detection (they already used the inline `.length === 0 ? <fallback/> : <list/>` idiom or OpCallout, not the LnEmptyState component name) — fixed by broadening EMPTY_STATE_SIGNAL_RE in check-state-coverage.ts, so those 14 no longer need a baseline entry at all. The remaining 3 are genuine structural blind spots, kept baselined: app/admin/alertas/page.tsx (empty message lives in components/admin/AlertInboxTable.tsx, a different directory — 'Sin alertas que coincidan con los filtros seleccionados.'); app/admin/casos/page.tsx (delegates to the shared components/ui/dashboard/CaseQueue.tsx, whose own emptyMessage prop renders 'Sin casos registrados para los filtros aplicados.' — also a different directory); app/gob/sistema/page.tsx (not actually list-shaped — a KPI/stats dashboard with no rows/table at all; it mounts OpFilterBar only for its period+jurisdiction controls, which mis-triggers the LIST_SIGNAL_RE heuristic)."
+    "description": "Wave 2 state-coverage fence baseline. minLoadingSegments is a FLOOR (only raise it, via --write-baseline, after adding new segment loading.tsx files — never lower it by hand). emptyStateGaps grandfathers list-shaped pages (OpFilterBar signal) with no EmptyState signal in their own directory; curing a gap lets its entry be removed — new gaps not in this list fail lint:states. epistemicNatureGaps (C4, 2026-07-22) grandfathers files under app/gob/vigilancia/** and app/admin/observaciones/** where an LnEmptyState/OpCallout renders something other than a data empty-state (nature classification doesn't apply) — new un-classified surveillance empty-states not in this list fail lint:states."
   },
   "minLoadingSegments": 157,
   "emptyStateGaps": [
     "app/admin/alertas/page.tsx",
     "app/admin/casos/page.tsx",
     "app/gob/sistema/page.tsx"
+  ],
+  "epistemicNatureGaps": [
+    "app/admin/observaciones/[publicToken]/microchip/reemplazar/page.tsx",
+    "app/admin/observaciones/[publicToken]/page.tsx"
   ]
 }

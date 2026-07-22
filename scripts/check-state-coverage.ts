@@ -32,11 +32,27 @@
 //      actually list-shaped despite mounting OpFilterBar (e.g. a KPI
 //      dashboard) — and only a NEW gap (a new list screen shipped with no
 //      empty-state signal at all in its own folder) fails CI.
+//   5. EPISTEMIC NATURE ON SURVEILLANCE EMPTY-STATES (ratchet, best-effort,
+//      C4 — 2026-07-22, docs/reviews/results/2026-07-22-plan-maestro-integridad.md
+//      §C4 / S4). Wave 2's state system guarantees a state EXISTS, not that
+//      it tells the epistemic truth: an empty vigilancia/observaciones list
+//      reads as "todo tranquilo" when the honest reading can be "MiMAR no
+//      recibió señales" (red-team #10 zeros=green, #6 690 bites + 0
+//      observations read as "under control"). On the two epidemiological
+//      surveillance surfaces below, every `LnEmptyState`/`OpCallout` render
+//      must declare an explicit `nature="measured-zero" | "no-signal"` prop
+//      (see components/ui/EmptyState.tsx / components/ui/dashboard/OpCallout.tsx).
+//      File-scoped heuristic, not a JSX parser — same shape as rule 4:
+//      baseline absorbs files where LnEmptyState/OpCallout renders something
+//      OTHER than a data empty-state (an info callout about an EXISTING
+//      record, a field-presence check unrelated to signal absence — e.g.
+//      "microchip no registrado") that a nature classification doesn't fit;
+//      only a NEW un-classified empty-state render on these surfaces fails CI.
 //
 // Baseline: scripts/state-coverage-baseline.json — regenerate with
 //   pnpm tsx scripts/check-state-coverage.ts --write-baseline
 // Rules 1–2 have no baseline entries (hard invariants); rule 3 is a single
-// floor number; rule 4 is a per-file allow-list, same ratchet shape as
+// floor number; rules 4–5 are per-file allow-lists, same ratchet shape as
 // check-eyebrow-title.ts / check-tablist-ratchet.ts.
 //
 // Run: pnpm tsx scripts/check-state-coverage.ts   (or: pnpm lint:states)
@@ -182,6 +198,66 @@ function findEmptyStateGaps(pages: string[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 5 — epistemic nature required on surveillance empty-states
+// (ratchet, best-effort, per-file allow-list — see block comment above)
+// ---------------------------------------------------------------------------
+
+const SURVEILLANCE_ROOTS = ["app/gob/vigilancia", "app/admin/observaciones"];
+const EPISTEMIC_COMPONENTS = ["LnEmptyState", "OpCallout"];
+
+function collectSurveillanceFiles(): string[] {
+  const files: string[] = [];
+  for (const root of SURVEILLANCE_ROOTS) {
+    const matches = globSync("**/*.tsx", { cwd: resolve(ROOT, root) })
+      .map((f) => `${root}/${f}`.replaceAll("\\", "/"))
+      .filter((f) => !f.includes("node_modules/") && !f.includes(".test."));
+    files.push(...matches);
+  }
+  return files.sort();
+}
+
+/** Extract a self-closing JSX tag's full source text starting at `openIdx`
+ * (the index of its leading `<`). Tracks `{…}` brace depth so a nested
+ * self-closing element in a prop value (e.g. `icon={<Icon .../>}`) doesn't
+ * fool the scan into stopping at the INNER `/>` — only a `/>` at brace depth
+ * 0 ends the outer tag. Returns null if no such `/>` is found (e.g. the
+ * component isn't used self-closing here — out of scope for this heuristic). */
+function extractSelfClosingTag(src: string, openIdx: number): string | null {
+  let braceDepth = 0;
+  for (let i = openIdx; i < src.length - 1; i++) {
+    const ch = src[i];
+    if (ch === "{") braceDepth++;
+    else if (ch === "}") braceDepth = Math.max(0, braceDepth - 1);
+    else if (ch === "/" && src[i + 1] === ">" && braceDepth === 0) {
+      return src.slice(openIdx, i + 2);
+    }
+  }
+  return null;
+}
+
+/** True if `src` contains an LnEmptyState/OpCallout tag with no `nature=` prop.
+ * Heuristic self-closing-tag scan (both components are always self-closed in
+ * this codebase's current usage) — good enough for a file-scoped ratchet. */
+function hasUnclassifiedEpistemicRender(src: string): boolean {
+  for (const component of EPISTEMIC_COMPONENTS) {
+    const openRe = new RegExp(`<${component}\\b`, "g");
+    for (const open of src.matchAll(openRe)) {
+      const tag = extractSelfClosingTag(src, open.index);
+      if (tag && !/\bnature\s*=/.test(tag)) return true;
+    }
+  }
+  return false;
+}
+
+function findEpistemicNatureGaps(files: string[]): string[] {
+  return files.filter((f) => {
+    const src = readFileSync(resolve(ROOT, f), "utf8");
+    if (!EPISTEMIC_COMPONENTS.some((c) => src.includes(`<${c}`))) return false;
+    return hasUnclassifiedEpistemicRender(src);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Baseline I/O
 // ---------------------------------------------------------------------------
 
@@ -189,6 +265,7 @@ type Baseline = {
   _meta: { generatedAt: string; description: string };
   minLoadingSegments: number;
   emptyStateGaps: string[];
+  epistemicNatureGaps: string[];
 };
 
 function loadBaseline(): Baseline {
@@ -202,23 +279,25 @@ function loadBaseline(): Baseline {
       _meta: { generatedAt: "", description: "" },
       minLoadingSegments: 0,
       emptyStateGaps: [],
+      epistemicNatureGaps: [],
     };
   }
 }
 
-function writeBaseline(loadingCount: number, gaps: string[]): void {
+function writeBaseline(loadingCount: number, gaps: string[], natureGaps: string[]): void {
   const baseline: Baseline = {
     _meta: {
       generatedAt: new Date().toISOString().slice(0, 10),
       description:
-        "Wave 2 state-coverage fence baseline. minLoadingSegments is a FLOOR (only raise it, via --write-baseline, after adding new segment loading.tsx files — never lower it by hand). emptyStateGaps grandfathers list-shaped pages (OpFilterBar signal) with no EmptyState signal in their own directory; curing a gap lets its entry be removed — new gaps not in this list fail lint:states.",
+        "Wave 2 state-coverage fence baseline. minLoadingSegments is a FLOOR (only raise it, via --write-baseline, after adding new segment loading.tsx files — never lower it by hand). emptyStateGaps grandfathers list-shaped pages (OpFilterBar signal) with no EmptyState signal in their own directory; curing a gap lets its entry be removed — new gaps not in this list fail lint:states. epistemicNatureGaps (C4, 2026-07-22) grandfathers files under app/gob/vigilancia/** and app/admin/observaciones/** where an LnEmptyState/OpCallout renders something other than a data empty-state (nature classification doesn't apply) — new un-classified surveillance empty-states not in this list fail lint:states.",
     },
     minLoadingSegments: loadingCount,
     emptyStateGaps: gaps,
+    epistemicNatureGaps: natureGaps,
   };
   writeFileSync(BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`);
   console.log(
-    `✓ Wrote baseline: minLoadingSegments=${loadingCount}, emptyStateGaps=${gaps.length} to ${BASELINE_PATH}.`,
+    `✓ Wrote baseline: minLoadingSegments=${loadingCount}, emptyStateGaps=${gaps.length}, epistemicNatureGaps=${natureGaps.length} to ${BASELINE_PATH}.`,
   );
 }
 
@@ -281,13 +360,30 @@ function runChecks(): void {
     );
   }
 
+  const surveillanceFiles = collectSurveillanceFiles();
+  const natureGaps = findEpistemicNatureGaps(surveillanceFiles);
+  const allowedNatureGaps = new Set(baseline.epistemicNatureGaps);
+  const newNatureGaps = natureGaps.filter((g) => !allowedNatureGaps.has(g));
+  for (const g of newNatureGaps) {
+    console.error(
+      `✗ ${g}: renders LnEmptyState/OpCallout on a surveillance surface with no explicit nature prop — add nature="measured-zero" | "no-signal" (or document why this render isn't a data empty-state and add it to the baseline).`,
+    );
+    hits += 1;
+  }
+  const staleNatureGaps = baseline.epistemicNatureGaps.filter((g) => !natureGaps.includes(g));
+  if (staleNatureGaps.length > 0) {
+    console.warn(
+      `[info] ${staleNatureGaps.length} baselined epistemic-nature gap(s) are now clean — remove from ${BASELINE_PATH} to tighten the ratchet: ${staleNatureGaps.join(", ")}`,
+    );
+  }
+
   if (hits > 0) {
     console.error(`\n✗ ${hits} state-coverage violation(s).`);
     process.exit(1);
   }
 
   console.log(
-    `✓ state-coverage fence clean — ${REQUIRED_PORTAL_ERROR_BOUNDARIES.length} portal error boundaries, ${REQUIRED_SHELL_MOUNTS.length} shells with offline+maintenance mounted, ${loadingCount} loading.tsx segments (floor ${baseline.minLoadingSegments}), ${gaps.length} empty-state gaps grandfathered (of ${baseline.emptyStateGaps.length} baselined).`,
+    `✓ state-coverage fence clean — ${REQUIRED_PORTAL_ERROR_BOUNDARIES.length} portal error boundaries, ${REQUIRED_SHELL_MOUNTS.length} shells with offline+maintenance mounted, ${loadingCount} loading.tsx segments (floor ${baseline.minLoadingSegments}), ${gaps.length} empty-state gaps grandfathered (of ${baseline.emptyStateGaps.length} baselined), ${natureGaps.length} epistemic-nature gaps grandfathered (of ${baseline.epistemicNatureGaps.length} baselined).`,
   );
 }
 
@@ -300,7 +396,11 @@ const isMain =
 
 if (isMain) {
   if (process.argv.includes("--write-baseline")) {
-    writeBaseline(countLoadingSegments(), findEmptyStateGaps(collectPortalPages()));
+    writeBaseline(
+      countLoadingSegments(),
+      findEmptyStateGaps(collectPortalPages()),
+      findEpistemicNatureGaps(collectSurveillanceFiles()),
+    );
   } else {
     runChecks();
   }

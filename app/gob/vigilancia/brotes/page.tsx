@@ -141,10 +141,13 @@ export default async function GobVigilanciaBrotesPage({
         <OpCardBody className="p-0">
           {signals.length === 0 ? (
             <div className="px-4 py-3">
+              {/* C4 (2026-07-22, §S4): same reasoning as /gob/vigilancia's
+                  "Señales recientes" panel — no-signal, not "all clear". */}
               <LnEmptyState
-                icon="shield-check"
-                title="Sin señales activas en este período"
-                description="No se detectaron señales de zoonosis en el rango seleccionado."
+                icon="eye-off"
+                nature="no-signal"
+                title="Sin señales registradas en MiMAR"
+                description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un caso en este período."
               />
             </div>
           ) : (

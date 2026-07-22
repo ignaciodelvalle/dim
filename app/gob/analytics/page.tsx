@@ -316,10 +316,13 @@ export default async function GobAnalyticsPage({
         />
         <OpCardBody>
           {signalsTrendPoints.length === 0 ? (
+            // C4 (2026-07-22, §S4): same reporting dependency as
+            // /gob/vigilancia's signal panels — no-signal, not "all clear".
             <LnEmptyState
-              icon="chart-line"
-              title="Sin señales en el período"
-              description="No se registraron señales de brote en el rango y la cobertura seleccionados."
+              icon="eye-off"
+              nature="no-signal"
+              title="Sin señales registradas en MiMAR"
+              description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un brote en el rango y la cobertura seleccionados."
             />
           ) : (
             <TimeSeriesChartDynamic

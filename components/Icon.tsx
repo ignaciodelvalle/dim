@@ -165,6 +165,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
   ojo: Eye,
   ver: Eye,
   anonimo: EyeOff,
+  // "blind, not calm" — the no-signal epistemic empty-state icon (C4,
+  // 2026-07-22): a surveillance surface with nothing reported IN, as
+  // distinct from shield-check's "verified safe" meaning.
+  "eye-off": EyeOff,
   casa: Home,
   home: Home,
   camara: Camera,

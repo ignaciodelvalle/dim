@@ -13,10 +13,15 @@ export function DiseaseSummaryTable({
   windowDays?: number;
 }) {
   if (summary.length === 0) {
+    // C4 (2026-07-22, §S4): same signal-reporting dependency as the parent
+    // page's "Señales recientes" panel — a disease-summary row only exists
+    // if someone reported a case. no-signal, not "all clear".
     return (
       <LnEmptyState
-        icon="shield-check"
-        title={`No hay señales en los últimos ${windowDays} días en tu cobertura.`}
+        icon="eye-off"
+        nature="no-signal"
+        title="Sin señales registradas en MiMAR"
+        description={`Ningún caso fue reportado en los últimos ${windowDays} días — la ausencia de reportes no implica ausencia de enfermedad.`}
       />
     );
   }

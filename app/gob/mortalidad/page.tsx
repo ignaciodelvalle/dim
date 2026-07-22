@@ -307,10 +307,14 @@ export default async function GobMortalidadPage({
           <OpCardHead title={<span id={panelDispId}>Disposición</span>} />
           <OpCardBody>
             {m.byBucket.length === 0 ? (
+              // C4 (2026-07-22, §S4): death_recorded only exists in MiMAR if
+              // an owner/vet logs it — a physical death that's never logged
+              // reads identically to "no deaths". no-signal, not "all clear".
               <LnEmptyState
-                icon="heart"
-                title="Sin datos de disposición"
-                description="No hay fallecimientos en el período seleccionado en tu cobertura."
+                icon="eye-off"
+                nature="no-signal"
+                title="Sin fallecimientos registrados en MiMAR"
+                description="La ausencia de registro no implica ausencia de mortalidad en tu cobertura — depende de que un dueño o profesional lo registre."
               />
             ) : (
               <figure
@@ -403,10 +407,13 @@ export default async function GobMortalidadPage({
         />
         <OpCardBody>
           {!hasCausesTrend ? (
+            // C4 (2026-07-22, §S4): same reporting dependency as the
+            // disposal panel above — no-signal, not "all clear".
             <LnEmptyState
-              icon="chart-line"
-              title="Sin fallecimientos en el período"
-              description="No hay eventos de fallecimiento en el rango y la cobertura seleccionados."
+              icon="eye-off"
+              nature="no-signal"
+              title="Sin fallecimientos registrados en MiMAR"
+              description="La ausencia de registro no implica ausencia de mortalidad — depende de que un dueño o profesional lo registre en el rango y la cobertura seleccionados."
             />
           ) : (
             <StackedTimeSeriesChartDynamic

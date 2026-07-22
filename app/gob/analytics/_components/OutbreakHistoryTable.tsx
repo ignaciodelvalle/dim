@@ -10,11 +10,16 @@ type Props = {
 
 export function OutbreakHistoryTable({ rows }: Props) {
   if (rows.length === 0) {
+    // C4 (2026-07-22, §S4): a historical outbreak row is built from the same
+    // signal-reporting pipeline as the live signal panels — "no history"
+    // reads as "nothing bad ever happened" when the honest read is "nobody
+    // ever reported one". no-signal, not "all clear".
     return (
       <LnEmptyState
-        icon="shield-check"
-        title="Sin brotes historicos"
-        description="No hay signals de brotes registrados en tu cobertura."
+        icon="eye-off"
+        nature="no-signal"
+        title="Sin brotes registrados en MiMAR"
+        description="La ausencia de registro no implica ausencia de brotes históricos — depende de que se haya reportado una señal en tu cobertura."
       />
     );
   }
