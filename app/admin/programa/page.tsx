@@ -29,7 +29,6 @@ import {
   OpCardHead,
   OpFilterBar,
   OpKpi,
-  OpKpiGroup,
   OpPill,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
@@ -47,6 +46,7 @@ import {
   K_ANON_MIN,
   TARGETS,
   buildProjectionContext,
+  countAlertedProvinces,
   enoSlaTone,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
@@ -186,7 +186,15 @@ export default async function AdminProgramaPage({
     }
   }
 
+  // outlierCount is a COMBINATION count (provincia × métrica) — correct for the
+  // outliers table caption below ("N de M combinaciones bajo meta"), but NOT
+  // honest as the value behind a KPI literally labeled "Provincias en alerta"
+  // (a province can contribute several rows here, one per below-target
+  // metric — hence outlierCount routinely exceeding the ~24 AR provinces).
+  // alertedProvinceCount collapses those rows to DISTINCT provinces so the KPI
+  // matches its own label; it can never exceed the real province count.
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
+  const alertedProvinceCount = countAlertedProvinces(outliers);
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
 
@@ -208,96 +216,85 @@ export default async function AdminProgramaPage({
           makes sense for a govt viewer with assignments). */}
       <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
 
-      {/* KPI hierarchy (Ola 4 / decision-density audit, 2026-07-21): the former
-          6-tile North-Star strip gave every number the same weight, even
-          though 2 of them (Esterilización, Microchip) already have their own
-          dedicated dashboards (/admin/poblacion, /admin/censo). "Provincias
-          en alerta" is the one number unique to this executive-summary page
-          — a synthesized cross-jurisdiction exception count — so it anchors
-          the group; the rest support it. */}
-      <OpKpiGroup
-        ariaLabel="KPIs principales del programa"
-        secondaryLabel="KPIs de apoyo"
-        secondaryCols={5}
-        primary={
-          <OpKpi
-            variant="primary"
-            label="Provincias en alerta"
-            value={outlierCount.toLocaleString("es-AR")}
-            tone={outlierCount === 0 ? "ok" : outlierCount > 5 ? "danger" : "warn"}
-            sub="combinaciones provincia×métrica bajo meta"
-            info={{
-              definition:
-                "Número de combinaciones (provincia × métrica) con cobertura por debajo de la meta programática.",
-              formula: "COUNT rows WHERE rate < target",
-            }}
-          />
-        }
-        secondary={[
-          <OpKpi
-            key="total"
-            label="Total registradas"
-            value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
-            sub="mascotas activas o extraviadas"
-            href="/admin/censo"
-            info={{
-              definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
-              formula: "COUNT(pets) WHERE status IN ('active','lost')",
-            }}
-          />,
-          <OpKpi
-            key="esterilizacion"
-            label="Esterilización"
-            value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
-            tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
-            sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
-            href="/admin/poblacion"
-            info={getKpiInfo("sterilization_coverage_population")}
-          />,
-          <OpKpi
-            key="microchip"
-            label="Microchip"
-            value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
-            tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
-            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
-            href="/admin/censo"
-            info={getKpiInfo("microchip_penetration")}
-          />,
-          <OpKpi
-            key="eno-sla"
-            label="SLA ENO (resueltos)"
-            value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
-            tone={enoSlaTone(enoSla)}
-            sub={
-              enoSla.breachedOpen > 0
-                ? `${enoSla.breachedOpen} en incumplimiento activo`
-                : "sin incumplimientos activos"
-            }
-            href="/admin/outbox"
-            info={getKpiInfo("eno_sla_compliance")}
-          />,
-          <OpKpi
-            key="cola"
-            label="Cola más vieja"
-            value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
-            tone={
-              queue.oldestPendingDaysAgo !== null
-                ? queue.oldestPendingDaysAgo > 30
-                  ? "danger"
-                  : queue.oldestPendingDaysAgo > 14
-                    ? "warn"
-                    : "ok"
-                : undefined
-            }
-            sub={`${queue.pendingTotal} pendientes`}
-            href="/admin/cola"
-            info={{
-              definition: "Días de antigüedad de la solicitud pendiente más antigua.",
-              formula: "now() - min(created_at) WHERE status='pending'",
-            }}
-          />,
-        ]}
-      />
+      {/* North-Star KPI strip */}
+      <section
+        aria-label="KPIs principales del programa"
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+      >
+        <OpKpi
+          label="Total registradas"
+          value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
+          sub="mascotas activas o extraviadas"
+          href="/admin/censo"
+          info={{
+            definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
+            formula: "COUNT(pets) WHERE status IN ('active','lost')",
+          }}
+        />
+        <OpKpi
+          label="Esterilización"
+          value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
+          tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
+          sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
+          href="/admin/poblacion"
+          info={getKpiInfo("sterilization_coverage_population")}
+        />
+        <OpKpi
+          label="Microchip"
+          value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
+          tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
+          sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
+          href="/admin/censo"
+          info={getKpiInfo("microchip_penetration")}
+        />
+        <OpKpi
+          label="SLA ENO (resueltos)"
+          value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
+          tone={enoSlaTone(enoSla)}
+          sub={
+            enoSla.breachedOpen > 0
+              ? `${enoSla.breachedOpen} en incumplimiento activo`
+              : "sin incumplimientos activos"
+          }
+          href="/admin/outbox"
+          info={getKpiInfo("eno_sla_compliance")}
+        />
+        <OpKpi
+          label="Cola más vieja"
+          value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
+          tone={
+            queue.oldestPendingDaysAgo !== null
+              ? queue.oldestPendingDaysAgo > 30
+                ? "danger"
+                : queue.oldestPendingDaysAgo > 14
+                  ? "warn"
+                  : "ok"
+              : undefined
+          }
+          sub={`${queue.pendingTotal} pendientes`}
+          href="/admin/cola"
+          info={{
+            definition: "Días de antigüedad de la solicitud pendiente más antigua.",
+            formula: "now() - min(created_at) WHERE status='pending'",
+          }}
+        />
+        {/* Honesty fix (2026-07-22): this used to render outlierCount, a
+            provincia×métrica COMBINATION count — routinely > 24, impossible
+            for a KPI labeled "Provincias en alerta" when Argentina has ~24
+            provinces. alertedProvinceCount is the DISTINCT-province count
+            (≤ total provinces) that actually matches the label. */}
+        <OpKpi
+          label="Provincias en alerta"
+          value={alertedProvinceCount.toLocaleString("es-AR")}
+          tone={alertedProvinceCount === 0 ? "ok" : alertedProvinceCount > 5 ? "danger" : "warn"}
+          sub="provincias con ≥1 métrica bajo meta"
+          info={{
+            definition:
+              "Número de provincias con al menos una métrica (esterilización, microchip, etc.) por debajo de la meta programática.",
+            formula: "COUNT(DISTINCT province) WHERE EXISTS métrica con rate < target",
+          }}
+        />
+      </section>
 
       {/* Antirrábica vaccination forecast — Paquete J (additive) */}
       <OpCard aria-labelledby={panelRabiesForecastId}>

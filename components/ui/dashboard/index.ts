@@ -13,8 +13,6 @@ export { OpMobileDrawer } from "./OpMobileDrawer";
 export { OpKpi, OpKpiSm } from "./OpKpi";
 export { KpiStrip } from "./KpiStrip";
 export type { KpiStripProps } from "./KpiStrip";
-export { OpKpiGroup } from "./OpKpiGroup";
-export type { OpKpiGroupProps } from "./OpKpiGroup";
 export { OpPill } from "./OpPill";
 export { OpStatusPill } from "./OpStatusPill";
 export type { StatusTone } from "./OpStatusPill";

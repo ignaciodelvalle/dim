@@ -127,6 +127,7 @@ export type {
 // Paquete H — salud operativa del programa.
 export {
   completeness,
+  countAlertedProvinces,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
   fetchPiiOversight,

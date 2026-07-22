@@ -40,6 +40,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   TARGETS,
   buildProjectionContext,
+  countAlertedProvinces,
   enoSlaTone,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
@@ -186,7 +187,15 @@ export default async function GobProgramaPage({
   const [registry, sterilization, microchip, enoSla, queue, dataQuality, outliers, piiOversight] =
     load.value;
 
+  // outlierCount is a COMBINATION count (provincia × métrica) — correct for the
+  // outliers table caption below ("N de M combinaciones bajo meta"), but NOT
+  // honest as the value behind a KPI literally labeled "Provincias en alerta"
+  // (a province can contribute several rows here, one per below-target
+  // metric — hence outlierCount routinely exceeding the ~24 AR provinces).
+  // alertedProvinceCount collapses those rows to DISTINCT provinces so the KPI
+  // matches its own label; it can never exceed the real province count.
   const outlierCount = outliers.filter((r) => r.isOutlier).length;
+  const alertedProvinceCount = countAlertedProvinces(outliers);
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
 
@@ -284,15 +293,20 @@ export default async function GobProgramaPage({
             formula: "now() - min(created_at) WHERE status='pending' AND jurisdiction IN scope",
           }}
         />
+        {/* Honesty fix (2026-07-22): this used to render outlierCount, a
+            provincia×métrica COMBINATION count — routinely > 24, impossible
+            for a KPI labeled "Provincias en alerta" when Argentina has ~24
+            provinces. alertedProvinceCount is the DISTINCT-province count
+            (≤ total provinces) that actually matches the label. */}
         <OpKpi
           label="Provincias en alerta"
-          value={outlierCount.toLocaleString("es-AR")}
-          tone={outlierCount === 0 ? "ok" : outlierCount > 5 ? "danger" : "warn"}
-          sub="combinaciones provincia×métrica bajo meta"
+          value={alertedProvinceCount.toLocaleString("es-AR")}
+          tone={alertedProvinceCount === 0 ? "ok" : alertedProvinceCount > 5 ? "danger" : "warn"}
+          sub="provincias con ≥1 métrica bajo meta"
           info={{
             definition:
-              "Número de combinaciones (provincia × métrica) con cobertura por debajo de la meta en tu jurisdicción.",
-            formula: "COUNT rows WHERE rate < target AND scope",
+              "Número de provincias con al menos una métrica (esterilización, microchip, etc.) por debajo de la meta en tu jurisdicción.",
+            formula: "COUNT(DISTINCT province) WHERE EXISTS métrica con rate < target AND scope",
           }}
         />
       </section>

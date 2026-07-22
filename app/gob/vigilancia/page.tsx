@@ -12,7 +12,6 @@ import {
   OpCardHead,
   OpFilterBar,
   OpKpi,
-  OpKpiGroup,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -271,158 +270,142 @@ export default async function GobVigilanciaPage({
         jurisdiction={{ allowedProvinces, localities }}
       />
 
-      {/* KPI hierarchy (Ola 4 / decision-density audit, 2026-07-21): the former
-          two grids (5 + 3 tiles) were distinguished only by an SR-only
-          aria-label — a sighted operator saw one undifferentiated wall of 8
-          equal-weight tiles. "Brotes activos" is the genuine headline metric
-          for a surveillance dashboard (the thing an operator opens this page
-          to check first); everything else supports it. OpKpiGroup renders
-          that as a REAL visual hierarchy — one larger primary tile + a
-          visibly-captioned supporting grid — instead of an aria-label split. */}
-      <OpKpiGroup
-        ariaLabel="Indicadores de vigilancia"
-        secondaryLabel="Indicadores complementarios"
-        secondaryCols={4}
-        primary={
-          <OpKpi
-            variant="primary"
-            label="Brotes activos"
-            value={String(metrics.outbreakActiveCount)}
-            tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
-            sparkline={outbreakSparkline.points.map((p) => p.y)}
-            href="/gob/vigilancia/brotes"
-            info={{
-              definition:
-                "Cantidad de señales de brote (outbreak_signal) con estado 'open' en la jurisdicción en los últimos 30 días.",
-              formula: "COUNT(outbreak_signal_opened events, últimos 30d) scoped to jurisdiction",
-            }}
-          />
-        }
-        secondary={[
-          <OpKpi
-            key="rabies"
-            label="Rábicas activas"
-            value={String(metrics.rabiesActiveCount)}
-            tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
-            sparkline={rabiesSparkline.points.map((p) => p.y)}
-            // Jumps to the compliance card (panelComplianceId), not the
-            // disease-signals card (panelRabiesId) — that card is per-disease
-            // SIGNAL counts, not rabies-observation detail. The compliance
-            // card is where the real open-breach count for THIS metric
-            // actually lives.
-            href={`#${panelComplianceId}`}
-            info={{
-              definition:
-                "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",
-              formula: "COUNT(cases WHERE caseKind='rabies_observation' AND status='open')",
-            }}
-          />,
-          <OpKpi
-            key="altas"
-            label="Altas registradas hoy"
-            value={String(metrics.petsRegisteredToday)}
-            info={{
-              definition:
-                "Mascotas registradas en el sistema desde las 00:00 hora local de hoy (Arg/Buenos Aires), scoped a la jurisdicción del operador.",
-              formula: "COUNT(pets WHERE created_at >= today midnight ART)",
-            }}
-          />,
-          <OpKpi
-            key="vacunaciones"
-            label="Vacunaciones (7d)"
-            value={String(metrics.vaccinationsThisWeek)}
-            tone="ok"
-            deltaV2={
-              metrics.vaccinationsThisWeek > 0 ? (vaccinationsDelta ?? undefined) : undefined
-            }
-            sparkline={vacSparkline.points.map((p) => p.y)}
-            info={{
-              definition:
-                "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
-              formula: "COUNT(vaccination_administered, últimos 7d) scoped to jurisdiction",
-            }}
-          />,
-          // Clickable KPI tile (v1 `href` — wraps the whole tile in an <a>,
-          // same pattern as "Brotes activos" above): replaces the former
-          // standalone "Investigaciones" CTA button. This is a live stock
-          // (cases currently under active investigation, right now) — no
-          // period delta on a snapshot.
-          <OpKpi
-            key="investigaciones"
-            label="Casos bajo investigación activa"
-            value={String(metrics.investigationActiveCount)}
-            tone={metrics.investigationActiveCount > 0 ? "warn" : "neutral"}
-            href="/gob/vigilancia/investigaciones"
-            info={{
-              definition:
-                "Cantidad de casos con caseKind='outbreak_investigation' y estado 'open' o 'escalated' en la jurisdicción — investigaciones de brote actualmente en curso.",
-              formula:
-                "COUNT(cases WHERE caseKind='outbreak_investigation' AND status IN ('open','escalated'))",
-            }}
-          />,
-          // Item 3 — compliance KPI row (A8 / A7 / A12), folded into the
-          // supporting grid rather than a second SR-only-distinguished section.
-          <OpKpi
-            key="cumplimiento-rabica"
-            label="Cumplimiento observación 10d"
-            value={pct(rabiesCompliance.compliancePct)}
-            tone={
-              rabiesCompliance.openBreaches > 0
-                ? "danger"
-                : rabiesCompliance.compliancePct === null
-                  ? "neutral"
-                  : "ok"
-            }
-            bar={rabiesCompliance.compliancePct ?? undefined}
-            sub={
-              rabiesCompliance.openBreaches > 0
-                ? `${rabiesCompliance.openBreaches} abierta(s) > 10 días`
-                : `${rabiesCompliance.closed} cerrada(s) en el período`
-            }
-            info={{
-              definition:
-                "Porcentaje de observaciones rábicas cerradas dentro del plazo legal de 10 días calendario (A8). Exigido por Ord. CABA 41.831 art. 9 y Decreto 4669/1973 PBA.",
-              formula:
-                "rabies_observation_ended con (ended_at − started_at) ≤ 10 días / total cerradas en período",
-              caveat:
-                "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo (A9) y activan el banner de alerta.",
-            }}
-          />,
-          <OpKpi
-            key="eno-sla"
-            label="SLA notificación ENO"
-            value={pct(enoSla.onTimePct)}
-            tone={enoSla.breachedOpen > 0 ? "warn" : enoSla.onTimePct === null ? "neutral" : "ok"}
-            bar={enoSla.onTimePct ?? undefined}
-            sub={
-              enoSla.breachedOpen > 0
-                ? `${enoSla.breachedOpen} fuera de SLA`
-                : enoSla.medianLatencyHours !== null
-                  ? `Mediana ${enoSla.medianLatencyHours} h`
-                  : "Sin entregas en el período"
-            }
-            info={getKpiInfo("eno_sla_compliance")}
-          />,
-          <OpKpi
-            key="amr-densidad"
-            label="Densidad ATM/AMR"
-            value={amrDensity.per1000 === null ? "—" : String(amrDensity.per1000)}
-            sub={
-              amrDensity.provisionalUnclassified > 0
-                ? `por 1.000 · ${amrDensity.provisionalUnclassified} sin clasificar (provisional)`
-                : "antimicrobianos por 1.000 pets activos"
-            }
-            info={{
-              definition:
-                "Densidad de uso de antimicrobianos: inicios de tratamiento antimicrobiano por cada 1.000 mascotas activas en la jurisdicción (A12). Indicador de presión selectiva de resistencia antimicrobiana (AMR).",
-              formula:
-                "COUNT(medication_started donde drug_code ∈ catálogo antimicrobial) / activePets × 1.000",
-              caveat:
-                "Fármacos cuyo drug_code no está en el catálogo se reportan como 'sin clasificar' y NO se incluyen en la tasa (clasificación provisional).",
-            }}
-          />,
-        ]}
-      />
+      {/* 5 KPI tiles */}
+      <section
+        aria-label="Indicadores de vigilancia"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
+      >
+        <OpKpi
+          label="Brotes activos"
+          value={String(metrics.outbreakActiveCount)}
+          tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
+          sparkline={outbreakSparkline.points.map((p) => p.y)}
+          href="/gob/vigilancia/brotes"
+          info={{
+            definition:
+              "Cantidad de señales de brote (outbreak_signal) con estado 'open' en la jurisdicción en los últimos 30 días.",
+            formula: "COUNT(outbreak_signal_opened events, últimos 30d) scoped to jurisdiction",
+          }}
+        />
+        <OpKpi
+          label="Rábicas activas"
+          value={String(metrics.rabiesActiveCount)}
+          tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
+          sparkline={rabiesSparkline.points.map((p) => p.y)}
+          // Jumps to the compliance card (panelComplianceId), not the disease-
+          // signals card (panelRabiesId) — that card is per-disease SIGNAL
+          // counts, not rabies-observation detail. The compliance card is
+          // where the real open-breach count for THIS metric actually lives.
+          href={`#${panelComplianceId}`}
+          info={{
+            definition:
+              "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",
+            formula: "COUNT(cases WHERE caseKind='rabies_observation' AND status='open')",
+          }}
+        />
+        <OpKpi
+          label="Altas registradas hoy"
+          value={String(metrics.petsRegisteredToday)}
+          info={{
+            definition:
+              "Mascotas registradas en el sistema desde las 00:00 hora local de hoy (Arg/Buenos Aires), scoped a la jurisdicción del operador.",
+            formula: "COUNT(pets WHERE created_at >= today midnight ART)",
+          }}
+        />
+        <OpKpi
+          label="Vacunaciones (7d)"
+          value={String(metrics.vaccinationsThisWeek)}
+          tone="ok"
+          deltaV2={metrics.vaccinationsThisWeek > 0 ? (vaccinationsDelta ?? undefined) : undefined}
+          sparkline={vacSparkline.points.map((p) => p.y)}
+          info={{
+            definition:
+              "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
+            formula: "COUNT(vaccination_administered, últimos 7d) scoped to jurisdiction",
+          }}
+        />
+        {/* Clickable KPI tile (v1 `href` — wraps the whole tile in an <a>,
+            same pattern as "Brotes activos" above): replaces the former
+            standalone "Investigaciones" CTA button. Reads as one of the
+            strip's tiles and drills into the same investigations route on
+            click. This is a live stock (cases currently under active
+            investigation, right now) — no period delta on a snapshot. */}
+        <OpKpi
+          label="Casos bajo investigación activa"
+          value={String(metrics.investigationActiveCount)}
+          tone={metrics.investigationActiveCount > 0 ? "warn" : "neutral"}
+          href="/gob/vigilancia/investigaciones"
+          info={{
+            definition:
+              "Cantidad de casos con caseKind='outbreak_investigation' y estado 'open' o 'escalated' en la jurisdicción — investigaciones de brote actualmente en curso.",
+            formula:
+              "COUNT(cases WHERE caseKind='outbreak_investigation' AND status IN ('open','escalated'))",
+          }}
+        />
+      </section>
+
+      {/* Item 3 — compliance KPI row (A8 / A7 / A12) */}
+      <section
+        aria-label="Indicadores de cumplimiento sanitario"
+        className="grid grid-cols-2 md:grid-cols-3 gap-3"
+      >
+        <OpKpi
+          label="Cumplimiento observación 10d"
+          value={pct(rabiesCompliance.compliancePct)}
+          tone={
+            rabiesCompliance.openBreaches > 0
+              ? "danger"
+              : rabiesCompliance.compliancePct === null
+                ? "neutral"
+                : "ok"
+          }
+          bar={rabiesCompliance.compliancePct ?? undefined}
+          sub={
+            rabiesCompliance.openBreaches > 0
+              ? `${rabiesCompliance.openBreaches} abierta(s) > 10 días`
+              : `${rabiesCompliance.closed} cerrada(s) en el período`
+          }
+          info={{
+            definition:
+              "Porcentaje de observaciones rábicas cerradas dentro del plazo legal de 10 días calendario (A8). Exigido por Ord. CABA 41.831 art. 9 y Decreto 4669/1973 PBA.",
+            formula:
+              "rabies_observation_ended con (ended_at − started_at) ≤ 10 días / total cerradas en período",
+            caveat:
+              "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo (A9) y activan el banner de alerta.",
+          }}
+        />
+        <OpKpi
+          label="SLA notificación ENO"
+          value={pct(enoSla.onTimePct)}
+          tone={enoSla.breachedOpen > 0 ? "warn" : enoSla.onTimePct === null ? "neutral" : "ok"}
+          bar={enoSla.onTimePct ?? undefined}
+          sub={
+            enoSla.breachedOpen > 0
+              ? `${enoSla.breachedOpen} fuera de SLA`
+              : enoSla.medianLatencyHours !== null
+                ? `Mediana ${enoSla.medianLatencyHours} h`
+                : "Sin entregas en el período"
+          }
+          info={getKpiInfo("eno_sla_compliance")}
+        />
+        <OpKpi
+          label="Densidad ATM/AMR"
+          value={amrDensity.per1000 === null ? "—" : String(amrDensity.per1000)}
+          sub={
+            amrDensity.provisionalUnclassified > 0
+              ? `por 1.000 · ${amrDensity.provisionalUnclassified} sin clasificar (provisional)`
+              : "antimicrobianos por 1.000 pets activos"
+          }
+          info={{
+            definition:
+              "Densidad de uso de antimicrobianos: inicios de tratamiento antimicrobiano por cada 1.000 mascotas activas en la jurisdicción (A12). Indicador de presión selectiva de resistencia antimicrobiana (AMR).",
+            formula:
+              "COUNT(medication_started donde drug_code ∈ catálogo antimicrobial) / activePets × 1.000",
+            caveat:
+              "Fármacos cuyo drug_code no está en el catálogo se reportan como 'sin clasificar' y NO se incluyen en la tasa (clasificación provisional).",
+          }}
+        />
+      </section>
 
       {/* A9 — live breach banner: rabies observations open past the legal 10-day window. */}
       {rabiesCompliance.openBreaches > 0 && (

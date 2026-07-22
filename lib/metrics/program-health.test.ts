@@ -15,6 +15,7 @@ import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import {
   completeness,
+  countAlertedProvinces,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
   fetchPiiOversight,
@@ -85,6 +86,72 @@ describe("completeness — pure helper", () => {
   it("rounds to nearest integer", () => {
     // 1 missing out of 3 → (2/3)*100 = 66.67 → 67
     expect(completeness({ total: 3, missingAny: 1 })).toBe(67);
+  });
+});
+
+// Regression — 2026-07-22 honesty bug: /admin/programa and /gob/programa's
+// "Provincias en alerta" KPI used to render outliers.filter(isOutlier).length,
+// which counts (province × metric) COMBINATIONS, not provinces — a single
+// province with 3 below-target metrics contributed 3 rows, so the KPI could
+// read e.g. 70 when Argentina has ~24 provinces. countAlertedProvinces must
+// always collapse to DISTINCT provinces, bounded by the total province count
+// present in the input (never combinations).
+describe("countAlertedProvinces — pure helper", () => {
+  const row = (
+    province: string,
+    metric: OutlierRow["metric"],
+    isOutlier: boolean,
+  ): Pick<OutlierRow, "province" | "isOutlier"> & { metric: OutlierRow["metric"] } => ({
+    province,
+    metric,
+    isOutlier,
+  });
+
+  it("counts a province only once even with multiple below-target metrics", () => {
+    const rows = [
+      row("Buenos Aires", "rabies", true),
+      row("Buenos Aires", "sterilization", true),
+      row("Buenos Aires", "microchip", true),
+    ];
+    // 3 combinations, but only 1 distinct province.
+    expect(rows.filter((r) => r.isOutlier).length).toBe(3);
+    expect(countAlertedProvinces(rows)).toBe(1);
+  });
+
+  it("ignores rows where isOutlier is false", () => {
+    const rows = [row("Buenos Aires", "rabies", false), row("Córdoba", "microchip", false)];
+    expect(countAlertedProvinces(rows)).toBe(0);
+  });
+
+  it("counts distinct provinces across mixed outlier/non-outlier rows", () => {
+    const rows = [
+      row("Buenos Aires", "rabies", true),
+      row("Buenos Aires", "microchip", false),
+      row("Córdoba", "sterilization", true),
+      row("Córdoba", "microchip", true),
+      row("Santa Fe", "rabies", false),
+    ];
+    // 3 outlier combinations (BA×rabies, Córdoba×sterilization, Córdoba×microchip),
+    // but only 2 distinct alerted provinces (Buenos Aires, Córdoba).
+    const combinationCount = rows.filter((r) => r.isOutlier).length;
+    expect(combinationCount).toBe(3);
+    expect(countAlertedProvinces(rows)).toBe(2);
+    expect(countAlertedProvinces(rows)).toBeLessThan(combinationCount);
+  });
+
+  it("returns 0 for an empty input", () => {
+    expect(countAlertedProvinces([])).toBe(0);
+  });
+
+  it("never exceeds the number of distinct provinces represented in the input", () => {
+    // Simulates the reported bug: 24 provinces × 3 metrics all below target
+    // (70 combinations) — the honest province count must stay ≤ 24.
+    const provinces = Array.from({ length: 24 }, (_, i) => `Provincia ${i}`);
+    const metrics: OutlierRow["metric"][] = ["rabies", "sterilization", "microchip"];
+    const rows = provinces.flatMap((p) => metrics.map((m) => row(p, m, true)));
+    expect(rows.length).toBe(72);
+    expect(countAlertedProvinces(rows)).toBe(24);
+    expect(countAlertedProvinces(rows)).toBeLessThanOrEqual(provinces.length);
   });
 });
 

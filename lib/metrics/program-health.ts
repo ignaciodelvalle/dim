@@ -94,6 +94,26 @@ export function completeness({
   return Math.round(((total - missingAny) / total) * 100);
 }
 
+/**
+ * Counts DISTINCT provinces with at least one below-target metric.
+ *
+ * `fetchCrossJurisdictionOutliers` returns one row per (province × metric)
+ * combination, so filtering to `isOutlier` rows and taking `.length` counts
+ * COMBINATIONS, not provinces — a province with 2 below-target metrics
+ * contributes 2 rows. That combination count is the right value for the
+ * outliers table's "N de M combinaciones bajo meta" caption, but it is NOT
+ * the right value for a KPI labeled "Provincias en alerta": it routinely
+ * exceeds Argentina's ~24 provinces, which is dishonest under that label.
+ *
+ * This helper collapses the outlier rows to distinct `province` values, so
+ * the result is always ≤ the total number of provinces represented in `rows`.
+ */
+export function countAlertedProvinces(
+  rows: readonly Pick<OutlierRow, "province" | "isOutlier">[],
+): number {
+  return new Set(rows.filter((r) => r.isOutlier).map((r) => r.province)).size;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
