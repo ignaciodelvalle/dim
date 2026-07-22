@@ -5,7 +5,7 @@
 // forces the connection to 127.0.0.1:54322). They follow the same fixture
 // pattern used by __tests__/adoption-listing.test.ts and similar suites.
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { hashDni } from "@/lib/utils/dni-hash";
@@ -723,5 +723,198 @@ describe("AdoptionRepository — case-opening wiring (bugfix)", () => {
         new Set([applicantAId, applicantBId]),
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adoption reversal (adoption-reversal facade harvest, 2026-07-21)
+//
+// PO-locked semantics: reversing a finalized adoption returns custody to the
+// finalizing org's shelter_custody and forces the pet UN-LISTED — the org
+// must explicitly re-publish. Fixture: a genuinely-finalized adoption
+// (via the real insertAdoptionFinalized, committed — not a rolled-back tx)
+// so findReversibleAdoption/insertAdoptionReversed exercise real Postgres
+// state, not a fake.
+// ---------------------------------------------------------------------------
+
+describe("AdoptionRepository — reversal (findReversibleAdoption / insertAdoptionReversed)", () => {
+  const PET_TOKEN_REV = "DIM-ADOPTREP-REV";
+  const PET_NAME_REV = "RepoTestPetRev";
+  let petIdRev: string;
+  let custodyOwnershipIdRev: string;
+  let adopterUserIdRev: string;
+  let finalizeEventIdRev: string;
+
+  beforeAll(async () => {
+    // Fresh pet, in shelter_custody for `orgId`, adoption-eligible AND listed
+    // (adoptionListedAt set) — this is exactly the stale-listing risk
+    // insertAdoptionReversed must defend against: finalize never clears
+    // adoptionListedAt, so a naive reversal that only restores shelter_custody
+    // would silently resurrect this pet on /adoptar.
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: PET_TOKEN_REV,
+        name: PET_NAME_REV,
+        species: "dog",
+        sex: "female",
+        potentiallyDangerousBreed: false,
+        status: "active",
+        adoptionEligible: true,
+        adoptionEligibilitySetAt: new Date(),
+        adoptionListedAt: new Date(),
+      })
+      .returning();
+    petIdRev = pet.id;
+
+    const [custody] = await db
+      .insert(ownerships)
+      .values({ petId: petIdRev, ownerOrganizationId: orgId, role: "shelter_custody" })
+      .returning();
+    custodyOwnershipIdRev = custody.id;
+
+    adopterUserIdRev = crypto.randomUUID();
+
+    // Genuine finalize (committed, via the real repo method) — the fixture
+    // the reversal tests need: a real adoption_finalized event + owner row.
+    await db.transaction(async (tx) => {
+      const { eventId } = await AdoptionRepository.insertAdoptionFinalized(
+        {
+          petId: petIdRev,
+          userId: actorUserId,
+          orgId,
+          orgVerified: true,
+          custodyOwnershipId: custodyOwnershipIdRev,
+          adopterUserId: adopterUserIdRev,
+          isStubAdopter: true,
+          fosterRow: null,
+          fosterUserId: null,
+          custodyCaseId: null,
+          displayName: "Reversal Test Adopter",
+          phone: null,
+          dni: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+          contractAttachmentId: null,
+          contractStoragePath: null,
+          contractMimeType: null,
+          contractFileSize: null,
+          followupMonths: null,
+          notes: null,
+          orgDisplayName: ORG_DISPLAY_NAME,
+          petName: PET_NAME_REV,
+          now: new Date(),
+        },
+        tx,
+      );
+      finalizeEventIdRev = eventId;
+    });
+  });
+
+  afterAll(async () => {
+    // Deleting the pet cascades to ownerships/pet_events (append-only trigger
+    // needs the mutation override, same as petId1/petId2's cleanup above).
+    await withMutationOverride(async (tx) => {
+      await tx.delete(pets).where(eq(pets.id, petIdRev));
+      await tx.delete(profiles).where(eq(profiles.id, adopterUserIdRev));
+    });
+  });
+
+  it("rejects reversal for an org that did not finalize this adoption", async () => {
+    const result = await AdoptionRepository.findReversibleAdoption(
+      petIdRev,
+      "00000000-0000-0000-0000-000000000000",
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("finds the reversible adoption for the finalizing org", async () => {
+    const result = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.finalizeEventId).toBe(finalizeEventIdRev);
+      expect(result.adopterUserId).toBe(adopterUserIdRev);
+      expect(result.petName).toBe(PET_NAME_REV);
+    }
+  });
+
+  it("reverses: closes the owner row, restores shelter_custody for the org, " +
+    "un-lists the pet, appends adoption_reversed, leaves adoption_finalized untouched", async () => {
+    const reversible = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+    expect(reversible.ok).toBe(true);
+    if (!reversible.ok) return;
+
+    let reversedEventId = "";
+    await db.transaction(async (tx) => {
+      const { eventId } = await AdoptionRepository.insertAdoptionReversed(
+        {
+          petId: petIdRev,
+          userId: actorUserId,
+          orgId,
+          orgVerified: true,
+          adopterOwnershipId: reversible.adopterOwnershipId,
+          finalizeEventId: reversible.finalizeEventId,
+          reason: "Test: unit reversal",
+          now: new Date(),
+        },
+        tx,
+      );
+      reversedEventId = eventId;
+    });
+
+    // The adopter's owner row is closed.
+    const [ownerRow] = await db
+      .select({ endedAt: ownerships.endedAt })
+      .from(ownerships)
+      .where(eq(ownerships.id, reversible.adopterOwnershipId));
+    expect(ownerRow.endedAt).not.toBeNull();
+
+    // Custody returned to the finalizing org: a fresh active shelter_custody row.
+    const [custodyRow] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petIdRev),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+    expect(custodyRow).toBeTruthy();
+
+    // The pet is UN-LISTED (it was listed going in) — org must re-publish.
+    const [petRow] = await db
+      .select({
+        adoptionListedAt: pets.adoptionListedAt,
+        adoptionListingPausedAt: pets.adoptionListingPausedAt,
+      })
+      .from(pets)
+      .where(eq(pets.id, petIdRev));
+    expect(petRow.adoptionListedAt).toBeNull();
+    expect(petRow.adoptionListingPausedAt).toBeNull();
+
+    // adoption_finalized is append-only — untouched, still there.
+    const [finalizeEvent] = await db
+      .select({ id: petEvents.id, eventType: petEvents.eventType })
+      .from(petEvents)
+      .where(eq(petEvents.id, finalizeEventIdRev));
+    expect(finalizeEvent).toBeTruthy();
+    expect(finalizeEvent.eventType).toBe("adoption_finalized");
+
+    // adoption_reversed is a NEW event, referencing the finalize event.
+    const [reversedEvent] = await db
+      .select({ eventType: petEvents.eventType, payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, reversedEventId));
+    expect(reversedEvent).toBeTruthy();
+    expect(reversedEvent.eventType).toBe("adoption_reversed");
+    const payload = reversedEvent.payload as Record<string, unknown>;
+    expect(payload.reverted_finalization_event_id).toBe(finalizeEventIdRev);
+    expect(payload.actor).toBe("shelter");
+  });
+
+  it("rejects a double-reverse — the same adoption cannot be reversed twice", async () => {
+    // The previous test already committed a reversal for this pet/org pair.
+    const result = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+    expect(result.ok).toBe(false);
   });
 });

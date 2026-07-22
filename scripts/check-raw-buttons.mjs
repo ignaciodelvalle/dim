@@ -68,11 +68,15 @@ import { globSync, readFileSync } from "node:fs";
  *  ref limitation, same sanctioned workaround already used by
  *  IncomingTransferActions.tsx/ReasignarButton.tsx/DevolverAlDuenoButton.tsx/
  *  RemoveMemberButton.tsx. Baseline set 53 → 54.
+ *  2026-07-21: adoption-reversal facade harvest — ReverseAdoptionAction.tsx
+ *  (app/org/[orgToken]/mascotas/[publicToken]/) adds ONE ConfirmDialog
+ *  trigger button for the newly-wired "Revertir adopción" action, same
+ *  sanctioned ref-for-focus-restore workaround. Baseline set 54 → 55.
  *  Target: 0, via migration to LnButton (citizen) / OpButton (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const OPERATOR_BASELINE = 54;
+const OPERATOR_BASELINE = 55;
 const OPERATOR_SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 

@@ -4,7 +4,7 @@
 // Returns domain types or lightweight shapes (not raw Drizzle row types).
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import {
   attachments,
@@ -164,6 +164,41 @@ type InsertAdoptionFinalizedArgs = {
 };
 
 type ShelterPetResult = (PetRow & { custodyOwnershipId: string }) | null;
+
+// ---------------------------------------------------------------------------
+// Reversal types
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of the reversibility gate. `ok: false` covers all three rejection
+ * reasons the reverse-adoption use-case must enforce: no finalize event
+ * authored by this org, already reversed (idempotency guard), or custody has
+ * since moved off the adopter this finalize event names (stale finalize —
+ * also the second line of defense against a double-reverse, since after the
+ * first reversal the active ownership role is shelter_custody, not owner).
+ */
+type ReversibleAdoptionResult =
+  | {
+      ok: true;
+      finalizeEventId: string;
+      adopterOwnershipId: string;
+      adopterUserId: string | null;
+      petName: string;
+    }
+  | { ok: false; error: string };
+
+type InsertAdoptionReversedArgs = {
+  petId: string;
+  userId: string;
+  orgId: string;
+  orgVerified: boolean;
+  /** The active `owner` ownership row (the adopter) to close. */
+  adopterOwnershipId: string;
+  /** The `adoption_finalized` event this reversal retracts (event linkage). */
+  finalizeEventId: string;
+  reason: string | null;
+  now: Date;
+};
 
 type OrgRow = typeof organizations.$inferSelect;
 
@@ -1206,5 +1241,179 @@ export const AdoptionRepository = {
       authorVerified: false,
       payload,
     });
+  },
+
+  // ---------------------------------------------------------------------------
+  // Reversal (mirrors finalize in reverse — see reverse-adoption.ts)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Finds a pet by public token with NO ownership/org constraint — unlike
+   * findShelterPet, the reversal flow's caller (the finalizing org) may no
+   * longer hold any active ownership row on this pet at all (that is exactly
+   * what a finalized adoption does: it ends the org's shelter_custody row).
+   */
+  async findPetByToken(
+    petPublicToken: string,
+    tx?: Tx,
+  ): Promise<{ id: string; name: string } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ id: pets.id, name: pets.name })
+      .from(pets)
+      .where(eq(pets.publicToken, petPublicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * The reversibility gate. Finds the LATEST adoption_finalized event
+   * authored by THIS organization for this pet, and verifies:
+   *   1. it exists (this org actually finalized an adoption for this pet);
+   *   2. it has not already been reversed (no adoption_reversed event
+   *      references it via reverted_finalization_event_id) — idempotency;
+   *   3. the pet's current active ownership is still that same adopter,
+   *      role='owner' — defends against a stale finalize (custody moved on
+   *      via a later cycle) and doubles as the second double-reverse guard
+   *      (after a first reversal the active role is shelter_custody, not
+   *      owner, so this check alone would already reject a repeat call).
+   *
+   * Read-only — safe to call from a server component for UI gating (see the
+   * org pet ficha's "ya no está bajo tu custodia" branch) as well as from the
+   * use-case as the authoritative pre-write check.
+   */
+  async findReversibleAdoption(
+    petId: string,
+    organizationId: string,
+    tx?: Tx,
+  ): Promise<ReversibleAdoptionResult> {
+    const client = tx ?? db;
+
+    const [finalizeEvent] = await client
+      .select({
+        id: petEvents.id,
+        adopterUserId: sql<string | null>`${petEvents.payload}->>'adopter_user_id'`,
+      })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          eq(petEvents.eventType, "adoption_finalized"),
+          eq(petEvents.authorOrganizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+
+    if (!finalizeEvent) {
+      return {
+        ok: false,
+        error: "Esta organización no finalizó ninguna adopción para esta mascota.",
+      };
+    }
+
+    const reversed = await client.execute<{ id: string }>(sql`
+      SELECT id FROM pet_events
+      WHERE pet_id = ${petId}
+        AND event_type = 'adoption_reversed'
+        AND payload->>'reverted_finalization_event_id' = ${finalizeEvent.id}
+      LIMIT 1
+    `);
+    if (reversed.length > 0) {
+      return { ok: false, error: "Esta adopción ya fue revertida." };
+    }
+
+    const [ownerRow] = await client
+      .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId, petName: pets.name })
+      .from(ownerships)
+      .innerJoin(pets, eq(pets.id, ownerships.petId))
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+
+    if (
+      !ownerRow ||
+      !finalizeEvent.adopterUserId ||
+      ownerRow.ownerUserId !== finalizeEvent.adopterUserId
+    ) {
+      return {
+        ok: false,
+        error:
+          "La mascota ya no está bajo la custodia del adoptante de esta adopción — no se puede revertir.",
+      };
+    }
+
+    return {
+      ok: true,
+      finalizeEventId: finalizeEvent.id,
+      adopterOwnershipId: ownerRow.id,
+      adopterUserId: ownerRow.ownerUserId,
+      petName: ownerRow.petName,
+    };
+  },
+
+  /**
+   * Composite atomic write for reversing an adoption. Must be called inside a
+   * db.transaction(). Mirrors insertAdoptionFinalized in reverse:
+   *   - close the adopter's `owner` ownership row
+   *   - insert a fresh `shelter_custody` ownership row for the finalizing org
+   *   - force the pet UN-LISTED (adoption_listed_at / paused_at → null) — PO
+   *     semantics: reversal never auto-relists. Without this, restoring an
+   *     active shelter_custody row would silently resurrect whatever
+   *     adoption_listed_at value predates the original finalize (finalize
+   *     never clears it — see insertAdoptionFinalized above), and the pet
+   *     would reappear on /adoptar the moment shelter_custody becomes active
+   *     again (queryAdoptionListing's D-guards only check listedAt + active
+   *     shelter_custody, nothing else stops that).
+   *   - insert the adoption_reversed event, referencing the finalize event id
+   */
+  async insertAdoptionReversed(
+    args: InsertAdoptionReversedArgs,
+    tx: Tx,
+  ): Promise<{ eventId: string }> {
+    const { petId, userId, orgId, orgVerified, adopterOwnershipId, finalizeEventId, reason, now } =
+      args;
+
+    // Close the adopter's owner ownership row.
+    await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, adopterOwnershipId));
+
+    // Restore shelter_custody ownership to the finalizing org.
+    await tx.insert(ownerships).values({
+      petId,
+      ownerOrganizationId: orgId,
+      role: "shelter_custody",
+      startedAt: now,
+      transferredFromId: adopterOwnershipId,
+    });
+
+    // Force UN-LISTED (see method doc above).
+    await tx
+      .update(pets)
+      .set({ adoptionListedAt: null, adoptionListingPausedAt: null, updatedAt: now })
+      .where(eq(pets.id, petId));
+
+    const payload = validateEventPayload("adoption_reversed", {
+      actor: "shelter",
+      reason,
+      reverted_finalization_event_id: finalizeEventId,
+    });
+
+    const [event] = await tx
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "adoption_reversed",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: userId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: orgVerified,
+        payload,
+      })
+      .returning({ id: petEvents.id });
+
+    return { eventId: event.id };
   },
 };

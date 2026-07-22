@@ -22,6 +22,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
 import { finalizeAdoption } from "./application/finalize-adoption";
+import { reverseAdoption } from "./application/reverse-adoption";
 import {
   approveAdoptionApplication,
   rejectAdoptionApplication,
@@ -594,4 +595,53 @@ export async function finalizeAdoptionAction(
   // Next 15.5.x router-drop defect (see the redirectTo docblock above).
   revalidatePath(`/org/${orgToken}/mascotas`);
   return { error: null, redirectTo: `/org/${orgToken}/mascotas?adopcion=${publicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// reverseAdoptionAction
+// ---------------------------------------------------------------------------
+// Org-side: reverse a finalized adoption (PO-locked semantics, 2026-07-21).
+// Custody reverts to the finalizing org's shelter_custody and the pet ends
+// UN-LISTED — the org must explicitly re-publish. Same capability as
+// finalize ("adoption.finalize") since this is its mirror action: an org
+// admin's implicit grant already covers "or admin" from the PO wording, and
+// requireCapabilityForOrgToken pins the check to the URL org, never the
+// session-default membership (same rationale as every sibling action above).
+
+export type ReverseAdoptionInput = {
+  /** publicToken of the org in the URL — the org this action acts AS. */
+  orgToken: string;
+  petPublicToken: string;
+  reason?: string | null;
+};
+
+export type ReverseAdoptionResult = { ok: true } | { error: string };
+
+export async function reverseAdoptionAction(
+  input: ReverseAdoptionInput,
+): Promise<ReverseAdoptionResult> {
+  const auth = await requireCapabilityForOrgToken("adoption.finalize", input.orgToken);
+  if (auth.error !== null) return { error: auth.error };
+  const { user, organization } = auth;
+
+  const result = await reverseAdoption(
+    {
+      petPublicToken: input.petPublicToken,
+      reason: input.reason?.trim() || null,
+    },
+    {
+      repo: AdoptionRepository,
+      actor: { user, organization },
+      transaction: db.transaction.bind(db),
+    },
+  );
+
+  if (!result.ok) return { error: result.error };
+
+  await flushNotifications(result.notifications);
+  revalidatePath(`/org/${organization.publicToken}/mascotas/${input.petPublicToken}`);
+  revalidatePath(`/org/${organization.publicToken}/mascotas`);
+  revalidatePath("/mis-mascotas");
+  revalidatePath(`/adoptar/${input.petPublicToken}`);
+  return { ok: true };
 }

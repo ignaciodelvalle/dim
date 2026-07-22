@@ -15,6 +15,7 @@ import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { type PetSituationTone, derivePetSituation } from "@/lib/ui/pet-situation";
 import { situationLabelForSex, speciesLabel } from "@/lib/utils/format";
+import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
@@ -30,6 +31,7 @@ import {
 
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";
 import { OwnerReturnProposalCard } from "./OwnerReturnProposalCard";
+import { ReverseAdoptionAction } from "./ReverseAdoptionAction";
 
 export default async function OrgPetDetailPage({
   params,
@@ -85,11 +87,21 @@ export default async function OrgPetDetailPage({
     // 404 (QA ALTO, 2026-07-16). Existence by publicToken is already public
     // (Tier-0 credential, /p/[token]), so this leaks nothing new.
     const [stillExists] = await db
-      .select({ id: pets.id })
+      .select({ id: pets.id, name: pets.name })
       .from(pets)
       .where(eq(pets.publicToken, publicToken))
       .limit(1);
     if (!stillExists) notFound();
+
+    // The pet may have left custody via a finalized adoption THIS org itself
+    // performed — reversible from right here, without the org needing to
+    // catch the ephemeral post-finalize banner on the list page. Any other
+    // reason (transfer to another org, a different org's adoption) leaves
+    // findReversibleAdoption ok:false and no CTA renders.
+    const canReverseAdoption = granted.has("adoption.finalize");
+    const reversible = canReverseAdoption
+      ? await AdoptionRepository.findReversibleAdoption(stillExists.id, organization.id)
+      : null;
 
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
@@ -102,6 +114,15 @@ export default async function OrgPetDetailPage({
             Pasó a un nuevo dueño o fue transferida, así que salió del listado de tu organización.
             Es el resultado esperado de una adopción o transferencia finalizada.
           </p>
+          {reversible?.ok && (
+            <div className="text-left">
+              <ReverseAdoptionAction
+                orgToken={orgToken}
+                petPublicToken={publicToken}
+                petName={stillExists.name}
+              />
+            </div>
+          )}
           <Link
             href={`/org/${orgToken}/mascotas`}
             className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"

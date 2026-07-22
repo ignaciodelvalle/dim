@@ -152,3 +152,16 @@ export type ReviewInput = {
   applicationEventId: string;
   notes?: string | null;
 };
+
+// ---------------------------------------------------------------------------
+// Reversal
+// ---------------------------------------------------------------------------
+
+// PO-locked semantics (2026-07-21): reversing a finalized adoption returns
+// custody to the ORG that finalized it and forces the pet UN-LISTED — the
+// org must explicitly re-publish. Mirrors FinalizationInput's shape, in
+// reverse: no adopter identity to resolve (the reversibility gate finds it),
+// just an optional free-text reason for the audit trail.
+export type ReversalInput = {
+  reason: string | null;
+};
