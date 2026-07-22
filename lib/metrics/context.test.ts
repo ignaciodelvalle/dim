@@ -3,7 +3,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildProjectionContext, isSubProvincialScope } from "@/lib/metrics";
+import {
+  buildProjectionContext,
+  censusEligibleProvince,
+  isSubProvincialScope,
+} from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 
 const PERIOD = windows.trailing12m();
@@ -74,5 +78,89 @@ describe("isSubProvincialScope", () => {
   it("govt with an empty scope is NOT sub-provincial", () => {
     const ctx = buildProjectionContext({ role: "govt" }, [], PERIOD);
     expect(isSubProvincialScope(ctx)).toBe(false);
+  });
+});
+
+describe("censusEligibleProvince (C3, red-team #2 PO-locked direction)", () => {
+  it("national admin (no drill-down) → null", () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], PERIOD);
+    expect(censusEligibleProvince(ctx)).toBeNull();
+  });
+
+  it("admin drilled to a province (no locality) → that province", () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], PERIOD, {
+      adminProvince: "Buenos Aires",
+    });
+    expect(censusEligibleProvince(ctx)).toBe("Buenos Aires");
+  });
+
+  it("admin drilled to a locality → null (finer than province grain)", () => {
+    const ctx = buildProjectionContext({ role: "admin" }, [], PERIOD, {
+      adminProvince: "Ciudad Autónoma de Buenos Aires",
+      adminLocality: "Palermo",
+    });
+    expect(censusEligibleProvince(ctx)).toBeNull();
+  });
+
+  it("govt scoped to a WHOLE province (locality === '') → that province", () => {
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: "Buenos Aires", locality: "" }],
+      PERIOD,
+    );
+    expect(censusEligibleProvince(ctx)).toBe("Buenos Aires");
+  });
+
+  it("govt scoped to WHOLE CABA (two-tier canonical form) → 'CABA'", () => {
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }],
+      PERIOD,
+    );
+    expect(censusEligibleProvince(ctx)).toBe("CABA");
+  });
+
+  it("THE FIX — barrio-multi govt whose view aggregates one whole province → that province", () => {
+    // The verified over-suppression: 5 CABA barrios, none individually
+    // whole-province, but the AGGREGATE view covers exactly one province and
+    // is not drilled to a single locality — census-eligible for CABA.
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [
+        { province: "CABA", locality: "Palermo" },
+        { province: "CABA", locality: "Recoleta" },
+        { province: "CABA", locality: "Retiro" },
+        { province: "CABA", locality: "San Nicolás" },
+        { province: "CABA", locality: "Puerto Madero" },
+      ],
+      PERIOD,
+    );
+    expect(censusEligibleProvince(ctx)).toBe("CABA");
+  });
+
+  it("locality-drill — a single specific locality → null", () => {
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [{ province: "CABA", locality: "Palermo" }],
+      PERIOD,
+    );
+    expect(censusEligibleProvince(ctx)).toBeNull();
+  });
+
+  it("govt scope spanning multiple provinces → null (no single census row applies)", () => {
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [
+        { province: "Córdoba", locality: "" },
+        { province: "Buenos Aires", locality: "La Plata" },
+      ],
+      PERIOD,
+    );
+    expect(censusEligibleProvince(ctx)).toBeNull();
+  });
+
+  it("govt with an empty scope → null", () => {
+    const ctx = buildProjectionContext({ role: "govt" }, [], PERIOD);
+    expect(censusEligibleProvince(ctx)).toBeNull();
   });
 });

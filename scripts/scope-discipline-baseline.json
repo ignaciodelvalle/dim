@@ -1,53 +1,39 @@
 {
-  "lib/analytics/dashboards/analytics.ts:133": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on totalConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:134": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on totalConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:146": "pre-existing direct jurisdictionPairClause() call in fetchAnalyticsMetrics (acquisitionConditions govt scope), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/analytics.ts:148": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (jurisdictionPairClause operand for acquisitionConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:149": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (jurisdictionPairClause operand for acquisitionConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:156": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on acquisitionConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:158": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on acquisitionConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:177": "pre-existing direct jurisdictionPairClause() call in fetchAnalyticsMetrics (rabiesConditions govt scope), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/analytics.ts:179": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (jurisdictionPairClause operand for rabiesConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:180": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (jurisdictionPairClause operand for rabiesConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:186": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on rabiesConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:188": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on rabiesConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:203": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on disputeConditions, custody_disputes columns), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:205": "pre-existing raw sql-template jurisdiction predicate in fetchAnalyticsMetrics (admin province drill-down on disputeConditions, custody_disputes columns), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:353": "pre-existing direct jurisdictionPairClause() call in fetchAcquisitionTrend (govt scope), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/analytics.ts:355": "pre-existing raw sql-template jurisdiction predicate in fetchAcquisitionTrend (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:356": "pre-existing raw sql-template jurisdiction predicate in fetchAcquisitionTrend (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:364": "pre-existing raw sql-template jurisdiction predicate in fetchAcquisitionTrend (admin province drill-down), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:366": "pre-existing raw sql-template jurisdiction predicate in fetchAcquisitionTrend (admin province drill-down), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:455": "pre-existing direct jurisdictionPairClause() call in fetchDeathCauses (govt scope), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/analytics.ts:457": "pre-existing raw sql-template jurisdiction predicate in fetchDeathCauses (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:458": "pre-existing raw sql-template jurisdiction predicate in fetchDeathCauses (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:465": "pre-existing raw sql-template jurisdiction predicate in fetchDeathCauses (admin province drill-down), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/analytics.ts:467": "pre-existing raw sql-template jurisdiction predicate in fetchDeathCauses (admin province drill-down), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/exports.ts:190": "pre-existing direct jurisdictionPairClause() call in fetchOrganizationsForExport (govt scope; organizations table has no _scope.ts helper today), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/exports.ts:192": "pre-existing raw sql-template jurisdiction predicate in fetchOrganizationsForExport (jurisdictionPairClause operand, organizations columns), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/exports.ts:193": "pre-existing raw sql-template jurisdiction predicate in fetchOrganizationsForExport (jurisdictionPairClause operand, organizations columns), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:66": "pre-existing direct jurisdictionPairClause() call in fetchLostPets (govt scope), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/perdidas.ts:68": "pre-existing raw sql-template jurisdiction predicate in fetchLostPets (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:69": "pre-existing raw sql-template jurisdiction predicate in fetchLostPets (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:79": "pre-existing raw sql-template jurisdiction predicate in fetchLostPets (admin province drill-down), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:81": "pre-existing raw sql-template jurisdiction predicate in fetchLostPets (admin province drill-down), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:324": "pre-existing raw sql-template jurisdiction predicate in fetchPerdidasMetrics (admin province drill-down on activeConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:326": "pre-existing raw sql-template jurisdiction predicate in fetchPerdidasMetrics (admin province drill-down on activeConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:359": "pre-existing direct jurisdictionPairClause() call in fetchPerdidasMetrics (recoveredConditions govt scope), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/perdidas.ts:361": "pre-existing raw sql-template jurisdiction predicate in fetchPerdidasMetrics (jurisdictionPairClause operand for recoveredConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:362": "pre-existing raw sql-template jurisdiction predicate in fetchPerdidasMetrics (jurisdictionPairClause operand for recoveredConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:370": "pre-existing raw sql-template jurisdiction predicate in fetchPerdidasMetrics (admin province drill-down on recoveredConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/perdidas.ts:372": "pre-existing raw sql-template jurisdiction predicate in fetchPerdidasMetrics (admin province drill-down on recoveredConditions), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/surveillance.ts:92": "pre-existing direct jurisdictionPairClause() call in outbreakSignalScopeClause (payload-based govt scope over petEvents.payload snake_case keys — a distinct concept from the live table columns _scope.ts guards), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/surveillance.ts:546": "pre-existing raw eq() jurisdiction predicate in fetchSubregionCaseCounts (province filter on cases.jurisdictionProvince; real scope is casesScopeClause alongside it), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts. Line shifted 524→546 by the vigilancia investigations KPI (a15c2798).",
-  "lib/analytics/dashboards/surveillance.ts:617": "pre-existing raw eq() jurisdiction predicate in fetchCasesPerCapita (LEFT JOIN condition to jurisdictions_census on cases.jurisdictionProvince, not a scope-narrowing predicate but matches the eq()-with-jurisdiction-column heuristic), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts. Line shifted 595→617 by the vigilancia investigations KPI (a15c2798).",
-  "lib/analytics/dashboards/welfare.ts:37": "pre-existing direct jurisdictionPairClause() call in welfareReportsScopeClause (welfare_reports has no _scope.ts helper today), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to a _scope.ts-exported helper.",
-  "lib/analytics/dashboards/welfare.ts:39": "pre-existing raw sql-template jurisdiction predicate in welfareReportsScopeClause (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:40": "pre-existing raw sql-template jurisdiction predicate in welfareReportsScopeClause (jurisdictionPairClause operand), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:208": "pre-existing raw eq() jurisdiction predicate in buildMaltratoListConditions (admin province/locality URL-selection filter), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:209": "pre-existing raw eq() jurisdiction predicate in buildMaltratoListConditions (admin province/locality URL-selection filter), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:213": "pre-existing raw eq() jurisdiction predicate in buildMaltratoListConditions (admin province-only URL-selection filter), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:311": "pre-existing raw eq() jurisdiction predicate in fetchWelfareMetrics (admin province/locality drill-down, mirrors buildMaltratoListConditions for KPI/list parity), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:312": "pre-existing raw eq() jurisdiction predicate in fetchWelfareMetrics (admin province/locality drill-down, mirrors buildMaltratoListConditions for KPI/list parity), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts.",
-  "lib/analytics/dashboards/welfare.ts:316": "pre-existing raw eq() jurisdiction predicate in fetchWelfareMetrics (admin province-only drill-down, mirrors buildMaltratoListConditions for KPI/list parity), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts."
+  "lib/analytics/dashboards/analytics.ts": {
+    "reason": "Pre-existing raw jurisdiction predicates in fetchAnalyticsMetrics/fetchAcquisitionTrend/fetchDeathCauses (govt jurisdictionPairClause scopes + admin province drill-down operands), grandfathered when the scope-discipline fence (#57) landed — not yet migrated to _scope.ts helpers. Counts unchanged since the 2026-07-19 line-keyed audit.",
+    "counts": {
+      "direct-pair-clause-call": 4,
+      "raw-template-predicate": 20
+    }
+  },
+  "lib/analytics/dashboards/exports.ts": {
+    "reason": "fetchOrganizationsForExport govt scope (pre-existing, organizations has no _scope.ts helper) + 3 added by the Fase C export-honesty fix (c0c1b654): adminProvince/adminLocality drill operands threaded so exports honor the active jurisdiction filter — audited by the 2026-07-22 pre-push review (scopes via resolveJurisdictionScope upstream; narrowing-only, never widening).",
+    "counts": {
+      "direct-pair-clause-call": 1,
+      "raw-eq-predicate": 3,
+      "raw-template-predicate": 2
+    }
+  },
+  "lib/analytics/dashboards/perdidas.ts": {
+    "reason": "Pre-existing raw predicates in fetchLostPets/fetchPerdidasMetrics (govt jurisdictionPairClause scopes + admin drill-down operands), grandfathered at fence landing (#57) — not yet migrated to _scope.ts. Counts unchanged since the 2026-07-19 audit.",
+    "counts": {
+      "direct-pair-clause-call": 2,
+      "raw-template-predicate": 10
+    }
+  },
+  "lib/analytics/dashboards/surveillance.ts": {
+    "reason": "outbreakSignalScopeClause payload-based govt scope (a distinct concept from live table columns) + fetchSubregionCaseCounts province filter (real scope is casesScopeClause alongside) + fetchCasesPerCapita census LEFT JOIN key (not a scope gate). Grandfathered at fence landing (#57); counts unchanged since the 2026-07-19 audit.",
+    "counts": {
+      "direct-pair-clause-call": 1,
+      "raw-eq-predicate": 2
+    }
+  },
+  "lib/analytics/dashboards/welfare.ts": {
+    "reason": "welfareReportsScopeClause (welfare_reports has no _scope.ts helper) + buildMaltratoListConditions/fetchWelfareMetrics admin province/locality URL-selection filters (mirrored for KPI/list parity). Grandfathered at fence landing (#57); counts unchanged since the 2026-07-19 audit.",
+    "counts": {
+      "direct-pair-clause-call": 1,
+      "raw-eq-predicate": 6,
+      "raw-template-predicate": 2
+    }
+  }
 }

@@ -20,10 +20,10 @@ import {
   type ProjectionContext,
   RABIES_VACCINE_NAME_REGEX,
   TARGETS,
+  censusEligibleProvince,
   computeCensusCoverage,
   dogsInScopeCondition,
   getCensusPopulationsCached,
-  isSubProvincialScope,
   jurisdictionPairClause,
   petsScopeClause,
   rabiesCurrentlyValidCondition,
@@ -302,9 +302,16 @@ export async function fetchRabiesCoverage(
   // H1 bites rate (~13× for a CABA comuna). Suppress it there — never a
   // fabricated coverage. The registry coverage (`current`, a dogs/dogs ratio) is
   // grain-independent and stays honest at any grain.
-  const census = isSubProvincialScope(ctx)
-    ? null
-    : computeCensusCoverage(totalDogs, denom.censusPopulation);
+  //
+  // C3 (2026-07-22): gated on `censusEligibleProvince`, NOT `isSubProvincialScope`
+  // — the eligibility question is "does the RESOLVED VIEW cover one whole
+  // province?", not "is any single assignment sub-provincial?". A multi-barrio
+  // govt whose view aggregates every one of their CABA barrios now gets the
+  // CABA census row; a govt drilled to one specific barrio still does not.
+  const census =
+    censusEligibleProvince(ctx) === null
+      ? null
+      : computeCensusCoverage(totalDogs, denom.censusPopulation);
 
   return {
     current,
@@ -590,13 +597,15 @@ export type BitesPer10kKpi = {
   /** Raw count of incident_reported bite events in the last 12 months. */
   reports: number;
   /**
-   * False when the viewer's scope is sub-provincial (isSubProvincialScope): the
-   * census denominator is province-grain only, so a per-10k rate would divide a
-   * locality-scoped numerator by a whole-province population — understating it
-   * (~13× for Palermo within CABA, the H1 finding). In that state the tile shows
-   * the absolute `reports` count and hides the rate; `rate`/`delta` are 0. Read
-   * this flag FIRST — a 0 rate here means "not publishable at this grain", not
-   * "no incidence". Mirrors the map's percapitaEligibleFor at the KPI strip.
+   * False when the viewer's RESOLVED VIEW has no eligible census province
+   * (`censusEligibleProvince(ctx) === null` — C3, 2026-07-22): the census
+   * denominator is province-grain only, so a per-10k rate would divide by a
+   * population that does not honestly cover the view — understating it (~13×
+   * for a single-barrio drill within CABA, the H1 finding). In that state the
+   * tile shows the absolute `reports` count and hides the rate; `rate`/`delta`
+   * are 0. Read this flag FIRST — a 0 rate here means "not publishable at this
+   * grain", not "no incidence". Mirrors the map's percapitaEligibleFor at the
+   * KPI strip.
    */
   percapitaEligible: boolean;
 };
@@ -708,7 +717,15 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
   // the province/locality population ratio. Suppress the rate and expose only the
   // absolute count — the tile renders "N reportes" with no fabricated per-10k
   // value, mirroring the map's percapitaEligibleFor gate.
-  if (isSubProvincialScope(ctx)) {
+  //
+  // C3 (2026-07-22): gated on `censusEligibleProvince` — "may this VIEW divide
+  // by the census?" — not `isSubProvincialScope`'s "is any assignment
+  // sub-provincial?". A multi-barrio govt whose EFFECTIVE view aggregates one
+  // whole province is eligible; a single-locality drill (or a scope spanning
+  // multiple provinces) is not. The numerator itself is unchanged either way —
+  // this only decides whether the province census row may serve as ITS
+  // denominator.
+  if (censusEligibleProvince(ctx) === null) {
     return { rate: 0, delta: 0, reports, percapitaEligible: false };
   }
 

@@ -13,6 +13,7 @@ import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrum
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
+import { describeMandate } from "@/lib/ui/scope-chrome";
 import type { ShellSession } from "@/lib/ui/shell-nav";
 import { roleLabel } from "@/lib/utils/format";
 
@@ -30,14 +31,16 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
 
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const scopeCode =
-    profile.role === "admin"
-      ? "UNIVERSAL"
-      : jurisdictions.length === 0
-        ? "SIN LOCALIDADES"
-        : jurisdictions.length === 1
-          ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
-          : `${jurisdictions.length} LOCALIDADES`;
+  // C3 (ONE VIEWSCOPE, plan-maestro-integridad §C3): this layout is SHARED
+  // across every /gob/* page and renders once per navigation — it has no
+  // access to a page's own searchParams/filter, so it can only ever describe
+  // the operator's MANDATE (their session assignments), never the page's
+  // resolved VIEW. describeMandate() is the one allowlisted computation site
+  // (lint:view-scope fences a raw `jurisdictions.length` read here) — it fixes
+  // the verified S3 symptom (a shared badge claiming a raw enumerable count as
+  // if it were the current, possibly-filtered view). A page whose OWN filter
+  // narrows below this mandate discloses that separately (ViewScopeCaption).
+  const scopeCode = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
 
   // getProfileCached is already warmed by requireAdminOrGovtOrRedirect above —
   // this call is a memoized hit, not a second DB round-trip.

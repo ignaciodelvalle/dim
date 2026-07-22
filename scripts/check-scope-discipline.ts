@@ -78,7 +78,7 @@
 // Run: pnpm tsx scripts/check-scope-discipline.ts   (or: pnpm lint:scope)
 // Exits 0 clean; exits 1 listing each offending line, unless baselined.
 
-import { globSync, readFileSync } from "node:fs";
+import { globSync, readFileSync, writeFileSync } from "node:fs";
 
 export const SCOPE_FILE = "lib/analytics/dashboards/_scope.ts";
 export const BASELINE_FILE = "scripts/scope-discipline-baseline.json";
@@ -207,13 +207,28 @@ export function listScannedFiles(): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Baseline — justified pre-existing exceptions. `"relPath:line": "reason"`.
-// Every entry must carry a reason a reviewer can audit. New drift (not in the
-// baseline) hard-fails; a baseline entry that no longer matches any offense
-// (the code moved on) also hard-fails, so the baseline can't silently rot.
+// Baseline — justified pre-existing exceptions, keyed by FILE + RULE COUNT.
+//
+// WHY counts, not file:line keys (2026-07-22 redesign): the original baseline
+// was keyed `"relPath:line": "reason"`, which broke THREE times in one week —
+// any edit ABOVE a grandfathered predicate shifted its line and the fence
+// misread the shift as a new offense (surveillance.ts 524→546, then the C1
+// metric-contract edits to analytics.ts, then Fase C's exports.ts changes).
+// Counts per (file, rule) are line-shift-immune while keeping the ratchet
+// honest: MORE occurrences than allowed fails (new drift), FEWER also fails
+// (stale allowance — run --write-baseline to ratchet DOWN). Reasons live as
+// per-file prose a reviewer can audit.
+//
+// Shape: { [relPath]: { reason: string, counts: { [rule]: number } } }
+// Regenerate: pnpm tsx scripts/check-scope-discipline.ts --write-baseline
+// (preserves existing reason strings; new files get a TODO reason that a
+// human must replace before committing).
 // ---------------------------------------------------------------------------
 
-export function loadBaseline(): Record<string, string> {
+export type BaselineEntry = { reason: string; counts: Partial<Record<OffenseRule, number>> };
+export type Baseline = Record<string, BaselineEntry>;
+
+export function loadBaseline(): Baseline {
   try {
     return JSON.parse(readFileSync(BASELINE_FILE, "utf8"));
   } catch {
@@ -225,9 +240,58 @@ export function loadBaseline(): Record<string, string> {
 // Scan
 // ---------------------------------------------------------------------------
 
+const RULES: OffenseRule[] = [
+  "direct-pair-clause-call",
+  "raw-eq-predicate",
+  "raw-template-predicate",
+];
+
+function scanCounts(): {
+  files: string[];
+  perFile: Map<string, Map<OffenseRule, Offense[]>>;
+  total: number;
+} {
+  const files = listScannedFiles();
+  const perFile = new Map<string, Map<OffenseRule, Offense[]>>();
+  let total = 0;
+  for (const file of files) {
+    const offenses = extractOffenses(file, readFileSync(file, "utf8"));
+    total += offenses.length;
+    const byRule = new Map<OffenseRule, Offense[]>();
+    for (const o of offenses) {
+      const list = byRule.get(o.rule) ?? [];
+      list.push(o);
+      byRule.set(o.rule, list);
+    }
+    if (offenses.length > 0) perFile.set(file, byRule);
+  }
+  return { files, perFile, total };
+}
+
+function writeBaseline(): void {
+  const previous = loadBaseline();
+  const { perFile } = scanCounts();
+  const next: Baseline = {};
+  for (const [file, byRule] of [...perFile.entries()].sort()) {
+    const counts: Partial<Record<OffenseRule, number>> = {};
+    for (const rule of RULES) {
+      const n = byRule.get(rule)?.length ?? 0;
+      if (n > 0) counts[rule] = n;
+    }
+    next[file] = {
+      reason:
+        previous[file]?.reason ??
+        "TODO: audit these occurrences and replace this reason before committing.",
+      counts,
+    };
+  }
+  writeFileSync(BASELINE_FILE, `${JSON.stringify(next, null, 2)}\n`);
+  console.log(`✓ wrote ${BASELINE_FILE} — ${Object.keys(next).length} file(s).`);
+}
+
 function runScan(): void {
   const baseline = loadBaseline();
-  const files = listScannedFiles();
+  const { files, perFile, total } = scanCounts();
 
   if (files.length === 0) {
     console.error(
@@ -236,46 +300,49 @@ function runScan(): void {
     process.exit(1);
   }
 
-  const offenders: string[] = [];
-  const usedBaselineEntries = new Set<string>();
-  let totalOffenses = 0;
+  const problems: string[] = [];
+  let baselined = 0;
 
-  for (const file of files) {
-    const src = readFileSync(file, "utf8");
-    const offenses = extractOffenses(file, src);
-    totalOffenses += offenses.length;
-    for (const offense of offenses) {
-      const key = `${offense.file}:${offense.line}`;
-      if (baseline[key] !== undefined) {
-        usedBaselineEntries.add(key);
-        continue;
+  for (const [file, byRule] of perFile.entries()) {
+    const entry = baseline[file];
+    for (const rule of RULES) {
+      const offenses = byRule.get(rule) ?? [];
+      const allowed = entry?.counts[rule] ?? 0;
+      if (offenses.length > allowed) {
+        const sample = offenses
+          .slice(0, 3)
+          .map((o) => `    ${o.file}:${o.line} \`${o.snippet}\``)
+          .join("\n");
+        problems.push(
+          `${file} — ${offenses.length} ${describeRule(rule)} occurrence(s), baseline allows ${allowed}. Raw jurisdiction predicates outside ${SCOPE_FILE} have caused scope-security drift before (2026-07-04 review). Route NEW ones through a _scope.ts-exported helper, or if genuinely justified, regenerate with --write-baseline and update the file's reason.\n${sample}`,
+        );
+      } else if (offenses.length < allowed) {
+        problems.push(
+          `${file} — baseline allows ${allowed} ${describeRule(rule)} occurrence(s) but only ${offenses.length} remain. Ratchet down: run --write-baseline so the allowance can't silently rot.`,
+        );
+      } else {
+        baselined += offenses.length;
       }
-      offenders.push(
-        `${key} — ${describeRule(offense.rule)}: \`${offense.snippet}\`. Raw jurisdiction predicates outside ${SCOPE_FILE} have caused scope-security drift before (2026-07-04 payload-vs-current-jurisdiction review). Route this through an existing (or new) _scope.ts-exported helper, or if it is genuinely justified, add "${key}": "<reason>" to ${BASELINE_FILE}.`,
+    }
+  }
+
+  for (const file of Object.keys(baseline)) {
+    if (!perFile.has(file)) {
+      problems.push(
+        `${file} — baselined but has no occurrences (or no longer exists). Ratchet down: run --write-baseline.`,
       );
     }
   }
 
-  const staleBaselineEntries = Object.keys(baseline).filter((k) => !usedBaselineEntries.has(k));
-
-  if (offenders.length > 0) {
-    console.error(offenders.join("\n"));
-    console.error(
-      `\n✗ ${offenders.length} raw jurisdiction predicate(s) outside ${SCOPE_FILE} (${files.length} files scanned, ${totalOffenses} occurrences found, ${usedBaselineEntries.size} baselined).`,
-    );
-    process.exit(1);
-  }
-
-  if (staleBaselineEntries.length > 0) {
-    console.error(
-      `✗ ${staleBaselineEntries.length} stale baseline entr${staleBaselineEntries.length === 1 ? "y" : "ies"} in ${BASELINE_FILE} no longer match any offense: ${staleBaselineEntries.join(", ")}. Remove them — a baseline only exists for occurrences that need it.`,
-    );
+  if (problems.length > 0) {
+    console.error(problems.join("\n"));
+    console.error(`\n✗ scope-discipline drift (${files.length} files scanned, ${total} found).`);
     process.exit(1);
   }
 
   console.log(
-    `✓ scope discipline clean — ${files.length} files scanned, ${totalOffenses} raw jurisdiction references checked${
-      usedBaselineEntries.size > 0 ? ` (${usedBaselineEntries.size} baselined)` : ""
+    `✓ scope discipline clean — ${files.length} files scanned, ${total} raw jurisdiction references checked${
+      baselined > 0 ? ` (${baselined} baselined by count)` : ""
     }.`,
   );
 }
@@ -288,5 +355,9 @@ const isMain =
     import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
 
 if (isMain) {
-  runScan();
+  if (process.argv.includes("--write-baseline")) {
+    writeBaseline();
+  } else {
+    runScan();
+  }
 }

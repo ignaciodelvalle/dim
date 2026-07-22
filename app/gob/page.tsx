@@ -16,7 +16,7 @@ import { Icon } from "@/components/Icon";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpKpi, ViewScopeCaption } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { auditLog, db } from "@/db";
@@ -58,6 +58,8 @@ import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { type ActivityFeedRow, collapseActivityFeed } from "@/lib/ui/activity-feed";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { describeMandate } from "@/lib/ui/scope-chrome";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import {
   AR_TIME_ZONE,
   formatCount,
@@ -107,14 +109,21 @@ export default async function GobiernoDashboardPage({
   // never render in the header chrome.
   const roleLabel = profile.role === "admin" ? "Administrador/a" : "Gobierno";
 
-  const scopeLabel =
-    profile.role === "admin"
-      ? "Universal"
-      : jurisdictions.length === 0
-        ? "Sin localidades asignadas"
-        : jurisdictions.length === 1
-          ? `${jurisdictions[0].locality}, ${jurisdictions[0].province}`
-          : `${jurisdictions.length} localidades`;
+  // C3 (ONE VIEWSCOPE): this header describes the operator's MANDATE (raw
+  // session assignments), matching the shared /gob layout badge — never the
+  // page's filtered view. When the URL's province/locality filter narrows
+  // BELOW that mandate, `narrowedView` (rendered as a ViewScopeCaption right
+  // below) discloses the actual scope in view, fed from the SAME resolved
+  // values (filteredJurisdictions/adminProvince/adminLocality) the KPI ctx
+  // below already computed — never re-derived.
+  const scopeLabel = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
 
   // --- All live queries in one bounded Promise.all (18-way, D2) ----------
   // pending, recentDecisions, the KPI queries, and the casos-regulatorios
@@ -146,6 +155,7 @@ export default async function GobiernoDashboardPage({
       <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
         Panel de jurisdicción
       </h1>
+      <ViewScopeCaption scope={narrowedView} />
 
       {/* Header actions */}
       <div className="flex flex-wrap items-center gap-2 pt-1">

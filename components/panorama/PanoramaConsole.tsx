@@ -806,9 +806,23 @@ export function PanoramaConsole({
   // fallback). Lazy-init on the seeded first-visit so the chrome agrees with the
   // seeded data from FIRST paint (SSR + hydration compute the same initializer, so
   // no hydration mismatch); null on the normal path → searchParams wins as before.
+  //
+  // C3 period-drift fix (2026-07-22, plan-maestro-integridad §C3 repro): this
+  // used to seed unconditionally from `getPreset(seededPresetId)?.periodPreset`
+  // — the preset's OWN default window — even when the URL carried an EXPLICIT
+  // `?period=` override. `/gob/panorama?preset=sintomas&period=90d` verified the
+  // drift live: the server (app/*/panorama/page.tsx `seedPeriod`) correctly
+  // honors the explicit 90d override for the KPI fan-out AND the seeded layer
+  // features, but this initializer still wrote committedPeriod="30d" (sintomas's
+  // own periodPreset) — and `periodParam` below prefers committedPeriod over
+  // searchParams, so every caption/scrubber/PeriodPicker reader disagreed with
+  // the 90d data actually on screen ("Síntomas / vigilancia sindrómica — CABA,
+  // últimos 30 días" over a 90-day KPI/map fetch). Mirror the server's own
+  // precedence EXACTLY: an explicit URL `?period=` always wins; only a BARE
+  // `?preset=X` (no period param) falls back to the preset's window.
   const [committedPeriod, setCommittedPeriod] = useState<string | null>(() => {
-    if (hasSeed && seededPresetId != null) return getPreset(seededPresetId)?.periodPreset ?? null;
-    return null;
+    if (!hasSeed || seededPresetId == null) return null;
+    return searchParams.get("period") ?? getPreset(seededPresetId)?.periodPreset ?? null;
   });
   // Root B (panorama QA #3b): the committed CUSTOM window. A custom período now
   // commits SHALLOW (see commitPeriod) — a write useSearchParams() can't observe —

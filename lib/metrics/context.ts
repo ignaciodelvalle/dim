@@ -9,7 +9,10 @@
 //   const kpi  = await fetchRabiesCoverage(ctx);
 
 import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
-import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
+import {
+  isWholeProvinceAssignment,
+  isWholeProvinceLocality,
+} from "@/lib/domain/jurisdiction-canonical";
 
 /** Who is asking: admin (universal scope) or govt (jurisdiction-scoped). */
 export type DashboardActor = { role: "admin" | "govt" };
@@ -149,4 +152,66 @@ export function isSubProvincialScope(ctx: ProjectionContext): boolean {
   return ctx.scope.jurisdictions.some(
     (j) => j.locality !== "" && !isWholeProvinceLocality(j.province, j.locality),
   );
+}
+
+/**
+ * C3 (ONE VIEWSCOPE, plan-maestro-integridad §C3, red-team #2 PO-locked
+ * direction): the province whose `jurisdictions_census` row may serve as a
+ * per-cápita DENOMINATOR for this ctx — or `null` when no single census row
+ * honestly covers it. This is a DIFFERENT question from `isSubProvincialScope`
+ * ("is the numerator sub-provincial?") — it asks "may I divide by the
+ * census?", and answering it from ASSIGNMENTS alone over-suppressed: a
+ * multi-barrio govt (5 CABA barrios, each individually finer than the whole
+ * province) never got a census denominator even when their VIEW aggregates
+ * every one of their assigned barrios — i.e. the whole scope they can see,
+ * which is exactly the grain the province census row describes.
+ *
+ * Eligibility considers the RESOLVED VIEW (ctx.scope.jurisdictions is already
+ * the operator's EFFECTIVE set — every caller builds ctx from
+ * `filteredJurisdictions`, the page's own URL-filter-narrowed array, never the
+ * raw session assignments), not the raw assignment list:
+ *
+ *   - admin, drilled to a province with NO locality  → that province.
+ *   - admin, national (no drill) or locality-drilled → null (no single
+ *     province row applies to "todo el país"; a locality drill is finer than
+ *     province grain, same principle as isSubProvincialScope).
+ *   - govt, effective view spans ONE province AND is not narrowed to a single
+ *     specific locality (a whole-province assignment, OR several localities
+ *     that all share one province with no ?locality= drill down to just one
+ *     of them) → that province.
+ *   - govt, effective view spans multiple provinces, is empty, or IS narrowed
+ *     to a single specific locality → null.
+ *
+ * SURGICAL SCOPE: this does NOT replace `isSubProvincialScope`. A numerator
+ * that is itself locality-grain (e.g. a bite count scoped to one barrio) must
+ * still suppress its per-cápita rate even when the SCOPE would otherwise pass
+ * this check — callers gating "is my numerator narrower than the census row I
+ * want to divide by" keep using `isSubProvincialScope`. Callers gating
+ * "may this VIEW use a census denominator at all" (fetchRabiesCoverage's
+ * census-coverage co-headline, fetchBitesPer10k's percapitaEligible flag) use
+ * THIS resolver instead — see lib/analytics/govt-home-kpis.ts.
+ */
+export function censusEligibleProvince(ctx: ProjectionContext): string | null {
+  if (ctx.scope.kind === "global") {
+    // Admin province drill (no locality) is census-eligible for that
+    // province; national (no drill) and locality drills are not.
+    return ctx.adminProvince && !ctx.adminLocality ? ctx.adminProvince : null;
+  }
+
+  const { jurisdictions } = ctx.scope;
+  if (jurisdictions.length === 0) return null;
+
+  const provinces = [...new Set(jurisdictions.map((j) => j.province))];
+  if (provinces.length !== 1) return null; // spans multiple provinces — no single census row applies.
+
+  // A SINGLE assignment that is NOT whole-province is a locality drill — the
+  // view names one barrio/department, not the province it sits in. Multiple
+  // assignments (even all locality-grain) aggregate into a province-wide VIEW,
+  // which is exactly the fix: the whole-province case below already covers
+  // the single-whole-province assignment (isWholeProvinceAssignment true).
+  if (jurisdictions.length === 1 && !isWholeProvinceAssignment(jurisdictions[0])) {
+    return null;
+  }
+
+  return provinces[0];
 }

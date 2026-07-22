@@ -104,6 +104,23 @@ export function isWholeProvinceLocality(
 }
 
 /**
+ * True for a WHOLE-PROVINCE govt assignment in EITHER stored form: the
+ * generic `locality === ""` sentinel (used by most provinces) or the two-tier
+ * INDEC canonical form above (CABA's whole-city entry, a non-empty locality
+ * NAME). `lib/metrics/context.ts` (`isSubProvincialScope`,
+ * `censusEligibleProvince`) and `lib/ui/scope-chrome.ts` (`describeMandate`)
+ * both need this exact subsumption — the WORDING an operator reads and the
+ * QUERY semantics that scope their data must never disagree about what counts
+ * as "the whole province" (C3, plan-maestro-integridad).
+ */
+export function isWholeProvinceAssignment(j: {
+  province: string;
+  locality: string;
+}): boolean {
+  return j.locality === "" || isWholeProvinceLocality(j.province, j.locality);
+}
+
+/**
  * In-memory counterpart of `jurisdictionPairClause` (lib/metrics/scope.ts):
  * does a govt actor's assigned jurisdiction set contain the target
  * `(province, locality)`?
