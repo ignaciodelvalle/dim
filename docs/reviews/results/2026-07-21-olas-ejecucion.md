@@ -75,6 +75,23 @@ Aprobados + candidatos (Blind spot, empty-state, Panorama split, Fase B) + Fase 
 PO decisions: adoption_reversed = custody→org + re-publish explícito (HECHO); owner-nudges
 = borrado (HECHO); primario/secundario = revertido (HECHO).
 
+## NOCTURNO EXPANDIDO — COMPLETO (2026-07-22)
+- ✅ Toast sweep `5c545b4a` · Skeleton sweep (117) `470e5d95` · smalls (comments+blind-spot+empty)
+  `4ab3585e` (¡el blind spot destapó 11 bugs de scope más!) · Fase B `0839bf2f` · Fase C `c0c1b654`
+  · Panorama split `758eddf3`.
+
+## Preguntas/decisiones para el PO (del nocturno)
+1. **Saved views server-side (cross-device)**: la versión localStorage está hecha; una persistente
+   entre dispositivos necesita TABLA (migración) → decisión tuya.
+2. **Jerarquía de densidad**: revertida a plano (no te gustó primario/secundario). Si querés,
+   probamos otro enfoque (agrupar por secciones sin cambiar tamaños).
+3. **2 shapes reverse-direction de subsunción** (approval-routing, surveillance-repo) flageados —
+   pasada separada.
+4. **Cuerpos mega-closure de PanoramaConsole/SituationalMap** (~4500 líneas): candidatos a refactor
+   test-first, NO se tocaron mecánicamente (riesgo stale-closure).
+5. **Pre-push**: la rama creció MUCHO — antes de pushear conviene un review adversarial fresco nuevo
+   + verify completo sobre todo el rango. Cutover #760 sigue siendo tuyo.
+
 ## Log
 - (start) Plan committed 25e38ae7. Wave 1 kicked off.
 
