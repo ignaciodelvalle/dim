@@ -323,6 +323,7 @@ export default async function GobMaltratoPage({
                 "Denuncias de maltrato sin ningún operador asignado (assignedToId IS NULL). Requieren triage inmediato.",
               formula: "COUNT(welfare_reports WHERE assigned_to_id IS NULL AND status != 'closed')",
             }}
+            descriptorId="maltrato_unassigned_count"
           />
           <OpKpi
             label="Mías"
@@ -334,6 +335,7 @@ export default async function GobMaltratoPage({
               formula:
                 "COUNT(welfare_reports WHERE assigned_to_id = current_user AND status = 'in_progress')",
             }}
+            descriptorId="maltrato_assigned_to_me_count"
           />
           <OpKpi
             // ONE status vocabulary (UI/UX audit 2026-07): the tile label comes
@@ -349,6 +351,7 @@ export default async function GobMaltratoPage({
                 "Total de denuncias con estado 'in_progress' en la jurisdicción del operador (asignadas a alguien).",
               formula: "COUNT(welfare_reports WHERE status = 'in_progress') scoped",
             }}
+            descriptorId="maltrato_in_progress_count"
           />
           <OpKpi
             label="Cerradas (30d)"
@@ -360,6 +363,7 @@ export default async function GobMaltratoPage({
               formula:
                 "COUNT(welfare_reports WHERE status='closed' AND closed_at >= 30d ago) scoped",
             }}
+            descriptorId="maltrato_closed_30d_count"
           />
         </div>
       </div>

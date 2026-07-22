@@ -48,7 +48,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
@@ -189,7 +189,7 @@ export default async function GobProgramaPage({
 
   // outlierCount is a COMBINATION count (provincia × métrica) — correct for the
   // outliers table caption below ("N de M combinaciones bajo meta"), but NOT
-  // honest as the value behind a KPI literally labeled "Provincias en alerta"
+  // honest as the value behind a KPI literally labeled Provincias en alerta
   // (a province can contribute several rows here, one per below-target
   // metric — hence outlierCount routinely exceeding the ~24 AR provinces).
   // alertedProvinceCount collapses those rows to DISTINCT provinces so the KPI
@@ -242,6 +242,7 @@ export default async function GobProgramaPage({
             definition: "Total de mascotas con status 'active' o 'lost' en tu jurisdicción.",
             formula: "COUNT(pets) WHERE status IN ('active','lost') AND scope",
           }}
+          descriptorId="registry_total_pets"
         />
         <OpKpi
           label="Esterilización"
@@ -250,6 +251,7 @@ export default async function GobProgramaPage({
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
           href="/gob/poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
+          descriptorId="sterilization_coverage_population"
         />
         <OpKpi
           label="Microchip"
@@ -258,6 +260,7 @@ export default async function GobProgramaPage({
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
           href="/gob/censo"
           info={getKpiInfo("microchip_penetration")}
+          descriptorId="microchip_penetration"
         />
         <OpKpi
           label="SLA ENO"
@@ -272,6 +275,7 @@ export default async function GobProgramaPage({
           }
           href="/gob/outbox"
           info={getKpiInfo("eno_sla_compliance")}
+          descriptorId="eno_sla_compliance"
         />
         <OpKpi
           label="Cola más vieja"
@@ -292,14 +296,15 @@ export default async function GobProgramaPage({
               "Días de antigüedad de la solicitud pendiente más antigua en tu jurisdicción.",
             formula: "now() - min(created_at) WHERE status='pending' AND jurisdiction IN scope",
           }}
+          descriptorId="queue_oldest_pending_days"
         />
         {/* Honesty fix (2026-07-22): this used to render outlierCount, a
             provincia×métrica COMBINATION count — routinely > 24, impossible
-            for a KPI labeled "Provincias en alerta" when Argentina has ~24
+            for a KPI labeled Provincias en alerta when Argentina has ~24
             provinces. alertedProvinceCount is the DISTINCT-province count
             (≤ total provinces) that actually matches the label. */}
         <OpKpi
-          label="Provincias en alerta"
+          label={KPI_CATALOG.alerted_provinces_below_target.label}
           value={alertedProvinceCount.toLocaleString("es-AR")}
           tone={alertedProvinceCount === 0 ? "ok" : alertedProvinceCount > 5 ? "danger" : "warn"}
           sub="provincias con ≥1 métrica bajo meta"
@@ -308,6 +313,7 @@ export default async function GobProgramaPage({
               "Número de provincias con al menos una métrica (esterilización, microchip, etc.) por debajo de la meta en tu jurisdicción.",
             formula: "COUNT(DISTINCT province) WHERE EXISTS métrica con rate < target AND scope",
           }}
+          descriptorId="alerted_provinces_below_target"
         />
       </section>
 

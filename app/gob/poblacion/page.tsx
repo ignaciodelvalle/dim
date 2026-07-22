@@ -171,7 +171,7 @@ export default async function GobPoblacionPage({
   // Bound the fetcher set with a deadline so a degraded DB yields an honest
   // "reintentar" state instead of an unbounded hang (parity with /admin/poblacion).
   // fetchPrevRegisteredBirths adds ONE new query (same scope, shifted one
-  // period back) purely to power the "Nacimientos registrados" deltaV2 chip —
+  // period back) purely to power the Nacimientos registrados deltaV2 chip —
   // mirrors campaign-metrics.ts' fetchPrevTotals pattern.
   // species narrows every fetcher below identically so the KPI row, ratio
   // tile, net-growth breakdown, trend, and choropleth all agree (domain-axes work).
@@ -265,6 +265,7 @@ export default async function GobPoblacionPage({
           }
           sparkline={hasTrend ? sterilTrend.points.map((p) => p.y) : undefined}
           info={getKpiInfo("sterilization_coverage_population")}
+          descriptorId="sterilization_coverage_population"
         />
 
         {/* KPI 1b: Deworming coverage — sanitary sibling of esterilización, 12m window */}
@@ -279,6 +280,7 @@ export default async function GobPoblacionPage({
               : "Sin datos en la cobertura"
           }
           info={getKpiInfo("deworming_coverage_population")}
+          descriptorId="deworming_coverage_population"
         />
 
         {/* KPI 2: Active pregnancies */}
@@ -288,11 +290,12 @@ export default async function GobPoblacionPage({
           sub="preñez registrada y aún no cerrada"
           tone={activePregnancies > 0 ? "warn" : "neutral"}
           info={getKpiInfo("active_pregnancies")}
+          descriptorId="active_pregnancies"
         />
 
         {/* KPI 3: Registered births — with natalidad caveat */}
         <OpKpi
-          label="Nacimientos registrados"
+          label={KPI_CATALOG.registered_births.label}
           value={outcomes.registeredBirths.toLocaleString("es-AR")}
           sub={natalidadCaveatText}
           tone="neutral"
@@ -305,6 +308,8 @@ export default async function GobPoblacionPage({
             caveat:
               "Solo cuenta partos de preñeces registradas en el sistema. Partos callejeros y camadas sin seguimiento son invisibles. Este número subestima la natalidad real — tratarlo como indicador direccional, no como dato exacto.",
           }}
+          descriptorId="registered_births"
+          guardInput={{ priorBase: prevRegisteredBirths }}
         />
 
         {/* KPI 4: Net registry inflow — directional, neutral tone.
@@ -315,7 +320,7 @@ export default async function GobPoblacionPage({
             Relabeled to name what's actually summed; the caveat now says so
             explicitly instead of only warning about the natality undercount. */}
         <OpKpi
-          label="Altas netas registradas"
+          label={KPI_CATALOG.net_registry_inflow.label}
           value={
             netGrowth.net > 0
               ? `+${netGrowth.net.toLocaleString("es-AR")}`
@@ -330,6 +335,7 @@ export default async function GobPoblacionPage({
             caveat:
               "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en miMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento — callejero y camadas sin registro son invisibles. Un valor positivo refleja sobre todo ritmo de adopción del sistema, no necesariamente más mascotas vivas.",
           }}
+          descriptorId="net_registry_inflow"
         />
       </section>
 

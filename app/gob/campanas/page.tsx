@@ -222,6 +222,8 @@ export default async function GobCampanasPage({
                 caveat: "Turnos cancelados no se cuentan.",
               }}
               drillHref="/gob/servicios"
+              descriptorId="campaign_enrollment"
+              guardInput={{ priorBase: dashboard.prevTotals.enrollment }}
             />
 
             <OpKpi
@@ -244,6 +246,8 @@ export default async function GobCampanasPage({
                 definition: `Porcentaje de turnos que resultaron en asistencia efectiva. Meta: ${TARGETS.CAMPAIGN_COMPLETION_PCT}%.`,
                 formula: "attended / enrollment × 100",
               }}
+              descriptorId="campaign_completion_rate"
+              guardInput={{ n: dashboard.totals.enrollment }}
             />
 
             <OpKpi
@@ -254,6 +258,8 @@ export default async function GobCampanasPage({
               info={{
                 definition: "Cantidad de turnos donde el animal fue efectivamente atendido.",
               }}
+              descriptorId="campaign_attendance"
+              guardInput={{ priorBase: dashboard.prevTotals.completion }}
             />
 
             <OpKpi
@@ -265,6 +271,8 @@ export default async function GobCampanasPage({
                 definition: "Turnos donde el animal no se presentó (no-show).",
                 caveat: "Las ausencias pueden indicar barreras de acceso — considerar recontacto.",
               }}
+              descriptorId="campaign_no_show"
+              guardInput={{ priorBase: dashboard.prevTotals.noShow }}
             />
 
             {/* Sanitary OUTCOME — projected over the pet_events spine, not logistics.
@@ -283,6 +291,7 @@ export default async function GobCampanasPage({
                     ? `Conversión asistencia → prestación: ${dashboard.totals.outcomeConversionRate}%. Por debajo de 100% indica turnos asistidos sin registro sanitario inmutable.`
                     : "Atribución exacta por turno (outcome_event_id), no un proxy por ventana temporal.",
               }}
+              descriptorId="campaign_sanitary_outcome"
             />
           </section>
 

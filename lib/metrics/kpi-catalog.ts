@@ -79,7 +79,52 @@ export type KpiId =
   | "adoption_application_conversion"
   | "eno_sla_compliance"
   | "reunification_rate"
-  | "bite_escalation_gap";
+  | "bite_escalation_gap"
+  | "outbreak_active_signals"
+  | "rabies_observation_cases_open"
+  | "pets_registered_today"
+  | "vaccinations_weekly"
+  | "outbreak_investigations_active"
+  | "rabies_observation_compliance_10d"
+  | "amr_density"
+  | "registry_total_pets"
+  | "queue_oldest_pending_days"
+  | "alerted_provinces_below_target"
+  | "registry_active_pets"
+  | "registry_dormant_pets"
+  | "registry_incomplete_profiles"
+  | "registered_births"
+  | "net_registry_inflow"
+  | "shelter_custody_occupied"
+  | "foster_active_placements"
+  | "adoptions_finalized"
+  | "campaign_enrollment"
+  | "campaign_completion_rate"
+  | "campaign_attendance"
+  | "campaign_no_show"
+  | "campaign_sanitary_outcome"
+  | "outreach_overdue_rabies_count"
+  | "outreach_stray_scan_areas"
+  | "outreach_sterilization_vets_ranked"
+  | "mortality_deaths_period"
+  | "mortality_unknown_disposal_rate"
+  | "mortality_reportable_share"
+  | "lost_pets_active_stock"
+  | "lost_pets_recovered_30d"
+  | "lost_pets_avg_days_active"
+  | "reunification_median_recovery_days"
+  | "acquisition_adoption_rate"
+  | "custody_disputes_open"
+  | "seizures_period_count"
+  | "maltrato_unassigned_count"
+  | "maltrato_assigned_to_me_count"
+  | "maltrato_in_progress_count"
+  | "maltrato_closed_30d_count"
+  | "territorial_index_provinces_evaluated"
+  | "territorial_index_average_score"
+  | "policy_outcome_rule_changes_analyzed"
+  | "ghost_records_count"
+  | "queue_pending_total";
 
 /** Unit of the KPI's `value` field, for consistent formatting across surfaces. */
 export type KpiUnit = "percent" | "count" | "rate_per_10k" | "ratio" | "days";
@@ -644,12 +689,19 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     source: "pet_events (death_recorded)",
     fetcherName: "fetchMortalityDisposition",
     fetcherPath: "lib/analytics/mortality-metrics.ts",
-    cadence: "trailing 12 months",
+    // C1 correction (2026-07-22): this descriptor's only real render site is
+    // /gob/mortalidad (via getKpiInfo, wired here in the same sweep), which
+    // has an ADJUSTABLE period picker (defaultPreset trailing12m, but the
+    // operator can change it) — "trailing 12 months" as a FIXED cadence was
+    // inaccurate documentation (it described mortality_deaths_12m's fixed-12m
+    // home-page sibling, not this tile's actual ctx.period behavior).
+    cadence:
+      "matches the caller's ProjectionContext period (adjustable via /gob/mortalidad's period picker; default trailing 12 months)",
     unit: "percent",
     suppression: "none",
     caveat:
       "Target: 75% traceable; ≥25% unknown disposition is treated as a breach (DISPOSAL_UNKNOWN_BREACH_PCT).",
-    window: "12m",
+    window: "period",
     species: "all_species",
     basis: "ratio",
     question:
@@ -661,6 +713,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       // signal) when there simply were no deaths to trace — the exact "0/0
       // → 0%" class this task fences. Mirrors mortality_deaths_12m's guard.
       zeroDenominator: "dash",
+      // C1 addition: a handful of total deaths can make this rate read as a
+      // confident "100% trazable" or "0% trazable" on 1-2 cases.
+      smallN: { min: 5 },
     },
     ui: {
       definition:
@@ -788,6 +843,25 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "period",
     species: "all_species",
     basis: "ratio",
+    // C1 (2026-07-22): target/semaphore/guards were previously omitted even
+    // though TARGETS.ADOPTION_RETURN_RATE_PCT is a real internal benchmark —
+    // populated per the honesty rule (a real target with a source exists).
+    // Lower-is-better: toneForTarget is called with higherIsBetter:false at
+    // every render site (both /gob and /admin/adopciones).
+    question:
+      "¿Qué porcentaje de adopciones finalizadas en el período fueron revertidas (devueltas)?",
+    target: {
+      value: TARGETS.ADOPTION_RETURN_RATE_PCT,
+      source: "meta programática interna (retención/calidad de colocación)",
+    },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // A handful of adoptions in a small jurisdiction/period can make one
+      // reversal read as a dramatic double-digit return rate — same "100%
+      // con N chico" class fenced elsewhere.
+      smallN: { min: 5 },
+      zeroDenominator: "dash",
+    },
     ui: {
       definition:
         "Fracción de adopciones finalizadas que fueron revertidas en el período. Menor es mejor.",
@@ -917,6 +991,15 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "period",
     species: "n/a",
     basis: "ratio",
+    question:
+      "¿Qué porcentaje de notificaciones ENO se entregaron dentro del plazo SLA en el período y scope seleccionados?",
+    // C1 (2026-07-22): target was previously omitted even though
+    // TARGETS.ENO_SLA_PCT is a real, sourced benchmark (ANMAT/SENASA
+    // operational targets) — the honesty rule requires populating target
+    // whenever one genuinely exists with a source.
+    target: { value: TARGETS.ENO_SLA_PCT, source: "benchmark operativo ANMAT/SENASA" },
+    semaphore: { paintAgainst: "target" },
+    guards: { zeroDenominator: "dash" },
     ui: {
       definition:
         "Porcentaje de notificaciones ENO (Enfermedades de Notificación Obligatoria, target_kind='eno_authority') entregadas dentro del plazo SLA en el período y scope seleccionados (A7). Mide la cola interna de la bandeja de salida, no la entrega externa a la autoridad.",
@@ -1017,6 +1100,1144 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       caveat:
         "Los reportes de mordedura sin una observación abierta correspondiente NO implican ausencia de riesgo — pueden reflejar sub-escalamiento, no sub-incidencia.",
     },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22, plan-maestro §3) — /gob/vigilancia's remaining tiles.
+  // fetchVigilanciaMetrics is ONE composite query returning five independent
+  // fields; each field gets its own catalog entry (own question/window/basis)
+  // rather than sharing one entry, matching the active_zoonosis_signals →
+  // open_rabies_observations/open_bite_cases/notified_diseases decomposition
+  // precedent above. fetcherName disambiguates the shared function with a
+  // parenthetical field suffix (kpi-catalog.test.ts enforces fetcherName
+  // uniqueness across entries).
+  // ---------------------------------------------------------------------------
+
+  outbreak_active_signals: {
+    id: "outbreak_active_signals",
+    label: "Brotes activos (30 días)",
+    numerator:
+      "COUNT outbreak_signal events with status='open', occurred within the trailing 30 days",
+    denominator: "n/a — absolute count",
+    source: "pet_events (outbreak_signal)",
+    fetcherName: "fetchVigilanciaMetrics (outbreakActiveCount)",
+    fetcherPath: "lib/analytics/dashboards/surveillance.ts",
+    cadence:
+      "trailing 30 days ending now — a live open-status snapshot filtered to signals opened within the window",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "No delta shown: this is a status snapshot (open/closed), not a period flow — a reopened or newly-closed signal shifts the count independent of 'when' it fired, so a period-over-period comparison would misrepresent a status change as an activity trend (same reasoning documented inline at fetchVigilanciaMetrics' definition site).",
+    window: "30d",
+    species: "n/a",
+    basis: "stock",
+    question:
+      "¿Cuántas señales de brote siguen abiertas ahora mismo, entre las iniciadas en los últimos 30 días?",
+    // No target: there is no legal/programmatic benchmark for "how many
+    // active outbreaks are acceptable" — the render site's warn tone on >0
+    // is an operational-attention signal, not a target-derived verdict.
+    semaphore: { paintAgainst: "none" },
+  },
+
+  rabies_observation_cases_open: {
+    id: "rabies_observation_cases_open",
+    label: "Casos de observación rábica abiertos",
+    numerator: "COUNT cases where case_kind='rabies_observation' AND status='open'",
+    denominator: "n/a — absolute count",
+    source: "cases",
+    fetcherName: "fetchVigilanciaMetrics (rabiesActiveCount)",
+    fetcherPath: "lib/analytics/dashboards/surveillance.ts",
+    cadence: "'now' snapshot — no window filter",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta formal — el tono de atención (rojo cuando >0) refleja urgencia operativa, no un veredicto de incumplimiento legal (ese vive en rabies_observation_compliance_10d, el cumplimiento del plazo de 10 días).",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question:
+      "¿Cuántos casos de observación rábica siguen abiertos en la jurisdicción, ahora mismo?",
+    exclusions:
+      "Distinto de open_rabies_observations (catálogo): ese cuenta MASCOTAS con rabies_observation_status='in_progress' (tabla pets); este cuenta CASOS (tabla cases) con case_kind='rabies_observation' y status='open' — poblaciones y tablas distintas, no deben sumarse ni leerse como la misma cifra.",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  pets_registered_today: {
+    id: "pets_registered_today",
+    label: "Altas registradas hoy",
+    numerator: "COUNT pets created since local midnight (today, partial day in progress)",
+    denominator: "n/a — absolute count",
+    source: "pets",
+    fetcherName: "fetchVigilanciaMetrics (petsRegisteredToday)",
+    fetcherPath: "lib/analytics/dashboards/surveillance.ts",
+    cadence:
+      "since midnight UTC today — a partial, still-accumulating day, not a completed 24h window",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Ventana parcial (día en curso) — compararla contra un día completo anterior (o la misma hora de ayer) produciría una variación falsa temprano en el día; por eso este tile no muestra delta.",
+    window: "now",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas mascotas se registraron en el sistema desde la medianoche de hoy?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  vaccinations_weekly: {
+    id: "vaccinations_weekly",
+    label: "Vacunaciones (7 días)",
+    numerator:
+      "COUNT vaccination_administered events in the trailing 7 days, scoped by the pet's home jurisdiction",
+    denominator: "n/a — flow count, compared against the PRIOR 7-day window for the deltaV2 chip",
+    source: "pet_events (vaccination_administered)",
+    fetcherName: "fetchVigilanciaMetrics (vaccinationsThisWeek)",
+    fetcherPath: "lib/analytics/dashboards/surveillance.ts",
+    cadence: "trailing 7 days vs the prior 7 days (fetchPrevVaccinationsWeek)",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta propia — la cobertura antirrábica de 80% (rabies_coverage_dogs_12m) es una métrica DISTINTA, de stock sobre 12 meses, no comparable con este conteo semanal de eventos.",
+    window: "7d",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas vacunaciones se registraron esta semana y cómo viene la tendencia?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      // Same "−95% MoM sobre base inestable" class as sterilizations_per_month
+      // — a delta computed against a near-zero prior-7d base is noise, not a
+      // trend. Same floor convention (5) used elsewhere in this task.
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
+  },
+
+  outbreak_investigations_active: {
+    id: "outbreak_investigations_active",
+    label: "Casos bajo investigación activa",
+    numerator:
+      "COUNT cases where case_kind='outbreak_investigation' AND status IN ('open','escalated')",
+    denominator: "n/a — absolute count",
+    source: "cases",
+    fetcherName: "fetchVigilanciaMetrics (investigationActiveCount)",
+    fetcherPath: "lib/analytics/dashboards/surveillance.ts",
+    cadence:
+      "'now' live stock — mirrors the active-status filter the admin investigations queue uses, minus its 90-day recently-closed extension",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta formal — el tono de atención (ámbar cuando >0) es una señal operativa de carga de trabajo, no un veredicto de cumplimiento.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question:
+      "¿Cuántas investigaciones de brote siguen activas (abiertas o escaladas) en la jurisdicción?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  rabies_observation_compliance_10d: {
+    id: "rabies_observation_compliance_10d",
+    label: "Cumplimiento observación rábica (10 días)",
+    numerator:
+      "COUNT rabies observations (started/ended event pair) that closed within the legal window (10 calendar days by default; jurisdiction-specific via resolveBusinessRule), closed within the ctx period",
+    denominator: "COUNT rabies observations closed within the SAME ctx period — null when 0 closed",
+    source: "pets, pet_events (rabies_observation_started, rabies_observation_ended)",
+    fetcherName: "fetchRabiesObservationCompliance",
+    fetcherPath: "lib/analytics/surveillance-metrics.ts",
+    cadence:
+      "matches the caller's ProjectionContext period; openBreaches (A9) is a live 'now' snapshot of observations already open past the legal window, independent of the selected period",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "Un incumplimiento vivo (observación abierta hace más de 10 días, A9) puede coexistir con compliancePct=100% del período, porque miden poblaciones distintas: compliancePct solo cuenta observaciones YA CERRADAS en el período; openBreaches cuenta observaciones AÚN ABIERTAS ahora.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "De las observaciones rábicas cerradas en el período, ¿qué porcentaje cerró dentro del plazo legal de 10 días?",
+    target: {
+      value: 100,
+      source:
+        "Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA (ventana de 10 días, o la ventana jurisdiction-specific resuelta vía resolveBusinessRule)",
+    },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // A "100% cumplimiento" over 1-2 closed observations reads as a
+      // confident legal-compliance win on a tiny sample — same "100% con
+      // N=2" class the reunification guard fences.
+      smallN: { min: 5 },
+      zeroDenominator: "dash",
+    },
+    confidence: {
+      inputs: [
+        "openBreaches (A9) es un conteo vivo, independiente del período seleccionado — una tasa 100% del período no implica cero incumplimientos activos ahora",
+      ],
+    },
+  },
+
+  amr_density: {
+    id: "amr_density",
+    label: "Densidad de antimicrobianos (ATM/AMR)",
+    numerator:
+      "COUNT medication_started events whose drug_code classifies as antimicrobial (curated DRUG_CATALOG), in the ctx period",
+    denominator: "COUNT active pets in scope, divided by 1,000 — null when 0 active pets",
+    source: "pet_events (medication_started), pets, drug catalog (lib/drugs.ts)",
+    fetcherName: "fetchAmrDensity",
+    fetcherPath: "lib/analytics/surveillance-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "rate_per_10k",
+    suppression: "none",
+    caveat:
+      "Sin meta programática ni legal — es una señal de monitoreo (presión selectiva de resistencia antimicrobiana), no una medida de cumplimiento. Reutiliza el slot de unidad 'rate_per_10k' pero el valor está expresado por 1.000 (mismo patrón que vet_access_per_1k_locality).",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "¿Cuántos inicios de tratamiento antimicrobiano se registraron por cada 1.000 mascotas activas en el período?",
+    exclusions:
+      "Fármacos sin drug_code clasificado en el catálogo se reportan aparte (provisionalUnclassified) y NO se incluyen en la tasa.",
+    // No semaphore declared: this tile renders no conditional tone at all
+    // (always neutral) — the "omit only for KPIs with no color" carve-out.
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/programa + /admin/programa's North-Star strip.
+  // ---------------------------------------------------------------------------
+
+  registry_total_pets: {
+    id: "registry_total_pets",
+    label: "Total de mascotas registradas",
+    numerator: "COUNT pets where status IN ('active','lost')",
+    denominator: "n/a — absolute count",
+    source: "pets",
+    fetcherName: "registryCounts (total) / fetchAnalyticsMetrics (totalPets)",
+    fetcherPath: "lib/metrics/census.ts",
+    cadence: "point-in-time snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta — es un conteo de tamaño del padrón, no una tasa de cumplimiento. Compartido por /gob/programa, /admin/programa, /gob/censo, /admin/censo (vía registryCounts) y /gob/analytics (vía fetchAnalyticsMetrics, lib/analytics/dashboards/analytics.ts) — DOS fetchers distintos, mismo predicado exacto (status IN ('active','lost')) verificado — no un cómputo duplicado por accidente.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántas mascotas activas o extraviadas hay registradas en el padrón, en este scope?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  queue_oldest_pending_days: {
+    id: "queue_oldest_pending_days",
+    label: "Antigüedad de la cola de aprobaciones",
+    numerator: "MAX(now() − created_at) sobre filas pendientes de la cola de aprobaciones, en días",
+    denominator:
+      "n/a — absolute count (days), paired with pendingTotal / pending14dPlus / pending30dPlus / pending60dPlus buckets",
+    source: "cola de aprobaciones (ver fetchQueueHealth / fetchQueueHealthScoped)",
+    fetcherName: "fetchQueueHealth (admin) / fetchQueueHealthScoped (govt)",
+    fetcherPath: "lib/analytics/admin-metrics.ts",
+    cadence: "'now' live snapshot",
+    unit: "days",
+    suppression: "none",
+    caveat:
+      "Los umbrales de color (14/30 días) son heurísticas operativas internas, no una meta legal o programática con fuente citable — por eso semaphore: none pese a que el tile sigue pintando ámbar/rojo por antigüedad.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question:
+      "¿Cuántos días de antigüedad tiene la solicitud pendiente más vieja en la cola de aprobaciones?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  alerted_provinces_below_target: {
+    id: "alerted_provinces_below_target",
+    label: "Provincias en alerta",
+    numerator:
+      "COUNT DISTINCT provinces with ≥1 metric (rabies/sterilization/microchip) below its programmatic target",
+    denominator: "n/a — absolute count (bounded by the ~24 AR provinces)",
+    source: "derivado de fetchCrossJurisdictionOutliers vía countAlertedProvinces",
+    fetcherName: "countAlertedProvinces",
+    fetcherPath: "lib/metrics/program-health.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Composite ops tile: agrega el estado de VARIAS métricas con metas distintas (antirrábica/esterilización/microchip) — no tiene una meta propia; el tono (ok/warn/danger por umbral de cantidad de provincias) es una heurística de atención, no un veredicto único.",
+    window: "period",
+    species: "all_species",
+    basis: "stock",
+    question: "¿Cuántas provincias tienen al menos una métrica programática por debajo de su meta?",
+    exclusions:
+      "No cuenta combinaciones (provincia×métrica, ese es outlierCount y puede superar 24) — cuenta provincias ÚNICAS, por eso nunca puede exceder el total de provincias (~24).",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/censo + /admin/censo's KPI row.
+  // ---------------------------------------------------------------------------
+
+  registry_active_pets: {
+    id: "registry_active_pets",
+    label: "Mascotas activas",
+    numerator: "COUNT pets where status = 'active'",
+    denominator: "n/a — absolute count (excludes 'lost')",
+    source: "pets",
+    fetcherName: "registryCounts (active)",
+    fetcherPath: "lib/metrics/census.ts",
+    cadence: "point-in-time snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Excluye 'lost' — es el subconjunto activo de registry_total_pets, no un porcentaje sobre ese total.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question: "¿Cuántas mascotas tienen status='active' (excluyendo extraviadas) en este scope?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  registry_dormant_pets: {
+    id: "registry_dormant_pets",
+    label: "Mascotas inactivas (dormant)",
+    numerator: `COUNT active/lost pets with NO pet_events (event_type <> 'credential_scanned') in the trailing ${TARGETS.DORMANT_MONTHS} months — pets with zero logged events also count as dormant`,
+    denominator: "COUNT active/lost pets in scope",
+    source: "pets, pet_events",
+    fetcherName: "registryCounts (dormant)",
+    fetcherPath: "lib/metrics/census.ts",
+    cadence: `trailing ${TARGETS.DORMANT_MONTHS} months, recomputed on every render`,
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "Los umbrales de color (>20% ámbar, >40% rojo) son heurísticas operativas internas, no una meta legal o programática con fuente citable — por eso semaphore: none pese a que el tile sigue pintando ámbar/rojo. credential_scanned se excluye porque se purga automáticamente a los 90 días y no representa actividad del propietario.",
+    window: "12m",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "¿Qué porcentaje del padrón no tiene ninguna actividad de propietario registrada en los últimos 12 meses?",
+    semaphore: { paintAgainst: "none" },
+    guards: { zeroDenominator: "dash" },
+  },
+
+  registry_incomplete_profiles: {
+    id: "registry_incomplete_profiles",
+    label: "Perfiles incompletos",
+    numerator:
+      "COUNT active/lost pets missing at least one of: active microchip_iso identification, known sex (≠ 'unknown'), jurisdiction_locality",
+    denominator: "COUNT active/lost pets in scope",
+    source: "pets, pet_identifications",
+    fetcherName: "registryCounts (incomplete)",
+    fetcherPath: "lib/metrics/census.ts",
+    cadence: "point-in-time snapshot",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "Los umbrales de color (>15% ámbar, >30% rojo) son heurísticas operativas internas, no una meta legal o programática con fuente citable.",
+    window: "now",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "¿Qué porcentaje del padrón no tiene al menos uno de: chip activo, sexo conocido, o localidad?",
+    semaphore: { paintAgainst: "none" },
+    guards: { zeroDenominator: "dash" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/poblacion + /admin/poblacion's KPI row.
+  // ---------------------------------------------------------------------------
+
+  registered_births: {
+    id: "registered_births",
+    label: "Nacimientos registrados",
+    numerator:
+      "COUNT clinical_info_logged events where sub_kind='pregnancy', pregnancy_phase='ended', outcome='live_birth', in the ctx period",
+    denominator: "n/a — flow count, compared against the PRIOR period for the deltaV2 chip",
+    source: "pet_events (clinical_info_logged)",
+    fetcherName: "fetchReproductiveOutcomes",
+    fetcherPath: "lib/metrics/population-control.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Solo cuenta partos de preñeces registradas EN SEGUIMIENTO en el sistema — partos callejeros y camadas sin seguimiento son invisibles. Subestima la natalidad real: indicador direccional, no exacto. Por eso nunca pinta tono (siempre neutral) pese a tener delta.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question:
+      "¿Cuántos nacimientos de preñeces EN SEGUIMIENTO se registraron en el período, y cómo viene la tendencia?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      // Same "−95% MoM sobre base inestable" class fenced elsewhere — a
+      // handful of tracked births swings wildly period over period.
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
+  },
+
+  net_registry_inflow: {
+    id: "net_registry_inflow",
+    label: "Altas netas registradas",
+    numerator:
+      "altas (COUNT pets.created_at in the ctx period) + registeredBirths (live_birth events in the same period)",
+    denominator: "menos deaths (COUNT death_recorded events in the same period) — net, not a ratio",
+    source: "pets, pet_events (clinical_info_logged, death_recorded)",
+    fetcherName: "fetchNetGrowth",
+    fetcherPath: "lib/metrics/population-control.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en MiMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento. Un valor positivo refleja sobre todo ritmo de adopción del sistema, no necesariamente más mascotas vivas. Por eso el tono es SIEMPRE neutral — nunca pinta ok/danger.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question:
+      "¿Cuál es el balance de altas − nacimientos registrados − muertes en el período? (indicador direccional, no un conteo de crecimiento poblacional real)",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/adopciones + /admin/adopciones' KPI row.
+  // ---------------------------------------------------------------------------
+
+  shelter_custody_occupied: {
+    id: "shelter_custody_occupied",
+    label: "En custodia (refugio)",
+    numerator: "SUM active ownerships where role='shelter_custody' AND ended_at IS NULL",
+    denominator: "n/a — absolute count (this tile shows the numerator alone, not the % ratio)",
+    source: "ownerships",
+    fetcherName: "fetchShelterOccupancyNational (occupied)",
+    fetcherPath: "lib/metrics/custody.ts",
+    cadence: "point-in-time snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Reutiliza el mismo fetcher que shelter_occupancy_national (catálogo) pero muestra solo el numerador 'occupied' — no el % ocupación/cupo. En /gob/adopciones el valor está scoped a la jurisdicción vía ownerships; el cupo (capacity) sigue siendo NACIONAL (config de organizaciones, no divisible por jurisdicción) — por eso esta tile nunca muestra un %, solo el conteo.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question: "¿Cuántos animales están actualmente en custodia activa de refugio, en este scope?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  foster_active_placements: {
+    id: "foster_active_placements",
+    label: "En tránsito (foster)",
+    numerator: "COUNT ownerships where role='foster' AND ended_at IS NULL",
+    denominator: "n/a — absolute count",
+    source: "ownerships",
+    fetcherName: "fetchFosterPoolUtilization (activeFosterPlacements)",
+    fetcherPath: "lib/metrics/custody.ts",
+    cadence: "point-in-time snapshot",
+    unit: "count",
+    suppression: "none",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántas colocaciones de tránsito (foster) están activas ahora mismo, en este scope?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  adoptions_finalized: {
+    id: "adoptions_finalized",
+    // C1 label precision (2026-07-22): renamed from bare "Adopciones" — that
+    // string collided (registry-import fence, lint:metric-labels) with
+    // unrelated UI copy elsewhere (org daily-loop task labels, the
+    // notificaciones category map) that has nothing to do with this KPI.
+    // "Adopciones finalizadas" is also more precise on its own merits — it
+    // names the exact adoption_finalized event, not the broader adoption
+    // *process* (postulaciones, embudo, etc.) other surfaces also discuss.
+    label: "Adopciones finalizadas",
+    numerator: "COUNT adoption_finalized events in the ctx period",
+    denominator: "n/a — flow count, compared against the PRIOR period for the deltaV2 chip",
+    source: "pet_events (adoption_finalized)",
+    fetcherName: "fetchCustodyFunnel (adoption)",
+    fetcherPath: "lib/metrics/custody.ts",
+    cadence:
+      "matches the caller's ProjectionContext period vs the prior period (fetchPrevAdoptionCount)",
+    unit: "count",
+    suppression: "none",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas adopciones se finalizaron en el período, y cómo viene la tendencia?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      // Same "−95% MoM sobre base inestable" class fenced elsewhere.
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/campanas' KPI row.
+  // ---------------------------------------------------------------------------
+
+  campaign_enrollment: {
+    id: "campaign_enrollment",
+    label: "Inscripciones (campañas)",
+    numerator:
+      "COUNT appointment turnos reservados (status IN confirmed/attended/no_show) in the ctx period, for offerings matching the optional serviceKind filter",
+    denominator: "n/a — flow count, compared against the PRIOR period for the deltaV2 chip",
+    source: "appointments, service_offerings",
+    fetcherName: "fetchCampaignDashboard (totals.enrollment)",
+    fetcherPath: "lib/analytics/campaign-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period vs the prior period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Turnos cancelados no se cuentan. Tono siempre 'blue' (informativo) — no es una tasa de cumplimiento.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántos turnos se reservaron en campañas sanitarias en el período?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
+  },
+
+  campaign_completion_rate: {
+    id: "campaign_completion_rate",
+    label: "Completitud de campañas",
+    numerator: "COUNT appointments with status='attended' in the ctx period",
+    denominator: "COUNT enrollment (turnos reservados) in the SAME period — null when 0",
+    source: "appointments",
+    fetcherName: "fetchCampaignDashboard (totals.completionRate)",
+    fetcherPath: "lib/analytics/campaign-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "No muestra delta: el único dato de período anterior disponible es un delta de VOLUMEN (conteo), no de tasa — mostrar '+100%' junto a una tasa estable del 72% implicaría un salto que no ocurrió.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
+    question: "¿Qué porcentaje de turnos reservados en campañas resultó en asistencia efectiva?",
+    target: { value: TARGETS.CAMPAIGN_COMPLETION_PCT, source: "meta programática de campañas" },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // A handful of turnos in a small campaign can read as a deceptively
+      // confident completion rate (e.g. 1 de 1 = 100%).
+      smallN: { min: 5 },
+      zeroDenominator: "dash",
+    },
+  },
+
+  campaign_attendance: {
+    id: "campaign_attendance",
+    label: "Asistencias (campañas)",
+    numerator: "COUNT appointments with status='attended' in the ctx period",
+    denominator: "n/a — flow count, compared against the PRIOR period for the deltaV2 chip",
+    source: "appointments",
+    fetcherName: "fetchCampaignDashboard (totals.completion)",
+    fetcherPath: "lib/analytics/campaign-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period vs the prior period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Mismo numerador que campaign_completion_rate, mostrado como conteo absoluto en vez de tasa. Tono siempre 'ok' (no deriva de una meta) — es un conteo de actividad, no un veredicto.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas asistencias efectivas hubo en campañas en el período?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
+  },
+
+  campaign_no_show: {
+    id: "campaign_no_show",
+    label: "Ausencias (campañas)",
+    numerator: "COUNT appointments with status='no_show' in the ctx period",
+    denominator: "n/a — flow count, compared against the PRIOR period for the deltaV2 chip",
+    source: "appointments",
+    fetcherName: "fetchCampaignDashboard (totals.noShow)",
+    fetcherPath: "lib/analytics/campaign-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period vs the prior period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta formal — el tono de atención (ámbar cuando >0) es una señal operativa (posibles barreras de acceso), no un veredicto de cumplimiento.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas ausencias (no-show) hubo en campañas en el período?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
+  },
+
+  campaign_sanitary_outcome: {
+    id: "campaign_sanitary_outcome",
+    label: "Impacto sanitario (campañas)",
+    numerator:
+      "COUNT sanitary pet_events (vaccination_administered / sterilization_performed / deworming_administered) linked to an ATTENDED campaign appointment via appointments.outcome_event_id, in the ctx period",
+    denominator:
+      "n/a — absolute count; outcomeConversionRate (attended → prestación) is shown in the info caveat, not as a separate tile",
+    source: "appointments, pet_events",
+    fetcherName: "fetchCampaignDashboard (totals.sanitaryOutcome)",
+    fetcherPath: "lib/analytics/campaign-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Es el RESULTADO sanitario, no la logística — atribución exacta por turno vía outcome_event_id, no un proxy por ventana temporal. Tono siempre 'ok' (no deriva de una meta).",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question:
+      "¿Cuántas prestaciones sanitarias efectivamente registradas (evento inmutable) resultaron de turnos asistidos en campañas, en el período?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/outreach's pipeline summary KPI row.
+  // ---------------------------------------------------------------------------
+
+  outreach_overdue_rabies_count: {
+    id: "outreach_overdue_rabies_count",
+    label: "Antirrábica vencida (pipeline)",
+    numerator:
+      "COUNT active pets whose latest vaccination_administered event (vaccine_name ILIKE '%antirr%') is older than the overdue cutoff (~365 days), OR that have no such event ever",
+    denominator: "n/a — absolute count, CAPPED at 500 rows (LIMIT in the underlying query)",
+    source: "pets, pet_events (vaccination_administered)",
+    fetcherName: "fetchOverdueRabiesVaccine",
+    fetcherPath: "lib/infra/outreach-pipelines.ts",
+    cadence: "'now' snapshot vs a rolling ~365-day cutoff",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "El pipeline trae como máximo 500 filas (LIMIT 500) — si la jurisdicción tiene más de 500 mascotas vencidas, este número SUBESTIMA el total real. El tile no distingue ese caso; leer junto con el CSV completo antes de asumir que es el total exacto.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántas mascotas activas en la cobertura tienen la antirrábica vencida o nunca vacunada?",
+    exclusions:
+      "Es el reverso operativo de rabies_coverage_dogs_12m, pero con scope de TODAS las especies (no solo perros) y un corte de vencimiento (~365 días) en vez de la ventana de 12 meses — no son el mismo conteo ni deben sumarse.",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  outreach_stray_scan_areas: {
+    id: "outreach_stray_scan_areas",
+    label: "Áreas con escaneos (pipeline)",
+    numerator:
+      "COUNT DISTINCT localities with ≥1 credential_scanned event where payload.is_self_scan = false, in the ctx period",
+    denominator: "n/a — absolute count",
+    source: "pet_events (credential_scanned)",
+    fetcherName: "fetchStrayDensityAreas",
+    fetcherPath: "lib/infra/outreach-pipelines.ts",
+    cadence: "matches the caller's ProjectionContext period (trailing 30 days on this page)",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "'Callejero' es un PROXY (escaneo no-propio de credencial), no una clasificación veterinaria confirmada — sin meta formal; el tono de atención (ámbar cuando >0) es operativo.",
+    window: "30d",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿En cuántas localidades hubo al menos un escaneo de credencial no-propio (proxy de animal callejero) en el período?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  outreach_sterilization_vets_ranked: {
+    id: "outreach_sterilization_vets_ranked",
+    label: "Vets en ranking (pipeline)",
+    numerator:
+      "COUNT DISTINCT veterinarians with ≥1 sterilization_performed event in the ctx period",
+    denominator: "n/a — absolute count",
+    source: "pet_events (sterilization_performed)",
+    fetcherName: "fetchSterilizationVetRanking",
+    fetcherPath: "lib/infra/outreach-pipelines.ts",
+    cadence: "matches the caller's ProjectionContext period (trailing 30 days on this page)",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Es un conteo de participación (cuántos vets aparecen en la tabla de reconocimiento de abajo), no una tasa de cumplimiento — tono siempre 'blue' (informativo).",
+    window: "30d",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántos veterinarios/as tienen al menos una esterilización registrada en el período, en la cobertura?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/mortalidad's KPI row (period-variable siblings
+  // of mortality_deaths_12m/mortality_disposal_traceability, which are FIXED
+  // 12m — this page has a period picker, so these are genuinely distinct
+  // window semantics, not the same KPI re-rendered).
+  // ---------------------------------------------------------------------------
+
+  mortality_deaths_period: {
+    id: "mortality_deaths_period",
+    label: "Fallecimientos registrados (período)",
+    numerator: "COUNT death_recorded events in the ctx period, in scope",
+    denominator: "n/a — flow count, compared against the PRIOR period for the deltaV2 chip",
+    source: "pet_events (death_recorded)",
+    fetcherName: "fetchMortalityDisposition (total)",
+    fetcherPath: "lib/analytics/mortality-metrics.ts",
+    cadence:
+      "matches the caller's ProjectionContext period (adjustable via /gob/mortalidad's period picker) vs the prior period",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Distinto de mortality_deaths_12m (catálogo): ese usa una ventana FIJA de 12 meses (el home no tiene selector de período); este usa el período seleccionado en /gob/mortalidad, que puede ser cualquier rango.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question:
+      "¿Cuántos fallecimientos se registraron en el período seleccionado, y cómo viene la tendencia?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      unstableDeltaBase: { minPriorBase: 5 },
+      zeroDenominator: "dash",
+    },
+  },
+
+  mortality_unknown_disposal_rate: {
+    id: "mortality_unknown_disposal_rate",
+    label: "Disposición desconocida",
+    numerator: "COUNT death_recorded events where disposition_method IS NULL OR = 'unknown'",
+    denominator: "COUNT death_recorded events in the ctx period — null when 0",
+    source: "pet_events (death_recorded)",
+    fetcherName: "fetchMortalityDisposition (unknownRate)",
+    fetcherPath: "lib/analytics/mortality-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "Es el complemento negativo de mortality_disposal_traceability — mismo denominador, numerador inverso. Umbral de incumplimiento (no meta a alcanzar): superar el umbral activa el banner OpBreach.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
+    question: "¿Qué porcentaje de fallecimientos no tiene método de disposición registrado?",
+    target: {
+      value: TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT,
+      source: "Ley CABA 5470 (umbral de incumplimiento — lower-is-better)",
+    },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // A handful of total deaths can make this rate read as a dramatic
+      // percentage from just 1-2 unknown-disposition cases.
+      smallN: { min: 5 },
+      zeroDenominator: "dash",
+    },
+  },
+
+  mortality_reportable_share: {
+    id: "mortality_reportable_share",
+    label: "Muertes notificables",
+    numerator: "COUNT death_recorded events where is_reportable = true",
+    denominator: "COUNT death_recorded events in the ctx period — null when 0",
+    source: "pet_events (death_recorded)",
+    fetcherName: "fetchMortalityDisposition (reportableShare)",
+    fetcherPath: "lib/analytics/mortality-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "Sin meta numérica — cualquier valor > 0% requiere notificación ENO a la autoridad sanitaria (B9); el tono de atención (ámbar cuando >0) no deriva de un umbral porcentual, deriva de la sola presencia de casos notificables.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "¿Qué porcentaje de fallecimientos corresponde a enfermedades de notificación obligatoria?",
+    semaphore: { paintAgainst: "none" },
+    // NO smallN guard here (deliberate, unlike its ratio siblings): a
+    // reportable death is a compliance-actionable fact regardless of how
+    // small the total-deaths sample is — even 1-of-1 genuinely requires ENO
+    // notification. Forcing the warn tone to neutral under a tiny N would
+    // mask a real signal instead of protecting against a false one.
+    guards: {
+      zeroDenominator: "dash",
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/perdidas' remaining KPI row tiles
+  // (reunification_rate itself was already migrated in an earlier consumer
+  // batch; these are its stock/flow siblings on the same page).
+  // ---------------------------------------------------------------------------
+
+  lost_pets_active_stock: {
+    id: "lost_pets_active_stock",
+    label: "Perdidas activas",
+    numerator: "COUNT pets where status = 'lost', in scope",
+    denominator: "n/a — absolute count",
+    source: "pets",
+    fetcherName: "fetchPerdidasMetrics (activeCount)",
+    fetcherPath: "lib/analytics/dashboards/perdidas.ts",
+    cadence: "'now' snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Es el stock co-primario que SIEMPRE debe leerse junto a la tasa de reunificación (reunification_rate) — una tasa alta con pocos episodios no es una victoria poblacional si este stock sigue siendo grande.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question: "¿Cuántas mascotas están actualmente perdidas en la cobertura?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  lost_pets_recovered_30d: {
+    id: "lost_pets_recovered_30d",
+    label: "Recuperados (30 días)",
+    numerator:
+      "COUNT status_changed events where payload.from_status='lost' AND payload.to_status='active', occurred_at within the trailing 30 days",
+    denominator: "n/a — absolute count",
+    source: "pets, pet_events (status_changed)",
+    fetcherName: "fetchPerdidasMetrics (recoveredMonth)",
+    fetcherPath: "lib/analytics/dashboards/perdidas.ts",
+    cadence: "trailing 30 days",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Excluye bajas (fallecimiento u otras salidas mientras estaban perdidas) — solo reunificaciones reales. Tono siempre 'ok' (no deriva de una meta).",
+    window: "30d",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas mascotas volvieron de 'perdido' a 'activo' en los últimos 30 días?",
+    exclusions:
+      "DISTINTO de reunification_rate.recovered (catálogo): ese cuenta, de los episodios de pérdida INICIADOS en los últimos 30 días, cuántos se recuperaron (cohorte por inicio, sin ventana en la recuperación misma). Este conteo cuenta eventos de RECUPERACIÓN ocurridos en los últimos 30 días, sin importar cuándo empezó el episodio (ventana por evento, no por cohorte). Ambos son honestos; miden preguntas distintas y pueden diferir en valor.",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  lost_pets_avg_days_active: {
+    id: "lost_pets_avg_days_active",
+    label: "Antigüedad media (días)",
+    numerator: "AVG(now − markedLostAt) over currently-lost pets, in days",
+    denominator: "n/a — average, not a ratio",
+    source: "pets, pet_events (status_changed)",
+    fetcherName: "fetchPerdidasMetrics (avgDaysActive)",
+    fetcherPath: "lib/analytics/dashboards/perdidas.ts",
+    cadence: "'now' snapshot",
+    unit: "days",
+    suppression: "none",
+    caveat: "0 cuando no hay mascotas actualmente perdidas en scope.",
+    window: "now",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuál es el promedio de días transcurridos desde la pérdida, entre las mascotas actualmente perdidas?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  reunification_median_recovery_days: {
+    id: "reunification_median_recovery_days",
+    label: "Mediana recuperación (días)",
+    numerator:
+      "PERCENTILE_CONT(0.5) of (recovery_at − lost_at) over recovered episodes, trailing 30 days",
+    denominator: "n/a — median, not a ratio; gated by the recovered-episode count",
+    source: "pets, pet_events (status_changed)",
+    fetcherName: "fetchReunificationRate (medianDaysToRecovery)",
+    fetcherPath: "lib/analytics/compliance-metrics.ts",
+    cadence: "FIXED trailing 30 days (same fetcher/window as reunification_rate)",
+    unit: "days",
+    suppression: "none",
+    caveat:
+      "Comparte fetcher con reunification_rate pero es una unidad DISTINTA (días, no %) — por eso tiene su propio descriptor sin meta (una meta de 39% no aplica a una mediana de días). Gated por el MISMO smallN que reunification_rate (sobre `recovered`, no `lostEpisodes`): con menos de 5 recuperaciones se muestra '—' en vez de un número (más estricto que el guard genérico — no hay valor-visible-con-nota, directamente se oculta, ver app/gob/perdidas/page.tsx).",
+    window: "30d",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántos días, en mediana, tardaron las mascotas recuperadas en los últimos 30 días entre perderse y volver?",
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      // Mirrors reunification_rate's smallN floor (5) — same underlying
+      // `recovered` count. Kept as a literal (not TARGETS.*) because it is a
+      // presentation-guard convention, not a legal/programmatic target.
+      smallN: { min: 5 },
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/analytics' remaining KPI row tiles.
+  // ---------------------------------------------------------------------------
+
+  acquisition_adoption_rate: {
+    id: "acquisition_adoption_rate",
+    label: "Tasa de adopción (12 meses)",
+    numerator:
+      "COUNT pet_registered events where payload.acquisition_method='adopted', trailing 12 months",
+    denominator:
+      "COUNT pet_registered events (ALL acquisition methods) in the SAME trailing 12 months — 0 when no registrations",
+    source: "pet_events (pet_registered)",
+    fetcherName: "fetchAnalyticsMetrics (adoptionRate)",
+    fetcherPath: "lib/analytics/dashboards/analytics.ts",
+    cadence: "trailing 12 months",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "DISTINTO de adoption_application_conversion (catálogo): ese mide el embudo de postulaciones ONLINE (demanda); este mide qué fracción de las ALTAS de mascotas en el padrón llegaron por adopción vs. otros métodos de adquisición (compra, hallazgo, regalo, camada, etc.) — lado de OFERTA/adquisición, no de postulación.",
+    window: "12m",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "¿Qué porcentaje de las mascotas dadas de alta en los últimos 12 meses llegó por adopción, del total de adquisiciones?",
+    target: { value: TARGETS.ADOPTION_RATE_PCT, source: "meta interna de adquisición (A3)" },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // A small registrations volume in a small jurisdiction/window can make
+      // this rate read as a confident percentage from just 1-2 adoptions.
+      smallN: { min: 5 },
+      zeroDenominator: "dash",
+    },
+  },
+
+  custody_disputes_open: {
+    id: "custody_disputes_open",
+    label: "Disputas de custodia",
+    numerator: "COUNT custody_disputes rows where status = 'open', in scope",
+    denominator: "n/a — absolute count",
+    source: "custody_disputes",
+    fetcherName: "fetchAnalyticsMetrics (custodyDisputes)",
+    fetcherPath: "lib/analytics/dashboards/analytics.ts",
+    cadence: "'now' snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Misma fuente que la cola de /gob/disputas (custody_disputes, no cases) — el conteo y la cola siempre reconcilian. Sin meta formal — el tono de atención (ámbar cuando >0) es operativo.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question: "¿Cuántas disputas de custodia siguen abiertas en la cobertura?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/decomisos' single KPI tile.
+  // ---------------------------------------------------------------------------
+
+  seizures_period_count: {
+    id: "seizures_period_count",
+    label: "Decomisos del período",
+    numerator:
+      "COUNT shelter_intake_recorded events where payload.intake_reason='seizure', in the ctx period",
+    denominator: "n/a — absolute count",
+    source: "pet_events (shelter_intake_recorded)",
+    fetcherName: "fetchSeizures (total)",
+    fetcherPath: "lib/analytics/compliance-metrics.ts",
+    cadence: "matches the caller's ProjectionContext period (default trailing 30 days)",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta formal — Ley 14.346 no fija un umbral numérico de incautaciones; el tono de atención (ámbar cuando >0) es operativo, no un veredicto de cumplimiento.",
+    window: "period",
+    species: "all_species",
+    basis: "flow",
+    question: "¿Cuántas incautaciones (decomisos) por Ley 14.346 se registraron en el período?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/maltrato's 4 KPI tiles (triage queue counts,
+  // Ley Nacional 14.346). Genuinely metrics (each answers a real triage
+  // question), not bare row counts of an arbitrary view — cataloged rather
+  // than left descriptor-less.
+  // ---------------------------------------------------------------------------
+
+  maltrato_unassigned_count: {
+    id: "maltrato_unassigned_count",
+    label: "Denuncias sin asignar",
+    numerator:
+      "COUNT welfare_reports where assigned_to_user_id IS NULL AND status NOT IN (closed/invalid/duplicate terminal states), in scope",
+    denominator: "n/a — absolute count",
+    source: "welfare_reports",
+    fetcherName: "fetchWelfareMetrics (unassignedCount)",
+    fetcherPath: "lib/analytics/dashboards/welfare.ts",
+    cadence: "'now' snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta formal — el tono de atención (ámbar cuando >0) es operativo: son denuncias que requieren triage inmediato, no un veredicto de cumplimiento con umbral.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question: "¿Cuántas denuncias de maltrato están sin asignar y requieren triage inmediato?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  maltrato_assigned_to_me_count: {
+    id: "maltrato_assigned_to_me_count",
+    label: "Denuncias asignadas a mí",
+    numerator:
+      "COUNT welfare_reports where assigned_to_user_id = current_user AND status IN (open/triaged/in_progress), in scope",
+    denominator: "n/a — absolute count",
+    source: "welfare_reports",
+    fetcherName: "fetchWelfareMetrics (myCount)",
+    fetcherPath: "lib/analytics/dashboards/welfare.ts",
+    cadence: "'now' snapshot, per-operator (current_user)",
+    unit: "count",
+    suppression: "none",
+    caveat: "Personalizado por operador — no comparable entre operadores como métrica de programa.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question: "¿Cuántas denuncias de maltrato tengo asignadas y en curso?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  maltrato_in_progress_count: {
+    id: "maltrato_in_progress_count",
+    label: "Denuncias en investigación",
+    numerator: "COUNT welfare_reports where status = 'in_progress', in scope",
+    denominator: "n/a — absolute count",
+    source: "welfare_reports",
+    fetcherName: "fetchWelfareMetrics (inProgressCount)",
+    fetcherPath: "lib/analytics/dashboards/welfare.ts",
+    cadence: "'now' snapshot",
+    unit: "count",
+    suppression: "none",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question: "¿Cuántas denuncias de maltrato están actualmente en investigación?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  maltrato_closed_30d_count: {
+    id: "maltrato_closed_30d_count",
+    label: "Denuncias cerradas (30 días)",
+    numerator:
+      "COUNT welfare_reports where status = 'closed' AND closed_at within the trailing 30 days, in scope",
+    denominator: "n/a — absolute count",
+    source: "welfare_reports",
+    fetcherName: "fetchWelfareMetrics (closedMonth)",
+    fetcherPath: "lib/analytics/dashboards/welfare.ts",
+    cadence: "trailing 30 days",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Tono siempre 'ok' (no deriva de una meta) — es un conteo de throughput, no un veredicto.",
+    window: "30d",
+    species: "n/a",
+    basis: "flow",
+    question: "¿Cuántas denuncias de maltrato se cerraron en los últimos 30 días?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /admin/inteligencia's KPI row (territorial
+  // aggregates + record-level reconciliation counts — NO individual scoring,
+  // Ley 25.326).
+  // ---------------------------------------------------------------------------
+
+  territorial_index_provinces_evaluated: {
+    id: "territorial_index_provinces_evaluated",
+    label: "Provincias evaluadas (índice territorial)",
+    numerator: "COUNT provinces with ≥5 active pets (k-anonymity floor)",
+    denominator: "n/a — absolute count",
+    source: "derivado de fetchCrossJurisdictionOutliers vía computeJurisdictionIndex",
+    fetcherName: "computeJurisdictionIndex (row count)",
+    fetcherPath: "lib/analytics/territorial-index.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression:
+      "k-anon (k=5) — provinces below the floor are entirely omitted, not shown as suppressed rows",
+    window: "period",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántas provincias tienen población suficiente para calcular el índice territorial?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  territorial_index_average_score: {
+    id: "territorial_index_average_score",
+    label: "Índice territorial promedio",
+    numerator:
+      "SUM per-province composite score (mean of min(100, rate/target×100) across rabies/sterilization/microchip), across evaluated provinces",
+    denominator: "COUNT evaluated provinces — null when 0",
+    source: "derivado de fetchCrossJurisdictionOutliers vía computeJurisdictionIndex",
+    fetcherName: "computeJurisdictionIndex (national average)",
+    fetcherPath: "lib/analytics/territorial-index.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: "k-anon (k=5) inherited from the per-province index",
+    caveat:
+      "Promedio SIMPLE entre provincias evaluadas (no ponderado por población) — una provincia grande y una chica pesan igual.",
+    window: "period",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "¿Cuál es el promedio del índice compuesto de cumplimiento (antirrábica/esterilización/chip) entre las provincias evaluadas?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  policy_outcome_rule_changes_analyzed: {
+    id: "policy_outcome_rule_changes_analyzed",
+    label: "Cambios de reglas analizados",
+    numerator:
+      "COUNT govt_business_rule_{created,updated,deleted} audit_log rows with a mapped aggregate metric available for before/after comparison",
+    denominator: "n/a — absolute count",
+    source: "audit_log",
+    fetcherName: "fetchPolicyOutcomes",
+    fetcherPath: "lib/analytics/policy-outcome.ts",
+    cadence:
+      "FIXED ±window (POLICY_OUTCOME_WINDOW_DAYS) anchored to each rule change's own timestamp — does NOT use the page's period picker",
+    unit: "count",
+    suppression:
+      "k-anon (k=5) on the before/after metric pair — a pair with <5 in either window is masked, not this count",
+    caveat:
+      "Correlación temporal, no atribución causal — un cambio de regla y un movimiento de métrica coincidentes no implican causa-efecto.",
+    window: "mixed",
+    species: "all_species",
+    basis: "flow",
+    question:
+      "¿Cuántos cambios recientes de reglas jurisdiccionales tienen una métrica agregada mapeada para observar su antes/después?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  ghost_records_count: {
+    id: "ghost_records_count",
+    label: "Registros fantasma",
+    numerator:
+      "COUNT active pets with NO ownership record AND no owner activity in the trailing 12 months, across evaluated (non-suppressed, province-assigned) provinces",
+    denominator: "COUNT active pets across the SAME evaluated provinces — 0 when no records",
+    source: "pets, ownerships, pet_events",
+    fetcherName: "fetchProvinceDataQuality (totalGhosts)",
+    fetcherPath: "lib/analytics/territorial-data-quality.ts",
+    cadence: "matches the caller's ProjectionContext period",
+    unit: "count",
+    suppression: `k-anon (k=${"5"}) — provincias con <5 mascotas activas o sin provincia asignada se excluyen del total, y se lo dice explícitamente en el tile (ghostExclusionNote)`,
+    caveat:
+      "Los umbrales de color (>10% ámbar, >20% rojo, aplicados sobre el % mostrado en 'sub') son heurísticas operativas internas, no una meta legal o programática con fuente citable. Señal a NIVEL REGISTRO (conciliación de datos) — nunca puntuación de personas (Ley 25.326). El tile muestra el CONTEO absoluto como valor principal; el % es contexto secundario ('sub'), no el valor renderizado.",
+    window: "period",
+    species: "all_species",
+    basis: "stock",
+    question:
+      "¿Cuántos registros activos no tienen titular ni actividad reciente (candidatos a conciliación de datos)?",
+    semaphore: { paintAgainst: "none" },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 sweep (2026-07-22) — /gob/sistema's remaining KPI tile (queue depth;
+  // queue_oldest_pending_days and eno_sla_compliance were already catalogued
+  // by earlier consumers in this same sweep and are reused here as-is).
+  // ---------------------------------------------------------------------------
+
+  queue_pending_total: {
+    id: "queue_pending_total",
+    // C1 label precision (2026-07-22): renamed from bare "Cola pendiente" —
+    // that string collided (registry-import fence, lint:metric-labels) with
+    // the SAME KPI rendered on components/admin/AdminKpiStrip.tsx (outside
+    // this sweep's scope) and generic comment prose elsewhere discussing
+    // "the pending queue" informally. The suffix also disambiguates from
+    // moderación/alertas/outbox queues elsewhere in the app.
+    label: "Cola pendiente (aprobaciones)",
+    numerator: "COUNT approval-queue rows where status='pending', in scope",
+    denominator: "n/a — absolute count",
+    source: "cola de aprobaciones (ver fetchQueueHealth / fetchQueueHealthScoped)",
+    fetcherName: "fetchQueueHealth (admin) / fetchQueueHealthScoped (govt) (pendingTotal)",
+    fetcherPath: "lib/analytics/admin-metrics.ts",
+    cadence: "'now' live snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin meta formal — el tono de atención (ámbar cuando >0) es una señal operativa de carga de trabajo, no un veredicto de cumplimiento.",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+    question: "¿Cuántas solicitudes de aprobación están pendientes en la cobertura?",
+    semaphore: { paintAgainst: "none" },
   },
 };
 

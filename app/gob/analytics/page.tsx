@@ -24,7 +24,7 @@ import {
   fetchVetAccessByLocality,
   toneForTarget,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { CasesPerCapitaTable } from "./_components/CasesPerCapitaTable";
@@ -242,6 +242,7 @@ export default async function GobAnalyticsPage({
               "Total de mascotas con estado activo o perdido en la jurisdicción y período seleccionados.",
             formula: "COUNT(pets WHERE status IN ('active','lost'))",
           }}
+          descriptorId="registry_total_pets"
         />
         <OpKpi
           label="Tasa de adopción (12m)"
@@ -253,6 +254,7 @@ export default async function GobAnalyticsPage({
             definition: `Porcentaje de mascotas adquiridas por adopción sobre el total de adquisiciones en el período (A3). Meta interna: ${TARGETS.ADOPTION_RATE_PCT}%.`,
             formula: "COUNT(acquisition_method='adoption') / COUNT(all acquisitions) × 100",
           }}
+          descriptorId="acquisition_adoption_rate"
         />
         <OpKpi
           label={RABIES_VACCINATION_RATE_LABEL_ES}
@@ -268,7 +270,7 @@ export default async function GobAnalyticsPage({
           descriptorId="rabies_vaccination_rate_all_species"
         />
         <OpKpi
-          label="Disputas de custodia"
+          label={KPI_CATALOG.custody_disputes_open.label}
           value={String(metrics.custodyDisputes)}
           tone={metrics.custodyDisputes > 0 ? "warn" : undefined}
           sub="casos abiertos"
@@ -278,6 +280,7 @@ export default async function GobAnalyticsPage({
               "Disputas de custodia abiertas en la jurisdicción seleccionada — la misma cola accionable que lista /gob/disputas.",
             formula: "COUNT(custody_disputes WHERE status='open')",
           }}
+          descriptorId="custody_disputes_open"
         />
       </section>
 

@@ -40,7 +40,7 @@ import {
   funnelBarWidths,
   toneForTarget,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 
 export const dynamic = "force-dynamic";
@@ -218,7 +218,7 @@ export default async function GobAdopcionesPage({
         className="grid grid-cols-2 md:grid-cols-4 gap-3"
       >
         <OpKpi
-          label="En custodia (refugio)"
+          label={KPI_CATALOG.shelter_custody_occupied.label}
           value={
             shelterOccupancy.occupied > 0 ? shelterOccupancy.occupied.toLocaleString("es-AR") : "—"
           }
@@ -229,9 +229,10 @@ export default async function GobAdopcionesPage({
             formula:
               "COUNT(ownerships) WHERE role='shelter_custody' AND ended_at IS NULL AND scope",
           }}
+          descriptorId="shelter_custody_occupied"
         />
         <OpKpi
-          label="En tránsito (foster)"
+          label={KPI_CATALOG.foster_active_placements.label}
           value={
             fosterPool.activeFosterPlacements > 0
               ? fosterPool.activeFosterPlacements.toLocaleString("es-AR")
@@ -242,9 +243,10 @@ export default async function GobAdopcionesPage({
             definition: "Ownerships.role = 'foster' con ended_at IS NULL en el scope.",
             formula: "COUNT(ownerships) WHERE role='foster' AND ended_at IS NULL AND scope",
           }}
+          descriptorId="foster_active_placements"
         />
         <OpKpi
-          label="Adopciones"
+          label={KPI_CATALOG.adoptions_finalized.label}
           value={funnel.adoption > 0 ? funnel.adoption.toLocaleString("es-AR") : "—"}
           sub="adopciones finalizadas en el período y la cobertura"
           deltaV2={funnel.adoption > 0 ? (adoptionDelta ?? undefined) : undefined}
@@ -255,6 +257,8 @@ export default async function GobAdopcionesPage({
             definition: "Eventos adoption_finalized en el período, scoped a la jurisdicción.",
             formula: "COUNT(pet_events) WHERE event_type='adoption_finalized' AND period AND scope",
           }}
+          descriptorId="adoptions_finalized"
+          guardInput={{ priorBase: prevAdoptionCount }}
         />
         <OpKpi
           label="Tasa de retorno"
@@ -272,6 +276,8 @@ export default async function GobAdopcionesPage({
                 })
           }
           info={getKpiInfo("custody_return_rate")}
+          descriptorId="custody_return_rate"
+          guardInput={{ n: funnel.adoption }}
         />
       </section>
 
@@ -339,13 +345,16 @@ export default async function GobAdopcionesPage({
                   </span>
                 </li>
 
-                {/* Stage 3: Adoption */}
+                {/* Stage 3: Adoption — same underlying count (funnel.adoption)
+                    as the Adopciones finalizadas KPI tile above; label
+                    sourced from the catalog so the funnel stage and the tile
+                    can never drift apart. */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Adopciones finalizadas: ${funnel.adoption.toLocaleString("es-AR")}`}
+                  aria-label={`${KPI_CATALOG.adoptions_finalized.label}: ${funnel.adoption.toLocaleString("es-AR")}`}
                 >
                   <span className="w-48 shrink-0 text-[var(--text-md)] text-ln-op-ink">
-                    Adopciones finalizadas
+                    {KPI_CATALOG.adoptions_finalized.label}
                   </span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
@@ -655,7 +664,7 @@ export default async function GobAdopcionesPage({
           ) : (
             <TimeSeriesChartDynamic
               data={adoptionTrend.points}
-              seriesLabel="Adopciones finalizadas"
+              seriesLabel={KPI_CATALOG.adoptions_finalized.label}
               yLabel="Adopciones"
               variant="area"
               fallbackTableLabel={`Adopciones por ${adoptionTrend.granularity === "month" ? "mes" : "semana"}`}

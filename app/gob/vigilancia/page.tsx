@@ -296,6 +296,7 @@ export default async function GobVigilanciaPage({
               "Cantidad de señales de brote (outbreak_signal) con estado 'open' en la jurisdicción en los últimos 30 días.",
             formula: "COUNT(outbreak_signal_opened events, últimos 30d) scoped to jurisdiction",
           }}
+          descriptorId="outbreak_active_signals"
         />
         <OpKpi
           label="Rábicas activas"
@@ -312,15 +313,17 @@ export default async function GobVigilanciaPage({
               "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",
             formula: "COUNT(cases WHERE caseKind='rabies_observation' AND status='open')",
           }}
+          descriptorId="rabies_observation_cases_open"
         />
         <OpKpi
-          label="Altas registradas hoy"
+          label={KPI_CATALOG.pets_registered_today.label}
           value={String(metrics.petsRegisteredToday)}
           info={{
             definition:
               "Mascotas registradas en el sistema desde las 00:00 hora local de hoy (Arg/Buenos Aires), scoped a la jurisdicción del operador.",
             formula: "COUNT(pets WHERE created_at >= today midnight ART)",
           }}
+          descriptorId="pets_registered_today"
         />
         <OpKpi
           label="Vacunaciones (7d)"
@@ -333,6 +336,8 @@ export default async function GobVigilanciaPage({
               "Eventos vaccination_administered registrados en los últimos 7 días en la jurisdicción del operador.",
             formula: "COUNT(vaccination_administered, últimos 7d) scoped to jurisdiction",
           }}
+          descriptorId="vaccinations_weekly"
+          guardInput={{ priorBase: prevVaccinationsWeek }}
         />
         {/* Clickable KPI tile (v1 `href` — wraps the whole tile in an <a>,
             same pattern as "Brotes activos" above): replaces the former
@@ -341,7 +346,7 @@ export default async function GobVigilanciaPage({
             click. This is a live stock (cases currently under active
             investigation, right now) — no period delta on a snapshot. */}
         <OpKpi
-          label="Casos bajo investigación activa"
+          label={KPI_CATALOG.outbreak_investigations_active.label}
           value={String(metrics.investigationActiveCount)}
           tone={metrics.investigationActiveCount > 0 ? "warn" : "neutral"}
           href="/gob/vigilancia/investigaciones"
@@ -351,6 +356,7 @@ export default async function GobVigilanciaPage({
             formula:
               "COUNT(cases WHERE caseKind='outbreak_investigation' AND status IN ('open','escalated'))",
           }}
+          descriptorId="outbreak_investigations_active"
         />
         {/* C1 (2026-07-22, §3g / red-team #6): the escalation gap — a
             jurisdiction can show 0 open rabies observations while carrying
@@ -399,6 +405,8 @@ export default async function GobVigilanciaPage({
             caveat:
               "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo (A9) y activan el banner de alerta.",
           }}
+          descriptorId="rabies_observation_compliance_10d"
+          guardInput={{ n: rabiesCompliance.closed }}
         />
         <OpKpi
           label="SLA notificación ENO"
@@ -413,6 +421,7 @@ export default async function GobVigilanciaPage({
                 : "Sin entregas en el período"
           }
           info={getKpiInfo("eno_sla_compliance")}
+          descriptorId="eno_sla_compliance"
         />
         <OpKpi
           label="Densidad ATM/AMR"
@@ -430,6 +439,7 @@ export default async function GobVigilanciaPage({
             caveat:
               "Fármacos cuyo drug_code no está en el catálogo se reportan como 'sin clasificar' y NO se incluyen en la tasa (clasificación provisional).",
           }}
+          descriptorId="amr_density"
         />
       </section>
 

@@ -39,6 +39,7 @@ import {
 import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, fetchCrossJurisdictionOutliers } from "@/lib/metrics";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { formatDateShort } from "@/lib/utils/format";
 
@@ -212,6 +213,7 @@ export default async function AdminInteligenciaPage({
             definition:
               "Provincias con al menos 5 mascotas activas — las menores se omiten por privacidad (k-anonimato).",
           }}
+          descriptorId="territorial_index_provinces_evaluated"
         />
         <OpKpi
           label="Índice promedio"
@@ -222,6 +224,7 @@ export default async function AdminInteligenciaPage({
               "Promedio del índice territorial compuesto: cumplimiento de metas de cobertura antirrábica, esterilización y chip, con pesos iguales.",
             formula: "score = mean(min(100, tasa/meta×100))",
           }}
+          descriptorId="territorial_index_average_score"
         />
         <OpKpi
           label="Cambios de reglas"
@@ -232,9 +235,10 @@ export default async function AdminInteligenciaPage({
               "Mutaciones recientes de reglas jurisdiccionales (audit log) correlacionadas con la métrica agregada que gobiernan.",
             caveat: "Correlación temporal, no atribución causal.",
           }}
+          descriptorId="policy_outcome_rule_changes_analyzed"
         />
         <OpKpi
-          label="Registros fantasma"
+          label={KPI_CATALOG.ghost_records_count.label}
           value={totalGhosts > 0 ? totalGhosts.toLocaleString("es-AR") : "0"}
           sub={`${ghostPct}% del padrón evaluado · sin titular ni actividad`}
           tone={ghostPct > 20 ? "danger" : ghostPct > 10 ? "warn" : undefined}
@@ -243,6 +247,7 @@ export default async function AdminInteligenciaPage({
               "Registros activos sin ningún titular asociado y sin actividad del propietario en 12 meses — candidatos a conciliación de datos.",
             caveat: `Señal a nivel registro (conciliación), nunca puntuación de personas.${ghostExclusionNote}`,
           }}
+          descriptorId="ghost_records_count"
         />
       </section>
 

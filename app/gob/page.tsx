@@ -436,6 +436,7 @@ export default async function GobiernoDashboardPage({
           }
           href="/gob/vigilancia"
           info={getKpiInfo("bites_per_10k")}
+          descriptorId="bites_per_10k"
         />
         {/* Zoonosis activas — descompuesto (PO) en 3 señales legibles en vez de
             un único número opaco: observación rábica abierta, mordeduras abiertas
@@ -460,6 +461,7 @@ export default async function GobiernoDashboardPage({
           sub="observaciones en curso"
           href="/gob/vigilancia"
           info={getKpiInfo("open_rabies_observations")}
+          descriptorId="open_rabies_observations"
         />
         <OpKpi
           label={KPI_CATALOG.open_bite_cases.label}
@@ -468,6 +470,7 @@ export default async function GobiernoDashboardPage({
           sub={openBiteCases.count === 1 ? "caso abierto" : "casos abiertos"}
           href="/gob/vigilancia"
           info={getKpiInfo("open_bite_cases")}
+          descriptorId="open_bite_cases"
         />
         <OpKpi
           label={KPI_CATALOG.notified_diseases.label}
@@ -476,6 +479,7 @@ export default async function GobiernoDashboardPage({
           sub={`${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · últimos 30 días`}
           href="/gob/vigilancia"
           info={getKpiInfo("notified_diseases")}
+          descriptorId="notified_diseases"
         />
       </section>
 

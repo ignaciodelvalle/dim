@@ -21,10 +21,13 @@ import { OpKpi } from "@/components/ui/dashboard/OpKpi";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import {
   UNSTABLE_DELTA_BASE_NOTE,
+  guardRatioTone,
   resolveSemaphoreTone,
   shouldSuppressDelta,
+  smallNGate,
   zeroDenominatorGate,
 } from "@/lib/metrics/presentation-guards";
+import { TARGETS } from "@/lib/metrics/targets";
 
 afterEach(cleanup);
 
@@ -280,5 +283,113 @@ describe("hostile reader — cobertura antirrábica: censo co-equal, no subtexto
       screen.getByText(/68,2% del padrón sobre la población canina estimada/),
     ).toBeInTheDocument();
     expect(screen.getByText(/12\.480 perros en el padrón/)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. C1 SWEEP (2026-07-22, full 80-tile barrido) — narrative assertions from
+// the newly-migrated surfaces (campañas, censo, programa, mortalidad,
+// vigilancia). Each disarms a specific wrong reading the plan-maestro's
+// honesty rules exist to prevent.
+// ---------------------------------------------------------------------------
+
+describe("hostile reader — campañas: la completitud nunca pinta desde un delta de volumen", () => {
+  it("campaign_completion_rate is a RATE with a real target — never rendered with a delta chip", () => {
+    const descriptor = KPI_CATALOG.campaign_completion_rate;
+    expect(descriptor.target?.value).toBe(TARGETS.CAMPAIGN_COMPLETION_PCT);
+    expect(descriptor.semaphore?.paintAgainst).toBe("target");
+    // No unstableDeltaBase guard: this KPI never renders a deltaV2 chip at
+    // all (the render site explicitly omits one — a volume delta next to a
+    // stable rate would imply the RATE moved when only headcount did).
+    expect(descriptor.guards?.unstableDeltaBase).toBeUndefined();
+  });
+
+  it("campaign_enrollment (the VOLUME sibling) carries the delta instead, gated by its own unstable-base guard", () => {
+    const descriptor = KPI_CATALOG.campaign_enrollment;
+    expect(descriptor.guards?.unstableDeltaBase?.minPriorBase).toBeGreaterThan(0);
+    expect(shouldSuppressDelta(descriptor, 1)).toBe(true);
+    expect(shouldSuppressDelta(descriptor, 20)).toBe(false);
+  });
+
+  it("OpKpi: a small-sample completion rate forces neutral tone instead of a confident 100%", () => {
+    render(
+      <OpKpi
+        label={KPI_CATALOG.campaign_completion_rate.label}
+        value="100%"
+        tone="ok"
+        descriptorId="campaign_completion_rate"
+        guardInput={{ n: 1 }}
+      />,
+    );
+    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByText(/Muestra chica/)).toBeInTheDocument();
+    const card = screen.getByText("100%").closest("div.flex.flex-col");
+    expect(card?.className).not.toContain("st-ok-bg");
+  });
+});
+
+describe("hostile reader — censo: los stocks (activas/inactivas/incompletos) nunca llevan delta de período", () => {
+  it("registry_active_pets and registry_total_pets are pure stocks with no delta-suppression guard at all", () => {
+    expect(KPI_CATALOG.registry_active_pets.basis).toBe("stock");
+    expect(KPI_CATALOG.registry_active_pets.guards?.unstableDeltaBase).toBeUndefined();
+    expect(KPI_CATALOG.registry_total_pets.basis).toBe("stock");
+    expect(KPI_CATALOG.registry_total_pets.guards?.unstableDeltaBase).toBeUndefined();
+  });
+
+  it("registry_dormant_pets and registry_incomplete_profiles never paint a legal-verdict tone from their internal heuristic thresholds", () => {
+    // Both descriptors document their color bands (20/40%, 15/30%) as
+    // OPERATIONAL heuristics, not a sourced legal/programmatic target — the
+    // contract's own semaphore field says so.
+    expect(KPI_CATALOG.registry_dormant_pets.semaphore?.paintAgainst).toBe("none");
+    expect(KPI_CATALOG.registry_dormant_pets.target).toBeUndefined();
+    expect(KPI_CATALOG.registry_incomplete_profiles.semaphore?.paintAgainst).toBe("none");
+    expect(KPI_CATALOG.registry_incomplete_profiles.target).toBeUndefined();
+  });
+});
+
+describe("hostile reader — programa: el SLA ENO pinta solo contra su propia meta, nunca contra una meta de salud animal", () => {
+  it("eno_sla_compliance's target is the ENO benchmark, not rabies/microchip/sterilization coverage", () => {
+    const descriptor = KPI_CATALOG.eno_sla_compliance;
+    expect(descriptor.target?.value).toBe(TARGETS.ENO_SLA_PCT);
+    expect(descriptor.target?.value).not.toBe(TARGETS.RABIES_COVERAGE_PCT);
+    expect(descriptor.target?.value).not.toBe(TARGETS.MICROCHIP_PENETRATION_PCT);
+    expect(descriptor.target?.value).not.toBe(TARGETS.STERILIZATION_COVERAGE_PCT);
+  });
+
+  it("queue_oldest_pending_days (rendered alongside it on /gob/programa and /gob/sistema) never paints a target-derived tone — it has no target at all", () => {
+    const descriptor = KPI_CATALOG.queue_oldest_pending_days;
+    expect(descriptor.target).toBeUndefined();
+    expect(descriptor.semaphore?.paintAgainst).toBe("none");
+  });
+});
+
+describe("hostile reader — mortalidad: una muerte notificable nunca se enmascara como 'muestra chica'", () => {
+  it("mortality_reportable_share deliberately carries NO smallN guard — a compliance-actionable fact must survive tiny N", () => {
+    expect(KPI_CATALOG.mortality_reportable_share.guards?.smallN).toBeUndefined();
+    expect(KPI_CATALOG.mortality_reportable_share.guards?.zeroDenominator).toBe("dash");
+  });
+
+  it("OpKpi: a warn tone on a 1-of-1 reportable death is NOT downgraded to neutral by the guard engine", () => {
+    // Contrast with mortality_unknown_disposal_rate, which DOES gate smallN —
+    // reportable_share's absence of that guard is the deliberate difference.
+    const guarded = guardRatioTone(KPI_CATALOG.mortality_reportable_share, {
+      n: 1,
+      computedTone: "warn",
+      formattedValue: "100,0%",
+    });
+    expect(guarded.tone).toBe("warn");
+    expect(guarded.note).toBeUndefined();
+    expect(smallNGate(KPI_CATALOG.mortality_unknown_disposal_rate, 1)).toBe(true);
+  });
+});
+
+describe("hostile reader — vigilancia: casos de observación (cases) nunca se confunden con observaciones (pets)", () => {
+  it("rabies_observation_cases_open and open_rabies_observations read distinct tables and are never additive", () => {
+    const cases = KPI_CATALOG.rabies_observation_cases_open;
+    const pets = KPI_CATALOG.open_rabies_observations;
+    expect(cases.label).not.toBe(pets.label);
+    expect(cases.fetcherName).not.toBe(pets.fetcherName);
+    expect(cases.exclusions ?? "").toMatch(/CASOS/);
+    expect(cases.exclusions ?? "").toMatch(/tablas distintas/);
   });
 });

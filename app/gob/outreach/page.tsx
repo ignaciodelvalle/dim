@@ -112,6 +112,7 @@ export default async function GobOutreachPage() {
               "Mascotas activas en tu jurisdicción cuya última vacuna antirrábica registrada supera los 365 días o que nunca vacunaron.",
             caveat: "Solo considera mascotas con eventos registrados en miMAR.",
           }}
+          descriptorId="outreach_overdue_rabies_count"
         />
         <OpKpi
           label="Áreas con escaneos"
@@ -122,6 +123,7 @@ export default async function GobOutreachPage() {
             definition:
               "Localidades con al menos un escaneo de credencial no propio (indicador de animal callejero) en los últimos 30 días.",
           }}
+          descriptorId="outreach_stray_scan_areas"
         />
         <OpKpi
           label="Vets en ranking"
@@ -132,6 +134,7 @@ export default async function GobOutreachPage() {
             definition:
               "Veterinarios/as con al menos una esterilización registrada en tu jurisdicción en los últimos 30 días.",
           }}
+          descriptorId="outreach_sterilization_vets_ranked"
         />
       </section>
 

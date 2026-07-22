@@ -26,6 +26,7 @@ import { cases, db, organizations, pets } from "@/db";
 import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { formatDate, speciesLabel } from "@/lib/utils/format";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
@@ -204,10 +205,10 @@ export default async function DecomisosDashboardPage({
       <OpFilterBar period={{ defaultPreset: "30d" }} />
 
       {/* D5 — seizures this period (default trailing 30d) + by-motive breakdown (Ley 14.346). */}
-      <section aria-label="Decomisos del período" className="space-y-3">
+      <section aria-label="Decomisos del período seleccionado" className="space-y-3">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <OpKpi
-            label="Decomisos del período"
+            label={KPI_CATALOG.seizures_period_count.label}
             value={String(seizures.total)}
             tone={seizures.total > 0 ? "warn" : "neutral"}
             sub="incautaciones por Ley 14.346"
@@ -217,6 +218,7 @@ export default async function DecomisosDashboardPage({
               formula:
                 "COUNT(shelter_intake_recorded WHERE intake_reason='seizure', período seleccionado) scoped",
             }}
+            descriptorId="seizures_period_count"
           />
         </div>
         {seizures.byMotive.length > 0 && (

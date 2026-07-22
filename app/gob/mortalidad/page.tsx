@@ -43,7 +43,7 @@ import {
   fetchKpiTrend,
   toneForTarget,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { deathCauseLabel, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
@@ -252,6 +252,8 @@ export default async function GobMortalidadPage({
               "Total de eventos death_recorded registrados en el período y jurisdicción seleccionados.",
             formula: "COUNT(death_recorded) en scope + período",
           }}
+          descriptorId="mortality_deaths_period"
+          guardInput={{ n: m.total, priorBase: prevTotal }}
         />
         <OpKpi
           label="Trazabilidad de disposición"
@@ -267,9 +269,11 @@ export default async function GobMortalidadPage({
           bar={hasDeaths ? m.traceableRate : undefined}
           sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación (B3 · Ley 5470)`}
           info={getKpiInfo("mortality_disposal_traceability")}
+          descriptorId="mortality_disposal_traceability"
+          guardInput={{ n: m.total }}
         />
         <OpKpi
-          label="Disposición desconocida"
+          label={KPI_CATALOG.mortality_unknown_disposal_rate.label}
           value={hasDeaths ? formatPercent(m.unknownRate) : "—"}
           tone={
             hasDeaths
@@ -285,9 +289,11 @@ export default async function GobMortalidadPage({
             formula: "deaths con (disposition_method IS NULL OR = 'unknown') / total",
             caveat: `Se activa alerta visual cuando supera el ${TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT}%.`,
           }}
+          descriptorId="mortality_unknown_disposal_rate"
+          guardInput={{ n: m.total }}
         />
         <OpKpi
-          label="Muertes notificables"
+          label={KPI_CATALOG.mortality_reportable_share.label}
           value={hasDeaths ? formatPercent(m.reportableShare) : "—"}
           tone={hasDeaths && m.reportableShare > 0 ? "warn" : undefined}
           sub="del total (B9)"
@@ -298,6 +304,8 @@ export default async function GobMortalidadPage({
             caveat:
               "Cualquier valor > 0% activa una indicación de atención: esos fallecimientos requieren notificación ENO.",
           }}
+          descriptorId="mortality_reportable_share"
+          guardInput={{ n: m.total }}
         />
       </section>
 

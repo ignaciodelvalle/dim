@@ -38,6 +38,7 @@ import {
   registryCounts,
   toneForTarget,
 } from "@/lib/metrics";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { formatPercent } from "@/lib/utils/format";
@@ -240,6 +241,7 @@ export default async function GobCensoPage({
               "Total de mascotas con status 'active' o 'lost' en el scope de jurisdicción.",
             formula: "COUNT(pets) WHERE status IN ('active','lost') AND scope",
           }}
+          descriptorId="registry_total_pets"
         />
         <OpKpi
           label="Activas"
@@ -250,6 +252,7 @@ export default async function GobCensoPage({
             definition: "Mascotas con status='active' en scope (excluye 'lost').",
             formula: "COUNT(pets) WHERE status = 'active' AND scope",
           }}
+          descriptorId="registry_active_pets"
         />
         <OpKpi
           label="Inactivas"
@@ -264,9 +267,11 @@ export default async function GobCensoPage({
             caveat:
               "Los eventos credential_scanned se excluyen porque se purgan automáticamente a los 90 días y no representan actividad del propietario.",
           }}
+          descriptorId="registry_dormant_pets"
+          guardInput={{ n: counts.total }}
         />
         <OpKpi
-          label="Perfiles incompletos"
+          label={KPI_CATALOG.registry_incomplete_profiles.label}
           value={hasData ? counts.incomplete.toLocaleString("es-AR") : "—"}
           sub={`${incompletePct}% del total · sin chip, sexo o localidad`}
           tone={
@@ -282,6 +287,8 @@ export default async function GobCensoPage({
             formula:
               "NOT EXISTS active microchip_iso OR sex = 'unknown' OR jurisdiction_locality IS NULL",
           }}
+          descriptorId="registry_incomplete_profiles"
+          guardInput={{ n: counts.total }}
         />
       </section>
 

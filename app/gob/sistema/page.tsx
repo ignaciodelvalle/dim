@@ -16,7 +16,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { TARGETS, buildProjectionContext, enoSlaTone } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { redirect } from "next/navigation";
@@ -125,9 +125,10 @@ export default async function GobSistemaPage({
           }
           href="/gob/outbox"
           info={getKpiInfo("eno_sla_compliance")}
+          descriptorId="eno_sla_compliance"
         />
         <OpKpi
-          label="Cola pendiente"
+          label={KPI_CATALOG.queue_pending_total.label}
           value={queue.pendingTotal.toLocaleString("es-AR")}
           tone={queue.pendingTotal > 0 ? "warn" : "neutral"}
           sub={
@@ -140,6 +141,7 @@ export default async function GobSistemaPage({
             definition: "Solicitudes de aprobación en estado pendiente en tu jurisdicción.",
             formula: "count(*) WHERE status='pending' AND jurisdiction IN scope",
           }}
+          descriptorId="queue_pending_total"
         />
         <OpKpi
           label="Cola más vieja"
@@ -159,6 +161,7 @@ export default async function GobSistemaPage({
               "Días de antigüedad de la solicitud pendiente más antigua en tu jurisdicción.",
             formula: "now() - min(created_at) WHERE status='pending' AND scope",
           }}
+          descriptorId="queue_oldest_pending_days"
         />
       </section>
 

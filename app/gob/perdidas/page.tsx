@@ -85,7 +85,7 @@ export default async function GobPerdidasPage({
   // to bound the reunification-rate + median-recovery KPIs below.
   const period = windows.trailing30d();
   // G0 (PO decision 2026-07): the list always shows the full currently-lost
-  // STOCK (no window) so its count matches the same-page "Perdidas activas"
+  // STOCK (no window) so its count matches the same-page Perdidas activas
   // KPI — both count status='lost'. There is no period control to narrow it.
   const listSince = undefined;
   const species = sp.species || undefined;
@@ -269,7 +269,7 @@ export default async function GobPerdidasPage({
         className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
       >
         <OpKpi
-          label="Perdidas activas"
+          label={KPI_CATALOG.lost_pets_active_stock.label}
           value={metrics.activeCount > 0 ? String(metrics.activeCount) : "—"}
           tone={metrics.activeCount > 0 ? "warn" : "neutral"}
           drillHref="/gob/perdidas?status=lost"
@@ -277,6 +277,7 @@ export default async function GobPerdidasPage({
             definition: "Mascotas con estado 'lost' actualmente en la jurisdicción del operador.",
             formula: "COUNT(pets WHERE status='lost') scoped to jurisdiction",
           }}
+          descriptorId="lost_pets_active_stock"
         />
         <OpKpi
           label="Recuperados (30d)"
@@ -288,15 +289,17 @@ export default async function GobPerdidasPage({
             formula:
               "COUNT(pet_events WHERE event_type='status_changed', from='lost' → to='active', últimos 30d) scoped",
           }}
+          descriptorId="lost_pets_recovered_30d"
         />
         <OpKpi
-          label="Antigüedad media (días)"
+          label={KPI_CATALOG.lost_pets_avg_days_active.label}
           value={String(metrics.avgDaysActive)}
           info={{
             definition:
               "Promedio de días transcurridos desde la fecha de pérdida (evento pet_lost) hasta hoy, sobre el set actualmente perdido.",
             formula: "AVG(today − lost_at) WHERE status='lost'",
           }}
+          descriptorId="lost_pets_avg_days_active"
         />
         {/* D4 — reunification rate over a fixed trailing 30d window (benchmark:
             TARGETS.REUNIFICATION_PCT). No period control on this page (PO
@@ -319,13 +322,13 @@ export default async function GobPerdidasPage({
             formula:
               "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en 30d) × 100",
             caveat:
-              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional. Leer siempre junto a 'Perdidas activas'.",
+              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional. Leer siempre junto al stock de Perdidas activas.",
           }}
           descriptorId="reunification_rate"
           guardInput={{ n: reunification.lostEpisodes }}
         />
         <OpKpi
-          label="Mediana recuperación (días)"
+          label={KPI_CATALOG.reunification_median_recovery_days.label}
           // C1 (2026-07-22, §3b): "Never render mediana with N recoveries <
           // min" — a median over 1-4 recovered episodes isn't a meaningful
           // statistic, so below the SAME smallN floor as the rate tile
@@ -349,6 +352,7 @@ export default async function GobPerdidasPage({
             formula: "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_recovery)",
             caveat: `No se muestra con menos de ${KPI_CATALOG.reunification_rate.guards?.smallN?.min ?? 5} recuperaciones — una mediana sobre pocos casos no es una estadística significativa.`,
           }}
+          descriptorId="reunification_median_recovery_days"
         />
       </section>
 
@@ -394,7 +398,7 @@ export default async function GobPerdidasPage({
                         {tab.value === "all" && "Todas las mascotas"} (
                         {/* When the list hits its 500 cap and the stock KPI is
                             larger, say "primeros 500 de N" so the header never
-                            contradicts the "Perdidas activas" count above. */}
+                            contradicts the Perdidas activas count above. */}
                         {tab.value === "lost" &&
                         !q &&
                         listSince === undefined &&
