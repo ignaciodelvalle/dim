@@ -38,6 +38,29 @@
 - **Ola 4 PENDIENTE**: densidad (KPI hierarchy primitive, demote/disclose, lens) +
   cosecha grande (E1 cases-per-capita, E4 transfer-cancel, E5 reglas microchip, E6 check-ins).
 
+## LAS 4 OLAS COMPLETAS (2026-07-21)
+- Ola 1 (tokens/números/copy/iconos + cosecha): `30ac5c42`,`d9201a34`,`2e1a9e6d`.
+- Ola 2 (sistema de estados: offline/maintenance/partial/permisos + skeletons + fence):
+  `4c9167a3`,`63994dd3`.
+- Ola 3 (feedback+confirmación: pressed, toasts, ConfirmDialog rule, asimetrías): `82e3bcf7`.
+- Ola 4 (facades E1/E4/E5/C5 + densidad OpKpiGroup): `31d5d7f0`,`c72d5c9b`.
+Todo verificado (tsc/biome/lint/tests), :3000 rebuildeado, nada pusheado.
+
+## Preguntas/decisiones para el PO (juntadas del run)
+1. **adoption_reversed** (E4): NO existe use-case real (solo tests/seed insertan el evento).
+   Construirlo es dominio nuevo. ¿Qué debe hacer: la custodia vuelve a la org que finalizó?
+   ¿reabre el listado en silencio o pide re-publicar? — PARADO, espera tu definición.
+2. **owner-nudges** (E3): defaulteé a BORRAR el módulo huérfano. Re-montar la feature de
+   nudges es decisión tuya (no se resucita sin intención).
+3. **Validación visual** (diseño de Ola 4): headline de vigilancia ("Brotes activos") y
+   programa ("Provincias en alerta"), tamaños primario/secundario, overflow "Más" de org.
+4. **maintenance-mode**: se activa por env flag (docs/ops/env-handling.md).
+
+## Remainder que ratchetea (post, no bloquea)
+- ~75 segmentos con skeleton genérico (no específico); 17 empty-state baselineados.
+- Adopción app-wide de `notifySaved` (convención probada en 3 superficies).
+- Los 2052 valores arbitrarios de tokens ratcheteando.
+
 ## Log
 - (start) Plan committed 25e38ae7. Wave 1 kicked off.
 
