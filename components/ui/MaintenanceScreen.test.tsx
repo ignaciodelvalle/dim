@@ -22,7 +22,7 @@ describe("<LnMaintenanceScreen>", () => {
     const html = render(<LnMaintenanceScreen />);
     expect(html).toContain("En mantenimiento");
     expect(html).toContain(
-      "Volvé en unos minutos. Estamos actualizando MiMAR; tu información está segura.",
+      "Volvé en unos minutos. Estamos actualizando miMAR; tu información está segura.",
     );
   });
 
