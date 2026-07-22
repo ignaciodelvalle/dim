@@ -7,6 +7,7 @@ import { useState, useTransition } from "react";
 
 import { blockSlotAction } from "@/app/actions/slot-materialization";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Props = {
   orgToken: string;
@@ -32,6 +33,8 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
       if ("error" in result) {
         setBlocked(false);
         setError(result.error);
+      } else {
+        notifySaved("Cupo bloqueado");
       }
     });
   }

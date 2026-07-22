@@ -5,6 +5,7 @@
 import { useState, useTransition } from "react";
 
 import { Icon } from "@/components/Icon";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { setMemberEventWriteAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -35,6 +36,10 @@ export function EventWriteToggle({ organizationId, membershipId, canWrite }: Pro
       if ("error" in result) {
         setWrite(!next);
         setError(result.error);
+      } else {
+        notifySaved(
+          next ? "Acceso a eventos clínicos habilitado" : "Acceso a eventos clínicos deshabilitado",
+        );
       }
     });
   }

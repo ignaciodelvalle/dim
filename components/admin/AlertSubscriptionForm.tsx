@@ -14,6 +14,7 @@ import { createAlertSubscriptionAction } from "@/app/actions/alert-subscriptions
 // would pull the Node `net`/`tls` driver into the client bundle.
 import { ALERT_DIRECTIONS, ALERT_METRIC_KEYS } from "@/db/schema";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 // ---------------------------------------------------------------------------
 // es-AR labels for metric keys and directions
@@ -66,6 +67,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
         setStatus("success");
         formRef.current?.reset();
         onCreated?.();
+        notifySaved("Suscripción creada");
       }
     });
   }

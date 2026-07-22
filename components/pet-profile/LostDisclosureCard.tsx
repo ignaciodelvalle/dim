@@ -33,6 +33,7 @@
 import Link from "next/link";
 
 import { LnToggleGroup } from "@/components/ui/Toggle";
+import { notifyActionError, notifySaved } from "@/lib/ui/action-feedback";
 
 export type DisclosurePrefs = {
   discloseFirstNameWhenLost: boolean;
@@ -115,7 +116,13 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
           variant: "amber",
         }))}
         onChange={(key, next) => {
-          void toggleAction(key as keyof DisclosurePrefs, next);
+          // No local optimistic state here (checked mirrors the `prefs` prop
+          // directly) and toggleAction has no error surface of its own — the
+          // toast is the ONLY feedback the owner gets that a toggle landed
+          // (mutation-feedback convention, lib/ui/action-feedback.ts).
+          toggleAction(key as keyof DisclosurePrefs, next)
+            .then(() => notifySaved("Preferencia actualizada"))
+            .catch(() => notifyActionError("No se pudo guardar. Probá de nuevo."));
         }}
       />
 

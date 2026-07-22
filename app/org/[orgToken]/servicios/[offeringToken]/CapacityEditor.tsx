@@ -8,6 +8,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { updateOfferingCapacityAction } from "@/app/actions/service-offerings";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { pluralizeEs } from "@/lib/utils/format";
 
 type Props = {
@@ -63,6 +64,9 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
               "futuro",
             )}.`,
       );
+      // Inline banner carries the detail (slots synced); the toast is the
+      // immediate transient cue (mutation-feedback convention).
+      notifySaved("Capacidad actualizada");
     });
   }
 

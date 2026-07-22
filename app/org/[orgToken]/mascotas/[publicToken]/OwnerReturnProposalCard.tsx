@@ -7,6 +7,7 @@ import {
   orgRejectOwnerReturnAction,
 } from "@/app/actions/return-to-owner";
 import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 export function OwnerReturnProposalCard({
   orgToken,
@@ -57,6 +58,8 @@ export function OwnerReturnProposalCard({
       // Tier B: the local `done` card is the terminal UI for this proposal;
       // the rest of the page re-derives on next SSR visit. router.refresh()
       // is banned (silent-drop defect — see lib/ui/full-page-action-nav.ts).
+      // The toast is the confirmation (mutation-feedback convention).
+      notifySaved("Devolución aceptada");
     });
   }
 
@@ -79,6 +82,7 @@ export function OwnerReturnProposalCard({
       setDoneMode("reject");
       setDone(true);
       // Tier B: same as accept — local done card is terminal.
+      notifySaved("Propuesta rechazada");
     });
   }
 

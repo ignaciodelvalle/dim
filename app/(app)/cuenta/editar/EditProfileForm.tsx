@@ -14,6 +14,7 @@ import {
   type EmergencyContactValues,
 } from "@/components/pet-profile/EmergencyContactFields";
 import { looksLikeArPhone } from "@/lib/reference/ar-phone";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 function PhoneFormatWarning({ value }: { value: string }) {
   if (!value || looksLikeArPhone(value)) return null;
@@ -152,6 +153,11 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
       setFieldErrors(newErrors);
       if (!hasError && Object.keys(newErrors).length === 0) {
         setSuccessMessage("Tus datos fueron actualizados correctamente.");
+        // This form never navigates/reloads on save — the toast is the
+        // confirmation (mutation-feedback convention, lib/ui/action-feedback.ts).
+        // The inline banner above stays too — it's the durable signal for
+        // anyone who dismisses the toast before reading it.
+        notifySaved("Perfil actualizado");
       }
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : "Error desconocido");

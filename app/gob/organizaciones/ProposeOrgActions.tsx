@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import { proposeOrgVerificationAction } from "@/app/actions/admin-proposals";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Org = {
   id: string;
@@ -34,8 +35,12 @@ export function ProposeOrgActions({ org }: { org: Org }) {
     setError(null);
     startTransition(async () => {
       const result = await proposeOrgVerificationAction({ organizationId: org.id });
-      if ("error" in result) setError(result.error);
-      else setSubmitted(true);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setSubmitted(true);
+        notifySaved("Solicitud creada");
+      }
     });
   }
 

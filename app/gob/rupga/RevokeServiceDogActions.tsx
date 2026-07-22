@@ -28,6 +28,7 @@ import { OpButton } from "@/components/ui/dashboard";
 import { canRevoke } from "@/lib/domain/revocation-scope";
 import type { AdminOrGovtJurisdiction } from "@/lib/domain/revocation-scope";
 import type { ServiceDogCredentialSearchResult } from "@/lib/infra/admin-search";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -114,7 +115,10 @@ function RevokeServiceDogForm({
         setError(result.error);
       } else {
         // The action revalidates /gob/rupga server-side; just settle the UI.
+        // No client reload, so the toast is the confirmation (mutation-
+        // feedback convention, lib/ui/action-feedback.ts).
         onDone();
+        notifySaved("Credencial revocada");
       }
     });
   }

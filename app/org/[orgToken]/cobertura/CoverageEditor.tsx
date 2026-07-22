@@ -22,6 +22,7 @@ import { OpButton } from "@/components/ui/dashboard";
 import type { OrganizationCoverage } from "@/db";
 import type { LocalityOption } from "@/lib/infra/ar-localidades";
 import type { Province } from "@/lib/reference/ar-provincias";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   addCoverageZoneAction,
   removeCoverageZoneAction,
@@ -79,6 +80,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
         setError(result.error);
       } else {
         setSelectedLocality("");
+        notifySaved("Zona de cobertura agregada");
       }
     });
   }
@@ -87,7 +89,11 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
     setError(null);
     startTransition(async () => {
       const result = await removeCoverageZoneAction({ orgToken, coverageId });
-      if ("error" in result) setError(result.error);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        notifySaved("Zona de cobertura eliminada");
+      }
     });
   }
 
@@ -95,7 +101,11 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
     setError(null);
     startTransition(async () => {
       const result = await setPrimaryCoverageZoneAction({ orgToken, coverageId });
-      if ("error" in result) setError(result.error);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        notifySaved("Zona marcada como principal");
+      }
     });
   }
 

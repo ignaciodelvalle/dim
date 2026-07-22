@@ -10,6 +10,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LnCheckbox } from "@/components/ui/Field";
 import type { LibretaShareToken } from "@/db/schema";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 type Props = {
@@ -94,6 +95,10 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
         setDismissedToken(newShareToken);
       }
       setConfirmingShare(null);
+      // No reload here (revalidatePath alone doesn't touch this already-
+      // mounted client list) — the toast is the confirmation (mutation-
+      // feedback convention, lib/ui/action-feedback.ts).
+      notifySaved("Enlace revocado");
     });
   }
 

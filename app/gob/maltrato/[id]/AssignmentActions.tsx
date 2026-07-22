@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { assignWelfareToMeAction, unassignWelfareAction } from "@/src/modules/welfare/actions";
 
 type AssignmentActionsProps = {
@@ -38,6 +39,8 @@ export function AssignmentActions({
       if ("error" in result) {
         setAssignedTo(previous);
         setError(result.error);
+      } else {
+        notifySaved("Te asignaste la denuncia");
       }
     });
   }
@@ -51,6 +54,8 @@ export function AssignmentActions({
       if ("error" in result) {
         setAssignedTo(previous);
         setError(result.error);
+      } else {
+        notifySaved("Denuncia liberada");
       }
     });
   }

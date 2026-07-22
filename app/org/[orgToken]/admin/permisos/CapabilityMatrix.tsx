@@ -7,6 +7,7 @@
 // Admin row cells are all inert (universal implicit grant).
 
 import { Icon } from "@/components/Icon";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   type CapabilityActionState,
   decideCapabilityAction,
@@ -162,6 +163,8 @@ function GrantCell({
       if (result.error) {
         setGranted(false);
         setError(result.error);
+      } else {
+        notifySaved(`Permiso concedido: ${capabilityLabel}`);
       }
     });
   }

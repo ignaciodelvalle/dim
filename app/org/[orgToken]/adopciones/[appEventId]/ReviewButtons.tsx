@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   approveAdoptionApplicationAction,
   rejectAdoptionApplicationAction,
@@ -48,6 +49,10 @@ export function ReviewButtons({
           return;
         }
         setSent(true);
+        // request_info never navigates (unlike approve/reject, which push to
+        // the queue) — the toast is the confirmation (mutation-feedback
+        // convention, lib/ui/action-feedback.ts).
+        notifySaved("Mensaje enviado");
       });
       return;
     }

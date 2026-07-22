@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { setCoFosterAllowedAction } from "@/src/modules/foster/actions";
 
 export function CoFosterToggle({
@@ -31,6 +32,10 @@ export function CoFosterToggle({
       if ("error" in result) {
         setCurrent(previous);
         setError(result.error);
+      } else {
+        // In-place toggle, no reload — the toast is the confirmation
+        // (mutation-feedback convention, lib/ui/action-feedback.ts).
+        notifySaved(value ? "Ahora permitís co-foster" : "Ya no permitís co-foster");
       }
     });
   }

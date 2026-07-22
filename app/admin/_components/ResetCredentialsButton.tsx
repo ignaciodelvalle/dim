@@ -18,6 +18,7 @@ import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPan
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -110,6 +111,9 @@ function ResetCredentialsForm({
         return;
       }
       onDone(result.magicLink);
+      // No reload — the result panel stays mounted on this same route; the
+      // toast is the confirmation (mutation-feedback convention).
+      notifySaved("Credenciales restablecidas");
     });
   }
 

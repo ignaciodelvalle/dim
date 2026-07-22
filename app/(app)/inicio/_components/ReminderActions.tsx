@@ -17,6 +17,7 @@
 import { useState, useTransition } from "react";
 
 import { snoozeReminderAction } from "@/app/actions/reminders";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
 
 interface Props {
@@ -57,7 +58,9 @@ export function ReminderActions({ reminderId, petToken, variant }: Props) {
       // re-fetch needed (the next SSR render reads the new snoozed_until).
       // The old router.refresh() here was banned (silent-drop defect, see
       // lib/ui/full-page-action-nav.ts) and a dropped/failed refresh could
-      // even resurrect the snoozed row visually.
+      // even resurrect the snoozed row visually. The toast is the
+      // confirmation instead (mutation-feedback convention).
+      notifySaved("Recordatorio pospuesto 7 días");
     });
   }
 

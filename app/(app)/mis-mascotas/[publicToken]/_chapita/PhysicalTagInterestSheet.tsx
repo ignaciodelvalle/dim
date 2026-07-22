@@ -15,6 +15,7 @@ import { useState, useTransition } from "react";
 import { togglePhysicalTagInterestAction } from "@/app/actions/physical-tag-interest";
 import { Icon } from "@/components/Icon";
 import type { PhysicalCredentialChannels } from "@/lib/domain/business-rules-defaults";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 type Props = {
@@ -70,6 +71,9 @@ export function PhysicalTagInterestSheet({
       if (nowInterested && !requestedAt) {
         setRequestedAt(new Date());
       }
+      // This sheet stays open — the toast is the confirmation
+      // (mutation-feedback convention, lib/ui/action-feedback.ts).
+      notifySaved(nowInterested ? "Interés anotado" : "Interés cancelado");
     });
   }
 

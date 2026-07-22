@@ -27,6 +27,7 @@ import { dismissFirstStepAction } from "@/app/actions/pet-onboarding";
 import { Icon } from "@/components/Icon";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import type { FirstStepItem } from "@/lib/projections/first-steps-checklist";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 function FirstStepRow({
   item,
@@ -43,6 +44,9 @@ function FirstStepRow({
     startTransition(async () => {
       await dismissFirstStepAction(petPublicToken, item.key);
       onDismissed();
+      // Optimistic-terminal, no reload — the toast is the confirmation
+      // (mutation-feedback convention, lib/ui/action-feedback.ts).
+      notifySaved("Paso omitido");
     });
   }
 

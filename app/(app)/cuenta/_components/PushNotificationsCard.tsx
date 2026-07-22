@@ -22,6 +22,7 @@ import {
 } from "@/app/actions/push-subscriptions";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnToggle } from "@/components/ui/Toggle";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 const PUSH_ENABLED =
   process.env.NEXT_PUBLIC_PUSH_ENABLED === "1" || process.env.NEXT_PUBLIC_PUSH_ENABLED === "true";
@@ -117,6 +118,9 @@ export function PushNotificationsCard() {
         return;
       }
       setStatus("on");
+      // In-place toggle, no reload — the toast is the confirmation
+      // (mutation-feedback convention, lib/ui/action-feedback.ts).
+      notifySaved("Notificaciones activadas");
     } catch {
       setStatus("off");
       setError("No pudimos activar las notificaciones. Probá de nuevo.");
@@ -135,6 +139,7 @@ export function PushNotificationsCard() {
         await subscription.unsubscribe();
       }
       setStatus("off");
+      notifySaved("Notificaciones desactivadas");
     } catch {
       setStatus("off");
       setError("No pudimos desactivar del todo. Revisá los permisos del sitio en tu navegador.");

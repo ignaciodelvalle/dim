@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox, LnField, LnInput, LnSelect } from "@/components/ui/Field";
 import { OpButton, OpCallout } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { inviteMemberAction } from "@/src/modules/organizations/actions";
 
 type RoleOption = { value: string; label: string };
@@ -47,6 +48,7 @@ export function InviteForm({ organizationId, grantableRoles, defaultRole }: Prop
         return;
       }
       setInviteUrl(result.inviteUrl);
+      notifySaved("Invitación creada");
     });
   }
 

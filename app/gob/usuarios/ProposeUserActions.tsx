@@ -5,6 +5,7 @@ import { useId, useState, useTransition } from "react";
 
 import { proposeVetUpgradeAction } from "@/app/actions/admin-proposals";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Target = { id: string; displayName: string; role: "owner" | "vet" | "govt" | "admin" };
 
@@ -92,8 +93,12 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
         especialidad: form.especialidad || null,
         anosExperiencia: form.anosExperiencia ? Number(form.anosExperiencia) : null,
       });
-      if ("error" in result) setError(result.error);
-      else setSubmitted(true);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setSubmitted(true);
+        notifySaved("Solicitud creada");
+      }
     });
   }
 

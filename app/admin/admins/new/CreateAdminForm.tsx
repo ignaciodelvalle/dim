@@ -8,6 +8,7 @@ import { useState } from "react";
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type SuccessState = {
   profileId: string;
@@ -45,6 +46,7 @@ export function CreateAdminForm() {
           displayName: displayName.trim(),
           email: email.trim(),
         });
+        notifySaved("Cuenta admin creada");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");

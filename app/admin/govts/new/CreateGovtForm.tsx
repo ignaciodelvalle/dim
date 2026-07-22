@@ -9,6 +9,7 @@ import { createInstitutionalAccountAction } from "@/app/actions/admin-institutio
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 // One row per assigned locality. provinceName is the canonical display
 // name from ar_provincias (resolved via LocalityPickerAcross), passed to
@@ -80,6 +81,7 @@ export function CreateGovtForm() {
           displayName: displayName.trim(),
           email: email.trim(),
         });
+        notifySaved("Cuenta de gobierno creada");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");

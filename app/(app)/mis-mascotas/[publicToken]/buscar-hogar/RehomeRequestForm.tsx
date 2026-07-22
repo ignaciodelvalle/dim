@@ -15,6 +15,7 @@ type Props = {
 import { useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName }: Props) {
   const [isPending, startTransition] = useTransition();
@@ -30,6 +31,7 @@ export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName 
         setError(result.error);
       } else {
         setSent(true);
+        notifySaved("Solicitud enviada");
       }
     });
   }

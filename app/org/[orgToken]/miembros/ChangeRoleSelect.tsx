@@ -4,6 +4,7 @@
 
 import { useState, useTransition } from "react";
 
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { changeMemberRoleAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -37,10 +38,13 @@ export function ChangeRoleSelect({
       if ("error" in result) {
         setError(result.error);
         setSelectedRole(currentRole);
+      } else {
+        // Tier B: the optimistic selectedRole (with revert above) is the
+        // terminal UI state — no router.refresh(); it is banned (silent-drop
+        // defect, see lib/ui/full-page-action-nav.ts). Toast is the
+        // confirmation instead.
+        notifySaved("Rol actualizado");
       }
-      // Tier B: the optimistic selectedRole (with revert above) is the
-      // terminal UI state — no router.refresh(); it is banned (silent-drop
-      // defect, see lib/ui/full-page-action-nav.ts).
     });
   }
 
