@@ -19,6 +19,9 @@ import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
+import { LnMaintenanceScreen } from "@/components/ui/MaintenanceScreen";
+import { LnOfflineBanner } from "@/components/ui/OfflineBanner";
+import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   getOrgMembershipsCached,
@@ -32,6 +35,12 @@ export default async function AuthenticatedLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
+  // masthead/nav data exists yet, so the screen renders full-page, unwrapped.
+  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+    return <LnMaintenanceScreen />;
+  }
+
   const { user } = await requireUserOrRedirect();
 
   // Profile first: institutional roles redirect away, and the unread-count
@@ -72,6 +81,7 @@ export default async function AuthenticatedLayout({
   return (
     <AppShell
       variant="citizen"
+      banner={<LnOfflineBanner />}
       masthead={
         <AppCitizenMasthead
           nav={shell.nav}

@@ -31,6 +31,7 @@ import {
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { OpBulkResultPanel } from "@/components/ui/dashboard/OpBulkResultPanel";
 import { OpButton, type OpButtonVariant } from "@/components/ui/dashboard/OpButton";
 import { OpCheckbox } from "@/components/ui/dashboard/OpField";
 import type { ApprovalRequestType } from "@/db";
@@ -211,7 +212,7 @@ export function BulkApprovalQueueList({
         })}
       </ul>
 
-      {lastResult && <ResultPanel result={lastResult} onDismiss={dismissResult} />}
+      {lastResult && <OpBulkResultPanel result={lastResult} onDismiss={dismissResult} />}
 
       {someSelected && (
         <div className="fixed bottom-0 left-0 right-0 border-t border-ln-op-line bg-ln-op-card z-50">
@@ -367,35 +368,6 @@ function ConfirmRow({
           {pending ? "Procesando..." : confirmLabel}
         </OpButton>
       </div>
-    </div>
-  );
-}
-
-function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () => void }) {
-  return (
-    <div className="rounded-lg border border-ln-op-line p-3 space-y-2 text-sm">
-      <div className="flex items-baseline justify-between">
-        <p className="font-medium">
-          {result.succeeded.length} OK · {result.failed.length} fallaron
-        </p>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-xs text-ln-op-mute hover:text-ln-op-ink"
-        >
-          Cerrar
-        </button>
-      </div>
-      {result.failed.length > 0 && (
-        <ul className="text-xs text-ln-op-danger space-y-0.5">
-          {result.failed.map((f) => (
-            <li key={f.id}>
-              <span className="font-mono">{f.id}</span> — {f.reason}
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="text-xs text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
     </div>
   );
 }

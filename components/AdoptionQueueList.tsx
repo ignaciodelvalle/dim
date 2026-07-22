@@ -27,6 +27,7 @@ import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
 import type { OpBulkAction } from "@/components/ui/dashboard/OpBulkBar";
 import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
+import { OpBulkResultPanel } from "@/components/ui/dashboard/OpBulkResultPanel";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import { toggleSelection } from "@/lib/domain/bulk-select";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
@@ -111,39 +112,6 @@ function housingTypeLabel(value: string): string {
     default:
       return "Otra";
   }
-}
-
-// ---------------------------------------------------------------------------
-// ResultPanel
-// ---------------------------------------------------------------------------
-
-function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () => void }) {
-  return (
-    <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-2 text-[13px]">
-      <div className="flex items-baseline justify-between">
-        <p className="font-medium text-ln-op-ink">
-          {result.succeeded.length} OK · {result.failed.length} fallaron
-        </p>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-sm text-ln-op-mute hover:text-ln-op-ink"
-        >
-          Cerrar
-        </button>
-      </div>
-      {result.failed.length > 0 && (
-        <ul className="text-sm text-ln-op-danger space-y-0.5">
-          {result.failed.map((f) => (
-            <li key={f.id}>
-              <span className="font-mono">{f.id.slice(0, 8)}…</span> — {f.reason}
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="text-[11px] text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -407,7 +375,9 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       )}
 
       {/* Partial-failure result panel */}
-      {lastResult && <ResultPanel result={lastResult} onDismiss={dismissResult} />}
+      {lastResult && (
+        <OpBulkResultPanel result={lastResult} onDismiss={dismissResult} truncateFailedIdsTo={8} />
+      )}
 
       {/* Bulk bar — only active when pending rows are selected */}
       {activeStatus === "pending" && (

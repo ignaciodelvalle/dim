@@ -115,6 +115,46 @@ see the variant-map note below).
 | `Skeleton` / `LnCardSkeleton` | `Skeleton.tsx`, `LnCardSkeleton.tsx` | Citizen loading placeholders. | — |
 | `OpCardSkeleton` / `OpKpiSkeleton` | `dashboard/*` | Operator loading placeholders. | — |
 
+## Partial success / bulk-result states
+
+| Component | File | Use for | DON'T |
+|---|---|---|---|
+| `OpBulkResultPanel` | `dashboard/OpBulkResultPanel.tsx` | Post-bulk-action partial-success/failure feedback ("N OK · M fallaron" + per-item failure reasons + `bulk:` id footer). Replaces 3 duplicated inline `ResultPanel` functions (`components/BulkApprovalQueueList.tsx`, `components/AdoptionQueueList.tsx`, `app/org/[orgToken]/mascotas/OrgMascotasBulkList.tsx`) that had converged on the same shape independently. Takes `successLabel` (defaults to `"OK"`; pass a pluralized noun like `"vacunadas"`) and `truncateFailedIdsTo` (omit for full ids) so each caller keeps its own prior behavior. `role`/`aria-live` handled via an `<output>` wrapper (implicit "status" role — a result announcement, not a destructive alert). | Don't hand-roll another bulk-result panel — extend this one's props instead. Domain-specific success-noun computation (e.g. singular/plural "vacunada(s)") stays in the caller, not in this primitive. |
+
+## Connectivity & availability states
+
+| Component | File | Use for | DON'T |
+|---|---|---|---|
+| `LnOfflineBanner` | `OfflineBanner.tsx` | Full-width "sin conexión" notice mounted via `AppShell`'s citizen `banner` slot. Renders nothing while online — a thin wrapper around `useOnline()` (`lib/hooks/useOnline.ts`). | Don't re-implement connectivity polling — extend `useOnline()`. Don't use `role="alert"` — connectivity loss is informational (`role="status"`/`aria-live="polite"`), not destructive. |
+| `OpOfflineBanner` | `dashboard/OpOfflineBanner.tsx` | Same as `LnOfflineBanner`, Op-skinned (`--color-ln-op-warn-bg`/`-bd`). Mounted via `AppShell`'s operator `banner` slot in `/gob`, `/admin` (composed with `DemoModeBanner`), `/org`. | — |
+| `LnMaintenanceScreen` | `MaintenanceScreen.tsx` | Full-page "en mantenimiento" state for the citizen shell, rendered by `app/(app)/layout.tsx` BEFORE any auth/data fetch when `isMaintenanceMode()` (`lib/domain/maintenance-mode.ts`, env `NEXT_PUBLIC_MAINTENANCE_MODE`) is true. NOT wrapped in `AppShell` — no nav data exists yet at that point. | Don't add a retry/reset action — there is nothing to retry. |
+| `OpMaintenanceScreen` | `dashboard/OpMaintenanceScreen.tsx` | Same as `LnMaintenanceScreen`, Op-skinned. Mounted at the top of `app/gob/layout.tsx`, `app/admin/layout.tsx`, `app/org/[orgToken]/layout.tsx`. | Don't wire it into `app/(public)/*` — out of scope for this foundation step. |
+
+Utilities backing the two states above: `useOnline()` (`lib/hooks/useOnline.ts`,
+the first file in the new `lib/hooks/` convention — SSR-safe, defaults to
+`true` until a `useEffect` reads `navigator.onLine`) and `isMaintenanceMode()`
+(`lib/domain/maintenance-mode.ts`, mirrors `lib/domain/demo-mode.ts`'s
+server-safe pure-function shape).
+
+## Permission / access states — full-page vs in-shell
+
+Two patterns cover insufficient-permissions states. Pick by scope, not by feel:
+
+- **Full-page** (`app/acceso-denegado/page.tsx` wrapping `BrandedNotFound`) —
+  for portal-LEVEL mismatches, where the visitor is in the wrong portal
+  entirely (e.g. a `personal` role hitting `/gob`) and no shell chrome
+  (nav/rail) should render around the message.
+- **In-shell** (`OpBreach`, `components/ui/dashboard/OpBreach.tsx`, ~50
+  existing uses) — for scope/capability restrictions WITHIN a shell the
+  visitor does otherwise belong in (nav/rail still renders; only the page
+  content area is restricted). This is now also the pattern used by
+  `app/org/[orgToken]/admin/layout.tsx` (previously a 3rd hand-rolled
+  "Acceso restringido" card — see Track B5,
+  `docs/reviews/results/2026-07-21-nivel-siguiente-plan.md`).
+
+Do NOT hand-roll a third "Acceso restringido"/"restricted access" card
+anywhere — use one of these two.
+
 ## Credential-document chrome
 
 | Component | File | Use for |

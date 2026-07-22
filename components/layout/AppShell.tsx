@@ -49,6 +49,12 @@ type CitizenProps = CommonProps & {
    * hidden behind the fixed bar. Anonymous/public surfaces pass nothing.
    */
   tabBar?: ReactNode;
+  /**
+   * Optional full-width banner rendered above the rest of the chrome (e.g.
+   * the offline banner). Mirrors the operator variant's `banner` slot — see
+   * its JSDoc below for the placement rationale.
+   */
+  banner?: ReactNode;
 };
 
 type OperatorProps = CommonProps & {
@@ -94,7 +100,7 @@ export function AppShell(props: AppShellProps) {
 // citizen — top masthead + institutional stripe + minimal footer
 // ---------------------------------------------------------------------------
 
-function CitizenShell({ masthead, footer, maxWidth, tabBar, children }: CitizenProps) {
+function CitizenShell({ masthead, footer, maxWidth, tabBar, banner, children }: CitizenProps) {
   return (
     // min-h-dvh (not 100vh): tracks the dynamic mobile viewport so the fixed
     // tab bar never floats above a stale browser-chrome offset. When the tab
@@ -110,6 +116,7 @@ function CitizenShell({ masthead, footer, maxWidth, tabBar, children }: CitizenP
     >
       {/* Thin Argentina institutional stripe (D7). */}
       <GobStripe />
+      {banner}
       {masthead}
       {/* pb-safe: keep the last content row clear of the iOS home indicator
           now that viewport-fit=cover lets the PWA draw under it. */}

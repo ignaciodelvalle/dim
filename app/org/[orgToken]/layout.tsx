@@ -15,12 +15,13 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { buildOrgNav } from "@/components/layout/nav-presets";
 import type { NavSection } from "@/components/ui/dashboard";
-import { OpOmnibox } from "@/components/ui/dashboard";
+import { OpMaintenanceScreen, OpOfflineBanner, OpOmnibox } from "@/components/ui/dashboard";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import type { OrganizationCapability } from "@/db";
 import { applicableOrgQueues } from "@/lib/analytics/org-dashboard";
+import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import {
   getOrgQueueCountsCached,
@@ -36,6 +37,12 @@ export default async function OrgLayout({
   children: ReactNode;
   params: Promise<{ orgToken: string }>;
 }) {
+  // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
+  // rail/topbar data exists yet, so the screen renders full-page, unwrapped.
+  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+    return <OpMaintenanceScreen />;
+  }
+
   const { orgToken } = await params;
   // Validates membership. Returns notFound() on failure — never leaks org existence.
   const { user, organization, membership } = await requireOrgAccessByToken(orgToken);
@@ -160,6 +167,7 @@ export default async function OrgLayout({
   return (
     <AppShell
       variant="operator"
+      banner={<OpOfflineBanner />}
       rail={
         <OpRail
           sections={navSections}

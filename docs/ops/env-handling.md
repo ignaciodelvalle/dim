@@ -69,6 +69,28 @@ npx web-push generate-vapid-keys
 # → privateKey → VAPID_PRIVATE_KEY
 ```
 
+### Maintenance mode — full kill-switch, no partial granularity
+
+`NEXT_PUBLIC_MAINTENANCE_MODE` (checked via `isMaintenanceMode()` in
+`lib/domain/maintenance-mode.ts`) replaces every page in the four gated shells
+with a full-page "En mantenimiento" screen (`LnMaintenanceScreen` /
+`OpMaintenanceScreen`), short-circuiting **before** any auth check or DB call
+in each layout.
+
+| Key | Accepted values | Default |
+|---|---|---|
+| `NEXT_PUBLIC_MAINTENANCE_MODE` | `1` or `true` (anything else, including unset, is off) | off |
+
+The four shells that honor it: `app/gob/layout.tsx`, `app/admin/layout.tsx`,
+`app/org/[orgToken]/layout.tsx`, `app/(app)/layout.tsx`. `app/(public)/*` (the
+public landing/QR-scan surfaces) deliberately does NOT check this flag —
+out of scope for this foundation step.
+
+This is a **full kill-switch, not an ops console** — there is no per-route or
+per-jurisdiction granularity, and no in-app toggle. Flip it in the deploy env
+(Vercel project settings / `.env.vercel`), not a UI switch, and expect it to
+take every gated shell down at once.
+
 ---
 
 ## The rule: never hand-edit `.env.local` into a broken state

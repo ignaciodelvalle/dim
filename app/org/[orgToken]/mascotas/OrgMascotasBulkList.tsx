@@ -29,7 +29,7 @@ import {
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
-import { OpButton, OpStateBadge } from "@/components/ui/dashboard";
+import { OpBulkResultPanel, OpButton, OpStateBadge } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { pluralizeEs, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
@@ -457,9 +457,9 @@ export function OrgMascotasBulkList({
       )}
 
       {lastResult && (
-        <ResultPanel
+        <OpBulkResultPanel
           result={lastResult}
-          actionType={lastResultType ?? "vaccinate"}
+          successLabel={successNoun(lastResult, lastResultType ?? "vaccinate")}
           onDismiss={dismissResult}
         />
       )}
@@ -936,17 +936,15 @@ function BulkListingForm({
   );
 }
 
-// ─── ResultPanel ──────────────────────────────────────────────────────────────
+// ─── Success noun ─────────────────────────────────────────────────────────────
+// Domain-specific singular/plural noun for the OpBulkResultPanel summary line
+// (e.g. "3 vacunadas · 1 fallaron"). Kept here, not in the shared primitive —
+// the vaccinate/eligibility/listing vocabulary is specific to this screen.
 
-function ResultPanel({
-  result,
-  actionType,
-  onDismiss,
-}: {
-  result: BulkResult;
-  actionType: "vaccinate" | "eligibility" | "listing-publish" | "listing-unlist";
-  onDismiss: () => void;
-}) {
+function successNoun(
+  result: BulkResult,
+  actionType: "vaccinate" | "eligibility" | "listing-publish" | "listing-unlist",
+): string {
   const nounSingular =
     actionType === "vaccinate"
       ? "vacunada"
@@ -963,32 +961,5 @@ function ResultPanel({
         : actionType === "listing-unlist"
           ? "despublicadas"
           : "actualizadas";
-  const noun = result.succeeded.length === 1 ? nounSingular : nounPlural;
-
-  return (
-    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 space-y-2 text-[13px]">
-      <div className="flex items-baseline justify-between">
-        <p className="font-medium text-ln-op-ink">
-          {result.succeeded.length} {noun} · {result.failed.length} fallaron
-        </p>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-sm text-ln-op-mute hover:text-ln-op-ink"
-        >
-          Cerrar
-        </button>
-      </div>
-      {result.failed.length > 0 && (
-        <ul className="text-sm text-ln-op-danger space-y-0.5">
-          {result.failed.map((f) => (
-            <li key={f.id}>
-              <span className="font-mono">{f.id}</span> — {f.reason}
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="text-xs text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
-    </div>
-  );
+  return result.succeeded.length === 1 ? nounSingular : nounPlural;
 }

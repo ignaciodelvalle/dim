@@ -4,10 +4,13 @@ import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { GovtJurisdictionsChip } from "@/components/layout/GovtJurisdictionsChip";
 import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import { OpMaintenanceScreen } from "@/components/ui/dashboard/OpMaintenanceScreen";
+import { OpOfflineBanner } from "@/components/ui/dashboard/OpOfflineBanner";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
+import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import type { ShellSession } from "@/lib/ui/shell-nav";
@@ -19,6 +22,12 @@ import { roleLabel } from "@/lib/utils/format";
 // NOT NULL) by redirecting to /, so a deactivated govt/admin cannot reach any
 // /gob surface or invoke its server actions.
 export default async function GobiernoLayout({ children }: { children: React.ReactNode }) {
+  // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
+  // rail/topbar data exists yet, so the screen renders full-page, unwrapped.
+  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+    return <OpMaintenanceScreen />;
+  }
+
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
   const scopeCode =
@@ -70,6 +79,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   return (
     <AppShell
       variant="operator"
+      banner={<OpOfflineBanner />}
       rail={
         <OpRail
           sections={GOB_NAV_SECTIONS}

@@ -5,11 +5,14 @@ import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { ADMIN_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import type { NavSection } from "@/components/ui/dashboard";
+import { OpMaintenanceScreen } from "@/components/ui/dashboard/OpMaintenanceScreen";
+import { OpOfflineBanner } from "@/components/ui/dashboard/OpOfflineBanner";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
+import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { getProfileCached } from "@/lib/infra/request-cache";
@@ -21,6 +24,12 @@ import { roleLabel } from "@/lib/utils/format";
 // to / (root). Uses the strict requireAdminOrRedirect guard which also rejects
 // deactivated admins (Fase 5 invariant).
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
+  // rail/topbar data exists yet, so the screen renders full-page, unwrapped.
+  if (isMaintenanceMode(process.env.NEXT_PUBLIC_MAINTENANCE_MODE)) {
+    return <OpMaintenanceScreen />;
+  }
+
   const { profile } = await requireAdminOrRedirect();
 
   // Global breach count (pending rows past their SLA deadline). Shared with the
@@ -107,7 +116,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <AppShell
       variant="operator"
-      banner={<DemoModeBanner enabled={demoMode} />}
+      banner={
+        <>
+          <DemoModeBanner enabled={demoMode} />
+          <OpOfflineBanner />
+        </>
+      }
       rail={
         <OpRail
           sections={sections}
