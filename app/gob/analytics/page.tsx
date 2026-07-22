@@ -10,6 +10,7 @@ import {
   RABIES_VACCINATION_RATE_LABEL_ES,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
+  fetchCasesPerCapita,
   fetchDeathCauses,
   fetchOutbreakHistory,
 } from "@/lib/analytics/govt-dashboards";
@@ -26,6 +27,7 @@ import {
 import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
+import { CasesPerCapitaTable } from "./_components/CasesPerCapitaTable";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";
 
@@ -149,6 +151,11 @@ export default async function GobAnalyticsPage({
       fetchDeathCauses(actor, filteredJurisdictions, { since, adminProvince, adminLocality }),
       fetchOutbreakHistory(actor, filteredJurisdictions, { adminProvince, adminLocality }),
       fetchRegionRanking(actor, filteredJurisdictions, { adminProvince, adminLocality }),
+      // E1 (2026-07-21 facades harvest) — population-adjusted per-capita open
+      // cases (INDEC 2022). No admin province/locality drill-down param: the
+      // fetcher scopes by actor+jurisdictions only (province-level census
+      // join), matching its existing tested contract.
+      fetchCasesPerCapita(actor, filteredJurisdictions),
       fetchOutbreakSignalsTrend(trendCtx),
       // Sparkline for "Pets totales" KPI — registrations trend via pet_registered events.
       fetchKpiTrend("pet_registered", trendCtx),
@@ -175,6 +182,7 @@ export default async function GobAnalyticsPage({
     deathCauses,
     outbreakHistory,
     regionRanking,
+    casesPerCapita,
     signalsTrend,
     petRegisteredTrend,
     vetAccess,
@@ -191,6 +199,7 @@ export default async function GobAnalyticsPage({
   const panelDeathId = "panel-death-titulo";
   const panelOutbreakId = "panel-outbreak-titulo";
   const panelRankingId = "panel-ranking-titulo";
+  const panelPerCapitaId = "panel-percapita-titulo";
   const panelVetAccessId = "panel-vet-access-titulo";
   // Lowest-access localities first (care deserts). fetchVetAccessByLocality
   // already sorts ascending by per1k; cap the table at the 8 lowest.
@@ -322,8 +331,10 @@ export default async function GobAnalyticsPage({
       {/* Cross-region ranking table (Item 22). A "casos por 10k hab." choropleth
           previously sat above this — removed: same spatial question (open-case
           distribution by province) as /gob/vigilancia's national map, just
-          normalized instead of raw. Demoted per PO review; raw counts remain
-          visible on /gob/vigilancia. */}
+          normalized instead of raw. The CHOROPLETH form was demoted per PO
+          review; the underlying metric (fetchCasesPerCapita) was reinstated
+          below as a compact ranking table (E1, 2026-07-21 facades harvest) —
+          raw counts remain visible on /gob/vigilancia. */}
       {(regionRanking.top.length > 0 || regionRanking.bottom.length > 0) && (
         <OpCard aria-labelledby={panelRankingId}>
           <OpCardHead
@@ -343,6 +354,23 @@ export default async function GobAnalyticsPage({
           </OpCardBody>
         </OpCard>
       )}
+
+      {/* E1 (2026-07-21 facades harvest) — population-adjusted per-capita open
+          cases (INDEC 2022). Built + unit-tested since before this pass, with
+          zero callers anywhere in app/ until now. */}
+      <OpCard aria-labelledby={panelPerCapitaId}>
+        <OpCardHead
+          title={
+            <span id={panelPerCapitaId}>
+              Incidencia de casos abiertos por habitante{" "}
+              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">INDEC 2022</span>
+            </span>
+          }
+        />
+        <OpCardBody>
+          <CasesPerCapitaTable rows={casesPerCapita} />
+        </OpCardBody>
+      </OpCard>
 
       {/* Vet-access gap — vet visits per 1.000 active pets by locality. Lowest
           per-1k localities are care deserts (the CABA vs periphery inequity).

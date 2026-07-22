@@ -196,6 +196,24 @@ export function getRuleTypeDef<T extends GovtBusinessRuleType>(ruleType: T): Rul
 }
 
 /**
+ * es-AR label per resolveBusinessRule() cascade `source` — shared vocabulary
+ * between the govt read-only lens (app/gob/reglas/page.tsx) and the admin
+ * cascade-editing lens (app/gob/reglas/[country]/[province]/[locality]/
+ * page.tsx). Previously only the govt lens showed this; the admin lens's
+ * "Tipos sin excepción" section displayed the hardcoded system default with
+ * no indication a higher jurisdiction level might actually govern instead
+ * (E5, 2026-07-21 facades harvest).
+ */
+export type ResolvedRuleSource = "default" | "country" | "province" | "locality";
+
+export const RULE_SOURCE_LABEL: Record<ResolvedRuleSource, string> = {
+  default: "Default nacional",
+  country: "Override país (AR)",
+  province: "Override provincia",
+  locality: "Override localidad",
+};
+
+/**
  * es-AR one-line summary of a rule payload for console listings — replaces
  * dumping truncated raw JSON at the operator (QA round 2 2026-07-03 #7).
  * Total over unknown/legacy payload shapes: falls back to compact JSON rather

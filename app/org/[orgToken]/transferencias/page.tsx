@@ -17,6 +17,7 @@ import { cases, db, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDate } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
+import { CancelTransferAction } from "./CancelTransferAction";
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Esperando respuesta",
@@ -123,26 +124,39 @@ export default async function OrgTransferenciasSalientesPage({
                       ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
                       : (STATUS_LABEL[r.status] ?? r.status);
                   return (
-                    <li key={r.caseId} className="flex items-start justify-between gap-3 px-4 py-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
-                          {r.petName ?? "(sin pet)"}{" "}
-                          <span className="font-mono text-sm text-ln-op-mute">
-                            · {r.publicCode}
-                          </span>
-                        </p>
-                        <p className="text-sm text-ln-op-mute">
-                          Abierta el {formatDate(r.openedAt)}
-                          {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
-                        </p>
-                        <Link
-                          href={`/casos/${r.publicCode}`}
-                          className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
-                        >
-                          Ver caso →
-                        </Link>
+                    <li key={r.caseId} className="px-4 py-3 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-[13px] font-medium text-ln-op-ink">
+                            {r.petName ?? "(sin pet)"}{" "}
+                            <span className="font-mono text-sm text-ln-op-mute">
+                              · {r.publicCode}
+                            </span>
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            Abierta el {formatDate(r.openedAt)}
+                            {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
+                          </p>
+                          <Link
+                            href={`/casos/${r.publicCode}`}
+                            className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
+                          >
+                            Ver caso →
+                          </Link>
+                        </div>
+                        <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>
+                          {statusLabel}
+                        </OpPill>
                       </div>
-                      <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>{statusLabel}</OpPill>
+                      {/* Cancel — sender side only, only while the proposal is
+                          still pending (E4, 2026-07-21 facades harvest). */}
+                      {r.status === "open" && (
+                        <CancelTransferAction
+                          senderOrgToken={orgToken}
+                          casePublicCode={r.publicCode}
+                          petName={r.petName ?? "(sin pet)"}
+                        />
+                      )}
                     </li>
                   );
                 })}

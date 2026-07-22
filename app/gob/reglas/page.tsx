@@ -10,7 +10,11 @@
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
 import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
-import { RULE_TYPE_REGISTRY, summarizeRulePayload } from "@/lib/domain/rule-types-registry";
+import {
+  RULE_TYPE_REGISTRY,
+  RULE_SOURCE_LABEL as SOURCE_LABEL,
+  summarizeRulePayload,
+} from "@/lib/domain/rule-types-registry";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { portalBase } from "@/lib/ui/portal-base";
@@ -18,13 +22,6 @@ import { portalBase } from "@/lib/ui/portal-base";
 import { AdminReglasLens } from "./AdminReglasLens";
 
 export const dynamic = "force-dynamic";
-
-const SOURCE_LABEL: Record<string, string> = {
-  default: "Default nacional",
-  country: "Override país (AR)",
-  province: "Override provincia",
-  locality: "Override localidad",
-};
 
 export default async function ReglasPage({
   searchParams,

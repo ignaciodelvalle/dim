@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { Icon } from "@/components/Icon";
+import { AuthorChip } from "@/components/pet-profile/AuthorChip";
 import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { attachments, db, petEvents } from "@/db";
@@ -266,33 +266,5 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       </dt>
       <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
     </div>
-  );
-}
-
-const AUTHOR_ROLE_LABELS: Record<string, string> = {
-  owner: "Dueño/a",
-  vet: "Veterinario/a",
-  shelter: "Refugio",
-  govt: "Autoridad pública",
-  system: "Sistema",
-  scanner: "Lector de chip",
-  finder: "Hallador",
-};
-
-function AuthorChip({ role, verified }: { role: string; verified: boolean }) {
-  const label = AUTHOR_ROLE_LABELS[role] ?? role;
-  return (
-    <span className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[9px] py-[3px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-ink-2)]">
-      {label}
-      {verified && (
-        <span
-          className="inline-flex h-[13px] w-[13px] items-center justify-center rounded-full bg-[var(--color-ln-ok)] text-white"
-          title="Verificado"
-          aria-label="verificado"
-        >
-          <Icon name="check" size={9} decorative />
-        </span>
-      )}
-    </span>
   );
 }

@@ -12,6 +12,7 @@ import type { ComponentType } from "react";
 
 import type { GovtBusinessRuleType } from "@/db";
 
+import { MicrochipRequiredForm } from "./MicrochipRequiredForm";
 import {
   DueSoonWindowForm,
   LongStayDaysForm,
@@ -52,6 +53,7 @@ export const RULE_FORM_REGISTRY: Partial<
   ppp_weight_threshold: PppWeightThresholdForm as ComponentType<RuleFormProps>,
   ppp_attestation_required_registries: PppAttestationRegistriesForm as ComponentType<RuleFormProps>,
   physical_credential_channels: PhysicalCredentialChannelsForm as ComponentType<RuleFormProps>,
+  microchip_required: MicrochipRequiredForm as ComponentType<RuleFormProps>,
   rabies_observation_window: RabiesObservationWindowForm as ComponentType<RuleFormProps>,
   due_soon_window: DueSoonWindowForm as ComponentType<RuleFormProps>,
   reminder_windows: ReminderWindowsForm as ComponentType<RuleFormProps>,
@@ -95,6 +97,11 @@ export function buildCreateFormExtraProps(
         initialNfcTag: payload.nfc_tag ?? { enabled: false },
         initialNotes: "",
       };
+    case "microchip_required":
+      return {
+        initialRequired: typeof payload.required === "boolean" ? payload.required : true,
+        initialNotes: "",
+      };
     case "rabies_observation_window":
     case "due_soon_window":
     case "long_stay_days":
@@ -136,6 +143,10 @@ export function buildEditFormExtraProps(
         initialPrintableQr: Boolean(payload.printable_qr),
         initialEngravedPlate: payload.engraved_plate ?? { enabled: false },
         initialNfcTag: payload.nfc_tag ?? { enabled: false },
+      };
+    case "microchip_required":
+      return {
+        initialRequired: typeof payload.required === "boolean" ? payload.required : true,
       };
     case "rabies_observation_window":
     case "due_soon_window":

@@ -16,8 +16,13 @@ import {
   govtBusinessRules,
   profiles,
 } from "@/db";
-import { RULE_TYPE_REGISTRY, summarizeRulePayload } from "@/lib/domain/rule-types-registry";
+import {
+  RULE_TYPE_REGISTRY,
+  RULE_SOURCE_LABEL as SOURCE_LABEL,
+  summarizeRulePayload,
+} from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { portalBase } from "@/lib/ui/portal-base";
 import { formatDate } from "@/lib/utils/format";
 
@@ -74,6 +79,19 @@ export default async function JurisdictionReglasPage({
     (t) => !activeByType.has(t) && t in RULE_FORM_REGISTRY,
   );
 
+  // E5 (2026-07-21 facades harvest) — cascade-mask indicator. A type absent
+  // AT THIS EXACT LEVEL can still be governed by a country/province override
+  // above it; this used to always show the hardcoded system default with no
+  // way to tell. Resolve each missing type through the SAME cascade the govt
+  // read-only lens uses (resolveBusinessRule), so "Default: X" only appears
+  // when the value genuinely IS the hardcoded default — otherwise the real
+  // source (and its resolved value) is shown instead.
+  const missingResolved = await Promise.all(
+    missingTypes.map((t) =>
+      resolveBusinessRule(t, { country, province, locality }).then((r) => ({ type: t, ...r })),
+    ),
+  );
+
   const segCountry = encodeURIComponent(country);
   const segProvince = encodeURIComponent(province ?? "_");
   const segLocality = encodeURIComponent(locality ?? "_");
@@ -98,6 +116,16 @@ export default async function JurisdictionReglasPage({
       <section className="space-y-3">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Reglas activas
+        </p>
+        {/* WHERE AM I (E5, 2026-07-21 facades harvest) — this list only shows
+            rules configured EXACTLY at this jurisdiction level. A rule set
+            at a more specific level below this one (e.g. a locality inside
+            this province) can still take precedence for pets in that
+            locality — see "Tipos sin excepción" below for the resolved
+            (cascade-aware) picture of what's NOT overridden here. */}
+        <p className="text-[var(--text-sm)] text-ln-op-mute">
+          Configuradas exactamente en {jurisdictionLabel(country, province, locality)} — un nivel
+          más específico (si existe) puede tener su propia excepción.
         </p>
         {rows.length === 0 && (
           <p className="text-[13px] text-ln-op-mute">
@@ -143,10 +171,10 @@ export default async function JurisdictionReglasPage({
       {missingTypes.length > 0 && (
         <section className="space-y-3">
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Tipos sin excepción (usando valores por defecto)
+            Tipos sin excepción en este nivel
           </p>
           <ul className="space-y-2">
-            {missingTypes.map((t) => (
+            {missingResolved.map(({ type: t, payload, source }) => (
               <li key={t}>
                 <OpCard>
                   <OpCardBody>
@@ -158,8 +186,19 @@ export default async function JurisdictionReglasPage({
                         <p className="text-[11px] text-ln-op-mute">
                           {RULE_TYPE_REGISTRY[t].description}
                         </p>
+                        {/* Cascade-mask indicator (E5, 2026-07-21 facades
+                            harvest) — resolved via the SAME cascade the govt
+                            read-only lens uses, so a country/province
+                            override above this level shows up honestly
+                            instead of a blind "using the hardcoded default". */}
                         <p className="text-[11px] text-ln-op-mute mt-1">
-                          Default: {summarizeRulePayload(t, RULE_TYPE_REGISTRY[t].default)}
+                          <span
+                            className={source === "default" ? "" : "font-medium text-ln-op-warn"}
+                          >
+                            {SOURCE_LABEL[source]}
+                          </span>
+                          {": "}
+                          {summarizeRulePayload(t, payload)}
                         </p>
                       </div>
                       <Link

@@ -245,3 +245,42 @@ describe("toAsientoView — sighting note is attributed to a third party, not th
     expect(view.provenance.label).toBe("Cargado por vos");
   });
 });
+
+// ---------------------------------------------------------------------------
+// WHO surfacing (C5, 2026-07-21 facades harvest): the org_registered
+// provenance stamp previously read the generic "Registrado por la
+// organización" for EVERY org-authored, non-professional-signed record —
+// unlike the operator ledger (EventLedgerRow), which always names the actor.
+// The loader already resolves authorOrgName (used by the vaccine "Aplicó"
+// field); the provenance stamp now names the org too when it's available,
+// never a personal staffer name (org identity isn't PII the way a person's
+// name is).
+// ---------------------------------------------------------------------------
+
+describe("deriveProvenance — org_registered names the organization (C5)", () => {
+  const baseDeworming: HistorialEventRow = {
+    id: "evt-dw-1",
+    petId: "pet-1",
+    eventType: "deworming_administered",
+    payload: { product: "Drontal", type: "internal" },
+    occurredAt: new Date("2026-07-02T12:00:00Z"),
+    notes: null,
+    authorRole: "shelter",
+    authorVerified: false,
+    authorOrganizationId: "org-1",
+    attachmentUrl: null,
+    amendedAt: null,
+  };
+
+  it("names the organization when the loader resolved authorOrgName", () => {
+    const row: HistorialEventRow = { ...baseDeworming, authorOrgName: "Refugio Esperanza" };
+    const view = toAsientoView(row, "TOKEN-1234", NOW);
+    expect(view.provenance.label).toBe("Registrado por Refugio Esperanza");
+    expect(view.provenance.verified).toBe(false);
+  });
+
+  it("falls back to the generic label when authorOrgName is absent", () => {
+    const view = toAsientoView(baseDeworming, "TOKEN-1234", NOW);
+    expect(view.provenance.label).toBe("Registrado por la organización");
+  });
+});

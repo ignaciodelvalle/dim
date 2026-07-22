@@ -137,8 +137,18 @@ function deriveProvenance(
   }
   if (tier === "org_registered") {
     // A named organization recorded it, but no matriculated professional signed
-    // (#43 VET keystone) — a valid record, NOT verification.
-    return { verified: false, label: "Registrado por la organización" };
+    // (#43 VET keystone) — a valid record, NOT verification. WHO surfacing
+    // (C5, 2026-07-21 facades harvest): name the org when the loader resolved
+    // one (authorOrgName), instead of the generic "la organización" — the
+    // operator ledger names the actor; the owner-facing stamp should too,
+    // without exposing any individual staffer's personal name (org identity
+    // is not PII the way a person's name would be).
+    return {
+      verified: false,
+      label: row.authorOrgName
+        ? `Registrado por ${row.authorOrgName}`
+        : "Registrado por la organización",
+    };
   }
   // A third-party scanner (anonymous QR scan — e.g. a lost-pet sighting
   // reported from the public /p page) is NEVER the owner. "Cargado por vos"

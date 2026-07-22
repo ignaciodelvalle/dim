@@ -1,5 +1,6 @@
 "use client";
 
+import { AuthorChip } from "@/components/pet-profile/AuthorChip";
 import { type WeightSample, WeightSparkline } from "@/components/pet-profile/WeightSparkline";
 import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnBadge } from "@/components/ui/Badge";
@@ -50,6 +51,40 @@ export type EventTimelineEvent = {
 };
 
 type Event = EventTimelineEvent;
+
+// Extracted (C5, 2026-07-21 facades harvest) to keep EventTimelineList's row
+// map under the repo's cognitive-complexity budget once the actor chip was
+// added — a pure presentational split, no behavior change.
+function EventBadgesRow({
+  event,
+  provenance,
+  publicToken,
+}: {
+  event: EventTimelineEvent;
+  provenance: ReturnType<typeof ownerConfidenceDisplay> | null;
+  publicToken?: string;
+}) {
+  if (event.authorRole === undefined && !provenance && !event.amendedAt) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {/* WHO — role + verified mark, the same citizen-safe chip the per-event
+          detail screen already shows (never a personal name; mirrors the
+          operator ledger's actor column at the privacy-appropriate level of
+          detail). WHEN is the <time> in the row header, already rendered
+          unconditionally. */}
+      {event.authorRole !== undefined && (
+        <AuthorChip role={event.authorRole} verified={event.authorVerified ?? false} />
+      )}
+      {provenance && <LnBadge variant={provenance.badge}>{provenance.label}</LnBadge>}
+      {event.amendedAt && publicToken && (
+        <AmendedBadge
+          amendedAt={event.amendedAt}
+          originalHref={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
+        />
+      )}
+    </div>
+  );
+}
 
 type Props = {
   events: Event[];
@@ -164,17 +199,7 @@ export function EventTimelineList({
                 </time>
               </div>
             )}
-            {(provenance || event.amendedAt) && (
-              <div className="flex flex-wrap items-center gap-2">
-                {provenance && <LnBadge variant={provenance.badge}>{provenance.label}</LnBadge>}
-                {event.amendedAt && publicToken && (
-                  <AmendedBadge
-                    amendedAt={event.amendedAt}
-                    originalHref={`/mis-mascotas/${publicToken}/eventos/${event.id}`}
-                  />
-                )}
-              </div>
-            )}
+            <EventBadgesRow event={event} provenance={provenance} publicToken={publicToken} />
             {event.notes && <p className="text-sm text-[var(--color-ln-ink-2)]">{event.notes}</p>}
             {event.attachmentUrl && (
               <a

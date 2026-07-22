@@ -91,3 +91,43 @@ describe("<EventTimelineList> — row header stacks the timestamp below the titl
     expect(html).toContain("flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between");
   });
 });
+
+// ---------------------------------------------------------------------------
+// WHO surfacing (C5, 2026-07-21 facades harvest): the citizen timeline
+// previously rendered a confidence badge but never the actor's role, despite
+// the operator ledger (EventLedgerRow) showing actor + timestamp from the
+// SAME provenance fields. WHEN (occurredAt) was already unconditional; this
+// pins WHO now renders too, via the shared, citizen-safe AuthorChip (role
+// only — never a personal name).
+// ---------------------------------------------------------------------------
+
+describe("<EventTimelineList> — actor (who) surfacing", () => {
+  it("renders the actor's role label when authorRole is present", () => {
+    const html = renderToStaticMarkup(
+      <EventTimelineList
+        events={[{ ...baseEvent, authorRole: "shelter", authorVerified: true }]}
+      />,
+    );
+    expect(html).toContain("Refugio");
+  });
+
+  it("renders no actor chip when authorRole is absent (legacy caller, e.g. the memorial view)", () => {
+    const html = renderToStaticMarkup(<EventTimelineList events={[baseEvent]} />);
+    // None of the AUTHOR_ROLE_LABELS es-AR strings should appear.
+    expect(html).not.toContain("Dueño/a");
+    expect(html).not.toContain("Veterinario/a");
+    expect(html).not.toContain("Refugio");
+  });
+
+  it("shows the verified mark only when authorVerified is true", () => {
+    const verifiedHtml = renderToStaticMarkup(
+      <EventTimelineList events={[{ ...baseEvent, authorRole: "vet", authorVerified: true }]} />,
+    );
+    expect(verifiedHtml).toContain('aria-label="verificado"');
+
+    const unverifiedHtml = renderToStaticMarkup(
+      <EventTimelineList events={[{ ...baseEvent, authorRole: "vet", authorVerified: false }]} />,
+    );
+    expect(unverifiedHtml).not.toContain('aria-label="verificado"');
+  });
+});

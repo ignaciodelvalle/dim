@@ -62,11 +62,17 @@ import { globSync, readFileSync } from "node:fs";
  *  The surface had also drifted down to 51 (unrelated cleanup) since the
  *  52 baseline was set, so the net change lands at 53, not 54.
  *  Baseline set 52 → 53.
+ *  E4 (2026-07-21 facades harvest): CancelTransferAction.tsx adds ONE
+ *  ConfirmDialog trigger button for the newly-wired custody-transfer cancel
+ *  action (audit-3-feedback §C2 consequence-copy convention) — same OpButton
+ *  ref limitation, same sanctioned workaround already used by
+ *  IncomingTransferActions.tsx/ReasignarButton.tsx/DevolverAlDuenoButton.tsx/
+ *  RemoveMemberButton.tsx. Baseline set 53 → 54.
  *  Target: 0, via migration to LnButton (citizen) / OpButton (operator).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const OPERATOR_BASELINE = 53;
+const OPERATOR_BASELINE = 54;
 const OPERATOR_SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 
