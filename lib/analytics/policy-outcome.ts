@@ -129,6 +129,12 @@ export const RULE_OUTCOME_METRICS: Record<GovtBusinessRuleType, RuleOutcomeMetri
     metricLabel: "Solicitudes de adopción resueltas",
     rationale: "Long-stay thresholds exist to accelerate placement decisions.",
   },
+  mpf_export_format: {
+    eventType: "maltreatment_reported",
+    metricLabel: "Denuncias de maltrato reportadas",
+    rationale:
+      "The export format rule governs how maltreatment denuncias reach the fiscalía (MPF); denuncia volume is the closest existing observable this rule type touches.",
+  },
 };
 
 // ---------------------------------------------------------------------------

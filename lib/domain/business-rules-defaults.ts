@@ -73,6 +73,30 @@ export interface LongStayDays {
   days: number;
 }
 
+// ---------------------------------------------------------------------------
+// mpf_export_format (jurisdiction-compliance, 2026-07-22 "MPF export format
+// cascade") — which format the welfare MPF (fiscalía) denuncia PDF export
+// uses for a jurisdiction. Cascades locality > province > country > national
+// default like every other rule type. Replaces the old CABA-only
+// MPF_CONFIGURED_PROVINCES gate (lib/domain/mpf-jurisdiction.ts, removed):
+// every jurisdiction can now export; this rule decides WHICH format they get.
+//
+// HONESTY CONSTRAINT: the codebase renders exactly ONE PDF shape today (the
+// free-form Ley 14.346 document, decision F-D1 in lib/analytics/welfare-
+// exports.ts) — so the enum ships with exactly one legal value,
+// "estandar_nacional". No second fiscalía format is invented here; adding one
+// later means widening MPF_EXPORT_FORMATS + the CHECK constraint + a new
+// renderer branch, and the cascade (this rule type) already exists to roll it
+// out per-jurisdiction when that day comes.
+// ---------------------------------------------------------------------------
+
+export const MPF_EXPORT_FORMATS = ["estandar_nacional"] as const;
+export type MpfExportFormatId = (typeof MPF_EXPORT_FORMATS)[number];
+
+export interface MpfExportFormat {
+  format: MpfExportFormatId;
+}
+
 export interface BusinessRulePayloadByType {
   ppp_breed_list: PppBreedList;
   ppp_weight_threshold: PppWeightThreshold;
@@ -83,6 +107,7 @@ export interface BusinessRulePayloadByType {
   due_soon_window: DueSoonWindow;
   reminder_windows: ReminderWindows;
   long_stay_days: LongStayDays;
+  mpf_export_format: MpfExportFormat;
 }
 
 export type BusinessRulePayload<T extends keyof BusinessRulePayloadByType> =
@@ -113,4 +138,7 @@ export const BUSINESS_RULES_DEFAULTS: {
   due_soon_window: { days: 30 },
   reminder_windows: { aheadDays: 14 },
   long_stay_days: { days: 60 },
+  // The only format the codebase renders today — see the module docblock
+  // above for why the enum has exactly one member.
+  mpf_export_format: { format: "estandar_nacional" },
 };

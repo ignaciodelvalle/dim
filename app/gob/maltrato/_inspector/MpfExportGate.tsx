@@ -7,21 +7,18 @@
 //   1. TRIAGE GATE: a report still in `open` (untriaged) cannot be exported —
 //      the button is disabled with an explanation. The formal MPF PDF is a
 //      fiscal act; it must follow at least a triage decision.
-//   2. JURISDICTION GATE (capability-gating pattern, engram
-//      pattern/locality-variable-capability-gating): the generated PDF is
-//      hardwired to "MPF CABA" (lib/analytics/welfare-exports.ts) — no
-//      per-province routing exists. Offering this button for a report outside
-//      MPF_CONFIGURED_PROVINCES would misroute a formal fiscal document, so it
-//      is disabled with a visible explanation instead. Gated by the REPORT's
-//      jurisdiction — see lib/domain/mpf-jurisdiction.ts and MpfExportButton.tsx
-//      for the admin/govt scoping rationale (they coincide by construction).
-//   3. CONFIRM + REASON: a nested modal ConfirmDialog OVER the (non-modal)
+//   2. CONFIRM + REASON: a nested modal ConfirmDialog OVER the (non-modal)
 //      inspector requires a written reason before generating. The dialog is the
 //      only modal surface in the inspector — deliberately, per spec.
 //
-// The server action (generateMpfExportAction) re-runs auth + jurisdiction scope
-// AND the MPF-configured check on its own (src/modules/welfare/actions.ts) —
-// this gate is UX, not the security/routing boundary.
+// MPF EXPORT FORMAT CASCADE (jurisdiction-compliance, 2026-07-22) — this used
+// to also gate on MPF_CONFIGURED_PROVINCES (CABA-only, lib/domain/mpf-
+// jurisdiction.ts, removed): a rollout artifact, not a real per-province
+// integration difference — the PDF is a free-form Ley 14.346 document
+// (decision F-D1) that works for any jurisdiction. EVERY jurisdiction can now
+// export; the FORMAT is resolved per-jurisdiction via
+// resolveBusinessRule("mpf_export_format", ...) and printed on the PDF with
+// its provenance — see lib/analytics/welfare-exports.ts.
 //
 // WHY a visible <a> instead of window.open(url) after the await: the browser
 // popup blocker kills a window.open() call that isn't inside the direct click
@@ -34,7 +31,6 @@ import { useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard";
-import { isMpfConfiguredForProvince } from "@/lib/domain/mpf-jurisdiction";
 import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 
 const MIN_REASON = 10;
@@ -56,7 +52,6 @@ export function MpfExportGate({
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const untriaged = status === "open";
-  const mpfConfigured = isMpfConfiguredForProvince(jurisdictionProvince);
   const reasonValid = reason.trim().length >= MIN_REASON;
 
   async function confirmExport() {
@@ -72,9 +67,7 @@ export function MpfExportGate({
             ? "Error al generar el PDF. Intentá de nuevo."
             : result.error === "storage_upload_failed"
               ? "Error al subir el PDF. Verificá la conectividad con el servidor."
-              : result.error === "mpf_not_configured"
-                ? "El export a fiscalía no está configurado para esta jurisdicción."
-                : "Error al generar el export. Intentá de nuevo.",
+              : "Error al generar el export. Intentá de nuevo.",
         );
       } else {
         setSignedUrl(result.signedUrl);
@@ -93,12 +86,7 @@ export function MpfExportGate({
       <OpButton
         type="button"
         variant="primary"
-        disabled={untriaged || !mpfConfigured || pending}
-        title={
-          mpfConfigured
-            ? undefined
-            : "El export a fiscalía no está configurado para tu jurisdicción."
-        }
+        disabled={untriaged || pending}
         onClick={(e) => {
           // OpButton is not a forwardRef component — capture the actual element
           // from the event so ConfirmDialog can restore focus here on close.
@@ -109,12 +97,7 @@ export function MpfExportGate({
         Generar PDF MPF
       </OpButton>
 
-      {!mpfConfigured && (
-        <p className="text-[var(--text-xs)] text-ln-op-warn">
-          El export a fiscalía no está configurado para tu jurisdicción.
-        </p>
-      )}
-      {mpfConfigured && untriaged && (
+      {untriaged && (
         <p className="text-[var(--text-xs)] text-ln-op-warn">
           Triage la denuncia (marcala revisada o iniciá seguimiento) antes de generar el export
           fiscal.
@@ -136,8 +119,9 @@ export function MpfExportGate({
         </p>
       )}
       <p className="text-xs text-ln-op-mute">
-        PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal del MPF CABA (Ley
-        14.346).
+        PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal competente
+        {jurisdictionProvince ? ` en ${jurisdictionProvince}` : ""} (Ley 14.346). El formato
+        aplicado y su origen (cascada de jurisdicción) quedan impresos en el PDF.
       </p>
 
       <ConfirmDialog

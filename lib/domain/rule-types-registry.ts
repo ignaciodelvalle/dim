@@ -28,6 +28,7 @@ import type { GovtBusinessRuleType } from "@/db";
 import {
   BUSINESS_RULES_DEFAULTS,
   type BusinessRulePayloadByType,
+  type MpfExportFormatId,
 } from "@/lib/domain/business-rules-defaults";
 import { BUSINESS_RULE_VALIDATORS } from "@/lib/infra/business-rules-validators";
 import { parseRegistriesJson } from "@/lib/infra/parse-registries";
@@ -189,6 +190,33 @@ export const RULE_TYPE_REGISTRY: { [K in GovtBusinessRuleType]: RuleTypeDef<K> }
     resolutionScope: "org",
     parseFromForm: parseDaysField,
   },
+  mpf_export_format: {
+    id: "mpf_export_format",
+    label: "Formato de export a fiscalía (MPF)",
+    description:
+      "Qué formato usa el PDF de denuncia formal a la fiscalía (MPF) para esta jurisdicción.",
+    schema: BUSINESS_RULE_VALIDATORS.mpf_export_format,
+    default: BUSINESS_RULES_DEFAULTS.mpf_export_format,
+    // Resolved per welfare report by (país, provincia, localidad) — the same
+    // tuple resolveBusinessRule always cascades on, not tied to a pet or an
+    // org record. "jurisdiction-metric" is the closest existing scope (a
+    // per-jurisdiction-tuple resolution, not global/pet/org).
+    resolutionScope: "jurisdiction-metric",
+    parseFromForm: (formData) => {
+      const raw = (formData.get("format") as string | null)?.trim();
+      return {
+        format: raw && raw.length > 0 ? raw : BUSINESS_RULES_DEFAULTS.mpf_export_format.format,
+      };
+    },
+  },
+};
+
+/**
+ * es-AR labels for each mpf_export_format enum value — see
+ * lib/domain/business-rules-defaults.ts for why there is exactly one today.
+ */
+export const MPF_EXPORT_FORMAT_LABELS: Record<MpfExportFormatId, string> = {
+  estandar_nacional: "Estándar nacional (PDF libre, Ley 14.346)",
 };
 
 export function getRuleTypeDef<T extends GovtBusinessRuleType>(ruleType: T): RuleTypeDef<T> {
@@ -259,6 +287,12 @@ export function summarizeRulePayload(ruleType: GovtBusinessRuleType, payload: un
       return typeof p.aheadDays === "number"
         ? `${p.aheadDays} días de anticipación`
         : JSON.stringify(payload);
+    }
+    case "mpf_export_format": {
+      const format = typeof p.format === "string" ? (p.format as MpfExportFormatId) : null;
+      return format
+        ? (MPF_EXPORT_FORMAT_LABELS[format] ?? format)
+        : "Sin formato de export configurado";
     }
     default:
       return JSON.stringify(payload);

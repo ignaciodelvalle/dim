@@ -1,4 +1,8 @@
-// Use-case: generate (or reuse) the MPF CABA welfare denuncia PDF export.
+// Use-case: generate (or reuse) the welfare denuncia MPF (fiscalía) PDF
+// export. Jurisdiction-compliance (2026-07-22): available to every
+// jurisdiction, not just CABA — the exported format is resolved per
+// jurisdiction via a cascade (resolveBusinessRule("mpf_export_format", ...)),
+// wired at the action layer (src/modules/welfare/actions.ts).
 //
 // Migrated from app/actions/welfare-export-mpf.ts::generateMpfExportAction.
 // Auth (requireAdminOrGovtOrRedirect + jurisdiction scope) handled by caller.
@@ -95,6 +99,15 @@ type Deps = {
 
 export type GenerateMpfExportInput = {
   welfareReportId: string;
+  /**
+   * MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
+   * optional so existing callers/tests that predate the cascade still
+   * type-check. When provided, stamps the resolved format + its provenance
+   * onto the audit_log payload so the cascade resolution is traceable, not
+   * just visible on the PDF itself.
+   */
+  mpfExportFormat?: string;
+  mpfExportFormatSource?: string;
 };
 
 export type GenerateMpfExportResult =
@@ -213,6 +226,14 @@ export async function generateMpfExport(
       // inline value never reaches the PDF. Kept null to satisfy the type contract
       // without pulling the pdf-lib chain into the use-case.
       knowledgeGapLabel: null,
+      // MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
+      // same placeholder rationale as knowledgeGapLabel above: the production
+      // action rebuilds the DTO via welfareReportToMpfDto with the real
+      // resolveBusinessRule("mpf_export_format", ...) result, so these inline
+      // values never reach the PDF.
+      fiscalUnitLabel: "Unidad Fiscal de Maltrato Animal (placeholder — no usado en producción)",
+      mpfFormatLabel: "Estándar nacional (PDF libre, Ley 14.346)",
+      mpfFormatProvenanceLabel: "Default nacional",
     });
   } catch (err) {
     console.error("[welfare/generate-mpf-export] PDF render failed:", err);
@@ -244,6 +265,13 @@ export async function generateMpfExport(
       referenceCode: report.referenceCode,
       storagePath,
       schemaVersion: MPF_EXPORT_SCHEMA_VERSION,
+      // MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
+      // traceability twin of the PDF's own "Formato del export" line. Omitted
+      // when the caller doesn't pass it (predates the cascade).
+      ...(input.mpfExportFormat ? { mpfExportFormat: input.mpfExportFormat } : {}),
+      ...(input.mpfExportFormatSource
+        ? { mpfExportFormatSource: input.mpfExportFormatSource }
+        : {}),
     },
   });
 

@@ -2352,6 +2352,15 @@ export const GOVT_BUSINESS_RULE_TYPES = [
   "due_soon_window",
   "reminder_windows",
   "long_stay_days",
+  // Which format the MPF (fiscalía) welfare export PDF uses for this
+  // jurisdiction (migration 0156). Default "estandar_nacional" (the only
+  // format the codebase renders today — lib/analytics/welfare-exports.ts) so
+  // the cascade is real ahead of any second format's rollout. Unlocks the MPF
+  // export for every jurisdiction (see jurisdiction-compliance 2026-07-22):
+  // the old CABA-only gate (MPF_CONFIGURED_PROVINCES) is replaced by "every
+  // jurisdiction gets the national default format unless configured
+  // otherwise" — no fake per-province integrations.
+  "mpf_export_format",
 ] as const;
 export type GovtBusinessRuleType = (typeof GOVT_BUSINESS_RULE_TYPES)[number];
 
@@ -2379,7 +2388,7 @@ export const govtBusinessRules = pgTable(
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
     govtBusinessRulesRuleTypeValid: check(
       "govt_business_rules_rule_type_valid",
-      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'microchip_required', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements')`,
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'microchip_required', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements', 'mpf_export_format')`,
     ),
     govtBusinessRulesJurisdictionProvinceCanonical: check(
       "govt_business_rules_jurisdiction_province_canonical",

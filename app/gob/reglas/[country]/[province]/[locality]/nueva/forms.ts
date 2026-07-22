@@ -11,8 +11,10 @@
 import type { ComponentType } from "react";
 
 import type { GovtBusinessRuleType } from "@/db";
+import { BUSINESS_RULES_DEFAULTS } from "@/lib/domain/business-rules-defaults";
 
 import { MicrochipRequiredForm } from "./MicrochipRequiredForm";
+import { MpfExportFormatForm } from "./MpfExportFormatForm";
 import {
   DueSoonWindowForm,
   LongStayDaysForm,
@@ -58,6 +60,7 @@ export const RULE_FORM_REGISTRY: Partial<
   due_soon_window: DueSoonWindowForm as ComponentType<RuleFormProps>,
   reminder_windows: ReminderWindowsForm as ComponentType<RuleFormProps>,
   long_stay_days: LongStayDaysForm as ComponentType<RuleFormProps>,
+  mpf_export_format: MpfExportFormatForm as ComponentType<RuleFormProps>,
 };
 
 /**
@@ -114,6 +117,14 @@ export function buildCreateFormExtraProps(
         initialValue: typeof payload.aheadDays === "number" ? payload.aheadDays : 0,
         initialNotes: "",
       };
+    case "mpf_export_format":
+      return {
+        initialFormat:
+          typeof payload.format === "string"
+            ? payload.format
+            : BUSINESS_RULES_DEFAULTS.mpf_export_format.format,
+        initialNotes: "",
+      };
     default:
       return { initialNotes: "" };
   }
@@ -155,6 +166,13 @@ export function buildEditFormExtraProps(
     case "reminder_windows":
       return {
         initialValue: typeof payload.aheadDays === "number" ? payload.aheadDays : 0,
+      };
+    case "mpf_export_format":
+      return {
+        initialFormat:
+          typeof payload.format === "string"
+            ? payload.format
+            : BUSINESS_RULES_DEFAULTS.mpf_export_format.format,
       };
     default:
       return {};

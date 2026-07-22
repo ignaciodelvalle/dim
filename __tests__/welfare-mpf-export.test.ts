@@ -199,6 +199,67 @@ describe("MPF_EXPORT_SCHEMA_VERSION", () => {
 });
 
 // ---------------------------------------------------------------------------
+// MPF export format cascade (jurisdiction-compliance, 2026-07-22) — the
+// mapper now stamps the resolved format + its provenance onto the DTO, and
+// the fiscal unit label is jurisdiction-aware instead of a hardcoded
+// "MPF CABA" string.
+// ---------------------------------------------------------------------------
+
+describe("welfareReportToMpfDto — MPF export format cascade", () => {
+  it("defaults to the national format + 'default' source when no resolution is passed", () => {
+    const report = makeReport({ jurisdictionProvince: "Chaco" });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.mpfFormatLabel).toContain("Estándar nacional");
+    expect(dto.mpfFormatProvenanceLabel).toBe("Default nacional");
+  });
+
+  it("reflects a resolved format + its cascade source (e.g. province override)", () => {
+    const report = makeReport({ jurisdictionProvince: "Chaco" });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+      mpfFormat: "estandar_nacional",
+      mpfFormatSource: "province",
+    });
+    expect(dto.mpfFormatProvenanceLabel).toBe("Override provincia");
+  });
+
+  it("builds a jurisdiction-aware fiscal unit label — no hardcoded 'MPF CABA' regardless of province", () => {
+    const chacoReport = makeReport({ jurisdictionProvince: "Chaco" });
+    const dto = welfareReportToMpfDto(chacoReport, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.fiscalUnitLabel).toContain("Chaco");
+    expect(dto.fiscalUnitLabel).not.toContain("CABA");
+  });
+
+  it("falls back to a generic fiscal unit label when jurisdiction is unknown", () => {
+    const report = makeReport({ jurisdictionProvince: null });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.fiscalUnitLabel).toContain("a confirmar");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Integration tests — generateMpfExportAction (with Storage mocked)
 // ---------------------------------------------------------------------------
 //
@@ -371,10 +432,12 @@ describe("generateMpfExportAction — mocked storage", () => {
     expect(result.error).toBe("not_found");
   });
 
-  it("returns mpf_not_configured for a report outside MPF_CONFIGURED_PROVINCES (jurisdiction gate)", async () => {
-    // Distinct fixture row in a non-configured province — the gate must block
-    // BEFORE any storage/PDF work happens (never generate a fiscal doc bound
-    // for the wrong prosecutor's office).
+  it("MPF export format cascade (jurisdiction-compliance, 2026-07-22): a non-CABA jurisdiction can now export — was blocked by the CABA-only gate", async () => {
+    // Distinct fixture row in a province that used to be OUTSIDE
+    // MPF_CONFIGURED_PROVINCES (removed) — the old gate blocked this before
+    // any storage/PDF work happened. Now every jurisdiction resolves the
+    // national default format (source: "default", zero override rows) and
+    // exports successfully.
     const NON_CABA_REF = "DEN-MPF-TEST02";
     await withMutationOverride(async (tx) => {
       await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code = ${NON_CABA_REF}`);
@@ -385,7 +448,7 @@ describe("generateMpfExportAction — mocked storage", () => {
         referenceCode: NON_CABA_REF,
         kind: "neglect",
         severity: "medium",
-        description: "Integration test welfare report outside MPF-configured jurisdiction.",
+        description: "Integration test welfare report outside the old MPF-configured jurisdiction.",
         subjectKind: "unowned_animal",
         subjectDescription: "Perro sin dueño",
         status: "open",
@@ -407,10 +470,23 @@ describe("generateMpfExportAction — mocked storage", () => {
     } as any);
 
     const result = await generateMpfExportAction(nonCabaReport.id);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error).toBe("mpf_not_configured");
-    expect(supabaseMock.storage.from).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.signedUrl).toBe(MOCK_SIGNED_URL);
+    expect(supabaseMock.storage.from).toHaveBeenCalled();
+
+    // Audit payload carries the resolved format + its provenance (traceability
+    // twin of the "Formato del export" line printed on the PDF itself).
+    const [logRow] = (await db.execute(
+      sql`SELECT payload FROM audit_log
+          WHERE action = 'welfare_mpf_export_generated'
+            AND payload->>'welfareReportId' = ${nonCabaReport.id}
+          ORDER BY performed_at DESC
+          LIMIT 1`,
+    )) as Array<{ payload: Record<string, unknown> }>;
+    expect(logRow).toBeDefined();
+    expect(logRow.payload.mpfExportFormat).toBe("estandar_nacional");
+    expect(logRow.payload.mpfExportFormatSource).toBe("default");
 
     await withMutationOverride(async (tx) => {
       await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code = ${NON_CABA_REF}`);

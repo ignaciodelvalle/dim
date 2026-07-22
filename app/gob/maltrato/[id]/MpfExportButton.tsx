@@ -4,17 +4,15 @@
 // Calls generateMpfExportAction and renders the signed URL as a visible link.
 // Visible to admin and govt in scope (the detail page already enforces scope).
 //
-// JURISDICTION GATE (capability-gating pattern, engram
-// pattern/locality-variable-capability-gating): the generated PDF is
-// hardwired to "MPF CABA" (lib/analytics/welfare-exports.ts) — there is no
-// per-province routing. Offering this button for a report outside
-// MPF_CONFIGURED_PROVINCES would misroute a formal fiscal document to the
-// wrong prosecutor's office, so it must be disabled — never merely hidden or
-// silently mis-wired — with a visible explanation. See lib/domain/mpf-jurisdiction.ts.
-// Gated by the REPORT's jurisdiction, not the viewer's: a govt viewer can only
-// ever reach a report inside their own jurisdiction assignments (scope guard
-// upstream), so the two coincide for govt; for admin (universal scope) the
-// report's jurisdiction is the only jurisdiction that matters for routing.
+// MPF EXPORT FORMAT CASCADE (jurisdiction-compliance, 2026-07-22) — this
+// button used to be disabled outside MPF_CONFIGURED_PROVINCES (CABA-only
+// gate, lib/domain/mpf-jurisdiction.ts, removed): a rollout artifact, not a
+// real per-province integration difference — the PDF is a free-form Ley
+// 14.346 document (decision F-D1) that works for any jurisdiction. EVERY
+// jurisdiction can now export; the FORMAT is resolved per-jurisdiction via
+// resolveBusinessRule("mpf_export_format", ...) (locality > province >
+// country > national default) and printed on the PDF itself with its
+// provenance — see lib/analytics/welfare-exports.ts.
 //
 // WHY a visible <a> instead of window.open(url) after the await: the browser
 // popup blocker kills a window.open() call that isn't inside the direct click
@@ -26,7 +24,6 @@
 import { useState } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
-import { isMpfConfiguredForProvince } from "@/lib/domain/mpf-jurisdiction";
 import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 
 type Props = {
@@ -38,8 +35,6 @@ export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
-
-  const mpfConfigured = isMpfConfiguredForProvince(jurisdictionProvince);
 
   async function handleClick() {
     setLoading(true);
@@ -53,9 +48,7 @@ export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props
             ? "Error al generar el PDF. Intentá de nuevo."
             : result.error === "storage_upload_failed"
               ? "Error al subir el PDF. Verificá la conectividad con el servidor."
-              : result.error === "mpf_not_configured"
-                ? "El export a fiscalía no está configurado para esta jurisdicción."
-                : "Error al generar el export. Intentá de nuevo.",
+              : "Error al generar el export. Intentá de nuevo.",
         );
       } else {
         setSignedUrl(result.signedUrl);
@@ -69,17 +62,7 @@ export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props
 
   return (
     <div className="space-y-2">
-      <OpButton
-        type="button"
-        onClick={handleClick}
-        disabled={loading || !mpfConfigured}
-        variant="primary"
-        title={
-          mpfConfigured
-            ? undefined
-            : "El export a fiscalía no está configurado para tu jurisdicción."
-        }
-      >
+      <OpButton type="button" onClick={handleClick} disabled={loading} variant="primary">
         {loading ? (
           <>
             <svg
@@ -127,11 +110,6 @@ export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props
         )}
       </OpButton>
 
-      {!mpfConfigured && (
-        <p className="text-xs text-ln-op-warn">
-          El export a fiscalía no está configurado para tu jurisdicción.
-        </p>
-      )}
       {error && <p className="text-xs text-ln-op-danger">{error}</p>}
       {signedUrl && (
         <p className="text-xs text-ln-op-ok">
@@ -148,8 +126,9 @@ export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props
         </p>
       )}
       <p className="text-xs text-ln-op-mute">
-        PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal del MPF CABA (Ley
-        14.346).
+        PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal competente
+        {jurisdictionProvince ? ` en ${jurisdictionProvince}` : ""} (Ley 14.346). El formato
+        aplicado y su origen (cascada de jurisdicción) quedan impresos en el PDF.
       </p>
     </div>
   );

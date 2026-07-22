@@ -46,7 +46,6 @@ import {
   normalizeLocationForWrite,
 } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
-import { isMpfConfiguredForProvince } from "@/lib/domain/mpf-jurisdiction";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import {
   requireAdminOrGovtOrRedirect,
@@ -54,6 +53,7 @@ import {
   requireDenunciaModerationPrincipal,
   requireUserOrRedirect,
 } from "@/lib/infra/auth-guards";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
@@ -804,23 +804,30 @@ export async function generateMpfExportAction(
   const loaded = await loadAndVerifyScope(welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: "not_found" };
 
-  // Capability gate (pattern/locality-variable-capability-gating): the export
-  // is hardwired to MPF CABA — never generate it for a report whose
-  // jurisdiction has no MPF integration, or a formal fiscal document reaches
-  // the wrong prosecutor's office. The UI already disables the button for
-  // this case (MpfExportButton/MpfExportGate); this is defense-in-depth
-  // against a direct call to this action. Gated by the REPORT's jurisdiction —
-  // correct for both govt (scope guard above already confines them to their
-  // own jurisdiction) and admin (universal scope, so the report's
-  // jurisdiction is the only one that matters for routing).
-  if (!isMpfConfiguredForProvince(loaded.row.jurisdictionProvince)) {
-    return { ok: false, error: "mpf_not_configured" };
-  }
+  // MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
+  // replaces the old CABA-only gate (MPF_CONFIGURED_PROVINCES /
+  // isMpfConfiguredForProvince, removed). The export is no longer blocked by
+  // jurisdiction: EVERY jurisdiction can generate it. What varies per
+  // jurisdiction is the FORMAT, resolved via the same locality > province >
+  // country > national-default cascade every other govt_business_rules type
+  // uses. With zero override rows (the common case today) this always
+  // resolves { format: "estandar_nacional", source: "default" } — exactly the
+  // PDF every jurisdiction already got, minus the gate that used to block
+  // non-CABA reports from generating it at all.
+  const mpfFormatResolved = await resolveBusinessRule("mpf_export_format", {
+    country: "AR",
+    province: loaded.row.jurisdictionProvince,
+    locality: loaded.row.jurisdictionLocality,
+  });
 
   const supabase = await createClient();
 
   const result = await generateMpfExport(
-    { welfareReportId },
+    {
+      welfareReportId,
+      mpfExportFormat: mpfFormatResolved.payload.format,
+      mpfExportFormatSource: mpfFormatResolved.source,
+    },
     {
       repo,
       generatePdf: async (dto) => {
@@ -847,6 +854,8 @@ export async function generateMpfExportAction(
           subjectPet,
           attachments,
           exportGeneratedAt,
+          mpfFormat: mpfFormatResolved.payload.format,
+          mpfFormatSource: mpfFormatResolved.source,
         });
         return generateWelfareMpfPdf(properDto);
       },

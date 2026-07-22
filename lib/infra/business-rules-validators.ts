@@ -6,6 +6,7 @@
 import { z } from "zod";
 
 import type { GovtBusinessRuleType } from "@/db";
+import { MPF_EXPORT_FORMATS } from "@/lib/domain/business-rules-defaults";
 
 export const pppBreedListSchema = z
   .object({
@@ -85,6 +86,11 @@ export const reminderWindowsSchema = z
 
 export const longStayDaysSchema = z.object({ days: z.number().int().min(1).max(365) }).strict();
 
+// mpf_export_format (jurisdiction-compliance, 2026-07-22) — see
+// lib/domain/business-rules-defaults.ts for why MPF_EXPORT_FORMATS has
+// exactly one member today.
+export const mpfExportFormatSchema = z.object({ format: z.enum(MPF_EXPORT_FORMATS) }).strict();
+
 export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema> = {
   ppp_breed_list: pppBreedListSchema,
   ppp_weight_threshold: pppWeightThresholdSchema,
@@ -95,6 +101,7 @@ export const BUSINESS_RULE_VALIDATORS: Record<GovtBusinessRuleType, z.ZodSchema>
   due_soon_window: dueSoonWindowSchema,
   reminder_windows: reminderWindowsSchema,
   long_stay_days: longStayDaysSchema,
+  mpf_export_format: mpfExportFormatSchema,
 };
 
 export function validateRulePayload(

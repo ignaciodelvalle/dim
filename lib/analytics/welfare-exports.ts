@@ -1,8 +1,11 @@
-// PDF renderer for the Welfare MPF CABA formal denuncia (Chunk F, F1).
+// PDF renderer for the Welfare MPF (fiscalía) formal denuncia (Chunk F, F1).
+// Jurisdiction-compliance (2026-07-22): available to every jurisdiction, not
+// just CABA — see MPF EXPORT FORMAT CASCADE below.
 //
 // Decision F-D1: PDF libre DIM with Ley 14.346 fields — no official template
-//   (MPF CABA accepts free-form written denuncias). Low coupling, works for any
-//   Argentine jurisdiction.
+//   (the MPF accepts free-form written denuncias). Low coupling, works for
+//   any Argentine jurisdiction — the ORIGINAL reason a CABA-only rollout gate
+//   was never a real integration boundary.
 // Decision F-D2: No PKI signing. Traceability via referenceCode + audit_log +
 //   signed URL (Supabase Storage). Footer includes the referenceCode verbatim.
 // Decision F-D5: audit_log action name = "welfare_mpf_export_generated" (snake_case).
@@ -17,6 +20,12 @@
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
 import type { WelfareReport, WelfareReportAttachment } from "@/db";
+import type { MpfExportFormatId } from "@/lib/domain/business-rules-defaults";
+import {
+  MPF_EXPORT_FORMAT_LABELS,
+  RULE_SOURCE_LABEL,
+  type ResolvedRuleSource,
+} from "@/lib/domain/rule-types-registry";
 import { formatDate, formatDateTime, formatDateTimeLegal } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
@@ -76,6 +85,19 @@ export type WelfareMpfDto = {
   // between the two — the diligence/plazos-de-actuación signal for the fiscalía.
   // Null when the denunciante did not declare an occurrence date (no gap to compute).
   knowledgeGapLabel: string | null;
+  // MPF export format cascade (jurisdiction-compliance, 2026-07-22) — the
+  // export now resolves its format via resolveBusinessRule("mpf_export_format",
+  // ...) instead of a hardcoded CABA-only gate. These three fields make the
+  // cascade REAL and VISIBLE in the exported document itself:
+  //   fiscalUnitLabel           — jurisdiction-aware fiscal unit label (was a
+  //                               hardcoded "MPF CABA" regardless of province).
+  //   mpfFormatLabel            — es-AR label of the resolved format.
+  //   mpfFormatProvenanceLabel  — WHERE the resolved value came from
+  //                               (default nacional / override país / provincia
+  //                               / localidad) — the audit/provenance line.
+  fiscalUnitLabel: string;
+  mpfFormatLabel: string;
+  mpfFormatProvenanceLabel: string;
 };
 
 /**
@@ -110,9 +132,20 @@ export function welfareReportToMpfDto(
     subjectPet: WelfareMpfSubjectPetInfo;
     attachments: WelfareMpfAttachmentInfo[];
     exportGeneratedAt: Date;
+    /**
+     * Resolved via resolveBusinessRule("mpf_export_format", { country: "AR",
+     * province: report.jurisdictionProvince, locality: report.jurisdictionLocality }).
+     * Optional so existing/inline callers that predate the cascade still
+     * type-check — falls back to the national default + "default" source
+     * (exactly what every jurisdiction got before an override could exist).
+     */
+    mpfFormat?: MpfExportFormatId;
+    mpfFormatSource?: ResolvedRuleSource;
   },
 ): WelfareMpfDto {
   const isAnonymous = report.reporterUserId === null && report.reporterOrganizationId === null;
+  const mpfFormat = opts.mpfFormat ?? "estandar_nacional";
+  const mpfFormatSource = opts.mpfFormatSource ?? "default";
 
   return {
     referenceCode: report.referenceCode,
@@ -144,6 +177,15 @@ export function welfareReportToMpfDto(
     reportCreatedAt: formatDate(report.createdAt),
     exportedByDisplayName: opts.exportedByDisplayName,
     knowledgeGapLabel: knowledgeGapLabel(report.occurredAt, report.createdAt),
+    // Jurisdiction-aware fiscal unit label — replaces the old hardcoded "MPF
+    // CABA" text that printed regardless of the report's actual province
+    // (the CABA-only export gate removed elsewhere in this change made that
+    // hardcoding dishonest the moment a non-CABA jurisdiction could export).
+    fiscalUnitLabel: report.jurisdictionProvince
+      ? `Unidad Fiscal de Maltrato Animal — ${report.jurisdictionProvince}`
+      : "Unidad Fiscal de Maltrato Animal (jurisdicción a confirmar)",
+    mpfFormatLabel: MPF_EXPORT_FORMAT_LABELS[mpfFormat] ?? mpfFormat,
+    mpfFormatProvenanceLabel: RULE_SOURCE_LABEL[mpfFormatSource],
   };
 }
 
@@ -252,7 +294,7 @@ function drawSectionHeader(
 }
 
 /**
- * Renders a Welfare MPF CABA denuncia PDF and returns the raw bytes.
+ * Renders a Welfare MPF (fiscalía) denuncia PDF and returns the raw bytes.
  * Uses pdf-lib (pure JS, no React, no peer-dep conflicts with React 19).
  */
 export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Array> {
@@ -542,8 +584,22 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
     maxWidth: contentWidth,
   });
   y = drawField(page, {
-    label: "MPF CABA — Unidad Fiscal de Maltrato Animal",
+    label: dto.fiscalUnitLabel,
     value: "Pipeline de denuncia formal (referencia operativa, no marco legal)",
+    x: margin,
+    y,
+    boldFont,
+    regularFont,
+    maxWidth: contentWidth,
+  });
+  // MPF export format cascade (jurisdiction-compliance, 2026-07-22) — makes
+  // the cascade REAL and VISIBLE: which format this PDF used, and where that
+  // resolution came from (default nacional / override país / provincia /
+  // localidad). Replaces the old CABA-only gate with a per-jurisdiction,
+  // auditable resolution trail printed on every export.
+  y = drawField(page, {
+    label: "Formato del export",
+    value: `${dto.mpfFormatLabel} (${dto.mpfFormatProvenanceLabel})`,
     x: margin,
     y,
     boldFont,

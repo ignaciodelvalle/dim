@@ -226,6 +226,116 @@ describe("resolveBusinessRule — promoted rule types (migration 0116)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// mpf_export_format (jurisdiction-compliance, 2026-07-22 "MPF export format
+// cascade") — replaces the old CABA-only MPF_CONFIGURED_PROVINCES gate
+// (lib/domain/mpf-jurisdiction.ts, removed): every jurisdiction can now
+// export, and the FORMAT is resolved through this exact cascade. Only one
+// enum value exists today ("estandar_nacional" — see business-rules-
+// defaults.ts's MPF_EXPORT_FORMATS docblock for why), so these tests prove
+// the PRECEDENCE ORDER (locality > province > country > default) round-trips
+// through the widened CHECK constraint — the mechanism a future second
+// format's rollout depends on — not that different values exist yet.
+// ---------------------------------------------------------------------------
+describe("resolveBusinessRule — mpf_export_format cascade", () => {
+  it("returns the national default with no override rows", async () => {
+    const r = await resolveBusinessRule("mpf_export_format", { country: "AR", province: "Chaco" });
+    expect(r.source).toBe("default");
+    expect(r.payload).toEqual(BUSINESS_RULES_DEFAULTS.mpf_export_format);
+  });
+
+  it("country override wins over the default", async () => {
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: null,
+      jurisdictionLocality: null,
+      ruleType: "mpf_export_format",
+      rulePayload: { format: "estandar_nacional" },
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+    const r = await resolveBusinessRule("mpf_export_format", { country: "AR" });
+    expect(r.source).toBe("country");
+    expect(r.payload).toEqual({ format: "estandar_nacional" });
+  });
+
+  it("province override wins over country override", async () => {
+    await db.insert(govtBusinessRules).values([
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: null,
+        jurisdictionLocality: null,
+        ruleType: "mpf_export_format",
+        rulePayload: { format: "estandar_nacional" },
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: null,
+        ruleType: "mpf_export_format",
+        rulePayload: { format: "estandar_nacional" },
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+    ]);
+    const r = await resolveBusinessRule("mpf_export_format", {
+      country: "AR",
+      province: "Buenos Aires",
+    });
+    expect(r.source).toBe("province");
+  });
+
+  it("locality override wins over province override (full cascade)", async () => {
+    await db.insert(govtBusinessRules).values([
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: null,
+        ruleType: "mpf_export_format",
+        rulePayload: { format: "estandar_nacional" },
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+      {
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+        ruleType: "mpf_export_format",
+        rulePayload: { format: "estandar_nacional" },
+        createdByUserId: ACTOR_ID,
+        updatedByUserId: ACTOR_ID,
+      },
+    ]);
+    const r = await resolveBusinessRule("mpf_export_format", {
+      country: "AR",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    expect(r.source).toBe("locality");
+    expect(r.payload).toEqual({ format: "estandar_nacional" });
+  });
+
+  it("falls back to province when the locality lookup misses", async () => {
+    await db.insert(govtBusinessRules).values({
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: null,
+      ruleType: "mpf_export_format",
+      rulePayload: { format: "estandar_nacional" },
+      createdByUserId: ACTOR_ID,
+      updatedByUserId: ACTOR_ID,
+    });
+    const r = await resolveBusinessRule("mpf_export_format", {
+      country: "AR",
+      province: "Buenos Aires",
+      locality: "Quilmes", // no row for Quilmes
+    });
+    expect(r.source).toBe("province");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Batch variant (movilidad-jurisdiccional Fase 1, design D3) — resolves ONE
 // rule type across N jurisdictions in a single call, keyed by canonical
 // jurisdiction string. Each entry follows the same locality > province >
