@@ -114,10 +114,15 @@ const GOB_CENSO: ScreenManifestEntry = {
   decision: "¿Qué tan completo y saludable está el registro censal de mi jurisdicción?",
 };
 
+// F2 fusion (2026-07-22) — ABSORBED into GOB_OPERATIVOS as the "campanas"
+// vista. This route still exists as a page.tsx file (permanent redirect into
+// /gob/operativos?vista=campanas, preserving query params — see
+// lib/ui/operativos-hub-redirect.ts), so it still needs a manifest entry to
+// satisfy the coverage fence; it has no nav entry anymore.
 const GOB_CAMPANAS: ScreenManifestEntry = {
   route: "/gob/campanas",
   layer: "programa",
-  decision: "¿Qué campaña rindió mejor y cuál necesito reforzar?",
+  decision: "[Absorbida] Redirige a /gob/operativos?vista=campanas — ver GOB_OPERATIVOS.",
 };
 
 const GOB_MORTALIDAD: ScreenManifestEntry = {
@@ -132,10 +137,23 @@ const GOB_ADOPCIONES: ScreenManifestEntry = {
   decision: "¿El ciclo de custodia y adopción fluye o se traba en algún punto?",
 };
 
+// F2 fusion (2026-07-22) — ABSORBED into GOB_OPERATIVOS as the "alcance"
+// vista (the default). This route still exists as a page.tsx file (permanent
+// redirect into /gob/operativos?vista=alcance), so it still needs a manifest
+// entry to satisfy the coverage fence; it has no nav entry anymore.
 const GOB_OUTREACH: ScreenManifestEntry = {
   route: "/gob/outreach",
   layer: "intervencion",
-  decision: "¿A qué zona sin cobertura asigno el próximo operativo de alcance comunitario?",
+  decision: "[Absorbida] Redirige a /gob/operativos?vista=alcance — ver GOB_OPERATIVOS.",
+};
+
+// F2 fusion (2026-07-22, PO-approved route unification): this screen now OWNS
+// both the action pipeline (alcance) and the conversion readout (campañas)
+// for the field coordinator's weekly planning question.
+const GOB_OPERATIVOS: ScreenManifestEntry = {
+  route: "/gob/operativos",
+  layer: "intervencion",
+  decision: "¿Dónde y cómo intervengo esta semana — y cómo rindieron los operativos ya lanzados?",
 };
 
 const GOB_DECOMISOS: ScreenManifestEntry = {
@@ -144,10 +162,15 @@ const GOB_DECOMISOS: ScreenManifestEntry = {
   decision: "¿Qué decomiso necesito registrar o completar en su trámite?",
 };
 
+// F3+F7 fusion (2026-07-22) — ABSORBED into GOB_DIRECTORIO as the
+// "credenciales" registro. This route still exists as a page.tsx file
+// (permanent redirect into /gob/directorio?registro=credenciales), so it
+// still needs a manifest entry to satisfy the coverage fence; it has no nav
+// entry anymore (neither in Intervención nor as a standalone route).
 const GOB_RUPGA: ScreenManifestEntry = {
   route: "/gob/rupga",
   layer: "intervencion",
-  decision: "¿Qué credencial RUPGA necesito revocar por incumplimiento?",
+  decision: "[Absorbida] Redirige a /gob/directorio?registro=credenciales — ver GOB_DIRECTORIO.",
 };
 
 const GOB_DENUNCIAS: ScreenManifestEntry = {
@@ -227,22 +250,38 @@ const GOB_REGLAS: ScreenManifestEntry = {
   decision: "¿Qué regla de negocio (SLA, umbral) necesito configurar para mi jurisdicción?",
 };
 
+// F3+F7 fusion (2026-07-22) — ABSORBED into GOB_DIRECTORIO as the
+// "organizaciones" registro (the default). These three routes still exist as
+// page.tsx files (permanent redirects into /gob/directorio?registro=...,
+// preserving query params — see lib/ui/directorio-hub-redirect.ts), so they
+// still need a manifest entry to satisfy the coverage fence; none has a nav
+// entry anymore (nav-presets.ts GOB_NAV_SECTIONS).
 const GOB_ORGANIZACIONES: ScreenManifestEntry = {
   route: "/gob/organizaciones",
   layer: "profundidad",
-  decision: "¿Qué organización necesito verificar o dar de baja?",
+  decision: "[Absorbida] Redirige a /gob/directorio?registro=organizaciones — ver GOB_DIRECTORIO.",
 };
 
 const GOB_USUARIOS: ScreenManifestEntry = {
   route: "/gob/usuarios",
   layer: "profundidad",
-  decision: "¿A quién le doy de alta, asciendo de rol o desactivo?",
+  decision: "[Absorbida] Redirige a /gob/directorio?registro=usuarios — ver GOB_DIRECTORIO.",
 };
 
 const GOB_SERVICIOS: ScreenManifestEntry = {
   route: "/gob/servicios",
   layer: "profundidad",
-  decision: "¿Qué oferta de servicio necesito publicar o retirar?",
+  decision: "[Absorbida] Redirige a /gob/directorio?registro=servicios — ver GOB_DIRECTORIO.",
+};
+
+// F3+F7 fusion (2026-07-22, PO-approved route unification): this screen now
+// OWNS registry-entity management across all four registers — same roster
+// grammar (search, verify/revoke actions, scope) for each.
+const GOB_DIRECTORIO: ScreenManifestEntry = {
+  route: "/gob/directorio",
+  layer: "profundidad",
+  decision:
+    "¿Esta entidad (organización, usuario, servicio, credencial RUPGA) es legítima y está bien registrada?",
 };
 
 // ---------------------------------------------------------------------------
@@ -274,10 +313,33 @@ const ADMIN_MODERACION: ScreenManifestEntry = {
 };
 const ADMIN_OUTBOX = twin("/admin/outbox", GOB_OUTBOX, "bandeja");
 const ADMIN_SUSCRIPCIONES = twin("/admin/suscripciones", GOB_SUSCRIPCIONES, "bandeja");
-const ADMIN_USUARIOS = twin("/admin/usuarios", GOB_USUARIOS, "profundidad");
-const ADMIN_ORGANIZACIONES = twin("/admin/organizaciones", GOB_ORGANIZACIONES, "profundidad");
+
+// NOT twin()s of the absorbed GOB_* entries: F3+F7 fusion (2026-07-22) gave
+// admin its OWN /admin/directorio hub (thin re-export mirroring the gob hub's
+// tabs, admin-scoped chrome — the "preferred if cheap" admin story) rather
+// than bouncing an admin viewer into /gob/directorio. /admin/usuarios,
+// /admin/organizaciones and /admin/servicios now redirect into
+// /admin/directorio?registro=..., NOT /gob/directorio — twin()'s "reuse the
+// gob entry's decision text verbatim" would wrongly describe a redirect
+// target that doesn't apply to this portal.
+const ADMIN_USUARIOS: ScreenManifestEntry = {
+  route: "/admin/usuarios",
+  layer: "profundidad",
+  decision: "[Absorbida] Redirige a /admin/directorio?registro=usuarios — ver ADMIN_DIRECTORIO.",
+};
+const ADMIN_ORGANIZACIONES: ScreenManifestEntry = {
+  route: "/admin/organizaciones",
+  layer: "profundidad",
+  decision:
+    "[Absorbida] Redirige a /admin/directorio?registro=organizaciones — ver ADMIN_DIRECTORIO.",
+};
+const ADMIN_SERVICIOS: ScreenManifestEntry = {
+  route: "/admin/servicios",
+  layer: "profundidad",
+  decision: "[Absorbida] Redirige a /admin/directorio?registro=servicios — ver ADMIN_DIRECTORIO.",
+};
+const ADMIN_DIRECTORIO = twin("/admin/directorio", GOB_DIRECTORIO, "profundidad");
 const ADMIN_REGLAS = twin("/admin/reglas", GOB_REGLAS, "profundidad");
-const ADMIN_SERVICIOS = twin("/admin/servicios", GOB_SERVICIOS, "profundidad");
 const ADMIN_HISTORIAL = twin("/admin/historial", GOB_HISTORIAL, "profundidad");
 
 const ADMIN_ALERTAS: ScreenManifestEntry = {
@@ -345,6 +407,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_MORTALIDAD,
   GOB_ADOPCIONES,
   GOB_OUTREACH,
+  GOB_OPERATIVOS,
   GOB_DECOMISOS,
   GOB_RUPGA,
   GOB_DENUNCIAS,
@@ -361,6 +424,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_ORGANIZACIONES,
   GOB_USUARIOS,
   GOB_SERVICIOS,
+  GOB_DIRECTORIO,
   // /admin
   ADMIN_PANEL,
   ADMIN_PANORAMA,
@@ -386,6 +450,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   ADMIN_HISTORIAL,
   ADMIN_LIBRO,
   ADMIN_SERVICIOS,
+  ADMIN_DIRECTORIO,
 ];
 
 const BY_ROUTE: ReadonlyMap<string, ScreenManifestEntry> = new Map(

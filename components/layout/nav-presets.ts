@@ -355,8 +355,9 @@ export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): Nav
 //    program dashboard (KPI row + funnel + trend, "¿funciona el ciclo de
 //    colocación?"), not a review queue — placed in Programa, next to
 //    Censo/Población/Campañas/Mortalidad which share that shape.
-//  - RUPGA: kept in Intervención as instructed — it is a per-row ACTION
-//    console (revocar credencial), not a passive registry view.
+//  - RUPGA: originally kept in Intervención as a per-row ACTION console
+//    (revocar credencial), not a passive registry view — SUPERSEDED by the
+//    F3+F7 fusion below, which absorbs it into the Directorio hub instead.
 //  - /gob/sistema has no nav entry today (folded into /gob/programa,
 //    2026-07-09 audit; route survives only as a deep-link redirect) — nothing
 //    to regroup, so Profundidad's "Sistema" is a no-op here.
@@ -384,7 +385,6 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
       { href: "/gob/programa", label: "Programa", matchPrefix: "/gob/programa" },
       { href: "/gob/poblacion", label: "Población", matchPrefix: "/gob/poblacion" },
       { href: "/gob/censo", label: "Censo", matchPrefix: "/gob/censo" },
-      { href: "/gob/campanas", label: "Campañas", matchPrefix: "/gob/campanas" },
       { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
       // Judgment call: custody/adoption pipeline dashboard (KPI+funnel+trend),
       // not a review queue — grouped with the other outcome dashboards.
@@ -393,13 +393,23 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
   },
   {
     // Field/action surfaces — the operator DOES something to a specific target.
+    // F2 fusion (2026-07-22, PO-approved route unification — same worker,
+    // same weekly planning moment): Operativos ABSORBS Campañas (formerly in
+    // Programa) and Alcance comunitario as tabbed views
+    // (`?vista=campanas|alcance`) of ONE screen — "¿dónde y cómo intervengo
+    // esta semana?". /gob/campanas and /gob/outreach survive only as
+    // permanent redirects into /gob/operativos?vista=... for old links/
+    // bookmarks; neither has its own nav entry anymore.
+    //
+    // F3+F7 fusion (2026-07-22): RUPGA's standalone entry is ALSO absorbed —
+    // it becomes the Directorio hub's "Credenciales" tab (Profundidad
+    // section below), so Intervención now holds only the two genuine field-
+    // action surfaces. /gob/rupga survives as a permanent redirect into
+    // /gob/directorio?registro=credenciales.
     label: "Intervención",
     items: [
-      { href: "/gob/outreach", label: "Alcance comunitario", matchPrefix: "/gob/outreach" },
+      { href: "/gob/operativos", label: "Operativos", matchPrefix: "/gob/operativos" },
       { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
-      // Judgment call: a per-row revocation console (RevokeServiceDogActions),
-      // not a passive registry — an action surface, same shape as Decomisos.
-      { href: "/gob/rupga", label: "Credenciales RUPGA", matchPrefix: "/gob/rupga" },
     ],
   },
   {
@@ -433,14 +443,22 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
   },
   {
     // Analyst/admin-config surfaces — deep-dive, not day-to-day triage.
+    // F3+F7 fusion (2026-07-22, PO-approved route unification — registry-
+    // entity management, identical roster grammar): Directorio ABSORBS
+    // Organizaciones, Usuarios, Servicios, and RUPGA (the "Credenciales" tab)
+    // as tabbed registers (`?registro=organizaciones|usuarios|servicios|
+    // credenciales`) of ONE screen. /gob/organizaciones, /gob/usuarios,
+    // /gob/servicios and /gob/rupga survive only as permanent redirects into
+    // /gob/directorio?registro=... for old links/bookmarks; none has its own
+    // nav entry anymore — RUPGA's former Intervención entry (above) is GONE
+    // too, its revocation console body relocated as-is into the
+    // "Credenciales" tab.
     label: "Profundidad",
     items: [
       { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
       { href: "/gob/historial", label: "Mi actividad", matchPrefix: "/gob/historial" },
       { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
-      { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
-      { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
-      { href: "/gob/servicios", label: "Servicios", matchPrefix: "/gob/servicios" },
+      { href: "/gob/directorio", label: "Directorio", matchPrefix: "/gob/directorio" },
     ],
   },
 ];
@@ -477,7 +495,7 @@ export const GOB_NAV: NavItem[] = GOB_NAV_FLAT;
 //  - /admin/sistema, /admin/auditoria, /admin/libro, /admin/govts,
 //    /admin/admins: admin-only config/identity/audit surfaces with no gob
 //    twin — all Profundidad (analyst/admin-config), same layer as their
-//    closest gob relatives (Reglas/Organizaciones/Usuarios/Servicios).
+//    closest gob relatives (Reglas/Directorio).
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "",
@@ -525,22 +543,24 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // F3+F7 fusion (2026-07-22): Usuarios/Organizaciones/Servicios (each a
+    // dual-portal thin wrapper, portal-follows-viewer) collapse into ONE
+    // /admin/directorio entry — the admin-scoped mirror of the gob Directorio
+    // hub (thin re-export, same registry tabs, admin chrome). The admin
+    // wrappers (app/admin/usuarios, app/admin/organizaciones,
+    // app/admin/servicios) now redirect into /admin/directorio?registro=...
+    // rather than rendering inline — same relocation shape as the gob side,
+    // just staying inside /admin so an admin viewer never bounces into gob
+    // chrome (portal-follows-viewer).
     label: "Profundidad",
     items: [
       { href: "/admin/inteligencia", label: "Inteligencia", matchPrefix: "/admin/inteligencia" },
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
-      // Usuarios/Organizaciones exist under both portals (portal-follows-
-      // viewer) — admin nav points at the /admin/* copy.
-      { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
       { href: "/admin/govts", label: "Gobiernos", matchPrefix: "/admin/govts" },
       { href: "/admin/admins", label: "Administradores", matchPrefix: "/admin/admins" },
-      {
-        href: "/admin/organizaciones",
-        label: "Organizaciones",
-        matchPrefix: "/admin/organizaciones",
-      },
-      // Reglas/Servicios exist under both portals (portal-follows-viewer,
+      { href: "/admin/directorio", label: "Directorio", matchPrefix: "/admin/directorio" },
+      // Reglas exists under both portals (portal-follows-viewer,
       // admin-rules-console) — admin nav points at the /admin/* copy so an
       // admin drilling into a jurisdiction or a rule form stays in /admin
       // chrome. Only the renamed /admin/jurisdicciones bookmark still 308s
@@ -549,7 +569,6 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
       // WS-L — Libro de eventos (event-sourcing visible; read-only).
       { href: "/admin/libro", label: "Libro de eventos", matchPrefix: "/admin/libro" },
-      { href: "/admin/servicios", label: "Servicios", matchPrefix: "/admin/servicios" },
     ],
   },
 ];

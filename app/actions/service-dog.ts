@@ -79,10 +79,11 @@ export async function revokeServiceDogCredentialAction(
   const { user } = await requireUserOrRedirect();
   const result = await revokeServiceDogCredential(user.id, input);
   if ("ok" in result) {
-    // Drop the revoked credential from the /gob/rupga listing (server-side
-    // revalidate, mirroring the org/vet revocation shims) rather than a
+    // Drop the revoked credential from the Directorio hub's "credenciales"
+    // tab (F3+F7 fusion, 2026-07-22 — formerly /gob/rupga) via server-side
+    // revalidate, mirroring the org/vet revocation shims, rather than a
     // client router.refresh() — keeps the nav-pattern fence green.
-    revalidatePath("/gob/rupga");
+    revalidatePath("/gob/directorio");
   }
   return result;
 }

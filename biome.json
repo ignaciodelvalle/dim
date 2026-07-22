@@ -257,7 +257,7 @@
         "app/api/panorama/[layer]/route.ts",
         "app/gob/adopciones/page.tsx",
         "app/gob/analytics/export/actions.ts",
-        "app/gob/campanas/page.tsx",
+        "app/gob/campanas/CampanasScreen.tsx",
         "app/gob/censo/page.tsx",
         "app/gob/decomisos/nuevo/_components/DecomisoForm.tsx",
         "app/gob/historial/page.tsx",

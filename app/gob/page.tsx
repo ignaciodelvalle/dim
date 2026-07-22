@@ -363,7 +363,13 @@ export default async function GobiernoDashboardPage({
   // the same one the page already used before this pass, not a new duplicate.
   const queueItems: Array<{ href: string; label: string; count?: number }> = [
     { href: "/gob/cola", label: "Cola de aprobaciones", count: pendingCount },
-    { href: "/gob/organizaciones", label: "Habilitación de organizaciones" },
+    {
+      // F3+F7 fusion (2026-07-22): Organizaciones is now the Directorio hub's
+      // "organizaciones" tab (the default) — link straight there instead of
+      // through the old /gob/organizaciones redirect.
+      href: "/gob/directorio?registro=organizaciones",
+      label: "Habilitación de organizaciones",
+    },
     {
       // F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's "Triage"
       // stage — link straight there instead of through the old redirect.

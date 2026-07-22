@@ -38,14 +38,29 @@ describe("deriveOperatorCrumbs — gob portal", () => {
     expect(crumbs[1]).toEqual({ label: "Mortalidad" });
   });
 
-  it("maps /gob/organizaciones to 'Organizaciones'", () => {
+  it("maps /gob/organizaciones to 'Organizaciones' (F3+F7 fusion, 2026-07-22: no longer a nav item — the label now comes from STATIC_SEGMENT_LABELS)", () => {
     const crumbs = deriveOperatorCrumbs("/gob/organizaciones", "gob");
     expect(crumbs[1]).toEqual({ label: "Organizaciones" });
   });
 
-  it("maps /gob/servicios to 'Servicios' (nav preset label)", () => {
+  it("maps /gob/servicios to 'Servicios' (F3+F7 fusion, 2026-07-22: no longer a nav item — the label now comes from STATIC_SEGMENT_LABELS)", () => {
     const crumbs = deriveOperatorCrumbs("/gob/servicios", "gob");
     expect(crumbs[1]).toEqual({ label: "Servicios" });
+  });
+
+  it("maps /gob/rupga to 'Credenciales RUPGA' (F3+F7 fusion regression guard — removed from nav, must not fall through to capitalise() and read as a bare acronym)", () => {
+    const crumbs = deriveOperatorCrumbs("/gob/rupga", "gob");
+    expect(crumbs[1]).toEqual({ label: "Credenciales RUPGA" });
+  });
+
+  it("maps /gob/campanas to 'Campañas' with the ñ (F2 fusion regression guard — removed from nav, must not fall through to capitalise() and lose the accent)", () => {
+    const crumbs = deriveOperatorCrumbs("/gob/campanas", "gob");
+    expect(crumbs[1]).toEqual({ label: "Campañas" });
+  });
+
+  it("maps /gob/outreach to 'Alcance comunitario' (F2 fusion, 2026-07-22: no longer a nav item — the label now comes from STATIC_SEGMENT_LABELS)", () => {
+    const crumbs = deriveOperatorCrumbs("/gob/outreach", "gob");
+    expect(crumbs[1]).toEqual({ label: "Alcance comunitario" });
   });
 
   it("maps /gob/vigilancia/investigaciones to 'Investigaciones' (static segment, not Detalle)", () => {
@@ -118,7 +133,7 @@ describe("deriveOperatorCrumbs — admin portal", () => {
     expect(crumbs[1]).toEqual({ label: "Auditoría" });
   });
 
-  it("maps /admin/organizaciones to 'Organizaciones'", () => {
+  it("maps /admin/organizaciones to 'Organizaciones' (F3+F7 fusion, 2026-07-22: no longer a nav item — the label now comes from STATIC_SEGMENT_LABELS)", () => {
     const crumbs = deriveOperatorCrumbs("/admin/organizaciones", "admin");
     expect(crumbs[1]).toEqual({ label: "Organizaciones" });
   });

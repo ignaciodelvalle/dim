@@ -131,7 +131,10 @@ export async function createServiceOfferingWriter(
         // Servicios dedup (admin-rules-console R5.1): /gob/servicios is the
         // single canonical surface for both roles — admin reaches universal
         // scope there too, /admin/servicios no longer exists. Role no longer
-        // needs to be looked up just to pick a CTA URL.
+        // needs to be looked up just to pick a CTA URL. F3+F7 fusion
+        // (2026-07-22): Servicios is now the Directorio hub's "servicios"
+        // tab — the CTA links straight there instead of through the old
+        // /gob/servicios redirect.
         await tx.insert(notifications).values(
           authorityIds.map((authorityId) => {
             return {
@@ -141,7 +144,7 @@ export async function createServiceOfferingWriter(
               body: `${providerLabel} solicitó aprobar "${parsed.data.displayName}" (${kindDef.label}).`,
               severity: "info" as const,
               ctaLabel: "Revisar",
-              ctaUrl: "/gob/servicios",
+              ctaUrl: "/gob/directorio?registro=servicios",
             };
           }),
         );

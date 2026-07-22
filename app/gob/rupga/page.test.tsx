@@ -1,71 +1,39 @@
 // @vitest-environment jsdom
 //
-// /gob/rupga — render smoke test (opfilterbar-sweep2-2026-07-21, item 5b).
+// /gob/rupga — F3+F7 fusion (2026-07-22): this route now only redirects into
+// the Directorio hub's "credenciales" register, preserving every query
+// param. Regression guard: a bookmarked/shared old-route URL must land on
+// the exact same slice of data under /gob/directorio.
 //
-// Pins the migration off the bespoke GET <form> (free-text search) onto the
-// shared OpFilterBar + SearchFilterField. The Estado control (UrlTabs) is
-// deliberately UNCHANGED — its real default is "vigente", not "show all", the
-// same default-trap an OpFilterBar axis's own implicit blank "Todas" option
-// would reintroduce (see CasoEstadoFilter precedent).
-import "@testing-library/jest-dom/vitest";
+// The former render-level assertions (OpFilterBar Buscar, Estado tabs,
+// credential rendering) moved to ./CredencialesScreen.test.tsx, which now
+// targets the extracted screen component directly — no coverage was lost.
 
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+const redirectMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  redirect: (url: string) => redirectMock(url),
 }));
 
-vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
-    user: { id: "govt-1", email: "govt@dim.test" },
-    profile: { id: "govt-1", role: "govt" },
-    jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
-  })),
-}));
+import GobRupgaRedirectPage from "./page";
 
-vi.mock("@/lib/infra/admin-search", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/infra/admin-search")>(
-    "@/lib/infra/admin-search",
-  );
-  return {
-    ...actual,
-    searchServiceDogCredentials: vi.fn(async () => ({ items: [], truncated: false })),
-  };
-});
-
-import RupgaPage from "./page";
-
-describe("/gob/rupga — render smoke test", () => {
-  it("renders the OpFilterBar (Buscar) without the old bespoke <form>, and the Estado tabs", async () => {
-    const node = await RupgaPage({ searchParams: Promise.resolve({}) });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Credenciales RUPGA");
-    expect(html).toContain("Buscar");
-    expect(html).toContain("Vigentes");
+describe("/gob/rupga — redirects into the Directorio hub (F3+F7 fusion)", () => {
+  it("redirects to /gob/directorio?registro=credenciales with no other params", async () => {
+    await GobRupgaRedirectPage({ searchParams: Promise.resolve({}) });
+    expect(redirectMock).toHaveBeenCalledTimes(1);
+    expect(redirectMock).toHaveBeenCalledWith("/gob/directorio?registro=credenciales");
   });
 
-  it("renders with an explicit q + status query without throwing", async () => {
-    const { searchServiceDogCredentials } = await import("@/lib/infra/admin-search");
-    vi.mocked(searchServiceDogCredentials).mockResolvedValueOnce({
-      items: [
-        {
-          petId: "pet-1",
-          petPublicToken: "DIM-TEST-0001",
-          petName: "Duque",
-          serviceType: "guia",
-          credentialStatus: "vigente",
-          rupgaCredential: "RUPGA-123",
-          jurisdictionProvince: "Buenos Aires",
-          jurisdictionLocality: "La Plata",
-        },
-      ],
-      truncated: false,
-    });
-    const node = await RupgaPage({
+  it("preserves q/status and sets registro=credenciales", async () => {
+    await GobRupgaRedirectPage({
       searchParams: Promise.resolve({ q: "duque", status: "vigente" }),
     });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Duque");
+    const url = new URL(redirectMock.mock.calls.at(-1)?.[0] as string, "http://localhost");
+    expect(url.pathname).toBe("/gob/directorio");
+    expect(url.searchParams.get("q")).toBe("duque");
+    expect(url.searchParams.get("status")).toBe("vigente");
+    expect(url.searchParams.get("registro")).toBe("credenciales");
   });
 });

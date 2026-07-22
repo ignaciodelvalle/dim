@@ -45,12 +45,13 @@ export async function proposeVetUpgradeAction(
   const result = await _proposeVetUpgradeForUser(user.id, input);
   if ("ok" in result) {
     // Cola/Usuarios are dual-portal surfaces (portal-follows-viewer,
-    // 2026-07-02): /admin/cola and /admin/usuarios are thin wrappers
-    // re-exporting these same pages, so both copies need revalidating.
+    // 2026-07-02): /admin/cola is a thin wrapper re-exporting the gob page;
+    // Usuarios is the Directorio hub's "usuarios" tab in BOTH portals
+    // (F3+F7 fusion, 2026-07-22) — revalidate all four routes.
     revalidatePath("/gob/cola");
-    revalidatePath("/gob/usuarios");
+    revalidatePath("/gob/directorio");
     revalidatePath("/admin/cola");
-    revalidatePath("/admin/usuarios");
+    revalidatePath("/admin/directorio");
   }
   return result;
 }
@@ -62,12 +63,13 @@ export async function proposeOrgVerificationAction(
   const result = await _proposeOrgVerificationForOrg(user.id, input);
   if ("ok" in result) {
     // Cola/Organizaciones are dual-portal surfaces (portal-follows-viewer,
-    // 2026-07-02): /admin/cola and /admin/organizaciones are thin wrappers
-    // re-exporting these same pages, so both copies need revalidating.
+    // 2026-07-02): /admin/cola is a thin wrapper re-exporting the gob page;
+    // Organizaciones is the Directorio hub's "organizaciones" tab in BOTH
+    // portals (F3+F7 fusion, 2026-07-22) — revalidate all four routes.
     revalidatePath("/gob/cola");
-    revalidatePath("/gob/organizaciones");
+    revalidatePath("/gob/directorio");
     revalidatePath("/admin/cola");
-    revalidatePath("/admin/organizaciones");
+    revalidatePath("/admin/directorio");
   }
   return result;
 }

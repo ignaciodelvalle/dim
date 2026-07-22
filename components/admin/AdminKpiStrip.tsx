@@ -91,7 +91,10 @@ export function AdminKpiStrip({
       <OpKpi
         label="Usuarios personales"
         value={data.totalPersonal}
-        href="/admin/usuarios"
+        // F3+F7 fusion (2026-07-22): Usuarios is now the admin Directorio
+        // hub's "usuarios" tab — link straight there instead of through the
+        // old /admin/usuarios redirect.
+        href="/admin/directorio?registro=usuarios"
         info={{
           definition: "Total de cuentas personales activas en la plataforma.",
           formula: "count(*) where account_type = 'personal'",
@@ -103,7 +106,10 @@ export function AdminKpiStrip({
         <OpKpi
           label="Instituciones activas"
           value={data.totalInstitutionalActive ?? 0}
-          href="/admin/organizaciones"
+          // F3+F7 fusion (2026-07-22): Organizaciones is now the admin
+          // Directorio hub's "organizaciones" tab — link straight there
+          // instead of through the old /admin/organizaciones redirect.
+          href="/admin/directorio?registro=organizaciones"
           info={{
             definition: "Cuentas institucionales activas (no desactivadas).",
             formula: "count(*) where account_type = 'institutional' and deactivated_at is null",

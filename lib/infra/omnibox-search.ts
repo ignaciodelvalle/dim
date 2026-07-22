@@ -261,7 +261,10 @@ async function searchPersons(
     id: u.id,
     displayName: u.displayName,
     role: u.role,
-    href: `/gob/usuarios?q=${encodeURIComponent(u.displayName)}`,
+    // F3+F7 fusion (2026-07-22): Usuarios is now the Directorio hub's
+    // "usuarios" tab — link straight there instead of through the old
+    // /gob/usuarios redirect.
+    href: `/gob/directorio?registro=usuarios&q=${encodeURIComponent(u.displayName)}`,
   }));
 }
 

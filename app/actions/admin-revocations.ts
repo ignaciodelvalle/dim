@@ -58,10 +58,10 @@ export async function revokeVetRoleAction(input: {
   const result = await _revokeVetRole(user.id, input);
   if ("ok" in result) {
     // Usuarios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
-    // /admin/usuarios is a thin wrapper re-exporting this same page, so both
-    // copies need revalidating.
-    revalidatePath("/gob/usuarios");
-    revalidatePath("/admin/usuarios");
+    // F3+F7 fusion (2026-07-22) made it the Directorio hub's "usuarios" tab
+    // in BOTH portals — revalidate both hub routes.
+    revalidatePath("/gob/directorio");
+    revalidatePath("/admin/directorio");
   }
   return result;
 }
@@ -75,10 +75,10 @@ export async function revokeOrgVerificationAction(input: {
   const result = await _revokeOrgVerification(user.id, input);
   if ("ok" in result) {
     // Organizaciones is a dual-portal surface (portal-follows-viewer,
-    // 2026-07-02): /admin/organizaciones is a thin wrapper re-exporting this
-    // same page, so both copies need revalidating.
-    revalidatePath("/gob/organizaciones");
-    revalidatePath("/admin/organizaciones");
+    // 2026-07-02): F3+F7 fusion (2026-07-22) made it the Directorio hub's
+    // "organizaciones" tab in BOTH portals — revalidate both hub routes.
+    revalidatePath("/gob/directorio");
+    revalidatePath("/admin/directorio");
     // A revoked verification must drop the org from the public /refugios
     // directory (Data Cache, tag "org-directory") immediately, not after the
     // 300s window.
@@ -96,11 +96,11 @@ export async function revokeGovtLocalityAction(input: {
   const result = await _revokeGovtLocality(user.id, input);
   if ("ok" in result) {
     // Usuarios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
-    // /admin/usuarios is a thin wrapper re-exporting this same page, so both
-    // copies need revalidating. Next.js silently ignores paths for
-    // non-existent pages, so this is safe either way.
-    revalidatePath("/admin/usuarios");
-    revalidatePath("/gob/usuarios");
+    // F3+F7 fusion (2026-07-22) made it the Directorio hub's "usuarios" tab
+    // in BOTH portals — revalidate both hub routes. Next.js silently ignores
+    // paths for non-existent pages, so this is safe either way.
+    revalidatePath("/admin/directorio");
+    revalidatePath("/gob/directorio");
   }
   return result;
 }

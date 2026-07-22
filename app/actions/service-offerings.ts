@@ -156,10 +156,10 @@ export async function approveServiceOfferingAction(
   if ("error" in result) return { error: result.error };
 
   // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
-  // /admin/servicios is a thin wrapper re-exporting this same page, so both
-  // copies need revalidating or the /admin one goes stale.
-  revalidatePath("/gob/servicios");
-  revalidatePath("/admin/servicios");
+  // F3+F7 fusion (2026-07-22) made it the Directorio hub's "servicios" tab in
+  // BOTH portals — revalidate both hub routes or one goes stale.
+  revalidatePath("/gob/directorio");
+  revalidatePath("/admin/directorio");
   return { error: null };
 }
 
@@ -241,10 +241,10 @@ export async function rejectServiceOfferingAction(
   if ("error" in result) return { error: result.error };
 
   // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
-  // /admin/servicios is a thin wrapper re-exporting this same page, so both
-  // copies need revalidating or the /admin one goes stale.
-  revalidatePath("/gob/servicios");
-  revalidatePath("/admin/servicios");
+  // F3+F7 fusion (2026-07-22) made it the Directorio hub's "servicios" tab in
+  // BOTH portals — revalidate both hub routes or one goes stale.
+  revalidatePath("/gob/directorio");
+  revalidatePath("/admin/directorio");
   return { error: null };
 }
 

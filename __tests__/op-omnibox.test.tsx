@@ -198,7 +198,7 @@ describe("<OpOmnibox> — grouped results", () => {
         id: "u1",
         displayName: "Juan Pérez",
         role: "owner",
-        href: "/gob/usuarios?q=Juan%20P%C3%A9rez",
+        href: "/gob/directorio?registro=usuarios&q=Juan%20P%C3%A9rez",
       },
     ],
     cases: [

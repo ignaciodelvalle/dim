@@ -1,79 +1,40 @@
 // @vitest-environment jsdom
 //
-// /gob/organizaciones (also thin-wrapped at /admin/organizaciones) — render
-// smoke test (opfilterbar-sweep2-2026-07-21, item 2).
+// /gob/organizaciones — F3+F7 fusion (2026-07-22): this route now only
+// redirects into the Directorio hub's "organizaciones" register, preserving
+// every query param. Regression guard: a bookmarked/shared old-route URL
+// must land on the exact same slice of data under /gob/directorio.
 //
-// Pins the item-2 migration off the bespoke GET <form>/<select> filter row
-// onto the shared OpFilterBar (Verificación + Tipo axes, Buscar search child)
-// — same query param contract (q, verified, orgType) as before.
-import "@testing-library/jest-dom/vitest";
+// The former render-level assertions (OpFilterBar axes, search result
+// rendering) moved to ./OrganizacionesScreen.test.tsx, which now targets the
+// extracted screen component directly — no coverage was lost.
 
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+const redirectMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  redirect: (url: string) => redirectMock(url),
 }));
 
-vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
-    user: { id: "govt-1", email: "govt@dim.test" },
-    profile: { id: "govt-1", role: "govt" },
-    jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
-  })),
-}));
+import GobOrganizacionesRedirectPage from "./page";
 
-vi.mock("@/lib/infra/admin-search", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/infra/admin-search")>(
-    "@/lib/infra/admin-search",
-  );
-  return {
-    ...actual,
-    searchOrganizations: vi.fn(async () => ({ items: [], truncated: false })),
-  };
-});
-
-vi.mock("@/src/modules/organizations/application/admin-proposals/log-pii-query", () => ({
-  logPiiReadSafely: vi.fn(async () => {}),
-}));
-
-vi.mock("@/lib/ui/portal-base", () => ({
-  portalBase: vi.fn(async () => "/gob"),
-}));
-
-import OrganizacionesPage from "./page";
-
-describe("/gob/organizaciones — render smoke test", () => {
-  it("renders the OpFilterBar (Verificación + Tipo axes, Buscar) without the old bespoke <form>", async () => {
-    const node = await OrganizacionesPage({ searchParams: Promise.resolve({}) });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Organizaciones");
-    expect(html).toContain("Verificación");
-    expect(html).toContain("Tipo");
-    expect(html).toContain("Buscar");
+describe("/gob/organizaciones — redirects into the Directorio hub (F3+F7 fusion)", () => {
+  it("redirects to /gob/directorio?registro=organizaciones with no other params", async () => {
+    await GobOrganizacionesRedirectPage({ searchParams: Promise.resolve({}) });
+    expect(redirectMock).toHaveBeenCalledTimes(1);
+    expect(redirectMock).toHaveBeenCalledWith("/gob/directorio?registro=organizaciones");
   });
 
-  it("renders with explicit verified/orgType/q query params without throwing", async () => {
-    const { searchOrganizations } = await import("@/lib/infra/admin-search");
-    vi.mocked(searchOrganizations).mockResolvedValueOnce({
-      items: [
-        {
-          id: "org-1",
-          displayName: "Refugio Sur",
-          legalName: "Refugio Sur SRL",
-          orgType: "shelter",
-          cuit: null,
-          verified: true,
-          jurisdictionProvince: "Buenos Aires",
-          jurisdictionLocality: "La Plata",
-        },
-      ],
-      truncated: false,
-    });
-    const node = await OrganizacionesPage({
+  it("preserves q/verified/orgType and sets registro=organizaciones", async () => {
+    await GobOrganizacionesRedirectPage({
       searchParams: Promise.resolve({ q: "sur", verified: "verified", orgType: "shelter" }),
     });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Refugio Sur");
+    const url = new URL(redirectMock.mock.calls.at(-1)?.[0] as string, "http://localhost");
+    expect(url.pathname).toBe("/gob/directorio");
+    expect(url.searchParams.get("q")).toBe("sur");
+    expect(url.searchParams.get("verified")).toBe("verified");
+    expect(url.searchParams.get("orgType")).toBe("shelter");
+    expect(url.searchParams.get("registro")).toBe("organizaciones");
   });
 });

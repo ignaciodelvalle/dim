@@ -35,17 +35,18 @@ const GOB_HREF_SNAPSHOT = new Set([
   // absorbed into the Denuncias hub as tabbed stages — matches
   // nav-presets.test.ts's GOB_HREF_SNAPSHOT.
   "/gob/reglas",
-  "/gob/servicios",
   "/gob/historial",
   "/gob/analytics",
-  "/gob/usuarios",
-  "/gob/organizaciones",
-  "/gob/rupga",
   "/gob/perdidas",
   "/gob/disputas",
   "/gob/decomisos",
-  "/gob/campanas",
-  "/gob/outreach", // Item 21 — actionable outreach pipelines
+  // /gob/campanas and /gob/outreach REMOVED (F2 fusion, 2026-07-22): absorbed
+  // into the Operativos hub as tabbed vistas.
+  "/gob/operativos",
+  // /gob/organizaciones, /gob/usuarios, /gob/servicios and /gob/rupga REMOVED
+  // (F3+F7 fusion, 2026-07-22): absorbed into the Directorio hub as tabbed
+  // registros.
+  "/gob/directorio",
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
@@ -63,10 +64,10 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   // copies of every shared surface — the earlier AC3 /gob/* repoints were
   // superseded when the shared pages got served under /admin too.
   "/admin/cola",
-  "/admin/usuarios",
-  "/admin/organizaciones",
+  // F3+F7 fusion (2026-07-22): usuarios/organizaciones/servicios collapse
+  // into ONE /admin/directorio hub entry.
+  "/admin/directorio",
   "/admin/reglas",
-  "/admin/servicios",
   "/admin/historial",
   "/admin/auditoria",
   "/admin/outbox",
@@ -156,8 +157,12 @@ describe("Phase B operator parity — gob", () => {
     expect(allHrefs.length).toBe(unique.size);
   });
 
-  it("has at least 24 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
-    expect(allHrefs.length).toBeGreaterThanOrEqual(24);
+  // Floor lowered 24 → 21 (F2+F3+F7 fusions, 2026-07-22): campañas/outreach
+  // collapsed into /gob/operativos and organizaciones/usuarios/servicios/
+  // rupga collapsed into /gob/directorio — 6 routes dropped from nav, 2 hub
+  // routes added, net -4. Matches GOB_HREF_SNAPSHOT's new cardinality.
+  it("has at least 21 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
+    expect(allHrefs.length).toBeGreaterThanOrEqual(21);
   });
 
   it("sections form the expected structure (5 groups including 1 unlabeled)", () => {

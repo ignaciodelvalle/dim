@@ -37,10 +37,10 @@ export async function verifyOrgAction(input: { organizationId: string }) {
   const result = await _verifyOrg(user.id, input);
   if ("ok" in result) {
     // Organizaciones is a dual-portal surface (portal-follows-viewer,
-    // 2026-07-02): /admin/organizaciones is a thin wrapper re-exporting this
-    // same page, so both copies need revalidating.
-    revalidatePath("/gob/organizaciones");
-    revalidatePath("/admin/organizaciones");
+    // 2026-07-02): F3+F7 fusion (2026-07-22) made it the Directorio hub's
+    // "organizaciones" tab in BOTH portals — revalidate both hub routes.
+    revalidatePath("/gob/directorio");
+    revalidatePath("/admin/directorio");
   }
   return result;
 }
@@ -53,10 +53,10 @@ export async function unverifyOrgAction(input: {
   const result = await _unverifyOrg(user.id, input);
   if ("ok" in result) {
     // Organizaciones is a dual-portal surface (portal-follows-viewer,
-    // 2026-07-02): /admin/organizaciones is a thin wrapper re-exporting this
-    // same page, so both copies need revalidating.
-    revalidatePath("/gob/organizaciones");
-    revalidatePath("/admin/organizaciones");
+    // 2026-07-02): F3+F7 fusion (2026-07-22) made it the Directorio hub's
+    // "organizaciones" tab in BOTH portals — revalidate both hub routes.
+    revalidatePath("/gob/directorio");
+    revalidatePath("/admin/directorio");
   }
   return result;
 }

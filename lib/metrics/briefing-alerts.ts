@@ -116,7 +116,12 @@ export const MAX_BRIEFING_ALERTS = 5;
 // `route` is validated against SCREEN_MANIFEST at resolve time (not just
 // trusted as a string) — a route that gets renamed/removed there silently
 // drops the alert instead of linking to a manifest-orphaned URL.
-const ALERT_ACTIONS: Partial<Record<KpiId, { route: string; label: string }>> = {
+//
+// `query` (optional): appended verbatim to the validated `entry.route` to
+// land on a specific tab of a fused hub (F2, 2026-07-22) — the manifest only
+// tracks the bare hub route, not per-tab deep links, so the tab selector
+// lives here instead.
+const ALERT_ACTIONS: Partial<Record<KpiId, { route: string; label: string; query?: string }>> = {
   // Programa layer — "¿el programa cumple sus metas de cobertura?" IS the
   // owning decision for a coverage-gap alert (deliberately NOT /gob/analytics:
   // that screen's decision is about background TRENDS, "profundidad" layer —
@@ -132,8 +137,15 @@ const ALERT_ACTIONS: Partial<Record<KpiId, { route: string; label: string }>> = 
   reunification_rate: { route: "/gob/perdidas", label: "Ver en Pérdidas" },
   // Vigilancia owns rabies-observation surveillance.
   rabies_observation_compliance_10d: { route: "/gob/vigilancia", label: "Ver en Vigilancia" },
-  // Campañas owns its own completion-rate decision 1:1.
-  campaign_completion_rate: { route: "/gob/campanas", label: "Ver en Campañas" },
+  // Campañas owns its own completion-rate decision 1:1. F2 fusion (2026-07-22):
+  // /gob/campanas is now the Operativos hub's "campanas" tab (the hub's
+  // default is "alcance", so the query suffix is required to land on the
+  // right tab, not just the hub route).
+  campaign_completion_rate: {
+    route: "/gob/operativos",
+    label: "Ver en Campañas",
+    query: "?vista=campanas",
+  },
   // ENO SLA is a bandeja-de-salida delivery concern.
   eno_sla_compliance: { route: "/gob/outbox", label: "Ver en Bandeja de salida" },
 };
@@ -146,7 +158,7 @@ function resolveAlertAction(kpiId: KpiId): { href: string; label: string } | und
   if (!action) return undefined;
   const entry = getScreenManifestEntry(action.route);
   if (!entry) return undefined;
-  return { href: entry.route, label: action.label };
+  return { href: `${entry.route}${action.query ?? ""}`, label: action.label };
 }
 
 // ---------------------------------------------------------------------------

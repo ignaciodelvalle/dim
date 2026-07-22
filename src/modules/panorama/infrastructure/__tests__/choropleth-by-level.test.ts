@@ -54,14 +54,26 @@ describe("U5 rollup — province total equals the sum of its localities (mortali
     const provTotalByCode = new Map<string, number>();
     for (const c of prov.cells) provTotalByCode.set(c.provinceCode, c.value);
 
-    // The locality cells are k-anon'd: a SUPPRESSED cell carries value=null, its
-    // true count hidden in [1, 4] (k=5). So the EXACT province total is
-    //   sum(visible locality values) + sum(hidden suppressed counts).
-    // We can't read the hidden counts, but each is in [1,4], so the province
-    // total MUST fall within a tight, privacy-respecting bound:
-    //   visibleSum + suppressedCount*1 <= provTotal <= visibleSum + suppressedCount*4
-    // This proves consistency (province == sum of localities) WITHOUT leaking the
-    // suppressed counts. Where a province has NO suppressed localities, it is exact.
+    // The locality cells are k-anon'd: a SUPPRESSED cell carries value=null.
+    // A PRIMARY (k=5) suppression hides a count in [1, 4] — but `toChoroplethCells`
+    // also runs `complementarySuppress` (1ed90200): when a province has EXACTLY
+    // one primary-suppressed department, it additionally promotes that
+    // province's smallest VISIBLE department into suppression too, to defeat a
+    // differencing attack against the (unsuppressed) province total. That
+    // promoted cell can hide ANY count >= 5 — not bounded by 4 — so
+    // "suppressedCount*4" is NOT a valid upper bound once a promotion has
+    // fired (found via the Santa Fe department split: La Capital hides 4
+    // (primary, within [1,4]) while Rosario — genuinely 7 pets — gets
+    // COMPLEMENTARY-promoted and hides 7, three over the naive bound; every
+    // locality here is a canonical, correctly-resolved ar_localities row —
+    // this is the shared suppression helper working as designed, not a seed
+    // or locality-catalog defect).
+    //
+    // So the lower bound (every suppressed cell hides >= 1) still holds
+    // unconditionally, but the tight upper bound is only provable by
+    // reconciling against the TRUE raw per-locality distribution directly
+    // (test-only elevated DB access), bypassing the loader's k-anon layer
+    // entirely rather than trying to reconstruct it from suppressed output.
     const visibleSumByCode = new Map<string, number>();
     const suppressedCountByCode = new Map<string, number>();
     for (const cell of loc.cells) {
@@ -98,6 +110,26 @@ describe("U5 rollup — province total equals the sum of its localities (mortali
       if (code) nullLocByCode.set(code, Number(r.n));
     }
 
+    // TRUE per-locality total (pre-suppression, pre-department-fold — the same
+    // `status = 'deceased'` predicate + `jurisdiction_locality IS NOT NULL`
+    // filter `loadMortality`'s rollup uses), queried directly so the upper-bound
+    // check doesn't have to reconstruct a k-anon'd value from suppressed output
+    // (see the complementary-suppression note above for why that reconstruction
+    // is unsound). This is test-only elevated access — never something the
+    // public loader itself would expose.
+    const rawLocalityRows = await db.execute<{ province: string; n: string }>(sql`
+      SELECT jurisdiction_province AS province, COUNT(*) AS n
+      FROM pets
+      WHERE status = 'deceased'
+        AND jurisdiction_locality IS NOT NULL
+      GROUP BY jurisdiction_province
+    `);
+    const rawLocalitySumByCode = new Map<string, number>();
+    for (const r of rawLocalityRows) {
+      const code = NAME_TO_CODE.get(r.province);
+      if (code) rawLocalitySumByCode.set(code, Number(r.n));
+    }
+
     // Under PER_LAYER_CAP truncation the locality layer legitimately DROPS
     // whole tail provinces (the 2026-07-04 drift reconciliation pushed the
     // deceased locality rollup past the cap for the first time). The exact
@@ -117,9 +149,21 @@ describe("U5 rollup — province total equals the sum of its localities (mortali
       const visibleSum = visibleSumByCode.get(code) ?? 0;
       const suppressed = suppressedCountByCode.get(code) ?? 0;
       const nullLoc = nullLocByCode.get(code) ?? 0;
+      const rawLocalitySum = rawLocalitySumByCode.get(code) ?? 0;
+      // Lower bound: every suppressed cell — primary OR complementary-promoted
+      // — hides a REAL, nonzero count (k-anon never suppresses a true zero row;
+      // complementary promotion only ever moves an already-visible, >=5 cell).
       expect(provTotal).toBeGreaterThanOrEqual(visibleSum + suppressed + nullLoc);
-      expect(provTotal).toBeLessThanOrEqual(visibleSum + suppressed * 4 + nullLoc);
-      // Exact equality where there is nothing suppressed to hide.
+      // Exact reconciliation: the province total from `loadMortalityByProvince`
+      // must equal the TRUE raw per-locality distribution plus the null-locality
+      // residual — verified directly, not bounded via a k-anon estimate. This
+      // is what actually catches a predicate/scope drift between the two
+      // loaders; it is unaffected by complementary suppression because it
+      // never routes through the suppression layer at all.
+      expect(provTotal).toBe(rawLocalitySum + nullLoc);
+      // Where nothing is suppressed, the LOADER's own visible sum (not just the
+      // raw SQL) must also match exactly — proving loadMortality's public
+      // output reconciles too, not only the underlying table.
       if (suppressed === 0) expect(provTotal).toBe(visibleSum + nullLoc);
       provincesChecked += 1;
     }

@@ -81,10 +81,11 @@ export async function bulkRevoke(input: BulkRevokeInput): Promise<BulkResult> {
     }
   }
 
-  revalidatePath("/admin/usuarios");
-  revalidatePath("/gob/usuarios");
-  revalidatePath("/admin/organizaciones");
-  revalidatePath("/gob/organizaciones");
+  // F3+F7 fusion (2026-07-22): Usuarios/Organizaciones are now the
+  // Directorio hub's tabs (both gob and admin have their own hub route) —
+  // revalidate the hub routes, not the old redirect-only shims.
+  revalidatePath("/admin/directorio");
+  revalidatePath("/gob/directorio");
   revalidatePath("/admin/govts");
   // targetKind === "org" revocations drop orgs from the public /refugios
   // directory (Data Cache, tag "org-directory") — invalidate rather than

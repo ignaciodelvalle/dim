@@ -173,6 +173,24 @@ describe("outbreak/zoonosis surfaces count REAL outbreak_signal events (schema-d
   // province must ALSO fold into suppression whenever exactly one primary
   // suppression happens nationally.
   it("loadZoonosisByUnit's provinceSignal fallback clears k=5, suppresses a sparse province, and complements the lone suppression", async () => {
+    // ISOLATION (fix for the C5-reseed leak): this query is deliberately
+    // NATIONAL and UNSCOPED (admin, no jurisdictions) — by design, it has to
+    // see every outbreak_signal in the DB to prove the n===1 complementary
+    // rule. That means it ALSO sees whatever the panorama seed's variety
+    // tail (seedFeedVarietyTail) and history generators have written for
+    // REAL provinces (Chubut/Río Negro/Salta/Santa Fe singletons observed
+    // in local data) — each a legitimate sub-k signal that inflates
+    // suppressedPerGroup["national"] past 1 and silently disables the very
+    // promotion path this test exists to prove. The suite's own file-level
+    // `SINCE` (24h) does not exclude them either — they're recent seed runs.
+    // Rather than trying to out-guess how many ambient sub-k provinces exist
+    // (a moving target across re-seeds), scope this ONE test to a `since`
+    // cutoff captured right now, after every ambient signal already in the
+    // DB and before any of this test's own inserts — so only this test's
+    // controlled fixtures are in scope, regardless of what the seed has
+    // written before or will write in a later, unrelated run.
+    const isolatedSince = new Date(Date.now() - 1_000);
+
     const BIG_PROVINCE = "PANORAMA-BIVAR-PROV-BIG"; // 10 — safely visible
     const MED_PROVINCE = "PANORAMA-BIVAR-PROV-MED"; // 5 — clears k ALONE, but is the
     // smallest VISIBLE province nationally, so it gets promoted (complementary).
@@ -202,23 +220,22 @@ describe("outbreak/zoonosis surfaces count REAL outbreak_signal events (schema-d
     for (let i = 0; i < 5; i += 1) await insertOutbreak(MED_PROVINCE, "PANORAMA-BIVAR-LOC-3");
     // 2 signals (sub-k) — primary-suppressed. Needs to be the ONLY suppressed
     // province in the national scope this query sees for the n===1 promotion
-    // rule to fire — see the PROVINCE/LOCALITY top-up below.
+    // rule to fire.
     await insertOutbreak(SMALL_PROVINCE, "PANORAMA-BIVAR-LOC-4");
     await insertOutbreak(SMALL_PROVINCE, "PANORAMA-BIVAR-LOC-4");
-    // This suite's OWN beforeAll already seeded ONE outbreak_signal for
-    // (PROVINCE, LOCALITY) = ("Santa Fe", "PANORAMA-ZOON-ISO") within the SAME
-    // SINCE window — an ambient 2nd sub-k province that would make
-    // suppressedPerGroup["national"] === 2 and SILENTLY DISABLE the n===1
-    // complementary-promotion path this test exists to prove. Top it up to 5
-    // (clears k on its own) so SMALL_PROVINCE stays the lone suppressed cell.
-    await insertOutbreak(PROVINCE, LOCALITY);
-    await insertOutbreak(PROVINCE, LOCALITY);
-    await insertOutbreak(PROVINCE, LOCALITY);
-    await insertOutbreak(PROVINCE, LOCALITY);
+    // (PROVINCE, LOCALITY) = ("Santa Fe", "PANORAMA-ZOON-ISO") gets its OWN
+    // fresh 6 signals within `isolatedSince` — deliberately MORE than
+    // MED_PROVINCE's 5 (not tied) so `complementarySuppress`'s strict `<`
+    // smallest-visible comparison has no ambiguity about which province is
+    // promoted. The suite's beforeAll signal for this same (province,
+    // locality) predates `isolatedSince`, so it no longer counts here — this
+    // test is now self-contained regardless of ambient data.
+    for (let i = 0; i < 6; i += 1) await insertOutbreak(PROVINCE, LOCALITY);
 
     // Admin, no jurisdictions/adminProvince → national, unrestricted scope
-    // (jurisdictionColumnsScope: "admin, no province → null (no restriction)").
-    const res = await loadZoonosisByUnit("province", { role: "admin" }, [], SINCE);
+    // (jurisdictionColumnsScope: "admin, no province → null (no restriction)"),
+    // scoped to `isolatedSince` so only this test's own fixtures are counted.
+    const res = await loadZoonosisByUnit("province", { role: "admin" }, [], isolatedSince);
     expect(res.provinceSignal).toBeDefined();
     const cells = res.provinceSignal ?? [];
 

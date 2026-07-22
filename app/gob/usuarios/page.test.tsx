@@ -1,93 +1,40 @@
 // @vitest-environment jsdom
 //
-// /gob/usuarios (also rendered thin-wrapped at /admin/usuarios) — render smoke
-// test (opfilterbar-sweep2-2026-07-21, item 1).
+// /gob/usuarios — F3+F7 fusion (2026-07-22): this route now only redirects
+// into the Directorio hub's "usuarios" register, preserving every query
+// param. Regression guard: a bookmarked/shared old-route URL must land on
+// the exact same slice of data under /gob/directorio.
 //
-// Pins the item-1 fix: the "Validez ISO de chips" KPI (a pets/microchip
-// compliance metric) must NOT render on this USERS roster page anymore — it
-// was out of place here (confirmed chip-ISO-scoped, not user-scoped) and has
-// been removed, along with the now-degenerate 1-item KPI row wrapper. The
-// chip-fraud OpBreach signal (a distinct, out-of-scope-for-this-round concern)
-// and the OpFilterBar (Rol axis + Buscar search) must still render correctly.
-import "@testing-library/jest-dom/vitest";
+// The former render-level assertions (OpFilterBar Rol axis, chip-fraud
+// OpBreach, ISO-KPI removal) moved to ./UsuariosScreen.test.tsx, which now
+// targets the extracted screen component directly — no coverage was lost.
 
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+const redirectMock = vi.fn();
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  redirect: (url: string) => redirectMock(url),
 }));
 
-vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
-    user: { id: "govt-1", email: "govt@dim.test" },
-    profile: { id: "govt-1", role: "govt" },
-    jurisdictions: [{ province: "Buenos Aires", locality: "La Plata" }],
-  })),
-}));
+import GobUsuariosRedirectPage from "./page";
 
-vi.mock("@/lib/infra/admin-search", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/infra/admin-search")>(
-    "@/lib/infra/admin-search",
-  );
-  return {
-    ...actual,
-    searchUsers: vi.fn(async () => []),
-  };
-});
-
-vi.mock("@/lib/infra/test-accounts", () => ({
-  isTestAccount: vi.fn(() => false),
-}));
-
-vi.mock("@/lib/supabase/admin", () => ({
-  createAdminClient: vi.fn(() => ({})),
-  buildAuthEmailMap: vi.fn(async () => new Map()),
-}));
-
-vi.mock("@/lib/analytics/compliance-metrics", () => ({
-  fetchChipReplacementSignal: vi.fn(async () => ({
-    flaggedForReview: 0,
-    total: 0,
-    byReason: {},
-  })),
-}));
-
-vi.mock("@/components/ui/dashboard/DashboardFreshnessFooter", () => ({
-  DashboardFreshnessFooter: () => null,
-}));
-
-vi.mock("@/src/modules/organizations/application/admin-proposals/log-pii-query", () => ({
-  logPiiReadSafely: vi.fn(async () => {}),
-}));
-
-vi.mock("@/lib/ui/portal-base", () => ({
-  portalBase: vi.fn(async () => "/gob"),
-}));
-
-import UsuariosPage from "./page";
-
-describe("/gob/usuarios — render smoke test", () => {
-  it("renders without the ISO-validity chip KPI (item 1 removal)", async () => {
-    const node = await UsuariosPage({ searchParams: Promise.resolve({}) });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Usuarios");
-    // The removed KPI's exact copy must be gone.
-    expect(html).not.toContain("Validez ISO de chips");
-    expect(html).not.toContain("Registro y cumplimiento");
+describe("/gob/usuarios — redirects into the Directorio hub (F3+F7 fusion)", () => {
+  it("redirects to /gob/directorio?registro=usuarios with no other params", async () => {
+    await GobUsuariosRedirectPage({ searchParams: Promise.resolve({}) });
+    expect(redirectMock).toHaveBeenCalledTimes(1);
+    expect(redirectMock).toHaveBeenCalledWith("/gob/directorio?registro=usuarios");
   });
 
-  it("still renders the OpFilterBar (Rol axis + Buscar) and the chip-fraud OpBreach path", async () => {
-    const { fetchChipReplacementSignal } = await import("@/lib/analytics/compliance-metrics");
-    vi.mocked(fetchChipReplacementSignal).mockResolvedValueOnce({
-      flaggedForReview: 2,
-      total: 5,
-      byReason: { fraud_detected: 1, duplicate_detected: 1 },
+  it("preserves q/test/role and sets registro=usuarios", async () => {
+    await GobUsuariosRedirectPage({
+      searchParams: Promise.resolve({ q: "juan", test: "1", role: "vet" }),
     });
-    const node = await UsuariosPage({ searchParams: Promise.resolve({ role: "vet" }) });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Rol");
-    expect(html).toContain("Buscar");
-    expect(html).toContain("marcado");
+    const url = new URL(redirectMock.mock.calls.at(-1)?.[0] as string, "http://localhost");
+    expect(url.pathname).toBe("/gob/directorio");
+    expect(url.searchParams.get("q")).toBe("juan");
+    expect(url.searchParams.get("test")).toBe("1");
+    expect(url.searchParams.get("role")).toBe("vet");
+    expect(url.searchParams.get("registro")).toBe("usuarios");
   });
 });

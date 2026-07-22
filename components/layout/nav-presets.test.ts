@@ -439,20 +439,21 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/mortalidad", // Item 2 — mortality & disposal dashboard
   "/gob/casos",
   "/gob/reglas",
-  "/gob/servicios",
   "/gob/historial",
   "/gob/analytics",
-  "/gob/usuarios",
-  "/gob/organizaciones",
-  "/gob/rupga", // RUPGA service-dog credential revocation console
   "/gob/perdidas",
   "/gob/disputas",
   // /gob/maltrato and /gob/moderacion REMOVED from nav (F1 fusion, 2026-07-22):
   // absorbed into the Denuncias hub as tabbed stages (?etapa=moderacion|triage).
   // Both routes still exist as permanent redirects, but neither has a nav entry.
   "/gob/decomisos",
-  "/gob/campanas", // Item 20 — campaign performance
-  "/gob/outreach", // Item 21 — actionable outreach pipelines
+  // /gob/campanas and /gob/outreach REMOVED from nav (F2 fusion, 2026-07-22):
+  // absorbed into the Operativos hub as tabbed vistas (?vista=campanas|alcance).
+  "/gob/operativos",
+  // /gob/organizaciones, /gob/usuarios, /gob/servicios and /gob/rupga REMOVED
+  // from nav (F3+F7 fusion, 2026-07-22): absorbed into the Directorio hub as
+  // tabbed registros (?registro=organizaciones|usuarios|servicios|credenciales).
+  "/gob/directorio",
   "/gob/censo", // Paquete E — censo poblacional & salud del registro
   "/gob/poblacion", // Paquete G — control poblacional (North Star)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
@@ -529,12 +530,33 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(bandejaSection?.items.map((i) => i.href)).toContain("/gob/outbox");
   });
 
-  it("includes /gob/rupga in the Intervención section (C6a — action console judgment)", () => {
+  it("Intervención holds only Operativos + Decomisos (F2+F3+F7 fusions absorbed outreach/campañas and RUPGA elsewhere)", () => {
     const intervSection = GOB_NAV_SECTIONS.find((s) => s.label === "Intervención");
     const hrefs = intervSection?.items.map((i) => i.href) ?? [];
-    expect(hrefs).toContain("/gob/rupga");
-    expect(hrefs).toContain("/gob/outreach");
+    expect(hrefs).toContain("/gob/operativos");
     expect(hrefs).toContain("/gob/decomisos");
+    expect(hrefs).not.toContain("/gob/rupga");
+    expect(hrefs).not.toContain("/gob/outreach");
+    expect(hrefs).not.toContain("/gob/campanas");
+  });
+
+  it("includes /gob/operativos in the Intervención section (F2 fusion — Campañas + Alcance comunitario tabbed hub)", () => {
+    const intervSection = GOB_NAV_SECTIONS.find((s) => s.label === "Intervención");
+    const hrefs = intervSection?.items.map((i) => i.href) ?? [];
+    const operativos = intervSection?.items.find((i) => i.href === "/gob/operativos");
+    expect(hrefs).toContain("/gob/operativos");
+    expect(operativos?.label).toBe("Operativos");
+  });
+
+  it("includes /gob/directorio in the Profundidad section (F3+F7 fusion — Organizaciones/Usuarios/Servicios/RUPGA tabbed hub)", () => {
+    const profSection = GOB_NAV_SECTIONS.find((s) => s.label === "Profundidad");
+    const hrefs = profSection?.items.map((i) => i.href) ?? [];
+    const directorio = profSection?.items.find((i) => i.href === "/gob/directorio");
+    expect(hrefs).toContain("/gob/directorio");
+    expect(directorio?.label).toBe("Directorio");
+    expect(hrefs).not.toContain("/gob/organizaciones");
+    expect(hrefs).not.toContain("/gob/usuarios");
+    expect(hrefs).not.toContain("/gob/servicios");
   });
 
   it("no href is duplicated across sections", () => {
@@ -587,21 +609,23 @@ describe("GOB_NAV_FLAT — derived flat list", () => {
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
   "/admin/panorama", // Centro de Situación Nacional — flagship console
-  // portal-follows-viewer (2026-07-02) — Cola/Usuarios/Organizaciones exist
-  // under both /admin and /gob; admin nav points at the /admin/* copy.
+  // portal-follows-viewer (2026-07-02) — Cola exists under both /admin and
+  // /gob; admin nav points at the /admin/* copy.
   "/admin/cola",
-  "/admin/usuarios",
-  "/admin/organizaciones",
+  // F3+F7 fusion (2026-07-22): Usuarios/Organizaciones/Servicios collapse
+  // into ONE /admin/directorio hub entry (the admin-scoped mirror of the gob
+  // Directorio hub) — replaces the former separate /admin/usuarios,
+  // /admin/organizaciones, /admin/servicios entries.
+  "/admin/directorio",
   "/admin/historial",
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",
   "/admin/govts",
   "/admin/admins",
-  // admin-rules-console — Reglas/Servicios exist under both portals; admin
-  // nav points at the /admin/* copy.
+  // admin-rules-console — Reglas exists under both portals; admin nav points
+  // at the /admin/* copy.
   "/admin/reglas",
-  "/admin/servicios",
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",
@@ -727,11 +751,11 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   });
 
   // portal-follows-viewer (2026-07-02) — no admin nav href may point at
-  // /gob/*. The 5 shared work surfaces (cola, usuarios, organizaciones,
-  // reglas, servicios) now have a real /admin/* copy (thin wrapper re-
-  // exporting the /gob page; chrome from the admin layout), so an admin nav
-  // href landing on /gob/* would silently eject the viewer into gob chrome —
-  // exactly what portal-follows-viewer exists to prevent.
+  // /gob/*. The shared work surfaces (cola, reglas, and — since F3+F7 —
+  // directorio) now have a real /admin/* copy (thin wrapper re-exporting the
+  // /gob page; chrome from the admin layout), so an admin nav href landing
+  // on /gob/* would silently eject the viewer into gob chrome — exactly what
+  // portal-follows-viewer exists to prevent.
   it("no ADMIN_NAV_SECTIONS href points at /gob/* (portal-follows-viewer)", () => {
     const hrefs = ADMIN_NAV_SECTIONS.flatMap((s) =>
       s.items.filter((i) => !i.deferred).map((i) => i.href),
@@ -741,10 +765,13 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     }
     // And the live /admin/* targets ARE present (the repoint actually happened).
     expect(hrefs).toContain("/admin/cola");
-    expect(hrefs).toContain("/admin/usuarios");
-    expect(hrefs).toContain("/admin/organizaciones");
     expect(hrefs).toContain("/admin/reglas");
-    expect(hrefs).toContain("/admin/servicios");
+    // F3+F7 fusion (2026-07-22): the former separate usuarios/organizaciones/
+    // servicios entries collapsed into ONE /admin/directorio hub entry.
+    expect(hrefs).toContain("/admin/directorio");
+    expect(hrefs).not.toContain("/admin/usuarios");
+    expect(hrefs).not.toContain("/admin/organizaciones");
+    expect(hrefs).not.toContain("/admin/servicios");
   });
 
   // The old AC3-era /admin/{cola,usuarios,organizaciones} → /gob/* redirects

@@ -52,11 +52,11 @@ const ADMIN_SEGMENT_MAP = buildSegmentMap(ADMIN_NAV_SECTIONS, "/admin");
 // rendered as raw English/segment text ("Govts", "New", "Admins"). Admin
 // fresh-sweep A4.
 //
-// NOTE: do NOT list a segment here if it IS a top-level nav item — the static
-// label wins over the nav preset (see labelForSegment) and would override a
-// portal-specific label. "servicios" is such a case: /gob/servicios is
-// "Catálogo" but /admin/servicios is "Servicios", so it must fall through to the
-// per-portal nav label, not a fixed string here.
+// NOTE: do NOT list a segment here if it IS a top-level nav item AND its
+// label genuinely differs by portal — the static label wins over the nav
+// preset (see labelForSegment) and would override a portal-specific label.
+// None of the entries below hit that case today (checked against both
+// GOB_NAV_SECTIONS and ADMIN_NAV_SECTIONS at the time each was added).
 const STATIC_SEGMENT_LABELS: Record<string, string> = {
   govts: "Gobiernos",
   admins: "Administradores",
@@ -82,6 +82,23 @@ const STATIC_SEGMENT_LABELS: Record<string, string> = {
   // same reason: don't rely on that being a coincidence.
   moderacion: "Moderación",
   maltrato: "Maltrato",
+  // F2 fusion (2026-07-22): /gob/campanas and /gob/outreach were removed from
+  // GOB_NAV_SECTIONS (absorbed into the Operativos hub as tabbed vistas), so
+  // GOB_SEGMENT_MAP no longer carries their labels. Their /export drill-down
+  // routes stay put — pin the labels explicitly (same reasoning as
+  // moderacion/maltrato above: "campanas" would otherwise capitalise to
+  // "Campanas", losing the ñ).
+  campanas: "Campañas",
+  outreach: "Alcance comunitario",
+  // F3+F7 fusion (2026-07-22): /gob/organizaciones, /gob/servicios and
+  // /gob/rupga (plus their /admin/organizaciones, /admin/servicios twins)
+  // were removed from nav (absorbed into the Directorio hub as tabbed
+  // registros) — pin their labels explicitly for the same reason. "usuarios"
+  // was already listed above (portal-identical label, unaffected). "rupga"
+  // needs an explicit expansion, not a capitalised acronym.
+  organizaciones: "Organizaciones",
+  servicios: "Servicios",
+  rupga: "Credenciales RUPGA",
 };
 
 /** Localized label for a path segment. The static map wins over the nav-preset

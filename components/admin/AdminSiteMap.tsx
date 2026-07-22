@@ -38,14 +38,15 @@ const ROUTE_ACTION: Record<string, string> = {
   "/admin/sistema": "Vigilás usuarios, decisiones, SLA y procesos automáticos.",
   "/admin/outbox": "Reintentás notificaciones ENO y ves los vencimientos de SLA.",
   "/admin/auditoria": "Auditás quién hizo qué sobre las acciones sensibles.",
-  "/admin/usuarios": "Buscás y gestionás las cuentas de usuario.",
   "/admin/govts": "Das de alta gobiernos, asignás localidades y revocás accesos.",
   "/admin/admins": "Gestionás las cuentas de administrador con acceso universal.",
-  "/admin/organizaciones": "Verificás y gestionás las organizaciones registradas.",
+  // F3+F7 fusion (2026-07-22): Usuarios/Organizaciones/Servicios collapse
+  // into the Directorio hub — one dispatch-board row for all four registers.
+  "/admin/directorio":
+    "Buscás y gestionás usuarios, organizaciones, servicios y credenciales RUPGA.",
   "/admin/reglas": "Configurás las reglas y parámetros por jurisdicción.",
   "/admin/historial": "Revisás tu propia actividad como operador.",
   "/admin/libro": "Recorrés el libro de eventos (solo lectura).",
-  "/admin/servicios": "Gestionás el catálogo de servicios ofrecidos.",
 };
 
 // Icon-registry glyph per route (components/Icon.tsx ICON_MAP names only).
@@ -66,14 +67,12 @@ const ROUTE_ICON: Record<string, IconName> = {
   "/admin/sistema": "laptop",
   "/admin/outbox": "mail",
   "/admin/auditoria": "ojo",
-  "/admin/usuarios": "usuarios",
   "/admin/govts": "edificio",
   "/admin/admins": "shield-check",
-  "/admin/organizaciones": "edificio",
+  "/admin/directorio": "usuarios",
   "/admin/reglas": "settings",
   "/admin/historial": "linea-tiempo",
   "/admin/libro": "libreta",
-  "/admin/servicios": "tag",
 };
 
 // The root nav section has an empty label (Dashboard + Panorama sit above the
