@@ -1259,7 +1259,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/maltrato/page.tsx": {
+    "app/gob/maltrato/MaltratoQueueScreen.tsx": {
       "text": 1,
       "space": 0,
       "rounded": 0,

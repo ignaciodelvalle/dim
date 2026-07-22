@@ -153,19 +153,30 @@ const GOB_RUPGA: ScreenManifestEntry = {
 const GOB_DENUNCIAS: ScreenManifestEntry = {
   route: "/gob/denuncias",
   layer: "bandeja",
-  decision: "¿En qué etapa del recorrido (moderación, triage, caso) tengo trabajo pendiente?",
+  // F1 fusion (2026-07-22, PO-approved route unification): this screen now
+  // OWNS the whole pipeline — Moderación and Triage are tabbed stages
+  // (`?etapa=moderacion|triage`) rendered here, not separate destinations.
+  decision:
+    "¿En qué etapa del recorrido (moderación, triage, caso) tengo trabajo pendiente — y qué denuncia tomo ahora?",
 };
 
+// F1 fusion (2026-07-22) — ABSORBED into GOB_DENUNCIAS as stages. These two
+// routes still exist as page.tsx files (permanent redirects into
+// /gob/denuncias?etapa=..., preserving query params — see
+// lib/ui/denuncias-hub-redirect.ts), so they still need a manifest entry to
+// satisfy the coverage fence; neither has a nav entry anymore (nav-presets.ts
+// GOB_NAV_SECTIONS). Decision text points at the hub instead of restating a
+// decision this screen no longer makes on its own.
 const GOB_MODERACION: ScreenManifestEntry = {
   route: "/gob/moderacion",
   layer: "bandeja",
-  decision: "¿Esta denuncia anónima es válida para pasar a triage, o es spam?",
+  decision: "[Absorbida] Redirige a /gob/denuncias?etapa=moderacion — ver GOB_DENUNCIAS.",
 };
 
 const GOB_MALTRATO: ScreenManifestEntry = {
   route: "/gob/maltrato",
   layer: "bandeja",
-  decision: "¿Qué denuncia de maltrato sin asignar necesito tomar ahora?",
+  decision: "[Absorbida] Redirige a /gob/denuncias?etapa=triage — ver GOB_DENUNCIAS.",
 };
 
 const GOB_COLA: ScreenManifestEntry = {
@@ -247,7 +258,20 @@ const ADMIN_ADOPCIONES = twin("/admin/adopciones", GOB_ADOPCIONES, "programa");
 const ADMIN_POBLACION = twin("/admin/poblacion", GOB_POBLACION, "programa");
 const ADMIN_COLA = twin("/admin/cola", GOB_COLA, "bandeja");
 const ADMIN_CASOS = twin("/admin/casos", GOB_CASOS, "bandeja");
-const ADMIN_MODERACION = twin("/admin/moderacion", GOB_MODERACION, "bandeja");
+
+// NOT a twin() of GOB_MODERACION: F1 fusion (2026-07-22) absorbed
+// /gob/moderacion into the Denuncias hub, but /admin/moderacion is judged
+// OUT of scope for that round (see app/admin/moderacion/page.tsx's own
+// header comment) — it is a genuinely separate page (own auth guard
+// `requireAdminOrRedirect`, own includeEscalated:true query, own [id] link
+// shape), not a shared component with a gob twin. Reusing GOB_MODERACION's
+// now-"absorbed" decision text via twin() would incorrectly describe this
+// still-standalone screen. Own entry, own (original, pre-fusion) decision.
+const ADMIN_MODERACION: ScreenManifestEntry = {
+  route: "/admin/moderacion",
+  layer: "bandeja",
+  decision: "¿Esta denuncia anónima es válida para pasar a triage, o es spam?",
+};
 const ADMIN_OUTBOX = twin("/admin/outbox", GOB_OUTBOX, "bandeja");
 const ADMIN_SUSCRIPCIONES = twin("/admin/suscripciones", GOB_SUSCRIPCIONES, "bandeja");
 const ADMIN_USUARIOS = twin("/admin/usuarios", GOB_USUARIOS, "profundidad");

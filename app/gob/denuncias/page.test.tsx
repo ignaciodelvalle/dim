@@ -1,14 +1,30 @@
 // @vitest-environment jsdom
 //
-// /gob/denuncias — the Denuncias hub (C6a). Render smoke test: the hub must
-// show all three pipeline stages (Moderación → Triage → Caso), each with its
-// live count and a CTA into the existing screen. Mirrors the /gob/cola
-// render-test pattern (mock auth-guards + @/db, render via renderToStaticMarkup,
-// assert on the resulting HTML).
+// /gob/denuncias — the Denuncias hub. F1 fusion (2026-07-22, PO-approved
+// route unification): the hub ABSORBS Moderación + Maltrato as TABBED STAGES
+// (`?etapa=moderacion|triage`) of one screen, superseding the earlier C6a
+// additive-hub design (3 stage cards linking out to separate routes). Casos
+// stays a link-out (its own screen, different decision family).
+//
+// The two embedded stage screens (ModeracionQueueScreen / MaltratoQueueScreen)
+// are heavy server components with their own DB/auth-guard/jurisdiction-scope
+// dependencies — this test stubs them out entirely (their own byte-identical
+// bodies are unit-tested nowhere at the full-page level, same as before this
+// fusion: neither /gob/moderacion nor /gob/maltrato ever had a page-level
+// test) so the hub test can focus on what the HUB itself owns: the pipeline
+// header, the Casos link-out, the etapa tab switcher (labels + badge counts),
+// and — critically — that the default stage is "triage" and that ?etapa=
+// actually selects the right embedded stage.
 import "@testing-library/jest-dom/vitest";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+
+let mockSearch = new URLSearchParams();
+
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => mockSearch,
+}));
 
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(async () => ({
@@ -21,6 +37,10 @@ vi.mock("@/lib/infra/auth-guards", () => ({
 vi.mock("@/lib/infra/case-queries", () => ({
   countCasesForAdmin: vi.fn(async () => 7),
   countCasesForGovt: vi.fn(async () => 7),
+}));
+
+vi.mock("@/lib/analytics/govt-home-kpis", () => ({
+  fetchOpenWelfareReportsCount: vi.fn(async () => ({ count: 12 })),
 }));
 
 vi.mock("@/db", async () => {
@@ -37,60 +57,73 @@ vi.mock("@/db", async () => {
   };
 });
 
+vi.mock("@/app/gob/moderacion/ModeracionQueueScreen", () => ({
+  ModeracionQueueScreen: () => <div data-testid="moderacion-stub">MODERACION STAGE CONTENT</div>,
+}));
+
+vi.mock("@/app/gob/maltrato/MaltratoQueueScreen", () => ({
+  MaltratoQueueScreen: () => <div data-testid="maltrato-stub">TRIAGE STAGE CONTENT</div>,
+}));
+
 import GobDenunciasPage from "./page";
 
-describe("/gob/denuncias — the hub", () => {
-  it("renders the pipeline explainer and all 3 stage panels with counts + CTAs", async () => {
-    const node = await GobDenunciasPage();
-    const html = renderToStaticMarkup(node);
+function renderHub(query: Record<string, string> = {}) {
+  mockSearch = new URLSearchParams(query);
+  return GobDenunciasPage({ searchParams: Promise.resolve(query) });
+}
 
-    // Header explains the pipeline in one line.
+describe("/gob/denuncias — the hub (F1 fusion: Moderación + Maltrato as tabbed stages)", () => {
+  it("renders the pipeline explainer header", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
     expect(html).toContain("El recorrido de una denuncia");
     expect(html).toContain("moderación");
     expect(html).toContain("Ley 14.346");
+  });
 
-    // Stage 1 — Moderación.
-    expect(html).toContain("Moderación");
-    expect(html).toContain("/gob/moderacion");
-    expect(html).toContain("Ir a moderación");
-
-    // Stage 2 — Triage (Maltrato).
-    expect(html).toContain("Triage (Maltrato)");
-    expect(html).toContain("/gob/maltrato");
-    expect(html).toContain("Ir al triage");
-
-    // Stage 3 — Caso.
-    expect(html).toContain("Caso");
+  it("renders the Casos link-out with its live count (Casos stays its own screen — not absorbed)", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
     expect(html).toContain("/gob/casos");
     expect(html).toContain("Ver casos");
-
-    // Counts (mocked to 3 for moderación/triage, 7 for casos) are present.
-    expect(html).toContain("7");
+    expect(html).toContain("7"); // casosCount mock
   });
 
-  it("shows the no-scope warning for a govt viewer with no jurisdiction assignments", async () => {
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
-      user: { id: "govt-2", email: "govt2@dim.test" },
-      profile: { id: "govt-2", role: "govt" },
-      jurisdictions: [],
-    } as never);
-
-    const node = await GobDenunciasPage();
+  it("renders both etapa tab labels with their live queue-depth badges", async () => {
+    const node = await renderHub();
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("no tiene localidades asignadas");
+    expect(html).toContain("Moderación");
+    expect(html).toContain("Triage (Ley 14.346)");
+    expect(html).toContain("3"); // moderationCount mock (db count() → n:3)
+    expect(html).toContain("12"); // triage.count mock
   });
 
-  it("does not show the no-scope warning for an admin viewer (universal scope)", async () => {
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
-      user: { id: "admin-1", email: "admin@dim.test" },
-      profile: { id: "admin-1", role: "admin" },
-      jurisdictions: [],
-    } as never);
-
-    const node = await GobDenunciasPage();
+  it("defaults to the 'triage' stage when no ?etapa= is given (Maltrato is the daily heavy-traffic queue)", async () => {
+    const node = await renderHub();
     const html = renderToStaticMarkup(node);
-    expect(html).not.toContain("no tiene localidades asignadas");
+    expect(html).toContain("TRIAGE STAGE CONTENT");
+    expect(html).not.toContain("MODERACION STAGE CONTENT");
+  });
+
+  it("?etapa=moderacion renders the Moderación stage instead", async () => {
+    const node = await renderHub({ etapa: "moderacion" });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("MODERACION STAGE CONTENT");
+    expect(html).not.toContain("TRIAGE STAGE CONTENT");
+  });
+
+  it("an unrecognized ?etapa= value falls back to the triage default (never crashes, never shows blank)", async () => {
+    const node = await renderHub({ etapa: "not-a-real-stage" });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("TRIAGE STAGE CONTENT");
+  });
+
+  it("does not link out to the old standalone /gob/moderacion or /gob/maltrato routes from the hub itself", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    // The hub's own CTAs must point at etapa= tabs, not the (now-redirecting)
+    // old routes — regression guard against reintroducing the pre-fusion links.
+    expect(html).not.toContain('href="/gob/moderacion"');
+    expect(html).not.toContain('href="/gob/maltrato"');
   });
 });

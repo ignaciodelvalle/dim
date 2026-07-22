@@ -723,7 +723,9 @@ describe("parsePage — unit", () => {
 
 // Inline copy of the page's parseQueue (private fn — mirrors the parsePage
 // inline-copy convention above). VALID_QUEUES/DEFAULT_QUEUE mirror
-// app/gob/maltrato/page.tsx exactly.
+// app/gob/maltrato/MaltratoQueueScreen.tsx exactly (F1 fusion, 2026-07-22:
+// the queue body moved out of page.tsx, which is now just a redirect shim —
+// see that file's own header comment).
 const VALID_QUEUES_COPY = ["urgent", "unassigned", "mine", "all", "overdue"];
 const DEFAULT_QUEUE_COPY = "unassigned";
 function parseQueue(raw: string | undefined): string {
@@ -748,10 +750,13 @@ describe("parseQueue — unit (maltrato default tab)", () => {
   });
 });
 
-describe("app/gob/maltrato/page.tsx — source stays in sync with the default-tab contract", () => {
+describe("app/gob/maltrato/MaltratoQueueScreen.tsx — source stays in sync with the default-tab contract", () => {
   it("DEFAULT_QUEUE is 'unassigned' and both parseQueue + UrlTabs use it (no drift from this test's inline copy)", async () => {
     const fs = await import("node:fs");
-    const src = fs.readFileSync("app/gob/maltrato/page.tsx", "utf8");
+    // F1 fusion (2026-07-22): the queue body relocated out of page.tsx (now a
+    // redirect shim into /gob/denuncias?etapa=triage) into this sibling file,
+    // imported by the Denuncias hub — same contract, same defaults, new home.
+    const src = fs.readFileSync("app/gob/maltrato/MaltratoQueueScreen.tsx", "utf8");
     expect(src).toMatch(/DEFAULT_QUEUE:\s*MaltratoQueue\s*=\s*"unassigned"/);
     expect(src).toMatch(/defaultValue=\{DEFAULT_QUEUE\}/);
     // The old landing default must not still be hardcoded as the fallback.

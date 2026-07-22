@@ -403,16 +403,17 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    // Queue-shaped work: inbox → tomar → actuar → cerrar. Denuncias is the
-    // new hub front door for the Moderación → Triage → Caso pipeline;
-    // Moderación/Maltrato keep their own entries (additive, not replaced).
+    // Queue-shaped work: inbox → tomar → actuar → cerrar. F1 fusion
+    // (2026-07-22, PO-approved route unification — same worker, same daily
+    // moment, same decision family): Denuncias ABSORBS Moderación and
+    // Maltrato as tabbed stages (`?etapa=moderacion|triage`) of ONE screen —
+    // superseding the earlier C6a additive hub (which kept them as separate
+    // nav siblings). /gob/moderacion and /gob/maltrato survive only as
+    // permanent redirects into /gob/denuncias?etapa=... for old links/
+    // bookmarks; neither has its own nav entry anymore.
     label: "Bandeja operativa",
     items: [
       { href: "/gob/denuncias", label: "Denuncias", matchPrefix: "/gob/denuncias" },
-      // Jurisdiction-scoped denuncia moderation queue (spec:
-      // docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md).
-      { href: "/gob/moderacion", label: "Moderación", matchPrefix: "/gob/moderacion" },
-      { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
       { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
       { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },

@@ -57,6 +57,16 @@ export type UrlTabsProps = {
   children: ReactNode;
   className?: string;
   "aria-label"?: string;
+  /**
+   * Extra param keys to drop (in addition to setting `paramKey`) when the
+   * active tab changes — mirrors OpFilterBar's `resetParamsOnChange`. Use
+   * this when a tab switch invalidates state from the OTHER tabs (e.g. a
+   * pagination cursor, or a deep-link selection param that only makes sense
+   * under one tab) — see app/gob/denuncias/page.tsx's `etapa` tabs, which
+   * drop the moderación/triage queues' own cursor + inspector params on
+   * switch. Omit to preserve every other param (existing behavior).
+   */
+  resetParamsOnChange?: readonly string[];
 };
 
 export type UrlTabsContentProps = {
@@ -71,13 +81,14 @@ export function UrlTabs({
   children,
   className = "",
   "aria-label": ariaLabel,
+  resetParamsOnChange = [],
 }: UrlTabsProps) {
   const searchParams = useSearchParams();
   const activeTab = searchParams.get(paramKey) ?? defaultValue;
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function handleTabClick(value: string) {
-    serverNavCommit(searchParams.toString())({ [paramKey]: value });
+    serverNavCommit(searchParams.toString())({ [paramKey]: value }, resetParamsOnChange);
   }
 
   // APG Tabs keyboard pattern (automatic activation): Arrow Left/Right move

@@ -158,7 +158,10 @@ export default async function GobModeracionDetailPage({
     <div className="space-y-6">
       <OpCrumbs
         items={[
-          { label: "Moderación", href: "/gob/moderacion" },
+          // F1 fusion (2026-07-22) — Moderación is now a stage of the
+          // Denuncias hub; the crumb links straight there instead of through
+          // the old /gob/moderacion redirect.
+          { label: "Moderación", href: "/gob/denuncias?etapa=moderacion" },
           { label: report.referenceCode ?? id, mono: true },
         ]}
       />

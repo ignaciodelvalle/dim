@@ -270,8 +270,13 @@ export default async function GobMaltratoDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb */}
-      <Link href="/gob/maltrato" className="text-sm text-ln-op-mute hover:text-ln-op-ink-2">
+      {/* Breadcrumb — F1 fusion (2026-07-22): Triage is now a stage of the
+          Denuncias hub; link straight there instead of through the old
+          /gob/maltrato redirect. */}
+      <Link
+        href="/gob/denuncias?etapa=triage"
+        className="text-sm text-ln-op-mute hover:text-ln-op-ink-2"
+      >
         ← Volver al listado
       </Link>
 

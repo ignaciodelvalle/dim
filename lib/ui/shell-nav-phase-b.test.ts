@@ -31,7 +31,9 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/vigilancia",
   "/gob/mortalidad",
   "/gob/casos",
-  "/gob/moderacion", // Phase 0 placeholder — jurisdiction-scoped denuncia moderation
+  // /gob/moderacion and /gob/maltrato REMOVED (F1 fusion, 2026-07-22):
+  // absorbed into the Denuncias hub as tabbed stages — matches
+  // nav-presets.test.ts's GOB_HREF_SNAPSHOT.
   "/gob/reglas",
   "/gob/servicios",
   "/gob/historial",
@@ -41,7 +43,6 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/rupga",
   "/gob/perdidas",
   "/gob/disputas",
-  "/gob/maltrato",
   "/gob/decomisos",
   "/gob/campanas",
   "/gob/outreach", // Item 21 — actionable outreach pipelines

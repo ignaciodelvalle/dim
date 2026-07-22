@@ -339,7 +339,10 @@ export function FeatureBody({
             <Row label="Gravedad" value={severity ? (SEVERITY_LABEL[severity] ?? severity) : "—"} />
             <Row label="Ingreso" value={shortDate(str(properties, "createdAt"))} />
           </dl>
-          <DrillLink href="/gob/maltrato">Ver bandeja de denuncias →</DrillLink>
+          {/* F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's
+              "Triage" stage — link straight there instead of through the old
+              /gob/maltrato redirect. */}
+          <DrillLink href="/gob/denuncias?etapa=triage">Ver bandeja de denuncias →</DrillLink>
         </>
       );
     }

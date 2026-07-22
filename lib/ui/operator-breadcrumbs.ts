@@ -71,6 +71,17 @@ const STATIC_SEGMENT_LABELS: Record<string, string> = {
   investigaciones: "Investigaciones",
   analytics: "Analítica",
   export: "Exportación",
+  // F1 fusion (2026-07-22): /gob/moderacion and /gob/maltrato were removed
+  // from GOB_NAV_SECTIONS (absorbed into the Denuncias hub as stages), so
+  // GOB_SEGMENT_MAP no longer carries their labels. Their [id] detail routes
+  // stay put, though, and this breadcrumb still derives a section crumb from
+  // the pathname's first segment for them — pin the labels explicitly so
+  // "moderacion" doesn't fall through to capitalise() and lose its accent
+  // ("Moderacion" instead of "Moderación"). "maltrato" needs no accent fix
+  // (capitalise() already produces the right word) but is listed for the
+  // same reason: don't rely on that being a coincidence.
+  moderacion: "Moderación",
+  maltrato: "Maltrato",
 };
 
 /** Localized label for a path segment. The static map wins over the nav-preset

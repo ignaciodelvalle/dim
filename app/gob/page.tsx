@@ -365,7 +365,9 @@ export default async function GobiernoDashboardPage({
     { href: "/gob/cola", label: "Cola de aprobaciones", count: pendingCount },
     { href: "/gob/organizaciones", label: "Habilitación de organizaciones" },
     {
-      href: "/gob/maltrato",
+      // F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's "Triage"
+      // stage — link straight there instead of through the old redirect.
+      href: "/gob/denuncias?etapa=triage",
       label: openWelfareReports.count === 1 ? "Denuncia de maltrato" : "Denuncias de maltrato",
       count: openWelfareReports.count,
     },
@@ -704,7 +706,7 @@ export default async function GobiernoDashboardPage({
           <OpCard>
             <OpCardBody>
               <Link
-                href="/gob/maltrato?queue=mine"
+                href="/gob/denuncias?etapa=triage&queue=mine"
                 className="flex items-baseline gap-2 no-underline text-inherit hover:underline"
               >
                 <span className="font-ln-serif text-[26px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-ln-op-ink">

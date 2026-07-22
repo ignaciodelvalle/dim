@@ -50,7 +50,10 @@ export function GovtModerationActions({ welfareReportId }: { welfareReportId: st
       reset();
       // One full document navigation back to the queue — immune to the
       // double-transition silent-drop vector (see lib/ui/full-page-action-nav.ts).
-      navigateAfterActionSuccess("/gob/moderacion");
+      // F1 fusion (2026-07-22): Moderación is now a stage of the Denuncias
+      // hub — navigate straight there instead of through the old
+      // /gob/moderacion redirect.
+      navigateAfterActionSuccess("/gob/denuncias?etapa=moderacion");
     });
   }
 

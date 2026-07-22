@@ -23,9 +23,14 @@ describe("deriveOperatorCrumbs — gob portal", () => {
     expect(crumbs[1]).not.toHaveProperty("href");
   });
 
-  it("maps /gob/maltrato to the nav label 'Maltrato'", () => {
+  it("maps /gob/maltrato to 'Maltrato' (F1 fusion, 2026-07-22: no longer a nav item — the label now comes from STATIC_SEGMENT_LABELS, since the [id] detail route survives the route unmove)", () => {
     const crumbs = deriveOperatorCrumbs("/gob/maltrato", "gob");
     expect(crumbs[1]).toEqual({ label: "Maltrato" });
+  });
+
+  it("maps /gob/moderacion to 'Moderación' with the accent (F1 fusion regression guard — removed from nav, must not fall through to capitalise() and lose the accent)", () => {
+    const crumbs = deriveOperatorCrumbs("/gob/moderacion", "gob");
+    expect(crumbs[1]).toEqual({ label: "Moderación" });
   });
 
   it("maps /gob/mortalidad to 'Mortalidad'", () => {

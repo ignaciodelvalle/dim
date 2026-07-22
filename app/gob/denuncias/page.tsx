@@ -1,32 +1,36 @@
-// /gob/denuncias — the Denuncias hub (C6a nav regroup,
-// docs/reviews/results/2026-07-22-plan-maestro-integridad.md §C6).
+// /gob/denuncias — the Denuncias hub.
 //
-// ONE front door for the citizen-report pipeline: Moderación → Triage
-// (Maltrato) → Caso. PO-locked: "journey único de Denuncias" — the hub does
-// NOT replace the three existing screens (they keep working untouched); it
-// is an additive orientation layer that explains the pipeline in one line
-// and hands off to each stage with a live, cheap count.
+// F1 fusion (2026-07-22, PO-approved route unification: same worker, same
+// daily moment, same decision family): the hub ABSORBS Moderación and
+// Maltrato as TABBED STAGES of one screen (`?etapa=moderacion|triage`),
+// superseding the earlier C6a additive-hub design (3 stage cards linking out
+// to their own routes). Casos remains its OWN screen — linked out, not
+// embedded: a regulatory case is a different decision family with its own
+// lifecycle, not a daily triage queue.
 //
-// Counts reuse the SAME predicate/fetcher each destination page already uses
-// — no new query logic:
-//   - Moderación: buildModerationQueueConditions (the exact "Pendientes"
-//     predicate /gob/moderacion's own list uses), status: "pending".
-//   - Triage (Maltrato): fetchOpenWelfareReportsCount — the catalogued
-//     open_welfare_reports KPI (lib/metrics/kpi-catalog.ts), so this tile
-//     gets the C1 metric-contract treatment (info tooltip, target/confidence)
-//     for free via OpKpi's descriptorId.
-//   - Caso: countCasesForAdmin/countCasesForGovt with status: "open" — the
-//     same fetchers /admin/casos and /gob/casos already call.
-// Moderación and Caso have no catalog descriptor that fits a plain queue-
-// depth count (no target, no semaphore) — their OpKpi tiles render WITHOUT
-// descriptorId, same as every other grandfathered OpKpi caller across the
-// app (the C1 contract's "OpKpi only where a descriptor fits" rule: a bare
-// tile, not a fabricated descriptor with no real target/semaphore behind it).
+// /gob/moderacion and /gob/maltrato now permanently redirect here (query
+// params preserved — see lib/ui/denuncias-hub-redirect.ts); their [id]
+// detail routes are UNCHANGED.
+//
+// Default stage = "triage" (Maltrato/Ley 14.346), not "moderacion": triage is
+// the daily HEAVY-TRAFFIC operational queue (C6c workqueue grammar —
+// tomar/actuar/cerrar; screen-manifest's own decision for it is "¿qué
+// denuncia sin asignar necesito tomar AHORA?"), while Moderación is the
+// lighter, lower-volume upstream spam/abuse gate that FEEDS triage. An
+// operator's default "what do I work on right now" answer is triage.
+//
+// The two stage screens are IMPORTED, not rewritten — this is a relocation,
+// not a redesign. Each keeps its own searchParams contract, its own auth
+// guard, its own query logic, byte-identical to the former standalone pages
+// (see ModeracionQueueScreen / MaltratoQueueScreen).
+
+import { Suspense } from "react";
 
 import Link from "next/link";
 
 import { count } from "drizzle-orm";
 
+import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { db, welfareReports } from "@/db";
 import { buildModerationQueueConditions } from "@/lib/analytics/govt-dashboards";
@@ -35,54 +39,44 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import { buildProjectionContext, windows } from "@/lib/metrics";
 
+import { MaltratoQueueScreen } from "@/app/gob/maltrato/MaltratoQueueScreen";
+import { ModeracionQueueScreen } from "@/app/gob/moderacion/ModeracionQueueScreen";
+
 export const dynamic = "force-dynamic";
 
-type StageCta = { label: string; href: string };
+type Etapa = "moderacion" | "triage";
+const DEFAULT_ETAPA: Etapa = "triage";
 
-function StagePanel({
-  step,
-  title,
-  description,
-  value,
-  unit,
-  descriptorId,
-  cta,
-}: {
-  step: string;
-  title: string;
-  description: string;
-  value: number;
-  unit: string;
-  /** Only set for the stage whose count matches a catalogued KPI descriptor
-   *  (C1 metric-contract) — the other two render as plain stat tiles (no
-   *  descriptor fits a bare queue-depth count with no target/semaphore). */
-  descriptorId?: "open_welfare_reports";
-  cta: StageCta;
-}) {
-  return (
-    <OpCard>
-      <OpCardHead title={`${step} · ${title}`} />
-      <OpCardBody className="space-y-4">
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">{description}</p>
-        <OpKpi label={unit} value={value} descriptorId={descriptorId} />
-        <Link
-          href={cta.href}
-          className="inline-flex text-sm font-semibold text-ln-op-azul no-underline hover:underline"
-        >
-          {cta.label} →
-        </Link>
-      </OpCardBody>
-    </OpCard>
-  );
+function parseEtapa(raw: string | undefined): Etapa {
+  return raw === "moderacion" ? "moderacion" : DEFAULT_ETAPA;
 }
 
-export default async function GobDenunciasPage() {
+// A stage-tab switch invalidates state that only makes sense under the
+// PREVIOUS stage — the pagination cursor (moderación's and triage's cursor
+// formats are incompatible), the triage inspector's deep-link selection
+// (?caso=/&mascota=/&panel=), and the triage-only ?queue= workqueue tab.
+// Domain filters (kind/severity/status) are intentionally NOT dropped — both
+// stages share the exact same WelfareReportKind/Severity vocabulary, so
+// carrying them over is a feature (e.g. staying on "critical" while moving
+// from moderación to triage), not a bug.
+const ETAPA_RESET_PARAMS = ["cursor", "caso", "mascota", "panel", "queue"] as const;
+
+export default async function GobDenunciasPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role } as const;
+  const sp = await searchParams;
+  const etapa = parseEtapa(sp.etapa);
 
-  const noScope = profile.role === "govt" && jurisdictions.length === 0;
-
-  // Cheap, jurisdiction-scoped counts only — no lists, no pagination.
+  // Cheap, jurisdiction-scoped counts only — the tab badges + the Casos
+  // link-out tile. Same predicates/fetchers each destination already used
+  // (see the original hub's header comment, preserved by continuity):
+  //   - Moderación: buildModerationQueueConditions, status: "pending".
+  //   - Triage: fetchOpenWelfareReportsCount (catalogued KPI, C1 contract).
+  //   - Caso: countCasesForAdmin/countCasesForGovt, status: "open".
   const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing30d());
 
   const moderationWhere = buildModerationQueueConditions({
@@ -102,6 +96,16 @@ export default async function GobDenunciasPage() {
 
   const moderationCount = moderationRows[0]?.n ?? 0;
 
+  const tabs: UrlTabItem[] = [
+    { value: "moderacion", label: "Moderación", badge: moderationCount, badgeTone: "neutral" },
+    {
+      value: "triage",
+      label: "Triage (Ley 14.346)",
+      badge: triage.count,
+      badgeTone: "neutral",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -111,44 +115,56 @@ export default async function GobDenunciasPage() {
         </h1>
         <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
           Una denuncia ciudadana pasa por moderación, triage según Ley 14.346, y puede escalar a un
-          caso regulatorio. Cada etapa vive en su propia pantalla — esta es la puerta de entrada.
+          caso regulatorio. Elegí la etapa en la que querés trabajar ahora — Caso vive en su propia
+          pantalla, con seguimiento formal.
         </p>
       </header>
 
-      {noScope && (
-        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">
-          Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
-          una.
-        </div>
-      )}
+      {/* Caso — the one stage that stays a link-out, not an embedded tab: a
+          regulatory case is a different decision family (formal follow-up,
+          own lifecycle), not a daily triage queue. */}
+      <OpCard>
+        <OpCardHead title="Paso 3 · Caso" />
+        <OpCardBody className="flex flex-wrap items-center justify-between gap-4">
+          <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+            Denuncias escaladas a un caso regulatorio, con seguimiento formal.
+          </p>
+          <div className="flex items-center gap-4">
+            {/* No catalog descriptor fits a bare escalated-case count (no
+                target/semaphore behind it) — the C1 metric-contract's "OpKpi
+                only where a descriptor fits" rule (same posture the original
+                hub's header comment documented for this exact tile).
+                descriptorId is explicitly written as undefined (not omitted)
+                so the metric-contract fence (lint:metric-contract) recognizes
+                this as an intentional bare tile, not a newly-introduced gap. */}
+            <OpKpi label="Abiertos" value={casosCount} descriptorId={undefined} />
+            <Link
+              href="/gob/casos"
+              className="inline-flex text-sm font-semibold text-ln-op-azul no-underline hover:underline"
+            >
+              Ver casos →
+            </Link>
+          </div>
+        </OpCardBody>
+      </OpCard>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StagePanel
-          step="1"
-          title="Moderación"
-          description="Denuncias anónimas que las heurísticas marcaron para revisión antes de entrar al triage."
-          value={moderationCount}
-          unit="En cola"
-          cta={{ label: "Ir a moderación", href: "/gob/moderacion" }}
-        />
-        <StagePanel
-          step="2"
-          title="Triage (Maltrato)"
-          description="Denuncias ya visibles, clasificadas por severidad y tipo bajo la Ley 14.346."
-          value={triage.count}
-          unit="Activas"
-          descriptorId="open_welfare_reports"
-          cta={{ label: "Ir al triage", href: "/gob/maltrato" }}
-        />
-        <StagePanel
-          step="3"
-          title="Caso"
-          description="Denuncias escaladas a un caso regulatorio, con seguimiento formal."
-          value={casosCount}
-          unit="Abiertos"
-          cta={{ label: "Ver casos", href: "/gob/casos" }}
-        />
-      </div>
+      <Suspense>
+        <UrlTabs
+          paramKey="etapa"
+          defaultValue={DEFAULT_ETAPA}
+          tabs={tabs}
+          resetParamsOnChange={ETAPA_RESET_PARAMS}
+          aria-label="Etapa del recorrido de denuncias"
+        >
+          <UrlTabsContent value={etapa}>
+            {etapa === "moderacion" ? (
+              <ModeracionQueueScreen searchParams={sp} />
+            ) : (
+              <MaltratoQueueScreen searchParams={sp} />
+            )}
+          </UrlTabsContent>
+        </UrlTabs>
+      </Suspense>
     </div>
   );
 }

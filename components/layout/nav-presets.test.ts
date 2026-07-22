@@ -447,8 +447,9 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/rupga", // RUPGA service-dog credential revocation console
   "/gob/perdidas",
   "/gob/disputas",
-  "/gob/maltrato",
-  "/gob/moderacion", // Phase 0 placeholder — jurisdiction-scoped denuncia moderation
+  // /gob/maltrato and /gob/moderacion REMOVED from nav (F1 fusion, 2026-07-22):
+  // absorbed into the Denuncias hub as tabbed stages (?etapa=moderacion|triage).
+  // Both routes still exist as permanent redirects, but neither has a nav entry.
   "/gob/decomisos",
   "/gob/campanas", // Item 20 — campaign performance
   "/gob/outreach", // Item 21 — actionable outreach pipelines
@@ -488,17 +489,18 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
   // model (Situación/Programa/Intervención/Bandeja operativa/Profundidad).
   // These tests now encode the NEW grouping, not the old module-mirroring one.
 
-  it("includes /gob/denuncias and /gob/moderacion in the Bandeja operativa section (C6a hub)", () => {
+  it("includes /gob/denuncias in the Bandeja operativa section (F1 hub)", () => {
     const bandejaSection = GOB_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
     const hrefs = bandejaSection?.items.map((i) => i.href) ?? [];
     expect(hrefs).toContain("/gob/denuncias");
-    expect(hrefs).toContain("/gob/moderacion");
-    expect(hrefs).toContain("/gob/maltrato");
     const denuncias = bandejaSection?.items.find((i) => i.href === "/gob/denuncias");
     expect(denuncias?.label).toBe("Denuncias");
-    const moderacion = bandejaSection?.items.find((i) => i.href === "/gob/moderacion");
-    expect(moderacion?.label).toBe("Moderación");
-    expect(moderacion?.matchPrefix).toBe("/gob/moderacion");
+  });
+
+  it("does NOT include /gob/moderacion or /gob/maltrato anywhere (F1 fusion — absorbed into the Denuncias hub as stages)", () => {
+    const allHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(allHrefs).not.toContain("/gob/moderacion");
+    expect(allHrefs).not.toContain("/gob/maltrato");
   });
 
   it("includes /gob/mortalidad and /gob/poblacion in the Programa section (C6a — outcome dashboards)", () => {

@@ -223,6 +223,9 @@ describe("/gob (home) — Mi trabajo asignado: conditional rendering", () => {
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Mi trabajo asignado");
     expect(html).toContain("7");
-    expect(html).toContain("/gob/maltrato?queue=mine");
+    // F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's "Triage"
+    // stage — the link points straight there, not through the old redirect.
+    // (& is HTML-escaped to &amp; in the rendered markup.)
+    expect(html).toContain("/gob/denuncias?etapa=triage&amp;queue=mine");
   });
 });
