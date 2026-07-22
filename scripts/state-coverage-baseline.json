@@ -1,0 +1,26 @@
+{
+  "_meta": {
+    "generatedAt": "2026-07-22",
+    "description": "Wave 2 state-coverage fence baseline. minLoadingSegments is a FLOOR (only raise it, via --write-baseline, after adding new segment loading.tsx files — never lower it by hand). emptyStateGaps grandfathers list-shaped pages (OpFilterBar signal) with no EmptyState signal in their own directory; curing a gap lets its entry be removed — new gaps not in this list fail lint:states."
+  },
+  "minLoadingSegments": 40,
+  "emptyStateGaps": [
+    "app/admin/admins/page.tsx",
+    "app/admin/alertas/page.tsx",
+    "app/admin/auditoria/page.tsx",
+    "app/admin/casos/page.tsx",
+    "app/admin/govts/page.tsx",
+    "app/admin/historial/page.tsx",
+    "app/admin/libro/page.tsx",
+    "app/admin/moderacion/page.tsx",
+    "app/admin/observaciones/page.tsx",
+    "app/admin/outbox/page.tsx",
+    "app/gob/decomisos/page.tsx",
+    "app/gob/historial/page.tsx",
+    "app/gob/moderacion/page.tsx",
+    "app/gob/organizaciones/page.tsx",
+    "app/gob/rupga/page.tsx",
+    "app/gob/sistema/page.tsx",
+    "app/gob/usuarios/page.tsx"
+  ]
+}

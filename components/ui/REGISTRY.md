@@ -114,6 +114,8 @@ see the variant-map note below).
 | `LnEmptyState` | `EmptyState.tsx` | Citizen empty state (icon + message + action). | Don't write a bespoke "no hay datos" block. |
 | `Skeleton` / `LnCardSkeleton` | `Skeleton.tsx`, `LnCardSkeleton.tsx` | Citizen loading placeholders. | — |
 | `OpCardSkeleton` / `OpKpiSkeleton` | `dashboard/*` | Operator loading placeholders. | — |
+| `OpDashboardSkeleton` | `dashboard/OpDashboardSkeleton.tsx` | Shared `loading.tsx` skeleton for operator (gob/admin/org) list/dashboard segments — filter-bar strip + optional KPI row + `OpCardSkeleton` block(s), owns the `<output aria-busy>` wrapper. Use this in a new segment `loading.tsx` instead of hand-rolling the KPI grid / card list again. | Don't hand-roll another `<output aria-busy>` + KPI-grid + card-list skeleton — pass `kpis`/`cards`/`filterBar` to this one. |
+| `LnPageSkeleton` | `LnPageSkeleton.tsx` | Shared `loading.tsx` skeleton for citizen (`app/(app)/*`) list segments — header + registry-row shimmer, owns the `<output aria-busy>` wrapper. Generalizes the shape already proven by `mis-mascotas/loading.tsx`. | Don't hand-roll another header+rows citizen skeleton — pass `rows`/`cta`/`avatar` to this one. |
 
 ## Partial success / bulk-result states
 

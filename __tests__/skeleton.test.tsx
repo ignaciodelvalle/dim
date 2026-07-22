@@ -18,8 +18,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LnCardSkeleton } from "@/components/ui/LnCardSkeleton";
+import { LnPageSkeleton } from "@/components/ui/LnPageSkeleton";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { OpCardSkeleton } from "@/components/ui/dashboard/OpCardSkeleton";
+import { OpDashboardSkeleton } from "@/components/ui/dashboard/OpDashboardSkeleton";
 import { OpKpiSkeleton } from "@/components/ui/dashboard/OpKpiSkeleton";
 
 import CuentaLoading from "@/app/(app)/cuenta/loading";
@@ -28,13 +30,28 @@ import CuentaLoading from "@/app/(app)/cuenta/loading";
 import EventCaptureFormLoading from "@/app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/loading";
 import PetProfileLoading from "@/app/(app)/mis-mascotas/[publicToken]/loading";
 import MisMascotasLoading from "@/app/(app)/mis-mascotas/loading";
+import MisTurnosLoading from "@/app/(app)/mis-turnos/loading";
+import BuscarTurnosLoading from "@/app/(app)/turnos/buscar/loading";
 import AdoptarLoading from "@/app/(public)/adoptar/loading";
 import CasoLoading from "@/app/(public)/casos/[publicCode]/loading";
 import PublicPetLoading from "@/app/(public)/p/[publicToken]/loading";
 import RefugioLoading from "@/app/(public)/refugios/[orgToken]/loading";
+import AdminCasosLoading from "@/app/admin/casos/loading";
+import AdminCensoLoading from "@/app/admin/censo/loading";
+import AdminHistorialLoading from "@/app/admin/historial/loading";
 import AdminLoading from "@/app/admin/loading";
+import AdminOrganizacionesLoading from "@/app/admin/organizaciones/loading";
+import AdminPoblacionLoading from "@/app/admin/poblacion/loading";
+import AdminSuscripcionesLoading from "@/app/admin/suscripciones/loading";
+import GobCasosLoading from "@/app/gob/casos/loading";
+import GobCensoLoading from "@/app/gob/censo/loading";
+import GobDecomisosLoading from "@/app/gob/decomisos/loading";
+import GobHistorialLoading from "@/app/gob/historial/loading";
 // Loading pages
 import GobLoading from "@/app/gob/loading";
+import GobOrganizacionesLoading from "@/app/gob/organizaciones/loading";
+import GobPoblacionLoading from "@/app/gob/poblacion/loading";
+import GobSuscripcionesLoading from "@/app/gob/suscripciones/loading";
 import VigilanciaLoading from "@/app/gob/vigilancia/loading";
 import LibretaCompartirLoading from "@/app/libreta/compartir/[shareToken]/loading";
 import OrgLoading from "@/app/org/[orgToken]/loading";
@@ -116,6 +133,39 @@ describe("<OpCardSkeleton>", () => {
   });
 });
 
+describe("<OpDashboardSkeleton>", () => {
+  it("renders the <output> wrapper with aria-busy + SR text", () => {
+    const html = render(<OpDashboardSkeleton />);
+    expect(html).toMatch(/<output/);
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain("Cargando");
+  });
+
+  it("omits the KPI row by default (kpis=0)", () => {
+    const html = render(<OpDashboardSkeleton />);
+    // OpKpiSkeleton's distinctive min-h-[112px] frame should not appear
+    expect(html).not.toContain("min-h-[112px]");
+  });
+
+  it("renders `kpis` KPI tiles when requested", () => {
+    const html = render(<OpDashboardSkeleton kpis={4} />);
+    const matches = html.match(/min-h-\[112px\]/g) ?? [];
+    expect(matches.length).toBe(4);
+  });
+
+  it("renders one OpCardSkeleton block per `cards` entry", () => {
+    const html = render(<OpDashboardSkeleton cards={[6, 4]} />);
+    const matches = html.match(/op-skeleton-shimmer/g) ?? [];
+    expect(matches.length).toBeGreaterThan(0);
+  });
+
+  it("can omit the filter-bar strip", () => {
+    const withBar = render(<OpDashboardSkeleton filterBar />);
+    const withoutBar = render(<OpDashboardSkeleton filterBar={false} />);
+    expect(withBar.length).toBeGreaterThan(withoutBar.length);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Owner skeleton component
 // ---------------------------------------------------------------------------
@@ -133,6 +183,41 @@ describe("<LnCardSkeleton>", () => {
 
   it("does NOT use op-skeleton-shimmer class", () => {
     const html = render(<LnCardSkeleton />);
+    expect(html).not.toMatch(/op-skeleton-shimmer/);
+  });
+});
+
+describe("<LnPageSkeleton>", () => {
+  it("renders the <output> wrapper with aria-busy + SR text", () => {
+    const html = render(<LnPageSkeleton />);
+    expect(html).toMatch(/<output/);
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain("Cargando");
+  });
+
+  it("renders `rows` registry rows", () => {
+    const html2 = render(<LnPageSkeleton rows={2} />);
+    const html5 = render(<LnPageSkeleton rows={5} />);
+    const count2 = (html2.match(/border-b/g) ?? []).length;
+    const count5 = (html5.match(/border-b/g) ?? []).length;
+    expect(count5).toBeGreaterThan(count2);
+  });
+
+  it("omits the avatar placeholder when avatar=false", () => {
+    const withAvatar = render(<LnPageSkeleton avatar />);
+    const withoutAvatar = render(<LnPageSkeleton avatar={false} />);
+    expect(withAvatar).toContain("border-radius:50%");
+    expect(withoutAvatar).not.toContain("border-radius:50%");
+  });
+
+  it("renders a CTA placeholder when cta=true", () => {
+    const withCta = render(<LnPageSkeleton cta />);
+    const withoutCta = render(<LnPageSkeleton cta={false} />);
+    expect(withCta.length).toBeGreaterThan(withoutCta.length);
+  });
+
+  it("does NOT use op-skeleton-shimmer class (citizen surface)", () => {
+    const html = render(<LnPageSkeleton />);
     expect(html).not.toMatch(/op-skeleton-shimmer/);
   });
 });
@@ -157,6 +242,23 @@ const loadingPages: [string, () => React.ReactElement][] = [
   ["CuentaLoading", () => <CuentaLoading />],
   ["LibretaCompartirLoading", () => <LibretaCompartirLoading />],
   ["EventCaptureFormLoading", () => <EventCaptureFormLoading />],
+  // Wave 2 state-coverage fence (2026-07-21) — segments that gained a
+  // dedicated loading.tsx built from OpDashboardSkeleton / LnPageSkeleton.
+  ["GobCasosLoading", () => <GobCasosLoading />],
+  ["GobCensoLoading", () => <GobCensoLoading />],
+  ["GobDecomisosLoading", () => <GobDecomisosLoading />],
+  ["GobHistorialLoading", () => <GobHistorialLoading />],
+  ["GobPoblacionLoading", () => <GobPoblacionLoading />],
+  ["GobOrganizacionesLoading", () => <GobOrganizacionesLoading />],
+  ["GobSuscripcionesLoading", () => <GobSuscripcionesLoading />],
+  ["AdminCasosLoading", () => <AdminCasosLoading />],
+  ["AdminCensoLoading", () => <AdminCensoLoading />],
+  ["AdminPoblacionLoading", () => <AdminPoblacionLoading />],
+  ["AdminHistorialLoading", () => <AdminHistorialLoading />],
+  ["AdminOrganizacionesLoading", () => <AdminOrganizacionesLoading />],
+  ["AdminSuscripcionesLoading", () => <AdminSuscripcionesLoading />],
+  ["BuscarTurnosLoading", () => <BuscarTurnosLoading />],
+  ["MisTurnosLoading", () => <MisTurnosLoading />],
 ];
 
 describe.each(loadingPages)("%s", (_name, factory) => {

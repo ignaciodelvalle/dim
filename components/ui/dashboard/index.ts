@@ -37,6 +37,8 @@ export { OpBulkBar } from "./OpBulkBar";
 export type { OpBulkAction } from "./OpBulkBar";
 export { OpBulkResultPanel } from "./OpBulkResultPanel";
 export type { OpBulkResultPanelProps } from "./OpBulkResultPanel";
+export { OpDashboardSkeleton } from "./OpDashboardSkeleton";
+export type { OpDashboardSkeletonProps } from "./OpDashboardSkeleton";
 export { CaseStatusBadge, CASE_STATUS_CONFIG, caseStatusDisplay } from "./CaseStatusBadge";
 export { CaseHeader } from "./CaseHeader";
 export type { CaseHeaderProps, CaseHeaderStatus } from "./CaseHeader";
