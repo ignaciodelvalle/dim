@@ -131,3 +131,14 @@ KPIs guardeados) · upgrade Vercel Pro (frescura).
   de los fetchers) · hostile-reader +5 narrativas · pantalla nueva con KPI sin contrato = CI falla.
 NEXT — Ola III: C6 (IA 5 capas + workqueues, PO-dirigida, sobre los contratos).
 PO-gated sin cambios: 0155 remoto · Vercel Pro · validación visual · push/#760.
+
+### OLA III (C6) COMPLETA (2026-07-22)
+- C6a `d6cf662c`: rail reagrupado en 5 capas + Bandeja (sin mover rutas) · hub /gob/denuncias
+  (Moderación→Triage→Caso, aditivo) · screen-manifest (51 rutas con decisión dueña) + lint:screens.
+- C6b `c718265d`: el Briefing — home = alertas priorizadas (motor puro, guards: nunca alerta desde
+  dato inmedible; solo 3 KPIs alertables sin queries nuevas, 4 documentados como pendientes) →
+  brechas vs meta → cola condensada (dedup CTAs) → mi trabajo (condicional) → novedades colapsada.
+- C6c `2999ea3f`: gramática workqueue en maltrato (pill de asignación, Tomar 1-click, Actuar =
+  verbo primario del state machine, motivo preservado) + bug real de paridad Mías fixed.
+NEXT — Ola IV: read models (PF1), MPF cascade, forecast-a-meta, fase-2 del nav (absorciones).
+PO: validación visual GRANDE pendiente (Briefing + rail + hub + workqueue + todo Olas I-II).
