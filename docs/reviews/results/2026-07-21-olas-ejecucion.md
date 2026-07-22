@@ -142,3 +142,14 @@ PO-gated sin cambios: 0155 remoto · Vercel Pro · validación visual · push/#7
   verbo primario del state machine, motivo preservado) + bug real de paridad Mías fixed.
 NEXT — Ola IV: read models (PF1), MPF cascade, forecast-a-meta, fase-2 del nav (absorciones).
 PO: validación visual GRANDE pendiente (Briefing + rail + hub + workqueue + todo Olas I-II).
+
+### OLA IV — parcial (2026-07-22)
+- Privacy-text alineado a la captura REAL `8dc982d3` (la política decía "no GPS" — falso;
+  FLAG legal pendiente: retención indefinida de puntos GPS sin plazo declarado — decisión PO/legal).
+- MPF cascade `bfdca443`: export para TODAS las jurisdicciones, formato como regla cascadeada
+  (local→prov→nacional) con provenance visible; migración 0156 LOCAL (remoto PO-gated).
+- FUSIONES aprobadas (27→19): F1 Denuncias absorbe Moderación+Maltrato `b5f3607e` ·
+  F2 Operativos + F3/F7 Directorio(+RUPGA) `deb32f6e` (+2 tests seed-sensibles FORTALECIDOS).
+  PO: F4/F5 NO (Suscripciones y Mi actividad quedan en rail) · F9 mapas → fase 3.
+- PENDIENTE Ola IV: F6 (Disputas tab en Casos) + F8 (Población+Censo→Padrón) · PF1
+  consolidación de queries (con harness de paridad) · forecast-a-meta.
