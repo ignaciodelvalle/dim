@@ -25,7 +25,15 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { aggregateRowsByDepartment } from "@/lib/analytics/subregion-aggregate";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { fetchLostEpisodeCaseCodesForPets } from "@/lib/infra/case-queries";
-import { TARGETS, buildProjectionContext, toneForTarget, windows } from "@/lib/metrics";
+import {
+  TARGETS,
+  buildProjectionContext,
+  smallNGate,
+  smallNNote,
+  toneForTarget,
+  windows,
+} from "@/lib/metrics";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
@@ -292,35 +300,54 @@ export default async function GobPerdidasPage({
         />
         {/* D4 — reunification rate over a fixed trailing 30d window (benchmark:
             TARGETS.REUNIFICATION_PCT). No period control on this page (PO
-            decision 2026-07-19) — always the last 30 days, never adjustable. */}
+            decision 2026-07-19) — always the last 30 days, never adjustable.
+            C1 (2026-07-22, §3b / red-team "100% con N=2 junto a 68
+            perdidas"): descriptorId + guardInput.n route value/tone through
+            the SAME guard engine the rest of C1's consumers use —
+            zeroDenominatorGate (0 episodios → "—" neutral, was an inline
+            hack here) AND smallNGate (n<5 → tone forced neutral + note,
+            NEW). `sub` now also names the co-primary open stock so the rate
+            can't be read as a lone victory number next to it. */}
         <OpKpi
-          label="Tasa de reunificación"
-          // Honesty (backlog H2): with zero lost episodes the rate is 0/0 → 0%,
-          // which toneForTarget paints RED "Peligro" — reads as total failure when
-          // there simply were no losses. Gate on lostEpisodes → "—" neutral.
-          value={reunification.lostEpisodes === 0 ? "—" : formatPercent(reunification.ratePct)}
-          tone={
-            reunification.lostEpisodes === 0
-              ? "neutral"
-              : toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)
-          }
+          label={KPI_CATALOG.reunification_rate.label}
+          value={formatPercent(reunification.ratePct)}
+          tone={toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)}
           bar={reunification.lostEpisodes === 0 ? undefined : reunification.ratePct}
-          sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios`}
+          sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios (30d) · ${metrics.activeCount} perdidas activas ahora`}
           info={{
             definition: `Porcentaje de episodios de pérdida abiertos en los últimos 30 días que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
             formula:
               "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en 30d) × 100",
             caveat:
-              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional.",
+              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional. Leer siempre junto a 'Perdidas activas'.",
           }}
+          descriptorId="reunification_rate"
+          guardInput={{ n: reunification.lostEpisodes }}
         />
         <OpKpi
           label="Mediana recuperación (días)"
-          value={String(reunification.medianDaysToRecovery)}
+          // C1 (2026-07-22, §3b): "Never render mediana with N recoveries <
+          // min" — a median over 1-4 recovered episodes isn't a meaningful
+          // statistic, so below the SAME smallN floor as the rate tile
+          // (sourced from the catalog, not re-hardcoded) this shows "—"
+          // instead of a number, no caveat-and-still-show like the rate gets.
+          value={
+            smallNGate(KPI_CATALOG.reunification_rate, reunification.recovered) ||
+            reunification.recovered === 0
+              ? "—"
+              : String(reunification.medianDaysToRecovery)
+          }
+          sub={
+            reunification.recovered > 0 &&
+            smallNGate(KPI_CATALOG.reunification_rate, reunification.recovered)
+              ? smallNNote(KPI_CATALOG.reunification_rate.guards?.smallN?.min ?? 5)
+              : undefined
+          }
           info={{
             definition:
               "Mediana de días entre la apertura del episodio de pérdida y su resolución (reunificación), sobre los episodios de los últimos 30 días. Menor es mejor.",
             formula: "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY days_to_recovery)",
+            caveat: `No se muestra con menos de ${KPI_CATALOG.reunification_rate.guards?.smallN?.min ?? 5} recuperaciones — una mediana sobre pocos casos no es una estadística significativa.`,
           }}
         />
       </section>

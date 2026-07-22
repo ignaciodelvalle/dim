@@ -490,6 +490,15 @@ export type SterilizationKpi = {
   deltaPct: number;
   /** Distinct author organizations for the current 30-day window. */
   orgs: number;
+  /**
+   * The prior 30-day window's raw count — the deltaPct's DENOMINATOR. C1
+   * (2026-07-22): render sites need this raw number, not just the already-
+   * computed deltaPct, to apply the unstableDeltaBase guard
+   * (lib/metrics/presentation-guards.ts shouldSuppressDelta) — a delta
+   * computed against a near-zero prior base (e.g. 1 → 0, "−100%") is not a
+   * stable trend, and the guard can't tell that from deltaPct alone.
+   */
+  prevCount: number;
 };
 
 /**
@@ -506,7 +515,7 @@ export type SterilizationKpi = {
  */
 export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise<SterilizationKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { count: 0, deltaPct: 0, orgs: 0 };
+    return { count: 0, deltaPct: 0, orgs: 0, prevCount: 0 };
   }
 
   // "Esterilizaciones / mes" is a FIXED 30-day flow, ending at ctx.period.until —
@@ -565,6 +574,7 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
     count: currentCount,
     deltaPct,
     orgs: orgsRows[0]?.n ?? 0,
+    prevCount,
   };
 }
 
@@ -1168,4 +1178,38 @@ export async function fetchOpenWelfareReportsCount(
   ]);
 
   return { count: backlogRows[0]?.n ?? 0, inPeriod: periodRows[0]?.n ?? 0 };
+}
+
+// ---------------------------------------------------------------------------
+// KPI 6 — Bite escalation gap (C1 first consumer, red-team #6)
+// ---------------------------------------------------------------------------
+// A jurisdiction can show ZERO open rabies observations while carrying
+// hundreds of unescalated bite reports — an empty observations queue reads
+// as "controlado" when it may mean "sin escalar", not "sin riesgo" (S4: la
+// ausencia de señal se confunde con ausencia de riesgo). This composes the
+// TWO already-catalogued fetchers below (bites_per_10k, open_rabies_
+// observations, see lib/metrics/kpi-catalog.ts) rather than a new query or
+// a new definition — it just pairs their existing outputs for /gob/vigilancia.
+
+export type BiteEscalationGapKpi = {
+  /** Reused from fetchBitesPer10k.reports — bite reports, trailing 12 months. */
+  bites12m: number;
+  /** Reused from fetchOpenRabiesObservations.count — 'now' snapshot. */
+  openObservations: number;
+};
+
+/**
+ * KPI: bite_escalation_gap (see lib/metrics/kpi-catalog.ts). NOT a ratio —
+ * the two counts are independent populations shown as a pair, never divided.
+ *
+ * @param ctx - ProjectionContext (actor + scope + period).
+ */
+export async function fetchBiteEscalationGap(
+  ctx: ProjectionContext,
+): Promise<BiteEscalationGapKpi> {
+  const [bites, observations] = await Promise.all([
+    fetchBitesPer10k(ctx),
+    fetchOpenRabiesObservations(ctx),
+  ]);
+  return { bites12m: bites.reports, openObservations: observations.count };
 }

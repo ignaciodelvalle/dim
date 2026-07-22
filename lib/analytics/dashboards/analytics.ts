@@ -68,9 +68,17 @@ export type AnalyticsMetrics = {
  * repeating a similar-looking string — see
  * app/gob/analytics/_components/RegionRankingTable.test.tsx for the regression
  * guard against the old ambiguous "Cobertura antirrábica (mascotas)" copy.
+ *
+ * C1 rename (2026-07-22, plan-maestro §3c): "Cobertura antirrábica — todas
+ * las mascotas (histórico)" still shared the "Cobertura antirrábica" stem
+ * with the compliance KPI (rabies_coverage_dogs_12m) — legible only if you
+ * read the parenthetical. Renamed to something unmistakable at a glance; see
+ * lib/metrics/kpi-catalog.ts (rabies_vaccination_rate_all_species) for the
+ * full contract (semaphore: none — this is a historical count, never a
+ * legal-verdict color).
  */
 export const RABIES_VACCINATION_RATE_LABEL_ES =
-  "Cobertura antirrábica — todas las mascotas (histórico)";
+  "Vacunación histórica (todas las especies, sin ventana)";
 
 /**
  * KPI: rabiesVaccinationRate → rabies_vaccination_rate_all_species (see

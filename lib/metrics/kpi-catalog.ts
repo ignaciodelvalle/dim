@@ -1,5 +1,16 @@
 // lib/metrics/kpi-catalog.ts — KPI-definition-as-code catalog (Wave B systemic fix).
 //
+// C1 — METRIC CONTRACT (docs/reviews/results/2026-07-22-plan-maestro-integridad.md,
+// §2 "C1 · Contrato de Métrica"): this module graduates from KPI documentation
+// to an EXECUTABLE contract. The systemic failure C1 targets: "a KPI today is a
+// fetcher + a label + a color decided ad-hoc per screen" — nothing forces a
+// render site to declare the decision question, a target + its legal/programmatic
+// source, when a color is legitimate, or the presentation guards that keep a
+// small-N rate or a 0/0 ratio from reading as a confident verdict. The fields
+// added below (question/target/semaphore/guards/confidence/exclusions) are that
+// contract; lib/metrics/presentation-guards.ts is the renderer-side engine that
+// enforces `guards`/`semaphore` ONCE instead of per-screen ad-hoc logic.
+//
 // WHY THIS EXISTS
 // ----------------
 // The four-actor critique + gob audit (docs/design/handoffs/critiques-smoke-2026-07-03/
@@ -39,6 +50,8 @@
 //   lib/analytics/{govt-home-kpis,compliance-metrics,mortality-metrics} has a matching
 //   `fetcherName` in this catalog — CI fails if a new home-page KPI ships undocumented.
 
+import { TARGETS } from "./targets";
+
 /** Stable identifier for a catalogued KPI. Snake_case, never reused once shipped. */
 export type KpiId =
   | "rabies_coverage_dogs_12m"
@@ -64,7 +77,9 @@ export type KpiId =
   | "vet_access_per_1k_locality"
   | "movement_volume"
   | "adoption_application_conversion"
-  | "eno_sla_compliance";
+  | "eno_sla_compliance"
+  | "reunification_rate"
+  | "bite_escalation_gap";
 
 /** Unit of the KPI's `value` field, for consistent formatting across surfaces. */
 export type KpiUnit = "percent" | "count" | "rate_per_10k" | "ratio" | "days";
@@ -120,9 +135,111 @@ export type KpiInfoTooltip = {
   caveat?: string;
 };
 
+// ---------------------------------------------------------------------------
+// C1 contract fields — question / target / semaphore / guards / confidence
+// ---------------------------------------------------------------------------
+
+/**
+ * The benchmark value a KPI is judged against, plus WHO set it. `source`
+ * names the law/programme/benchmark (e.g. "Ley 22.953", "meta programática",
+ * "benchmark RSPCA") — the S1 fix for "semáforo como veredicto legal": a
+ * render site can now tell a legal mandate apart from an aspirational
+ * internal goal instead of painting both the same red/green.
+ *
+ * `value` must be POPULATED BY REFERENCING lib/metrics/targets.ts's `TARGETS`
+ * constant (e.g. `TARGETS.RABIES_COVERAGE_PCT`), never by retyping the
+ * number — the whole point of centralising targets.ts was to kill duplicate
+ * magic numbers; a catalog entry that re-types "80" instead of importing
+ * `TARGETS.RABIES_COVERAGE_PCT` reintroduces exactly that drift risk.
+ */
+export type KpiTarget = {
+  value: number;
+  source: string;
+};
+
+/**
+ * What the tile's tone is legitimately painted against.
+ *
+ *  - "target": tone derives from comparing the current value to `target`
+ *    (typically via `toneForTarget`) — only meaningful when `target` is set.
+ *  - "none": there is no target whose miss constitutes a legal/programmatic
+ *    failure (or the KPI is a pure uptake/adoption/historical number). The
+ *    renderer must NEVER paint an ok/warn/danger "legal verdict" tone from
+ *    this KPI — it degrades to "blue" (informational/progress) or "neutral".
+ *    This is the fix for red-team #7 (PPP self-serve adoption painted
+ *    "Peligro") and the historic all-species rabies tile (S1: "doble
+ *    antirrábica").
+ */
+export type KpiSemaphorePolicy = {
+  paintAgainst: "target" | "none";
+};
+
+/**
+ * Presentation guards, AS DATA — the render-time honesty guards the plan's
+ * C1/S4 sections describe, declared on the descriptor instead of re-invented
+ * per screen. Enforced by lib/metrics/presentation-guards.ts.
+ */
+export type KpiGuards = {
+  /**
+   * Below this sample size (n — the count the ratio/rate is computed over,
+   * e.g. lost episodes, recovered count), the renderer keeps the numeric
+   * value visible (a real "100% · 2 de 2" fact) but FORCES a neutral tone
+   * and surfaces a small-sample note — never a confident green/red on a tiny
+   * N. Kills the "100% reunificación junto a 2 casos" class.
+   */
+  smallN?: { min: number };
+  /**
+   * When the ratio's denominator is 0, render "—" instead of a fabricated
+   * 0/0 → 0% value. Kills the "0 muertes → 0% trazable" class. The union
+   * leaves room for a future alternative strategy without a breaking change.
+   */
+  zeroDenominator?: "dash";
+  /**
+   * Flow-tile guard: suppress the period-over-period delta chip when the
+   * PRIOR period's base count is below `minPriorBase` — a swing computed
+   * against a near-zero base (e.g. 1 → 0) is not a stable trend. Kills the
+   * "−95% MoM on an unstable base" class.
+   */
+  unstableDeltaBase?: { minPriorBase: number };
+};
+
+/**
+ * What feeds the confidence note shown alongside the value — padrón
+ * coverage, k-anonymity suppression, data freshness, sample size, etc.
+ * Prose inputs, not a computed score (a numeric confidence SCORE is Ola
+ * 2/C4 territory, not this contract).
+ */
+export type KpiConfidence = {
+  inputs: string[];
+};
+
 export type KpiDefinition = {
   /** Stable id — see KpiId. */
   id: KpiId;
+  /**
+   * The decision question this KPI answers, es-AR, plain language — e.g.
+   * "¿Están los perros de la jurisdicción vacunados contra la rabia según lo
+   * exige la ley?". Forces every catalogued KPI to justify WHY it is on a
+   * screen, not just WHAT it counts (S1: "un KPI es un fetcher + un label +
+   * un color decididos ad-hoc"). Optional while the barrido (follow-up) has
+   * not yet reached every entry — new entries in this task's 8 first
+   * consumers all set it.
+   */
+  question?: string;
+  /** Benchmark + its legal/programmatic source — see KpiTarget. Omit when no
+   *  target is legitimate for this KPI (e.g. a pure historical/uptake count). */
+  target?: KpiTarget;
+  /** Tone-painting policy — see KpiSemaphorePolicy. Omit only for KPIs that
+   *  don't render a tone at all (pure counts with no color). */
+  semaphore?: KpiSemaphorePolicy;
+  /** Presentation guards — see KpiGuards. Omit fields that don't apply. */
+  guards?: KpiGuards;
+  /** What feeds the confidence note next to the value — see KpiConfidence. */
+  confidence?: KpiConfidence;
+  /** Free-form prose naming what this KPI's population EXCLUDES, when that
+   *  exclusion could otherwise be mistaken for under-counting (e.g. "no
+   *  incluye reportes sin escalar"). Omit when `caveat` already covers it. */
+  exclusions?: string;
   /** es-AR display label. MUST be distinct from any other catalog entry's label —
    *  this is the field that fixes the "same label, two truths" bug. */
   label: string;
@@ -177,6 +294,21 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "12m",
     species: "dogs",
     basis: "ratio",
+    question:
+      "¿Están los perros del padrón de la jurisdicción vacunados contra la rabia según lo exige la ley, en los últimos 12 meses?",
+    target: {
+      value: TARGETS.RABIES_COVERAGE_PCT,
+      source: "Ley 22.953 (vacunación antirrábica obligatoria)",
+    },
+    semaphore: { paintAgainst: "target" },
+    guards: { zeroDenominator: "dash" },
+    confidence: {
+      inputs: [
+        "cobertura del padrón (registryDenominator) — perros SIN dueño/no registrados no cuentan",
+        "estimación censal (censusCoveragePct) — null cuando no hay fila de censo para el scope",
+        "frescura: ventana fija de 12 meses, recalculada en cada render",
+      ],
+    },
     ui: {
       definition:
         "Porcentaje de perros del padrón (activos/perdidos) en la jurisdicción con al menos una vacunación antirrábica registrada en los últimos 12 meses. El padrón es el primer denominador; el segundo es la población canina estimada. Meta de salud pública: 80%.",
@@ -189,7 +321,13 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   rabies_vaccination_rate_all_species: {
     id: "rabies_vaccination_rate_all_species",
-    label: "Cobertura antirrábica — todas las mascotas (histórico)",
+    // C1 rename (2026-07-22, plan-maestro §3c / red-team "doble antirrábica"):
+    // "Cobertura antirrábica — todas las mascotas (histórico)" still LOOKED
+    // like a compliance figure at a glance (same "Cobertura antirrábica" stem
+    // as rabies_coverage_dogs_12m). Renamed to something unmistakable — this
+    // is NOT a coverage/compliance number, it's an all-time, all-species,
+    // no-window historical count with no legal target.
+    label: "Vacunación histórica (todas las especies, sin ventana)",
     numerator:
       "COUNT DISTINCT active/lost pets of ANY species with ≥1 vaccination_administered event where unaccent(vaccine_name) ILIKE unaccent('%rabi%') (via the amendment overlay), NO occurred_at filter — all-time",
     denominator: "COUNT active/lost pets (any species) in scope",
@@ -200,10 +338,22 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat:
-      "This is the KPI the four-actor critique flagged as showing 54% under the SAME label as rabies_coverage_dogs_12m's 42% (critique-govt-2026-07-03.md, 'Same metric, different numbers'). Three real differences drive the gap: (1) denominator includes non-dog species, (2) no 12-month window — a vaccine logged years ago still counts, (3) looser match ('%rabi%' substring vs the anchored regex). Neither number is wrong; they answer different questions. Render sites: app/gob/analytics/page.tsx (imports RABIES_VACCINATION_RATE_LABEL_ES = 'Cobertura antirrábica — todas las mascotas (histórico)', matching this entry verbatim — the old ambiguous 'Cobertura antirrábica (mascotas)' copy is gone and guarded against by RegionRankingTable.test.tsx) and the per-province ranking in lib/analytics/analytics-ranking.ts (fetchRegionRanking reuses this SAME all-species/all-time definition, so Analítica's national figure and its ranking table are internally consistent).",
+      "This is the KPI the four-actor critique flagged as showing 54% under the SAME label as rabies_coverage_dogs_12m's 42% (critique-govt-2026-07-03.md, 'Same metric, different numbers'). Three real differences drive the gap: (1) denominator includes non-dog species, (2) no 12-month window — a vaccine logged years ago still counts, (3) looser match ('%rabi%' substring vs the anchored regex). Neither number is wrong; they answer different questions. Render sites: app/gob/analytics/page.tsx (imports RABIES_VACCINATION_RATE_LABEL_ES = 'Vacunación histórica (todas las especies, sin ventana)', matching this entry verbatim — the old ambiguous 'Cobertura antirrábica (mascotas)' copy is gone and guarded against by RegionRankingTable.test.tsx) and the per-province ranking in lib/analytics/analytics-ranking.ts (fetchRegionRanking reuses this SAME all-species/all-time definition, so Analítica's national figure and its ranking table are internally consistent).",
     window: "all_time",
     species: "all_species",
     basis: "ratio",
+    question:
+      "¿Qué fracción del registro histórico de MiMAR tiene alguna vez una dosis antirrábica cargada, de cualquier especie, sin ventana temporal? (NO es la pregunta de cumplimiento legal — esa es rabies_coverage_dogs_12m).",
+    // No `target`: there is no legal/programmatic benchmark for an all-time,
+    // all-species, no-window count — inventing one would legitimize painting
+    // a semaphore over a number that isn't a compliance measurement.
+    semaphore: { paintAgainst: "none" },
+    confidence: {
+      inputs: [
+        "sin ventana temporal — una dosis de hace años sigue contando hoy",
+        "match por substring ('%rabi%'), no el regex anclado que usa la métrica de cumplimiento",
+      ],
+    },
     ui: {
       definition:
         "Vista histórica: porcentaje de mascotas activas de CUALQUIER especie con al menos una vacunación antirrábica registrada alguna vez. NO es la métrica de cumplimiento — esa es la cobertura antirrábica del Panel/Panorama (perros con dosis en los últimos 12 meses, Ley 22.953). Por eso este número es más alto.",
@@ -255,6 +405,20 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "30d",
     species: "all_species",
     basis: "flow",
+    question: "¿Cuántas esterilizaciones se registraron este mes y cómo viene la tendencia?",
+    // No `target`: a flow count has no legal/programmatic benchmark of its
+    // own (sterilization_coverage_population's 70% stock target is a
+    // DIFFERENT KPI). semaphore stays "none" — this tile has never painted a
+    // tone; the guard that matters here is the delta suppression below.
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      // Red-team's "−95% MoM" class: a delta computed against a near-zero
+      // prior-30d base swings wildly on one or two events. Floor chosen to
+      // match the smallN convention used elsewhere in this task (5) — below
+      // it, the % change is not a stable trend, just noise amplified by a
+      // tiny denominator.
+      unstableDeltaBase: { minPriorBase: 5 },
+    },
     ui: {
       definition:
         "Cantidad de eventos sterilization_performed registrados en los últimos 30 días en la jurisdicción. Incluye la variación porcentual respecto a los 30 días anteriores.",
@@ -395,6 +559,16 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "all_time",
     species: "all_species",
     basis: "ratio",
+    question:
+      "¿Qué porcentaje de mascotas del padrón (activas/perdidas) tiene un microchip ISO activo registrado, según lo exige la ley?",
+    target: { value: TARGETS.MICROCHIP_PENETRATION_PCT, source: "Ley Provincial 14.107" },
+    semaphore: { paintAgainst: "target" },
+    confidence: {
+      inputs: [
+        "k-anonimato (k=5) en el desglose por localidad — celdas chicas ocultas",
+        "solo microchips registrados en MiMAR — la penetración real puede ser mayor",
+      ],
+    },
     ui: {
       definition:
         "Porcentaje de mascotas activas/extraviadas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Provincial 14.107.",
@@ -406,7 +580,13 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   ppp_registry_compliance: {
     id: "ppp_registry_compliance",
-    label: "Registro PPP (razas potencialmente peligrosas)",
+    // C1 rename (2026-07-22, red-team #7): the old label + toneForTarget(…,
+    // 100) painted a 0% self-serve-attestation uptake number "Peligro" (red) —
+    // a LEGAL-VERDICT color on what is, until the enforcement flow ships,
+    // purely a MiMAR adoption/uptake number. Renamed + semaphore: none below
+    // distinguish "atestación en MiMAR" (what this tile measures) from
+    // "cumplimiento registral externo" (a claim this tile does NOT make).
+    label: "Atestación PPP en MiMAR (razas potencialmente peligrosas)",
     numerator: "COUNT DISTINCT PPP-flagged active pets with ≥1 dangerous_breed_attested event",
     denominator: "COUNT active/lost pets where potentially_dangerous_breed = true",
     source: "pets, pet_events (dangerous_breed_attested)",
@@ -416,13 +596,22 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat:
-      "Legal basis: Ley CABA 4078 / Ley Prov. 14.107. Reads 0% until the attestation form ships — that is a true value (no adoption yet), not a bug.",
+      "Legal basis: Ley CABA 4078 / Ley Prov. 14.107. Reads 0% until the attestation form ships — that is a true value (no adoption yet), not a bug. NOT painted as a legal-verdict tone (semaphore: none) — a self-serve-attestation uptake number reading 'Peligro' misrepresents a feature-adoption gap as a legal breach (red-team #7).",
     window: "all_time",
     species: "dogs",
     basis: "ratio",
+    question:
+      "¿Qué porcentaje de mascotas PPP en la jurisdicción tiene su atestación cargada en MiMAR? (NO mide cumplimiento registral externo a la ley — solo adopción del flujo de atestación en la plataforma).",
+    target: { value: TARGETS.PPP_ATTESTATION_PCT, source: "Ley CABA 4078 / Ley Prov. 14.107" },
+    // Uptake metrics never paint a legal-verdict color (S1 principle) — the
+    // target is kept (for the info popover's "meta" line, honestly sourced to
+    // the law) but the RENDERED tone never derives from it.
+    semaphore: { paintAgainst: "none" },
+    exclusions:
+      "No mide cumplimiento registral externo (habilitación municipal/provincial fuera de MiMAR) — solo la atestación cargada dentro de la plataforma.",
     ui: {
       definition:
-        "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado (C7). Exigido por Ley CABA 4078 / Ley Prov. 14.107.",
+        "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado en MiMAR (C7). Ley CABA 4078 / Ley Prov. 14.107 exige la atestación; este número mide SOLO la adopción del flujo dentro de la plataforma, no el cumplimiento registral externo.",
       formula:
         "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
       caveat:
@@ -463,6 +652,16 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "12m",
     species: "all_species",
     basis: "ratio",
+    question:
+      "De los fallecimientos registrados, ¿qué porcentaje tiene una disposición final trazable (método + instalación conocidos)?",
+    target: { value: TARGETS.DISPOSAL_TRACEABILITY_PCT, source: "Ley CABA 5470" },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // 0 deaths → 0/0 traceableRate would read "0%" (a FAILED-traceability
+      // signal) when there simply were no deaths to trace — the exact "0/0
+      // → 0%" class this task fences. Mirrors mortality_deaths_12m's guard.
+      zeroDenominator: "dash",
+    },
     ui: {
       definition:
         "Porcentaje de fallecimientos con método de disposición conocido E instalación registrada. Mide el cumplimiento de trazabilidad exigido por la Ley CABA 5470.",
@@ -491,6 +690,21 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "12m",
     species: "all_species",
     basis: "flow",
+    question:
+      "¿Cuántos fallecimientos se registraron en los últimos 12 meses, y qué tan trazable fue su disposición final?",
+    // The headline count itself has no target (a count of deaths isn't
+    // "compliant" or not) — semaphore stays "none" for the COUNT; the
+    // embedded traceableRate ratio inherits mortality_disposal_traceability's
+    // target/semaphore (same predicate, see the caveat above), not a
+    // separate one here.
+    semaphore: { paintAgainst: "none" },
+    guards: {
+      // Same "0/0 → 0%" class as mortality_disposal_traceability, on the
+      // SAME traceableRate field this fetcher computes over its fixed 12m
+      // total. Home renders both `total` and `traceableRate` from one
+      // fetcher call, so one guard entry covers both display fields.
+      zeroDenominator: "dash",
+    },
   },
 
   active_pregnancies: {
@@ -710,6 +924,98 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
         "COUNT(outbox rows entregadas con delivered_at ≤ sla_due_at) / COUNT(outbox rows entregadas en período) × 100",
       caveat:
         "breachedOpen cuenta notificaciones pendientes con sla_due_at ya vencido en este momento (incumplimiento activo), independiente del período seleccionado.",
+    },
+  },
+
+  // ---------------------------------------------------------------------------
+  // C1 first consumers (2026-07-22, plan-maestro §3) — new catalog entries
+  // ---------------------------------------------------------------------------
+
+  reunification_rate: {
+    id: "reunification_rate",
+    label: "Tasa de reunificación",
+    numerator: "COUNT lost episodes (status_changed → to_status='lost') that returned to 'active'",
+    denominator:
+      "COUNT all lost episodes in scope, trailing 30 days (fixed window, no period picker)",
+    source: "pets, pet_events (status_changed)",
+    fetcherName: "fetchReunificationRate",
+    fetcherPath: "lib/analytics/compliance-metrics.ts",
+    cadence:
+      "FIXED trailing 30 days — /gob/perdidas has no period control (PO decision 2026-07-19)",
+    unit: "percent",
+    suppression: "none",
+    caveat:
+      "Benchmark: UK RSPCA ~39% (TARGETS.REUNIFICATION_PCT). Does not filter by species — the benchmark is measured over all lost episodes. Same fetcher also returns medianDaysToRecovery, gated by the SAME smallN guard on `recovered` (not `lostEpisodes` — red-team's '100% con N=2' class specifically concerns the recovered-episode count, since the median is computed only over recovered episodes).",
+    window: "30d",
+    species: "all_species",
+    basis: "ratio",
+    question:
+      "De las mascotas que se perdieron en los últimos 30 días, ¿qué porcentaje volvió con su dueño/a? (a leer SIEMPRE junto al stock de perdidas activas — una tasa alta con pocos episodios no es una victoria poblacional).",
+    target: { value: TARGETS.REUNIFICATION_PCT, source: "benchmark RSPCA (Reino Unido)" },
+    semaphore: { paintAgainst: "target" },
+    guards: {
+      // Red-team's headline case: "100% reunificación" next to "68 perdidas
+      // activas" reads as total success when N=2. Below 5 episodes, the tone
+      // is forced neutral and a small-sample note accompanies the (still
+      // honestly shown) percentage. Also gates the sibling median-days tile
+      // via `recovered` (see the caveat above).
+      smallN: { min: 5 },
+      zeroDenominator: "dash",
+    },
+    confidence: {
+      inputs: [
+        "n = episodios de pérdida en el período (30d) — advertencia de muestra chica bajo 5",
+        "stock co-primario: 'Perdidas activas' en la misma pantalla da el contexto poblacional",
+      ],
+    },
+    ui: {
+      definition: `Porcentaje de episodios de pérdida abiertos en los últimos 30 días que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA). Con menos de 5 episodios, la tasa se muestra sin semáforo — un porcentaje sobre una muestra chica no es una tendencia.`,
+      formula: "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en 30d) × 100",
+      caveat:
+        "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional. Leer siempre junto al stock de 'Perdidas activas'.",
+    },
+  },
+
+  bite_escalation_gap: {
+    id: "bite_escalation_gap",
+    label: "Brecha de escalamiento (mordeduras vs. observaciones)",
+    numerator:
+      "COUNT incident_reported bite events, trailing 12 months — REUSES bites_per_10k's `reports` field (no new query/definition)",
+    denominator:
+      "n/a — paired with COUNT open rabies observations ('now' snapshot) — REUSES open_rabies_observations' `count` field (no new query/definition). Not a ratio: the two counts measure different populations (reports vs currently-open observations) and are shown side by side, not divided.",
+    source: "pet_events (incident_reported), pets (rabies_observation_status)",
+    fetcherName: "fetchBiteEscalationGap",
+    fetcherPath: "lib/analytics/govt-home-kpis.ts",
+    cadence: "bites: trailing 12 months ending at ctx.period.until; observations: 'now' snapshot",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Red-team #6: a jurisdiction can show 0 open rabies observations while carrying hundreds of unescalated bite reports — an empty observations queue reads as 'controlado' when it may mean 'sin escalar', not 'sin riesgo'. This KPI exists to keep that gap visible as a PAIR, never collapsed into a single ratio that would imply one count is the other's denominator.",
+    window: "mixed",
+    species: "n/a",
+    basis: "flow",
+    question:
+      "¿Cuántas mordeduras se reportaron en los últimos 12 meses frente a cuántas observaciones rábicas siguen abiertas ahora mismo? Los reportes sin escalamiento no implican ausencia de riesgo.",
+    // No target: this is a transparency pairing, not a compliance ratio —
+    // there is no legal/programmatic benchmark for "how many bites SHOULD
+    // have an open observation". Painting a tone here would fabricate a
+    // judgment neither number supports on its own.
+    semaphore: { paintAgainst: "none" },
+    exclusions:
+      "No mide qué fracción de mordeduras derivó en una observación — los dos números son poblaciones independientes (bites_per_10k / open_rabies_observations), no numerador/denominador de un mismo evento.",
+    confidence: {
+      inputs: [
+        "bites: reutiliza bites_per_10k — ventana fija de 12 meses",
+        "observaciones abiertas: reutiliza open_rabies_observations — snapshot 'ahora'",
+      ],
+    },
+    ui: {
+      definition:
+        "Mordeduras reportadas en los últimos 12 meses junto a las observaciones antirrábicas actualmente abiertas en la jurisdicción — dos conteos independientes, mostrados en par para que la brecha entre 'reportado' y 'escalado' quede visible.",
+      formula:
+        "COUNT(incident_reported, 12m) mostrado junto a COUNT(rabies_observation_status='in_progress')",
+      caveat:
+        "Los reportes de mordedura sin una observación abierta correspondiente NO implican ausencia de riesgo — pueden reflejar sub-escalamiento, no sub-incidencia.",
     },
   },
 };

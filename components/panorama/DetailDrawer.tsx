@@ -40,6 +40,7 @@ import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
@@ -468,7 +469,7 @@ export function FeatureBody({
           <dl>
             <Row label={unitRowLabel(properties, isProvince)} value={place || "—"} />
             <Row
-              label="Tasa de reunificación"
+              label={KPI_CATALOG.reunification_rate.label}
               value={
                 suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>

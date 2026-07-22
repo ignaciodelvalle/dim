@@ -79,6 +79,21 @@ export { DEFAULT_HORIZON, MIN_POINTS, projectSeries, targetCrossing } from "./fo
 export { TARGETS, computeDeltaPct, decisionsDeltaPct, enoSlaTone, toneForTarget } from "./targets";
 export { lastIngestAt } from "./freshness";
 
+// C1 — metric-contract guard engine (docs/reviews/results/
+// 2026-07-22-plan-maestro-integridad.md). Pure presentation guards enforcing
+// kpi-catalog.ts's guards/semaphore fields at render time.
+export {
+  UNSTABLE_DELTA_BASE_NOTE,
+  ZERO_DENOMINATOR_DASH,
+  guardRatioTone,
+  resolveSemaphoreTone,
+  shouldSuppressDelta,
+  smallNGate,
+  smallNNote,
+  zeroDenominatorGate,
+} from "./presentation-guards";
+export type { GuardedRatio, Tone as GuardTone } from "./presentation-guards";
+
 // D4 reunification rate, per administrative unit — feeds the Panorama
 // `reunificacion` layer (src/modules/panorama/infrastructure/repository.ts).
 export { fetchReunificationByUnit } from "./reunification-rollups";

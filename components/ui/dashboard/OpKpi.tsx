@@ -5,6 +5,12 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
+import { KPI_CATALOG, type KpiId, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import {
+  UNSTABLE_DELTA_BASE_NOTE,
+  guardRatioTone,
+  shouldSuppressDelta,
+} from "@/lib/metrics/presentation-guards";
 
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
@@ -14,11 +20,32 @@ import { Icon } from "@/components/Icon";
  *  - delta      — delta vs período previo con flecha y tono (up/down)
  *  - sparkline  — mini serie inline sin ejes (recharts AreaChart)
  *  - drillHref  — KPI clickeable → lista de registros que lo componen
+ *  - descriptorId / guardInput — C1 metric-contract path (see below)
  *
  * The existing `delta` prop (text + up) is preserved for backward compat.
  * The new `delta` (value + period) is additive when `info`/`sparkline` are also used.
  * To avoid collision with the existing `delta` prop shape, the new props use
  * distinct key names that don't exist in the v1 type.
+ *
+ * C1 METRIC CONTRACT (docs/reviews/results/2026-07-22-plan-maestro-integridad.md):
+ * `descriptorId` is OPTIONAL and purely additive — every existing OpKpi caller
+ * without it renders EXACTLY as before (the ratchet's grandfathered baseline;
+ * see scripts/check-metric-contract.ts). When a caller DOES pass it:
+ *  - `info` auto-resolves from the catalog's `getKpiInfo()` if not explicitly
+ *    given, and always gets the descriptor's `target`/`confidence` appended
+ *    as extra popover lines (the contract's "meta + fuente" and "confianza").
+ *  - `guardInput.n` (the ratio's sample size/denominator) routes `value`/
+ *    `tone` through `guardRatioTone` — the zero-denominator ("—") and
+ *    small-N (forced-neutral + note) guards from the descriptor's `guards`.
+ *  - `guardInput.priorBase` (the prior period's raw count) suppresses
+ *    `deltaV2` when the descriptor's `guards.unstableDeltaBase` floor isn't
+ *    met (the "−95% MoM on an unstable base" class).
+ * Semaphore-tone resolution (never painting a "legal verdict" color for a
+ * `semaphore: {paintAgainst: "none"}` KPI) is NOT auto-applied here — it
+ * composes differently per KPI's own no-data branching (e.g. PPP's
+ * flaggedCount===0 "neutral" vs a real value's "blue"), so call sites import
+ * `resolveSemaphoreTone` from lib/metrics/presentation-guards directly and
+ * pass the resolved `tone` prop, same as any other computed tone.
  */
 
 type Tone = "neutral" | "danger" | "warn" | "ok" | "blue";
@@ -38,6 +65,12 @@ type InfoTooltip = {
   definition: string;
   formula?: string;
   caveat?: string;
+  /** C1 contract extra — "meta X% (fuente)" line, appended when a
+   *  `descriptorId` resolves a catalog entry with a `target`. */
+  target?: string;
+  /** C1 contract extra — "confianza: …" line, appended when a
+   *  `descriptorId` resolves a catalog entry with `confidence.inputs`. */
+  confidence?: string;
 };
 
 type Props = {
@@ -79,6 +112,25 @@ type Props = {
    * de registros que componen el valor. Distinto de `href` (que wrappea el tile).
    */
   drillHref?: string;
+
+  /**
+   * C1 metric-contract id (lib/metrics/kpi-catalog.ts). Purely additive —
+   * see the module-level comment above. Omit for descriptor-less tiles (the
+   * grandfathered baseline scripts/check-metric-contract.ts ratchets down).
+   */
+  descriptorId?: KpiId;
+
+  /**
+   * Raw inputs the guard engine needs when `descriptorId` is set — see the
+   * module-level comment above for exactly which guard each field feeds.
+   * Both optional: pass only the ones this tile's descriptor actually guards.
+   */
+  guardInput?: {
+    /** Sample size / denominator the ratio is computed over. */
+    n?: number;
+    /** The PRIOR period's raw count, for delta-suppression. */
+    priorBase?: number;
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -187,6 +239,10 @@ function InfoButton({ info }: { info: InfoTooltip }) {
               </p>
             )}
             {info.caveat && <p className="text-xs text-[var(--color-st-warn)]">{info.caveat}</p>}
+            {/* C1 contract extras — target+source and confidence, appended
+                when descriptorId resolved a catalog entry carrying them. */}
+            {info.target && <p className="text-xs text-ln-ink-3">{info.target}</p>}
+            {info.confidence && <p className="text-xs text-ln-ink-3">{info.confidence}</p>}
           </div>
         </>
       )}
@@ -206,6 +262,85 @@ const Sparkline = dynamic(() => import("./OpKpiSparkline").then((m) => m.OpKpiSp
 });
 
 // ---------------------------------------------------------------------------
+// C1 metric-contract resolution (extracted — keeps OpKpi's own cognitive
+// complexity under the lint budget; this function owns ALL of the
+// descriptorId/guardInput branching in one place).
+// ---------------------------------------------------------------------------
+
+type ContractResolution = {
+  value: ReactNode;
+  tone: Tone;
+  deltaV2: DeltaV2 | undefined;
+  guardNote: string | undefined;
+  info: InfoTooltip | undefined;
+};
+
+/** "Meta: X% (fuente)" / "Confianza: …" popover extras from a resolved descriptor. */
+function contractInfoExtras(descriptor: ReturnType<typeof resolveDescriptor>) {
+  const target = descriptor?.target
+    ? `Meta: ${descriptor.target.value}${descriptor.unit === "percent" ? "%" : ""} (${descriptor.target.source})`
+    : undefined;
+  const confidence = descriptor?.confidence
+    ? `Confianza: ${descriptor.confidence.inputs.join(" · ")}`
+    : undefined;
+  return { target, confidence };
+}
+
+function resolveDescriptor(descriptorId: KpiId | undefined) {
+  return descriptorId ? KPI_CATALOG[descriptorId] : undefined;
+}
+
+/**
+ * Resolve the C1 metric-contract path — see the module-level comment. No-op
+ * (identical to the raw props) when `descriptorId` is omitted, so every
+ * existing OpKpi caller renders byte-identical output.
+ */
+function resolveOpKpiContract(
+  descriptorId: KpiId | undefined,
+  guardInput: Props["guardInput"],
+  rawValue: ReactNode,
+  rawTone: Tone,
+  rawDeltaV2: DeltaV2 | undefined,
+  rawInfo: InfoTooltip | undefined,
+): ContractResolution {
+  const descriptor = resolveDescriptor(descriptorId);
+
+  let value = rawValue;
+  let tone = rawTone;
+  let deltaV2 = rawDeltaV2;
+  let guardNote: string | undefined;
+
+  if (descriptor && guardInput?.n !== undefined && typeof rawValue === "string") {
+    const guarded = guardRatioTone(descriptor, {
+      n: guardInput.n,
+      computedTone: rawTone,
+      formattedValue: rawValue,
+    });
+    value = guarded.value;
+    tone = guarded.tone;
+    guardNote = guarded.note;
+  }
+
+  if (
+    descriptor &&
+    deltaV2 &&
+    guardInput?.priorBase !== undefined &&
+    shouldSuppressDelta(descriptor, guardInput.priorBase)
+  ) {
+    deltaV2 = undefined;
+    guardNote = guardNote ? `${guardNote} ${UNSTABLE_DELTA_BASE_NOTE}` : UNSTABLE_DELTA_BASE_NOTE;
+  }
+
+  // Auto-resolve `info` from the catalog when descriptorId is set and the
+  // caller didn't pass an explicit one, then append the contract extras
+  // (target+source, confidence) regardless of which info source won.
+  const baseInfo = rawInfo ?? (descriptorId ? getKpiInfo(descriptorId) : undefined);
+  const info = baseInfo ? { ...baseInfo, ...contractInfoExtras(descriptor) } : undefined;
+
+  return { value, tone, deltaV2, guardNote, info };
+}
+
+// ---------------------------------------------------------------------------
 // OpKpi — full-size tile
 // ---------------------------------------------------------------------------
 
@@ -215,17 +350,28 @@ const Sparkline = dynamic(() => import("./OpKpiSparkline").then((m) => m.OpKpiSp
  */
 export function OpKpi({
   label,
-  value,
-  tone = "neutral",
+  value: rawValue,
+  tone: rawTone = "neutral",
   delta,
   bar,
   sub,
   href,
-  info,
-  deltaV2,
+  info: rawInfo,
+  deltaV2: rawDeltaV2,
   sparkline,
   drillHref,
+  descriptorId,
+  guardInput,
 }: Props) {
+  const { value, tone, deltaV2, guardNote, info } = resolveOpKpiContract(
+    descriptorId,
+    guardInput,
+    rawValue,
+    rawTone,
+    rawDeltaV2,
+    rawInfo,
+  );
+
   const cardCls = [
     "flex flex-col rounded-[var(--radius-md)] border p-[14px_16px]",
     "min-h-[112px] no-underline text-inherit",
@@ -259,6 +405,12 @@ export function OpKpi({
       >
         {value}
       </div>
+
+      {/* Guard note (C1) — smallN / unstable-delta explanations from the
+          guard engine. Rendered distinctly from `sub` (which stays whatever
+          the caller composed) so the guard's own honesty note is never
+          silently absorbed into arbitrary caller copy. */}
+      {guardNote && <p className="mt-1 text-xs text-ln-op-mute">{guardNote}</p>}
 
       {/* Sparkline (v2) */}
       {sparkline && sparkline.length >= 2 && <Sparkline values={sparkline} tone={tone} />}

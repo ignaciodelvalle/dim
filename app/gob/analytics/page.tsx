@@ -257,11 +257,15 @@ export default async function GobAnalyticsPage({
         <OpKpi
           label={RABIES_VACCINATION_RATE_LABEL_ES}
           value={formatPercent(metrics.rabiesVaccinationRate)}
+          // tone stays hardcoded "blue" (progress/informational), matching
+          // this KPI's semaphore: {paintAgainst: "none"} contract — a
+          // historical, no-target count never paints a legal-verdict color.
           tone="blue"
           bar={metrics.rabiesVaccinationRate}
           sub="histórico · toda especie con ≥1 dosis registrada"
           href="/gob/vigilancia"
           info={getKpiInfo("rabies_vaccination_rate_all_species")}
+          descriptorId="rabies_vaccination_rate_all_species"
         />
         <OpKpi
           label="Disputas de custodia"

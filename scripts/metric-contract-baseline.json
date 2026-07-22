@@ -1,0 +1,21 @@
+{
+  "app/admin/adopciones/page.tsx": 4,
+  "app/admin/censo/page.tsx": 4,
+  "app/admin/inteligencia/page.tsx": 4,
+  "app/admin/poblacion/page.tsx": 4,
+  "app/admin/programa/page.tsx": 6,
+  "app/gob/adopciones/page.tsx": 4,
+  "app/gob/analytics/page.tsx": 3,
+  "app/gob/campanas/page.tsx": 5,
+  "app/gob/censo/page.tsx": 4,
+  "app/gob/decomisos/page.tsx": 1,
+  "app/gob/maltrato/page.tsx": 4,
+  "app/gob/mortalidad/page.tsx": 4,
+  "app/gob/outreach/page.tsx": 3,
+  "app/gob/page.tsx": 4,
+  "app/gob/perdidas/page.tsx": 4,
+  "app/gob/poblacion/page.tsx": 5,
+  "app/gob/programa/page.tsx": 6,
+  "app/gob/sistema/page.tsx": 3,
+  "app/gob/vigilancia/page.tsx": 8
+}

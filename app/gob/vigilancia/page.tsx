@@ -28,6 +28,7 @@ import {
   fetchVigilanciaMetrics,
   fetchZoonosisTrend,
 } from "@/lib/analytics/govt-dashboards";
+import { fetchBiteEscalationGap } from "@/lib/analytics/govt-home-kpis";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -37,7 +38,7 @@ import {
   fetchMovementCorridors,
   windows,
 } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
 import { pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
@@ -143,6 +144,12 @@ export default async function GobVigilanciaPage({
           })
         : Promise.resolve(null),
       fetchSurveillanceCompliance(complianceCtx),
+      // C1 (2026-07-22, §3g / red-team #6 "escalation gap"): bites reported
+      // vs rabies observations still open — composes the SAME two catalogued
+      // fetchers other tiles already use (bites_per_10k, open_rabies_
+      // observations), no new query/definition. Reuses complianceCtx: both
+      // component fetchers anchor their own fixed windows internally.
+      fetchBiteEscalationGap(complianceCtx),
       // Sparklines for KPI tiles (Fase 0).
       fetchKpiTrend("outbreak_signal", complianceCtx),
       fetchKpiTrend("rabies_observation_started", complianceCtx),
@@ -177,6 +184,7 @@ export default async function GobVigilanciaPage({
     signalsPeriod,
     subregionData,
     compliance,
+    escalationGap,
     outbreakSparkline,
     rabiesSparkline,
     vacSparkline,
@@ -270,10 +278,10 @@ export default async function GobVigilanciaPage({
         jurisdiction={{ allowedProvinces, localities }}
       />
 
-      {/* 5 KPI tiles */}
+      {/* 6 KPI tiles */}
       <section
         aria-label="Indicadores de vigilancia"
-        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
+        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         <OpKpi
           label="Brotes activos"
@@ -341,6 +349,18 @@ export default async function GobVigilanciaPage({
             formula:
               "COUNT(cases WHERE caseKind='outbreak_investigation' AND status IN ('open','escalated'))",
           }}
+        />
+        {/* C1 (2026-07-22, §3g / red-team #6): the escalation gap — a
+            jurisdiction can show 0 open rabies observations while carrying
+            hundreds of unescalated bite reports; an empty queue reads as
+            "controlado" when it may mean "sin escalar". Pair, not a ratio —
+            semaphore: none (no target either number is judged against). */}
+        <OpKpi
+          label={KPI_CATALOG.bite_escalation_gap.label}
+          value={String(escalationGap.bites12m)}
+          sub={`vs ${escalationGap.openObservations} observaciones rábicas abiertas — los reportes sin escalamiento no implican ausencia de riesgo`}
+          href={`#${panelComplianceId}`}
+          descriptorId="bite_escalation_gap"
         />
       </section>
 

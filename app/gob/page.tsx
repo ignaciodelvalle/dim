@@ -49,7 +49,9 @@ import {
   computeDeltaPct,
   fetchBitesTrend,
   fetchKpiTrend,
+  resolveSemaphoreTone,
   toneForTarget,
+  zeroDenominatorGate,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
@@ -294,6 +296,16 @@ export default async function GobiernoDashboardPage({
   const openCases = openCasesPreview.items;
   const openCasesTotal = openCasesPreview.total;
 
+  // C1 (2026-07-22, plan-maestro §3a): 0 deaths → mortality.traceableRate is a
+  // 0/0 ratio that reads "0%" as if disposition tracing had FAILED, when it
+  // simply never had a death to trace (the latent 0/0 the /gob/mortalidad
+  // page already gates on `hasDeaths`). Mirrors that same gate here via the
+  // descriptor's guard, not a re-invented inline check.
+  const mortalityHasDeaths = !zeroDenominatorGate(
+    KPI_CATALOG.mortality_deaths_12m,
+    mortality.total,
+  );
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -323,22 +335,36 @@ export default async function GobiernoDashboardPage({
           }
           bar={rabiesCoverage.hasData ? rabiesCoverage.current : undefined}
           sub={
-            rabiesCoverage.hasData
-              ? // task #79 — double denominator: name the registry count this % is
-                // computed against, then how much of the estimated canine population
-                // the padrón covers (or "sin estimación censal" with no census row).
-                `${formatCount(rabiesCoverage.registryDenominator)} ${
-                  rabiesCoverage.registryDenominator === 1 ? "perro" : "perros"
-                } en el padrón · ${
-                  rabiesCoverage.censusCoveragePct !== null
-                    ? `el padrón cubre ${formatPercent(rabiesCoverage.censusCoveragePct)} de la población canina estimada`
-                    : "sin estimación censal"
-                } · meta ${TARGETS.RABIES_COVERAGE_PCT}%`
-              : "Sin datos en el período"
+            rabiesCoverage.hasData ? (
+              // C1 (2026-07-22, plan-maestro §3h / red-team #2, partial —
+              // full ViewScope dual-denominator fix is C3): the estimated-
+              // population figure used to live as a trailing clause inside a
+              // long sentence — a subtext disclaimer, not a co-equal number.
+              // It now leads its own bolded line so it reads as CO-PRIMARY,
+              // not a footnote to the padrón count below it.
+              <span className="block space-y-0.5">
+                {rabiesCoverage.censusCoveragePct !== null ? (
+                  <span className="block font-semibold text-ln-op-ink">
+                    {formatPercent(rabiesCoverage.censusCoveragePct)} del padrón sobre la población
+                    canina estimada
+                  </span>
+                ) : (
+                  <span className="block">Sin estimación censal</span>
+                )}
+                <span className="block text-ln-op-mute">
+                  {formatCount(rabiesCoverage.registryDenominator)}{" "}
+                  {rabiesCoverage.registryDenominator === 1 ? "perro" : "perros"} en el padrón ·
+                  meta {TARGETS.RABIES_COVERAGE_PCT}%
+                </span>
+              </span>
+            ) : (
+              "Sin datos en el período"
+            )
           }
           sparkline={rabiesVaxTrend.points.map((p) => p.y)}
           href="/gob/analytics"
           info={getKpiInfo("rabies_coverage_dogs_12m")}
+          descriptorId="rabies_coverage_dogs_12m"
         />
         <OpKpi
           label={KPI_CATALOG.sterilizations_per_month.label}
@@ -351,7 +377,13 @@ export default async function GobiernoDashboardPage({
           sparkline={sterilizationTrend.points.map((p) => p.y)}
           sub={`${sterilizations.orgs} organizaciones`}
           href="/gob/analytics"
-          info={getKpiInfo("sterilizations_per_month")}
+          // C1 (2026-07-22, §3e / red-team "−95% MoM"): descriptorId +
+          // guardInput.priorBase route this delta through
+          // shouldSuppressDelta — when the prior 30d base is under the
+          // descriptor's floor, the chip is suppressed with an honest note
+          // instead of showing a wild swing computed against near-zero.
+          descriptorId="sterilizations_per_month"
+          guardInput={{ priorBase: sterilizations.prevCount }}
         />
         <OpKpi
           // Per-cápita honesty (H1): the census denominator is province-grain
@@ -461,13 +493,13 @@ export default async function GobiernoDashboardPage({
           <div className="flex flex-wrap gap-6">
             <div>
               <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
-                {mortality.total}
+                {mortalityHasDeaths ? mortality.total : "—"}
               </p>
               <p className="text-xs text-ln-op-mute">Fallecimientos registrados</p>
             </div>
             <div>
               <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
-                {formatPercent(mortality.traceableRate)}
+                {mortalityHasDeaths ? formatPercent(mortality.traceableRate) : "—"}
               </p>
               <p className="text-xs text-ln-op-mute">Disposición trazable</p>
             </div>
@@ -488,26 +520,38 @@ export default async function GobiernoDashboardPage({
           value={formatPercent(microchipPenetration.ratePct)}
           tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           bar={microchipPenetration.ratePct}
-          sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas · Ley 14.107`}
+          // C1 (2026-07-22, §3f / red-team #15): denominator wording fix —
+          // activePetsCondition (the fetcher's actual denominator) is
+          // active+lost pets, not "activas" alone. The old sub text named
+          // only half the population it was dividing by.
+          sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas · Ley 14.107`}
           href="/gob/analytics"
-          info={getKpiInfo("microchip_penetration")}
+          descriptorId="microchip_penetration"
         />
         <OpKpi
-          label="Registro PPP"
+          label={KPI_CATALOG.ppp_registry_compliance.label}
           value={breedCompliance.flaggedCount === 0 ? "—" : formatPercent(breedCompliance.ratePct)}
           tone={
             breedCompliance.flaggedCount === 0
               ? "neutral"
-              : toneForTarget(breedCompliance.ratePct, TARGETS.PPP_ATTESTATION_PCT)
+              : // C1 (2026-07-22, §3d / red-team #7): a self-serve attestation
+                // uptake number must never paint "Peligro" as a legal
+                // verdict — resolveSemaphoreTone forces the progress-toned
+                // "blue" (same convention as the historic rabies tile) per
+                // this KPI's semaphore: {paintAgainst: "none"} contract.
+                resolveSemaphoreTone(
+                  KPI_CATALOG.ppp_registry_compliance,
+                  toneForTarget(breedCompliance.ratePct, TARGETS.PPP_ATTESTATION_PCT),
+                )
           }
           bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
           sub={
             breedCompliance.flaggedCount === 0
               ? "sin PPP en cobertura · Ley 4078"
-              : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas · Ley 4078`
+              : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en MiMAR · no mide cumplimiento registral externo · Ley 4078`
           }
           href="/gob/analytics"
-          info={getKpiInfo("ppp_registry_compliance")}
+          descriptorId="ppp_registry_compliance"
         />
       </section>
 
