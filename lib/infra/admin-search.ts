@@ -21,6 +21,7 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { db, organizations, ownerships, petServiceDog, pets, profiles } from "@/db";
 import type { ServiceDogType, orgTypeEnum } from "@/db";
 import type { AdminOrGovtJurisdiction } from "@/lib/infra/auth-guards";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { hashDni } from "@/lib/utils/dni-hash";
 import { likeContains } from "@/lib/utils/like-helpers";
 
@@ -114,9 +115,16 @@ export async function searchUsers(
     // At least one active ownership linking the user to a scoped pet.
     // ownerships.role = 'owner' ensures we only count real owners (not caretakers).
     // ownerships.endedAt IS NULL restricts to current owners.
-    const jurisdictionPairs = scope.jurisdictions.map((j) =>
-      and(eq(pets.jurisdictionProvince, j.province), eq(pets.jurisdictionLocality, j.locality)),
-    );
+    // jurisdictionPairClause applies whole-province subsumption (a whole-CABA
+    // assignment matches every barrio, not just the sentinel locality string)
+    // — see lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+    // (2026-07-22) — same bug class as commit 68501bb4.
+    const jurisdictionClause =
+      jurisdictionPairClause(
+        [...scope.jurisdictions],
+        sql`${pets.jurisdictionProvince}`,
+        sql`${pets.jurisdictionLocality}`,
+      ) ?? sql`false`;
     scopeConditions.push(
       // profiles.id ∈ SELECT DISTINCT ownerUserId FROM ownerships JOIN pets ON ...
       sql`${profiles.id} IN (
@@ -125,7 +133,7 @@ export async function searchUsers(
         INNER JOIN ${pets} ON ${pets.id} = ${ownerships.petId}
         WHERE ${ownerships.endedAt} IS NULL
           AND ${ownerships.role} = 'owner'
-          AND (${or(...jurisdictionPairs)})
+          AND (${jurisdictionClause})
       )`,
     );
   }
@@ -229,17 +237,17 @@ export async function searchOrganizations(
       )
     : undefined;
 
+  // jurisdictionPairClause applies whole-province subsumption — see
+  // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+  // (2026-07-22) — same bug class as commit 68501bb4.
   const scopePredicate =
     scope.role === "admin"
       ? undefined
-      : or(
-          ...scope.jurisdictions.map((j) =>
-            and(
-              eq(organizations.jurisdictionProvince, j.province),
-              eq(organizations.jurisdictionLocality, j.locality),
-            ),
-          ),
-        );
+      : (jurisdictionPairClause(
+          [...scope.jurisdictions],
+          sql`${organizations.jurisdictionProvince}`,
+          sql`${organizations.jurisdictionLocality}`,
+        ) ?? sql`false`);
 
   const verifiedPredicate =
     verifiedFilter === "pending"
@@ -329,17 +337,17 @@ export async function searchServiceDogCredentials(
       )
     : undefined;
 
+  // jurisdictionPairClause applies whole-province subsumption — see
+  // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+  // (2026-07-22) — same bug class as commit 68501bb4.
   const scopePredicate =
     scope.role === "admin"
       ? undefined
-      : or(
-          ...scope.jurisdictions.map((j) =>
-            and(
-              eq(pets.jurisdictionProvince, j.province),
-              eq(pets.jurisdictionLocality, j.locality),
-            ),
-          ),
-        );
+      : (jurisdictionPairClause(
+          [...scope.jurisdictions],
+          sql`${pets.jurisdictionProvince}`,
+          sql`${pets.jurisdictionLocality}`,
+        ) ?? sql`false`);
 
   const statusFilter = filters.status ?? "vigente";
   const statusPredicate =

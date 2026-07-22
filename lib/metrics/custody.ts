@@ -47,7 +47,7 @@ import {
 } from "@/db";
 
 import type { ProjectionContext } from "./context";
-import { petsScopeClause } from "./scope";
+import { jurisdictionPairClause, petsScopeClause } from "./scope";
 import type { SingleSeriesTrend } from "./trends";
 import { fetchKpiTrend } from "./trends";
 
@@ -448,11 +448,16 @@ export async function fetchFosterPoolUtilization(
   if (ctx.scope.kind === "jurisdictions") {
     const { jurisdictions } = ctx.scope;
     if (jurisdictions.length === 0) return empty;
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${fosterVolunteers.jurisdictionProvince} = ${j.province} AND ${fosterVolunteers.jurisdictionLocality} = ${j.locality})`,
+    // jurisdictionPairClause applies whole-province subsumption — see
+    // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+    // (2026-07-22) — same bug class as commit 68501bb4.
+    volunteerScopeConditions.push(
+      jurisdictionPairClause(
+        [...jurisdictions],
+        sql`${fosterVolunteers.jurisdictionProvince}`,
+        sql`${fosterVolunteers.jurisdictionLocality}`,
+      ) ?? sql`false`,
     );
-    volunteerScopeConditions.push(sql`(${sql.join(pairs, sql` OR `)})`);
   }
 
   const petsScope = petsScopeClause(ctx);

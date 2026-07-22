@@ -22,7 +22,7 @@ import { and, count, eq, gte, inArray, lt, sql } from "drizzle-orm";
 // has a measured >100x pathology for this fan-out shape (db/index.ts); session mode
 // serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
 import { appointments, analyticsDb as db, petEvents, serviceOfferings } from "@/db";
-import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
+import { type ProjectionContext, jurisdictionPairClause, suppressSmallCells } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
 // Sanitary outcome event spine
@@ -212,11 +212,15 @@ async function resolveOfferingIds(
   const { jurisdictions } = ctx.scope;
   if (jurisdictions.length === 0) return [];
 
-  const pairs = jurisdictions.map(
-    (j) =>
-      sql`(${serviceOfferings.jurisdictionProvince} = ${j.province} AND ${serviceOfferings.jurisdictionLocality} = ${j.locality})`,
-  );
-  const scopeClause = sql.join(pairs, sql` OR `);
+  // jurisdictionPairClause applies whole-province subsumption — see
+  // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+  // (2026-07-22) — same bug class as commit 68501bb4.
+  const scopeClause =
+    jurisdictionPairClause(
+      [...jurisdictions],
+      sql`${serviceOfferings.jurisdictionProvince}`,
+      sql`${serviceOfferings.jurisdictionLocality}`,
+    ) ?? sql`false`;
 
   const conditions = [
     inArray(serviceOfferings.status, ["approved", "pending_approval", "paused", "archived"]),

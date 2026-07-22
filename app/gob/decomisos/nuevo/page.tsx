@@ -6,12 +6,13 @@
 // for the receiver combobox, then renders the client DecomisoForm component.
 // Auth is enforced by requireDecomisoPrincipal (govt | admin).
 
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { db, organizations, welfareReports } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 
 import { DecomisoForm } from "./_components/DecomisoForm";
 
@@ -70,16 +71,17 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
   // pairs — never the nationwide roster. Admin has universal scope (empty
   // jurisdictions ⇒ no jurisdiction predicate). A govt with zero active
   // assignments sees no orgs (cannot leak the nationwide list).
+  //
+  // jurisdictionPairClause applies whole-province subsumption — see
+  // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+  // (2026-07-22) — same bug class as commit 68501bb4.
   const jurisdictionPredicate =
     profile.role === "govt"
-      ? or(
-          ...jurisdictions.map((j) =>
-            and(
-              eq(organizations.jurisdictionProvince, j.province),
-              eq(organizations.jurisdictionLocality, j.locality),
-            ),
-          ),
-        )
+      ? (jurisdictionPairClause(
+          [...jurisdictions],
+          sql`${organizations.jurisdictionProvince}`,
+          sql`${organizations.jurisdictionLocality}`,
+        ) ?? sql`false`)
       : undefined;
 
   const receiverOrgs =

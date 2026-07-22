@@ -22,12 +22,16 @@
 //      never down — a segment loading.tsx quietly deleted fails CI.
 //   4. EMPTY-STATE COVERAGE (ratchet, best-effort) — a page.tsx that renders
 //      an `OpFilterBar` (the operator list/dashboard signal) is expected to
-//      have an empty-state primitive (`EmptyState` — matches both
-//      `LnEmptyState` and a generic import) somewhere in its own directory.
-//      This is a heuristic, not a parser: baseline absorbs every current gap
-//      (some are false positives — the empty state lives in a shared child
-//      component elsewhere), and only a NEW gap (a new list screen shipped
-//      with no empty-state signal at all in its own folder) fails CI.
+//      have an empty-state signal somewhere in its own directory: the
+//      `LnEmptyState` component, the shared `OpCallout` component, or the
+//      dominant inline idiom `X.length === 0 ? <fallback/> : <list/>`.
+//      This is a heuristic, not a parser: baseline absorbs remaining gaps
+//      that are false positives — the empty state lives in a shared child
+//      component in a DIFFERENT directory the same-dir sibling scan can't
+//      see (e.g. CaseQueue's `emptyMessage` prop), or the page isn't
+//      actually list-shaped despite mounting OpFilterBar (e.g. a KPI
+//      dashboard) — and only a NEW gap (a new list screen shipped with no
+//      empty-state signal at all in its own folder) fails CI.
 //
 // Baseline: scripts/state-coverage-baseline.json — regenerate with
 //   pnpm tsx scripts/check-state-coverage.ts --write-baseline
@@ -120,8 +124,19 @@ const PORTAL_ROOTS = ["app/gob", "app/admin", "app/org", "app/(app)", "app/(publ
 /** Heuristic: a page.tsx that renders `OpFilterBar` is a list/dashboard screen. */
 const LIST_SIGNAL_RE = /OpFilterBar/;
 
-/** Matches both `LnEmptyState` and a generic `EmptyState` import/usage. */
-const EMPTY_STATE_SIGNAL_RE = /EmptyState/;
+// HARDENING (2026-07-22 manual audit of the 17 baselined gaps): the original
+// signal only matched the literal `LnEmptyState` component name. Every one of
+// the 17 turned out to already render an honest "no rows" message — but the
+// dominant idiom in this codebase is a bare `X.length === 0 ? <fallback /> :
+// <list />` conditional (plain text, a dashed box, or the shared `OpCallout`
+// component), NOT the `LnEmptyState` component. The signal-name-only regex
+// never saw those, so it kept flagging pages that were already covered.
+// Broadened to also recognize `OpCallout` and the `.length === 0` idiom
+// itself. Still best-effort: a page whose zero-rows fallback lives in a
+// CHILD COMPONENT IN A DIFFERENT DIRECTORY (not a same-dir sibling — e.g.
+// CaseQueue's `emptyMessage` prop, AlertInboxTable's own branch) is still
+// invisible to this file-scoped scan; those stay in the baseline.
+const EMPTY_STATE_SIGNAL_RE = /EmptyState|OpCallout|\.length\s*===\s*0/;
 
 function collectPortalPages(): string[] {
   const files: string[] = [];

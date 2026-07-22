@@ -15,7 +15,7 @@ import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 
 import { db, petEvents, pets } from "@/db";
 import type { SenasaEventRow } from "@/lib/analytics/senasa-export";
-import type { ProjectionContext } from "@/lib/metrics";
+import { type ProjectionContext, jurisdictionPairClause } from "@/lib/metrics";
 
 /**
  * Gathers the SENASA-aligned events in scope for the given context.
@@ -37,11 +37,18 @@ export async function fetchSenasaBatch(ctx: ProjectionContext): Promise<SenasaEv
   if (ctx.scope.kind === "jurisdictions") {
     const { jurisdictions } = ctx.scope;
     if (jurisdictions.length === 0) return [];
-    const pairs = jurisdictions.map(
-      (j) =>
-        sql`(${pets.jurisdictionProvince} = ${j.province} AND ${pets.jurisdictionLocality} = ${j.locality})`,
-    );
-    where = and(base, sql.join(pairs, sql` OR `));
+    // jurisdictionPairClause applies whole-province subsumption — see
+    // lib/metrics/scope.ts. Found via authz-subsumption fence hardening
+    // (2026-07-22) — same bug class as commit 68501bb4. Without it, a
+    // whole-province operator's SENASA export would silently drop every
+    // barrio-tagged sanitary event in their own province.
+    const scopeClause =
+      jurisdictionPairClause(
+        [...jurisdictions],
+        sql`${pets.jurisdictionProvince}`,
+        sql`${pets.jurisdictionLocality}`,
+      ) ?? sql`false`;
+    where = and(base, scopeClause);
   }
 
   const rows = await db

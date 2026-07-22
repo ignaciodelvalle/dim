@@ -848,11 +848,18 @@ export async function listOpenCasesForGovtPreview(
 ): Promise<OpenCasesPreview> {
   if (jurisdictions.length === 0) return { items: [], total: 0 };
 
-  const jurisdictionFilter = or(
-    ...jurisdictions.map((j) =>
-      and(eq(cases.jurisdictionProvince, j.province), eq(cases.jurisdictionLocality, j.locality)),
-    ),
-  );
+  // jurisdictionPairClause applies whole-province subsumption (a whole-CABA
+  // assignment matches every barrio, not just the sentinel locality string) —
+  // see lib/metrics/scope.ts. A raw per-assignment AND(province, locality)
+  // pair would under-scope a whole-province operator to sentinel-locality rows
+  // only (fail-closed but wrong; found via authz-subsumption fence hardening,
+  // 2026-07-22 — same bug class as commit 68501bb4).
+  const jurisdictionFilter =
+    jurisdictionPairClause(
+      [...jurisdictions],
+      sql`${cases.jurisdictionProvince}`,
+      sql`${cases.jurisdictionLocality}`,
+    ) ?? sql`false`;
   const whereClause = and(inArray(cases.status, [...OPEN_CASE_STATUSES]), jurisdictionFilter);
 
   const [items, total] = await Promise.all([
@@ -947,16 +954,14 @@ export async function listOutbreakInvestigationsForGovt(
           )
         : eq(cases.jurisdictionProvince, opts.adminProvince)
       : undefined
-    : jurisdictions.length > 0
-      ? or(
-          ...jurisdictions.map((j) =>
-            and(
-              eq(cases.jurisdictionProvince, j.province),
-              eq(cases.jurisdictionLocality, j.locality),
-            ),
-          ),
-        )
-      : undefined;
+    : // jurisdictionPairClause applies whole-province subsumption — see
+      // lib/metrics/scope.ts (found via authz-subsumption fence hardening,
+      // 2026-07-22 — same bug class as commit 68501bb4).
+      (jurisdictionPairClause(
+        [...jurisdictions],
+        sql`${cases.jurisdictionProvince}`,
+        sql`${cases.jurisdictionLocality}`,
+      ) ?? undefined);
 
   const rows = await db
     .select({ c: CASE_OUTBREAK_LIST_SELECT })
@@ -1001,17 +1006,16 @@ export async function getOutbreakInvestigationDetail(
   // scope (jurisdictions is []); a govt with no assignments sees nothing.
   if (!isAdmin && jurisdictions.length === 0) return null;
 
-  const jurisdictionFilter =
-    !isAdmin && jurisdictions.length > 0
-      ? or(
-          ...jurisdictions.map((j) =>
-            and(
-              eq(cases.jurisdictionProvince, j.province),
-              eq(cases.jurisdictionLocality, j.locality),
-            ),
-          ),
-        )
-      : undefined;
+  // jurisdictionPairClause applies whole-province subsumption — see
+  // lib/metrics/scope.ts (found via authz-subsumption fence hardening,
+  // 2026-07-22 — same bug class as commit 68501bb4).
+  const jurisdictionFilter = !isAdmin
+    ? (jurisdictionPairClause(
+        [...jurisdictions],
+        sql`${cases.jurisdictionProvince}`,
+        sql`${cases.jurisdictionLocality}`,
+      ) ?? undefined)
+    : undefined;
 
   const [row] = await db
     .select({

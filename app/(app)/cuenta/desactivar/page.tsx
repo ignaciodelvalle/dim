@@ -57,6 +57,18 @@ export default async function DesactivarPage() {
           .where(
             and(
               ne(govtAssignments.userId, user.id),
+              // KNOWN LIMITATION (authz-subsumption fence hardening, 2026-07-22
+              // — see scripts/check-jurisdiction-subsumption.ts KNOWN_EXCEPTIONS):
+              // this is a coverage-WARNING estimate, not an authorization gate
+              // (nothing is granted/hidden by this count). It compares EXACT
+              // pairs only, so a whole-province (whole-CABA) assignment on
+              // either side won't be recognized as covering a barrio-specific
+              // assignment on the other side. jurisdictionPairClause doesn't fix
+              // this by simple substitution — it subsumes from ONE side only,
+              // and the groupBy+exact-key lookup below still needs the match to
+              // land under `a.province}||${a.locality}`. Needs a dedicated
+              // bidirectional-overlap helper; deferred as low-stakes (informational
+              // warning only, no data exposure).
               or(
                 ...myAssignments.map((a) =>
                   and(

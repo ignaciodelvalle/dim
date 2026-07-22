@@ -293,9 +293,11 @@ export const CASE_ATTACHMENT_RULES: Record<EventType, AttachmentRule> = {
     compatibleWith: ["adoption_listing"],
   },
   adoption_reversed: {
-    // Reopens adoption_listing in the unique reopen case. The server
-    // action handles the reopen UPDATE separately from the standard
-    // attachment helper.
+    // Does NOT reopen adoption_listing (PO decision, commit 406c049f):
+    // reversal returns the pet to org custody UN-LISTED. The server
+    // action (reverse-adoption.ts) forces the listing closed/un-listed
+    // separately from this standard attachment helper; re-listing
+    // requires an explicit new adoption_eligibility_set(eligible=true).
     mode: "requires-open",
     compatibleWith: ["adoption_listing"],
   },
