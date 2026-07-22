@@ -104,3 +104,18 @@ Ola I: C2 lenguaje + C5 seed + C1 arranque. Secuencial (norma un-writer-por-árb
 - ⏳ C2: SlaBadge tipado + CTAs + bivariado + RUPGA + glosario + ENO labels + fence copy-contract
 - ⬜ C5: seed hygiene (display_name/welfare desc, lucas@ CABA-entera, edad↔status, multi-org) + lint:no-seed-ids
 - ⬜ C1: descriptor ejecutable + renderer con guardas + primeros 8 consumidores
+
+### OLA I COMPLETA (2026-07-22)
+- C2 lenguaje `7eb41f60`+`2bce8eaf`: SlaBadge tipado (fix confianza #1) · maltrato default
+  unassigned · capability-classes en feed links · glosario+RUPGA · bivariado "Intensidad de
+  reporte" · ENO honesto · lint:copy-contract (baseline 0).
+- C5 seed `c96ca01b`: nombres reales · edad↔status (90% cerrado >180d) · lucas@=CABA-entera ·
+  6 orgs esterilización · feed variado · migración 0155 (seed_tag, LOCAL — remoto PO-gated) ·
+  check-seed-hygiene (0/3023) + lint:seed-ids (0).
+- C1 arranque `b2fa5944`: contrato ejecutable en kpi-catalog · presentation-guards ·
+  OpKpi.descriptorId · 8 consumidores (mortalidad 0/0, reunificación smallN, antirrábica única,
+  PPP sin veredicto, MoM suprimido, microchip, escalation-gap, censo co-igual) ·
+  lint:metric-contract (ratchet 80/19) · hostile-reader suite.
+NEXT — Ola II: barrido C1 (~80 tiles al descriptor) + C3 ViewScope + C4 epistémico.
+PO-gated: migración 0155 a remoto · validación visual (SLA badges, maltrato default, renombres,
+KPIs guardeados) · upgrade Vercel Pro (frescura).
