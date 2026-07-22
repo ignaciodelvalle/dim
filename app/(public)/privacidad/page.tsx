@@ -52,8 +52,14 @@ export default function PrivacidadPage() {
               sanitarios que vos ingresás voluntariamente.
             </li>
             <li>
-              <strong>Datos de ubicación:</strong> provincia y localidad del dueño, usados para
-              enrutar denuncias y mejorar búsquedas. No recopilamos GPS en tiempo real.
+              <strong>Datos de ubicación:</strong> la provincia y localidad de tu cuenta se usan
+              para enrutar denuncias y estimar coberturas. Además, en los formularios de mascota
+              perdida, avistajes, denuncias y mordeduras podés indicar una ubicación exacta (GPS del
+              dispositivo, un pin en el mapa o una dirección geocodificada) — siempre por una acción
+              tuya explícita (tocar &quot;Usar mi ubicación&quot; o marcar el mapa), nunca de forma
+              automática ni en segundo plano. Si alguien escanea el código QR de una mascota marcada
+              como perdida, puede compartir su ubicación GPS de forma voluntaria para ayudar a
+              encontrarla; ese dato no identifica a quien escanea.
             </li>
             <li>
               <strong>Denuncias anónimas:</strong> las denuncias de maltrato pueden enviarse sin

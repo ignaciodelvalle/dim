@@ -18,8 +18,8 @@
 // existing users to accept the new version) is a follow-up feature; for v1 we
 // record the version accepted at signup.
 
-export const LEGAL_VERSION = "2025-06-01";
+export const LEGAL_VERSION = "2026-07-22";
 
 // Human-facing label rendered on the legal pages. Kept next to the machine
 // version so they are bumped together.
-export const LEGAL_VERSION_LABEL = "junio 2025";
+export const LEGAL_VERSION_LABEL = "julio 2026";
