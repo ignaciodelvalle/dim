@@ -61,6 +61,20 @@ Todo verificado (tsc/biome/lint/tests), :3000 rebuildeado, nada pusheado.
 - Adopción app-wide de `notifySaved` (convención probada en 3 superficies).
 - Los 2052 valores arbitrarios de tokens ratcheteando.
 
+## RUN NOCTURNO EXPANDIDO (PO 2026-07-22) — cola
+Aprobados + candidatos (Blind spot, empty-state, Panorama split, Fase B) + Fase C.
+- ✅ adoption_reversed (`406c049f`,`c8c690ef`); density revert + provincias-alerta fix (`ad52c27e`).
+- ✅ Toast sweep app-wide (`5c545b4a`).
+- ⏳ Skeleton sweep (~75 segmentos → específicos).
+- ⬜ Stale comments adoption-listing/case-attachment ('reopens listing' — mentira).
+- ⬜ Blind spot: endurecer lint:authz-subsumption (no cazó el bug de subsunción).
+- ⬜ Empty-state: los 17 gaps baselineados → LnEmptyState o N/A documentado.
+- ⬜ Panorama split (Console 5473 / repository 4278 / SituationalMap 4034) — CUIDADO.
+- ⬜ Fase B: filtros baratos (especie/estado) en más pantallas (columna+eq ya existen).
+- ⬜ Fase C nacional: saved views + export que honra filtros.
+PO decisions: adoption_reversed = custody→org + re-publish explícito (HECHO); owner-nudges
+= borrado (HECHO); primario/secundario = revertido (HECHO).
+
 ## Log
 - (start) Plan committed 25e38ae7. Wave 1 kicked off.
 
