@@ -22,6 +22,7 @@ import {
   anonymizeRows,
   rowsToCsv,
 } from "@/lib/analytics/govt-exports";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 
 export type GenerateExportResult =
@@ -75,34 +76,79 @@ export async function generateExportAction(formData: FormData): Promise<Generate
 
     const period = parsePeriod(formData);
 
+    // 2b. Jurisdiction filter — identical logic to app/gob/analytics/export/page.tsx
+    // (export honors the active filter, Fase C 2026-07-21). Previously this action
+    // ignored any province/locality narrowed via the form's JurisdictionSwitcher and
+    // always exported the operator's FULL jurisdiction assignment (govt) / the
+    // entire nation (admin) — a view↔export honesty gap: the switcher visibly
+    // updated but had no effect on what was actually exported. filteredJurisdictions
+    // narrows the govt case (assignments ∩ selection); adminSelectedProvince/Locality
+    // carry the admin drill-down (admin has no assignments to narrow).
+    const rawProvince = formData.get("province");
+    const rawLocality = formData.get("locality");
+    const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
+      await resolveJurisdictionScope({
+        role: profile.role,
+        jurisdictions,
+        params: {
+          province: typeof rawProvince === "string" ? rawProvince : undefined,
+          locality: typeof rawLocality === "string" ? rawLocality : undefined,
+        },
+      });
+    const adminProvince = adminSelectedProvince ?? undefined;
+    const adminLocality = adminSelectedLocality ?? undefined;
+
     // 3. Fetch rows per requested slice.
     const sliceData: Partial<
       Record<ExportSlice, { rows: Record<string, unknown>[]; rejected: number }>
     > = {};
 
     if (requestedSlices.includes("pets")) {
-      const raw = await fetchPetsForExport(actor, jurisdictions, period);
+      const raw = await fetchPetsForExport(
+        actor,
+        filteredJurisdictions,
+        period,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.pets = anonymizeRows("pets", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
       };
     }
     if (requestedSlices.includes("events")) {
-      const raw = await fetchEventsForExport(actor, jurisdictions, period);
+      const raw = await fetchEventsForExport(
+        actor,
+        filteredJurisdictions,
+        period,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.events = anonymizeRows("events", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
       };
     }
     if (requestedSlices.includes("cases")) {
-      const raw = await fetchCasesForExport(actor, jurisdictions, period);
+      const raw = await fetchCasesForExport(
+        actor,
+        filteredJurisdictions,
+        period,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.cases = anonymizeRows("cases", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
       };
     }
     if (requestedSlices.includes("organizations")) {
-      const raw = await fetchOrganizationsForExport(actor, jurisdictions);
+      const raw = await fetchOrganizationsForExport(
+        actor,
+        filteredJurisdictions,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.organizations = anonymizeRows("organizations", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
@@ -244,6 +290,11 @@ export async function generateExportAction(formData: FormData): Promise<Generate
         period: {
           since: period.since?.toISOString() ?? null,
           until: period.until?.toISOString() ?? null,
+        },
+        jurisdiction: {
+          province: adminProvince ?? null,
+          locality: adminLocality ?? null,
+          filtered_jurisdiction_count: filteredJurisdictions.length,
         },
         file_path: filePath,
         row_counts: rowCounts,

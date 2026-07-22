@@ -153,6 +153,7 @@ export default async function AdminCasosPage({
       <OpFilterBar
         showPeriod={false}
         resetParamsOnChange={["cursor"]}
+        savedViewsKey="op-saved-views:casos:v1"
         axes={
           [
             {

@@ -51,6 +51,8 @@ export default async function GobAnalyticsExportPage({
   const period = params.period ?? "30d";
   const from = params.from ?? "";
   const to = params.to ?? "";
+  const province = params.province ?? "";
+  const locality = params.locality ?? "";
 
   // Resolve selected province → localities list + switcher options.
   const { localities, allowedProvinces } = await resolveJurisdictionScope({
@@ -106,6 +108,8 @@ export default async function GobAnalyticsExportPage({
               period={period}
               from={from}
               to={to}
+              province={province}
+              locality={locality}
             />
           </Suspense>
         </OpCardBody>

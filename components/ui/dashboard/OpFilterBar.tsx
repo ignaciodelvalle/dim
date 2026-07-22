@@ -8,6 +8,7 @@ import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { CopyViewButton } from "@/components/ui/dashboard/CopyViewButton";
 import { OpSelect } from "@/components/ui/dashboard/OpField";
+import { SavedViewsControl } from "@/components/ui/dashboard/SavedViewsControl";
 import {
   PRESET_3Y,
   PRESET_5Y,
@@ -138,6 +139,16 @@ export type OpFilterBarProps = {
    * sibling next to it.
    */
   actions?: ReactNode;
+  /**
+   * Saved views (Fase C, 2026-07-21) — when provided, renders a compact
+   * "Vistas guardadas" control in the header, next to "Copiar vista", backed
+   * by localStorage under this exact key (see SavedViewsControl). MUST be a
+   * stable, screen-scoped key (e.g. "op-saved-views:perdidas:v1") so one
+   * screen's saved views never mix with another's. Omitted by default — this
+   * is opt-in per screen, not a blanket rollout across every OpFilterBar
+   * consumer.
+   */
+  savedViewsKey?: string;
   className?: string;
 };
 
@@ -265,6 +276,7 @@ export function OpFilterBar({
   resetParamsOnChange = [],
   children,
   actions,
+  savedViewsKey,
   className = "",
 }: OpFilterBarProps) {
   const searchParams = useSearchParams();
@@ -338,11 +350,14 @@ export function OpFilterBar({
     >
       {/* Region 1 — header: bar identity + active-filter count at a glance
           (the count summarizes; the removable chips below carry the detail).
-          Page-level `actions` (e.g. "Exportar CSV →") and "Copiar vista" are
-          grouped together at the far right — the URL already carries every
-          active filter (period/jurisdiction/domain axes are all searchParams),
-          so "Copiar vista" is a shareable/bookmarkable "saved view" one click
-          away, and `actions` lives in the SAME bar instead of floating beside it. */}
+          Page-level `actions` (e.g. "Exportar CSV →"), "Vistas guardadas"
+          (opt-in via `savedViewsKey` — Fase C, 2026-07-21) and "Copiar vista"
+          are grouped together at the far right — the URL already carries
+          every active filter (period/jurisdiction/domain axes are all
+          searchParams), so "Copiar vista" is a shareable link one click away
+          and "Vistas guardadas" lets the operator NAME + recall that same URL
+          later, and `actions` lives in the SAME bar instead of floating
+          beside it. */}
       <div className="flex items-center gap-2 text-ln-op-mute">
         <Icon name="filter" size={15} decorative />
         <span className="text-xs font-semibold uppercase tracking-[0.08em]">Filtros</span>
@@ -356,6 +371,7 @@ export function OpFilterBar({
         )}
         <div className="flex items-center gap-2 ml-auto">
           {actions}
+          {savedViewsKey && <SavedViewsControl storageKey={savedViewsKey} />}
           <CopyViewButton />
         </div>
       </div>

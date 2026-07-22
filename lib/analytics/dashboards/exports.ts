@@ -37,11 +37,13 @@ export async function fetchPetsForExport(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: ExportPeriod = {},
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<RawPetExportRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
   const conditions: ReturnType<typeof sql>[] = [];
-  const scope = petsScopeClause(actor, jurisdictions);
+  const scope = petsScopeClause(actor, jurisdictions, adminProvince, adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
   // Bind dates as ISO strings — a raw JS Date in sql`` crashes postgres-js
   // (prepare:false) with ERR_INVALID_ARG_TYPE; the comparison casts to timestamptz.
@@ -85,6 +87,8 @@ export async function fetchEventsForExport(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: ExportPeriod = {},
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<RawEventExportRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
@@ -94,8 +98,15 @@ export async function fetchEventsForExport(
   // outbreak event for a scoped-govt export (the ghost-payload bug). Scope by the
   // pet's CURRENT jurisdiction (pets columns) against the pets INNER JOIN below;
   // this is also the payload-drift guard the sibling fetchers got in the 2026-07-04
-  // scope review. Admin → null (universal export).
-  const petsScope = petsCurrentJurisdictionClause(actor, jurisdictions);
+  // scope review. Admin with no province selected → null (universal export);
+  // admin with a province/locality selected → drill-down predicate (export
+  // honors the active filter, Fase C 2026-07-21).
+  const petsScope = petsCurrentJurisdictionClause(
+    actor,
+    jurisdictions,
+    adminProvince,
+    adminLocality,
+  );
   if (petsScope) conditions.push(sql`(${petsScope})`);
   // Bind dates as ISO strings (see fetchPetsForExport) — raw Date in sql`` crashes postgres-js.
   if (period.since) conditions.push(sql`${petEvents.occurredAt} >= ${period.since.toISOString()}`);
@@ -134,11 +145,13 @@ export async function fetchCasesForExport(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   period: ExportPeriod = {},
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<RawCaseExportRow[]> {
   if (actor.role === "govt" && jurisdictions.length === 0) return [];
 
   const conditions: ReturnType<typeof sql>[] = [];
-  const scope = casesScopeClause(actor, jurisdictions);
+  const scope = casesScopeClause(actor, jurisdictions, adminProvince, adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
   // Bind dates as ISO strings (see fetchPetsForExport) — raw Date in sql`` crashes postgres-js.
   if (period.since) conditions.push(sql`${cases.createdAt} >= ${period.since.toISOString()}`);
@@ -180,6 +193,8 @@ export type RawOrganizationExportRow = {
 export async function fetchOrganizationsForExport(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): Promise<RawOrganizationExportRow[]> {
   const conditions: ReturnType<typeof sql>[] = [];
 
@@ -194,6 +209,17 @@ export async function fetchOrganizationsForExport(
     );
     // pairs is non-null because jurisdictions.length > 0 (guarded above).
     if (pairs) conditions.push(sql`(${pairs})`);
+  } else if (adminProvince) {
+    // Admin province/locality drill-down (export honors the active filter,
+    // Fase C 2026-07-21) — mirrors petsScopeClause/casesScopeClause's admin
+    // branch. No adminProvince → unrestricted, exactly as before.
+    const adminClause = adminLocality
+      ? and(
+          eq(organizations.jurisdictionProvince, adminProvince),
+          eq(organizations.jurisdictionLocality, adminLocality),
+        )
+      : eq(organizations.jurisdictionProvince, adminProvince);
+    if (adminClause) conditions.push(sql`(${adminClause})`);
   }
 
   const rows = await db

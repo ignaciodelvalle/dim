@@ -87,11 +87,16 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
  *  surfaces migrate independently (LnButton for citizen, OpButton for
  *  operator), so merging the counts would hide a regression in either one
  *  behind headroom in the other.
+ *  2026-07-21 (Fase C, saved-views primitive): SavedViewsPopover.tsx's 4 raw
+ *  buttons were extracted into the new shared components/ui/dashboard/
+ *  SavedViewsControl.tsx (net +4 there, -4 in the now-thin wrapper — no new
+ *  raw buttons overall), and the run also picked up an unrelated -2 drift.
+ *  Baseline lowered 325 → 323 to lock in the net gain.
  *  Target: 0, via migration to LnButton (components/ui/Button.tsx).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const CITIZEN_BASELINE = 325;
+const CITIZEN_BASELINE = 323;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 

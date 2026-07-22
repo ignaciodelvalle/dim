@@ -27,6 +27,8 @@ export type {
   OpFilterAxisOption,
 } from "./OpFilterBar";
 export { CopyViewButton } from "./CopyViewButton";
+export { SavedViewsControl } from "./SavedViewsControl";
+export type { SavedViewsControlProps } from "./SavedViewsControl";
 export { OpBreach } from "./OpBreach";
 export { OpCallout } from "./OpCallout";
 export { OpOfflineBanner } from "./OpOfflineBanner";

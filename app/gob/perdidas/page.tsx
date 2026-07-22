@@ -234,6 +234,7 @@ export default async function GobPerdidasPage({
       <OpFilterBar
         showPeriod={false}
         jurisdiction={{ allowedProvinces, localities }}
+        savedViewsKey="op-saved-views:perdidas:v1"
         axes={
           [
             {

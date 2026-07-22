@@ -39,29 +39,43 @@ export function ExportFormClient({
   period: ssrPeriod,
   from: ssrFrom,
   to: ssrTo,
+  province: ssrProvince,
+  locality: ssrLocality,
 }: {
   allowedProvinces: Array<{ code: string; name: string }>;
   localities: Array<{ slug: string; name: string }>;
   period: string;
   from: string;
   to: string;
+  province: string;
+  locality: string;
 }) {
   const [state, dispatch, pending] = useActionState(submitAction, initialState);
   // Read live URL state so the hidden inputs always match the currently-selected
-  // period, even after the PeriodPicker updates the URL client-side.
+  // period AND jurisdiction, even after the PeriodPicker/JurisdictionSwitcher
+  // update the URL client-side (full document nav — see JurisdictionSwitcher's
+  // own design note). Previously only period/from/to were mirrored here, so
+  // narrowing the province/locality via the switcher visibly updated the form
+  // but silently had NO effect on the generated export (view↔export honesty
+  // gap, Fase C 2026-07-21 — fixed alongside the server action).
   const searchParams = useSearchParams();
   const period = searchParams.get("period") ?? ssrPeriod;
   const from = searchParams.get("from") ?? ssrFrom;
   const to = searchParams.get("to") ?? ssrTo;
+  const province = searchParams.get("province") ?? ssrProvince;
+  const locality = searchParams.get("locality") ?? ssrLocality;
 
   return (
     <form action={dispatch} className="space-y-6">
       {/* Hidden inputs carrying PeriodPicker + JurisdictionSwitcher state
           from the LIVE URL (useSearchParams). These update reactively when the
-          PeriodPicker changes the URL so the export matches the displayed charts. */}
+          PeriodPicker/JurisdictionSwitcher change the URL so the export
+          matches the displayed charts AND the selected jurisdiction. */}
       <input type="hidden" name="period" value={period} />
       {from && <input type="hidden" name="from" value={from} />}
       {to && <input type="hidden" name="to" value={to} />}
+      {province && <input type="hidden" name="province" value={province} />}
+      {locality && <input type="hidden" name="locality" value={locality} />}
 
       {/* Period selector */}
       <section className="space-y-2">

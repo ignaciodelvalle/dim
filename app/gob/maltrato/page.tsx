@@ -272,6 +272,7 @@ export default async function GobMaltratoPage({
           showPeriod={false}
           jurisdiction={{ allowedProvinces, localities }}
           resetParamsOnChange={["cursor"]}
+          savedViewsKey="op-saved-views:maltrato:v1"
           axes={
             [
               {

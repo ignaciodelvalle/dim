@@ -19,6 +19,7 @@ import {
   custodyDisputesScopeClause,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
+  fetchCasesForExport,
   fetchCasesPerLocality,
   fetchDeathCauses,
   fetchDiseaseSummary,
@@ -536,6 +537,125 @@ describe("jurisdiction drift — export & analytics fetchers fitness sweep (task
     const r = await fetchEventsForExport({ role: "govt" }, SWEEP_SCOPE);
     const tokens = r.map((row) => row.petPublicToken);
     expect(tokens).not.toContain(movedToken);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export honors active filters — admin province/locality drill-down
+// (Fase C, saved-views/export-honors-filters, 2026-07-21).
+//
+// /gob/analytics/export's JurisdictionSwitcher lets an admin narrow the
+// export to a single province/locality (Panorama-style drill-down), same as
+// every other analytics dashboard's OpFilterBar. Before this fix, the
+// export server action never forwarded the selection into fetchPetsForExport/
+// fetchEventsForExport/fetchCasesForExport/fetchOrganizationsForExport — the
+// switcher visibly updated but the generated file always covered the WHOLE
+// nation for an admin (view↔export honesty gap). These fetchers' admin-drill
+// params (adminProvince/adminLocality) already existed on the underlying
+// _scope.ts helpers (petsScopeClause/petsCurrentJurisdictionClause/
+// casesScopeClause) for the on-screen dashboards — this closes the gap by
+// threading them through the EXPORT fetchers too.
+describe("export honors active filters — admin province/locality drill-down (Fase C)", () => {
+  const DRILL_PROV = "CABA";
+  const DRILL_LOC = "GD-ExportDrillVille"; // unique to this suite
+
+  it("fetchPetsForExport: admin + adminProvince/adminLocality narrows to that jurisdiction only", async () => {
+    const insideId = await insertFixturePet({
+      name: "ExportDrillPetInside",
+      species: "dog",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+    });
+    const outsideId = await insertFixturePet({
+      name: "ExportDrillPetOutside",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    const [insideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, insideId));
+    const [outsideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, outsideId));
+
+    // No drill-down (backward-compat): admin still sees both.
+    const universal = await fetchPetsForExport({ role: "admin" }, []);
+    const universalTokens = universal.map((r) => r.publicToken);
+    expect(universalTokens).toContain(insideRow.publicToken);
+    expect(universalTokens).toContain(outsideRow.publicToken);
+
+    // Drilled down: only the selected province/locality survives.
+    const drilled = await fetchPetsForExport({ role: "admin" }, [], {}, DRILL_PROV, DRILL_LOC);
+    const drilledTokens = drilled.map((r) => r.publicToken);
+    expect(drilledTokens).toContain(insideRow.publicToken);
+    expect(drilledTokens).not.toContain(outsideRow.publicToken);
+  });
+
+  it("fetchEventsForExport: admin drill-down excludes events from a pet outside the selected jurisdiction", async () => {
+    const insideId = await insertFixturePet({
+      name: "ExportDrillEventInside",
+      species: "dog",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+    });
+    const outsideId = await insertFixturePet({
+      name: "ExportDrillEventOutside",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitOutbreakSignal({
+      petId: insideId,
+      diseaseCode: "export_drill_disease",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+      hoursAgo: 1,
+    });
+    await emitOutbreakSignal({
+      petId: outsideId,
+      diseaseCode: "export_drill_disease",
+      province: "Buenos Aires",
+      locality: "La Plata",
+      hoursAgo: 1,
+    });
+    const [insideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, insideId));
+    const [outsideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, outsideId));
+
+    const drilled = await fetchEventsForExport({ role: "admin" }, [], {}, DRILL_PROV, DRILL_LOC);
+    const tokens = drilled
+      .filter((r) => r.eventType === "outbreak_signal")
+      .map((r) => r.petPublicToken);
+    expect(tokens).toContain(insideRow.publicToken);
+    expect(tokens).not.toContain(outsideRow.publicToken);
+  });
+
+  it("fetchCasesForExport: admin drill-down excludes a case outside the selected jurisdiction", async () => {
+    await insertFixtureCase({
+      caseKind: "custody_dispute",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+    });
+    await insertFixtureCase({
+      caseKind: "custody_dispute",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+
+    const drilled = await fetchCasesForExport({ role: "admin" }, [], {}, DRILL_PROV, DRILL_LOC);
+    expect(drilled.length).toBeGreaterThan(0);
+    for (const row of drilled) {
+      expect(row.jurisdictionProvince).toBe(DRILL_PROV);
+      expect(row.jurisdictionLocality).toBe(DRILL_LOC);
+    }
   });
 });
 
