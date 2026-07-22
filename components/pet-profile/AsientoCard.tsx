@@ -16,6 +16,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import type { WeightSample } from "@/components/pet-profile/WeightSparkline";
+import { formatDelta, formatRate } from "@/lib/utils/format";
 import type { AsientoView } from "./asiento-fields";
 
 function AsientoSparkline({ samples }: { samples: WeightSample[] }) {
@@ -51,11 +52,12 @@ function AsientoSparkline({ samples }: { samples: WeightSample[] }) {
     1,
     Math.round((last.date.getTime() - first.date.getTime()) / (30 * 86_400_000)),
   );
-  const kgLabel = `${last.kg.toLocaleString("es-AR")} kg`;
+  // es-AR, 1 decimal — same KPI-precision rule as the operator dashboards
+  // (lib/utils/format.ts): a continuous measurement like weight always shows
+  // one decimal, never a bare integer next to a "24,5 kg" sibling.
+  const kgLabel = `${formatRate(last.kg)} kg`;
   const spanLabel = months === 1 ? "1 mes" : `${months} meses`;
-  const deltaLabel = `${delta >= 0 ? "+" : ""}${delta.toLocaleString("es-AR", {
-    maximumFractionDigits: 1,
-  })} kg en ${spanLabel}`;
+  const deltaLabel = `${formatDelta(delta, { unit: " kg" })} en ${spanLabel}`;
   // Full trend as an accessible label (the curve is the visual; screen readers
   // get the numbers). Names the current weight, the change, the span, and how
   // many weigh-ins the trailing-12-month curve is built from.

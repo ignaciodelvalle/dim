@@ -470,7 +470,7 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
     [
       ["Organizaciones", "/signup"],
       ["Refugios", "/refugios"],
-      ["Ingresar", "/login"],
+      ["Iniciar sesión", "/login"],
     ],
   ],
   [

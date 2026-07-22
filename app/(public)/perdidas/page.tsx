@@ -10,7 +10,7 @@ import {
 } from "@/lib/infra/lost-listing";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
-import { lostLabel, pluralizeEs, sterilizedLabel } from "@/lib/utils/format";
+import { formatCount, lostLabel, pluralizeEs, sterilizedLabel } from "@/lib/utils/format";
 import {
   countAllLost,
   countLostInWindow,
@@ -225,7 +225,9 @@ function KpiCard({
       <p className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1">
         {label}
       </p>
-      <p className={`text-3xl font-semibold leading-tight ${valueClass}`}>{value}</p>
+      <p className={`text-3xl font-semibold leading-tight tabular-nums ${valueClass}`}>
+        {formatCount(value)}
+      </p>
     </div>
   );
 }

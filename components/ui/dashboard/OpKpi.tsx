@@ -253,7 +253,7 @@ export function OpKpi({
       {/* Value */}
       <div
         className={[
-          "font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em]",
+          "font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums",
           toneValue[tone],
         ].join(" ")}
       >
@@ -280,7 +280,7 @@ export function OpKpi({
       {delta && (
         <div
           className={[
-            "mt-2 flex items-center gap-1.5 text-sm font-semibold",
+            "mt-2 flex items-center gap-1.5 text-sm font-semibold tabular-nums",
             delta.up ? "text-[var(--color-st-ok)]" : "text-[var(--color-st-err)]",
           ].join(" ")}
         >
@@ -297,7 +297,7 @@ export function OpKpi({
       {deltaV2 && (
         <div
           className={[
-            "mt-1 flex items-center gap-1.5 text-sm font-semibold",
+            "mt-1 flex items-center gap-1.5 text-sm font-semibold tabular-nums",
             deltaV2.value === 0
               ? "text-ln-op-mute"
               : deltaV2.value > 0
@@ -369,7 +369,7 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
       </div>
       <div
         className={[
-          "font-ln-serif text-[25px] font-semibold leading-none tracking-[-0.02em]",
+          "font-ln-serif text-[25px] font-semibold leading-none tracking-[-0.02em] tabular-nums",
           toneValue[tone],
         ].join(" ")}
       >

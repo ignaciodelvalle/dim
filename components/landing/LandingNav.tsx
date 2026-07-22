@@ -43,9 +43,12 @@ export function LandingNav() {
         </nav>
         <span className="lp-spacer" />
         {/* Acquisition-first: the primary nav CTA is "Crear mi miMAR" (/signup);
-            "Ingresar" (/login, an existing-user action) is demoted to a ghost. */}
+            "Iniciar sesión" (/login, an existing-user action) is demoted to a
+            ghost. Copy audit 2026-07-21: this was the one file saying
+            "Ingresar" while 7 others say "Iniciar sesión" for the same
+            destination — reconciled to the dominant/canonical verb. */}
         <Link href="/login" className="lp-btn lp-btn--ghost lp-btn--nav lp-btn--nav-secondary">
-          Ingresar
+          Iniciar sesión
         </Link>
         <Link href="/signup" className="lp-btn lp-btn--primary lp-btn--nav">
           Crear mi miMAR

@@ -62,7 +62,7 @@ function QueueTile({
       </span>
       <span
         className={[
-          "mt-1.5 font-ln-serif text-[var(--text-2xl)] font-semibold leading-none tracking-[-0.02em]",
+          "mt-1.5 font-ln-serif text-[var(--text-2xl)] font-semibold leading-none tracking-[-0.02em] tabular-nums",
           TONE_VALUE[tone],
         ].join(" ")}
       >

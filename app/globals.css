@@ -3596,6 +3596,7 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
 .ln-spark .ln-trend {
   font-size: 12px;
   color: var(--color-ln-mute);
+  font-variant-numeric: tabular-nums;
 }
 .ln-spark .ln-trend b {
   color: var(--color-ln-ink);
