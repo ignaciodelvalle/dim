@@ -5,7 +5,7 @@
 // Umbrella: docs/superpowers/specs/2026-06-18-metrics-ia-handoff-design.md §3/§5/§7
 //
 // These are the enforcement-grade metrics almost no national system can publish
-// because their registries are fragmented — MiMAR's single event log can:
+// because their registries are fragmented — miMAR's single event log can:
 //   C1 Microchip penetration            (Ley Prov 14.107 — chip is a legal artifact)
 //   C2 ISO-validity rate                (Res. SENASA 284/2024 — ISO 11784/11785)
 //   C5 Chip-fraud signal                (Estonia anti-theft rationale — flags for review)

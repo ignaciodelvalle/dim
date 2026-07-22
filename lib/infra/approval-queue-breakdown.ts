@@ -21,7 +21,7 @@ export const APPROVAL_TYPE_BREAKDOWN_LABELS: Record<ApprovalRequestType, string>
 
 /** Warning shown when any selected item is a RUPGA credential. */
 export const RUPGA_APPROVAL_WARNING =
-  "RUPGA requiere verificación de CUD vigente fuera de MiMAR antes de aprobar.";
+  "RUPGA requiere verificación de CUD vigente fuera de miMAR antes de aprobar.";
 
 export const VET_MATRICULA_TYPE: ApprovalRequestType = "role_upgrade_vet";
 

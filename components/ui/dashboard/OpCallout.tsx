@@ -18,7 +18,7 @@ type Props = {
    * existing OpCallout callers (jurisdiction warnings, generic notices) are
    * the ratchet and are unaffected.
    *  - "measured-zero": default navy/info treatment is fine (a real zero).
-   *  - "no-signal": MiMAR received no report at all — renders a muted-warn
+   *  - "no-signal": miMAR received no report at all — renders a muted-warn
    *    treatment instead of the calm navy/info look, so an empty
    *    surveillance list can't read as "todo tranquilo".
    */

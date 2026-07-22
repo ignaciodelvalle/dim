@@ -550,13 +550,13 @@ export default async function GobVigilanciaPage({
             {reportableCells.length === 0 ? (
               <div className="px-4 py-3">
                 {/* C4 (2026-07-22, §S4): a reportable-disease event only
-                    exists in MiMAR if a professional registered one — the
+                    exists in miMAR if a professional registered one — the
                     empty table can't tell "no reportable disease occurred"
                     apart from "nobody diagnosed/notified one". no-signal. */}
                 <LnEmptyState
                   icon="eye-off"
                   nature="no-signal"
-                  title="Sin notificaciones registradas en MiMAR"
+                  title="Sin notificaciones registradas en miMAR"
                   description="La ausencia de notificaciones no implica ausencia de enfermedades reportables — depende de que un profesional la registre."
                 />
               </div>
@@ -620,12 +620,12 @@ export default async function GobVigilanciaPage({
             // C4 (2026-07-22, §S4): mobility is itself an epidemiological
             // vector (comment above — a moved animal carries its exposure
             // into a new jurisdiction) and every row here depends on someone
-            // logging the transfer/CVI in MiMAR — an unlogged movement reads
+            // logging the transfer/CVI in miMAR — an unlogged movement reads
             // identically to zero. no-signal, not "all quiet".
             <LnEmptyState
               icon="eye-off"
               nature="no-signal"
-              title="Sin movimientos registrados en MiMAR"
+              title="Sin movimientos registrados en miMAR"
               description="La ausencia de registro no implica ausencia de movimiento — depende de que se registre el traslado en la plataforma."
             />
           ) : (
@@ -713,11 +713,11 @@ export default async function GobVigilanciaPage({
                 {/* C4 (2026-07-22, §S4 / red-team #10 "zeros=green"): a
                     disease signal only exists here if someone reported one —
                     "sin señales" reads as "todo tranquilo" when the honest
-                    read is "MiMAR no recibió señales". no-signal. */}
+                    read is "miMAR no recibió señales". no-signal. */}
                 <LnEmptyState
                   icon="eye-off"
                   nature="no-signal"
-                  title="Sin señales registradas en MiMAR"
+                  title="Sin señales registradas en miMAR"
                   description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un caso en este período."
                 />
               </div>

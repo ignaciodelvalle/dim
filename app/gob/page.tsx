@@ -562,7 +562,7 @@ export default async function GobiernoDashboardPage({
           sub={
             breedCompliance.flaggedCount === 0
               ? "sin PPP en cobertura · Ley 4078"
-              : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en MiMAR · no mide cumplimiento registral externo · Ley 4078`
+              : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo · Ley 4078`
           }
           href="/gob/analytics"
           descriptorId="ppp_registry_compliance"

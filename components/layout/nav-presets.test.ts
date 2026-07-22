@@ -460,6 +460,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   // links but is no longer in nav.
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
   "/gob/suscripciones", // promoted out of /gob/programa's alert sub-panel (2026-07-21)
+  "/gob/denuncias", // C6a — Denuncias hub (Moderación → Triage → Caso front door)
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -482,37 +483,56 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     }
   });
 
-  it("includes /gob/moderacion in the Casos y cumplimiento section (Phase 0 placeholder)", () => {
-    const casosSection = GOB_NAV_SECTIONS.find((s) => s.label === "Casos y cumplimiento");
-    expect(casosSection?.items.map((i) => i.href)).toContain("/gob/moderacion");
-    const moderacion = casosSection?.items.find((i) => i.href === "/gob/moderacion");
+  // C6a (2026-07-22) — Casos y cumplimiento / Vigilancia sanitaria / Registro y
+  // aprobaciones / Confiabilidad / Referencia were regrouped into the 5-layer
+  // model (Situación/Programa/Intervención/Bandeja operativa/Profundidad).
+  // These tests now encode the NEW grouping, not the old module-mirroring one.
+
+  it("includes /gob/denuncias and /gob/moderacion in the Bandeja operativa section (C6a hub)", () => {
+    const bandejaSection = GOB_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
+    const hrefs = bandejaSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/gob/denuncias");
+    expect(hrefs).toContain("/gob/moderacion");
+    expect(hrefs).toContain("/gob/maltrato");
+    const denuncias = bandejaSection?.items.find((i) => i.href === "/gob/denuncias");
+    expect(denuncias?.label).toBe("Denuncias");
+    const moderacion = bandejaSection?.items.find((i) => i.href === "/gob/moderacion");
     expect(moderacion?.label).toBe("Moderación");
     expect(moderacion?.matchPrefix).toBe("/gob/moderacion");
   });
 
-  it("includes /gob/mortalidad in the Vigilancia sanitaria section (Item 2)", () => {
-    const vigSection = GOB_NAV_SECTIONS.find((s) => s.label === "Vigilancia sanitaria");
-    expect(vigSection?.items.map((i) => i.href)).toContain("/gob/mortalidad");
+  it("includes /gob/mortalidad and /gob/poblacion in the Programa section (C6a — outcome dashboards)", () => {
+    const progSection = GOB_NAV_SECTIONS.find((s) => s.label === "Programa");
+    const hrefs = progSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/gob/mortalidad");
+    expect(hrefs).toContain("/gob/poblacion");
+    // Judgment call: Adopciones (outcome-vs-target dashboard) also lives here.
+    expect(hrefs).toContain("/gob/adopciones");
   });
 
-  it("includes /gob/poblacion in the Vigilancia sanitaria section (Paquete G)", () => {
-    const vigSection = GOB_NAV_SECTIONS.find((s) => s.label === "Vigilancia sanitaria");
-    expect(vigSection?.items.map((i) => i.href)).toContain("/gob/poblacion");
-  });
-
-  it("includes /gob/programa in the unlabeled section (gov-vis — top/exec area)", () => {
+  it("includes /gob/programa in the Programa section, not the unlabeled top (C6a — top holds only Panel)", () => {
     const unlabeled = GOB_NAV_SECTIONS.find((s) => s.label === "");
-    expect(unlabeled?.items.map((i) => i.href)).toContain("/gob/programa");
+    expect(unlabeled?.items.map((i) => i.href)).toEqual(["/gob"]);
+    const progSection = GOB_NAV_SECTIONS.find((s) => s.label === "Programa");
+    expect(progSection?.items.map((i) => i.href)).toContain("/gob/programa");
   });
 
-  it("does NOT include /gob/sistema in the Confiabilidad section (folded into /gob/programa)", () => {
-    const confSection = GOB_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
-    expect(confSection?.items.map((i) => i.href)).not.toContain("/gob/sistema");
+  it("does NOT include /gob/sistema anywhere (folded into /gob/programa)", () => {
+    const allHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(allHrefs).not.toContain("/gob/sistema");
   });
 
-  it("includes /gob/outbox in the Confiabilidad section (gov-vis)", () => {
-    const confSection = GOB_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
-    expect(confSection?.items.map((i) => i.href)).toContain("/gob/outbox");
+  it("includes /gob/outbox in the Bandeja operativa section (gov-vis, C6a)", () => {
+    const bandejaSection = GOB_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
+    expect(bandejaSection?.items.map((i) => i.href)).toContain("/gob/outbox");
+  });
+
+  it("includes /gob/rupga in the Intervención section (C6a — action console judgment)", () => {
+    const intervSection = GOB_NAV_SECTIONS.find((s) => s.label === "Intervención");
+    const hrefs = intervSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/gob/rupga");
+    expect(hrefs).toContain("/gob/outreach");
+    expect(hrefs).toContain("/gob/decomisos");
   });
 
   it("no href is duplicated across sections", () => {
@@ -526,13 +546,16 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(GOB_NAV_SECTIONS[0].items[0].href).toBe("/gob");
   });
 
-  it('"Vigilancia sanitaria" section precedes "Casos y cumplimiento"', () => {
+  it("sections follow the C6a layer order: Situación → Programa → Intervención → Bandeja operativa → Profundidad", () => {
     const labels = GOB_NAV_SECTIONS.map((s) => s.label);
-    const vigIdx = labels.indexOf("Vigilancia sanitaria");
-    const casosIdx = labels.indexOf("Casos y cumplimiento");
-    expect(vigIdx).toBeGreaterThanOrEqual(0);
-    expect(casosIdx).toBeGreaterThanOrEqual(0);
-    expect(vigIdx).toBeLessThan(casosIdx);
+    expect(labels).toEqual([
+      "",
+      "Situación",
+      "Programa",
+      "Intervención",
+      "Bandeja operativa",
+      "Profundidad",
+    ]);
   });
 });
 
@@ -625,55 +648,73 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(ADMIN_NAV_SECTIONS[0].items[0].href).toBe("/admin");
   });
 
-  // C27 — nav taxonomy split: population/program analytics moved out of the
-  // operational "Confiabilidad" group into a dedicated "Analítica" section.
-  it("includes /admin/poblacion in the Analítica section (C27 — analytics split)", () => {
-    const analiticaSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Analítica");
-    expect(analiticaSection?.items.map((i) => i.href)).toContain("/admin/poblacion");
+  // C6a (2026-07-22) — Analítica/Operaciones/Confiabilidad/Identidad y
+  // acceso/Gobernanza were regrouped into the 5-layer model, mirroring
+  // GOB_NAV_SECTIONS where the same screens exist. These tests now encode
+  // the NEW grouping (superseding the C26/C27 taxonomy split below).
+
+  it("includes /admin/poblacion and /admin/programa in the Programa section (C6a)", () => {
+    const progSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Programa");
+    const hrefs = progSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/admin/poblacion");
+    expect(hrefs).toContain("/admin/programa");
+    // Programa leads the layer (highest-level view first).
+    expect(progSection?.items[0]?.href).toBe("/admin/programa");
   });
 
-  it("includes /admin/programa in the Analítica section, first (C26 — promote exec summary)", () => {
-    const analiticaSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Analítica");
-    expect(analiticaSection?.items.map((i) => i.href)).toContain("/admin/programa");
-    // Programa leads Analítica (highest-level view first).
-    expect(analiticaSection?.items[0]?.href).toBe("/admin/programa");
-  });
-
-  it("Analítica is the first labeled section (C26 — most prominent on the rail)", () => {
-    // index 0 is the unlabeled Dashboard/Panorama group; the first NAMED group
-    // is where the eye lands. Promote analytics/exec summary there.
+  it("Situación is the first labeled section (C6a — Panorama leads, mirrors gob)", () => {
+    // index 0 is the unlabeled Panel-only top; the first NAMED group is
+    // where the eye lands next.
     const firstLabeled = ADMIN_NAV_SECTIONS.find((s) => s.label !== "");
-    expect(firstLabeled?.label).toBe("Analítica");
+    expect(firstLabeled?.label).toBe("Situación");
   });
 
-  it("Confiabilidad holds ONLY operational health after the split (C27)", () => {
-    const confSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Confiabilidad");
-    const hrefs = confSection?.items.map((i) => i.href) ?? [];
-    expect(hrefs).toEqual(["/admin/sistema", "/admin/outbox", "/admin/auditoria"]);
-    // No analytics routes leaked into the operational section.
+  it("Situación holds Panorama + Observaciones (C6a — epidemiological surveillance judgment)", () => {
+    const situSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Situación");
+    expect(situSection?.items.map((i) => i.href)).toEqual([
+      "/admin/panorama",
+      "/admin/observaciones",
+    ]);
+  });
+
+  it("includes /admin/alertas and /admin/moderacion in the Bandeja operativa section (C6a)", () => {
+    const bandejaSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
+    const hrefs = bandejaSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/admin/alertas");
+    expect(hrefs).toContain("/admin/moderacion");
+    expect(hrefs).toContain("/admin/casos");
+    expect(hrefs).toContain("/admin/outbox");
+    const alertas = bandejaSection?.items.find((i) => i.href === "/admin/alertas");
+    expect(alertas?.label).toBe("Alertas");
+    expect(alertas?.matchPrefix).toBe("/admin/alertas");
+    // No analytics/program routes leaked into the queue layer.
     expect(hrefs).not.toContain("/admin/programa");
-    expect(hrefs).not.toContain("/admin/censo");
-    expect(hrefs).not.toContain("/admin/adopciones");
     expect(hrefs).not.toContain("/admin/poblacion");
   });
 
-  it("includes /admin/alertas in the Operaciones section (WS-K — bandeja de alertas)", () => {
-    const opsSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Operaciones");
-    expect(opsSection?.items.map((i) => i.href)).toContain("/admin/alertas");
-    const alertas = opsSection?.items.find((i) => i.href === "/admin/alertas");
-    expect(alertas?.label).toBe("Alertas");
-    expect(alertas?.matchPrefix).toBe("/admin/alertas");
-  });
-
-  it("includes /admin/libro in the Gobernanza section (WS-L — Libro de eventos)", () => {
-    const govSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Gobernanza");
-    expect(govSection?.items.map((i) => i.href)).toContain("/admin/libro");
-    const libro = govSection?.items.find((i) => i.href === "/admin/libro");
+  it("includes /admin/libro and /admin/inteligencia in the Profundidad section (C6a)", () => {
+    const profSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Profundidad");
+    const hrefs = profSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/admin/libro");
+    expect(hrefs).toContain("/admin/inteligencia");
+    expect(hrefs).toContain("/admin/sistema");
+    expect(hrefs).toContain("/admin/auditoria");
+    const libro = profSection?.items.find((i) => i.href === "/admin/libro");
     expect(libro?.label).toBe("Libro de eventos");
     expect(libro?.matchPrefix).toBe("/admin/libro");
   });
 
-  it("C27 regroup is href-preserving: section union equals the frozen snapshot exactly", () => {
+  it("admin has no Intervención layer (no outreach/decomisos/rupga routes)", () => {
+    const labels = ADMIN_NAV_SECTIONS.map((s) => s.label);
+    expect(labels).not.toContain("Intervención");
+  });
+
+  it("sections follow the C6a layer order: Situación → Programa → Bandeja operativa → Profundidad", () => {
+    const labels = ADMIN_NAV_SECTIONS.map((s) => s.label);
+    expect(labels).toEqual(["", "Situación", "Programa", "Bandeja operativa", "Profundidad"]);
+  });
+
+  it("C6a regroup is href-preserving: section union equals the frozen snapshot exactly", () => {
     // The split MUST NOT lose or gain any LIVE href — only regroup. The union of
     // all live section hrefs must equal ADMIN_HREF_SNAPSHOT as a set (both
     // directions). Deferred sentinels (#defer-…) are excluded — not routes (D6).

@@ -146,7 +146,7 @@ export default async function GobVigilanciaBrotesPage({
               <LnEmptyState
                 icon="eye-off"
                 nature="no-signal"
-                title="Sin señales registradas en MiMAR"
+                title="Sin señales registradas en miMAR"
                 description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un caso en este período."
               />
             </div>

@@ -4,7 +4,7 @@
 import type { EventType } from "@/db/schema";
 
 /**
- * The one timezone every UI date is formatted in. MiMAR is an Argentina-only
+ * The one timezone every UI date is formatted in. miMAR is an Argentina-only
  * service, so a calendar day is always the Argentine calendar day.
  *
  * WHY THIS MUST BE PINNED (React #418): date formatters run BOTH during SSR

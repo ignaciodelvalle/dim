@@ -20,13 +20,13 @@ import type { ReactNode } from "react";
  * Epistemic nature (C4, 2026-07-22 — plan-maestro-integridad §C4, kills the
  * rest of S4): Wave 2's state system guarantees a state EXISTS, not that it
  * tells the epistemic truth. An empty surveillance list reads as "todo
- * tranquilo" when the honest reading can be "MiMAR no recibió señales — el
+ * tranquilo" when the honest reading can be "miMAR no recibió señales — el
  * silencio no implica ausencia de enfermedad" (red-team #10 zeros=green, #6
  * 690 bites + 0 observations read as "under control"). `nature` names the
  * two readings explicitly:
- *  - "measured-zero": MiMAR queried and the honest answer IS 0 (a real
+ *  - "measured-zero": miMAR queried and the honest answer IS 0 (a real
  *    count). Renders the existing neutral/plain look — no visual change.
- *  - "no-signal": nothing was reported INTO the system — MiMAR is blind on
+ *  - "no-signal": nothing was reported INTO the system — miMAR is blind on
  *    this question, not calm. Renders a distinct muted-warn treatment
  *    (never the neutral/success look, never alarm-red either) so a silent
  *    surveillance surface can't be misread as "under control".

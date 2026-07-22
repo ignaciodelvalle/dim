@@ -91,7 +91,7 @@ export function buildTravelExportSections(dto: TravelExportDto): TravelExportSec
     heading: "RESUMEN DE VIAJE",
     lines: [
       `Mascota: ${dto.petName} (${dto.petSpecies === "dog" ? "perro" : dto.petSpecies})`,
-      `Identificador público (token MiMAR): ${dto.petPublicToken}`,
+      `Identificador público (token miMAR): ${dto.petPublicToken}`,
       `Tenedor/propietario: ${dto.ownerDisplayName}`,
       `Semáforo: ${SEMAFORO_LABELS[dto.semaforo]}`,
     ],
@@ -180,7 +180,7 @@ export async function generateTravelExportPdf(dto: TravelExportDto): Promise<Uin
   };
 
   // Header
-  page.drawText("MiMAR — Mi Mascota Argentina", {
+  page.drawText("miMAR — Mi Mascota Argentina", {
     x: margin,
     y,
     size: 14,

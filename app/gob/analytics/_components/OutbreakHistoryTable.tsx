@@ -18,7 +18,7 @@ export function OutbreakHistoryTable({ rows }: Props) {
       <LnEmptyState
         icon="eye-off"
         nature="no-signal"
-        title="Sin brotes registrados en MiMAR"
+        title="Sin brotes registrados en miMAR"
         description="La ausencia de registro no implica ausencia de brotes históricos — depende de que se haya reportado una señal en tu cobertura."
       />
     );

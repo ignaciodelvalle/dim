@@ -22,7 +22,7 @@ const ORG_TYPE_LABELS: Record<string, string> = {
   other: "Organización",
 };
 
-// MiMAR brand header for the standalone org index (#43 item 5). The picker and
+// miMAR brand header for the standalone org index (#43 item 5). The picker and
 // empty state render outside the org rail, so they carried no brand — a member
 // of several orgs landed on an unbranded "Seleccionar organización" screen.
 // Mirrors the OpRail monogram + serif wordmark, tuned for the light op page.

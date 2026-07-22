@@ -73,7 +73,7 @@ describe("<LnEmptyState> — epistemic nature", () => {
   it('nature="no-signal" renders a muted-warn treatment, never the neutral/ok look', () => {
     const html = render(
       <LnEmptyState
-        title="Sin señales registradas en MiMAR"
+        title="Sin señales registradas en miMAR"
         description="La ausencia de señales no implica ausencia de enfermedad."
         nature="no-signal"
       />,
@@ -86,7 +86,7 @@ describe("<LnEmptyState> — epistemic nature", () => {
 
   it('nature="no-signal" sets role="status" (operator should notice this, not decorative chrome)', () => {
     const html = render(
-      <LnEmptyState title="Sin señales registradas en MiMAR" nature="no-signal" />,
+      <LnEmptyState title="Sin señales registradas en miMAR" nature="no-signal" />,
     );
     expect(html).toContain('role="status"');
   });
@@ -100,7 +100,7 @@ describe("<LnEmptyState> — epistemic nature", () => {
   it("the blind-not-calm copy pattern never reads as success/ok", () => {
     const html = render(
       <LnEmptyState
-        title="Sin observaciones registradas en MiMAR"
+        title="Sin observaciones registradas en miMAR"
         description="La ausencia de observaciones no implica ausencia de casos por escalar."
         nature="no-signal"
       />,

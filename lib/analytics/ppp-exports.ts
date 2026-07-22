@@ -175,7 +175,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
   // ------------------------------------------------------------------
   // Header
   // ------------------------------------------------------------------
-  page.drawText("MiMAR — Mi Mascota Argentina", {
+  page.drawText("miMAR — Mi Mascota Argentina", {
     x: margin,
     y,
     size: 14,
@@ -271,7 +271,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
   y = drawPppField(page, {
     label: "Clasificación PPP",
     value: dto.petPotentiallyDangerousBreed
-      ? "Raza potencialmente peligrosa (clasificación MiMAR)"
+      ? "Raza potencialmente peligrosa (clasificación miMAR)"
       : "No PPP",
     x: margin,
     y,
@@ -280,7 +280,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
     maxWidth: contentWidth,
   });
   y = drawPppField(page, {
-    label: "Identificador público (token MiMAR)",
+    label: "Identificador público (token miMAR)",
     value: dto.petPublicToken,
     x: margin,
     y,
@@ -458,7 +458,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
     font: regularFont,
     color: rgb(0.5, 0.5, 0.5),
   });
-  page.drawText("Sin firma PKI (F-D2). Autenticidad verificable via token MiMAR + audit_log.", {
+  page.drawText("Sin firma PKI (F-D2). Autenticidad verificable via token miMAR + audit_log.", {
     x: margin,
     y: footerY - 10,
     size: 6,

@@ -64,7 +64,7 @@ export const OPEN_DATA_LICENSE = {
   id: "CC-BY-4.0",
   name: "Creative Commons Atribución 4.0 Internacional (CC BY 4.0)",
   url: "https://creativecommons.org/licenses/by/4.0/deed.es",
-  attribution: "MiMAR — Sistema de credencial digital de mascotas (Argentina). datos.mimar.gob.ar",
+  attribution: "miMAR — Sistema de credencial digital de mascotas (Argentina). datos.mimar.gob.ar",
 } as const;
 
 /** A published column: machine name (the CSV/JSON key) + a citizen description. */

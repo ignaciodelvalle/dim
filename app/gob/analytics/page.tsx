@@ -324,7 +324,7 @@ export default async function GobAnalyticsPage({
             <LnEmptyState
               icon="eye-off"
               nature="no-signal"
-              title="Sin señales registradas en MiMAR"
+              title="Sin señales registradas en miMAR"
               description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un brote en el rango y la cobertura seleccionados."
             />
           ) : (

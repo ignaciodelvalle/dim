@@ -120,7 +120,7 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
   steps.push({
     key: "verification",
     label: "Verificación",
-    hint: "Enviá la documentación para que tu organización quede verificada en MiMAR.",
+    hint: "Enviá la documentación para que tu organización quede verificada en miMAR.",
     href: "configuracion",
     cta: "Enviar documentación",
     done: input.isVerified,

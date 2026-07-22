@@ -20,7 +20,7 @@ export function DiseaseSummaryTable({
       <LnEmptyState
         icon="eye-off"
         nature="no-signal"
-        title="Sin señales registradas en MiMAR"
+        title="Sin señales registradas en miMAR"
         description={`Ningún caso fue reportado en los últimos ${windowDays} días — la ausencia de reportes no implica ausencia de enfermedad.`}
       />
     );

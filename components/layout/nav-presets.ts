@@ -342,61 +342,83 @@ export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): Nav
 // GOB_NAV_SECTIONS and kept for backward compatibility with existing tests.
 // ---------------------------------------------------------------------------
 
+// C6a nav regroup (2026-07-22, docs/reviews/results/2026-07-22-plan-maestro-integridad.md
+// §C6): regroups the 26 EXISTING routes under the operator mental model
+// (BRIEFING → SITUACIÓN → PROGRAMA → INTERVENCIÓN → PROFUNDIDAD, plus the
+// cross-cutting BANDEJA OPERATIVA for queue-shaped work) instead of mirroring
+// the module tree. PO-locked: regroup only — no route moves/renames. The one
+// new href is /gob/denuncias (the Denuncias hub, see app/gob/denuncias/page.tsx),
+// which is additive: Moderación/Maltrato keep their own nav entries too.
+//
+// Judgment calls (reported alongside this change):
+//  - Adopciones: not named in any C6a layer bullet. It is an outcome-vs-target
+//    program dashboard (KPI row + funnel + trend, "¿funciona el ciclo de
+//    colocación?"), not a review queue — placed in Programa, next to
+//    Censo/Población/Campañas/Mortalidad which share that shape.
+//  - RUPGA: kept in Intervención as instructed — it is a per-row ACTION
+//    console (revocar credencial), not a passive registry view.
+//  - /gob/sistema has no nav entry today (folded into /gob/programa,
+//    2026-07-09 audit; route survives only as a deep-link redirect) — nothing
+//    to regroup, so Profundidad's "Sistema" is a no-op here.
 export const GOB_NAV_SECTIONS: NavSection[] = [
-  // Unlabeled — the Panel root + the Panorama console sit above the groups.
+  // Unlabeled/top — Panel only. This is the future Briefing's home; every
+  // other top-level surface now lives in one of the five layers below.
   {
     label: "",
+    items: [{ href: "/gob", label: "Panel" }],
+  },
+  {
+    // Situational/risk surfaces — "what does the map look like right now".
+    label: "Situación",
     items: [
-      { href: "/gob", label: "Panel" },
       { href: "/gob/panorama", label: "Panorama", matchPrefix: "/gob/panorama" },
-      // Paquete gov-vis — exec summary (highest-level view, mirrors /admin/programa placement)
-      { href: "/gob/programa", label: "Programa", matchPrefix: "/gob/programa" },
-    ],
-  },
-  {
-    label: "Vigilancia sanitaria",
-    items: [
       { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
-      { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
-      { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
-      { href: "/gob/campanas", label: "Campañas", matchPrefix: "/gob/campanas" },
-      { href: "/gob/outreach", label: "Alcance comunitario", matchPrefix: "/gob/outreach" },
-      { href: "/gob/poblacion", label: "Población", matchPrefix: "/gob/poblacion" },
-    ],
-  },
-  {
-    label: "Casos y cumplimiento",
-    items: [
-      { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
-      // Jurisdiction-scoped denuncia moderation queue (spec:
-      // docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md).
-      { href: "/gob/moderacion", label: "Moderación", matchPrefix: "/gob/moderacion" },
-      { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
-      { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
-      { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
       { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
     ],
   },
   {
-    label: "Registro y aprobaciones",
+    // Outcome-vs-target program surfaces.
+    label: "Programa",
     items: [
+      // Paquete gov-vis — exec summary (highest-level view, leads the layer)
+      { href: "/gob/programa", label: "Programa", matchPrefix: "/gob/programa" },
+      { href: "/gob/poblacion", label: "Población", matchPrefix: "/gob/poblacion" },
       { href: "/gob/censo", label: "Censo", matchPrefix: "/gob/censo" },
+      { href: "/gob/campanas", label: "Campañas", matchPrefix: "/gob/campanas" },
+      { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
+      // Judgment call: custody/adoption pipeline dashboard (KPI+funnel+trend),
+      // not a review queue — grouped with the other outcome dashboards.
       { href: "/gob/adopciones", label: "Adopciones", matchPrefix: "/gob/adopciones" },
-      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
-      { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
-      { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
-      { href: "/gob/rupga", label: "Credenciales RUPGA", matchPrefix: "/gob/rupga" },
-      { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
     ],
   },
   {
-    // Mirrors the "Confiabilidad" section in ADMIN_NAV_SECTIONS for operational views.
-    label: "Confiabilidad",
+    // Field/action surfaces — the operator DOES something to a specific target.
+    label: "Intervención",
     items: [
-      // /gob/sistema folded into /gob/programa (2026-07-09 audit): its KPIs
-      // (ENO SLA, scoped queue aging) duplicated fetchers already on Programa;
-      // the one unique figure (total ENO notifications) moved into Programa's
-      // SLA KPI. /gob/sistema still exists as a redirect for deep links.
+      { href: "/gob/outreach", label: "Alcance comunitario", matchPrefix: "/gob/outreach" },
+      { href: "/gob/decomisos", label: "Decomisos", matchPrefix: "/gob/decomisos" },
+      // Judgment call: a per-row revocation console (RevokeServiceDogActions),
+      // not a passive registry — an action surface, same shape as Decomisos.
+      { href: "/gob/rupga", label: "Credenciales RUPGA", matchPrefix: "/gob/rupga" },
+    ],
+  },
+  {
+    // Queue-shaped work: inbox → tomar → actuar → cerrar. Denuncias is the
+    // new hub front door for the Moderación → Triage → Caso pipeline;
+    // Moderación/Maltrato keep their own entries (additive, not replaced).
+    label: "Bandeja operativa",
+    items: [
+      { href: "/gob/denuncias", label: "Denuncias", matchPrefix: "/gob/denuncias" },
+      // Jurisdiction-scoped denuncia moderation queue (spec:
+      // docs/design/handoffs/2026-07-07-govt-jurisdiction-moderation-sdd.md).
+      { href: "/gob/moderacion", label: "Moderación", matchPrefix: "/gob/moderacion" },
+      { href: "/gob/maltrato", label: "Maltrato", matchPrefix: "/gob/maltrato" },
+      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
+      { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
+      { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
+      // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
+      // operators (2026-07-09 audit). Route still exists as a redirect for deep
+      // links but is no longer in nav.
       { href: "/gob/outbox", label: "Bandeja de salida", matchPrefix: "/gob/outbox" },
       // Promoted out of the /gob/programa "Alertas y suscripciones" sub-panel
       // (2026-07-21) — threshold alert subscription management now has its
@@ -409,10 +431,15 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    label: "Referencia",
+    // Analyst/admin-config surfaces — deep-dive, not day-to-day triage.
+    label: "Profundidad",
     items: [
-      { href: "/gob/servicios", label: "Servicios", matchPrefix: "/gob/servicios" },
+      { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
       { href: "/gob/historial", label: "Mi actividad", matchPrefix: "/gob/historial" },
+      { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
+      { href: "/gob/organizaciones", label: "Organizaciones", matchPrefix: "/gob/organizaciones" },
+      { href: "/gob/usuarios", label: "Usuarios", matchPrefix: "/gob/usuarios" },
+      { href: "/gob/servicios", label: "Servicios", matchPrefix: "/gob/servicios" },
     ],
   },
 ];
@@ -434,33 +461,46 @@ export const GOB_NAV: NavItem[] = GOB_NAV_FLAT;
 // over ADMIN_NAV_SECTIONS directly — not stored here.
 // ---------------------------------------------------------------------------
 
+// C6a nav regroup (2026-07-22) — mirrors the GOB_NAV_SECTIONS regroup above
+// where the same screens exist. Admin has no Intervención-layer screens
+// (no outreach/decomisos/rupga routes under /admin), so that layer is simply
+// absent here rather than shipped empty. Judgment calls:
+//  - /admin/observaciones (rabies-observation follow-up tracking, in_progress/
+//    completed status) is the admin-only epidemiological surveillance surface
+//    — admin has no dedicated "Vigilancia" screen, so this fills that role.
+//    Placed in Situación, mirroring the plan's "vigilancia se parte:
+//    epidemiología→Situación" split.
+//  - /admin/inteligencia (territorial composite index, policy→outcome,
+//    per-province data quality) is a deep analyst surface, not a day-to-day
+//    program dashboard — Profundidad, not Programa.
+//  - /admin/sistema, /admin/auditoria, /admin/libro, /admin/govts,
+//    /admin/admins: admin-only config/identity/audit surfaces with no gob
+//    twin — all Profundidad (analyst/admin-config), same layer as their
+//    closest gob relatives (Reglas/Organizaciones/Usuarios/Servicios).
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
-  // Unlabeled — the Dashboard root + the Panorama console sit above the groups.
   {
     label: "",
+    items: [{ href: "/admin", label: "Panel" }],
+  },
+  {
+    label: "Situación",
     items: [
-      { href: "/admin", label: "Panel" },
       { href: "/admin/panorama", label: "Panorama", matchPrefix: "/admin/panorama" },
+      { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },
     ],
   },
   {
-    // Analítica — population/program analytics (C27 split from Confiabilidad).
-    // Placed first among labeled sections so the executive summary (Programa)
-    // is the most prominent destination on the rail (C26: promote Programa).
-    label: "Analítica",
+    label: "Programa",
     items: [
       // Paquete H — exec summary / programa (top of section: highest-level view first)
       { href: "/admin/programa", label: "Programa", matchPrefix: "/admin/programa" },
       { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
       { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
       { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
-      // Task #44 — territorial operational intelligence (composite index,
-      // policy→outcome loop, per-province data quality).
-      { href: "/admin/inteligencia", label: "Inteligencia", matchPrefix: "/admin/inteligencia" },
     ],
   },
   {
-    label: "Operaciones",
+    label: "Bandeja operativa",
     items: [
       // Cola/Usuarios/Organizaciones/Reglas/Servicios exist under BOTH /admin
       // and /gob (portal-follows-viewer, 2026-07-02) — thin /admin/* wrappers
@@ -480,21 +520,15 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       },
       { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
       { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
-      { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },
-    ],
-  },
-  {
-    // Confiabilidad — operational health only (C27: analytics moved to Analítica).
-    label: "Confiabilidad",
-    items: [
-      { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/outbox", label: "Bandeja de salida", matchPrefix: "/admin/outbox" },
-      { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
     ],
   },
   {
-    label: "Identidad y acceso",
+    label: "Profundidad",
     items: [
+      { href: "/admin/inteligencia", label: "Inteligencia", matchPrefix: "/admin/inteligencia" },
+      { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
+      { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
       // Usuarios/Organizaciones exist under both portals (portal-follows-
       // viewer) — admin nav points at the /admin/* copy.
       { href: "/admin/usuarios", label: "Usuarios", matchPrefix: "/admin/usuarios" },
@@ -505,11 +539,6 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
         label: "Organizaciones",
         matchPrefix: "/admin/organizaciones",
       },
-    ],
-  },
-  {
-    label: "Gobernanza",
-    items: [
       // Reglas/Servicios exist under both portals (portal-follows-viewer,
       // admin-rules-console) — admin nav points at the /admin/* copy so an
       // admin drilling into a jurisdiction or a rule form stays in /admin

@@ -52,6 +52,7 @@ const GOB_HREF_SNAPSHOT = new Set([
   // operators (2026-07-09 audit), matches nav-presets.test.ts.
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
   "/gob/suscripciones", // promoted out of /gob/programa's alert sub-panel (2026-07-21)
+  "/gob/denuncias", // C6a — Denuncias hub (Moderación → Triage → Caso front door)
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([

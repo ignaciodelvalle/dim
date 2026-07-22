@@ -270,7 +270,7 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
   // ------------------------------------------------------------------
   // Header
   // ------------------------------------------------------------------
-  page.drawText("MiMAR — Mi Mascota Argentina", {
+  page.drawText("miMAR — Mi Mascota Argentina", {
     x: margin,
     y,
     size: 14,

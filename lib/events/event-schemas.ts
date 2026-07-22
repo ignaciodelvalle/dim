@@ -1252,7 +1252,7 @@ const custodyTransferred = z
 // lib/events stays free of src/modules imports (dependency direction).
 const p2pTransferReason = z.enum(["sale", "gift", "inheritance", "other"]);
 
-// Custody transferred — owner→owner peer-to-peer variant. A MiMAR citizen
+// Custody transferred — owner→owner peer-to-peer variant. A miMAR citizen
 // gifts / sells / bequeaths a pet to another citizen through the PTR
 // proposal→accept handshake (src/modules/transfers/application/accept-pet-transfer).
 // BOTH actors hold the `owner` role, the `reason` comes from the P2P reason set

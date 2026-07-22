@@ -42,7 +42,7 @@ export const OPERATOR_GLOSSARY: Record<string, AcronymEntry> = {
     acronym: "ENO",
     expansion: "Enfermedades de Notificación Obligatoria",
     purpose:
-      "Enfermedades que la autoridad sanitaria exige notificar (lepto, hidatidosis, rabia, etc.) — MiMAR genera y audita la notificación en su propia bandeja de salida; la transmisión EXTERNA a la autoridad depende de un endpoint receptor todavía pendiente.",
+      "Enfermedades que la autoridad sanitaria exige notificar (lepto, hidatidosis, rabia, etc.) — miMAR genera y audita la notificación en su propia bandeja de salida; la transmisión EXTERNA a la autoridad depende de un endpoint receptor todavía pendiente.",
     source: "db/schema.ts:2189, db/migrations/0048_event_notification_outbox.sql",
   },
   AMR: {
@@ -63,7 +63,7 @@ export const OPERATOR_GLOSSARY: Record<string, AcronymEntry> = {
     acronym: "MPF",
     expansion: "Ministerio Público Fiscal",
     purpose:
-      "La fiscalía a la que MiMAR exporta el legajo de una denuncia de maltrato (Ley 14.346) — el export nombra la fecha del hecho vs. la fecha de conocimiento, brecha con valor de defensa institucional.",
+      "La fiscalía a la que miMAR exporta el legajo de una denuncia de maltrato (Ley 14.346) — el export nombra la fecha del hecho vs. la fecha de conocimiento, brecha con valor de defensa institucional.",
     source: "AGENTS.md:1128, src/modules/welfare/application/generate-mpf-export.ts",
   },
 };

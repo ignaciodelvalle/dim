@@ -335,7 +335,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none (province rows are never small enough to require k-anon)",
     caveat:
-      "Legal basis: Ley 22.953 (vacunación antirrábica obligatoria). Only counts vaccines logged in MiMAR — real-world coverage may be higher. DISTINCT FROM rabies_vaccination_rate_all_species: different denominator population (dogs only) and time window (12m, not all-time). Rendered on /gob (Panel de jurisdicción) and Panorama — see app/gob/page.tsx and src/modules/panorama/application/get-panorama-kpis.ts (render-site label already reads 'Cobertura antirrábica (perros, 12m)', consistent with this entry).",
+      "Legal basis: Ley 22.953 (vacunación antirrábica obligatoria). Only counts vaccines logged in miMAR — real-world coverage may be higher. DISTINCT FROM rabies_vaccination_rate_all_species: different denominator population (dogs only) and time window (12m, not all-time). Rendered on /gob (Panel de jurisdicción) and Panorama — see app/gob/page.tsx and src/modules/panorama/application/get-panorama-kpis.ts (render-site label already reads 'Cobertura antirrábica (perros, 12m)', consistent with this entry).",
     window: "12m",
     species: "dogs",
     basis: "ratio",
@@ -360,7 +360,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       formula:
         "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,158 perros/hab.).",
       caveat:
-        "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., GCBA — Encuesta Anual de Hogares 2022, módulo Tenencia responsable) — es una estimación piso (CABA subestima la tenencia nacional), no un censo canino; sin fila de censo se muestra «sin estimación censal». No existe cifra oficial nacional de población canina (ni INDEC, ni SENASA, ni Ministerio de Salud) — este factor NO se atribuye a OMS/OPS.",
+        "Solo se cuentan vacunas registradas en miMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., GCBA — Encuesta Anual de Hogares 2022, módulo Tenencia responsable) — es una estimación piso (CABA subestima la tenencia nacional), no un censo canino; sin fila de censo se muestra «sin estimación censal». No existe cifra oficial nacional de población canina (ni INDEC, ni SENASA, ni Ministerio de Salud) — este factor NO se atribuye a OMS/OPS.",
     },
   },
 
@@ -388,7 +388,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     species: "all_species",
     basis: "ratio",
     question:
-      "¿Qué fracción del registro histórico de MiMAR tiene alguna vez una dosis antirrábica cargada, de cualquier especie, sin ventana temporal? (NO es la pregunta de cumplimiento legal — esa es rabies_coverage_dogs_12m).",
+      "¿Qué fracción del registro histórico de miMAR tiene alguna vez una dosis antirrábica cargada, de cualquier especie, sin ventana temporal? (NO es la pregunta de cumplimiento legal — esa es rabies_coverage_dogs_12m).",
     // No `target`: there is no legal/programmatic benchmark for an all-time,
     // all-species, no-window count — inventing one would legitimize painting
     // a semaphore over a number that isn't a compliance measurement.
@@ -600,7 +600,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression:
       "k-anon (k=5) on the per-locality breakdown; the national/province figure is unsuppressed",
-    caveat: "Legal basis: Ley Provincial 14.107. Only counts microchips registered in MiMAR.",
+    caveat: "Legal basis: Ley Provincial 14.107. Only counts microchips registered in miMAR.",
     window: "all_time",
     species: "all_species",
     basis: "ratio",
@@ -611,7 +611,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     confidence: {
       inputs: [
         "k-anonimato (k=5) en el desglose por localidad — celdas chicas ocultas",
-        "solo microchips registrados en MiMAR — la penetración real puede ser mayor",
+        "solo microchips registrados en miMAR — la penetración real puede ser mayor",
       ],
     },
     ui: {
@@ -619,7 +619,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
         "Porcentaje de mascotas activas/extraviadas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Provincial 14.107.",
       formula:
         "COUNT(pets activos/extraviados con pet_identifications.kind='microchip_iso' y status='active') / COUNT(pets activos/extraviados en scope)",
-      caveat: "Solo cuenta microchips registrados en MiMAR.",
+      caveat: "Solo cuenta microchips registrados en miMAR.",
     },
   },
 
@@ -628,10 +628,10 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     // C1 rename (2026-07-22, red-team #7): the old label + toneForTarget(…,
     // 100) painted a 0% self-serve-attestation uptake number "Peligro" (red) —
     // a LEGAL-VERDICT color on what is, until the enforcement flow ships,
-    // purely a MiMAR adoption/uptake number. Renamed + semaphore: none below
-    // distinguish "atestación en MiMAR" (what this tile measures) from
+    // purely a miMAR adoption/uptake number. Renamed + semaphore: none below
+    // distinguish "atestación en miMAR" (what this tile measures) from
     // "cumplimiento registral externo" (a claim this tile does NOT make).
-    label: "Atestación PPP en MiMAR (razas potencialmente peligrosas)",
+    label: "Atestación PPP en miMAR (razas potencialmente peligrosas)",
     numerator: "COUNT DISTINCT PPP-flagged active pets with ≥1 dangerous_breed_attested event",
     denominator: "COUNT active/lost pets where potentially_dangerous_breed = true",
     source: "pets, pet_events (dangerous_breed_attested)",
@@ -646,17 +646,17 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     species: "dogs",
     basis: "ratio",
     question:
-      "¿Qué porcentaje de mascotas PPP en la jurisdicción tiene su atestación cargada en MiMAR? (NO mide cumplimiento registral externo a la ley — solo adopción del flujo de atestación en la plataforma).",
+      "¿Qué porcentaje de mascotas PPP en la jurisdicción tiene su atestación cargada en miMAR? (NO mide cumplimiento registral externo a la ley — solo adopción del flujo de atestación en la plataforma).",
     target: { value: TARGETS.PPP_ATTESTATION_PCT, source: "Ley CABA 4078 / Ley Prov. 14.107" },
     // Uptake metrics never paint a legal-verdict color (S1 principle) — the
     // target is kept (for the info popover's "meta" line, honestly sourced to
     // the law) but the RENDERED tone never derives from it.
     semaphore: { paintAgainst: "none" },
     exclusions:
-      "No mide cumplimiento registral externo (habilitación municipal/provincial fuera de MiMAR) — solo la atestación cargada dentro de la plataforma.",
+      "No mide cumplimiento registral externo (habilitación municipal/provincial fuera de miMAR) — solo la atestación cargada dentro de la plataforma.",
     ui: {
       definition:
-        "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado en MiMAR (C7). Ley CABA 4078 / Ley Prov. 14.107 exige la atestación; este número mide SOLO la adopción del flujo dentro de la plataforma, no el cumplimiento registral externo.",
+        "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado en miMAR (C7). Ley CABA 4078 / Ley Prov. 14.107 exige la atestación; este número mide SOLO la adopción del flujo dentro de la plataforma, no el cumplimiento registral externo.",
       formula:
         "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
       caveat:
@@ -796,7 +796,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "ratio",
     suppression: "none",
     caveat:
-      "NATALIDAD CAVEAT: the denominator only counts TRACKED pregnancies recorded in MiMAR — street/untracked litters are invisible, so this ratio systematically OVER-estimates containment (under-counts births). Directional signal, not exact. Must ship with the UI caveat 'Solo partos en seguimiento — subestima la natalidad real'.",
+      "NATALIDAD CAVEAT: the denominator only counts TRACKED pregnancies recorded in miMAR — street/untracked litters are invisible, so this ratio systematically OVER-estimates containment (under-counts births). Directional signal, not exact. Must ship with the UI caveat 'Solo partos en seguimiento — subestima la natalidad real'.",
     window: "period",
     species: "all_species",
     basis: "ratio",
@@ -902,7 +902,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none (province rows are never small enough to require k-anon)",
     caveat:
-      "Sanitary-coverage sibling of rabies_coverage_dogs_12m and sterilization_coverage_population, surfaced on /gob/poblacion. Unlike sterilization (once-ever), deworming is periodic — the 12-month window is a 'currently protected' proxy. Only counts dewormings logged in MiMAR; real-world coverage may be higher. SEED-DENSITY CAVEAT: deworming_administered has low seed density, so this reads a low but HONEST value until owners/vets log antiparasitic doses.",
+      "Sanitary-coverage sibling of rabies_coverage_dogs_12m and sterilization_coverage_population, surfaced on /gob/poblacion. Unlike sterilization (once-ever), deworming is periodic — the 12-month window is a 'currently protected' proxy. Only counts dewormings logged in miMAR; real-world coverage may be higher. SEED-DENSITY CAVEAT: deworming_administered has low seed density, so this reads a low but HONEST value until owners/vets log antiparasitic doses.",
     window: "12m",
     species: "all_species",
     basis: "ratio",
@@ -912,7 +912,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       formula:
         "COUNT(DISTINCT pets WHERE EXISTS deworming_administered en 12m) / COUNT(pets activos/extraviados en scope) × 100",
       caveat:
-        "A diferencia de la esterilización (una vez), la desparasitación es periódica: la ventana de 12 meses es un proxy de 'protección vigente'. Solo cuenta dosis registradas en MiMAR — la cobertura real puede ser mayor.",
+        "A diferencia de la esterilización (una vez), la desparasitación es periódica: la ventana de 12 meses es un proxy de 'protección vigente'. Solo cuenta dosis registradas en miMAR — la cobertura real puede ser mayor.",
     },
   },
 
@@ -1481,7 +1481,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "count",
     suppression: "none",
     caveat:
-      "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en MiMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento. Un valor positivo refleja sobre todo ritmo de adopción del sistema, no necesariamente más mascotas vivas. Por eso el tono es SIEMPRE neutral — nunca pinta ok/danger.",
+      "INDICADOR DIRECCIONAL, NO EXACTO — no es crecimiento poblacional real. 'Altas nuevas' son mascotas RECIÉN REGISTRADAS en miMAR (pets.created_at), que en su mayoría ya existían y no representan nacimientos. Los nacimientos registrados solo cubren partos en seguimiento. Un valor positivo refleja sobre todo ritmo de adopción del sistema, no necesariamente más mascotas vivas. Por eso el tono es SIEMPRE neutral — nunca pinta ok/danger.",
     window: "period",
     species: "all_species",
     basis: "flow",

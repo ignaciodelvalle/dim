@@ -157,7 +157,7 @@ export default async function ObservacionesPage({
         <OpCallout
           nature="no-signal"
           icon={<Icon name="eye-off" decorative />}
-          title="Sin observaciones registradas en MiMAR"
+          title="Sin observaciones registradas en miMAR"
           body="La ausencia de observaciones no implica ausencia de casos por escalar — no hay observaciones que coincidan con estos filtros en tu cobertura. Revisá la brecha de escalamiento (mordeduras vs. observaciones) en Vigilancia."
         />
       </div>
