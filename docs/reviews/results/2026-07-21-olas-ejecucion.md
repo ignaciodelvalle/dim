@@ -26,6 +26,18 @@
 | 4 | D | Decision density (KPI hierarchy primitive, demote/disclose, decision lens) | ⬜ |
 | 4 | E1/E4/E5/E6 | Facade harvest needing real UI (cases-per-capita, transfer-cancel, reglas microchip, org check-ins) | ⬜ |
 
+## Progreso real
+- **Ola 1 COMPLETA**: A4 iconos+fence + E2/E3/E7 (`30ac5c42`); A1-A3 tokens (`d9201a34`);
+  A5 números + A6 copy (`2e1a9e6d`). :3000 rebuildeado.
+- **Ola 2 fundación LISTA** (`4c9167a3`): offline (useOnline+banner), maintenance
+  (screen+mode switch), partial (OpBulkResultPanel, 3 dedup), permisos (dedup outlier).
+- **Ola 2 PENDIENTE**: loading skeletons (13/115→sistemático), adopción app-wide de los
+  primitivos donde el estado es ad-hoc, y el fence de cobertura de estados.
+- **Ola 3 PENDIENTE**: feedback+confirmación (Toaster, ConfirmDialog rule, consequences,
+  OpButton pressed, citizen who/when).
+- **Ola 4 PENDIENTE**: densidad (KPI hierarchy primitive, demote/disclose, lens) +
+  cosecha grande (E1 cases-per-capita, E4 transfer-cancel, E5 reglas microchip, E6 check-ins).
+
 ## Log
 - (start) Plan committed 25e38ae7. Wave 1 kicked off.
 
