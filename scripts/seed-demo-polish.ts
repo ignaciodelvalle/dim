@@ -307,7 +307,7 @@ function petPhotoSvg(name: string, species: string, bgColor: string): string {
 
 async function main(): Promise<void> {
   const { createClient: createSdkClient } = await import("@supabase/supabase-js");
-  const { and, desc, eq, inArray, isNotNull, isNull, notInArray, sql } = await import(
+  const { and, desc, eq, inArray, isNotNull, isNull, ne, or, notInArray, sql } = await import(
     "drizzle-orm"
   );
   const { drizzle } = await import("drizzle-orm/postgres-js");
@@ -318,7 +318,9 @@ async function main(): Promise<void> {
   // barrel pulls in the `server-only` sentinel, which has no meaning for a
   // standalone script (same rationale as scripts/seed-pet-photos.ts).
   const schema = await import("../db/schema");
-  const { pets, ownerships, petEvents, attachments } = schema;
+  const { pets, ownerships, petEvents, attachments, profiles, govtAssignments } = schema;
+  const { WHOLE_PROVINCE_LOCALITY } = await import("../lib/domain/jurisdiction-canonical");
+  const { pickWelfareDescriptionDeterministic } = await import("./welfare-description-templates");
 
   const supabase = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -326,7 +328,7 @@ async function main(): Promise<void> {
   const client = postgres(DATABASE_URL, { prepare: false });
   const db = drizzle(client, { schema });
 
-  // Summary counters (Step 6).
+  // Summary counters (Step 9).
   const summary = {
     petsRenamed: 0,
     identityFieldsFilled: 0,
@@ -335,6 +337,10 @@ async function main(): Promise<void> {
     panoFieldsFilled: 0,
     photosCreated: 0,
     eventsInserted: 0,
+    seedProfileNamesRepaired: 0,
+    lucasAssignmentsRevoked: 0,
+    lucasAssignmentEnsured: false,
+    welfareDescriptionsRepaired: 0,
   };
 
   // -------------------------------------------------------------------------
@@ -925,9 +931,181 @@ async function main(): Promise<void> {
   }
 
   // -------------------------------------------------------------------------
-  // Step 6 — Final report
+  // Step 7 — Repair seed-marker profile display names (C5)
   // -------------------------------------------------------------------------
-  log("STEP", "Step 6 — Summary");
+  // The panorama seed's synthetic owner profile used to have
+  // display_name='PANO-Seed-Owner' — a renderable column (it surfaces as a
+  // case's "Abrió:"/reporter attribution) carrying an obvious seed marker.
+  // The generator now writes a realistic name at creation time
+  // (scripts/seed-panorama.ts); this step heals a DB seeded before that fix,
+  // by the SAME deterministic id, WITHOUT a full re-seed.
+  log("STEP", "Step 7 — Repairing seed-marker profile display names");
+
+  const PANO_SEED_OWNER_ID = "00000000-4e41-4154-b000-000000000001";
+  const PANO_SEED_OWNER_DISPLAY_NAME = "Marisa Funes"; // MUST match seed-panorama.ts
+
+  const ownerRepaired = await db
+    .update(profiles)
+    .set({ displayName: PANO_SEED_OWNER_DISPLAY_NAME })
+    .where(
+      and(
+        eq(profiles.id, PANO_SEED_OWNER_ID),
+        ne(profiles.displayName, PANO_SEED_OWNER_DISPLAY_NAME),
+      ),
+    )
+    .returning({ id: profiles.id });
+  if (ownerRepaired.length > 0) {
+    summary.seedProfileNamesRepaired += ownerRepaired.length;
+    log(
+      "OK",
+      `Repaired display_name for the PANO seed-owner profile → "${PANO_SEED_OWNER_DISPLAY_NAME}".`,
+    );
+  } else {
+    log("SKIP", "PANO seed-owner profile display_name already realistic.");
+  }
+
+  // Defensive catch-all: any OTHER profile whose display_name still carries a
+  // seed marker (drift from an older/unknown seed path). We do NOT know a
+  // safe realistic replacement for an unforeseen row, so this only WARNS —
+  // silently mass-renaming unknown rows to a shared literal would just trade
+  // one fake-looking pattern for another (duplicate names).
+  const otherSeedMarked = (await db.execute(sql`
+    SELECT id, display_name FROM profiles
+    WHERE id <> ${PANO_SEED_OWNER_ID}
+      AND (display_name LIKE '%PANO-%' OR display_name LIKE '%-Seed-%' OR display_name LIKE '%HIST-WEL%')
+  `)) as unknown as Array<{ id: string; display_name: string }>;
+  for (const row of otherSeedMarked) {
+    log(
+      "WARN",
+      `profiles.id=${row.id} display_name="${row.display_name}" still carries a seed marker — repair manually (no known-safe automatic replacement).`,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 8 — Repair lucas@ govt scope to whole CABA (C5)
+  // -------------------------------------------------------------------------
+  // A pre-fix DB has lucas@dim.test assigned ~1774 individual localities
+  // across 8 provinces (scripts/seed-demo.ts's old EAST_REGION model). The
+  // canonical scope is now ONE row: whole CABA
+  // (lib/domain/jurisdiction-canonical.ts WHOLE_PROVINCE_LOCALITY). This
+  // revokes every other live assignment and ensures the canonical row exists
+  // — a re-seed of seed-demo.ts is NOT required to heal this.
+  log("STEP", "Step 8 — Repairing lucas@ govt scope to whole CABA");
+
+  const lucasAuthId = usersByEmail.get("lucas@dim.test");
+  const adminAuthId = usersByEmail.get("admin@dim.test");
+
+  if (!lucasAuthId) {
+    log("WARN", "lucas@dim.test not found — skipping govt-scope repair.");
+  } else {
+    const province = "CABA";
+    const locality = WHOLE_PROVINCE_LOCALITY.CABA;
+
+    const stale = await db
+      .select({ id: govtAssignments.id })
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.userId, lucasAuthId),
+          isNull(govtAssignments.revokedAt),
+          or(
+            ne(govtAssignments.jurisdictionProvince, province),
+            ne(govtAssignments.jurisdictionLocality, locality),
+          ),
+        ),
+      );
+
+    if (stale.length > 0) {
+      await db
+        .update(govtAssignments)
+        .set({ revokedAt: new Date(), revokedByUserId: adminAuthId ?? null })
+        .where(
+          inArray(
+            govtAssignments.id,
+            stale.map((r) => r.id),
+          ),
+        );
+      summary.lucasAssignmentsRevoked = stale.length;
+      log("OK", `Revoked ${stale.length} over-scoped govt_assignments row(s) for lucas@.`);
+    } else {
+      log("SKIP", "lucas@ has no over-scoped assignments.");
+    }
+
+    const [existing] = await db
+      .select({ id: govtAssignments.id })
+      .from(govtAssignments)
+      .where(
+        and(
+          eq(govtAssignments.userId, lucasAuthId),
+          eq(govtAssignments.jurisdictionProvince, province),
+          eq(govtAssignments.jurisdictionLocality, locality),
+          isNull(govtAssignments.revokedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) {
+      await db.insert(govtAssignments).values({
+        userId: lucasAuthId,
+        jurisdictionProvince: province,
+        jurisdictionLocality: locality,
+        grantedByUserId: adminAuthId ?? null,
+      });
+      log("OK", `Assigned lucas@ → ${province} / ${locality}.`);
+    } else {
+      log("SKIP", `lucas@ already assigned to ${province} / ${locality}.`);
+    }
+    summary.lucasAssignmentEnsured = true;
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 9 — Strip seed codes from welfare_reports.description (C5)
+  // -------------------------------------------------------------------------
+  // Existing rows seeded before the C5 generator fix carry
+  // "PANO-welfare-00042 — denuncia sintética de demostración" or
+  // "PANO-HIST-WEL-001243 denuncia histórica" verbatim in a RENDERED column.
+  // Rewrite each to a realistic citizen-report sentence from the SAME
+  // template pool the fixed generator draws from (shared module — both
+  // writers stay in lockstep), and backfill seed_tag (migration 0155, never
+  // rendered) so the row stays identifiable for future --clean runs without
+  // depending on description text. Deterministic pick by row id, so
+  // reruns against an already-repaired row are stable no-ops.
+  log("STEP", "Step 9 — Repairing welfare_reports.description (strip seed codes)");
+
+  const seedMarkedWelfare = (await db.execute(sql`
+    SELECT id, kind, description, seed_tag
+    FROM welfare_reports
+    WHERE description LIKE 'PANO-%'
+       OR description LIKE '%PANO-HIST-WEL-%'
+       OR description LIKE '%HIST-WEL%'
+  `)) as unknown as Array<{
+    id: string;
+    kind: string;
+    description: string;
+    seed_tag: string | null;
+  }>;
+
+  for (const row of seedMarkedWelfare) {
+    const isHistoric = row.description.includes("HIST-WEL");
+    const newDescription = pickWelfareDescriptionDeterministic(row.kind, row.id);
+    const seedTag = row.seed_tag ?? (isHistoric ? `PANO-HIST-${row.id.slice(0, 8)}` : "PANO");
+    await db.execute(sql`
+      UPDATE welfare_reports
+      SET description = ${newDescription}, seed_tag = ${seedTag}
+      WHERE id = ${row.id}::uuid
+    `);
+  }
+  summary.welfareDescriptionsRepaired = seedMarkedWelfare.length;
+  if (seedMarkedWelfare.length > 0) {
+    log("OK", `Repaired ${seedMarkedWelfare.length} welfare_reports.description row(s).`);
+  } else {
+    log("SKIP", "No welfare_reports.description rows carry a seed code.");
+  }
+
+  // -------------------------------------------------------------------------
+  // Step 10 — Final report
+  // -------------------------------------------------------------------------
+  log("STEP", "Step 10 — Summary");
   // eslint-disable-next-line no-console
   console.table([
     { metric: "Pets renamed", value: summary.petsRenamed },
@@ -937,8 +1115,25 @@ async function main(): Promise<void> {
     { metric: "PANO identity rows filled", value: summary.panoFieldsFilled },
     { metric: "Photos created", value: summary.photosCreated },
     { metric: "Libreta events inserted", value: summary.eventsInserted },
+    { metric: "Seed profile names repaired", value: summary.seedProfileNamesRepaired },
+    { metric: "lucas@ over-scoped assignments revoked", value: summary.lucasAssignmentsRevoked },
+    { metric: "Welfare descriptions repaired", value: summary.welfareDescriptionsRepaired },
   ]);
   log("OK", "Done. Now run `pnpm demo:verify` to confirm the demo DB is consistent.");
+
+  // Seed-hygiene gate (C5) — run at the end of the repair flow too, so a
+  // polish run reports whether the DB is actually clean afterward.
+  log("STEP", "Running seed-hygiene gate…");
+  const { findSeedHygieneOffenders } = await import("./check-seed-hygiene");
+  const offenders = await findSeedHygieneOffenders(client);
+  if (offenders.length > 0) {
+    log("FAIL", `Seed-hygiene gate: ${offenders.length} offender(s) remain.`);
+    for (const o of offenders.slice(0, 20)) {
+      log("FAIL", `  ${o.table}.${o.column} id=${o.id}: "${o.sample}" (${o.matchedPattern})`);
+    }
+  } else {
+    log("OK", "Seed-hygiene gate clean — 0 seed-marker hits.");
+  }
 
   await client.end();
 }

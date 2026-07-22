@@ -7,7 +7,8 @@
  *
  * What this file does:
  *   1. Bootstraps 7 demo users (shared password "Test1234!").
- *   2. Creates 5 organizations and Lucas's govt assignments (CABA C1/C2/C14).
+ *   2. Creates 5 organizations and Lucas's govt assignment (whole CABA —
+ *      see provisionGovtAssignments below; C5 fix, 2026-07-22).
  *   3. Wires memberships (Alejo as multi-org coordinator, Lilian as vet,
  *      Noelí + Graciela as foster volunteers).
  *   4. Creates the `seed-photos` Supabase Storage bucket and uploads pet
@@ -86,6 +87,7 @@ if (!STATS_ONLY) {
 // ---------------------------------------------------------------------------
 
 import { EVENT_TYPES, type EventType } from "../db/schema";
+import { WHOLE_PROVINCE_LOCALITY } from "../lib/domain/jurisdiction-canonical";
 import { chipImplantSiteFromLocation } from "../lib/domain/microchip-implant-site";
 import { DANGEROUS_STORYLINES } from "./seed-storylines-dangerous";
 import { STORYLINES as ICONIC_STORYLINES } from "./seed-storylines-iconic";
@@ -105,7 +107,7 @@ export const STORYLINES = [
 
 type DbDeps = {
   db: any;
-  drizzle: { and: any; eq: any; isNull: any; sql: any };
+  drizzle: { and: any; eq: any; ne: any; or: any; isNull: any; inArray: any; sql: any };
   supabase: any;
   schemas: {
     profiles: any;
@@ -139,7 +141,15 @@ async function loadDbDeps(): Promise<DbDeps> {
 
   return {
     db: db.db,
-    drizzle: { and: drizzle.and, eq: drizzle.eq, isNull: drizzle.isNull, sql: drizzle.sql },
+    drizzle: {
+      and: drizzle.and,
+      eq: drizzle.eq,
+      ne: drizzle.ne,
+      or: drizzle.or,
+      isNull: drizzle.isNull,
+      inArray: drizzle.inArray,
+      sql: drizzle.sql,
+    },
     supabase,
     schemas: {
       profiles: db.profiles,
@@ -151,7 +161,6 @@ async function loadDbDeps(): Promise<DbDeps> {
       organizationMemberships: db.organizationMemberships,
       organizationCoverage: db.organizationCoverage,
       govtAssignments: db.govtAssignments,
-      // Read-only here: the source of truth for Lucas's East-region localities.
       arLocalities: db.arLocalities,
       attachments: db.attachments,
       petServiceDog: db.petServiceDog,
@@ -292,45 +301,24 @@ export const ORGS = {
 
 export type OrgKey = keyof typeof ORGS;
 
-// Lucas is the REGIONAL coordinator for the East: CABA + Buenos Aires + the
-// litoral up to Formosa. He is the scale case — the operator whose every scoped
-// query fans out across ~1.8k localities, which is what makes him worth having.
+// Lucas's govt scope — WHOLE CABA (C5 fix, 2026-07-22, plan-maestro-integridad).
 //
-// Why every locality and not "the whole province": whole-province assignment
-// exists for CABA ONLY (lib/domain/jurisdiction-canonical.ts
-// WHOLE_PROVINCE_LOCALITY), and it works there because "Ciudad Autónoma de
-// Buenos Aires" is a real INDEC single-entry locality. The other provinces have
-// no such row — their obvious sentinels ("Formosa", "Corrientes", "Santa Fe")
-// are the CAPITAL CITIES. Adding `Formosa: "Formosa"` to that map would silently
-// hand the whole province to every official who only holds the capital. So the
-// province-grain model does not exist yet; enumerating localities is the honest
-// encoding available today, and it is also the load test.
-//
-// Order matters for nothing here, but the province list is deliberate: these are
-// contiguous and they are the ones with real seeded volume.
-const EAST_REGION_PROVINCES = [
-  "CABA",
-  "Buenos Aires",
-  "Santa Fe",
-  "Entre Ríos",
-  "Corrientes",
-  "Misiones",
-  "Chaco",
-  "Formosa",
-] as const;
-
-// Province NAME → INDEC province_code, to read localities out of ar_localities.
-// pets/cases store the name; ar_localities keys by code.
-const EAST_REGION_PROVINCE_CODES: Readonly<Record<string, string>> = {
-  CABA: "AR-C",
-  "Buenos Aires": "AR-B",
-  "Santa Fe": "AR-S",
-  "Entre Ríos": "AR-E",
-  Corrientes: "AR-W",
-  Misiones: "AR-N",
-  Chaco: "AR-H",
-  Formosa: "AR-P",
-};
+// He used to be assigned every individual locality across 8 provinces
+// (~1.8k rows: CABA + Buenos Aires + the litoral up to Formosa) as a
+// deliberate "scale case" — the operator whose every scoped query fans out
+// nationwide. That is not a shape any real funcionario holds: SEED_ORGS'
+// coordinators, the govt@/govt-local@ test accounts, and every other seeded
+// government account hold ONE jurisdiction. A funcionario with 1774
+// localities reads as broken data, not as a realistic power-user — a
+// reviewer flagged the literal number ("1774 LOCALIDADES") as a symptom, not
+// a feature. Whole-province assignment DOES exist for CABA
+// (lib/domain/jurisdiction-canonical.ts WHOLE_PROVINCE_LOCALITY —
+// `isWholeProvinceLocality`), so this is also the canonical form, not a
+// downgrade: one row, subsumption resolves every CABA barrio underneath it,
+// and it exercises the SAME census-denominator + subsumption code paths the
+// old enumeration existed to stress. National-scale query fan-out is better
+// tested by a dedicated load-test seed (scripts/seed-perf.ts) than by
+// misrepresenting what a single official's jurisdiction looks like.
 
 const PHOTO_DIR_ABS = path.join(process.cwd(), "docs", "archive", "Fotos");
 
@@ -545,63 +533,76 @@ async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
 }
 
 /**
- * Every (province, locality) pair in the East region, read from ar_localities.
- *
- * Derived, never hardcoded: the locality list is INDEC data that lives in the
- * DB, and a literal copy here would rot the first time that table is refreshed.
+ * Lucas's govt scope — whole CABA, one row (C5 fix). Revokes any OTHER live
+ * assignment he holds first (idempotent repair path for a DB seeded before
+ * this fix, which left him with ~1774 individual-locality rows), then
+ * upserts the canonical whole-province row.
  */
-async function eastRegionJurisdictions(
-  deps: DbDeps,
-): Promise<{ province: string; locality: string }[]> {
-  const { db, drizzle, schemas } = deps;
-  const out: { province: string; locality: string }[] = [];
-  for (const province of EAST_REGION_PROVINCES) {
-    const code = EAST_REGION_PROVINCE_CODES[province];
-    const rows = await db
-      .selectDistinct({ locality: schemas.arLocalities.localityName })
-      .from(schemas.arLocalities)
-      .where(drizzle.eq(schemas.arLocalities.provinceCode, code));
-    for (const r of rows) out.push({ province, locality: r.locality });
-  }
-  return out;
-}
-
 async function provisionGovtAssignments(
   deps: DbDeps,
   lucasId: string,
   adminId: string,
 ): Promise<void> {
-  const assignments = await eastRegionJurisdictions(deps);
-  log(
-    "STEP",
-    `Lucas govt assignments — región Este (${EAST_REGION_PROVINCES.length} provincias, ${assignments.length} localidades)`,
-  );
   const { db, drizzle, schemas } = deps;
-  for (const loc of assignments) {
-    const [existing] = await db
-      .select({ id: schemas.govtAssignments.id })
-      .from(schemas.govtAssignments)
-      .where(
-        drizzle.and(
-          drizzle.eq(schemas.govtAssignments.userId, lucasId),
-          drizzle.eq(schemas.govtAssignments.jurisdictionProvince, loc.province),
-          drizzle.eq(schemas.govtAssignments.jurisdictionLocality, loc.locality),
-          drizzle.isNull(schemas.govtAssignments.revokedAt),
+  const province = "CABA";
+  const locality = WHOLE_PROVINCE_LOCALITY.CABA;
+
+  log("STEP", `Lucas govt assignment — whole ${province} (${locality})`);
+
+  // Revoke every OTHER live assignment (repairs a pre-fix over-scoped Lucas
+  // without touching the canonical row itself, so this stays a no-op once
+  // clean).
+  const stale = await db
+    .select({ id: schemas.govtAssignments.id })
+    .from(schemas.govtAssignments)
+    .where(
+      drizzle.and(
+        drizzle.eq(schemas.govtAssignments.userId, lucasId),
+        drizzle.isNull(schemas.govtAssignments.revokedAt),
+        drizzle.or(
+          drizzle.ne(schemas.govtAssignments.jurisdictionProvince, province),
+          drizzle.ne(schemas.govtAssignments.jurisdictionLocality, locality),
         ),
-      )
-      .limit(1);
-    if (existing) {
-      log("SKIP", `${loc.province} / ${loc.locality}`);
-      continue;
-    }
-    await db.insert(schemas.govtAssignments).values({
-      userId: lucasId,
-      jurisdictionProvince: loc.province,
-      jurisdictionLocality: loc.locality,
-      grantedByUserId: adminId,
-    });
-    log("OK", `${loc.province} / ${loc.locality}`);
+      ),
+    );
+  if (stale.length > 0) {
+    await db
+      .update(schemas.govtAssignments)
+      .set({ revokedAt: new Date(), revokedByUserId: adminId })
+      .where(
+        drizzle.inArray(
+          schemas.govtAssignments.id,
+          stale.map((r: { id: string }) => r.id),
+        ),
+      );
+    log("OK", `Revoked ${stale.length} stale/over-scoped assignment(s) for Lucas.`);
   }
+
+  const [existing] = await db
+    .select({ id: schemas.govtAssignments.id })
+    .from(schemas.govtAssignments)
+    .where(
+      drizzle.and(
+        drizzle.eq(schemas.govtAssignments.userId, lucasId),
+        drizzle.eq(schemas.govtAssignments.jurisdictionProvince, province),
+        drizzle.eq(schemas.govtAssignments.jurisdictionLocality, locality),
+        drizzle.isNull(schemas.govtAssignments.revokedAt),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    log("SKIP", `${province} / ${locality} (already assigned)`);
+    return;
+  }
+
+  await db.insert(schemas.govtAssignments).values({
+    userId: lucasId,
+    jurisdictionProvince: province,
+    jurisdictionLocality: locality,
+    grantedByUserId: adminId,
+  });
+  log("OK", `${province} / ${locality}`);
 }
 
 // ---------------------------------------------------------------------------

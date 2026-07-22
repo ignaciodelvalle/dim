@@ -23,6 +23,16 @@
 // failing row. This test guards against future write paths (scripts, manual
 // SQL, QA workarounds) reintroducing the bug.
 //
+// EXCEPTION — whole-province assignments (C5, 2026-07-22): a row whose
+// (province, locality) is the WHOLE_PROVINCE_LOCALITY sentinel
+// (lib/domain/jurisdiction-canonical.ts — today, CABA's "Ciudad Autónoma de
+// Buenos Aires") is validated by a DIFFERENT, closed mechanism —
+// isWholeProvinceLocality membership IS the integrity check — and is
+// deliberately NOT an ar_localities catalog row: the INDEC importer drops
+// that exact whole-city placeholder on ingest (check-locality-integrity.ts),
+// so `localityByName` correctly returns null for it. Resolving it against
+// the catalog would be testing the wrong thing; skip those rows here.
+//
 // HOW TO SATISFY A FAILURE:
 //   - If a NEW row fails: find the write path that inserted it (grep for
 //     `.insert(govtAssignments)` outside the two writers above) and route it
@@ -38,11 +48,12 @@ import { isNull } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 
 import { db, govtAssignments } from "@/db";
+import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
 import { localityByName } from "@/lib/infra/ar-localidades";
 import { type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
 
 describe("govt_assignments locality integrity (issue #758)", () => {
-  it("every ACTIVE assignment's jurisdiction_locality resolves against ar_localities", async () => {
+  it("every ACTIVE assignment's jurisdiction_locality resolves against ar_localities (or is the whole-province sentinel)", async () => {
     const activeAssignments = await db
       .select({
         id: govtAssignments.id,
@@ -54,6 +65,8 @@ describe("govt_assignments locality integrity (issue #758)", () => {
 
     const unresolved: string[] = [];
     for (const row of activeAssignments) {
+      if (isWholeProvinceLocality(row.province, row.locality)) continue;
+
       const province = provinceByName(row.province);
       if (!province) {
         unresolved.push(`${row.id} (province '${row.province}' not in ar-provincias catalog)`);

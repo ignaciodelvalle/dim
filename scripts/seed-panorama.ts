@@ -63,6 +63,11 @@ import {
 // barrios so CABA pets distribute across barrios instead of one blob.
 import { CABA_BARRIOS, CABA_BARRIO_NAMES, CABA_PLACEHOLDER_LOCALITY } from "./caba-barrios-data";
 
+// Realistic welfare-report description templates — pure data, no db
+// side-effect, safe to import statically. Shared with seed-demo-polish.ts's
+// repair path so both writers produce the same style of prose (C5).
+import { WELFARE_DESCRIPTION_TEMPLATES } from "./welfare-description-templates";
+
 // ---------------------------------------------------------------------------
 // 1. Env bootstrap (must run before db/index.ts is imported)
 // ---------------------------------------------------------------------------
@@ -483,6 +488,31 @@ const WELFARE_SEVERITIES = [
   { severity: "critical", weight: 10 },
 ] as const;
 
+// Old-open backlog exception (C5 fix, seedHistoryWelfareAndCases): a report
+// that is >180 days old AND still open is the realistic-backlog EXCEPTION,
+// not the rule — and it must not also scream "critical" (the pre-fix bug: a
+// 930-day-old "critical open" case reads as a live SLA breach, not a stale
+// backlog item). Skewed hard toward low/medium; almost no critical.
+const WELFARE_SEVERITIES_BACKLOG = [
+  { severity: "low", weight: 55 },
+  { severity: "medium", weight: 35 },
+  { severity: "high", weight: 8 },
+  { severity: "critical", weight: 2 },
+] as const;
+
+// Realistic citizen-report prose, per welfare kind (C5 fix — descriptions
+// used to be `PANO-welfare-00042 — denuncia sintética de demostración` /
+// `PANO-HIST-WEL-001243 denuncia histórica`: a seed-correlation index baked
+// straight into rendered text, the exact "looks like a fake" tell the C5
+// audit called out. The index now lives in welfare_reports.seed_tag
+// (migration 0155, NOT rendered). Templates live in
+// scripts/welfare-description-templates.ts, shared with the
+// seed-demo-polish.ts repair path so both writers stay in lockstep.
+function pickWelfareDescription(kind: string): string {
+  const templates = WELFARE_DESCRIPTION_TEMPLATES[kind] ?? WELFARE_DESCRIPTION_TEMPLATES.other;
+  return pick(templates);
+}
+
 // ---------------------------------------------------------------------------
 // 5c. Province → ISO code map (for ar_localities lookup)
 // ---------------------------------------------------------------------------
@@ -797,30 +827,29 @@ async function seedOrganizations(localitiesByCode: Map<string, LocalityRow[]>): 
 // ownerships.owner_user_id → profiles.id. We need a profile in the DB.
 // Use the existing owner@dim.test profile if available, else create a synthetic
 // profile row directly (no auth.users side-effect needed for INSERT on profiles).
+//
+// display_name is a RENDERABLE column — it surfaces on operator screens as a
+// case's "Abrió:"/reporter attribution. It used to be the literal string
+// "PANO-Seed-Owner" (C5 audit finding: an obvious seed marker on a screen a
+// funcionario reads as real). Deterministic lookup is by `id` — a fixed UUID
+// derived from the seed tag — NOT by name, so the display name is free to be
+// a realistic es-AR name without breaking idempotent re-runs. Never used as
+// a "the real owner@dim.test" stand-in for anything auth-related.
+const PANO_SEED_OWNER_ID = "00000000-4e41-4154-b000-000000000001";
+const PANO_SEED_OWNER_DISPLAY_NAME = "Marisa Funes";
 
 async function findOrCreateSeedOwnerProfileId(): Promise<string> {
-  // Try to find owner@dim.test in profiles via display_name heuristic
-  const rows = (await db.execute(
-    sql`SELECT id FROM profiles WHERE display_name = 'PANO-Seed-Owner' LIMIT 1`,
-  )) as unknown as Array<{ id: string }>;
-
-  if (rows.length > 0) return rows[0].id;
-
-  // Create a synthetic profile. Profiles.id must be a UUID — use a deterministic
-  // one derived from the seed tag so idempotent re-runs don't create duplicates.
-  const deterministicId = "00000000-4e41-4154-b000-000000000001";
-
   const exists = (await db.execute(
-    sql`SELECT id FROM profiles WHERE id = ${deterministicId} LIMIT 1`,
+    sql`SELECT id FROM profiles WHERE id = ${PANO_SEED_OWNER_ID} LIMIT 1`,
   )) as unknown as Array<{ id: string }>;
 
-  if (exists.length > 0) return deterministicId;
+  if (exists.length > 0) return PANO_SEED_OWNER_ID;
 
   await db.execute(sql`
     INSERT INTO profiles (id, display_name, role, account_type, created_at, updated_at)
     VALUES (
-      ${deterministicId}::uuid,
-      'PANO-Seed-Owner',
+      ${PANO_SEED_OWNER_ID}::uuid,
+      ${PANO_SEED_OWNER_DISPLAY_NAME},
       'owner',
       'personal',
       now(),
@@ -829,8 +858,11 @@ async function findOrCreateSeedOwnerProfileId(): Promise<string> {
     ON CONFLICT (id) DO NOTHING
   `);
 
-  log("OK", `Created synthetic owner profile ${deterministicId}`);
-  return deterministicId;
+  log(
+    "OK",
+    `Created synthetic owner profile ${PANO_SEED_OWNER_ID} (${PANO_SEED_OWNER_DISPLAY_NAME})`,
+  );
+  return PANO_SEED_OWNER_ID;
 }
 
 // ---------------------------------------------------------------------------
@@ -979,14 +1011,28 @@ async function runClean(): Promise<void> {
     log("OK", `  Deleted ${panoOrgs.length} PANO organizations`);
   }
 
-  // 10c. PANO welfare reports (description contains seed marker)
-  const deletedWelfare = await db.execute(
-    sql`DELETE FROM welfare_reports WHERE description LIKE 'PANO-%'`,
-  );
+  // 10c. PANO welfare reports — keyed off the NON-RENDERED seed_tag column
+  // (migration 0155) primarily, PLUS a belt-and-suspenders description-LIKE
+  // match for rows seeded BEFORE that column existed (seed_tag IS NULL on
+  // those). Without the second clause, a --clean/re-seed on a DB seeded pre-
+  // C5 leaves the old age-incoherent-status rows in place forever — the
+  // fresh insert only ADDS clean rows on top instead of replacing the dirty
+  // ones (this is exactly how the pre-fix "930-day-old critical open" rows
+  // were discovered surviving a re-seed). Description no longer carries a
+  // seed marker for FRESH rows (C5 fix), so this LIKE clause only ever
+  // matches leftover pre-fix data — it is a one-time bridge, not a permanent
+  // reliance on rendered text.
+  const deletedWelfare = await db.execute(sql`
+    DELETE FROM welfare_reports
+    WHERE (seed_tag IS NOT NULL AND seed_tag LIKE 'PANO%')
+       OR description LIKE 'PANO-%'
+       OR description LIKE '%HIST-WEL%'
+  `);
   log("OK", `  Deleted PANO welfare reports (${JSON.stringify(deletedWelfare)})`);
 
-  // 10d. PANO synthetic owner profile
-  await db.execute(sql`DELETE FROM profiles WHERE display_name = 'PANO-Seed-Owner'`);
+  // 10d. PANO synthetic owner profile — keyed off the deterministic id, not
+  // display_name (which is now a realistic name, not a seed marker).
+  await db.execute(sql`DELETE FROM profiles WHERE id = ${PANO_SEED_OWNER_ID}`);
 
   // 10e. Reset the ENO outbreak-investigation pool.
   //
@@ -1087,7 +1133,9 @@ async function seedWelfareReports(
       referenceCode,
       kind: kindEntry.kind,
       severity: severityEntry.severity,
-      description: `PANO-welfare-${String(i).padStart(5, "0")} — denuncia sintética de demostración`,
+      description: pickWelfareDescription(kindEntry.kind),
+      // Internal-only cleanup marker — NEVER rendered (migration 0155).
+      seedTag: "PANO",
       subjectKind: pick(["unowned_animal", "location", "general", "unowned_animal"] as const),
       status: "open" as const,
       flagReasons: [],
@@ -1204,16 +1252,18 @@ function buildPetEvents(
   }
 
   // Sterilization: per-province rate × global multiplier. The KPI
-  // (fetchSterilizationMetrics) counts events in the LAST 30 DAYS and the
-  // distinct author orgs, so we date these within the 28-day window and
-  // attribute a share to the shelter org (org ranking) — the rest stay
-  // owner-vet logged.
+  // (fetchSterilizationMetrics) compares the trailing 30 days against the
+  // PRIOR 30 days (deltaPct). Dating every event within a strict 28-day
+  // window (C5 audit finding) put ALL sterilizations in the "current" bucket
+  // and left the "prior" bucket empty for every org — an unstable base that
+  // produced wild, meaningless MoM swings the moment any one org's count
+  // moved at all. Widened to 60 days so both windows get real data.
   if (rng() < coverage.ster * (STERILIZATION_RATE / 0.28)) {
     const attributeToOrg = opts.shelterOrgId !== null || rng() < 0.35;
     events.push({
       petId,
       eventType: "sterilization_performed" satisfies EventType,
-      occurredAt: randomWindowDate(28),
+      occurredAt: randomWindowDate(60),
       recordedByUserId: ownerUserId,
       authorRole: attributeToOrg ? "vet" : "owner",
       authorVerified: attributeToOrg,
@@ -1399,10 +1449,20 @@ async function seedPets(
       const petId = tokenToId.get(panoPublicToken(meta.index));
       if (!petId) continue;
 
-      // ~2% of pets belong to a shelter org (if available)
+      // ~2% of pets belong to a shelter org (if available). C5 fix: the
+      // fallback used to be the FIRST org unconditionally (`shelterOrgs[0]`,
+      // always La Plata) whenever a pet's province had no matching seed org
+      // — since only 6/24 provinces have one, La Plata absorbed every other
+      // province's shelter-custody pets (and therefore its sterilization
+      // authorship), leaving every other org with ~0 in the recent window.
+      // A single reporting org is exactly the "−95.6% MoM cliff" symptom:
+      // one org's small random dip reads as a national collapse. Falling
+      // back to a random pick (still deterministic — the seeded `rng()`)
+      // spreads shelter-custody assignment, and therefore sterilization
+      // attribution, across all seeded orgs.
       const useShelterOrg = shelterOrgs.length > 0 && rng() < 0.02;
       const shelterOrg = useShelterOrg
-        ? (shelterOrgs.find((o) => o.provinceName === meta.provinceName) ?? shelterOrgs[0])
+        ? (shelterOrgs.find((o) => o.provinceName === meta.provinceName) ?? pick(shelterOrgs))
         : null;
 
       if (shelterOrg) {
@@ -3363,7 +3423,9 @@ async function seedModelProvinceHistory(
 // 17. Historical welfare_reports + enforcement cases — 2024-2026 all provinces
 // ---------------------------------------------------------------------------
 // All rows are PANO-tagged so runClean()'s existing patterns remove them:
-//   welfare_reports: description LIKE 'PANO-%'         ← 'PANO-HIST-WEL-*' matches
+//   welfare_reports: seed_tag LIKE 'PANO%' (migration 0155) ← the internal
+//     marker moved OUT of `description` (C5 fix — description now reads like
+//     a real citizen report; the seed-tag lives in a column no query renders).
 //   cases:           opened_reason LIKE '%seed histórico%' ← both the
 //     decomiso and dispute openedReason strings below end in that marker.
 //     NOTE: these cases' public_code is production-format CAS-XXXX-XXXX
@@ -3406,6 +3468,35 @@ async function allocateCasePublicCode(): Promise<string | undefined> {
     if (!existing) return candidate;
   }
   return undefined;
+}
+
+/**
+ * Age-correlated status for a historical welfare report (C5 fix).
+ *
+ * Before this, status was a flat roll independent of age: ~60% open no
+ * matter how old the row was. That produced 930-day-old "critical open"
+ * cases — a backlog item that LOOKS like a live SLA breach, when in reality
+ * a report that old should almost always have been resolved one way or
+ * another. closedProb ramps from ~10% (very recent — still being triaged)
+ * to ~90% (>180d — should be terminal), with a SMALL realistic-backlog
+ * exception (~7% of the >180d cohort stays open) rather than none at all.
+ */
+function pickHistoricalWelfareStatus(
+  ageDays: number,
+): "open" | "closed" | "triaged" | "in_progress" {
+  let closedProb: number;
+  if (ageDays <= 30) {
+    closedProb = 0.1 + (ageDays / 30) * 0.2; // 10% → 30%
+  } else if (ageDays <= 180) {
+    closedProb = 0.3 + ((ageDays - 30) / 150) * 0.55; // 30% → 85%
+  } else {
+    closedProb = 0.9; // old rows: 90% terminal — the remaining 10% is the backlog exception
+  }
+  if (rng() < closedProb) return "closed";
+  const rest = rng();
+  if (rest < 0.7) return "open";
+  if (rest < 0.9) return "triaged";
+  return "in_progress";
 }
 
 async function seedHistoryWelfareAndCases(
@@ -3457,28 +3548,32 @@ async function seedHistoryWelfareAndCases(
           // createdAt must be set explicitly so the consumer's
           // gte(welfareReports.createdAt, since) filter returns these history rows.
           const createdAt = pickDateInMonth(year, month, rng, ANCHOR);
+          const ageDays = Math.max(0, (ANCHOR_MS - createdAt.getTime()) / (24 * 3600 * 1000));
           const kindEntry = pickWeighted(
             WELFARE_KINDS as unknown as Array<{ kind: string; weight: number }>,
           );
+          const status = pickHistoricalWelfareStatus(ageDays);
+          // Old-open is the realistic-backlog EXCEPTION (see
+          // pickHistoricalWelfareStatus) — it must not ALSO skew critical
+          // (the pre-fix "930-day-old critical open" symptom), so it draws
+          // from the low/medium-skewed backlog severity table instead of the
+          // normal distribution.
+          const isOldOpenBacklog = status === "open" && ageDays > 180;
           const sevEntry = pickWeighted(
-            WELFARE_SEVERITIES as unknown as Array<{ severity: string; weight: number }>,
+            (isOldOpenBacklog
+              ? WELFARE_SEVERITIES_BACKLOG
+              : WELFARE_SEVERITIES) as unknown as Array<{ severity: string; weight: number }>,
           );
-          // ~60 % open (drives the queue), ~30 % closed, ~10 % in_progress/triaged.
-          const roll = rng();
-          const status =
-            roll < 0.6
-              ? ("open" as const)
-              : roll < 0.9
-                ? ("closed" as const)
-                : roll < 0.95
-                  ? ("triaged" as const)
-                  : ("in_progress" as const);
 
           welRows.push({
             referenceCode: generateReferenceCode(),
             kind: kindEntry.kind,
             severity: sevEntry.severity,
-            description: `PANO-HIST-WEL-${String(welIdx).padStart(6, "0")} denuncia histórica`,
+            description: pickWelfareDescription(kindEntry.kind),
+            // Internal-only cleanup marker — NEVER rendered (migration 0155).
+            // welIdx is retained purely for correlation/debugging inside this
+            // column, never in the description text.
+            seedTag: `PANO-HIST-${String(welIdx).padStart(6, "0")}`,
             subjectKind: pick(["unowned_animal", "location", "general", "unowned_animal"] as const),
             status,
             flagReasons: [],
@@ -3851,6 +3946,216 @@ async function seedHistoryCampaigns(
 }
 
 // ---------------------------------------------------------------------------
+// 15g. Novedades-feed variety tail (C5 fix)
+// ---------------------------------------------------------------------------
+// The "Novedades" operator-orientation feed (lib/metrics/novedades-feed.ts)
+// orders by pet_events.recorded_at DESC — TRANSACTION time, which every
+// insert above defaults to `now()` at actual script-run time (none of them
+// set recorded_at explicitly). Its 5 feed types are outbreak_signal,
+// disease_reported, rabies_observation_started, incident_reported, and
+// custody_dispute_raised (novedades-feed-links.ts FEED_EVENT_TYPES). The bulk
+// historical loop above (seedModelProvinceHistory) emits incident_reported
+// at FAR higher volume than the other 4 types, so once every row shares
+// approximately the same recorded_at instant, ties resolve arbitrarily and
+// the feed reads as a monotonous incident_reported wall (C5 audit finding).
+//
+// This runs LAST, after every other pet_events-writing step in main() —
+// its rows get the newest recorded_at of the whole script run and therefore
+// deterministically win the DESC ordering, guaranteeing the feed's top shows
+// a genuine mix of all 5 types across a few different localities, regardless
+// of the bulk-volume asymmetry elsewhere.
+async function seedFeedVarietyTail(ownerUserId: string, shelterOrgs: PanoOrg[]): Promise<number> {
+  log("STEP", "Seeding novedades-feed variety tail (5 feed types, distinct localities)…");
+
+  const candidates = await db
+    .select({
+      id: pets.id,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .where(like(pets.publicToken, `${PANO_TAG}%`))
+    .limit(60);
+
+  if (candidates.length === 0) {
+    log("WARN", "  No PANO pets found — skipping feed variety tail");
+    return 0;
+  }
+
+  // De-dup to distinct localities, cap at 5 — one pet per type/locality pair.
+  const seenLocalities = new Set<string>();
+  const targets: typeof candidates = [];
+  for (const c of candidates) {
+    const key = `${c.province ?? ""}|${c.locality ?? ""}`;
+    if (seenLocalities.has(key)) continue;
+    seenLocalities.add(key);
+    targets.push(c);
+    if (targets.length >= 5) break;
+  }
+  // Fall back to repeating the first candidate if fewer than 5 distinct
+  // localities exist (tiny local dev DBs) — variety of TYPE still holds.
+  while (targets.length < 5 && candidates.length > 0) {
+    targets.push(candidates[targets.length % candidates.length]);
+  }
+
+  const now = new Date();
+  let inserted = 0;
+
+  // 1) incident_reported (bite) — also the anchor for the chained
+  // rabies_observation_started below.
+  const [biteTarget] = targets;
+  const [biteEvent] = await db
+    .insert(petEvents)
+    .values({
+      petId: biteTarget.id,
+      eventType: "incident_reported" satisfies EventType,
+      occurredAt: now,
+      recordedByUserId: ownerUserId,
+      authorRole: "vet",
+      authorVerified: true,
+      payload: {
+        source: "seed-panorama-feed-variety",
+        incident_type: "bite_inflicted",
+        severity: "moderate",
+        injuries_summary: "Mordedura reportada esta semana (seed-panorama variety tail)",
+        vet_involved: true,
+        location_description: biteTarget.locality ?? biteTarget.province ?? "",
+        rabies_vaccine_valid_at_incident: true,
+      },
+    })
+    .returning({ id: petEvents.id });
+  inserted++;
+
+  // 2) rabies_observation_started — chained off the bite event above.
+  await db.insert(petEvents).values({
+    petId: biteTarget.id,
+    eventType: "rabies_observation_started" satisfies EventType,
+    occurredAt: now,
+    recordedByUserId: ownerUserId,
+    authorRole: "vet",
+    authorVerified: true,
+    payload: {
+      source: "seed-panorama-feed-variety",
+      bite_event_id: biteEvent.id,
+      observation_until: new Date(now.getTime() + 10 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      location: "in_situ",
+      official_site_organization_id: null,
+    },
+  });
+  inserted++;
+
+  // 3) outbreak_signal.
+  const outbreakTarget = targets[1] ?? targets[0];
+  await db.insert(petEvents).values({
+    petId: outbreakTarget.id,
+    eventType: "outbreak_signal" satisfies EventType,
+    occurredAt: now,
+    recordedByUserId: ownerUserId,
+    authorRole: "govt",
+    authorVerified: true,
+    payload: {
+      source: "seed-panorama-feed-variety",
+      disease_code: "rabies_suspected",
+      disease_label: "Rabia (sospechada)",
+      pet_jurisdiction_province: outbreakTarget.province,
+      pet_jurisdiction_locality: outbreakTarget.locality,
+      status: "open",
+    },
+  });
+  inserted++;
+
+  // 4) disease_reported.
+  const diseaseTarget = targets[2] ?? targets[0];
+  await db.insert(petEvents).values({
+    petId: diseaseTarget.id,
+    eventType: "disease_reported" satisfies EventType,
+    occurredAt: now,
+    recordedByUserId: ownerUserId,
+    authorRole: "vet",
+    authorVerified: true,
+    payload: {
+      source: "seed-panorama-feed-variety",
+      disease: "lepto",
+      confirmed_by_lab: false,
+      date_of_onset: new Date(now.getTime() - 2 * 24 * 3600 * 1000).toISOString().slice(0, 10),
+      clinical_notes:
+        "Caso reciente reportado por veterinario tratante (seed-panorama variety tail)",
+    },
+  });
+  inserted++;
+
+  // 5) custody_dispute_raised — needs its case + custody_disputes rows,
+  // mirroring seedEnforcementCases's lockstep (case ↔ pet_event ↔ dispute).
+  const disputeTarget = targets[3] ?? targets[0];
+  const disputeProv = disputeTarget.province ?? "Buenos Aires";
+  const disputeLocality = disputeTarget.locality ?? "Sin especificar";
+
+  const [disputeCase] = await db
+    .insert(cases)
+    .values({
+      publicCode: `PANO-CASE-VARIETY-${String(Date.now()).slice(-6)}`,
+      caseKind: "custody_dispute",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: disputeTarget.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: disputeProv,
+      jurisdictionLocality: disputeLocality,
+      openedReason: "auto: disputa de custodia entre partes",
+      openedAt: now,
+    } as Parameters<typeof db.insert<typeof cases>>[0] extends {
+      values: (v: infer V) => unknown;
+    }
+      ? V
+      : never)
+    .returning({ id: cases.id });
+
+  const [raisingEvent] = await db
+    .insert(petEvents)
+    .values({
+      petId: disputeTarget.id,
+      eventType: "custody_dispute_raised" satisfies EventType,
+      occurredAt: now,
+      authorRole: "govt",
+      payload: { source: "seed-panorama-feed-variety", motive: "disputa de custodia" },
+    })
+    .returning({ id: petEvents.id });
+  inserted++;
+
+  const [dispute] = await db
+    .insert(custodyDisputes)
+    .values({
+      publicToken: `DIS-PANO-VARIETY-${String(Date.now()).slice(-6)}`,
+      petId: disputeTarget.id,
+      raisedByRole: "govt",
+      raisingEventId: raisingEvent.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: disputeProv,
+      jurisdictionLocality: disputeLocality,
+      status: "open",
+    })
+    .returning({ id: custodyDisputes.id });
+
+  await db
+    .update(cases)
+    .set({ custodyDisputeId: dispute.id, updatedAt: new Date() })
+    .where(eq(cases.id, disputeCase.id));
+  await db.update(pets).set({ inCustodyDispute: true }).where(eq(pets.id, disputeTarget.id));
+
+  log(
+    "OK",
+    `  Feed variety tail: incident_reported, rabies_observation_started, outbreak_signal, disease_reported, custody_dispute_raised (${inserted + 1} events, ${targets.length} distinct localities)`,
+  );
+
+  // Note: intentionally NOT using shelterOrgs here — the variety tail's
+  // authorship is deliberately owner/vet/govt-mixed, matching the "current"
+  // set-piece style above rather than org attribution.
+  void shelterOrgs;
+
+  return inserted + 1;
+}
+
+// ---------------------------------------------------------------------------
 // 16. Main entry point
 // ---------------------------------------------------------------------------
 
@@ -3968,6 +4273,10 @@ async function main(): Promise<void> {
   const { seedDemoComplianceCoverage } = await import("./seed-demo-compliance-coverage");
   const demoCoverage = await seedDemoComplianceCoverage(db);
 
+  // Novedades-feed variety tail — MUST run last among pet_events writers (see
+  // the function's header comment): its recorded_at wins every DESC ordering.
+  const feedVariety = await seedFeedVarietyTail(ownerUserId, shelterOrgs);
+
   // Final summary
   const totalEvents = Object.values(eventCounts).reduce((s, v) => s + v, 0);
 
@@ -4011,9 +4320,33 @@ async function main(): Promise<void> {
     `Demo coverage           : ${demoCoverage.chipsInserted} microchip ids + ` +
       `${demoCoverage.rabiesBackfilled} rabies events`,
   );
+  log("INFO", `Feed variety tail       : ${feedVariety} events (5 feed types)`);
   log("INFO", "Event breakdown:");
   for (const [k, v] of Object.entries(eventCounts).sort((a, b) => b[1] - a[1])) {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
+  }
+
+  // Seed-hygiene gate (C5) — run at the END of the seed flow, in-process
+  // (same DB connection semantics as the CLI/test), so a re-seed that
+  // regresses a generator is caught right here, not just later in CI.
+  // Non-fatal to the seed itself (data is already committed either way) —
+  // logged loudly so whoever ran this script sees it immediately.
+  log("STEP", "Running seed-hygiene gate…");
+  const { findSeedHygieneOffenders } = await import("./check-seed-hygiene");
+  const postgres = (await import("postgres")).default;
+  const hygieneClient = postgres(DATABASE_URL, { max: 1, connect_timeout: 5 });
+  const offenders = await findSeedHygieneOffenders(hygieneClient);
+  await hygieneClient.end({ timeout: 1 }).catch(() => {});
+  if (offenders.length > 0) {
+    log(
+      "FAIL",
+      `Seed-hygiene gate: ${offenders.length} offender(s) — a renderable column carries a seed marker.`,
+    );
+    for (const o of offenders.slice(0, 20)) {
+      log("FAIL", `  ${o.table}.${o.column} id=${o.id}: "${o.sample}" (${o.matchedPattern})`);
+    }
+  } else {
+    log("OK", "Seed-hygiene gate clean — 0 seed-marker hits.");
   }
 }
 

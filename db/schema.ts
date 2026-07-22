@@ -1726,6 +1726,13 @@ export const welfareReports = pgTable(
     // the only closer; these columns never transition the welfare status enum.
     orgInterventionStatus: text("org_intervention_status"),
     orgInterventionAt: timestamp("org_intervention_at", { withTimezone: true }),
+
+    // Internal, NON-RENDERED seed-cleanup marker (migration 0155). NULL for
+    // every real citizen report — only scripts/seed-panorama.ts writes it, to
+    // find its own rows on --clean/re-seed without smuggling a marker into
+    // `description` (which IS rendered). Never select this column in a
+    // citizen/operator-facing query.
+    seedTag: text("seed_tag"),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
