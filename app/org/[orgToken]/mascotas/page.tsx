@@ -373,7 +373,14 @@ export default async function OrgMascotasPage({
               <>
                 Adopción finalizada para <code className="font-ln-mono">{recentlyAdopted}</code>.
                 <CopyButton text={recentlyAdopted} /> El animal pasa a un nuevo dueño y sale del
-                listado de custodia.
+                listado de custodia.{" "}
+                <Link
+                  href={`/org/${orgToken}/mascotas/${recentlyAdopted}`}
+                  className="underline hover:no-underline"
+                >
+                  Ver mascota
+                </Link>{" "}
+                (si hace falta revertirla, la opción está ahí).
               </>
             }
             icon={<Icon name="check-circle" decorative />}
