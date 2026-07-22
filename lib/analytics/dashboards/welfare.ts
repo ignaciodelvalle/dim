@@ -381,6 +381,43 @@ export async function fetchWelfareMetrics(
 }
 
 // ============================================================================
+// C6b — THE BRIEFING's "Mi trabajo asignado" block (plan-maestro-integridad.md
+// §C6). /gob/page.tsx needs ONLY a count (never the full 4-query
+// fetchWelfareMetrics bundle above — that would add 3 unused queries to an
+// already-heavy home-page fetch set, violating C6b's zero-new-fan-out rule).
+// Mirrors fetchWelfareMetrics' `myConditions` bucket exactly (assigned to the
+// viewer, non-terminal status) as a single standalone query, so the home
+// count and /gob/maltrato's "mine" queue never drift apart in definition.
+// ============================================================================
+
+/** Count of welfare reports assigned to `currentUserId` that are still
+ *  actionable (non-terminal status), in scope. ONE query — see module note
+ *  above for why this isn't fetchWelfareMetrics.myCount reused wholesale. */
+export async function fetchMyAssignedWelfareCount(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  currentUserId: string,
+): Promise<number> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return 0;
+
+  const scope = welfareReportsScopeClause(actor, jurisdictions);
+  const conditions: SQL[] = [
+    eq(welfareReports.assignedToUserId, currentUserId),
+    not(inArray(welfareReports.status, [...TERMINAL_STATUSES])) as SQL,
+    // Mirror fetchWelfareMetrics' moderation exclusion — a flagged-but-
+    // unresolved report stays out of the operator's actionable count.
+    sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
+  ];
+  if (scope) conditions.push(sql`(${scope})`);
+
+  const rows = await db
+    .select({ n: count() })
+    .from(welfareReports)
+    .where(and(...conditions));
+  return rows[0]?.n ?? 0;
+}
+
+// ============================================================================
 // Welfare timeline — E4
 // ============================================================================
 

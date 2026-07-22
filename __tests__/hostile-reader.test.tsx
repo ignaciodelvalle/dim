@@ -18,6 +18,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { OpKpi } from "@/components/ui/dashboard/OpKpi";
+import { type BriefingAlertCandidate, buildBriefingAlerts } from "@/lib/metrics/briefing-alerts";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import {
   UNSTABLE_DELTA_BASE_NOTE,
@@ -380,6 +381,39 @@ describe("hostile reader — mortalidad: una muerte notificable nunca se enmasca
     expect(guarded.tone).toBe("warn");
     expect(guarded.note).toBeUndefined();
     expect(smallNGate(KPI_CATALOG.mortality_unknown_disposal_rate, 1)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. C6b — THE BRIEFING never alerts from unmeasurable data (docs/reviews/
+// results/2026-07-22-plan-maestro-integridad.md §C6). A confident-sounding
+// "priority" surfaced from a 0/0 ratio or a handful of cases would be the
+// SAME dishonesty class C1 killed at the tile level, one layer up — the
+// briefing's own hero block must inherit the exact same guards.
+// ---------------------------------------------------------------------------
+
+describe("hostile reader — la briefing nunca alerta desde datos no medibles (smallN / zero-denominator)", () => {
+  it("a zero-denominator reading never produces an alert, even though the gap would look total", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 0, n: 0 },
+    ];
+    expect(buildBriefingAlerts(candidates)).toEqual([]);
+  });
+
+  it("a small-N reading never produces an alert, even though the gap looks large", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 10, n: 2 },
+    ];
+    expect(buildBriefingAlerts(candidates)).toEqual([]);
+  });
+
+  it("a real, adequately-sampled gap DOES alert — the guard excludes unmeasurable data, not real misses", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 12 },
+    ];
+    const alerts = buildBriefingAlerts(candidates);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].title).toContain("33%");
   });
 });
 

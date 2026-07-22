@@ -70,7 +70,12 @@ function twin(
 const GOB_PANEL: ScreenManifestEntry = {
   route: "/gob",
   layer: "briefing",
-  decision: "¿Qué necesito atender hoy en mi jurisdicción?",
+  // C6b (2026-07-22, plan-maestro-integridad.md §C6): the home page IS the
+  // briefing now — a ranked, capped-at-5 "Alertas priorizadas" hero
+  // (lib/metrics/briefing-alerts.ts) instead of a KPI wall. This decision
+  // sentence names the bounded shape ("3 cosas", not an open-ended list) the
+  // PO locked for the briefing layer.
+  decision: "¿Qué 3 cosas priorizo hoy?",
 };
 
 const GOB_PANORAMA: ScreenManifestEntry = {
