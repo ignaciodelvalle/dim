@@ -229,7 +229,7 @@ export default async function AdminSistemaPage() {
         </OpCard>
 
         <OpCard>
-          <OpCardHead title="Cola de aprobaciones" />
+          <OpCardHead title="Aprobaciones" />
           <OpCardBody>
             <StatRow label="Pendientes" value={queue.pendingTotal} />
             <StatRow label="Más vieja (días)" value={queue.oldestPendingDaysAgo ?? "—"} />

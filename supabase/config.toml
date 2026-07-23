@@ -264,9 +264,18 @@ max_frequency = "5s"
 # 4152127777 = "123456"
 
 # Configure logged in session timeouts.
-# [auth.sessions]
-# Force log out after the specified duration.
-# timebox = "24h"
+# PO interview 2026-07-23, item 8 ("TTL de jornada laboral para operadores"):
+# force a re-login after one 8-hour shift, regardless of activity — an
+# operator (gob/admin/org) who leaves a session open overnight on a shared
+# terminal should not still be authenticated the next day. `jwt_expiry` above
+# (3600s) is unrelated to this: it only bounds the short-lived access token,
+# which the client auto-refreshes silently as long as the session itself is
+# still valid — timebox is the actual session-lifetime lever. See
+# docs/ops/env-handling.md for what to set on the REMOTE (staging/prod)
+# Supabase project — this file only configures the LOCAL Docker stack.
+[auth.sessions]
+# Force log out after the specified duration — one workday.
+timebox = "8h"
 # Force log out if the user has been inactive longer than the specified duration.
 # inactivity_timeout = "8h"
 

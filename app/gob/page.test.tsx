@@ -189,7 +189,7 @@ describe("/gob (home) — C6b briefing block order", () => {
     const html = renderToStaticMarkup(node);
     const headerEnd = html.indexOf("</header>");
     const headerHtml = html.slice(0, headerEnd);
-    expect(headerHtml).not.toContain("Cola de aprobaciones");
+    expect(headerHtml).not.toContain("Aprobaciones");
     expect(headerHtml).not.toContain("Habilitación");
     expect(headerHtml).not.toContain("Denuncias de maltrato");
     // Only title + mandate chrome + ViewScopeCaption remain.
@@ -199,14 +199,14 @@ describe("/gob (home) — C6b briefing block order", () => {
   it("Cola operativa renders individual cards — one per queue, each carrying its own live count (PO visual-validation batch B: no more condensed row)", async () => {
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Cola de aprobaciones");
+    expect(html).toContain("Aprobaciones");
     expect(html).toContain("Habilitación de organizaciones");
     expect(html).toContain("Denuncias de maltrato");
     expect(html).toContain("Casos regulatorios");
     expect(html).toContain("Mascotas perdidas activas");
     // Every card carries its own count, including Habilitación (previously
     // the one queue WITHOUT a metric).
-    expect(html).toContain("4"); // pendingCount (Cola de aprobaciones)
+    expect(html).toContain("4"); // pendingCount (Aprobaciones)
     expect(html).toContain("2"); // orgVerificationPendingCount (Habilitación)
     expect(html).toContain("6"); // openCasesTotal (Casos regulatorios)
     expect(html).toContain("5"); // perdidas.activeCount (Pérdidas activas)

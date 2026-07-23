@@ -1,4 +1,5 @@
-// A2 regression: the /gob home "Cola de aprobaciones" panel count and the
+// A2 regression: the /gob home "Aprobaciones" (nee "Cola de aprobaciones")
+// panel count and the
 // /gob/cola queue MUST share ONE jurisdiction scope. Both derive from
 // lib/infra/approval-scope (fetchVisiblePendingRequests → visibleRequestsClause);
 // canDecideRequest is the decision-side mirror of that same predicate ("an

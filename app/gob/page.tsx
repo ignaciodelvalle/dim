@@ -10,8 +10,8 @@
 //      2026-07-23 — it used to be its own oddly-shaped OpCard). Genuine
 //      chart/trend content (mordeduras por período) lives in its own
 //      chart-cards sub-row below the tile grid, never mixed into it.
-//   3. Cola operativa — "de a 1": one OpKpi tile per queue (Cola de
-//      aprobaciones, Habilitación de organizaciones, Denuncias de maltrato,
+//   3. Cola operativa — "de a 1": one OpKpi tile per queue (Aprobaciones,
+//      Habilitación de organizaciones, Denuncias de maltrato,
 //      Casos regulatorios, Pérdidas activas), ALL carrying a live count,
 //      ALL the same primitive/size (2026-07-23 — replaces the former
 //      condensed single-row of count+CTA chips, and "Habilitación" now
@@ -189,10 +189,10 @@ export default async function GobiernoDashboardPage({
 
   // Page header — rendered in both the data and degraded (D2) branches.
   // PO visual-validation (2026-07-23): the header keeps ONLY title + mandate
-  // chrome + ViewScopeCaption. The old lone "Cola de aprobaciones" action
-  // button felt out of place at the very top — approvals now live as one of
-  // the individual cola-operativa cards below (with its own live count), so
-  // the header carries no primary action at all.
+  // chrome + ViewScopeCaption. The old lone "Aprobaciones" (nee "Cola de
+  // aprobaciones") action button felt out of place at the very top —
+  // approvals now live as one of the individual cola-operativa cards below
+  // (with its own live count), so the header carries no primary action at all.
   const header = (
     <ScreenHeader
       className="space-y-2"
@@ -416,12 +416,14 @@ export default async function GobiernoDashboardPage({
   // system). "Habilitación de organizaciones" used to be the one queue
   // WITHOUT a metric; it now carries orgVerificationPendingCount (the one new
   // query this pass adds — see countVisiblePendingRequestsByType above).
-  // Cola de aprobaciones no longer duplicates as a header button (removed,
-  // see `header` above) — this card is its single occurrence now.
+  // Aprobaciones (nee "Cola de aprobaciones") no longer duplicates as a
+  // header button (removed, see `header` above) — this card is its single
+  // occurrence now. Label renamed (PO interview 2026-07-23, item 5) to match
+  // the nav rename — see components/layout/nav-presets.ts.
   const queueItems: Array<{ href: string; label: string; count: number; descriptorId?: KpiId }> = [
     {
       href: "/gob/cola",
-      label: "Cola de aprobaciones",
+      label: "Aprobaciones",
       count: pendingCount,
       descriptorId: "queue_pending_total",
     },

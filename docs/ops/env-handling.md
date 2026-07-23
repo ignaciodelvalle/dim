@@ -91,6 +91,64 @@ per-jurisdiction granularity, and no in-app toggle. Flip it in the deploy env
 (Vercel project settings / `.env.vercel`), not a UI switch, and expect it to
 take every gated shell down at once.
 
+### Demo-environment banner — inescapable, every surface
+
+`NEXT_PUBLIC_DEMO_MODE` (checked via `shouldShowDemoBanner()` in
+`lib/domain/demo-mode.ts`) renders a slim, non-dismissible banner
+("Entorno de demostración — datos sintéticos") at the top of every shell —
+public, citizen, and operator (`app/(public)/layout.tsx`, `app/(app)/layout.tsx`,
+`app/gob/layout.tsx`, `app/admin/layout.tsx`, `app/org/[orgToken]/layout.tsx`;
+rendered via each `AppShell` variant's `banner` slot, which already reserves
+layout space for it — see `components/layout/AppShell.tsx`). PO interview
+2026-07-23, item 1: the point of the banner is that it is **inescapable** —
+no close button, no dismiss state, `aria-live="polite"` so assistive tech
+announces it.
+
+| Key | Accepted values | Default |
+|---|---|---|
+| `NEXT_PUBLIC_DEMO_MODE` | exactly `true` (anything else, including unset, is off) | off |
+
+**Same footgun as every other `NEXT_PUBLIC_*` flag**: it bakes into the JS
+bundle at *build* time. A post-deploy env change does not un-ship an
+already-built banner — flip it **before** the next production build, not
+after (see `docs/ops/production-deploy-plan.md` B3).
+
+- **Local/dev**: set `NEXT_PUBLIC_DEMO_MODE=true` in `.env.local` so a fresh
+  checkout shows the banner by default — every local database is seeded,
+  synthetic data, so the banner should default ON, not opt-in.
+- **Staging** (demo deploys, e.g. the `dim-staging` Vercel project): set it
+  explicitly `true` in that project's env — staging is a demo box by design.
+- **Production**: leave it **unset, or explicitly `false`** — confirmed as
+  part of the cutover checklist (`docs/ops/cutover-playbook.md`).
+
+### Session TTL — "jornada laboral" for operators
+
+PO interview 2026-07-23, item 8: an operator (gob/admin/org) session should
+force a re-login after roughly one 8-hour shift, not stay valid indefinitely
+on a shared terminal. This is a **Supabase Auth** setting, not an app env var
+— two different knobs are easy to confuse:
+
+- `jwt_expiry` (`supabase/config.toml`, `[auth]`, currently `3600` = 1h)
+  bounds only the short-lived **access token**. The Supabase client
+  auto-refreshes it silently via the refresh token as long as the underlying
+  session is still valid — a user stays logged in far longer than 1h. This is
+  **not** the session-lifetime lever.
+- `[auth.sessions].timebox` is the actual lever: it forces a hard logout
+  after the configured duration has elapsed since sign-in, **regardless of
+  activity**. Set to `"8h"` in `supabase/config.toml` for the local stack.
+
+| Setting | Where | Value |
+|---|---|---|
+| `[auth.sessions].timebox` | `supabase/config.toml` (local Docker stack) | `"8h"` |
+| Session timebox | Remote Supabase dashboard → **Authentication → Sessions** → "Time-box user sessions" | Set to **8 hours** to match local |
+
+`supabase/config.toml` drives the **local** stack (`supabase start`) only —
+this project's workflow never runs `supabase config push` against a linked
+remote project (migrations are the only thing pushed remotely, and only
+Ignacio-gated — see the project's Definition of Done). To apply the same 8h
+timebox to staging/production, set it manually in the Supabase dashboard for
+that project (Authentication → Sessions) — a separate, PO-gated step.
+
 ---
 
 ## The rule: never hand-edit `.env.local` into a broken state

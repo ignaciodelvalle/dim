@@ -185,7 +185,7 @@ export default async function GobAdopcionesPage({
           <p className="text-[var(--text-md)] text-ln-op-mute">
             {profile.role === "admin"
               ? "Vista universal — todas las jurisdicciones."
-              : "Embudo de colocación, tiempos de custodia y pool de tránsitos en tu cobertura."}
+              : "Flujo de custodia, tiempos de custodia y pool de tránsitos en tu cobertura."}
           </p>
         }
       />
@@ -283,9 +283,15 @@ export default async function GobAdopcionesPage({
         />
       </section>
 
-      {/* Funnel — intake → foster → adopción → devolución */}
+      {/* Funnel — intake → foster → adopción → devolución.
+          Renamed from "Embudo de colocación" (PO interview 2026-07-23, item
+          13): "embudo" implies a tracked cohort narrowing stage by stage,
+          but each stage below is an independent event count over the
+          period/coverage — see the "no cohorte" disclaimer under the chart.
+          The new title states that honestly instead of relying on the
+          disclaimer to walk it back after the fact. */}
       <OpCard aria-labelledby={panelFunnelId}>
-        <OpCardHead title={<span id={panelFunnelId}>Embudo de colocación</span>} />
+        <OpCardHead title={<span id={panelFunnelId}>Flujo de custodia (no cohorte)</span>} />
         <OpCardBody>
           {!hasFunnel ? (
             <LnEmptyState
@@ -296,7 +302,7 @@ export default async function GobAdopcionesPage({
           ) : (
             <figure
               role="img"
-              aria-label={`Embudo de colocación — ${funnel.intake.toLocaleString("es-AR")} ingresos en total.`}
+              aria-label={`Flujo de custodia — ${funnel.intake.toLocaleString("es-AR")} ingresos en total.`}
             >
               <figcaption className="sr-only">
                 Gráfico de barras horizontales: etapas del pipeline de custodia y adopción en la

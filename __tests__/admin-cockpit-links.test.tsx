@@ -58,7 +58,7 @@ describe("QueueHealthCockpit — approval tiles deep-link to their own filtered 
   });
 });
 
-describe("AdminKpiStrip — omitPendingQueue prevents the duplicate 'Cola pendiente' tile", () => {
+describe("AdminKpiStrip — omitPendingQueue prevents the duplicate 'Aprobaciones pendientes' tile", () => {
   const baseData: AdminKpiStripData = {
     totalPersonal: 120,
     totalInstitutionalActive: 8,
@@ -70,14 +70,14 @@ describe("AdminKpiStrip — omitPendingQueue prevents the duplicate 'Cola pendie
     decisionsDelta: null,
   };
 
-  it("renders 'Cola pendiente' when omitPendingQueue is NOT set (e.g. /admin/sistema)", () => {
+  it("renders 'Aprobaciones pendientes' when omitPendingQueue is NOT set (e.g. /admin/sistema)", () => {
     const html = renderToStaticMarkup(<AdminKpiStrip data={baseData} />);
-    expect(html).toContain("Cola pendiente");
+    expect(html).toContain("Aprobaciones pendientes");
   });
 
-  it("does NOT render 'Cola pendiente' when omitPendingQueue is set (the admin home)", () => {
+  it("does NOT render 'Aprobaciones pendientes' when omitPendingQueue is set (the admin home)", () => {
     const html = renderToStaticMarkup(<AdminKpiStrip data={baseData} omitPendingQueue />);
-    expect(html).not.toContain("Cola pendiente");
+    expect(html).not.toContain("Aprobaciones pendientes");
     // The promoted non-duplicated metric takes its place.
     expect(html).toContain("Instituciones activas");
   });

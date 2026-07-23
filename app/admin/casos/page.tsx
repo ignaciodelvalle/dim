@@ -113,6 +113,7 @@ export default async function AdminCasosPage({
     publicCode: c.publicCode,
     caseKind: c.caseKind,
     status: c.status,
+    primarySubjectKind: c.primarySubjectKind,
     primaryPetName: c.primaryPetName,
     primaryPetPublicToken: c.primaryPetPublicToken,
     jurisdictionProvince: c.jurisdictionProvince,

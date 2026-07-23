@@ -280,7 +280,7 @@ export default async function GobProgramaPage({
           descriptorId="eno_sla_compliance"
         />
         <OpKpi
-          label="Cola más vieja"
+          label="Aprobaciones — más vieja"
           value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
           tone={
             queue.oldestPendingDaysAgo !== null
@@ -573,9 +573,7 @@ export default async function GobProgramaPage({
 
         {/* Scoped queue aging — replaces global fetchQueueHealth */}
         <OpCard aria-labelledby={panelQueueId}>
-          <OpCardHead
-            title={<span id={panelQueueId}>Cola de aprobaciones — tu jurisdicción</span>}
-          />
+          <OpCardHead title={<span id={panelQueueId}>Aprobaciones — tu jurisdicción</span>} />
           <OpCardBody>
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">

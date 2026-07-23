@@ -19,8 +19,10 @@ import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { LnMaintenanceScreen } from "@/components/ui/MaintenanceScreen";
 import { LnOfflineBanner } from "@/components/ui/OfflineBanner";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -81,7 +83,12 @@ export default async function AuthenticatedLayout({
   return (
     <AppShell
       variant="citizen"
-      banner={<LnOfflineBanner />}
+      banner={
+        <>
+          <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
+          <LnOfflineBanner />
+        </>
+      }
       masthead={
         <AppCitizenMasthead
           nav={shell.nav}

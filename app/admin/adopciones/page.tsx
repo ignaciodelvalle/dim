@@ -219,9 +219,11 @@ export default async function AdminAdopcionesPage({
         />
       </section>
 
-      {/* Funnel — intake → foster → adopción → devolución */}
+      {/* Funnel — intake → foster → adopción → devolución. Renamed from
+          "Embudo de colocación" (PO interview 2026-07-23, item 13) — see
+          app/gob/adopciones/page.tsx (the twin) for the full rationale. */}
       <OpCard aria-labelledby={panelFunnelId}>
-        <OpCardHead title={<span id={panelFunnelId}>Embudo de colocación</span>} />
+        <OpCardHead title={<span id={panelFunnelId}>Flujo de custodia (no cohorte)</span>} />
         <OpCardBody>
           {!hasFunnel ? (
             <LnEmptyState
@@ -232,7 +234,7 @@ export default async function AdminAdopcionesPage({
           ) : (
             <figure
               role="img"
-              aria-label={`Embudo de colocación — ${funnel.intake.toLocaleString("es-AR")} ingresos en total.`}
+              aria-label={`Flujo de custodia — ${funnel.intake.toLocaleString("es-AR")} ingresos en total.`}
             >
               <figcaption className="sr-only">
                 Gráfico de barras horizontales: etapas del pipeline de custodia y adopción. Cada

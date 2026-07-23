@@ -244,8 +244,10 @@ pooler URL (`:5432`) is used ad hoc for `pnpm db:migrate`. Do not reuse one
 Run against the production domain immediately after cutover:
 
 1. `GET /` — landing page renders, no demo banner visible anywhere in the HTML
-   (grep the response for "Datos de demostración" — must be absent; confirms
-   B3 closed).
+   (grep the response for "Entorno de demostración" — must be absent; confirms
+   B3 closed). PO interview 2026-07-23, item 1: the banner is now mounted on
+   EVERY shell (public/citizen/operator), not just /admin — re-check this on
+   at least one page per shell, not only the landing page.
 2. `GET /p/{a-known-active-publicToken}` — public credential page renders
    Tier 0 view, no owner PII/microchip/medical fields present in the response
    HTML.

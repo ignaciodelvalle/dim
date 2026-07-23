@@ -85,10 +85,14 @@ export const METRIC_LABEL_ALLOWLIST = new Set<string>([
   // FOLLOW-UP (out of tonight's scope): harmonise these four render sites onto
   // ONE prose string per label, ideally sourced from lib/metrics/kpi-catalog.ts
   // once ENO SLA / approval-queue KPIs are catalogued there.
+  // Renamed 2026-07-23 (PO interview, item 5 nav rename "Cola" → "Aprobaciones"):
+  // "Cola más vieja" → "Aprobaciones — más vieja", "Cola pendiente" →
+  // "Aprobaciones pendientes" — same legitimate national/jurisdiction pair,
+  // new label text.
   "SLA ENO (resueltos)",
   "SLA ENO",
-  "Cola más vieja",
-  "Cola pendiente",
+  "Aprobaciones — más vieja",
+  "Aprobaciones pendientes",
   "Provincias en alerta",
 ]);
 

@@ -81,6 +81,13 @@ type LandingProps = CommonProps & {
    * Anonymous viewers pass nothing.
    */
   returnSlot?: ReactNode;
+  /**
+   * Optional full-width banner rendered above the trust header (e.g. the
+   * demo-mode banner). This is the surface a stranger scans a QR into — the
+   * single most important place NOT to skip the demo disclosure (PO interview
+   * 2026-07-23, item 1: "todas las superficies", public included).
+   */
+  banner?: ReactNode;
 };
 
 type AppShellProps = CitizenProps | OperatorProps | LandingProps;
@@ -174,10 +181,11 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
 // landing — minimal trust chrome for token-landing surfaces (D13)
 // ---------------------------------------------------------------------------
 
-function LandingShell({ returnSlot, children }: LandingProps) {
+function LandingShell({ returnSlot, banner, children }: LandingProps) {
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-ln-paper)] text-[var(--color-ln-ink)]">
       <GobStripe />
+      {banner}
       {/* pt-safe: QR-scan landings open full-screen in the installed PWA too —
           keep the trust header clear of the notch/status bar. */}
       <header className="pt-safe flex items-center gap-3 border-b border-ln-line bg-white px-4 py-3 md:px-6">

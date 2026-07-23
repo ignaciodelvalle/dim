@@ -61,12 +61,17 @@ export const GENERIC_CASE_LIST_EXCLUDED_KINDS: readonly CaseKind[] = [
 // List views and detail joins use these to avoid fetching all 27 cols of cases.
 // ---------------------------------------------------------------------------
 
-// Columns consumed by mapListRow + list pages (8 of 27 cols).
+// Columns consumed by mapListRow + list pages (9 of 27 cols).
 const CASE_LIST_SELECT = {
   id: cases.id,
   publicCode: cases.publicCode,
   caseKind: cases.caseKind,
   status: cases.status,
+  // Casos pack (PO interview 2026-07-23, item 6): the queue must render
+  // "Animal sin registrar" for an unowned-animal subject instead of a bare
+  // "—" (which reads as "data missing", not "this case's subject is a
+  // real, honest domain category with no registered pet record").
+  primarySubjectKind: cases.primarySubjectKind,
   jurisdictionProvince: cases.jurisdictionProvince,
   jurisdictionLocality: cases.jurisdictionLocality,
   openedAt: cases.openedAt,
@@ -455,6 +460,7 @@ export interface CaseListItem {
   publicCode: string;
   caseKind: CaseKind;
   status: CaseStatus;
+  primarySubjectKind: CaseSubjectKind;
   primaryPetName: string | null;
   primaryPetPublicToken: string | null;
   jurisdictionProvince: string | null;
@@ -468,6 +474,7 @@ type CaseListRow = {
   publicCode: string;
   caseKind: string;
   status: CaseStatus;
+  primarySubjectKind: CaseSubjectKind;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedAt: Date;
@@ -484,6 +491,7 @@ function mapListRow(row: {
     publicCode: row.c.publicCode,
     caseKind: isCaseKind(row.c.caseKind) ? row.c.caseKind : ("bite_incident" as CaseKind),
     status: row.c.status,
+    primarySubjectKind: row.c.primarySubjectKind,
     primaryPetName: row.petName,
     primaryPetPublicToken: row.petPublicToken,
     jurisdictionProvince: row.c.jurisdictionProvince,

@@ -76,11 +76,11 @@ describe("OpRailNav — every sidebar link has an accessible name (a11y fitness)
 
   it("a badge folds into the accessible name as prose, label first (WCAG 2.5.3)", () => {
     const sections: NavSection[] = [
-      { label: "", items: [{ href: "/gob/cola", label: "Cola", badge: 3 }] },
+      { label: "", items: [{ href: "/gob/cola", label: "Aprobaciones", badge: 3 }] },
     ];
     const html = renderToStaticMarkup(<OpRailNav sections={sections} variant="gob" />);
     const [anchor] = anchorNames(html);
-    expect(anchor.name).toBe("Cola — 3 pendientes");
+    expect(anchor.name).toBe("Aprobaciones — 3 pendientes");
   });
 
   it("fails the fitness when a link would end up unnamed (empty label, no aria-label)", () => {

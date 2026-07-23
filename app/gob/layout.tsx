@@ -4,12 +4,14 @@ import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { GovtJurisdictionsChip } from "@/components/layout/GovtJurisdictionsChip";
 import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { OpMaintenanceScreen } from "@/components/ui/dashboard/OpMaintenanceScreen";
 import { OpOfflineBanner } from "@/components/ui/dashboard/OpOfflineBanner";
 import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
@@ -82,7 +84,12 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   return (
     <AppShell
       variant="operator"
-      banner={<OpOfflineBanner />}
+      banner={
+        <>
+          <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
+          <OpOfflineBanner />
+        </>
+      }
       rail={
         <OpRail
           sections={GOB_NAV_SECTIONS}

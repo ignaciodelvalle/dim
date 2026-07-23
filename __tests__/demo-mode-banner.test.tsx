@@ -34,8 +34,7 @@ describe("DemoModeBanner component", () => {
     const html = renderToStaticMarkup(<DemoModeBanner enabled={true} />);
     // <output> is an implicit status live region (semantic, lint-clean).
     expect(html).toContain("<output");
-    expect(html).toContain("Datos de demostración");
-    expect(html.toLowerCase()).toContain("entorno de muestra");
+    expect(html).toContain("Entorno de demostración — datos sintéticos");
   });
 
   it("renders nothing when enabled=false", () => {

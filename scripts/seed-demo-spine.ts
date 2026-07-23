@@ -19,6 +19,12 @@
  *              Norte) distribuidas en CABA C1/C2/C14 en las últimas 4
  *              semanas. Pueblan /gob/maltrato y /denuncias/codigo
  *              (cycle 4 y cycle 5).
+ *   4. Disputa de custodia — "Bruno" (CABA Palermo), reclamo de
+ *              graciela@dim.test contra noeli@dim.test (dueña activa), 2
+ *              partes iniciales (current_owner/claimant_owner). PO interview
+ *              2026-07-23, item 13 ("sembrar UNA disputa de demo"): sin
+ *              esto /gob/casos?expediente=disputas y el picker V9 de
+ *              búsqueda de partes no tenían ningún dato real para demostrar.
  *
  * Idempotente:
  *   Cada entidad se busca por una clave estable antes de insertarse.
@@ -74,8 +80,11 @@ function log(level: LogLevel, msg: string): void {
 // 3. Imports (DB-touching modules load AFTER env bootstrap)
 // ---------------------------------------------------------------------------
 
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { openCase } from "@/lib/infra/case-helpers";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db";
@@ -708,7 +717,164 @@ async function deriveWelfareToAuthority(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Main
+// 8. Asset 5 — custody dispute demo (V9 party-search picker + Casos hub row)
+// ---------------------------------------------------------------------------
+//
+// PO interview 2026-07-23, item 13 ("sembrar UNA disputa de demo"): V9 (the
+// AddPartyForm search/select picker, replacing the old raw-UUID-paste flow)
+// could never actually be demoed — the seed had ZERO custody_dispute rows, so
+// /gob/casos?expediente=disputas always rendered its empty state. This asset
+// opens exactly ONE open dispute, with its real 2 initial parties
+// (current_owner + claimant_owner), following the SAME transactional sequence
+// production uses (submitClaimDisputeForUser,
+// src/modules/pets/application/claim/submit-claim-dispute.ts): openCase FIRST
+// (so the raising pet_event can carry case_id), then the raising
+// custody_dispute_raised event, then openDisputeFromEvent links the dispute
+// row + writes the initial parties. Canonical jurisdiction (CABA/Palermo,
+// already used by Asset 1/Argo above).
+
+const DISPUTE_PET_PUBLIC_TOKEN = "DIM-BRUNO-DEMO";
+const DISPUTE_CURRENT_OWNER_EMAIL = "noeli@dim.test";
+const DISPUTE_CLAIMANT_EMAIL = "graciela@dim.test";
+
+async function seedCustodyDisputeDemo(): Promise<void> {
+  log("STEP", "Asset 5 — disputa de custodia demo (V9 party-search picker)");
+
+  const [existingPet] = await db
+    .select({ id: schemas.pets.id })
+    .from(schemas.pets)
+    .where(eq(schemas.pets.publicToken, DISPUTE_PET_PUBLIC_TOKEN))
+    .limit(1);
+
+  if (existingPet) {
+    const [existingDispute] = await db
+      .select({ id: schemas.custodyDisputes.id })
+      .from(schemas.custodyDisputes)
+      .where(eq(schemas.custodyDisputes.petId, existingPet.id))
+      .limit(1);
+    if (existingDispute) {
+      log("SKIP", `Disputa demo (${DISPUTE_PET_PUBLIC_TOKEN}) ya existe.`);
+      return;
+    }
+  }
+
+  const currentOwner = await findProfileByEmail(DISPUTE_CURRENT_OWNER_EMAIL);
+  const claimant = await findProfileByEmail(DISPUTE_CLAIMANT_EMAIL);
+  if (!currentOwner || !claimant) {
+    log(
+      "FAIL",
+      `No se encontraron ${DISPUTE_CURRENT_OWNER_EMAIL}/${DISPUTE_CLAIMANT_EMAIL}. ¿Corriste seed-demo.ts primero?`,
+    );
+    return;
+  }
+
+  let petId = existingPet?.id;
+  if (!petId) {
+    const [pet] = await db
+      .insert(schemas.pets)
+      .values({
+        publicToken: DISPUTE_PET_PUBLIC_TOKEN,
+        species: "dog",
+        breed: "Beagle",
+        name: "Bruno",
+        sex: "male",
+        dateOfBirth: "2021-03-10",
+        birthDateIsEstimated: false,
+        color: "Tricolor",
+        // estimatedWeightKg intentionally omitted (null): the pet-cache
+        // re-derivation fitness sweep (__tests__/pet-cache-rederivation.test.ts)
+        // checks this column against replayed weight_recorded events — a
+        // hardcoded value with no backing event would read as cache drift.
+        // Bruno's health history isn't the point of this asset (the dispute
+        // is); leave the weight cache genuinely empty rather than fake it.
+        potentiallyDangerousBreed: false,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: "Palermo",
+        acquisitionMethod: "adopted",
+        emergencyInfoVisible: false,
+        status: "active",
+      })
+      .returning({ id: schemas.pets.id });
+    petId = pet.id;
+
+    await db.insert(schemas.ownerships).values({
+      petId,
+      ownerUserId: currentOwner.id,
+      role: "owner",
+    });
+
+    log("OK", `Bruno creado (${DISPUTE_PET_PUBLIC_TOKEN}) — dueño: ${DISPUTE_CURRENT_OWNER_EMAIL}`);
+  } else {
+    log("SKIP", `Bruno (${DISPUTE_PET_PUBLIC_TOKEN}) ya existía — abriendo la disputa sobre él.`);
+  }
+
+  const resolvedPetId = petId as string;
+  const reason =
+    "Bruno es mío: se lo llevó mi ex pareja cuando nos separamos y nunca me lo devolvió.";
+
+  let disputeToken = "";
+  await db.transaction(async (tx) => {
+    const disputeCase = await openCase(
+      {
+        kind: "custody_dispute",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: resolvedPetId,
+        jurisdictionProvince: "CABA",
+        jurisdictionLocality: "Palermo",
+        openedByUserId: claimant.id,
+        openedByOrganizationId: null,
+        openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
+      },
+      tx,
+    );
+
+    const payload = validateEventPayload("custody_dispute_raised", {
+      raised_by_role: "owner",
+      raised_by_user_id: claimant.id,
+      external_proceeding_reference: null,
+      reason,
+    });
+
+    const [raisingEvent] = await tx
+      .insert(schemas.petEvents)
+      .values({
+        petId: resolvedPetId,
+        eventType: "custody_dispute_raised",
+        occurredAt: daysAgo(3),
+        recordedAt: daysAgo(3),
+        recordedByUserId: claimant.id,
+        authorRole: "owner",
+        payload,
+        caseId: disputeCase.id,
+      })
+      .returning({ id: schemas.petEvents.id });
+
+    const { publicToken } = await openDisputeFromEvent(tx, {
+      petId: resolvedPetId,
+      raisingEventId: raisingEvent.id,
+      raisedByUserId: claimant.id,
+      raisedByOrgId: null,
+      raisedByRole: "owner",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo",
+      initialParties: [
+        { userId: currentOwner.id, role: "current_owner" },
+        { userId: claimant.id, role: "claimant_owner", positionSummary: reason },
+      ],
+      preCreatedCaseId: disputeCase.id,
+    });
+    disputeToken = publicToken;
+  });
+
+  log(
+    "OK",
+    `Disputa abierta (${disputeToken}) sobre Bruno — 2 partes (current_owner: ${DISPUTE_CURRENT_OWNER_EMAIL}, claimant_owner: ${DISPUTE_CLAIMANT_EMAIL}). Visible en /gob/casos?expediente=disputas.`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 9. Main
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -721,6 +887,7 @@ async function main(): Promise<void> {
     await seedWelfareReports();
     await seedInScopeSubjectReport();
     await deriveWelfareToAuthority();
+    await seedCustodyDisputeDemo();
     log("DONE", "Spine seeded. Cycles 1, 3, 4 y 5 listos.");
     log("INFO", "Próximo paso: ver docs/demo-runbook.md para el guión de ensayo.");
   } catch (e) {

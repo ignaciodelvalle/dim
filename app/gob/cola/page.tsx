@@ -60,7 +60,10 @@ export default async function ColaPage({
     for (const r of rows) namesById.set(r.id, r.displayName);
   }
 
-  const pageTitle = activeType ? `Cola — ${TYPE_LABELS[activeType]}` : "Cola de solicitudes";
+  // Title renamed from "Cola de solicitudes" / "Cola — {tipo}" (PO interview
+  // 2026-07-23, item 5): the nav rename ("Cola" → "Aprobaciones") must stay
+  // coherent with the page it points to.
+  const pageTitle = activeType ? `Aprobaciones — ${TYPE_LABELS[activeType]}` : "Aprobaciones";
 
   // Empty case no longer duplicates a one-line "no hay…" sentence here — the
   // single LnEmptyState rendered by BulkApprovalQueueList (below) already
@@ -151,7 +154,7 @@ export default async function ColaPage({
       {/* Pagination footer */}
       {(newerLink || olderLink) && (
         <nav
-          aria-label="Paginación de cola"
+          aria-label="Paginación de aprobaciones"
           className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
         >
           <div>

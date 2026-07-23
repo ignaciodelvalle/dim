@@ -1070,6 +1070,14 @@ describe("decomposed zoonosis signals — three independent counts", () => {
     const emptyCtx = buildProjectionContext({ role: "govt" }, [], windows.trailing12m());
     expect(await fetchOpenRabiesObservations(emptyCtx)).toEqual({ count: 0, deltaWeek: 0 });
     expect(await fetchOpenBiteCases(emptyCtx)).toEqual({ count: 0 });
-    expect(await fetchNotifiedDiseases(emptyCtx)).toEqual({ count: 0, lepto: 0, hidat: 0 });
+    // `other` joined the shape when the KPI's breakdown was made to reconcile
+    // with its numerator (qa-triage 2026-07-23 finding #13: "2" vs "0 lepto ·
+    // 1 hidat." — the unnamed remainder is now a named field).
+    expect(await fetchNotifiedDiseases(emptyCtx)).toEqual({
+      count: 0,
+      lepto: 0,
+      hidat: 0,
+      other: 0,
+    });
   });
 });

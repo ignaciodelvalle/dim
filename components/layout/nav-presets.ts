@@ -437,7 +437,10 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     label: "Bandeja operativa",
     items: [
       { href: "/gob/denuncias", label: "Denuncias", matchPrefix: "/gob/denuncias" },
-      { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
+      // Renamed from "Cola" (PO interview 2026-07-23, item 5): "Cola" alone
+      // read as ambiguous against "cola de denuncias" — the approvals queue
+      // (matrícula/organización/credencial requests) needed its own name.
+      { href: "/gob/cola", label: "Aprobaciones", matchPrefix: "/gob/cola" },
       { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
       // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
       // operators (2026-07-09 audit). Route still exists as a redirect for deep
@@ -540,12 +543,14 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Bandeja operativa",
     items: [
-      // Cola/Usuarios/Organizaciones/Reglas/Servicios exist under BOTH /admin
-      // and /gob (portal-follows-viewer, 2026-07-02) — thin /admin/* wrappers
-      // re-export the /gob page; chrome comes from each segment's layout. The
-      // admin nav links to the /admin/* copy so an admin never leaves the
-      // admin chrome. The old /admin→/gob 308s for these paths are GONE.
-      { href: "/admin/cola", label: "Cola", matchPrefix: "/admin/cola" },
+      // Aprobaciones/Usuarios/Organizaciones/Reglas/Servicios exist under BOTH
+      // /admin and /gob (portal-follows-viewer, 2026-07-02) — thin /admin/*
+      // wrappers re-export the /gob page; chrome comes from each segment's
+      // layout. The admin nav links to the /admin/* copy so an admin never
+      // leaves the admin chrome. The old /admin→/gob 308s for these paths are
+      // GONE. Label renamed from "Cola" (PO interview 2026-07-23, item 5) —
+      // see the /gob/cola entry above for the rationale.
+      { href: "/admin/cola", label: "Aprobaciones", matchPrefix: "/admin/cola" },
       { href: "/admin/alertas", label: "Alertas", matchPrefix: "/admin/alertas" },
       // Promoted out of the /admin/programa "Alertas y suscripciones"
       // sub-panel (2026-07-21) — thin wrapper over /gob/suscripciones

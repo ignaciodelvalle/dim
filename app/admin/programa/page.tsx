@@ -264,7 +264,7 @@ export default async function AdminProgramaPage({
           descriptorId="eno_sla_compliance"
         />
         <OpKpi
-          label="Cola más vieja"
+          label="Aprobaciones — más vieja"
           value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
           tone={
             queue.oldestPendingDaysAgo !== null

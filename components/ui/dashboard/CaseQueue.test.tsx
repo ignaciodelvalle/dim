@@ -53,3 +53,116 @@ describe("CaseQueue — showStatusChips", () => {
     expect(html).toContain("No hay casos abiertos.");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Casos pack (PO interview 2026-07-23, item 6): urgency sort + honest subject
+// rendering for an unregistered-animal case.
+// ---------------------------------------------------------------------------
+
+describe("CaseQueue — urgency sort (age-days × kind-severity, default)", () => {
+  it('orders rows by urgency score by default and offers "Recientes" as the old order', () => {
+    // Same age (opened same instant) but different kind severity:
+    // welfare_denuncia (weight 3) must outrank microchip_remediation (weight 1).
+    const openedAt = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000); // 20 days old
+    const lowSeverity: CaseQueueRow = {
+      ...ROWS[0],
+      id: "row-low",
+      publicCode: "CAS-LOW-0001",
+      caseKind: "microchip_remediation" as CaseKind,
+      openedAt,
+    };
+    const highSeverity: CaseQueueRow = {
+      ...ROWS[0],
+      id: "row-high",
+      publicCode: "CAS-HIGH-0001",
+      caseKind: "welfare_denuncia" as CaseKind,
+      openedAt,
+    };
+    // Rows passed in "recientes" order (low first) — urgency sort must reorder.
+    const html = renderToStaticMarkup(<CaseQueue rows={[lowSeverity, highSeverity]} />);
+    const highIdx = html.indexOf("CAS-HIGH-0001");
+    const lowIdx = html.indexOf("CAS-LOW-0001");
+    expect(highIdx).toBeGreaterThan(-1);
+    expect(lowIdx).toBeGreaterThan(-1);
+    expect(highIdx).toBeLessThan(lowIdx);
+
+    // The "Recientes" toggle exists so the old fetch order stays reachable.
+    expect(html).toContain("Ordenar por:");
+    expect(html).toContain("Urgencia");
+    expect(html).toContain("Recientes");
+  });
+
+  it("a closed case always scores 0 urgency (sinks below any open case)", () => {
+    const veryOldClosed: CaseQueueRow = {
+      ...ROWS[0],
+      id: "row-closed",
+      publicCode: "CAS-CLOSED-0001",
+      caseKind: "welfare_denuncia" as CaseKind,
+      status: "closed",
+      openedAt: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000),
+      closedAt: new Date(),
+    };
+    const freshOpen: CaseQueueRow = {
+      ...ROWS[0],
+      id: "row-open",
+      publicCode: "CAS-OPEN-0001",
+      caseKind: "microchip_remediation" as CaseKind,
+      status: "open",
+      openedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      closedAt: null,
+    };
+    const html = renderToStaticMarkup(<CaseQueue rows={[veryOldClosed, freshOpen]} />);
+    expect(html.indexOf("CAS-OPEN-0001")).toBeLessThan(html.indexOf("CAS-CLOSED-0001"));
+  });
+
+  it("does not render the sort toggle for a single-row (or empty) queue", () => {
+    const html = renderToStaticMarkup(<CaseQueue rows={[ROWS[0]]} />);
+    expect(html).not.toContain("Ordenar por:");
+  });
+});
+
+describe("CaseQueue — age badge legend (item 6a)", () => {
+  it("carries a title/aria-label explaining what the day count means", () => {
+    const old = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[{ ...ROWS[0], openedAt: old, closedAt: null, status: "open" }]} />,
+    );
+    expect(html).toContain("días abierto");
+  });
+});
+
+describe('CaseQueue — "Animal sin registrar" subject rendering (item 6c)', () => {
+  it('renders "Animal sin registrar" when the subject is an unowned animal with no pet name', () => {
+    const html = renderToStaticMarkup(
+      <CaseQueue
+        rows={[
+          {
+            ...ROWS[0],
+            primaryPetName: null,
+            primaryPetPublicToken: null,
+            primarySubjectKind: "unowned_animal",
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain("Animal sin registrar");
+    expect(html).not.toMatch(/>—<\/td>/);
+  });
+
+  it('still renders a bare "—" for a non-animal subject with no pet name (e.g. location/general)', () => {
+    const html = renderToStaticMarkup(
+      <CaseQueue
+        rows={[
+          {
+            ...ROWS[0],
+            primaryPetName: null,
+            primaryPetPublicToken: null,
+            primarySubjectKind: "location",
+          },
+        ]}
+      />,
+    );
+    expect(html).not.toContain("Animal sin registrar");
+    expect(html).toMatch(/>—<\/td>/);
+  });
+});

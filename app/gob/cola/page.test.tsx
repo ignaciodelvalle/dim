@@ -49,7 +49,7 @@ describe("/gob/cola — render smoke test", () => {
   it("uses the canonical space-y-6 shell, not a centered <main>/mx-auto wrapper", async () => {
     const node = await ColaPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Cola de solicitudes");
+    expect(html).toContain("Aprobaciones");
     expect(html).not.toContain("<main");
     expect(html).not.toContain("mx-auto");
     expect(html).not.toContain("max-w-5xl");

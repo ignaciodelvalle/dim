@@ -21,15 +21,20 @@
 // visible; province/locality stack under the code.
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
 import { type OpBulkAction, OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
+import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
-import type { CaseStatus } from "@/db/schema";
+import type { CaseStatus, CaseSubjectKind } from "@/db/schema";
 import { formatDate, pluralizeEs } from "@/lib/utils/format";
-import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
+import {
+  type CaseKind,
+  caseKindLabel,
+  caseKindSeverityWeight,
+} from "@/src/modules/cases/domain/case-kinds";
 
 // ---------------------------------------------------------------------------
 // SLA / age helpers (exported for testability)
@@ -52,6 +57,20 @@ export function ageCaseDays(openedAt: Date): number {
 }
 
 // ---------------------------------------------------------------------------
+// Urgency score (PO interview 2026-07-23, item 6) — age-days × kind-severity
+// weight (CASE_KIND_SEVERITY_WEIGHT, src/modules/cases/domain/case-kinds.ts).
+// A closed case scores 0 regardless of age — it is resolved, never urgent —
+// so it always sinks below every open row under the default sort.
+// ---------------------------------------------------------------------------
+
+export function caseUrgencyScore(
+  row: Pick<CaseQueueRow, "caseKind" | "openedAt" | "closedAt">,
+): number {
+  if (row.closedAt !== null) return 0;
+  return ageCaseDays(row.openedAt) * caseKindSeverityWeight(row.caseKind);
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -60,6 +79,13 @@ export interface CaseQueueRow {
   publicCode: string;
   caseKind: CaseKind;
   status: CaseStatus;
+  /**
+   * Optional: only producers backed by the `cases` table set this (case-queries.ts).
+   * Rows synthesized from a different table (e.g. DisputasScreen's custody
+   * disputes, which always join a pet — petId is NOT NULL there) omit it, since
+   * their `primaryPetName` is never null and the fallback never triggers.
+   */
+  primarySubjectKind?: CaseSubjectKind;
   primaryPetName: string | null;
   primaryPetPublicToken: string | null;
   jurisdictionProvince: string | null;
@@ -170,6 +196,21 @@ export function CaseQueue({
   extraFilterParams,
 }: CaseQueueProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Default sort: urgency (age-days × kind-severity) — the old "recientes"
+  // (openedAt desc, as returned by the query) stays reachable via the toggle
+  // below (PO interview 2026-07-23, item 6: "no debe perderse el orden viejo").
+  const [sortMode, setSortMode] = useState<"urgencia" | "recientes">("urgencia");
+
+  const sortedRows = useMemo(() => {
+    if (sortMode === "recientes") return rows;
+    return [...rows].sort((a, b) => {
+      const scoreDiff = caseUrgencyScore(b) - caseUrgencyScore(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      // Tie-break (equal score, incl. both 0/closed): older-opened first, so
+      // the longest-unresolved row of a tied group still surfaces first.
+      return a.openedAt.getTime() - b.openedAt.getTime();
+    });
+  }, [rows, sortMode]);
 
   const toggleRow = useCallback((id: string) => {
     setSelected((prev) => {
@@ -216,6 +257,39 @@ export function CaseQueue({
             );
           })}
         </nav>
+      )}
+
+      {/* Sort toggle (PO interview 2026-07-23, item 6): "Urgencia" (age-days ×
+          kind-severity, see caseUrgencyScore) is the default so the queue
+          leads with what most needs action, not just what's newest. The old
+          "Recientes" (openedAt desc, as fetched) stays one click away. Uses
+          the shared OpButton primitive rather than a raw button element —
+          the design-system consolidation ratchet (scripts/check-raw-
+          buttons.mjs) requires new toggles to go through LnButton/OpButton. */}
+      {rows.length > 1 && (
+        <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0 text-sm">
+          <legend className="text-ln-op-mute">Ordenar por:</legend>
+          {(
+            [
+              { value: "urgencia", label: "Urgencia" },
+              { value: "recientes", label: "Recientes" },
+            ] as const
+          ).map((opt) => {
+            const isActive = sortMode === opt.value;
+            return (
+              <OpButton
+                key={opt.value}
+                type="button"
+                size="sm"
+                variant={isActive ? "primary" : "ghost"}
+                aria-pressed={isActive}
+                onClick={() => setSortMode(opt.value)}
+              >
+                {opt.label}
+              </OpButton>
+            );
+          })}
+        </fieldset>
       )}
 
       {/* Row count */}
@@ -291,7 +365,7 @@ export function CaseQueue({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => {
+              {sortedRows.map((row, idx) => {
                 const href = row.detailHref ?? `/casos/${row.publicCode}`;
                 const isSelected = selected.has(row.id);
                 return (
@@ -331,7 +405,10 @@ export function CaseQueue({
                       <CaseStatusBadge status={row.status} />
                     </td>
                     <td className="hidden px-3 py-2 text-ln-op-mute sm:table-cell">
-                      {row.primaryPetName ?? "—"}
+                      {row.primaryPetName ??
+                        (row.primarySubjectKind === "unowned_animal"
+                          ? "Animal sin registrar"
+                          : "—")}
                     </td>
                     <td className="hidden px-3 py-2 text-ln-op-mute md:table-cell">
                       {row.jurisdictionLocality && row.jurisdictionProvince
@@ -343,10 +420,18 @@ export function CaseQueue({
                         <time dateTime={row.openedAt.toISOString()}>
                           {formatDate(row.openedAt)}
                         </time>
-                        {/* SLA badge: only shown on non-closed cases past the warning threshold */}
+                        {/* SLA badge: only shown on non-closed cases past the warning
+                            threshold. title/aria-label are the badge's legend (PO
+                            interview 2026-07-23, item 6) — "14d" alone doesn't say
+                            what it counts. */}
                         {row.closedAt === null &&
                           ageCaseDays(row.openedAt) >= CASE_SLA_WARNING_DAYS && (
-                            <OpPill tone="escalated">{ageCaseDays(row.openedAt)}d</OpPill>
+                            <span
+                              title={`${ageCaseDays(row.openedAt)} días abierto desde la apertura del caso (≥${CASE_SLA_WARNING_DAYS} días = alerta SLA)`}
+                              aria-label={`${ageCaseDays(row.openedAt)} días abierto`}
+                            >
+                              <OpPill tone="escalated">{ageCaseDays(row.openedAt)}d</OpPill>
+                            </span>
                           )}
                       </div>
                     </td>

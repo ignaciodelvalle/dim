@@ -27,7 +27,7 @@ import {
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import type { OutreachReminderOutcome } from "@/lib/infra/outreach-reminders";
 import { notifyActionError, notifySaved } from "@/lib/ui/action-feedback";
-import { relativeDaysShort, speciesLabel } from "@/lib/utils/format";
+import { pluralizeEs, relativeDaysShort, speciesLabel } from "@/lib/utils/format";
 
 export type OutreachRabiesReminderPet = {
   petId: string;
@@ -62,10 +62,10 @@ type BulkSummary = {
 };
 
 function summaryLine(s: BulkSummary): string {
-  const parts = [`${s.sent} enviado${s.sent === 1 ? "" : "s"}`];
+  const parts = [`${s.sent} ${pluralizeEs(s.sent, "enviado")}`];
   if (s.alreadyNotified > 0) {
     parts.push(
-      `${s.alreadyNotified} ya avisado${s.alreadyNotified === 1 ? "" : "s"} esta quincena`,
+      `${s.alreadyNotified} ya ${pluralizeEs(s.alreadyNotified, "avisado")} esta quincena`,
     );
   }
   if (s.noOwner > 0) {
@@ -129,7 +129,7 @@ export function OutreachRabiesReminderList({ pets }: { pets: OutreachRabiesRemin
       });
       if (res.result.sentCount > 0) {
         notifySaved(
-          `${res.result.sentCount} recordatorio${res.result.sentCount === 1 ? "" : "s"} enviado(s)`,
+          `${res.result.sentCount} ${pluralizeEs(res.result.sentCount, "recordatorio")} enviado(s)`,
         );
       }
     });

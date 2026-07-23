@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
-import { AdminSiteMap } from "@/components/admin/AdminSiteMap";
 import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
 import { QueueHealthCockpit } from "@/components/admin/QueueHealthCockpit";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
@@ -110,22 +109,7 @@ export default async function AdminDashboardPage() {
         />
       </section>
 
-      {/* (3) Site map — every admin route grouped by nav section, each with a
-          one-line "what you DO here" + a live pending badge where the cockpit
-          above already fetched that queue's count (dispatch board, Cowork M1 +
-          PO). No new queries: the counts are the SAME cockpit numbers. */}
-      <AdminSiteMap
-        counts={{
-          "/admin/cola": cockpit.approvals.pendingTotal,
-          "/admin/moderacion": cockpit.moderationPending,
-          "/admin/alertas": cockpit.alertsOpen,
-          "/admin/outbox": cockpit.outboxBreaches,
-          "/admin/casos": cockpit.casesOpen,
-          "/admin/observaciones": cockpit.rabiesInProgress,
-        }}
-      />
-
-      {/* (4) Novedades — session-start orientation feed, DEMOTED below the
+      {/* (3) Novedades — session-start orientation feed, DEMOTED below the
           cockpit and collapsible so it no longer competes with the queues.
           Starts collapsed on the admin home; "Marcar como visto" is intact. */}
       <NovedadesCard feed={novedades} collapsible defaultCollapsed />

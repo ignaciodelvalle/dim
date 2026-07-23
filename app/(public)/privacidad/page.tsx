@@ -57,9 +57,19 @@ export default function PrivacidadPage() {
               perdida, avistajes, denuncias y mordeduras podés indicar una ubicación exacta (GPS del
               dispositivo, un pin en el mapa o una dirección geocodificada) — siempre por una acción
               tuya explícita (tocar &quot;Usar mi ubicación&quot; o marcar el mapa), nunca de forma
-              automática ni en segundo plano. Si alguien escanea el código QR de una mascota marcada
-              como perdida, puede compartir su ubicación GPS de forma voluntaria para ayudar a
-              encontrarla; ese dato no identifica a quien escanea.
+              automática ni en segundo plano. Esas coordenadas quedan asociadas al evento
+              correspondiente y se conservan mientras la mascota permanezca registrada, como parte
+              de su historial; desde tu cuenta podés{" "}
+              <Link
+                href="/cuenta/privacidad"
+                className="underline underline-offset-4 hover:text-[var(--color-ln-azul)] transition-colors"
+              >
+                solicitar la eliminación de tu cuenta y sus datos asociados
+              </Link>{" "}
+              en cualquier momento (ver &quot;Tus derechos&quot; más abajo). Si alguien escanea el
+              código QR de una mascota marcada como perdida, puede compartir su ubicación GPS de
+              forma voluntaria para ayudar a encontrarla; ese dato no identifica a quien escanea y,
+              a diferencia de los eventos anteriores, se purga automáticamente a los 90 días.
             </li>
             <li>
               <strong>Denuncias anónimas:</strong> las denuncias de maltrato pueden enviarse sin

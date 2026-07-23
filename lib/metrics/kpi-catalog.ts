@@ -2405,9 +2405,14 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     // that string collided (registry-import fence, lint:metric-labels) with
     // the SAME KPI rendered on components/admin/AdminKpiStrip.tsx (outside
     // this sweep's scope) and generic comment prose elsewhere discussing
-    // "the pending queue" informally. The suffix also disambiguates from
-    // moderación/alertas/outbox queues elsewhere in the app.
-    label: "Cola pendiente (aprobaciones)",
+    // "the pending queue" informally. The disambiguating "(aprobaciones)"
+    // suffix is gone as of the PO interview 2026-07-23 nav rename ("Cola" →
+    // "Aprobaciones", item 5): the word itself now disambiguates from
+    // moderación/alertas/outbox queues, so the parenthetical is redundant.
+    // AdminKpiStrip.tsx's twin was renamed the same way — still allowlisted
+    // in scripts/check-metric-labels.ts under the new name (national vs
+    // jurisdiction-scoped wording, same legitimate reuse as before).
+    label: "Aprobaciones pendientes",
     numerator: "COUNT approval-queue rows where status='pending', in scope",
     denominator: "n/a — absolute count",
     source: "cola de aprobaciones (ver fetchQueueHealth / fetchQueueHealthScoped)",

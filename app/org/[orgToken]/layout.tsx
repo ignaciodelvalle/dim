@@ -14,6 +14,7 @@ import { logoutAction } from "@/app/actions/auth";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { buildOrgNav } from "@/components/layout/nav-presets";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import type { NavSection } from "@/components/ui/dashboard";
 import { OpMaintenanceScreen, OpOfflineBanner, OpOmnibox } from "@/components/ui/dashboard";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
@@ -21,6 +22,7 @@ import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OrgBreadcrumbs } from "@/components/ui/dashboard/OrgBreadcrumbs";
 import type { OrganizationCapability } from "@/db";
 import { applicableOrgQueues } from "@/lib/analytics/org-dashboard";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import {
@@ -167,7 +169,12 @@ export default async function OrgLayout({
   return (
     <AppShell
       variant="operator"
-      banner={<OpOfflineBanner />}
+      banner={
+        <>
+          <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
+          <OpOfflineBanner />
+        </>
+      }
       rail={
         <OpRail
           sections={navSections}

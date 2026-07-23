@@ -51,6 +51,28 @@ describe("AppShell variant=landing — single main-content landmark", () => {
     // Still exactly one main-content for the anonymous landing.
     expect(countMatches(anon, /id="main-content"/g)).toBe(1);
   });
+
+  // PO interview 2026-07-23, item 1: the demo banner must be inescapable on
+  // EVERY surface, including the token-landing (QR-scan) shell — the most
+  // public surface of all. LandingShell had no banner slot before this.
+  it("renders an optional banner above the trust header (demo-mode banner slot)", () => {
+    const withBanner = render(
+      <AppShell variant="landing" banner={<div data-testid="demo-banner">DEMO</div>}>
+        <div>x</div>
+      </AppShell>,
+    );
+    expect(withBanner).toContain("demo-banner");
+    expect(withBanner.indexOf("demo-banner")).toBeLessThan(
+      withBanner.indexOf("Credencial verificada por miMAR"),
+    );
+
+    const withoutBanner = render(
+      <AppShell variant="landing">
+        <div>x</div>
+      </AppShell>,
+    );
+    expect(withoutBanner).not.toContain("demo-banner");
+  });
 });
 
 describe("AppShell variant=citizen — single main-content landmark", () => {

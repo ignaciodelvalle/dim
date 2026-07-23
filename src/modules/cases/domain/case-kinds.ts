@@ -56,6 +56,51 @@ export function isCaseKind(value: string): value is CaseKind {
   return (CASE_KINDS as readonly string[]).includes(value);
 }
 
+// ---------------------------------------------------------------------------
+// Severity weight — urgency-sort input (PO interview 2026-07-23, item 6:
+// "Casos: orden por urgencia edad×tipo").
+//
+// A simple, defensible 3-tier scale — NOT a clinical/legal risk model, just
+// enough differentiation to break the "oldest first" tie that flattens every
+// kind into one queue. Documented here so the weight for any kind is a
+// one-line lookup, not a buried magic number:
+//
+//   3 — imminent welfare/public-health risk: the subject (animal or
+//       population) may be actively suffering or contagious right now.
+//   2 — active legal/time-sensitive conflict: custody or search cases whose
+//       resolution window matters, but nothing suggests active suffering.
+//   1 — administrative/process case: paperwork or a handoff step, not a
+//       welfare emergency.
+//
+// The queue's urgency score (CaseQueue) multiplies this weight by the case's
+// age in days — an old low-severity case can still outrank a fresh
+// high-severity one once it has sat unresolved for a while, which is the
+// point (a stale "Casos" queue that never actions its long tail).
+export const CASE_KIND_SEVERITY_WEIGHT: Record<CaseKind, 1 | 2 | 3> = {
+  welfare_denuncia: 3, // animal welfare/maltrato — safety of a living subject
+  bite_incident: 3, // rabies/public-health exposure
+  outbreak_investigation: 3, // public-health, potentially multi-subject
+  custody_dispute: 2, // active legal conflict over an animal
+  custody_transfer_handshake: 2, // custody in transition, time-sensitive
+  custody_episode: 2, // temporary custody, needs a resolution
+  lost_pet_episode: 2, // reunification window matters
+  microchip_remediation: 1, // compliance/administrative
+  adoption_listing: 1, // process case
+  adoption_application: 1, // process case
+  foster_placement: 1, // process case
+  foster_proposal: 1, // process case
+};
+
+/**
+ * Severity weight for a case kind (1–3, see CASE_KIND_SEVERITY_WEIGHT).
+ * Unknown/out-of-union kinds (case_kind is unconstrained text in the DB —
+ * see caseKindLabel) default to 2, a neutral middle weight, rather than
+ * silently sorting to either extreme.
+ */
+export function caseKindSeverityWeight(kind: CaseKind | (string & {})): 1 | 2 | 3 {
+  return (CASE_KIND_SEVERITY_WEIGHT as Record<string, 1 | 2 | 3>)[kind] ?? 2;
+}
+
 // Display labels (es-AR). Used in dashboards + notification copy.
 //
 // Accepts plain strings besides the union: `case_kind` is unconstrained text

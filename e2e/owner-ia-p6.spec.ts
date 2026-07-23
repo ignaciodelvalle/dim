@@ -540,9 +540,9 @@ test("11 — /transparencia + cobertura JSON: public, licensed, PII-free, suppre
 });
 
 // ---------------------------------------------------------------------------
-// 12. Admin cockpit: /admin shows the queue cockpit tiles and the site map.
+// 12. Admin cockpit: /admin shows the queue cockpit tiles.
 // ---------------------------------------------------------------------------
-test("12 — admin /admin shows the queue cockpit and the site map", async ({ browser }) => {
+test("12 — admin /admin shows the queue cockpit", async ({ browser }) => {
   const { context, page } = await openAs(browser, ADMIN);
   try {
     await page.goto("/admin");
@@ -555,10 +555,12 @@ test("12 — admin /admin shows the queue cockpit and the site map", async ({ br
       page.getByText(/Colas operativas/i),
       "operational queues tile group",
     ).toBeVisible();
+    // "Mapa del sitio" was cut (PO interview 2026-07-23, item 13): it
+    // duplicated the rail nav one-for-one — see components/admin/AdminSiteMap.tsx.
     await expect(
       page.getByRole("heading", { name: /Mapa del sitio/i }),
-      "admin site map present",
-    ).toBeVisible();
+      "admin site map removed — duplicated the rail nav",
+    ).not.toBeVisible();
   } finally {
     await context.close();
   }

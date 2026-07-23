@@ -17,6 +17,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveShellNav } from "@/lib/ui/shell-nav";
@@ -55,7 +57,11 @@ export default async function LibretaShareLandingLayout({
     ) : undefined;
 
   return (
-    <AppShell variant="landing" returnSlot={returnSlot}>
+    <AppShell
+      variant="landing"
+      returnSlot={returnSlot}
+      banner={<DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />}
+    >
       {children}
     </AppShell>
   );

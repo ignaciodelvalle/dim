@@ -442,9 +442,16 @@ export default async function GobVigilanciaPage({
           label="Densidad ATM/AMR"
           value={amrDensity.per1000 === null ? "—" : String(amrDensity.per1000)}
           sub={
-            amrDensity.provisionalUnclassified > 0
-              ? `por 1.000 · ${amrDensity.provisionalUnclassified} sin clasificar (provisional)`
-              : "antimicrobianos por 1.000 pets activos"
+            // PO interview 2026-07-23, item 13: a bare "0" reading as
+            // "antimicrobianos por 1.000 pets activos" implies a measured,
+            // confirmed rate of zero — the honest read when NOTHING was
+            // logged is no-signal, not an achieved zero (see the AMR card
+            // below for the fuller no-signal treatment of the same case).
+            amrDensity.activePets > 0 && amrDensity.antimicrobialCount === 0
+              ? "sin datos de uso registrados"
+              : amrDensity.provisionalUnclassified > 0
+                ? `por 1.000 · ${amrDensity.provisionalUnclassified} sin clasificar (provisional)`
+                : "antimicrobianos por 1.000 pets activos"
           }
           info={{
             // Internal indicator code (A12) removed from operator-facing copy
@@ -608,24 +615,44 @@ export default async function GobVigilanciaPage({
         <OpCard aria-labelledby={panelAmrId}>
           <OpCardHead title={<span id={panelAmrId}>AMR — densidad de antimicrobianos</span>} />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
-              {/* (A12) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
-              <dt className="text-ln-op-mute">Densidad</dt>
-              <dd className="text-right font-semibold text-ln-op-ink">
-                {amrDensity.per1000 === null ? "—" : `${amrDensity.per1000} / 1.000 pets`}
-              </dd>
-              <dt className="text-ln-op-mute">Inicios antimicrobianos</dt>
-              <dd className="text-right font-semibold text-ln-op-ink">
-                {amrDensity.antimicrobialCount}
-              </dd>
-              <dt className="text-ln-op-mute">Pets activos (denominador)</dt>
-              <dd className="text-right font-semibold text-ln-op-ink">{amrDensity.activePets}</dd>
-            </dl>
-            {amrDensity.provisionalUnclassified > 0 && (
-              <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
-                {amrDensity.provisionalUnclassified} evento(s) con fármaco sin clasificar — conteo
-                provisional (clasificación provisional), no incluido en la tasa.
-              </p>
+            {/* PO interview 2026-07-23, item 13: "0 / 1.000" reads as a
+                measured, confirmed zero (a good outcome) when the honest
+                reading is "nobody logged a medication_started event of this
+                kind in miMAR" — same no-signal epistemics as the Movilidad
+                panel below (movement.total === 0). Only fires when there IS a
+                denominator (activePets > 0); a zero denominator already
+                renders "—" via per1000 === null, a different (correct) case. */}
+            {amrDensity.activePets > 0 && amrDensity.antimicrobialCount === 0 ? (
+              <LnEmptyState
+                icon="eye-off"
+                nature="no-signal"
+                title="Sin datos de uso registrados"
+                description="Ningún inicio de tratamiento antimicrobiano fue registrado en miMAR para este período — la ausencia de registro no implica ausencia de uso real."
+              />
+            ) : (
+              <>
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
+                  {/* (A12) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
+                  <dt className="text-ln-op-mute">Densidad</dt>
+                  <dd className="text-right font-semibold text-ln-op-ink">
+                    {amrDensity.per1000 === null ? "—" : `${amrDensity.per1000} / 1.000 pets`}
+                  </dd>
+                  <dt className="text-ln-op-mute">Inicios antimicrobianos</dt>
+                  <dd className="text-right font-semibold text-ln-op-ink">
+                    {amrDensity.antimicrobialCount}
+                  </dd>
+                  <dt className="text-ln-op-mute">Pets activos (denominador)</dt>
+                  <dd className="text-right font-semibold text-ln-op-ink">
+                    {amrDensity.activePets}
+                  </dd>
+                </dl>
+                {amrDensity.provisionalUnclassified > 0 && (
+                  <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+                    {amrDensity.provisionalUnclassified} evento(s) con fármaco sin clasificar —
+                    conteo provisional (clasificación provisional), no incluido en la tasa.
+                  </p>
+                )}
+              </>
             )}
           </OpCardBody>
         </OpCard>

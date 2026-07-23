@@ -1,7 +1,7 @@
 // AdminKpiStrip — the shared operational KPI strip for the admin portal.
 //
 // WHY (critique C26): the admin landing (/admin) and /admin/sistema both render
-// the same operational quartet — Usuarios personales / Cola pendiente /
+// the same operational quartet — Usuarios personales / Aprobaciones pendientes /
 // Decisiones 7d / SLA ENO — with the same tones, info tooltips and drill hrefs.
 // They had drifted (label wording, SLA presence). This component is the single
 // presentational source of truth so the tiles can't diverge again.
@@ -14,7 +14,7 @@
 
 import { OpKpi } from "@/components/ui/dashboard";
 import { enoSlaTone } from "@/lib/metrics";
-import { getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 
 export type AdminKpiStripData = {
   /** Total personal accounts (count). */
@@ -71,10 +71,11 @@ export function AdminKpiStrip({
 }: {
   data: AdminKpiStripData;
   /**
-   * Hide the "Cola pendiente" tile and render "Instituciones activas" in its
-   * place. Used by the admin home, where the QueueHealthCockpit above already
-   * shows the pending count (per-type) — the two must not duplicate it (PO ronda
-   * 4 + Cowork B1). /admin/sistema keeps the pending tile (no duplication there).
+   * Hide the pending-approvals tile (queue_pending_total) and render
+   * Instituciones activas in its place. Used by the admin home, where the
+   * QueueHealthCockpit above already shows the pending count (per-type) — the
+   * two must not duplicate it (PO ronda 4 + Cowork B1). /admin/sistema keeps
+   * the pending tile (no duplication there).
    */
   omitPendingQueue?: boolean;
 }) {
@@ -117,7 +118,10 @@ export function AdminKpiStrip({
         />
       ) : (
         <OpKpi
-          label="Cola pendiente"
+          // Registry-import fence (lint:metric-labels): this label is
+          // catalogued (queue_pending_total) — import it instead of
+          // retyping the string, so the two render sites can never drift.
+          label={KPI_CATALOG.queue_pending_total.label}
           value={data.pendingTotal}
           tone={data.pendingTotal > 0 ? "warn" : "neutral"}
           sub={

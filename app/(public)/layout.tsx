@@ -4,6 +4,8 @@ import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
 import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { PUBLIC_NAV } from "@/components/layout/nav-presets";
+import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
+import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import {
   getOrgMembershipsCached,
   getProfileCached,
@@ -100,6 +102,7 @@ export default async function PublicLayout({ children }: { children: React.React
   return (
     <AppShell
       variant="citizen"
+      banner={<DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />}
       masthead={
         <AppCitizenMasthead
           nav={mastheadNav}

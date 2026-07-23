@@ -144,7 +144,7 @@ export default async function GobSistemaPage({
           descriptorId="queue_pending_total"
         />
         <OpKpi
-          label="Cola más vieja"
+          label="Aprobaciones — más vieja"
           value={queue.oldestPendingDaysAgo !== null ? `${queue.oldestPendingDaysAgo}d` : "—"}
           tone={
             queue.oldestPendingDaysAgo !== null
@@ -204,7 +204,7 @@ export default async function GobSistemaPage({
 
       {/* Scoped queue aging card */}
       <OpCard>
-        <OpCardHead title="Cola de aprobaciones — envejecimiento" />
+        <OpCardHead title="Aprobaciones — envejecimiento" />
         <OpCardBody>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
