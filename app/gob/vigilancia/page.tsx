@@ -122,11 +122,18 @@ export default async function GobVigilanciaPage({
       title="Mapa de vigilancia"
       subtitle={
         <>
-          <p className="text-[var(--text-md)] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
-          </p>
+          {/* The universal claim yields to the narrowed-view caption (never both). */}
+          {profile.role === "admin" ? (
+            narrowedView ? null : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Vista universal — todas las jurisdicciones.
+              </p>
+            )
+          ) : (
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              Señales de zoonosis y enfermedades reportables detectadas en tu cobertura.
+            </p>
+          )}
           <ViewScopeCaption scope={narrowedView} />
         </>
       }

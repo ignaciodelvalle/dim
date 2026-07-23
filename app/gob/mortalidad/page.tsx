@@ -213,11 +213,19 @@ export default async function GobMortalidadPage({
         title="Mortalidad y disposición"
         subtitle={
           <>
-            <p className="text-[13px] text-ln-op-mute">
-              {profile.role === "admin"
-                ? "Vista universal — todas las jurisdicciones."
-                : "Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura."}
-            </p>
+            {/* The universal claim yields to the narrowed-view caption (never both). */}
+            {profile.role === "admin" ? (
+              narrowedView ? null : (
+                <p className="text-[var(--text-md)] text-ln-op-mute">
+                  Vista universal — todas las jurisdicciones.
+                </p>
+              )
+            ) : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu
+                cobertura.
+              </p>
+            )}
             <ViewScopeCaption scope={narrowedView} />
           </>
         }
@@ -266,7 +274,12 @@ export default async function GobMortalidadPage({
           value={hasDeaths ? m.total.toLocaleString("es-AR") : "—"}
           sub={hasDeaths ? "fallecimientos registrados" : "Sin datos en el período"}
           tone={!hasDeaths ? "neutral" : undefined}
-          deltaV2={hasDeaths ? (deathsDelta ?? undefined) : undefined}
+          deltaV2={
+            // Neutral valence: a deaths rise can be real deterioration OR
+            // better registration — no green/red verdict either way (same
+            // posture as PanoramaKpiTile's never-valence delta).
+            hasDeaths && deathsDelta ? { ...deathsDelta, valence: "neutral" as const } : undefined
+          }
           sparkline={deathSparkline.points.map((p) => p.y)}
           info={{
             definition:

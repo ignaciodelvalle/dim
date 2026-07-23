@@ -237,11 +237,18 @@ export default async function GobPerdidasPage({
         title="Mascotas perdidas"
         subtitle={
           <>
-            <p className="text-[var(--text-md)] text-ln-op-mute">
-              {profile.role === "admin"
-                ? "Vista universal — todas las jurisdicciones."
-                : "Mascotas marcadas como perdidas dentro de tu cobertura."}
-            </p>
+            {/* The universal claim yields to the narrowed-view caption (never both). */}
+            {profile.role === "admin" ? (
+              narrowedView ? null : (
+                <p className="text-[13px] text-ln-op-mute">
+                  Vista universal — todas las jurisdicciones.
+                </p>
+              )
+            ) : (
+              <p className="text-[13px] text-ln-op-mute">
+                Mascotas marcadas como perdidas dentro de tu cobertura.
+              </p>
+            )}
             <ViewScopeCaption scope={narrowedView} />
           </>
         }
@@ -302,7 +309,7 @@ export default async function GobPerdidasPage({
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
         aria-label="Indicadores de perdidas"
-        className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
+        className="grid grid-cols-2 md:grid-cols-5 gap-3"
       >
         <OpKpi
           label={KPI_CATALOG.lost_pets_active_stock.label}

@@ -58,10 +58,14 @@ describe("isoWeekLabel / formatBucketLabel", () => {
     expect(isoWeekLabel(new Date("2027-01-01T00:00:00Z"))).toBe("2026-W53");
   });
 
-  it("month granularity uses the es-AR short month label", () => {
+  it("month granularity uses the es-AR short month label WITH the year", () => {
     const label = formatBucketLabel(new Date("2026-03-01T00:00:00Z"), "month");
     // es-AR short month for March is "mar." (locale-dependent but stable family).
     expect(label.toLowerCase()).toContain("mar");
+    // Year disambiguation (dataviz review 2026-07-23): month granularity only
+    // applies to >120-day windows, which cross calendar years — the label must
+    // carry the year or "jul." appears twice on one axis.
+    expect(label).toContain("26");
   });
 
   it("week granularity returns the ISO-week label", () => {

@@ -168,13 +168,17 @@ export function suppressSmallStackedCells(
 /**
  * Format a bucket-start Date into an es-AR x-axis label for the given granularity.
  *  - week  → ISO week label "IYYY-Www" (stable, sortable, locale-neutral).
- *  - month → "ene.", "feb." … (es-AR short month, matches existing trend charts).
+ *  - month → "ene 26", "feb 26" … (es-AR short month + 2-digit year: month
+ *    granularity only kicks in on >120-day windows, which span calendar years,
+ *    so a bare "jul." appears twice on a trailing-12m axis and the operator
+ *    cannot tell which year a spike belongs to — dataviz review 2026-07-23;
+ *    mirrors the ISO-week label's year-carrying design).
  */
 export function formatBucketLabel(start: Date, granularity: BucketGranularity): string {
   if (granularity === "month") {
     // Render in UTC: the bucket start is a UTC instant from date_trunc; using the
     // host TZ could roll a month-start (00:00 UTC) back into the prior month.
-    return start.toLocaleString("es-AR", { month: "short", timeZone: "UTC" });
+    return start.toLocaleString("es-AR", { month: "short", year: "2-digit", timeZone: "UTC" });
   }
   return isoWeekLabel(start);
 }

@@ -111,11 +111,18 @@ export default async function GobSistemaPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           Salud operativa — tu jurisdicción
         </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "SLA de notificaciones ENO y antigüedad de la cola de aprobaciones en tu cobertura."}
-        </p>
+        {/* The universal claim yields to the narrowed-view caption (never both). */}
+        {profile.role === "admin" ? (
+          narrowedView ? null : (
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              Vista universal — todas las jurisdicciones.
+            </p>
+          )
+        ) : (
+          <p className="text-[var(--text-md)] text-ln-op-mute">
+            SLA de notificaciones ENO y antigüedad de la cola de aprobaciones en tu cobertura.
+          </p>
+        )}
         <ViewScopeCaption scope={narrowedView} />
       </header>
 

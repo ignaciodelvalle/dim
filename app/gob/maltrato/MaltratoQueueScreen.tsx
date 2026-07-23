@@ -304,10 +304,13 @@ export async function MaltratoQueueScreen({
           title="Denuncias de maltrato"
           subtitle={
             <>
-              <p className="text-sm text-ln-op-mute">
+              <p className="text-[var(--text-md)] text-ln-op-mute">
                 Cola de triage bajo Ley Nacional 14.346.{" "}
+                {/* The universal claim yields to the narrowed-view caption (never both). */}
                 {profile.role === "admin"
-                  ? "Vista universal — todas las jurisdicciones."
+                  ? narrowedView
+                    ? null
+                    : "Vista universal — todas las jurisdicciones."
                   : "Filtradas por tu jurisdicción."}
               </p>
               <ViewScopeCaption scope={narrowedView} />

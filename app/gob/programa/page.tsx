@@ -174,11 +174,19 @@ export default async function GobProgramaPage({
       title="Resumen ejecutivo — tu jurisdicción"
       subtitle={
         <>
-          <p className="text-[13px] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII en tu cobertura asignada."}
-          </p>
+          {/* The universal claim yields to the narrowed-view caption (never both). */}
+          {profile.role === "admin" ? (
+            narrowedView ? null : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Vista universal — todas las jurisdicciones.
+              </p>
+            )
+          ) : (
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de
+              PII en tu cobertura asignada.
+            </p>
+          )}
           <a
             href="/gob/suscripciones"
             className="inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"

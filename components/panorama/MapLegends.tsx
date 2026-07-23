@@ -340,16 +340,17 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
               )}
             </div>
             <div className="flex flex-col gap-1">
+              {/* Light-flip fix (dataviz review 2026-07-23): the retired dark
+                  "situation-room" skin left these bubbles white-on-white
+                  (rgba(255,255,255,…) inside the light bg-ln-op-stripe card —
+                  invisible, defeating the size→count key). The encoding is
+                  SIZE, so a neutral ink outline reads on the light card and
+                  stays honest about not being a color key. */}
               {graduatedScale.bins.map((b) => (
                 <div key={b.value} className="flex items-center gap-2">
                   <span
-                    className="flex-none rounded-full"
-                    style={{
-                      width: b.r * 2,
-                      height: b.r * 2,
-                      background: "rgba(255,255,255,0.25)",
-                      border: "1.5px solid rgba(255,255,255,0.5)",
-                    }}
+                    className="flex-none rounded-full border-[1.5px] border-ln-op-ink-2/70 bg-transparent"
+                    style={{ width: b.r * 2, height: b.r * 2 }}
                     aria-hidden="true"
                   />
                   <span className="tabular-nums text-ln-op-ink-2">{b.label}</span>
@@ -357,8 +358,8 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
               ))}
               <div className="mt-0.5 flex items-center gap-2">
                 <span
-                  className="flex-none rounded-full"
-                  style={{ width: 10, height: 10, background: COLOR_SUPPRESSED, opacity: 0.6 }}
+                  className="flex-none rounded-full border border-ln-op-ink-2/40"
+                  style={{ width: 10, height: 10, background: COLOR_SUPPRESSED }}
                   aria-hidden="true"
                 />
                 <span className="text-ln-op-mute">Datos insuficientes (privacidad)</span>

@@ -88,9 +88,7 @@ export default async function AdminSistemaCronsPage() {
         title="Salud de crons"
         subtitle={
           <>
-            <span className="inline-flex items-center rounded-full border border-ln-op-line bg-ln-op-stripe px-2 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-ln-op-mute">
-              Herramienta de sistema · solo lectura
-            </span>
+            <OpStatusPill tone="neutral">Herramienta de sistema · solo lectura</OpStatusPill>
             <p className="text-sm text-ln-op-ink-2">
               Estado de cada cron registrado en vercel.json — lectura de cronRuns en vivo. Solo
               admin.

@@ -251,7 +251,13 @@ export async function AdminPoblacionScreen({
           value={outcomes.registeredBirths.toLocaleString("es-AR")}
           sub={natalidadCaveatText}
           tone="neutral"
-          deltaV2={registeredBirthsDelta ?? undefined}
+          deltaV2={
+            // Neutral valence: more registered births is neither win nor loss
+            // (population growth vs registration uptake ambiguity).
+            registeredBirthsDelta
+              ? { ...registeredBirthsDelta, valence: "neutral" as const }
+              : undefined
+          }
           info={{
             definition:
               "Eventos clinical_info_logged con sub_kind='pregnancy', pregnancy_phase='ended' y outcome='live_birth' en el período seleccionado, a nivel nacional.",
@@ -296,7 +302,10 @@ export async function AdminPoblacionScreen({
           real natalidad. */}
       {sterilNatalidadRatio !== null && (
         <section aria-label={KPI_CATALOG.sterilization_natalidad_ratio.label}>
-          <div className="rounded-xl border border-ln-op-line bg-white px-5 py-4">
+          {/* Background unified to OpCard's canonical bg-ln-op-card (design-
+              consistency sweep) — no bordered-divider header here, so it stays a
+              plain div rather than a full OpCard conversion. */}
+          <div className="rounded-xl border border-ln-op-line bg-ln-op-card px-5 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute">
               Contexto · Ratio esterilización / natalidad registrada (nacional)
             </p>

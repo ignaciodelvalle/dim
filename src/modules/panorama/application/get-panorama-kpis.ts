@@ -814,6 +814,13 @@ export async function getPanoramaKpis(
       delta:
         bites.percapitaEligible && priorBites ? deltaOf(bites.rate, priorBites.rate) : undefined,
       sparkline: bitesTrend ? bitesTrend.points.map((p) => p.y) : undefined,
+      // Honesty label (dataviz review 2026-07-23): when the headline is the
+      // per-10k RATE, the sparkline still plots raw report COUNTS
+      // (fetchBitesTrend applies no census denominator) — same class as the
+      // cobertura volume-vs-% fix; say so instead of implying a rate trend.
+      sparklineLabel: bites.percapitaEligible
+        ? "mordeduras registradas (conteo, no la tasa por 10.000)"
+        : undefined,
       info: {
         definition: bites.percapitaEligible
           ? "Tasa de incidentes de mordedura por cada 10.000 habitantes del censo provincial en los últimos 12 meses. Se usa como indicador de riesgo zoonótico (A6 proxy)."

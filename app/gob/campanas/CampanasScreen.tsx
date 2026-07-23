@@ -76,7 +76,7 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
 
   if (!hasCampaignsRead) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <ScreenHeader
           underHub={underHub}
           eyebrow="miMAR Gobierno · Campañas"
@@ -182,11 +182,19 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
         title="Rendimiento de campañas"
         subtitle={
           <>
-            <p className="text-[var(--text-md)] text-ln-op-mute">
-              {profile.role === "admin"
-                ? "Vista universal — todas las jurisdicciones."
-                : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
-            </p>
+            {/* The universal claim yields to the narrowed-view caption (never both). */}
+            {profile.role === "admin" ? (
+              narrowedView ? null : (
+                <p className="text-[var(--text-md)] text-ln-op-mute">
+                  Vista universal — todas las jurisdicciones.
+                </p>
+              )
+            ) : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas
+                sanitarias en tu cobertura.
+              </p>
+            )}
             <ViewScopeCaption scope={narrowedView} />
           </>
         }
@@ -294,7 +302,10 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
               label="Ausencias"
               value={dashboard.totals.noShow.toLocaleString("es-AR")}
               tone={dashboard.totals.noShow > 0 ? "warn" : "neutral"}
-              deltaV2={noShowDelta ?? undefined}
+              deltaV2={
+                // Bad-when-up: rising absenteeism must never scan green.
+                noShowDelta ? { ...noShowDelta, valence: "goodWhenDown" as const } : undefined
+              }
               info={{
                 definition: "Turnos donde el animal no se presentó (no-show).",
                 caveat: "Las ausencias pueden indicar barreras de acceso — considerar recontacto.",

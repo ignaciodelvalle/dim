@@ -59,8 +59,13 @@ export type StackedTimeSeriesChartProps = {
   fallbackTableLabel?: string;
 };
 
-/** Palette cycle order — single-hue, colorblind-safe tokens. */
-const PALETTE: ChartColorKey[] = ["blue", "orange", "green", "purple", "teal", "red"];
+/** Palette cycle order — single-hue tokens. Ordered so no deutan-confusable
+ *  pair (green–red, the axis viz-scales.ts forbids; green–teal, close under
+ *  deuteranopia) is ever ADJACENT in the stack: purple/red always separate
+ *  them (dataviz review 2026-07-23). Co-occurrence at 6 series is unavoidable
+ *  with this token set — callers with 6+ categories should roll up the tail
+ *  into "otras" instead of trusting the cycle. */
+const PALETTE: ChartColorKey[] = ["blue", "orange", "green", "purple", "red", "teal"];
 
 export function StackedTimeSeriesChart({
   seriesKeys,

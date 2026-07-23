@@ -595,6 +595,8 @@ export default async function GobiernoDashboardPage({
                 ? {
                     value: computeDeltaPct(bitesPer10k.rate, bitesPer10k.rate - bitesPer10k.delta),
                     period: "vs año ant.",
+                    // Bad-when-up: a rising bite rate must never scan green.
+                    valence: "goodWhenDown" as const,
                   }
                 : undefined
             }
@@ -618,6 +620,8 @@ export default async function GobiernoDashboardPage({
                     value: openRabiesObservations.deltaWeek,
                     period: "vs semana ant.",
                     unit: "count",
+                    // Bad-when-up: more open observations must never scan green.
+                    valence: "goodWhenDown" as const,
                   }
                 : undefined
             }

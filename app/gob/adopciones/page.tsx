@@ -194,11 +194,18 @@ export default async function GobAdopcionesPage({
         title="Adopciones"
         subtitle={
           <>
-            <p className="text-[var(--text-md)] text-ln-op-mute">
-              {profile.role === "admin"
-                ? "Vista universal — todas las jurisdicciones."
-                : "Flujo de custodia, tiempos de custodia y pool de tránsitos en tu cobertura."}
-            </p>
+            {/* The universal claim yields to the narrowed-view caption (never both). */}
+            {profile.role === "admin" ? (
+              narrowedView ? null : (
+                <p className="text-[var(--text-md)] text-ln-op-mute">
+                  Vista universal — todas las jurisdicciones.
+                </p>
+              )
+            ) : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Flujo de custodia, tiempos de custodia y pool de tránsitos en tu cobertura.
+              </p>
+            )}
             <ViewScopeCaption scope={narrowedView} />
           </>
         }

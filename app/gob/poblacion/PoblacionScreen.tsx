@@ -162,11 +162,19 @@ export async function PoblacionScreen({
       title="Control poblacional"
       subtitle={
         <>
-          <p className="text-[13px] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
-          </p>
+          {/* The universal claim yields to the narrowed-view caption (never both). */}
+          {profile.role === "admin" ? (
+            narrowedView ? null : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Vista universal — todas las jurisdicciones.
+              </p>
+            )
+          ) : (
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              Cobertura de esterilización, reproducción activa y balance poblacional en tu
+              cobertura.
+            </p>
+          )}
           <ViewScopeCaption scope={narrowedView} />
         </>
       }
@@ -328,7 +336,13 @@ export async function PoblacionScreen({
           value={outcomes.registeredBirths.toLocaleString("es-AR")}
           sub={natalidadCaveatText}
           tone="neutral"
-          deltaV2={registeredBirthsDelta ?? undefined}
+          deltaV2={
+            // Neutral valence: more registered births is neither win nor loss
+            // (population growth vs registration uptake ambiguity).
+            registeredBirthsDelta
+              ? { ...registeredBirthsDelta, valence: "neutral" as const }
+              : undefined
+          }
           info={{
             definition:
               "Eventos clinical_info_logged con sub_kind='pregnancy', pregnancy_phase='ended' y outcome='live_birth' en el período seleccionado, en el scope de jurisdicción.",
@@ -391,8 +405,11 @@ export async function PoblacionScreen({
       )}
 
       {/* Net growth breakdown sub-section */}
+      {/* Background unified to OpCard's canonical bg-ln-op-card (design-consistency
+          sweep) — this hand-built panel doesn't use OpCardHead's bordered-divider
+          header, so it stays a plain div rather than a full OpCard conversion. */}
       {hasData && (
-        <div className="rounded-xl border border-ln-op-line bg-ln-op-stripe/30 px-5 py-4">
+        <div className="rounded-xl border border-ln-op-line bg-ln-op-card px-5 py-4">
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute mb-3">
             Componentes del balance
           </p>

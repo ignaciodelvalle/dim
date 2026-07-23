@@ -154,11 +154,19 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
       title="Censo y salud del registro"
       subtitle={
         <>
-          <p className="text-[13px] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Crecimiento del padrón, mascotas inactivas y calidad de identificación en tu cobertura."}
-          </p>
+          {/* The universal claim yields to the narrowed-view caption (never both). */}
+          {profile.role === "admin" ? (
+            narrowedView ? null : (
+              <p className="text-[var(--text-md)] text-ln-op-mute">
+                Vista universal — todas las jurisdicciones.
+              </p>
+            )
+          ) : (
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              Crecimiento del padrón, mascotas inactivas y calidad de identificación en tu
+              cobertura.
+            </p>
+          )}
           <ViewScopeCaption scope={narrowedView} />
         </>
       }

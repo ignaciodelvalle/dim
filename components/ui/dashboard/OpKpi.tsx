@@ -58,8 +58,19 @@ type DeltaV1 = { text: string; up: boolean };
  * `unit` defaults to "percent" (existing callers unaffected). Use "count" for
  * a raw net-change value (e.g. queue size delta) so the chip doesn't render a
  * misleading "%" on a plain integer (demo-review M5).
+ * `valence` controls the COLOR semantics (dataviz review 2026-07-23): the
+ * default "goodWhenUp" keeps the existing green-up/red-down; "goodWhenDown"
+ * inverts it for bad-when-up metrics (deaths, bites, no-shows, open rabies
+ * observations) — a rising death count must never scan green; "neutral"
+ * renders the muted no-verdict treatment (same posture as PanoramaKpiTile's
+ * never-valence delta line).
  */
-type DeltaV2 = { value: number; period: string; unit?: "percent" | "count" };
+type DeltaV2 = {
+  value: number;
+  period: string;
+  unit?: "percent" | "count";
+  valence?: "goodWhenUp" | "goodWhenDown" | "neutral";
+};
 
 type InfoTooltip = {
   definition: string;
@@ -493,9 +504,9 @@ export function OpKpi({
         <div
           className={[
             "mt-1 flex items-center gap-1.5 text-sm font-semibold tabular-nums",
-            deltaV2.value === 0
+            deltaV2.value === 0 || deltaV2.valence === "neutral"
               ? "text-ln-op-mute"
-              : deltaV2.value > 0
+              : deltaV2.value > 0 === (deltaV2.valence !== "goodWhenDown")
                 ? "text-[var(--color-st-ok)]"
                 : "text-[var(--color-st-err)]",
           ].join(" ")}
