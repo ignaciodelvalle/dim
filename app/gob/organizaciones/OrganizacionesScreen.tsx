@@ -235,7 +235,7 @@ export async function OrganizacionesScreen({
 
       <p className="text-sm text-ln-op-mute">
         <Link href={base} className="underline underline-offset-4 hover:text-ln-op-ink-2">
-          {"←"} Volver al dashboard
+          {"←"} Volver al panel
         </Link>
       </p>
     </div>

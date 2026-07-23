@@ -41,6 +41,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
+import { formatPercent, formatRate } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -195,8 +196,8 @@ export default async function AdminAdopcionesPage({
           value={
             returnRatePct != null
               ? returnRatePct > 100
-                ? `${returnRatePct}%*`
-                : `${returnRatePct}%`
+                ? `${formatPercent(returnRatePct)}*`
+                : formatPercent(returnRatePct)
               : "—"
           }
           sub={
@@ -316,7 +317,9 @@ export default async function AdminAdopcionesPage({
                 <li
                   className="flex items-center gap-3"
                   aria-label={`Devoluciones: ${funnel.reversed.toLocaleString("es-AR")}${
-                    returnRatePct != null ? ` (${returnRatePct}% de las adopciones)` : ""
+                    returnRatePct != null
+                      ? ` (${formatPercent(returnRatePct)} de las adopciones)`
+                      : ""
                   }`}
                 >
                   <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">Devoluciones</span>
@@ -332,7 +335,7 @@ export default async function AdminAdopcionesPage({
                   <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
                     {funnel.reversed.toLocaleString("es-AR")}
                     {returnRatePct != null ? (
-                      <span className="ml-1 text-ln-op-mute">({returnRatePct}%)</span>
+                      <span className="ml-1 text-ln-op-mute">({formatPercent(returnRatePct)})</span>
                     ) : null}
                   </span>
                 </li>
@@ -394,10 +397,10 @@ export default async function AdminAdopcionesPage({
                       >
                         <td className="py-2 pr-4">{label}</td>
                         <td className="py-2 px-4 text-right tabular-nums">
-                          {row.medianDays != null ? `${Math.round(row.medianDays * 10) / 10}` : "—"}
+                          {formatRate(row.medianDays)}
                         </td>
                         <td className="py-2 px-4 text-right tabular-nums">
-                          {row.p75Days != null ? `${Math.round(row.p75Days * 10) / 10}` : "—"}
+                          {formatRate(row.p75Days)}
                         </td>
                         <td className="py-2 pl-4 text-right tabular-nums text-ln-op-mute">
                           {row.n.toLocaleString("es-AR")}
@@ -440,7 +443,7 @@ export default async function AdminAdopcionesPage({
                         <span
                           className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-danger" : shelterOccupancy.pct > 70 ? "text-ln-op-warn" : "text-ln-op-ok"}`}
                         >
-                          ({shelterOccupancy.pct}%)
+                          ({formatPercent(shelterOccupancy.pct)})
                         </span>
                       )}
                     </>

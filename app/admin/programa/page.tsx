@@ -75,7 +75,7 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { AR_TIME_ZONE, formatDateShort, formatPercent } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -365,7 +365,7 @@ export default async function AdminProgramaPage({
                   : "ok"
               : undefined
           }
-          sub={`${queue.pendingTotal} pendientes`}
+          sub={`${queue.pendingTotal} ${pluralizeEs(queue.pendingTotal, "pendiente")}`}
           href="/admin/cola"
           info={{
             definition: "Días de antigüedad de la solicitud pendiente más antigua.",

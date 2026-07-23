@@ -369,7 +369,12 @@ export async function PoblacionScreen({
               ? `+${netGrowth.net.toLocaleString("es-AR")}`
               : netGrowth.net.toLocaleString("es-AR")
           }
-          sub={natalidadCaveatText}
+          // Screenshot review finding #10: this tile is a composite (altas +
+          // nacimientos − muertes), not a births-only metric — the natalidad
+          // undercount caveat belongs on "Nacimientos registrados" (above),
+          // not here. This sub names what actually limits THIS metric's
+          // read (full detail in info.caveat below).
+          sub="Indicador direccional — no es crecimiento poblacional real"
           tone={netTone}
           info={{
             definition:
@@ -433,7 +438,14 @@ export async function PoblacionScreen({
               </p>
             </div>
           </div>
-          <p className="mt-3 text-xs text-ln-op-mute text-center italic">{natalidadCaveatText}</p>
+          {/* Scoped to "Nacimientos registrados" only (screenshot review
+              finding #10) — the natalidad-undercount caveat does not apply
+              to "Altas nuevas" (new registrations, not births) or "Muertes
+              registradas" in this same breakdown, so it must not read as a
+              blanket caveat for all three columns. */}
+          <p className="mt-3 text-xs text-ln-op-mute text-center italic">
+            Nacimientos registrados: {natalidadCaveatText.toLowerCase()}.
+          </p>
         </div>
       )}
 

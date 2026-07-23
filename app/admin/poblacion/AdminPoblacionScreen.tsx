@@ -283,7 +283,7 @@ export async function AdminPoblacionScreen({
               ? `+${netGrowth.net.toLocaleString("es-AR")}`
               : netGrowth.net.toLocaleString("es-AR")
           }
-          sub={natalidadCaveatText}
+          sub="Indicador direccional — no es crecimiento poblacional real"
           tone="neutral"
           info={{
             definition:
@@ -295,6 +295,8 @@ export async function AdminPoblacionScreen({
           descriptorId="net_registry_inflow"
         />
       </section>
+      {/* mirrors gob twin (visual review 2026-07-23 #10): the natalidad caveat
+          belongs to the births tile only — this tile's own honest sub above. */}
 
       {/* Ratio esterilización/natalidad — CONTEXT tile (metric-honesty
           2026-07-09). Demoted out of the headline: it OVER-states population

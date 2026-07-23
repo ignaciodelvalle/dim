@@ -153,6 +153,32 @@ export function toneForTarget(value: number, target: number, opts: ToneOpts = {}
 }
 
 // ---------------------------------------------------------------------------
+// toneForBreachCeiling — non-celebratory tone for "breach threshold, not a
+// target to reach" metrics (screenshot review finding #12)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tone for a metric whose target is a MAXIMUM ceiling that only exists to
+ * flag a breach — never a value worth painting "ok"/green as you approach
+ * it. `toneForTarget(value, target, { higherIsBetter: false })` returns
+ * "ok" for any value at or under the ceiling, which reads as a success
+ * signal even at, say, 16,7% against a 25% breach threshold — a real
+ * compliance/data gap (mortality_unknown_disposal_rate's own catalog caveat:
+ * "Umbral de incumplimiento (no meta a alcanzar)" — a breach threshold, not
+ * a target to reach). This helper drops the "ok" band entirely: "neutral"
+ * below the ceiling (no false-positive success framing), "warn"/"danger"
+ * above it, same bands as toneForTarget.
+ */
+export function toneForBreachCeiling(
+  value: number,
+  ceiling: number,
+  opts: { warnBand?: number } = {},
+): "neutral" | "warn" | "danger" {
+  const tone = toneForTarget(value, ceiling, { ...opts, higherIsBetter: false });
+  return tone === "ok" ? "neutral" : tone;
+}
+
+// ---------------------------------------------------------------------------
 // enoSlaTone — tone for the SLA ENO KPI tile (A7)
 // ---------------------------------------------------------------------------
 

@@ -429,8 +429,8 @@ export default async function GobVigilanciaPage({
           bar={rabiesCompliance.compliancePct ?? undefined}
           sub={
             rabiesCompliance.openBreaches > 0
-              ? `${rabiesCompliance.openBreaches} abierta(s) > 10 días`
-              : `${rabiesCompliance.closed} cerrada(s) en el período`
+              ? `${rabiesCompliance.openBreaches} ${pluralizeEs(rabiesCompliance.openBreaches, "abierta")} > 10 días`
+              : `${rabiesCompliance.closed} ${pluralizeEs(rabiesCompliance.closed, "cerrada")} en el período`
           }
           info={{
             // Internal indicator codes (A8/A9 — plan-maestro numbering) removed
@@ -499,7 +499,7 @@ export default async function GobVigilanciaPage({
       {rabiesCompliance.openBreaches > 0 && (
         <OpBreach
           icon={<Icon name="alerta" decorative />}
-          title={`${rabiesCompliance.openBreaches} observación(es) rábica(s) fuera del plazo legal de 10 días`}
+          title={`${rabiesCompliance.openBreaches} ${pluralizeEs(rabiesCompliance.openBreaches, "observación rábica", "observaciones rábicas")} fuera del plazo legal de 10 días`}
           detail={
             // Only admins have an observation queue console; govt operators get
             // an in-page jump to the compliance card instead of a link that

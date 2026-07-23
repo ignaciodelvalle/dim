@@ -120,6 +120,7 @@ export {
   decisionsDeltaPct,
   enoSlaHeadline,
   enoSlaTone,
+  toneForBreachCeiling,
   toneForTarget,
 } from "./targets";
 export { lastIngestAt } from "./freshness";

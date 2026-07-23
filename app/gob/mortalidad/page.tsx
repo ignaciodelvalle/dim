@@ -44,6 +44,7 @@ import {
   buildProjectionContext,
   fetchDeathCausesTrend,
   fetchKpiTrend,
+  toneForBreachCeiling,
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
@@ -309,11 +310,15 @@ export default async function GobMortalidadPage({
         <OpKpi
           label={KPI_CATALOG.mortality_unknown_disposal_rate.label}
           value={hasDeaths ? formatPercent(m.unknownRate) : "—"}
+          // toneForBreachCeiling, not toneForTarget (screenshot review finding
+          // #12): the catalog's own caveat calls this threshold "umbral de
+          // incumplimiento (no meta a alcanzar)" — a breach ceiling, not a
+          // target worth painting green as you approach it. 16,7% unknown
+          // disposition is a real data/compliance gap even though it's under
+          // the 25% breach line; toneForTarget's "ok" band read it as a win.
           tone={
             hasDeaths
-              ? toneForTarget(m.unknownRate, TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT, {
-                  higherIsBetter: false,
-                })
+              ? toneForBreachCeiling(m.unknownRate, TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT)
               : "neutral"
           }
           sub="sin método registrado (B4)"

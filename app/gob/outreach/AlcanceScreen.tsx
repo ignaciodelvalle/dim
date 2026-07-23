@@ -507,6 +507,13 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
               title="Sin esterilizaciones registradas en tu jurisdicción"
               description="No hay esterilizaciones registradas en miMAR en los últimos 30 días para tu cobertura."
             />
+          ) : sterilResult.vets.length === 0 ? (
+            // All sterilizations in scope are unattributed — no named vet to
+            // rank, but sterilizations did happen (not the same as "empty").
+            // The footnote below carries the count.
+            <p className="text-sm text-ln-op-mute">
+              Ninguna esterilización del período tiene veterinario/a registrado/a.
+            </p>
           ) : (
             <table className="w-full text-sm border-collapse">
               <caption className="sr-only">Ranking de esterilizaciones por veterinario/a</caption>
@@ -549,12 +556,25 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
               </tbody>
             </table>
           )}
+          {/* Unattributed sterilizations are excluded from the ranked list
+              above (a recognition ranking cannot award "no name on file") —
+              surfaced instead as an honest footnote (screenshot review
+              finding #11). */}
+          {sterilResult.unattributedCount > 0 && (
+            <p className="mt-2 text-[var(--text-sm)] text-ln-op-mute">
+              {sterilResult.unattributedCount}{" "}
+              {sterilResult.unattributedCount === 1
+                ? "esterilización sin veterinario/a registrado/a"
+                : "esterilizaciones sin veterinario/a registrado/a"}{" "}
+              (excluidas del ranking).
+            </p>
+          )}
         </OpCardBody>
       </OpCard>
 
       <p className="text-sm text-ln-op-mute">
         <Link href="/gob" className="underline underline-offset-4 hover:text-ln-op-ink-2">
-          ← Volver al dashboard
+          ← Volver al panel
         </Link>
       </p>
 

@@ -13,6 +13,7 @@ import {
   decisionsDeltaPct,
   enoSlaHeadline,
   enoSlaTone,
+  toneForBreachCeiling,
   toneForTarget,
 } from "./targets";
 
@@ -127,6 +128,31 @@ describe("toneForTarget — higherIsBetter: false", () => {
     // warnBand=0.1 → warn zone is (25, 27.5].
     expect(toneForTarget(26, target, { ...opts, warnBand: 0.1 })).toBe("warn");
     expect(toneForTarget(28, target, { ...opts, warnBand: 0.1 })).toBe("danger");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toneForBreachCeiling — never "ok"/green for a breach-only ceiling metric
+// (screenshot review finding #12: mortality_unknown_disposal_rate rendered
+// green at 16,7% against the 25% breach threshold, reading as a false
+// success signal for a real data/compliance gap).
+// ---------------------------------------------------------------------------
+
+describe("toneForBreachCeiling", () => {
+  const ceiling = 25; // DISPOSAL_UNKNOWN_BREACH_PCT
+
+  it("returns 'neutral' (never 'ok') for any value at or under the ceiling", () => {
+    expect(toneForBreachCeiling(0, ceiling)).toBe("neutral");
+    expect(toneForBreachCeiling(16.7, ceiling)).toBe("neutral");
+    expect(toneForBreachCeiling(25, ceiling)).toBe("neutral");
+  });
+
+  it("returns 'warn' above the ceiling but within the warn band", () => {
+    expect(toneForBreachCeiling(30, ceiling)).toBe("warn");
+  });
+
+  it("returns 'danger' beyond the warn band", () => {
+    expect(toneForBreachCeiling(100, ceiling)).toBe("danger");
   });
 });
 

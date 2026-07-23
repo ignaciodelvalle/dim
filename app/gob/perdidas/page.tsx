@@ -233,7 +233,7 @@ export default async function GobPerdidasPage({
       {/* Page header */}
       <ScreenHeader
         className="space-y-2"
-        eyebrow="Perdidas"
+        eyebrow="Pérdidas"
         title="Mascotas perdidas"
         subtitle={
           <>
@@ -308,7 +308,7 @@ export default async function GobPerdidasPage({
 
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
-        aria-label="Indicadores de perdidas"
+        aria-label="Indicadores de pérdidas"
         className="grid grid-cols-2 md:grid-cols-5 gap-3"
       >
         <OpKpi
@@ -359,13 +359,13 @@ export default async function GobPerdidasPage({
           value={formatPercent(reunification.ratePct)}
           tone={toneForTarget(reunification.ratePct, TARGETS.REUNIFICATION_PCT)}
           bar={reunification.lostEpisodes === 0 ? undefined : reunification.ratePct}
-          sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios (30d) · ${metrics.activeCount} perdidas activas ahora`}
+          sub={`meta ${TARGETS.REUNIFICATION_PCT}% · ${reunification.recovered} de ${reunification.lostEpisodes} episodios (30d) · ${metrics.activeCount} pérdidas activas ahora`}
           info={{
             definition: `Porcentaje de episodios de pérdida abiertos en los últimos 30 días que terminaron en reunificación con el dueño/a. Benchmark internacional: ${TARGETS.REUNIFICATION_PCT}% (UK RSPCA).`,
             formula:
               "COUNT(episodios_lost → status='active') / COUNT(all lost episodes en 30d) × 100",
             caveat:
-              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional. Leer siempre junto al stock de Perdidas activas.",
+              "No filtra por especie: la meta de reunificación se mide sobre todos los episodios de pérdida, no por especie — filtrar fragmentaría el benchmark poblacional. Leer siempre junto al stock de Pérdidas activas.",
           }}
           descriptorId="reunification_rate"
           guardInput={{ n: reunification.lostEpisodes }}

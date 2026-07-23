@@ -430,7 +430,10 @@ export function CaseQueue({
                               title={`${ageCaseDays(row.openedAt)} días abierto desde la apertura del caso (≥${CASE_SLA_WARNING_DAYS} días = alerta SLA)`}
                               aria-label={`${ageCaseDays(row.openedAt)} días abierto`}
                             >
-                              <OpPill tone="escalated">{ageCaseDays(row.openedAt)}d</OpPill>
+                              <OpPill tone="escalated">
+                                {ageCaseDays(row.openedAt)}{" "}
+                                {pluralizeEs(ageCaseDays(row.openedAt), "día")}
+                              </OpPill>
                             </span>
                           )}
                       </div>

@@ -1435,10 +1435,11 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       "De las observaciones rábicas cerradas en el período, ¿qué porcentaje cerró dentro del plazo legal de 10 días?",
     target: {
       value: 100,
-      source:
-        "Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA (ventana de 10 días, o la ventana jurisdiction-specific resuelta vía resolveBusinessRule)",
+      source: "Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA — plazo legal según jurisdicción",
       // 100% IS "never missed the legal deadline" — the ordinance/decree sets
       // the 10-day window itself, so the number and the law are the same fact.
+      // (The exact window is resolved per-jurisdiction via resolveBusinessRule;
+      // that's an implementation detail, not operator-facing copy.)
       sourceKind: "statutory-obligation",
     },
     semaphore: { paintAgainst: "target" },
@@ -2051,7 +2052,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   lost_pets_active_stock: {
     id: "lost_pets_active_stock",
-    label: "Perdidas activas",
+    label: "Pérdidas activas",
     numerator: "COUNT pets where status = 'lost', in scope",
     denominator: "n/a — absolute count",
     source: "pets",

@@ -380,7 +380,16 @@ export type SterilizationVetRank = {
 };
 
 export type SterilizationVetRankingResult = {
+  /** Named vets only, ranked by throughput — never includes the unattributed bucket. */
   vets: SterilizationVetRank[];
+  /**
+   * Sterilizations with no performed_by on record. Excluded from `vets` —
+   * this is a RECOGNITION ranking (screenshot review finding #11): an
+   * unattributed bucket landing at #1 with a "top performer" star reads as
+   * rewarding the absence of a name. Surface it as a footnote instead.
+   */
+  unattributedCount: number;
+  /** True only when there are NO sterilizations at all (named + unattributed). */
   empty: boolean;
 };
 
@@ -390,7 +399,8 @@ export type SterilizationVetRankingResult = {
  * Groups sterilization_performed events by the AMENDED performed_by and
  * clinic payload fields (amendedPayloadText — corrections apply), scoped to
  * the operator's jurisdiction and the period. Rows with no performed_by are
- * grouped under "(sin registrar)".
+ * grouped under "(sin registrar)" in SQL, then split OUT of the ranked
+ * `vets` list into `unattributedCount` (see SterilizationVetRankingResult).
  *
  * The caller must write a pii_queried audit row via logOutreachPiiQuery.
  */
@@ -398,11 +408,11 @@ export async function fetchSterilizationVetRanking(
   ctx: ProjectionContext,
 ): Promise<SterilizationVetRankingResult> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { vets: [], empty: true };
+    return { vets: [], unattributedCount: 0, empty: true };
   }
 
   const scopeClause = rawPetsScopeClause(ctx);
-  if (scopeClause === false) return { vets: [], empty: true };
+  if (scopeClause === false) return { vets: [], unattributedCount: 0, empty: true };
 
   // sterilization_performed is amendable — read performed_by/clinic through
   // the SQL amendment overlay so a corrected vet name ranks under the
@@ -438,11 +448,18 @@ export async function fetchSterilizationVetRanking(
     LIMIT 50
   `);
 
-  const vets: SterilizationVetRank[] = rows.map((r) => ({
-    vetLabel: r.vet_label ?? "(sin registrar)",
-    clinic: r.clinic ?? null,
-    count: Number(r.event_count),
-  }));
+  const UNATTRIBUTED_LABEL = "(sin registrar)";
+  const vets: SterilizationVetRank[] = [];
+  let unattributedCount = 0;
+  for (const r of rows) {
+    const vetLabel = r.vet_label ?? UNATTRIBUTED_LABEL;
+    const count = Number(r.event_count);
+    if (vetLabel === UNATTRIBUTED_LABEL) {
+      unattributedCount += count;
+    } else {
+      vets.push({ vetLabel, clinic: r.clinic ?? null, count });
+    }
+  }
 
-  return { vets, empty: vets.length === 0 };
+  return { vets, unattributedCount, empty: vets.length === 0 && unattributedCount === 0 };
 }

@@ -18,9 +18,11 @@ export function ProposeOrgActions({ org }: { org: Org }) {
   const [submitted, setSubmitted] = useState(false);
 
   if (org.verified) {
-    return (
-      <p className="text-sm text-ln-op-mute">Ya verificada — sin acciones disponibles desde aca.</p>
-    );
+    // Not "sin acciones disponibles desde acá" — RevokeOrgActions renders its
+    // own (capability-gated) "Revocar verificación" button right below this
+    // for actors who can act, so claiming no actions exist would contradict
+    // an enabled button on the same card (screenshot review finding #8).
+    return <p className="text-sm text-ln-op-mute">Ya verificada.</p>;
   }
 
   if (submitted) {
