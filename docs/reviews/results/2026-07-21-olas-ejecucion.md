@@ -183,3 +183,26 @@ visual GRANDE (rail 19 + hubs + Briefing + forecast + todo I-IV) · push/cutover
   batches con imports nuevos en client components.
 PO-GATED ahora: migraciones 0155+0156+**0157** a remoto · flag legal GPS · Vercel Pro ·
 validación visual de ESTA ronda · pre-push (review fresco + verify + suite) · push/#760.
+
+## ENTREVISTA PO 2026-07-23 — 13 DECISIONES LOCKEADAS (tintero vacío)
+1. Banner de entorno inescapable (env-driven "DEMOSTRACIÓN — datos sintéticos"; branding queda).
+2. Paquete impacto COMPLETO: ranking gap×población + forecast con cupos/dosis faltantes +
+   smalls (AMR="sin datos de uso", embudo→"flujo (no cohorte)", cortar site-map admin).
+3. Operativos: GEO-PRIMERO (agregados rankeados por zona) + PII solo tras confirmar operativo.
+4. Pérdidas: ubicación legible en fila + scope operativo del detalle (nacional=agregados sin dueño).
+5. Nav: Cola → "Aprobaciones".
+6. Casos: leyenda de badges + orden por urgencia (edad×tipo) + sujeto "Animal sin registrar"
+   (verificado: disputas SIN mascota no existen — petId NOT NULL; el "—" eran casos de
+   animales sin registrar, categoría real del dominio).
+7. Vigilancia: acción primaria EN los KPIs de alerta (patrón OpKpi href).
+8. Sesión: TTL de jornada laboral para operadores (config env, documentar).
+9. Migraciones 0155+0156+0157 → APLICAR a staging remoto (aprobado).
+10. Vercel Pro: NO todavía (pre-demo con Hobby; frescura ya fail-closed).
+11. Pre-push: DESPUÉS de aterrizar este lote (un solo gate sobre el rango final).
+12. Fase 3 rumbo: trend fetchers → forecasts completos.
+13. Retención GPS: declarar la realidad en la política ("se conservan mientras la mascota
+    permanezca registrada, como parte de su historial" + supresión existente); evaluación
+    formal de plazos → asesor legal cuando haya convenio.
+Extra: sembrar UNA disputa de demo (V9 nunca pudo probarse — 0 disputas en seed).
+EJECUCIÓN: batch mecánico (5/6/2-smalls/13/banner/TTL/disputa) → migraciones remoto (yo,
+con cuidado) → batch impacto (2) → Operativos+Pérdidas (3/4) → KPIs acción (7) → PRE-PUSH.
