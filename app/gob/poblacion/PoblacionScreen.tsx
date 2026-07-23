@@ -33,6 +33,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -57,6 +58,7 @@ import {
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatPercent, formatRate } from "@/lib/utils/format";
 import { gobEmbedView } from "@/src/modules/panorama/domain/embed-view";
 
@@ -136,6 +138,15 @@ export async function PoblacionScreen({
   const adminLocality = adminSelectedLocality ?? undefined;
   const species = sp.species || undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
     adminProvince,
@@ -150,11 +161,14 @@ export async function PoblacionScreen({
       eyebrow="Registro"
       title="Control poblacional"
       subtitle={
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
-        </p>
+        <>
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
+          </p>
+          <ViewScopeCaption scope={narrowedView} />
+        </>
       }
     />
   );

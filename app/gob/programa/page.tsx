@@ -26,7 +26,14 @@
 import { inArray } from "drizzle-orm";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+  ViewScopeCaption,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -67,6 +74,7 @@ import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
@@ -143,6 +151,15 @@ export default async function GobProgramaPage({
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
     adminProvince,
@@ -168,6 +185,7 @@ export default async function GobProgramaPage({
           >
             Alertas y suscripciones →
           </a>
+          <ViewScopeCaption scope={narrowedView} />
         </>
       }
     />

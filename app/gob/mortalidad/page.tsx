@@ -27,6 +27,7 @@ import {
   OpFilterBar,
   OpKpi,
   OpKpiSm,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -47,6 +48,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { deathCauseLabel, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +139,15 @@ export default async function GobMortalidadPage({
   // (same pattern as /gob/perdidas).
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
   const species = sp.species || undefined;
   // Validate against the closed cause enum so an invalid URL value never
   // drives the query (same discipline as /gob/perdidas' parseStatusFilter).
@@ -201,11 +212,14 @@ export default async function GobMortalidadPage({
         eyebrow="Vigilancia sanitaria"
         title="Mortalidad y disposición"
         subtitle={
-          <p className="text-[13px] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura."}
-          </p>
+          <>
+            <p className="text-[13px] text-ln-op-mute">
+              {profile.role === "admin"
+                ? "Vista universal — todas las jurisdicciones."
+                : "Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura."}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
         }
       />
 

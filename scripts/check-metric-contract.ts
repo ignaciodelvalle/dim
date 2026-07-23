@@ -80,6 +80,98 @@ function hasDescriptorId(block: string): boolean {
   return /\bdescriptorId\s*=/.test(block);
 }
 
+// ---------------------------------------------------------------------------
+// Rule 2 — guard feeding (consistency sweep 2026-07-23, dead-guard class).
+//
+// A descriptor may declare guards (zeroDenominator/smallN need `guardInput.n`;
+// unstableDeltaBase needs `guardInput.priorBase`) that NO call site feeds —
+// the guard then silently never fires (the adoption-tile 0/0-confident-red bug
+// and the eno_sla_compliance case were both this class). Every <OpKpi> block
+// carrying a guard-declaring descriptorId must pass the matching guardInput
+// keys, unless the catalog entry sets `manualEnforcement: true` (a documented
+// dedicated helper path enforces the guards instead). This rule is NOT a
+// ratchet: the repo is clean today, so any violation is a hard failure.
+// ---------------------------------------------------------------------------
+
+const CATALOG_PATH = resolve(ROOT, "lib/metrics/kpi-catalog.ts");
+
+type GuardNeeds = { needsN: boolean; needsPriorBase: boolean; manual: boolean };
+
+function stripLineComments(src: string): string {
+  return src
+    .split("\n")
+    .map((l) => l.replace(/\/\/.*$/, ""))
+    .join("\n");
+}
+
+/** Brace-depth scan of the object literal starting at `openIdx` (a `{`). */
+function sliceBraceBlock(content: string, openIdx: number): string {
+  let depth = 0;
+  for (let i = openIdx; i < content.length; i++) {
+    if (content[i] === "{") depth += 1;
+    else if (content[i] === "}") {
+      depth -= 1;
+      if (depth === 0) return content.slice(openIdx, i + 1);
+    }
+  }
+  return content.slice(openIdx);
+}
+
+/** Parse KPI_CATALOG textually: descriptor id → what its guards need. */
+export function parseCatalogGuardNeeds(catalogSrc: string): Map<string, GuardNeeds> {
+  const needs = new Map<string, GuardNeeds>();
+  const catalogStart = catalogSrc.indexOf("export const KPI_CATALOG");
+  if (catalogStart === -1) return needs;
+  const body = catalogSrc.slice(catalogStart);
+  const entryRe = /^ {2}([a-z0-9_]+): \{/gm;
+  let m: RegExpExecArray | null = entryRe.exec(body);
+  while (m !== null) {
+    const id = m[1];
+    const entry = sliceBraceBlock(body, m.index + m[0].length - 1);
+    const guardsIdx = entry.search(/\bguards:\s*\{/);
+    if (guardsIdx !== -1) {
+      const braceIdx = entry.indexOf("{", guardsIdx);
+      const guards = stripLineComments(sliceBraceBlock(entry, braceIdx));
+      needs.set(id, {
+        needsN: /\b(?:zeroDenominator|smallN)\s*:/.test(guards),
+        needsPriorBase: /\bunstableDeltaBase\s*:/.test(guards),
+        manual: /\bmanualEnforcement\s*:\s*true\b/.test(guards),
+      });
+    }
+    m = entryRe.exec(body);
+  }
+  return needs;
+}
+
+export type GuardFeedViolation = { file: string; descriptorId: string; missing: string };
+
+/** Rule-2 scan: every guard-declaring descriptor's OpKpi block feeds its keys. */
+export function scanGuardFeeding(
+  files: string[],
+  guardNeeds: Map<string, GuardNeeds>,
+): GuardFeedViolation[] {
+  const violations: GuardFeedViolation[] = [];
+  for (const file of files) {
+    const relPath = normalizeRelPath(file);
+    const content = readFileSync(file, "utf8");
+    for (const block of extractOpKpiBlocks(content)) {
+      const idMatch = block.match(/\bdescriptorId\s*=\s*\{?\s*["']([\w]+)["']/);
+      if (!idMatch) continue; // descriptor-less (rule 1) or dynamic id — out of scope here.
+      const need = guardNeeds.get(idMatch[1]);
+      if (!need || need.manual) continue;
+      const guardInputMatch = block.match(/\bguardInput\s*=\s*\{\{([\s\S]*?)\}\}/);
+      const guardInput = guardInputMatch ? guardInputMatch[1] : "";
+      const missing: string[] = [];
+      if (need.needsN && !/(?:^|[,{\s])n\s*:/.test(guardInput)) missing.push("n");
+      if (need.needsPriorBase && !/\bpriorBase\s*:/.test(guardInput)) missing.push("priorBase");
+      if (missing.length > 0) {
+        violations.push({ file: relPath, descriptorId: idMatch[1], missing: missing.join(", ") });
+      }
+    }
+  }
+  return violations;
+}
+
 function normalizeRelPath(filePath: string): string {
   return filePath.replaceAll("\\", "/");
 }
@@ -130,6 +222,20 @@ function runScan(): void {
   }
 
   const counts = scanMissingDescriptors(SCAN_FILES);
+
+  // Rule 2 — guard feeding: hard failure, no baseline (repo verified clean on
+  // the day this landed; see the rule's comment block above).
+  const guardNeeds = parseCatalogGuardNeeds(readFileSync(CATALOG_PATH, "utf8"));
+  const guardViolations = scanGuardFeeding(SCAN_FILES, guardNeeds);
+  if (guardViolations.length > 0) {
+    for (const v of guardViolations) {
+      console.error(
+        `✗ ${v.file}: <OpKpi descriptorId="${v.descriptorId}"> declares guards needing guardInput key(s) [${v.missing}] but does not pass them — the guard can never fire (dead-guard class). Feed the key(s) via guardInput, or set \`manualEnforcement: true\` on the descriptor's guards WITH a comment naming the dedicated helper path that enforces them.`,
+      );
+    }
+    console.error(`\n✗ ${guardViolations.length} dead-guard violation(s).`);
+    process.exit(1);
+  }
 
   if (process.argv.includes("--write-baseline")) {
     writeBaseline(counts);

@@ -11,6 +11,7 @@ import {
   OpFilterBar,
   OpKpi,
   SearchFilterField,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -35,7 +36,10 @@ import {
   windows,
 } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
-import { isNarrowedToOperativeJurisdiction } from "@/lib/ui/view-scope-caption";
+import {
+  describeNarrowedView,
+  isNarrowedToOperativeJurisdiction,
+} from "@/lib/ui/view-scope-caption";
 import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
@@ -136,6 +140,15 @@ export default async function GobPerdidasPage({
     adminProvince,
   });
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   // Fetch the display list with all active display filters applied. `listSince`
   // is always undefined (no period control — full currently-lost stock).
   // Scope: filteredJurisdictions for govt (no-op for admin, whose
@@ -223,11 +236,14 @@ export default async function GobPerdidasPage({
         eyebrow="Perdidas"
         title="Mascotas perdidas"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Mascotas marcadas como perdidas dentro de tu cobertura."}
-          </p>
+          <>
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              {profile.role === "admin"
+                ? "Vista universal — todas las jurisdicciones."
+                : "Mascotas marcadas como perdidas dentro de tu cobertura."}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
         }
       />
 

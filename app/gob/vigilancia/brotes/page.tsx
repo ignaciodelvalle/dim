@@ -5,6 +5,7 @@ import {
   OpCardHead,
   type OpFilterAxis,
   OpFilterBar,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
@@ -12,6 +13,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { DISEASES } from "@/lib/reference/diseases";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
 import { ScrollToSignal } from "../_components/ScrollToSignal";
@@ -46,10 +48,27 @@ export default async function GobVigilanciaBrotesPage({
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  const { filteredJurisdictions, localities, allowedProvinces } = await resolveJurisdictionScope({
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
+  });
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
+
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
   });
 
   // Validate against the real catalog — an unrecognized/stale code in the URL
@@ -96,11 +115,14 @@ export default async function GobVigilanciaBrotesPage({
         eyebrow="Vigilancia · Brotes"
         title="Brotes y señales epidemiológicas"
         subtitle={
-          <p className="text-[13px] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Lista completa de señales de brote en tu cobertura."}
-          </p>
+          <>
+            <p className="text-[13px] text-ln-op-mute">
+              {profile.role === "admin"
+                ? "Vista universal — todas las jurisdicciones."
+                : "Lista completa de señales de brote en tu cobertura."}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
         }
       />
 

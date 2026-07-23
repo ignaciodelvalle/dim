@@ -26,7 +26,13 @@ import { desc } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpBreach, OpCard, type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
+import {
+  OpBreach,
+  OpCard,
+  type OpFilterAxis,
+  OpFilterBar,
+  ViewScopeCaption,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -42,6 +48,7 @@ import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
@@ -98,6 +105,18 @@ export default async function GobOutboxPage({
   const ctx = buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
     adminProvince,
   });
+
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  // This screen has no resolveJurisdictionScope/filteredJurisdictions — its
+  // only narrowing mechanism is the admin-only province filter above, so the
+  // effective set for govt always equals the mandate (no real narrowing).
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: jurisdictions,
+    adminProvince,
+  });
+
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
@@ -152,11 +171,14 @@ export default async function GobOutboxPage({
         eyebrow="Gobierno"
         title="Bandeja de salida — tu jurisdicción"
         subtitle={
-          <p className="text-[13px] text-ln-op-ink-2">
-            {hasFilters
-              ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
-              : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
-          </p>
+          <>
+            <p className="text-[13px] text-ln-op-ink-2">
+              {hasFilters
+                ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
+                : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
         }
       />
 

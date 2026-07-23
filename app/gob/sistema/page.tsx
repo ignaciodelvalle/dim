@@ -9,7 +9,14 @@
 //
 // Privacy invariant: both fetchers receive scope-restricted context/jurisdictions.
 
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+  ViewScopeCaption,
+} from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -19,6 +26,7 @@ import { TARGETS, buildProjectionContext, enoSlaTone } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +81,15 @@ export default async function GobSistemaPage({
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  // Admin-only past this point (govt redirected above) — mandate is universal.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: [],
+    adminProvince,
+    adminLocality,
+  });
+
   const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing30d();
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
     adminProvince,
@@ -99,6 +116,7 @@ export default async function GobSistemaPage({
             ? "Vista universal — todas las jurisdicciones."
             : "SLA de notificaciones ENO y antigüedad de la cola de aprobaciones en tu cobertura."}
         </p>
+        <ViewScopeCaption scope={narrowedView} />
       </header>
 
       {/* Unified filter bar — period + jurisdiction, same rail as programa/vigilancia. */}

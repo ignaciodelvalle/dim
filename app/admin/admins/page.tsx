@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { eq } from "drizzle-orm";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpCard,
   OpCardBody,
@@ -103,17 +104,14 @@ export default async function AdminsPage({
       </OpFilterBar>
 
       {humanActive.length === 0 ? (
-        <div className="text-center py-12 rounded-[var(--radius-md)] border border-dashed border-ln-op-line">
-          <p className="text-sm text-ln-op-mute">
-            {normalizedQuery ? "Sin resultados." : "No hay administradores activos."}
-          </p>
-          {!normalizedQuery && (
-            <p className="text-sm text-ln-op-mute mt-1">
-              Para el bootstrap inicial, usa Supabase Studio para asignar el primer admin
-              manualmente.
-            </p>
-          )}
-        </div>
+        <LnEmptyState
+          title={normalizedQuery ? "Sin resultados" : "No hay administradores activos"}
+          description={
+            normalizedQuery
+              ? "Ajustá la búsqueda por nombre o email."
+              : "Para el bootstrap inicial, usá Supabase Studio para asignar el primer admin manualmente."
+          }
+        />
       ) : (
         <ul className="space-y-2">
           {humanActive.map((a) => (

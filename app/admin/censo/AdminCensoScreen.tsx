@@ -28,6 +28,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -49,6 +50,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatPercent } from "@/lib/utils/format";
 
 // Species domain axis — mirrors /gob/censo's SPECIES_OPTIONS exactly (twin
@@ -84,6 +86,14 @@ export async function AdminCensoScreen({
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  // This screen has no province/locality drill-down (fully national, universal
+  // admin scope) — always null, kept for parity with the other admin screens.
+  const narrowedView = describeNarrowedView({
+    role: "admin",
+    mandateJurisdictions: [],
+  });
+
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
     <ScreenHeader
@@ -92,10 +102,13 @@ export async function AdminCensoScreen({
       eyebrow="Admin · Censo nacional"
       title="Censo y salud del registro"
       subtitle={
-        <p className="text-[13px] text-ln-op-mute">
-          Vista nacional: total del padrón, mascotas inactivas, calidad de identificación y ranking
-          por provincia.
-        </p>
+        <>
+          <p className="text-[13px] text-ln-op-mute">
+            Vista nacional: total del padrón, mascotas inactivas, calidad de identificación y
+            ranking por provincia.
+          </p>
+          <ViewScopeCaption scope={narrowedView} />
+        </>
       }
     />
   );

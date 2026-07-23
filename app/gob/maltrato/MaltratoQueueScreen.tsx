@@ -22,6 +22,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -35,6 +36,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { newerHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
@@ -151,6 +153,15 @@ export async function MaltratoQueueScreen({
     role: profile.role,
     jurisdictions,
     params: { province: sp.province, locality: sp.locality },
+  });
+
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince: adminSelectedProvince ?? undefined,
+    adminLocality: adminSelectedLocality ?? undefined,
   });
 
   const whereCondition = buildMaltratoListConditions({
@@ -292,12 +303,15 @@ export async function MaltratoQueueScreen({
           underHub={underHub}
           title="Denuncias de maltrato"
           subtitle={
-            <p className="text-sm text-ln-op-mute">
-              Cola de triage bajo Ley Nacional 14.346.{" "}
-              {profile.role === "admin"
-                ? "Vista universal — todas las jurisdicciones."
-                : "Filtradas por tu jurisdicción."}
-            </p>
+            <>
+              <p className="text-sm text-ln-op-mute">
+                Cola de triage bajo Ley Nacional 14.346.{" "}
+                {profile.role === "admin"
+                  ? "Vista universal — todas las jurisdicciones."
+                  : "Filtradas por tu jurisdicción."}
+              </p>
+              <ViewScopeCaption scope={narrowedView} />
+            </>
           }
         />
 

@@ -28,6 +28,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -50,6 +51,7 @@ import {
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatPercent } from "@/lib/utils/format";
 
 // Species domain axis — mirrors /gob/perdidas' SPECIES_OPTIONS exactly.
@@ -128,6 +130,15 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
   const adminLocality = adminSelectedLocality ?? undefined;
   const species = sp.species || undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
     adminProvince,
@@ -142,11 +153,14 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
       eyebrow="Registro · Censo poblacional"
       title="Censo y salud del registro"
       subtitle={
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Crecimiento del padrón, mascotas inactivas y calidad de identificación en tu cobertura."}
-        </p>
+        <>
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Crecimiento del padrón, mascotas inactivas y calidad de identificación en tu cobertura."}
+          </p>
+          <ViewScopeCaption scope={narrowedView} />
+        </>
       }
     />
   );

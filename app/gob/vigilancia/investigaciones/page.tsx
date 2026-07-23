@@ -9,11 +9,13 @@ import {
   OpCardHead,
   OpFilterBar,
   OpPill,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/infra/case-queries";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateTime } from "@/lib/utils/format";
 import { caseOpenedReasonDisplay } from "@/src/modules/cases/domain/opened-reason-display";
 
@@ -57,6 +59,15 @@ export default async function GobInvestigacionesPage({
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   const investigations = await listOutbreakInvestigationsForGovt(filteredJurisdictions, isAdmin, {
     adminProvince,
     adminLocality,
@@ -69,9 +80,12 @@ export default async function GobInvestigacionesPage({
           eyebrow="Vigilancia · Investigaciones"
           title="Investigaciones de brote"
           subtitle={
-            <p className="text-[13px] text-ln-op-mute">
-              Casos abiertos, escalados y cerrados en los últimos 90 días.
-            </p>
+            <>
+              <p className="text-[13px] text-ln-op-mute">
+                Casos abiertos, escalados y cerrados en los últimos 90 días.
+              </p>
+              <ViewScopeCaption scope={narrowedView} />
+            </>
           }
         />
         <Link

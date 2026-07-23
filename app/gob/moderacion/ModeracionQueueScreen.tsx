@@ -34,9 +34,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
-  OpCallout,
   OpCard,
   OpCardBody,
   type OpFilterAxis,
@@ -242,9 +242,11 @@ export async function ModeracionQueueScreen({
           <UrlTabsContent value={statusFilter}>
             <div className="mt-4 space-y-6">
               {rows.length === 0 ? (
-                <OpCallout
+                // Empty-state consistency (sweep 2026-07-23): page-level empty
+                // results render the shared LnEmptyState, not an OpCallout.
+                <LnEmptyState
                   title={statusFilter === "pending" ? "Cola vacía" : "Sin resultados"}
-                  body={
+                  description={
                     statusFilter === "pending"
                       ? "No hay denuncias pendientes de moderación en tus localidades."
                       : "No hay denuncias que coincidan con los filtros aplicados."

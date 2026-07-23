@@ -305,6 +305,9 @@ export type KpiGuards = {
    * rabies_coverage_dogs_12m via lib/metrics/census.ts).
    */
   censusCoverageFloor?: number;
+  /** Dead-guard fence (check-metric-contract.ts rule 2): guards enforced by a
+   *  dedicated helper path (named in a comment) instead of OpKpi guardInput. */
+  manualEnforcement?: true;
 };
 
 /**
@@ -454,6 +457,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       // coverage, the registry % cannot honestly imply population-level
       // protection (see censusCoverageLowGate's doc comment).
       censusCoverageFloor: 20,
+      // Via hasData + direct applyCensusCoverageGuard (gob home, panorama).
+      manualEnforcement: true,
     },
     // PO decision 2 item 2 — "faltan ~N dosis" (one dose per unvaccinated dog
     // in the padrón the % is computed over).
@@ -1161,23 +1166,16 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     basis: "ratio",
     question:
       "¿Qué porcentaje de notificaciones ENO se entregaron dentro del plazo SLA en el período y scope seleccionados?",
-    // C1 (2026-07-22): target was previously omitted even though
-    // TARGETS.ENO_SLA_PCT is a real, sourced benchmark (ANMAT/SENASA
-    // operational targets) — the honesty rule requires populating target
-    // whenever one genuinely exists with a source.
+    // C1 (2026-07-22): TARGETS.ENO_SLA_PCT is a real, sourced benchmark — the
+    // honesty rule requires populating target whenever one exists.
     target: {
       value: TARGETS.ENO_SLA_PCT,
       source: "benchmark operativo ANMAT/SENASA",
       sourceKind: "benchmark",
     },
     semaphore: { paintAgainst: "target" },
-    // MANUAL ENFORCEMENT (consistency sweep 2026-07-23): no call site feeds this
-    // guard via `guardInput` — all 4 render sites compute value/tone through
-    // enoSlaHeadline/enoSlaTone (lib/metrics/targets.ts), which null-check
-    // onTimePct (the zero-denominator case renders "—") AND degrade the tone on
-    // open breaches, a richer rule than the generic gate. Any new consumer of
-    // this descriptor MUST go through those helpers, not raw value/tone.
-    guards: { zeroDenominator: "dash" },
+    // Via enoSlaHeadline/enoSlaTone (targets.ts) at all 4 sites. Use those.
+    guards: { zeroDenominator: "dash", manualEnforcement: true },
     ui: {
       definition:
         "Porcentaje de notificaciones ENO (Enfermedades de Notificación Obligatoria, target_kind='eno_authority') entregadas dentro del plazo SLA en el período y scope seleccionados (A7). Mide la cola interna de la bandeja de salida, no la entrega externa a la autoridad.",
@@ -2139,6 +2137,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       // `recovered` count. Kept as a literal (not TARGETS.*) because it is a
       // presentation-guard convention, not a legal/programmatic target.
       smallN: { min: 5 },
+      // Via an inline smallNGate call at /gob/perdidas (value stays visible).
+      manualEnforcement: true,
     },
   },
 

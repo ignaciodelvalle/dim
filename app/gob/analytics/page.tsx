@@ -1,6 +1,13 @@
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+  ViewScopeCaption,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -28,6 +35,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { CasesPerCapitaTable } from "./_components/CasesPerCapitaTable";
@@ -117,6 +125,15 @@ export default async function GobAnalyticsPage({
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   const exportHref = buildAnalyticsExportHref(sp);
 
   const period = resolveAnalyticsPeriod(sp);
@@ -134,11 +151,14 @@ export default async function GobAnalyticsPage({
       eyebrow="Vigilancia sanitaria"
       title="Analítica"
       subtitle={
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
-        </p>
+        <>
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
+          </p>
+          <ViewScopeCaption scope={narrowedView} />
+        </>
       }
     />
   );

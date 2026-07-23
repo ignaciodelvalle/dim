@@ -10,6 +10,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpPill,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, ownerships, petEvents, profiles } from "@/db";
@@ -21,6 +22,7 @@ import {
   parseObservacionEstado,
 } from "@/lib/metrics/observaciones-query";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, speciesLabel } from "@/lib/utils/format";
 import {
   RABIES_OBSERVATION_STATUSES,
@@ -108,6 +110,15 @@ export default async function ObservacionesPage({
       ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
       : { role: "govt", jurisdictions: filteredJurisdictions };
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince: adminSelectedProvince ?? undefined,
+    adminLocality: adminSelectedLocality ?? undefined,
+  });
+
   const rows = await fetchObservaciones(scope, { status: statusFilter });
 
   // Unified filter bar (F-migration 2026-07-21 — observaciones previously had
@@ -142,6 +153,7 @@ export default async function ObservacionesPage({
     return (
       <div className="space-y-6">
         {header}
+        <ViewScopeCaption scope={narrowedView} />
         {filterBar}
         {/* C4 (2026-07-22, §S4 / red-team #6 "690 mordeduras sin escalar"):
             an observation only exists here if a bite/exposure was escalated
@@ -201,6 +213,7 @@ export default async function ObservacionesPage({
   return (
     <div className="space-y-6">
       {header}
+      <ViewScopeCaption scope={narrowedView} />
       <p className="text-[13px] text-ln-op-ink-2">
         Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas requieren
         cierre profesional cuando hubo síntomas escalables; las completadas se muestran como

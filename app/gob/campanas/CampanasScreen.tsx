@@ -27,6 +27,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -41,6 +42,7 @@ import {
   windows,
 } from "@/lib/metrics";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 
 // Service-kind domain axis — SERVICE_KINDS (lib/reference/service-kinds.ts) is
@@ -117,6 +119,15 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
   // (same pattern as /gob/perdidas).
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
   // Validate against the closed SERVICE_KINDS catalog so an invalid URL value
   // never drives the query (same discipline as /gob/perdidas' parseStatusFilter).
   const serviceKind = sp.kind && findServiceKind(sp.kind) ? sp.kind : undefined;
@@ -170,11 +181,14 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
         eyebrow="Campañas"
         title="Rendimiento de campañas"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
-          </p>
+          <>
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              {profile.role === "admin"
+                ? "Vista universal — todas las jurisdicciones."
+                : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
         }
       />
 

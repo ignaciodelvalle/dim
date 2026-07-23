@@ -62,6 +62,49 @@ export function extractOffenses(relPath: string, rawSrc: string): ViewScopeOffen
   return offenses;
 }
 
+// ---------------------------------------------------------------------------
+// Rule 2 — caption adoption (consistency sweep 2026-07-23).
+//
+// describeNarrowedView existed for a month wired into exactly ONE of ~15
+// narrowing-capable screens — a disclosure mechanism without adoption is not a
+// system. Mechanical contract: any non-test .tsx under app/gob or app/admin
+// that calls `resolveJurisdictionScope(` (i.e. supports per-page jurisdiction
+// narrowing) must also reference `describeNarrowedView` (the C3 caption
+// computation), unless listed in CAPTION_EXEMPT with a reason.
+// ---------------------------------------------------------------------------
+
+import { globSync } from "node:fs";
+
+/** Screens allowed to narrow without the caption — each with its reason. */
+export const CAPTION_EXEMPT: ReadonlyMap<string, string> = new Map([
+  ["app/gob/analytics/export/page.tsx", "headless CSV export route — no visual surface"],
+  [
+    "app/gob/padron/page.tsx",
+    "hub chrome only — its tab screens (CensoScreen/PoblacionScreen) carry the caption",
+  ],
+]);
+
+export function scanCaptionAdoption(): ViewScopeOffense[] {
+  const offenses: ViewScopeOffense[] = [];
+  const files = globSync("{app/gob,app/admin}/**/*.tsx").filter((f) => {
+    const p = f.replaceAll("\\", "/");
+    return !p.includes("__tests__/") && !p.endsWith(".test.tsx");
+  });
+  for (const file of files) {
+    const relPath = file.replaceAll("\\", "/");
+    if (CAPTION_EXEMPT.has(relPath)) continue;
+    const src = stripComments(readFileSync(file, "utf8"));
+    if (src.includes("resolveJurisdictionScope(") && !src.includes("describeNarrowedView")) {
+      offenses.push({
+        file: relPath,
+        line: 1,
+        snippet: "resolveJurisdictionScope without caption",
+      });
+    }
+  }
+  return offenses;
+}
+
 function describeOffense(offense: ViewScopeOffense): string {
   return `${offense.file}:${offense.line} — raw jurisdiction-count read outside ${ALLOWLISTED_FILE}: \`${offense.snippet}\`. Shared portal chrome must describe the operator's MANDATE via describeMandate() (${ALLOWLISTED_FILE}) — never a raw jurisdictions.length. That exact class of drift produced the verified "1774 LOCALIDADES" badge over a CABA-filtered view (plan-maestro-integridad §S3). A page describing its OWN filtered view should use describeNarrowedView() (lib/ui/view-scope-caption.ts) instead.`;
 }
@@ -85,15 +128,24 @@ function runScan(): void {
     }
   }
 
+  // Rule 2 — caption adoption.
+  for (const offense of scanCaptionAdoption()) {
+    offenders.push(
+      `${offense.file} — calls resolveJurisdictionScope but never computes describeNarrowedView (lib/ui/view-scope-caption.ts): a screen that narrows below the operator's mandate MUST disclose the narrowed view via <ViewScopeCaption> (C3). Wire it like app/gob/page.tsx, or add the file to CAPTION_EXEMPT in scripts/check-view-scope.ts WITH a reason.`,
+    );
+  }
+
   if (offenders.length > 0) {
     console.error(offenders.join("\n"));
     console.error(
-      `\n✗ ${offenders.length} raw jurisdiction-count read(s) in shared portal chrome (${filesScanned} files scanned).`,
+      `\n✗ ${offenders.length} view-scope violation(s) (${filesScanned} chrome files scanned).`,
     );
     process.exit(1);
   }
 
-  console.log(`✓ view-scope discipline clean — ${filesScanned} chrome files scanned.`);
+  console.log(
+    `✓ view-scope discipline clean — ${filesScanned} chrome files + caption adoption scanned.`,
+  );
 }
 
 const isMain =

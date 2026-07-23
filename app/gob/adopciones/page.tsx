@@ -21,6 +21,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -43,6 +44,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 
 export const dynamic = "force-dynamic";
 
@@ -116,6 +118,15 @@ export default async function GobAdopcionesPage({
   const adminLocality = adminSelectedLocality ?? undefined;
   const species = sp.species || undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   const period = resolveAnalyticsPeriod(sp);
   const ctx = buildProjectionContext(actor, filteredJurisdictions, period, {
     adminProvince,
@@ -182,11 +193,14 @@ export default async function GobAdopcionesPage({
         eyebrow="Custodia & adopción"
         title="Adopciones"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Flujo de custodia, tiempos de custodia y pool de tránsitos en tu cobertura."}
-          </p>
+          <>
+            <p className="text-[var(--text-md)] text-ln-op-mute">
+              {profile.role === "admin"
+                ? "Vista universal — todas las jurisdicciones."
+                : "Flujo de custodia, tiempos de custodia y pool de tránsitos en tu cobertura."}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
         }
       />
 

@@ -30,6 +30,7 @@ import {
   OpFilterBar,
   OpKpi,
   OpPill,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -73,6 +74,7 @@ import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { AR_TIME_ZONE, formatDateShort, formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
@@ -123,6 +125,14 @@ export default async function AdminProgramaPage({
 
   const adminCtx = buildProjectionContext({ role: "admin" }, [], period);
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  // This screen has no province/locality drill-down (fully national, universal
+  // admin scope) — always null, kept for parity with the other admin screens.
+  const narrowedView = describeNarrowedView({
+    role: "admin",
+    mandateJurisdictions: [],
+  });
+
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
     <header className="space-y-2">
@@ -139,6 +149,7 @@ export default async function AdminProgramaPage({
       >
         Alertas y suscripciones →
       </a>
+      <ViewScopeCaption scope={narrowedView} />
     </header>
   );
 

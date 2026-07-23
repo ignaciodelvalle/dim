@@ -12,6 +12,7 @@ import {
   OpCardHead,
   OpFilterBar,
   OpKpi,
+  ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -43,6 +44,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
@@ -83,6 +85,15 @@ export default async function GobVigilanciaPage({
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
 
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
+
   // Raw selected province ISO gates the sub-region (department/barrio) choropleth
   // drill below — passed as an explicit predicate to fetchCasesPerSubregion.
   const selectedProvinceIso = sp.province ?? null;
@@ -110,11 +121,14 @@ export default async function GobVigilanciaPage({
       eyebrow="Vigilancia epidemiológica"
       title="Mapa de vigilancia"
       subtitle={
-        <p className="text-[var(--text-md)] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
-        </p>
+        <>
+          <p className="text-[var(--text-md)] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
+          </p>
+          <ViewScopeCaption scope={narrowedView} />
+        </>
       }
     />
   );
