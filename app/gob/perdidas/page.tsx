@@ -415,6 +415,16 @@ export default async function GobPerdidasPage({
             {...mapProps}
             scaleLabel="Mascotas perdidas"
             fallbackTableLabel="Mascotas perdidas por provincia"
+            // Visual review 2026-07-23 (#1): when the drilled view is 100%
+            // k-anon suppressed, the in-map notice cites the scope aggregate.
+            // `lostPets` is the SAME already-scoped/filtered list this page
+            // folds into the map cells AND renders row-by-row in the table
+            // below, so the count discloses nothing the screen doesn't
+            // already show — no new query, no complementary-disclosure risk.
+            scopeAggregate={{
+              count: lostPets.length,
+              noun: `${pluralizeEs(lostPets.length, "mascota")} ${pluralizeEs(lostPets.length, "perdida")}`,
+            }}
           />
         </OpCardBody>
       </OpCard>

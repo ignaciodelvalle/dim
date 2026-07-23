@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 import {
   choroplethColorStops,
   choroplethDomain,
+  choroplethLegendBins,
   sanitizeStops,
 } from "@/components/charts/choropleth-stops";
 import {
@@ -196,5 +197,48 @@ describe("sanitizeStops", () => {
     );
     expectStrictlyAscending(stops);
     expect(stops).toHaveLength(3);
+  });
+});
+
+describe("choroplethLegendBins", () => {
+  it("collapses a narrow INTEGER domain to one bucket per value (visual review 2026-07-23 #3)", () => {
+    // The /gob/vigilancia "Casos abiertos" repro: domain 4→6 quarter-split into
+    // degenerate, overlapping labels ("4–5", "5–5", "5–6", "6–6").
+    expect(choroplethLegendBins({ min: 4, max: 6 })).toEqual([
+      { label: "4", lo: 4, hi: 4 },
+      { label: "5", lo: 5, hi: 5 },
+      { label: "6", lo: 6, hi: 6 },
+    ]);
+    // Two-value span → two exact buckets.
+    expect(choroplethLegendBins({ min: 1, max: 2 })).toEqual([
+      { label: "1", lo: 1, hi: 1 },
+      { label: "2", lo: 2, hi: 2 },
+    ]);
+  });
+
+  it("keeps 4 equal intervals for a wide domain, never overlapping labels", () => {
+    const bins = choroplethLegendBins({ min: 0, max: 100 });
+    expect(bins).toHaveLength(4);
+    expect(bins.map((b) => b.label)).toEqual(["0–25", "25–50", "50–75", "75–100"]);
+    // Filter ranges tile the domain: each bin starts where the previous ended.
+    for (let i = 1; i < bins.length; i++) expect(bins[i].lo).toBe(bins[i - 1].hi);
+  });
+
+  it("an exactly-4-step integer span keeps interval bins (only NARROWER spans collapse)", () => {
+    const bins = choroplethLegendBins({ min: 4, max: 8 });
+    expect(bins).toHaveLength(4);
+    expect(bins.map((b) => b.label)).toEqual(["4–5", "5–6", "6–7", "7–8"]);
+  });
+
+  it("returns no bins for a degenerate or non-finite domain", () => {
+    expect(choroplethLegendBins({ min: 5, max: 5 })).toEqual([]);
+    expect(choroplethLegendBins({ min: Number.NaN, max: 3 })).toEqual([]);
+  });
+
+  it("divergent mode splits at the compliance target", () => {
+    expect(choroplethLegendBins({ min: 10, max: 95, scaleMode: "divergent", target: 80 })).toEqual([
+      { label: "bajo meta (< 80)", lo: 10, hi: 80 },
+      { label: "sobre meta (≥ 80)", lo: 80, hi: 95 },
+    ]);
   });
 });

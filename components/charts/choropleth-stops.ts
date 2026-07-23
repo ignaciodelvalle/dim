@@ -67,6 +67,61 @@ export function choroplethColorStops(args: {
   return sanitizeStops(stops, args.colorScale);
 }
 
+/** One clickable legend bin: es-AR range label + the [lo, hi] value filter. */
+export type ChoroplethLegendBin = { label: string; lo: number; hi: number };
+
+/**
+ * Build the clickable legend bins for MapChoropleth's bin-highlight control.
+ *
+ * - `divergent` (requires finite `target`): two bins split at the compliance
+ *   target ("bajo meta" / "sobre meta").
+ * - `sequential`: 4 equal intervals over [min, max] — EXCEPT when the domain is
+ *   an integer span holding fewer than 4 distinct steps. Quarter-splitting a
+ *   4→6 domain produced degenerate, overlapping labels ("4–5", "5–5", "5–6",
+ *   "6–6" — the /gob/vigilancia "Casos abiertos" finding, visual review
+ *   2026-07-23 #3); a narrow integer domain collapses to one bucket per
+ *   integer value instead ("4", "5", "6") — never a zero-width or overlapping
+ *   range.
+ *
+ * A degenerate domain (min === max) returns no bins — a single-valued map has
+ * no ranges to highlight. Extracted from MapChoropleth.tsx so the degenerate
+ * cases are unit-testable without maplibre-gl (same pattern as the stops above).
+ */
+export function choroplethLegendBins(args: {
+  min: number;
+  max: number;
+  scaleMode?: "sequential" | "divergent";
+  target?: number;
+}): ChoroplethLegendBin[] {
+  const { min, max } = args;
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [];
+
+  if (args.scaleMode === "divergent" && typeof args.target === "number") {
+    return [
+      { label: `bajo meta (< ${args.target.toLocaleString("es-AR")})`, lo: min, hi: args.target },
+      { label: `sobre meta (≥ ${args.target.toLocaleString("es-AR")})`, lo: args.target, hi: max },
+    ];
+  }
+
+  if (Number.isInteger(min) && Number.isInteger(max) && max - min < 4) {
+    return Array.from({ length: max - min + 1 }, (_, i) => {
+      const v = min + i;
+      return { label: v.toLocaleString("es-AR"), lo: v, hi: v };
+    });
+  }
+
+  const stepSize = (max - min) / 4;
+  return Array.from({ length: 4 }, (_, i) => {
+    const lo = min + i * stepSize;
+    const hi = i === 3 ? max : min + (i + 1) * stepSize;
+    return {
+      label: `${Math.round(lo).toLocaleString("es-AR")}–${Math.round(hi).toLocaleString("es-AR")}`,
+      lo,
+      hi,
+    };
+  });
+}
+
 /**
  * Defensive normalization of interpolate stops: drop non-finite inputs,
  * sort ascending, dedupe equal inputs (first occurrence wins), and

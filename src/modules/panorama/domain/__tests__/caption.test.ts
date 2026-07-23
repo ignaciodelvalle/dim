@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { captionFor } from "@/src/modules/panorama/domain/caption";
+import { captionFor, periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
 import { getLayer } from "@/src/modules/panorama/domain/layers";
 import type { PanoramaLayer, PanoramaPeriod } from "@/src/modules/panorama/domain/types";
 
@@ -143,5 +143,32 @@ describe("captionFor", () => {
     expect(c.length).toBeGreaterThan(0);
     expect(c).toContain("refugios registrados");
     expect(c).not.toContain("Meta");
+  });
+
+  it("a year-shaped period reads as years, not a raw day count (visual review 2026-07-23 #14)", () => {
+    // 3 años (2023-07-04 → 2026-07-04 spans 1096 days incl. the 29/2/2024 leap
+    // day) must NEVER read "últimos 1096 días" — that contradicted the sibling
+    // "últimos 3 años" description in the dock.
+    const period3y: PanoramaPeriod = { from: "2023-07-04", to: "2026-07-04" };
+    expect(captionFor(layer("denuncias"), "province", period3y)).toBe(
+      "Cada burbuja es una provincia. Tamaño = denuncias de bienestar, últimos 3 años.",
+    );
+  });
+});
+
+describe("periodDaysPhrase", () => {
+  it("humanizes year-shaped windows (± leap-day slack) and keeps day counts otherwise", () => {
+    expect(periodDaysPhrase(365)).toBe("último año");
+    expect(periodDaysPhrase(366)).toBe("último año");
+    expect(periodDaysPhrase(730)).toBe("últimos 2 años");
+    expect(periodDaysPhrase(731)).toBe("últimos 2 años");
+    expect(periodDaysPhrase(1095)).toBe("últimos 3 años");
+    expect(periodDaysPhrase(1096)).toBe("últimos 3 años");
+    expect(periodDaysPhrase(1826)).toBe("últimos 5 años");
+    // Non-year-shaped windows keep the exact day count (7/30/90d + customs).
+    expect(periodDaysPhrase(7)).toBe("últimos 7 días");
+    expect(periodDaysPhrase(90)).toBe("últimos 90 días");
+    expect(periodDaysPhrase(200)).toBe("últimos 200 días");
+    expect(periodDaysPhrase(400)).toBe("últimos 400 días");
   });
 });

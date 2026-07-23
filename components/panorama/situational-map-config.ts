@@ -265,6 +265,16 @@ export type SituationalMapProps = {
    */
   detailKAnonSuppressed?: boolean;
   /**
+   * Visual review 2026-07-23 (#1): the TOTAL-suppression notice — non-null when
+   * the base layer has data in scope but EVERY plotted unit is k-anon
+   * suppressed (100% hatch/grey canvas). Rendered as an anchored corner card
+   * (same styling family as the on-canvas control cards) so the state never
+   * reads as a broken map; the console composes the copy (privacy treatment +
+   * the scope aggregate its KPI strip already discloses). Suppressed while the
+   * centered empty overlay is showing — the two must never stack.
+   */
+  allSuppressedNotice?: string | null;
+  /**
    * A1 PR-7: ISO 3166-2:AR province code currently selected in the
    * JurisdictionSwitcher (e.g. "AR-X"). null = national (no province filter).
    * When this changes, the map autozoom to the province's polygon bbox.

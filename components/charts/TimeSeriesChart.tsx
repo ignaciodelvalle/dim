@@ -71,6 +71,14 @@ export type TimeSeriesChartProps = {
   className?: string;
   /** Descripción del contenido de la tabla de accesibilidad. */
   fallbackTableLabel?: string;
+  /**
+   * Visual review 2026-07-23 (#4): k-anon suppressed cell count, when the
+   * caller knows it. With it, an EMPTY chart states "Datos ocultos por
+   * privacidad (k<5)." instead of the generic no-data copy — an empty plot
+   * born from suppression must never read as a missing dataset (nor as a
+   * render failure).
+   */
+  suppressedCount?: number;
 };
 
 export function TimeSeriesChart({
@@ -84,6 +92,7 @@ export function TimeSeriesChart({
   lineType = "monotone",
   className = "",
   fallbackTableLabel = "Datos del gráfico",
+  suppressedCount = 0,
 }: TimeSeriesChartProps) {
   // Detectar prefers-reduced-motion en el cliente.
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -100,6 +109,26 @@ export function TimeSeriesChart({
 
   // recharts espera {x, y} → convertimos internamente para evitar colisión de keys.
   const chartData = data.map((p) => ({ periodo: p.x, valor: p.y }));
+
+  // Visual review 2026-07-23 (#4): estado vacío EN el gráfico. Sin puntos, los
+  // ejes + leyenda solos se leen como una falla de render — se dibuja un
+  // mensaje centrado en el área de trazado y se omite la leyenda (no hay serie
+  // que nombrar). Con suppressedCount > 0 el vacío viene de la privacidad y el
+  // mensaje lo dice.
+  const isEmpty = data.length === 0;
+  const emptyMessage =
+    suppressedCount > 0
+      ? "Datos ocultos por privacidad (k<5)."
+      : "Sin datos para el período seleccionado.";
+
+  // Visual review 2026-07-23 (#4): un único punto no tiene segmento que trazar —
+  // sin dot la serie es invisible (el hallazgo "Altas nuevas": un punto solo en
+  // un vacío 0–1000). Se muestra el punto con dot + etiqueta de valor.
+  const singlePoint = data.length === 1;
+  const pointDot = singlePoint ? { r: 4, fill: strokeColor, strokeWidth: 0 } : false;
+  const pointLabel = singlePoint
+    ? { position: "top" as const, fontSize: 11, fill: strokeColor }
+    : undefined;
 
   const commonProps = {
     data: chartData,
@@ -119,47 +148,60 @@ export function TimeSeriesChart({
   );
   const grid = <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />;
   const tooltip = <Tooltip />;
-  const legend = <Legend wrapperStyle={{ fontSize: 12 }} />;
+  const legend = isEmpty ? null : <Legend wrapperStyle={{ fontSize: 12 }} />;
 
   return (
     <div className={className}>
-      <ResponsiveContainer width="100%" height={height}>
-        {variant === "area" ? (
-          <AreaChart {...commonProps}>
-            {grid}
-            {xAxis}
-            {yAxis}
-            {tooltip}
-            {legend}
-            <Area
-              type={lineType}
-              dataKey="valor"
-              name={seriesLabel}
-              stroke={strokeColor}
-              fill={areaFill}
-              strokeWidth={2}
-              isAnimationActive={!reducedMotion}
-            />
-          </AreaChart>
-        ) : (
-          <LineChart {...commonProps}>
-            {grid}
-            {xAxis}
-            {yAxis}
-            {tooltip}
-            {legend}
-            <Line
-              type={lineType}
-              dataKey="valor"
-              name={seriesLabel}
-              stroke={strokeColor}
-              strokeWidth={2}
-              dot={false}
-              isAnimationActive={!reducedMotion}
-            />
-          </LineChart>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={height}>
+          {variant === "area" ? (
+            <AreaChart {...commonProps}>
+              {grid}
+              {xAxis}
+              {yAxis}
+              {tooltip}
+              {legend}
+              <Area
+                type={lineType}
+                dataKey="valor"
+                name={seriesLabel}
+                stroke={strokeColor}
+                fill={areaFill}
+                strokeWidth={2}
+                dot={pointDot}
+                label={pointLabel}
+                isAnimationActive={!reducedMotion}
+              />
+            </AreaChart>
+          ) : (
+            <LineChart {...commonProps}>
+              {grid}
+              {xAxis}
+              {yAxis}
+              {tooltip}
+              {legend}
+              <Line
+                type={lineType}
+                dataKey="valor"
+                name={seriesLabel}
+                stroke={strokeColor}
+                strokeWidth={2}
+                dot={pointDot}
+                label={pointLabel}
+                isAnimationActive={!reducedMotion}
+              />
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+        {isEmpty && (
+          <p
+            role="note"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-ln-mute"
+          >
+            {emptyMessage}
+          </p>
         )}
-      </ResponsiveContainer>
+      </div>
 
       {/* Tabla de accesibilidad */}
       <details className="mt-3 text-sm">

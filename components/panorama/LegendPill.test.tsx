@@ -72,4 +72,29 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
 
     expect(screen.getByText("⊘ k<5 protegido")).toBeInTheDocument();
   });
+
+  it("suppresses a layer dot whose label duplicates the pill title (visual review 2026-07-23 #2)", () => {
+    // A graduated point-only view titles the pill with the caption label AND
+    // used to repeat the same label as a dot chip ("Denuncias de bienestar •
+    // Denuncias de bienestar"). The title is the naming — the duplicate chip
+    // must not render (collapsed strip nor expanded repeat); distinct dots stay.
+    render(
+      <LegendPill
+        baseLabel="Denuncias de bienestar"
+        rampColors={null}
+        layerDots={[
+          { color: "#f00", label: "Denuncias de bienestar" },
+          { color: "#0f0", label: "Zoonosis / señales" },
+        ]}
+      >
+        <div>panel</div>
+      </LegendPill>,
+    );
+
+    // Exactly ONE "Denuncias de bienestar" — the bold title (the dot chip and
+    // the expanded repeat would each add another occurrence).
+    expect(screen.getAllByText("Denuncias de bienestar")).toHaveLength(1);
+    // The non-duplicate dot renders twice: collapsed chip + expanded repeat.
+    expect(screen.getAllByText("Zoonosis / señales")).toHaveLength(2);
+  });
 });

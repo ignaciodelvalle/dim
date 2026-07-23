@@ -21,11 +21,29 @@ function periodDays(period: PanoramaPeriod): number {
   return Math.max(0, Math.round((to - from) / MS_PER_DAY));
 }
 
+/**
+ * Humanize a whole-day window into the es-AR period phrase. Year-shaped windows
+ * read as years — visual review 2026-07-23 (#14): the dock caption said
+ * "últimos 1095 días" while its sibling description (view-state-caption's
+ * PERIOD_PHRASE) said "últimos 3 años" for the SAME window. A ±2-day slack per
+ * year absorbs leap days (a 3y window spanning a 29/2 measures 1096 days, not
+ * 1095), so every year-preset window lands on the year phrase; anything that is
+ * not year-shaped (7/30/90d, custom ranges) keeps the exact day count.
+ */
+export function periodDaysPhrase(days: number): string {
+  const years = Math.round(days / 365.25);
+  if (years >= 1 && Math.abs(days - years * 365.25) <= 2) {
+    return years === 1 ? "último año" : `últimos ${years} años`;
+  }
+  return `últimos ${days} días`;
+}
+
 /** The time phrase: current-state rollups say "estado actual"; windowed layers
- *  say "últimos N días" from the active period. */
+ *  say "últimos N días" (year-shaped windows: "últimos N años") from the active
+ *  period. */
 function windowPhrase(window: "period" | "current", period: PanoramaPeriod): string {
   if (window === "current") return "estado actual";
-  return `últimos ${periodDays(period)} días`;
+  return periodDaysPhrase(periodDays(period));
 }
 
 /** Encoding verb + mark noun for a render mode (the word the map actually shows). */

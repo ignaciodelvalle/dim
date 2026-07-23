@@ -57,6 +57,14 @@ export type StackedTimeSeriesChartProps = {
   className?: string;
   /** Caption for the accessibility data table. */
   fallbackTableLabel?: string;
+  /**
+   * Visual review 2026-07-23 (#4): k-anon suppressed cell count, when the
+   * caller knows it (e.g. mortalidad's causes-by-period fold). With it, an
+   * EMPTY chart — no points, or every remaining value zeroed by suppression —
+   * states "Datos ocultos por privacidad (k<5)." instead of the generic
+   * no-data copy, so a privacy-blanked plot never reads as a render failure.
+   */
+  suppressedCount?: number;
 };
 
 /** Palette cycle order — single-hue tokens. Ordered so no deutan-confusable
@@ -75,6 +83,7 @@ export function StackedTimeSeriesChart({
   height = 320,
   className = "",
   fallbackTableLabel = "Datos del gráfico",
+  suppressedCount = 0,
 }: StackedTimeSeriesChartProps) {
   const labelFor = (key: string) => seriesLabels[key] ?? key;
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -97,40 +106,65 @@ export function StackedTimeSeriesChart({
 
   const colorFor = (i: number) => CHART_COLORS[PALETTE[i % PALETTE.length]];
 
+  // Visual review 2026-07-23 (#4): in-chart empty state. Axes + a full legend
+  // over zero bands read as a render failure — draw a centered message inside
+  // the plot area and omit the series legend (there is nothing to decode).
+  // "Empty" covers: no points, no series, or (suppression only) every value
+  // zeroed by the k-anon fold — a chart of suppressed zeros is a blank plot
+  // with a misleadingly populated legend.
+  const isEmpty =
+    points.length === 0 ||
+    seriesKeys.length === 0 ||
+    (suppressedCount > 0 && points.every((p) => seriesKeys.every((k) => (p.values[k] ?? 0) === 0)));
+  const emptyMessage =
+    suppressedCount > 0
+      ? "Datos ocultos por privacidad (k<5)."
+      : "Sin datos para el período seleccionado.";
+
   return (
     <div className={className}>
-      <ResponsiveContainer width="100%" height={height}>
-        <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-          <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
-          <YAxis
-            tick={{ fontSize: 11 }}
-            label={
-              yLabel
-                ? { value: yLabel, angle: -90, position: "insideLeft", style: { fontSize: 11 } }
-                : undefined
-            }
-          />
-          <Tooltip />
-          <Legend wrapperStyle={{ fontSize: 12 }} />
-          {seriesKeys.map((key, i) => {
-            const color = colorFor(i);
-            return (
-              <Area
-                key={key}
-                type="monotone"
-                dataKey={key}
-                name={labelFor(key)}
-                stackId="1"
-                stroke={color}
-                fill={`${color}66`}
-                strokeWidth={2}
-                isAnimationActive={!reducedMotion}
-              />
-            );
-          })}
-        </AreaChart>
-      </ResponsiveContainer>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={height}>
+          <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
+            <YAxis
+              tick={{ fontSize: 11 }}
+              label={
+                yLabel
+                  ? { value: yLabel, angle: -90, position: "insideLeft", style: { fontSize: 11 } }
+                  : undefined
+              }
+            />
+            <Tooltip />
+            {!isEmpty && <Legend wrapperStyle={{ fontSize: 12 }} />}
+            {seriesKeys.map((key, i) => {
+              const color = colorFor(i);
+              return (
+                <Area
+                  key={key}
+                  type="monotone"
+                  dataKey={key}
+                  name={labelFor(key)}
+                  stackId="1"
+                  stroke={color}
+                  fill={`${color}66`}
+                  strokeWidth={2}
+                  isAnimationActive={!reducedMotion}
+                />
+              );
+            })}
+          </AreaChart>
+        </ResponsiveContainer>
+        {isEmpty && (
+          <p
+            role="note"
+            className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-ln-mute"
+          >
+            {emptyMessage}
+          </p>
+        )}
+      </div>
 
       {/* Accessibility data table — períodos (rows) × series (cols) matrix. */}
       <details className="mt-3 text-sm">

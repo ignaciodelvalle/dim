@@ -2494,7 +2494,7 @@ function stubPercapitaFetch(): void {
 }
 
 describe("PanoramaConsole — per-cápita encoding (panorama-percapita v1)", () => {
-  it("offers the per-cápita mode on bienestar + the disabled department roadmap option", async () => {
+  it("offers the per-cápita mode on bienestar WITHOUT the '(en desarrollo)' roadmap option", async () => {
     setUrl("/gob/panorama?period=3y");
     stubPercapitaFetch();
     renderRedesignConsole();
@@ -2505,13 +2505,13 @@ describe("PanoramaConsole — per-cápita encoding (panorama-percapita v1)", () 
     const toggle = await screen.findByRole("button", { name: "Per cápita (por 10.000 hab.)" });
     expect(toggle).toBeEnabled();
 
-    // The PO-ratified visible-roadmap affordance: department grain is phase 2 —
-    // a DISABLED option naming the missing prerequisite, never a silent absence.
-    const roadmap = screen.getByRole("button", {
-      name: "Per cápita por departamento (en desarrollo)",
-    });
-    expect(roadmap).toBeDisabled();
-    expect(roadmap).toHaveAttribute("title", "Requiere censo departamental");
+    // Visual review 2026-07-23 (#14): the disabled "Per cápita por departamento
+    // (en desarrollo)" roadmap option is HIDDEN until the INDEC department
+    // census import lands — a visibly unfinished control shipped to operators
+    // reads as broken product, not roadmap.
+    expect(
+      screen.queryByRole("button", { name: "Per cápita por departamento (en desarrollo)" }),
+    ).not.toBeInTheDocument();
   });
 
   it("selecting per-cápita re-encodes map + caption + footer together, and the URL reproduces it", async () => {

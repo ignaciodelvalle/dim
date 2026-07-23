@@ -371,7 +371,7 @@ export async function PoblacionScreen({
           }
           // Screenshot review finding #10: this tile is a composite (altas +
           // nacimientos − muertes), not a births-only metric — the natalidad
-          // undercount caveat belongs on "Nacimientos registrados" (above),
+          // undercount caveat belongs on the Nacimientos-registrados tile (above),
           // not here. This sub names what actually limits THIS metric's
           // read (full detail in info.caveat below).
           sub="Indicador direccional — no es crecimiento poblacional real"
@@ -438,7 +438,7 @@ export async function PoblacionScreen({
               </p>
             </div>
           </div>
-          {/* Scoped to "Nacimientos registrados" only (screenshot review
+          {/* Scoped to the Nacimientos-registrados column only (screenshot review
               finding #10) — the natalidad-undercount caveat does not apply
               to "Altas nuevas" (new registrations, not births) or "Muertes
               registradas" in this same breakdown, so it must not read as a

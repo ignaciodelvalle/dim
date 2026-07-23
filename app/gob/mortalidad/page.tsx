@@ -479,6 +479,10 @@ export default async function GobMortalidadPage({
               )}
               yLabel="Fallecimientos"
               fallbackTableLabel={`Fallecimientos por ${causeBucketWord} y causa`}
+              // Visual review 2026-07-23 (#4): when suppression blanks the whole
+              // plot, the in-chart empty state names the privacy treatment
+              // (same count the card header already discloses above).
+              suppressedCount={causesTrend.suppressedCount}
             />
           )}
         </OpCardBody>

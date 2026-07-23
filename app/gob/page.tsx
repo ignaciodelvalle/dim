@@ -248,7 +248,7 @@ export default async function GobiernoDashboardPage({
       // Home shows only total + traceableRate → the headline-only fetcher (qw#2).
       fetchMortalityHeadline(ctx12m),
       // Pérdidas activas — SAME fetcher + scope as /gob/perdidas and the Panorama
-      // "Pérdidas activas" tile, so the Panel widget can never read 0 while the
+      // Pérdidas-activas tile, so the Panel widget can never read 0 while the
       // detail list shows N active (val-2-govt M2). filteredJurisdictions applies
       // the same province/locality narrowing the KPI strip uses.
       fetchPerdidasMetrics(actor, filteredJurisdictions, {

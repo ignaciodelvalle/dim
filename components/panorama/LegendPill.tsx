@@ -82,6 +82,14 @@ export function LegendPill({
   graduatedHint = null,
   children,
 }: Props) {
+  // Visual review 2026-07-23 (#2): when the pill title already names a point
+  // layer (legendRampTitle falls back to the caption label when no ramp paints
+  // — e.g. a graduated denuncias-only view), that layer's own dot chip repeated
+  // the identical label right beside it ("Denuncias de bienestar • Denuncias de
+  // bienestar"). The bold title IS the naming — suppress the redundant chip.
+  // Filtered ONCE here so the collapsed strip and the expanded full-label
+  // repeat below (same source array) stay in lockstep.
+  const visibleDots = layerDots.filter((dot) => dot.label !== baseLabel);
   return (
     <OverlayDisclosure
       side="up"
@@ -182,7 +190,7 @@ export function LegendPill({
               </span>
             </span>
           )}
-          {layerDots.map((dot) => (
+          {visibleDots.map((dot) => (
             <span key={dot.label} className="inline-flex shrink-0 items-center gap-1">
               <span
                 aria-hidden="true"
@@ -219,9 +227,9 @@ export function LegendPill({
           redesign) and no longer restates it. Repeat the same layerDots here,
           full label, wrapping instead of clipping, so expanding the pill
           actually answers "which point layer is that dot" in full. */}
-      {layerDots.length > 0 && (
+      {visibleDots.length > 0 && (
         <div className="mb-2 flex flex-col gap-1 border-b border-ln-op-line-2 pb-2">
-          {layerDots.map((dot) => (
+          {visibleDots.map((dot) => (
             <span key={dot.label} className="flex items-start gap-1.5 text-[var(--text-xs)]">
               <span
                 aria-hidden="true"

@@ -1,6 +1,10 @@
 "use client";
 
-import { choroplethColorStops, choroplethDomain } from "@/components/charts/choropleth-stops";
+import {
+  choroplethColorStops,
+  choroplethDomain,
+  choroplethLegendBins,
+} from "@/components/charts/choropleth-stops";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
@@ -135,6 +139,18 @@ export type MapChoroplethProps = {
    */
   target?: number;
   /**
+   * Visual review 2026-07-23 (#1): scope-level aggregate for the TOTAL-
+   * suppression in-map notice. When every datum in `data` is k-anon suppressed
+   * the map paints 100% hatch — an anchored corner card then states the privacy
+   * treatment plus this aggregate ("… — N {noun} en el total del alcance").
+   * MUST be a figure the page already discloses elsewhere (a KPI tile, the
+   * list count): the notice may never introduce a number the k-anon treatment
+   * hides, and a total already public on the same screen adds no
+   * complementary-disclosure risk. Absent → the card states the treatment
+   * without an aggregate clause.
+   */
+  scopeAggregate?: { count: number; noun: string };
+  /**
    * Cartographic form.
    *  - `"flat"` (default): the v1 look — a single flat white 1px region outline
    *    and a plain hover tooltip. Every pre-existing caller keeps this untouched.
@@ -163,6 +179,14 @@ const LEVEL_LABELS: Record<GeoLevel, string> = {
   province: "Provincias",
   department: "Departamentos",
   barrio: "Barrios",
+};
+
+/** Singular unit noun per level for the total-suppression notice ("Detalle por
+ *  departamento protegido…"). */
+const LEVEL_UNIT_NOUN: Record<GeoLevel, string> = {
+  province: "jurisdicción",
+  department: "departamento",
+  barrio: "barrio",
 };
 
 // ---------------------------------------------------------------------------
@@ -223,6 +247,7 @@ export function MapChoropleth({
   scaleLabel,
   scaleMode = "sequential",
   target,
+  scopeAggregate,
   cartography = "flat",
 }: MapChoroplethProps) {
   const searchParams = useSearchParams();
@@ -768,25 +793,13 @@ export function MapChoropleth({
 
   const [activeBin, setActiveBin] = useState<number | null>(null);
 
+  // Bin construction lives in choropleth-stops.ts (unit-tested there): notably
+  // the visual-review 2026-07-23 #3 fix — a narrow INTEGER domain (e.g. 4→6)
+  // collapses to one bucket per value ("4", "5", "6") instead of degenerate
+  // overlapping quarter bins ("4–5", "5–5", "5–6", "6–6").
   const legendBins = useMemo(() => {
-    if (!scaleBounds || scaleBounds.min === scaleBounds.max) return [];
-    const { min, max } = scaleBounds;
-    if (scaleMode === "divergent" && typeof target === "number") {
-      return [
-        { label: `bajo meta (< ${target.toLocaleString("es-AR")})`, lo: min, hi: target },
-        { label: `sobre meta (≥ ${target.toLocaleString("es-AR")})`, lo: target, hi: max },
-      ];
-    }
-    const stepSize = (max - min) / 4;
-    return Array.from({ length: 4 }, (_, i) => {
-      const lo = min + i * stepSize;
-      const hi = i === 3 ? max : min + (i + 1) * stepSize;
-      return {
-        label: `${Math.round(lo).toLocaleString("es-AR")}–${Math.round(hi).toLocaleString("es-AR")}`,
-        lo,
-        hi,
-      };
-    });
+    if (!scaleBounds) return [];
+    return choroplethLegendBins({ min: scaleBounds.min, max: scaleBounds.max, scaleMode, target });
   }, [scaleBounds, scaleMode, target]);
 
   // A drill re-init rebuilds the map with the no-match filter — reset the bin.
@@ -853,23 +866,48 @@ export function MapChoropleth({
       )}
 
       {/* Mapa */}
-      <div
-        ref={mapContainer}
-        style={{ height }}
-        className="w-full rounded-xl overflow-hidden border border-ln-op-line"
-        aria-label={fallbackTableLabel}
-        role="img"
-      />
+      <div className="relative">
+        <div
+          ref={mapContainer}
+          style={{ height }}
+          className="w-full rounded-xl overflow-hidden border border-ln-op-line"
+          aria-label={fallbackTableLabel}
+          role="img"
+        />
+        {/* Visual review 2026-07-23 (#1): TOTAL-suppression in-map notice. When
+            EVERY region is k-anon suppressed the map paints 100% hatch and the
+            only explanation was the hover tooltip — operators read it as a
+            broken map. An anchored corner card (same skin family as the legend
+            chrome) states the treatment IN the map, plus the scope aggregate
+            when the caller provides one (a figure its page already discloses —
+            see the scopeAggregate prop doc). Sits OUTSIDE the role="img" node
+            so assistive tech reads it as its own note, not image alt content;
+            pointer-events-none keeps the hatched regions hoverable under it. */}
+        {allSuppressed && (
+          <p
+            role="note"
+            className="pointer-events-none absolute bottom-2 left-2 z-10 max-w-xs rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card/95 px-3 py-2 text-xs leading-snug text-ln-op-ink-2 shadow-md"
+          >
+            {`Detalle por ${LEVEL_UNIT_NOUN[drillState.level]} protegido por privacidad (k<5)`}
+            {scopeAggregate
+              ? ` — ${scopeAggregate.count.toLocaleString("es-AR")} ${scopeAggregate.noun} en el total del alcance.`
+              : "."}{" "}
+            Las regiones se muestran con trama, sin números.
+          </p>
+        )}
+      </div>
 
-      {/* map-QOL empty state — states the REASON, not just the absence. */}
-      {(isEmpty || allSuppressed) && (
+      {/* map-QOL empty state — states the REASON, not just the absence. The
+          all-suppressed state moved INTO the map as the anchored corner card
+          above (visual review 2026-07-23 #1); this below-map note now covers
+          only the genuinely-empty scope. */}
+      {isEmpty && (
         <p
           role="note"
           className="mt-2 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-3 py-2 text-xs text-ln-op-ink-2"
         >
-          {isEmpty
-            ? "Sin datos para el filtro seleccionado: no hay valores que mostrar en este alcance y período."
-            : "Todos los valores del filtro están protegidos por privacidad (k-anonimato): las regiones se muestran con trama, sin números."}
+          Sin datos para el filtro seleccionado: no hay valores que mostrar en este alcance y
+          período.
         </p>
       )}
 

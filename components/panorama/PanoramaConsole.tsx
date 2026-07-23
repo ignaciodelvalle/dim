@@ -113,7 +113,7 @@ import {
   lodProvinceRollupHint,
   markForZoom,
 } from "@/src/modules/panorama/domain/capabilities";
-import { captionFor } from "@/src/modules/panorama/domain/caption";
+import { captionFor, periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
@@ -127,7 +127,10 @@ import {
   isProvinceOnlyChoropleth,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
-import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
+import {
+  KPI_RELATED_LAYERS,
+  partitionKpiIdsByRelevance,
+} from "@/src/modules/panorama/domain/metric-relevance";
 import {
   censusMetaOf,
   isPercapitaEligible,
@@ -3365,6 +3368,34 @@ export function PanoramaConsole({
     [rankingLayer, activeLayers],
   );
 
+  // Visual review 2026-07-23 (#1): the TOTAL-suppression in-map notice. When the
+  // base layer HAS data in scope but EVERY plotted unit is k-anon suppressed,
+  // the canvas is 100% hatch/grey and the only explanation was an unanchored
+  // hover tooltip — operators read it as a broken map. Compose an anchored
+  // corner-card notice: the privacy treatment + the scope AGGREGATE, sourced
+  // from the layer's own headline KPI (KPI_RELATED_LAYERS is the same subject
+  // mapping the relevance gate uses). The KPI value is already rendered in the
+  // metrics column, so this discloses nothing new and issues no query. Null
+  // (card hidden) whenever at least one unit paints a real value — the map
+  // explains itself then. Covers BOTH suppression conventions: layers whose
+  // server envelope OMITS suppressed cells (features empty, suppressedCount
+  // discloses them) and layers that ship them flagged `suppressed: true`
+  // (every plotted feature hatched) — `every` is vacuously true on [].
+  const allSuppressedNotice = useMemo(() => {
+    if (captionLayer === null) return null;
+    const st = states[captionLayer.id];
+    if (!st?.active || st.loading || st.suppressedCount === 0) return null;
+    const live = activeLayers.find((l) => l.id === captionLayer.id);
+    if (!live) return null;
+    const allHidden = live.features.features.every(
+      (f) => (f.properties as { suppressed?: boolean } | null)?.suppressed === true,
+    );
+    if (!allHidden) return null;
+    const kpi = kpis.kpis.find((k) => KPI_RELATED_LAYERS[k.id]?.includes(captionLayer.id));
+    const aggregate = kpi ? ` — ${kpi.label}: ${kpi.value} en el total del alcance` : "";
+    return `Detalle por localidad protegido por privacidad (k<5)${aggregate}.`;
+  }, [captionLayer, states, activeLayers, kpis]);
+
   // Coherence with Registros (P1.1 / C2): a rate layer at LOCALITY grain returns
   // per-unit COUNTS, not percentages (repository "V1 LIMITATION") — MapDataTable
   // already coerces those to a count to avoid the "Palermo 204%" bug. The ranking
@@ -3472,7 +3503,11 @@ export function PanoramaConsole({
         ? "Provincia seleccionada"
         : "Nacional";
     const days = Math.max(1, Math.round((until.getTime() - since.getTime()) / 86_400_000));
-    const periodLabel = `últimos ${days} días`;
+    // Visual review 2026-07-23 (#14): a year preset used to read "últimos 1095
+    // días" here while explainViewState's PERIOD_PHRASE said "últimos 3 años"
+    // for the SAME window — humanize year-shaped day counts (shared helper,
+    // same one captionFor's window phrase uses).
+    const periodLabel = periodDaysPhrase(days);
     const suppressedCount = PANORAMA_LAYERS.reduce(
       (sum, l) => sum + (states[l.id]?.active ? (states[l.id]?.suppressedCount ?? 0) : 0),
       0,
@@ -4350,17 +4385,14 @@ export function PanoramaConsole({
       title: "Per cápita se calcula por provincia",
     });
   }
-  // The PO-ratified visible-roadmap affordance: department-grain per-cápita is
-  // PHASE 2 (needs an INDEC department-population import) — shown as a disabled
-  // option, never a silent absence.
-  if (modeOptions.some((o) => o.id === "percapita")) {
-    modeOptions.push({
-      id: "percapita-departamento",
-      label: "Per cápita por departamento (en desarrollo)",
-      disabled: true,
-      title: "Requiere censo departamental",
-    });
-  }
+  // Department-grain per-cápita stays PHASE 2 (needs an INDEC department-
+  // population import — see percapita.ts). It USED to render here as a disabled
+  // "Per cápita por departamento (en desarrollo)" roadmap option, but a visibly
+  // unfinished control shipped to operators reads as broken product, not
+  // roadmap (visual review 2026-07-23, #14 — same call as retiring the
+  // "Informe de situación (en desarrollo)" stub). The option is HIDDEN until
+  // the census import lands; the percapita drill-fallback note above already
+  // names the missing prerequisite when the operator drills below province.
   // The ACTIVE segment mirrors what the MAP paints: "auto" when the operator
   // hasn't selected an encoding; the encoding id while it actually renders; and
   // NO segment while the selection is suspended (mode on, mid-scrub/degenerate/
@@ -4835,6 +4867,7 @@ export function PanoramaConsole({
             rateProvinceOnlyEmpty={rateProvinceOnlyEmpty}
             layerDegraded={degradedLayerLabels.length > 0}
             detailKAnonSuppressed={dockSuppressedCount > 0}
+            allSuppressedNotice={allSuppressedNotice}
             selectedProvinceCode={selectedProvinceCode}
             selectedLocalityCenter={selectedLocalityCenter}
             frame={presetFrame}
