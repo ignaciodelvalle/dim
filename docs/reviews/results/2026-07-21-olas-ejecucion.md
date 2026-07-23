@@ -233,3 +233,47 @@ NEXT: **EL PRE-PUSH GATE** (review adversarial fresco sobre ~140 commits + verif
    demo-data-vs-suite (disputa de Bruno), ahora AUTO-CURABLE (spine self-heal) y
    verificado verde post-heal.
 LA RAMA ESTÁ PUSH-READY. Push + cutover #760 = PO. :3000 fresco en HEAD.
+
+## COLA PENDIENTE (actualizada 2026-07-23, post-review visual)
+
+### Lotes de la review visual (aprobados para cola, sin arrancar)
+- **Lote V1 — copy/locale/chips (mecánico)**: resolveBusinessRule fuera de la alerta del
+  home; "173d"→"173 días"; "0.1%"→coma decimal; tildes (PERDIDAS/acá); "1 pendientes";
+  plurales "(es)"; contradicción Directorio (texto vs botón Revocar); "dashboard"→"Panel";
+  disclaimer natalidad repetido 3× (y en ALTAS NETAS donde no aplica); ranking liderado
+  por "(sin registrar)"; inversiones de semáforo (disposición desconocida en verde,
+  paleta de causas con hues de semáforo, ENO 100% ámbar).
+- **Lote V2 — estados vacíos de mapas y charts**: estado in-map bajo k-anon total
+  ("todo el detalle protegido — N en el agregado"); leyenda Panorama duplicada; buckets
+  degenerados ("5–5"); charts vacíos con mensaje (no ejes+leyenda en blanco); leyenda
+  oculta con 0 series; fallback de punto único; dock "1095 días"→"3 años"; ocultar
+  "(en desarrollo)".
+- **Lote V3 — mobile**: top bar desbordada @390 (todas); FILTROS colapsable a fila
+  resumen; KPIs 3-across → stack @<sm; tabs del dock truncados.
+- **Sueltos**: select Provincia no hidrata desde URL (chip dice CABA, select "Todas");
+  unificación de formato de eje de fechas; qa-up compara BUILD_ID memoria vs disco;
+  seed con localidad ≥5 eventos (hoy la leyenda graduada es inverificable — todo k<5).
+
+### Backlog dataviz verificado (de la review adversarial, sin arrancar)
+- **ALTA — zero-fill de buckets**: los fetchers omiten buckets sin eventos (períodos
+  silenciosos invisibles; regresión del forecast ajusta por índice → "meta en ~N
+  períodos" mal en series ralas). Fix en finalizeSingleSeries/pivotStackedSeries.
+- **MEDIA — suprimido ≠ cero en líneas de tiempo** (y disclosure en sparklines);
+  conecta con el sospechado visual "línea suave sobre 4 períodos ocultos".
+- **MEDIA — coropletas /gob**: conteos crudos + rampa continua (Panorama ya resolvió
+  ambos: per-cápita + escala clasificada — portar o caption "conteos absolutos").
+- **BAJA**: unificar primitivo de sparkline; deprecar delta v1 (flecha/color conflados);
+  leyenda divergente latente (neutral al 50% vs mapa anclado a meta); decisión de token
+  de subtítulo (deuda text-[13px] vs --text-md).
+
+### Fase 3 (estable)
+Trend fetchers → forecasts completos (frente elegido) · F9 dedup de mapas ·
+notifications.category NOT NULL (7 paths) · split de kpi-catalog (en techo de tamaño) ·
+refactor PanoramaConsole/SituationalMap · investigación del wiper de datos demo ·
+stub admin moderación · slot censusCoveragePct en guardInput de OpKpi.
+
+### Reviews aún no corridas
+Accesibilidad (contraste/foco/aria) · microcopy profundo · responsive interactivo.
+
+### PO-gated
+Push + cutover #760 · migraciones a PROD · Vercel Pro · revisión legal GPS (con convenio).
