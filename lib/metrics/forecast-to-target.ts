@@ -178,3 +178,83 @@ export function forecastToTarget(input: ForecastToTargetInput): ForecastToTarget
     line: `→ a este ritmo: meta en ~${months} ${pluralizeMeses(months)}`,
   };
 }
+
+// ---------------------------------------------------------------------------
+// resourceGap — PO-interview decision 2, item 2: forecasts state WHAT is
+// missing, not just WHEN. A "meta en ~14 meses" line answers "cuándo" but
+// never "qué" — an operator reading it has no idea whether closing that gap
+// needs 50 doses or 50,000. This is the sibling honesty fix: the ABSOLUTE
+// real-world units still missing to hit the target, right now (a snapshot,
+// not a projection) — "faltan ~1.200 dosis", never an abstract percentage.
+//
+// SAME MATH FAMILY AS lib/metrics/impact-ranking.ts's computeImpact
+// (gap% × denominator), but a DIFFERENT question: impact-ranking PRIORITIZES
+// across jurisdictions (which province matters most); resourceGap STATES the
+// resource count for ONE metric's own tile/alert, right where its value
+// already renders (zero new screen, same FORECAST-A-META philosophy as
+// forecastToTarget above).
+//
+// HONESTY GUARDS
+//   - target already met → no line (this is evidence, not a resource ask).
+//   - no denominator (null/non-finite/<=0) → no line — never invented.
+//   - a real gap that rounds to 0 whole units (a sub-1-unit gap — e.g. 0.3 of
+//     a dose over a tiny denominator) → no line either; "faltan ~0 dosis"
+//     would read as "nothing missing" while the % is still technically short,
+//     which is exactly the false-precision class this module fences.
+//   - the line ALWAYS says "sobre el padrón registrado" — every current
+//     caller's denominator is a REGISTRY count (the same denominator the
+//     ratio's own % was computed against), not an independent census
+//     estimate, so the honest caveat is baked into the engine, not left to
+//     each render site to remember.
+
+/** Input for {@link resourceGap} — mirrors ForecastToTargetInput's current/
+ *  target/higherIsBetter shape, minus the trend (this is a snapshot, not a
+ *  projection). */
+export type ResourceGapInput = {
+  /** The metric's current (live) value, same unit as `target` (0–100 for a percent). */
+  current: number;
+  /** The metric's target, from lib/metrics/targets.ts (TARGETS.*). */
+  target: number;
+  /**
+   * The population/registry count this ratio's OWN percentage was computed
+   * over (e.g. the registry-total pets/dogs, or a briefing candidate's `n`).
+   * `null` → no resource line (no denominator to multiply against).
+   */
+  denominator: number | null;
+  /** true (default): higher is better — see forecastToTarget's same field. */
+  higherIsBetter?: boolean;
+};
+
+export type ResourceGapResult =
+  | { kind: "units"; units: number; line: string }
+  | { kind: "met"; line: null }
+  | { kind: "negligible"; line: null }
+  | { kind: "no_denominator"; line: null };
+
+const AR_INTEGER_FORMAT = new Intl.NumberFormat("es-AR");
+
+/**
+ * Compute the absolute real-world units still missing to hit `target`, for
+ * ONE metric's own render surface — "faltan ~N {unit}". `unit` is the
+ * KPI-specific noun (see lib/metrics/kpi-catalog.ts's `resourceUnit` field —
+ * "dosis", "cirugías", "chips") — this function never guesses one.
+ */
+export function resourceGap(input: ResourceGapInput, unit: string): ResourceGapResult {
+  const higherIsBetter = input.higherIsBetter ?? true;
+  const met = higherIsBetter ? input.current >= input.target : input.current <= input.target;
+  if (met) return { kind: "met", line: null };
+
+  if (input.denominator === null || !Number.isFinite(input.denominator) || input.denominator <= 0) {
+    return { kind: "no_denominator", line: null };
+  }
+
+  const gapPct = Math.abs(input.target - input.current);
+  const units = Math.round((gapPct / 100) * input.denominator);
+  if (units <= 0) return { kind: "negligible", line: null };
+
+  return {
+    kind: "units",
+    units,
+    line: `faltan ~${AR_INTEGER_FORMAT.format(units)} ${unit} sobre el padrón registrado`,
+  };
+}

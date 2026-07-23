@@ -44,6 +44,8 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import {
   K_ANON_MIN,
+  NO_CENSUS_NOTE,
+  type OutlierMetric,
   TARGETS,
   buildProjectionContext,
   countAlertedProvinces,
@@ -52,10 +54,21 @@ import {
   fetchDataQuality,
   fetchPiiOversight,
   fetchRabiesVaccinationTrend,
+  formatImpactUnits,
+  formatTopImpactLine,
   projectSeries,
+  rankByImpact,
+  resourceGap,
+  summarizeTopImpact,
   toneForTarget,
+  totalImpactByJurisdiction,
 } from "@/lib/metrics";
-import { DORMANT_MONTHS_DEFAULT, registryCounts } from "@/lib/metrics/census";
+import {
+  DORMANT_MONTHS_DEFAULT,
+  estimateDogPopulation,
+  getCensusPopulationsCached,
+  registryCounts,
+} from "@/lib/metrics/census";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
@@ -80,6 +93,14 @@ const METRIC_LABEL: Record<string, string> = {
   rabies: "Antirrábica",
   sterilization: "Esterilización",
   microchip: "Microchip",
+};
+
+// PO-interview decision 2, item 1 — the honest unit per metric for the
+// impact-ranking column: "~N perros sin vacunar", never an abstract score.
+const IMPACT_UNIT_LABEL: Record<OutlierMetric, string> = {
+  rabies: "perros sin vacunar",
+  sterilization: "mascotas sin esterilizar",
+  microchip: "mascotas sin chip",
 };
 
 // es-AR labels for the PII-oversight "surface" dimension (operator search origin).
@@ -122,6 +143,9 @@ export default async function AdminProgramaPage({
   );
 
   // D2: bound the fetcher set with a deadline (see /admin/censo).
+  // getCensusPopulationsCached is a process-lifetime cache (lib/metrics/census.ts)
+  // — ZERO new fan-out after the first render; added here so the same
+  // timeout guard protects a cold cache too.
   const load = await loadWithTimeout(
     Promise.all([
       registryCounts(adminCtx, DORMANT_MONTHS_DEFAULT),
@@ -134,6 +158,7 @@ export default async function AdminProgramaPage({
       fetchCrossJurisdictionOutliers(adminCtx),
       fetchPiiOversight(adminCtx),
       fetchRabiesVaccinationTrend(adminCtx),
+      getCensusPopulationsCached(),
     ]),
   );
 
@@ -160,6 +185,7 @@ export default async function AdminProgramaPage({
     outliers,
     piiOversight,
     rabiesTrend,
+    censusPopulations,
   ] = load.value;
 
   // Paquete J — forward projection over the antirrábica vaccination FLOW series
@@ -197,6 +223,55 @@ export default async function AdminProgramaPage({
   const alertedProvinceCount = countAlertedProvinces(outliers);
   const chipRatePct = microchip.ratePct;
   const sterilRatePct = sterilization.rate;
+
+  // PO-interview decision 2, item 1 — gap×población ranking: "24 provincias en
+  // alerta" doesn't say WHICH one matters most. Each outlier row gets an
+  // estimated real-world impact — (target−coverage)/100 × población canina
+  // estimada (same census-derived estimate rabies coverage already uses, see
+  // census.ts's estimateDogPopulation) — then the table re-ranks by it instead
+  // of province-count order. ZERO new fan-out: censusPopulations was fetched
+  // above in the SAME bounded Promise.all as every other fetcher on this page.
+  const outlierImpactInputs = outliers.map((row) => ({
+    ...row,
+    jurisdiction: row.province,
+    coverage: row.rate,
+    population: estimateDogPopulation(censusPopulations[row.province] ?? 0),
+  }));
+  // rankByImpact excludes already-met rows (no gap to rank) — appended back
+  // below so the table keeps showing them (green, "meets target"), just
+  // ordered AFTER the real gaps instead of interleaved by province-count.
+  const impactRankedOutliers = rankByImpact(outlierImpactInputs);
+  const metOutlierRows = outliers
+    .filter((r) => !r.isOutlier)
+    .map((r) => ({ ...r, impact: undefined as number | null | undefined }));
+  const displayOutliers = [...impactRankedOutliers, ...metOutlierRows];
+  const topImpactSummary = summarizeTopImpact(totalImpactByJurisdiction(outlierImpactInputs));
+
+  // PO-interview decision 2, item 2 — forecasts/gap tiles state WHAT is
+  // missing, not just the %. registry.total is the SAME denominator these
+  // ratios were computed over ("COUNT active/lost pets in scope" — see
+  // kpi-catalog.ts's sterilization_coverage_population/microchip_penetration
+  // entries), so this is zero new fetch, never a second population figure.
+  const sterilResourceLine = KPI_CATALOG.sterilization_coverage_population.resourceUnit
+    ? (resourceGap(
+        {
+          current: sterilRatePct,
+          target: TARGETS.STERILIZATION_COVERAGE_PCT,
+          denominator: registry.total,
+        },
+        KPI_CATALOG.sterilization_coverage_population.resourceUnit,
+      ).line ?? undefined)
+    : undefined;
+  const chipResourceLine = KPI_CATALOG.microchip_penetration.resourceUnit
+    ? (resourceGap(
+        {
+          current: chipRatePct,
+          target: TARGETS.MICROCHIP_PENETRATION_PCT,
+          denominator: registry.total,
+        },
+        KPI_CATALOG.microchip_penetration.resourceUnit,
+      ).line ?? undefined)
+    : undefined;
 
   // Panel element IDs for accessible aria-labelledby.
   const panelRabiesForecastId = "admin-programa-rabies-proyeccion-titulo";
@@ -240,6 +315,9 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
+          // PO decision 2 item 2 — "faltan ~N cirugías sobre el padrón
+          // registrado" (undefined when the target is already met).
+          forecast={sterilResourceLine}
         />
         <OpKpi
           label="Microchip"
@@ -249,6 +327,7 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
+          forecast={chipResourceLine}
         />
         <OpKpi
           label="SLA ENO (resueltos)"
@@ -292,7 +371,17 @@ export default async function AdminProgramaPage({
           label={KPI_CATALOG.alerted_provinces_below_target.label}
           value={alertedProvinceCount.toLocaleString("es-AR")}
           tone={alertedProvinceCount === 0 ? "ok" : alertedProvinceCount > 5 ? "danger" : "warn"}
-          sub="provincias con ≥1 métrica bajo meta"
+          sub={
+            // The count stays honest (unchanged); the ACTION is the ranking
+            // below — "si todo está en peligro, nada está en peligro" unless
+            // the operator can jump straight to WHICH one to fix first.
+            <>
+              provincias con ≥1 métrica bajo meta{" "}
+              <a href={`#${panelOutliersId}`} className="text-ln-op-azul hover:underline">
+                ver por impacto →
+              </a>
+            </>
+          }
           info={{
             definition:
               "Número de provincias con al menos una métrica (esterilización, microchip, etc.) por debajo de la meta programática.",
@@ -331,7 +420,9 @@ export default async function AdminProgramaPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Outliers table */}
+      {/* Outliers table — re-ranked by estimated real-world impact
+          (gap×población), not province-count order — PO-interview decision 2,
+          item 1. */}
       <OpCard aria-labelledby={panelOutliersId}>
         <OpCardHead
           title={<span id={panelOutliersId}>Valores atípicos por provincia</span>}
@@ -349,92 +440,121 @@ export default async function AdminProgramaPage({
               description="Sin datos provinciales disponibles."
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
-                <caption className="sr-only">
-                  Cobertura por provincia y métrica vs meta programática. Filas marcadas en rojo
-                  están por debajo de la meta.
-                </caption>
-                <thead>
-                  <tr className="border-b border-ln-op-line">
-                    <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
-                      Provincia
-                    </th>
-                    <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
-                      Métrica
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Cobertura
-                    </th>
-                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
-                      Meta
-                    </th>
-                    <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
-                      Brecha
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {outliers.map((row, i) => {
-                    const drillHref = adminProvinceHref(row.province);
-                    return (
-                      <tr
-                        key={`${row.province}-${row.metric}-${i}`}
-                        className={[
-                          "border-b border-ln-op-line last:border-0",
-                          row.isOutlier
-                            ? "bg-ln-op-danger-bg/30"
-                            : "hover:bg-ln-op-stripe/50 transition-colors",
-                        ].join(" ")}
-                        aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${formatPercent(row.rate)} (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}`}
+            <div className="space-y-2">
+              {topImpactSummary && (
+                <p className="text-[var(--text-md)] font-medium text-ln-op-ink-2">
+                  {formatTopImpactLine(topImpactSummary)}
+                </p>
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+                  <caption className="sr-only">
+                    Cobertura por provincia y métrica vs meta programática, ordenada por impacto
+                    estimado (mascotas sin cobertura). Filas marcadas en rojo están por debajo de la
+                    meta.
+                  </caption>
+                  <thead>
+                    <tr className="border-b border-ln-op-line">
+                      <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
+                        Provincia
+                      </th>
+                      <th scope="col" className="text-left py-2 pr-4 font-semibold text-ln-op-mute">
+                        Métrica
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
                       >
-                        <td className="py-2 pr-4">
-                          {drillHref ? (
-                            <a
-                              href={drillHref}
-                              className="text-ln-op-azul underline-offset-2 hover:underline"
-                            >
-                              {row.province}
-                            </a>
-                          ) : (
-                            row.province
-                          )}
-                        </td>
-                        <td className="py-2 pr-4 text-ln-op-ink-2">
-                          {METRIC_LABEL[row.metric] ?? row.metric}
-                        </td>
-                        <td
+                        Cobertura
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                      >
+                        Meta
+                      </th>
+                      <th
+                        scope="col"
+                        className="text-right py-2 pr-4 font-semibold text-ln-op-mute"
+                      >
+                        Brecha
+                      </th>
+                      <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
+                        Impacto
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayOutliers.map((row, i) => {
+                      const drillHref = adminProvinceHref(row.province);
+                      const impactLabel =
+                        row.impact === undefined
+                          ? "—"
+                          : row.impact === null
+                            ? NO_CENSUS_NOTE
+                            : `~${formatImpactUnits(row.impact)} ${IMPACT_UNIT_LABEL[row.metric]}`;
+                      return (
+                        <tr
+                          key={`${row.province}-${row.metric}-${i}`}
                           className={[
-                            "py-2 pr-4 text-right tabular-nums font-medium",
-                            row.isOutlier ? "text-ln-op-danger" : "text-ln-op-ok",
+                            "border-b border-ln-op-line last:border-0",
+                            row.isOutlier
+                              ? "bg-ln-op-danger-bg/30"
+                              : "hover:bg-ln-op-stripe/50 transition-colors",
                           ].join(" ")}
-                          aria-label={`Cobertura: ${formatPercent(row.rate)}`}
+                          aria-label={`${row.province} — ${METRIC_LABEL[row.metric] ?? row.metric}: ${formatPercent(row.rate)} (meta ${row.target}%)${row.isOutlier ? ", bajo meta" : ""}. Impacto: ${impactLabel}`}
                         >
-                          {formatPercent(row.rate)}
-                        </td>
-                        <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
-                          {row.target}%
-                        </td>
-                        <td
-                          className={[
-                            "py-2 text-right tabular-nums",
-                            row.isOutlier ? "text-ln-op-danger" : "text-ln-op-mute",
-                          ].join(" ")}
-                        >
-                          {row.gap > 0
-                            ? `−${formatPercent(row.gap)}`
-                            : row.gap < 0
-                              ? `+${formatPercent(Math.abs(row.gap))}`
-                              : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <p className="mt-2 text-xs text-ln-op-mute">
-                Provincias con menos de {K_ANON_MIN} mascotas no se listan (privacidad).
-              </p>
+                          <td className="py-2 pr-4">
+                            {drillHref ? (
+                              <a
+                                href={drillHref}
+                                className="text-ln-op-azul underline-offset-2 hover:underline"
+                              >
+                                {row.province}
+                              </a>
+                            ) : (
+                              row.province
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 text-ln-op-ink-2">
+                            {METRIC_LABEL[row.metric] ?? row.metric}
+                          </td>
+                          <td
+                            className={[
+                              "py-2 pr-4 text-right tabular-nums font-medium",
+                              row.isOutlier ? "text-ln-op-danger" : "text-ln-op-ok",
+                            ].join(" ")}
+                            aria-label={`Cobertura: ${formatPercent(row.rate)}`}
+                          >
+                            {formatPercent(row.rate)}
+                          </td>
+                          <td className="py-2 pr-4 text-right tabular-nums text-ln-op-mute">
+                            {row.target}%
+                          </td>
+                          <td
+                            className={[
+                              "py-2 pr-4 text-right tabular-nums",
+                              row.isOutlier ? "text-ln-op-danger" : "text-ln-op-mute",
+                            ].join(" ")}
+                          >
+                            {row.gap > 0
+                              ? `−${formatPercent(row.gap)}`
+                              : row.gap < 0
+                                ? `+${formatPercent(Math.abs(row.gap))}`
+                                : "—"}
+                          </td>
+                          <td className="py-2 text-right tabular-nums text-ln-op-mute">
+                            {impactLabel}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="mt-2 text-xs text-ln-op-mute">
+                  Provincias con menos de {K_ANON_MIN} mascotas no se listan (privacidad).
+                </p>
+              </div>
             </div>
           )}
         </OpCardBody>

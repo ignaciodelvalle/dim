@@ -87,8 +87,31 @@ export type {
   ForecastToTargetInput,
   ForecastToTargetResult,
   ForecastTrendPoint,
+  ResourceGapInput,
+  ResourceGapResult,
 } from "./forecast-to-target";
-export { MAX_HORIZON_MONTHS, MIN_TREND_POINTS, forecastToTarget } from "./forecast-to-target";
+export {
+  MAX_HORIZON_MONTHS,
+  MIN_TREND_POINTS,
+  forecastToTarget,
+  resourceGap,
+} from "./forecast-to-target";
+
+// PO-interview decision 2, item 1 — gap×población ranking: which
+// jurisdiction's below-target gap matters most in real-world units, not just
+// an abstract percentage. See lib/metrics/impact-ranking.ts's module header.
+export type { ImpactRankable, ImpactRow, ImpactSummary, ImpactTotal } from "./impact-ranking";
+export {
+  DEFAULT_IMPACT_TOP_N,
+  NO_CENSUS_NOTE,
+  computeImpact,
+  formatImpactUnits,
+  formatTopImpactLine,
+  isImpactMet,
+  rankByImpact,
+  summarizeTopImpact,
+  totalImpactByJurisdiction,
+} from "./impact-ranking";
 
 // Fase 0 additions — targets, tone, delta, freshness.
 export {

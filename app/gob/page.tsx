@@ -495,6 +495,11 @@ export default async function GobiernoDashboardPage({
                   </p>
                   <p className="text-xs text-ln-op-mute">
                     Confianza: {alert.confidence} · n = {alert.evidence.n}
+                    {/* PO decision 2 item 2: "faltan ~N dosis/cirugías/chips" —
+                        undefined (nothing rendered) whenever the descriptor
+                        has no resourceUnit or the engine has nothing honest
+                        to say (met/no-denominator/negligible gap). */}
+                    {alert.evidence.resourceLine && ` · ${alert.evidence.resourceLine}`}
                   </p>
                   <Link
                     href={alert.actionHref}

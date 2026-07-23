@@ -369,6 +369,16 @@ export type KpiDefinition = {
    *  line for this KPI — see KpiForecast. Omit unless a real per-bucket
    *  ratio trend is at hand (the honesty rule, not a target/gap rule). */
   forecast?: KpiForecast;
+  /**
+   * PO-interview decision 2, item 2 ("forecasts que informen qué falta, no
+   * solo cuándo"): the real-world noun for lib/metrics/forecast-to-target.ts's
+   * `resourceGap()` — "faltan ~N {resourceUnit}". Only set for a ratio KPI
+   * whose gap maps to a genuinely countable resource (a dose, a surgery, a
+   * chip) — omit for KPIs with no such 1:1 resource (e.g. a traceability %
+   * doesn't "need N disposals" the same honest way a coverage % needs N
+   * doses). Always a plural noun, lowercase, es-AR.
+   */
+  resourceUnit?: string;
   /** Free-form prose naming what this KPI's population EXCLUDES, when that
    *  exclusion could otherwise be mistaken for under-counting (e.g. "no
    *  incluye reportes sin escalar"). Omit when `caveat` already covers it. */
@@ -445,6 +455,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       // protection (see censusCoverageLowGate's doc comment).
       censusCoverageFloor: 20,
     },
+    // PO decision 2 item 2 — "faltan ~N dosis" (one dose per unvaccinated dog
+    // in the padrón the % is computed over).
+    resourceUnit: "dosis",
     confidence: {
       inputs: [
         "cobertura del padrón (registryDenominator) — perros SIN dueño/no registrados no cuentan",
@@ -523,6 +536,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "all_time",
     species: "all_species",
     basis: "ratio",
+    // PO decision 2 item 2 — "faltan ~N cirugías" (one sterilization surgery
+    // per un-sterilized pet in the padrón the % is computed over).
+    resourceUnit: "cirugías",
     ui: {
       definition:
         "Fracción de mascotas activas/extraviadas en el scope con al menos un evento sterilization_performed registrado, alguna vez.",
@@ -712,6 +728,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       sourceKind: "programmatic-target",
     },
     semaphore: { paintAgainst: "target" },
+    // PO decision 2 item 2 — "faltan ~N chips" (one microchip per unchipped
+    // pet in the padrón the % is computed over).
+    resourceUnit: "chips",
     confidence: {
       inputs: [
         "k-anonimato (k=5) en el desglose por localidad — celdas chicas ocultas",

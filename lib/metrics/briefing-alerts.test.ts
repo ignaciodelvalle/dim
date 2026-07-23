@@ -202,6 +202,40 @@ describe("buildBriefingAlerts — ranking", () => {
   });
 });
 
+describe("buildBriefingAlerts — resourceLine (PO decision 2, item 2)", () => {
+  it("appends 'faltan ~N {unit}' when the descriptor names a resourceUnit", () => {
+    expect(KPI_CATALOG.microchip_penetration.resourceUnit).toBe("chips");
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "microchip_penetration", value: 20, n: 500 },
+    ];
+    const [alert] = buildBriefingAlerts(candidates);
+    // (80-20)/100 * 500 = 300
+    expect(alert.evidence.resourceLine).toBe("faltan ~300 chips sobre el padrón registrado");
+  });
+
+  it("never fabricates a resourceLine for a descriptor without a resourceUnit", () => {
+    expect(KPI_CATALOG.mortality_disposal_traceability.resourceUnit).toBeUndefined();
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 12 },
+    ];
+    const [alert] = buildBriefingAlerts(candidates);
+    expect(alert.evidence.resourceLine).toBeUndefined();
+  });
+
+  it("never fabricates a resourceLine when n is 0 (no denominator)", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "microchip_penetration", value: 20, n: 0 },
+    ];
+    // n=0 also fails the zeroDenominator guard for this descriptor's
+    // guards, but microchip_penetration declares no zeroDenominator guard —
+    // confirm resourceGap's own no_denominator guard covers it independently.
+    const alerts = buildBriefingAlerts(candidates);
+    if (alerts.length > 0) {
+      expect(alerts[0].evidence.resourceLine).toBeUndefined();
+    }
+  });
+});
+
 describe("deriveAlertConfidence", () => {
   const withSmallN = { guards: { smallN: { min: 5 } } };
 

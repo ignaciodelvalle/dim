@@ -12,6 +12,7 @@ import {
   MAX_HORIZON_MONTHS,
   MIN_TREND_POINTS,
   forecastToTarget,
+  resourceGap,
 } from "./forecast-to-target";
 
 const monthly = (values: number[]): ForecastTrendPoint[] =>
@@ -194,5 +195,57 @@ describe("forecastToTarget — months (the honest ETA)", () => {
     const asMonthly = forecastToTarget({ current: 2, target: 10, trend: monthly([0, 1, 2]) });
     expect(asMonthly.kind).toBe("months");
     if (asMonthly.kind === "months") expect(asMonthly.months).toBe(8);
+  });
+});
+
+describe("resourceGap — states WHAT is missing (PO decision 2, item 2)", () => {
+  it("computes the rounded absolute units missing, with the padrón caveat baked in", () => {
+    // (80-60)/100 * 1000 = 200
+    const result = resourceGap({ current: 60, target: 80, denominator: 1000 }, "dosis");
+    expect(result.kind).toBe("units");
+    if (result.kind === "units") {
+      expect(result.units).toBe(200);
+      expect(result.line).toBe("faltan ~200 dosis sobre el padrón registrado");
+    }
+  });
+
+  it("formats units with es-AR thousands separators", () => {
+    // (80-20)/100 * 5000 = 3000
+    const result = resourceGap({ current: 20, target: 80, denominator: 5000 }, "chips");
+    expect(result.kind).toBe("units");
+    if (result.kind === "units") {
+      expect(result.line).toBe("faltan ~3.000 chips sobre el padrón registrado");
+    }
+  });
+
+  it("reports 'met' with a null line when the target is already reached", () => {
+    const result = resourceGap({ current: 85, target: 80, denominator: 1000 }, "dosis");
+    expect(result.kind).toBe("met");
+    expect(result.line).toBeNull();
+  });
+
+  it("respects higherIsBetter:false (a ceiling target)", () => {
+    const result = resourceGap(
+      { current: 5, target: 10, denominator: 1000, higherIsBetter: false },
+      "casos",
+    );
+    expect(result.kind).toBe("met");
+  });
+
+  it("never fabricates a line when there is no denominator", () => {
+    expect(resourceGap({ current: 20, target: 80, denominator: null }, "dosis").line).toBeNull();
+    expect(resourceGap({ current: 20, target: 80, denominator: 0 }, "dosis").kind).toBe(
+      "no_denominator",
+    );
+    expect(resourceGap({ current: 20, target: 80, denominator: -5 }, "dosis").kind).toBe(
+      "no_denominator",
+    );
+  });
+
+  it("never renders 'faltan ~0' — a sub-1-unit gap is 'negligible', not a fake zero ask", () => {
+    // (80.4-80)/100 * 10 = 0.04 -> rounds to 0
+    const result = resourceGap({ current: 80, target: 80.4, denominator: 10 }, "dosis");
+    expect(result.kind).toBe("negligible");
+    expect(result.line).toBeNull();
   });
 });

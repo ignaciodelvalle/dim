@@ -41,7 +41,7 @@
 
 import { getScreenManifestEntry } from "@/lib/ui/screen-manifest";
 import { formatPercent } from "@/lib/utils/format";
-import { type ForecastTrendPoint, forecastToTarget } from "./forecast-to-target";
+import { type ForecastTrendPoint, forecastToTarget, resourceGap } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
 import { KPI_CATALOG, formatKpiTarget } from "./kpi-catalog";
 import { smallNGate, zeroDenominatorGate } from "./presentation-guards";
@@ -109,6 +109,14 @@ export type BriefingAlertEvidence = {
    * target never becomes an alert in the first place, see below).
    */
   forecastLine?: string;
+  /**
+   * PO-interview decision 2, item 2: the resource-gap line (lib/metrics/
+   * forecast-to-target.ts's resourceGap().line) — "faltan ~N dosis sobre el
+   * padrón registrado". Undefined whenever the descriptor has no
+   * `resourceUnit` (kpi-catalog.ts), or the engine itself has nothing honest
+   * to say (met/no-denominator/negligible) — never a fabricated line.
+   */
+  resourceLine?: string;
 };
 
 export type BriefingAlert = {
@@ -410,6 +418,17 @@ export function buildBriefingAlerts(
           }).line ?? undefined)
         : undefined;
 
+    // PO decision 2 item 2: "faltan ~N dosis" — only when the descriptor
+    // names a resourceUnit (kpi-catalog.ts), reusing candidate.n as the
+    // denominator — the SAME sample size the guards above already checked,
+    // never a second/different population figure.
+    const resourceLine = descriptor.resourceUnit
+      ? (resourceGap(
+          { current: candidate.value, target: descriptor.target.value, denominator: candidate.n },
+          descriptor.resourceUnit,
+        ).line ?? undefined)
+      : undefined;
+
     alerts.push({
       id: candidate.kpiId,
       title: buildTitle(descriptor, candidate.value),
@@ -420,6 +439,7 @@ export function buildBriefingAlerts(
         n: candidate.n,
         source: descriptor.target.source,
         forecastLine,
+        resourceLine,
       },
       severity,
       confidence,

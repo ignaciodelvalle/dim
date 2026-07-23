@@ -33,13 +33,18 @@ import {
   type ProvinceDataQualityRow,
   fetchProvinceDataQuality,
 } from "@/lib/analytics/territorial-data-quality";
-import {
-  type JurisdictionIndexRow,
-  computeJurisdictionIndex,
-} from "@/lib/analytics/territorial-index";
+import { computeJurisdictionIndex } from "@/lib/analytics/territorial-index";
 import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { TARGETS, buildProjectionContext, fetchCrossJurisdictionOutliers } from "@/lib/metrics";
+import {
+  NO_CENSUS_NOTE,
+  TARGETS,
+  buildProjectionContext,
+  fetchCrossJurisdictionOutliers,
+  formatImpactUnits,
+  totalImpactByJurisdiction,
+} from "@/lib/metrics";
+import { estimateDogPopulation, getCensusPopulationsCached } from "@/lib/metrics/census";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { formatDateShort } from "@/lib/utils/format";
@@ -111,7 +116,7 @@ const ACTION_LABELS: Record<PolicyOutcomeRow["action"], string> = {
 export default async function AdminInteligenciaPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams?: Promise<{ period?: string; from?: string; to?: string; ordenar?: string }>;
 }) {
   await requireAdminOrRedirect();
 
@@ -135,11 +140,14 @@ export default async function AdminInteligenciaPage({
     />
   );
 
+  // getCensusPopulationsCached is a process-lifetime cache (lib/metrics/
+  // census.ts) — ZERO new fan-out after the first render.
   const load = await loadWithTimeout(
     Promise.all([
       fetchCrossJurisdictionOutliers(ctx),
       fetchPolicyOutcomes(),
       fetchProvinceDataQuality(ctx),
+      getCensusPopulationsCached(),
     ]),
   );
 
@@ -155,8 +163,59 @@ export default async function AdminInteligenciaPage({
     );
   }
 
-  const [outlierRows, policyRows, quality] = load.value;
+  const [outlierRows, policyRows, quality, censusPopulations] = load.value;
   const indexRows = computeJurisdictionIndex(outlierRows);
+
+  // PO-interview decision 2, item 1 — same gap×población lens as /gob/programa
+  // + /admin/programa, applied to the territorial index's own composite: a
+  // second sort so "which province matters most" is answerable here too,
+  // without displacing the index's own score-based ranking as the default.
+  const impactTotals = totalImpactByJurisdiction(
+    outlierRows.map((row) => ({
+      ...row,
+      jurisdiction: row.province,
+      coverage: row.rate,
+      population: estimateDogPopulation(censusPopulations[row.province] ?? 0),
+    })),
+  );
+  const impactByProvince = new Map<string, number | null>(
+    impactTotals.map((t) => [t.jurisdiction, t.impact]),
+  );
+  // Map.get() already returns `undefined` for a province with no gap at all
+  // (never registered in impactTotals) — NEVER collapse that into the SAME
+  // `null` totalImpactByJurisdiction uses for "gap exists, no census row".
+  // Those are two different honest states (see the table's legend below).
+  const indexRowsWithImpact = indexRows.map((row) => ({
+    ...row,
+    impact: impactByProvince.get(row.province),
+  }));
+  const sortByImpact = sp.ordenar === "impacto";
+  // Impact-sorted view: known-impact rows desc, then unknown (no census/no
+  // gap) rows at the end, alphabetically — same guard posture as
+  // lib/metrics/impact-ranking.ts's rankByImpact, applied here to a list that
+  // ALREADY carries a score/rank from computeJurisdictionIndex (never
+  // recomputed, only re-ordered).
+  const displayIndexRows = sortByImpact
+    ? [...indexRowsWithImpact].sort((a, b) => {
+        if (a.impact === b.impact) return a.province.localeCompare(b.province, "es");
+        if (a.impact === undefined || a.impact === null) return 1;
+        if (b.impact === undefined || b.impact === null) return -1;
+        return b.impact - a.impact;
+      })
+    : indexRowsWithImpact;
+
+  // Preserves the active period filter across the sort toggle — switching
+  // "índice"/"impacto" must never silently reset the period the operator
+  // already picked.
+  function sortHref(mode: "indice" | "impacto"): string {
+    const params = new URLSearchParams();
+    if (sp.period) params.set("period", sp.period);
+    if (sp.from) params.set("from", sp.from);
+    if (sp.to) params.set("to", sp.to);
+    if (mode === "impacto") params.set("ordenar", "impacto");
+    const qs = params.toString();
+    return qs ? `/admin/inteligencia?${qs}` : "/admin/inteligencia";
+  }
 
   const nationalAvg =
     indexRows.length > 0
@@ -253,9 +312,39 @@ export default async function AdminInteligenciaPage({
 
       {/* 1. Índice territorial compuesto */}
       <OpCard aria-labelledby={panelIndexId}>
-        <OpCardHead title={<span id={panelIndexId}>Índice territorial compuesto</span>} />
+        <OpCardHead
+          title={<span id={panelIndexId}>Índice territorial compuesto</span>}
+          actions={
+            // PO-interview decision 2, item 1 — second sort: the composite
+            // score answers "¿cómo cumple esta jurisdicción sus metas?"; the
+            // impact sort answers "¿cuál mueve más el gap nacional si mejora?"
+            // — two different, both honest, questions over the SAME rows.
+            <span className="flex items-center gap-2 text-[var(--text-sm)] text-ln-op-mute">
+              Ordenar por
+              <a
+                href={sortHref("indice")}
+                aria-current={sortByImpact ? undefined : "true"}
+                className={
+                  sortByImpact ? "text-ln-op-azul hover:underline" : "font-semibold text-ln-op-ink"
+                }
+              >
+                índice
+              </a>
+              ·
+              <a
+                href={sortHref("impacto")}
+                aria-current={sortByImpact ? "true" : undefined}
+                className={
+                  sortByImpact ? "font-semibold text-ln-op-ink" : "text-ln-op-azul hover:underline"
+                }
+              >
+                impacto
+              </a>
+            </span>
+          }
+        />
         <OpCardBody>
-          {indexRows.length === 0 ? (
+          {displayIndexRows.length === 0 ? (
             <LnEmptyState
               icon="chart-line"
               title="Sin datos suficientes"
@@ -265,8 +354,8 @@ export default async function AdminInteligenciaPage({
             <div className="overflow-x-auto">
               <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
                 <caption className="sr-only">
-                  Ranking de provincias por índice compuesto de cumplimiento de metas, de mayor a
-                  menor.
+                  Ranking de provincias por {sortByImpact ? "impacto estimado" : "índice compuesto"}{" "}
+                  de cumplimiento de metas, de mayor a menor.
                 </caption>
                 <thead>
                   <tr className="border-b border-ln-op-line">
@@ -291,15 +380,20 @@ export default async function AdminInteligenciaPage({
                     <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
                       Esterilización
                     </th>
-                    <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
+                    <th scope="col" className="text-right py-2 pr-4 font-semibold text-ln-op-mute">
                       Chip
+                    </th>
+                    <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
+                      Impacto
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {indexRows.map((row: JurisdictionIndexRow) => (
+                  {displayIndexRows.map((row, i) => (
                     <tr key={row.province} className="border-b border-ln-op-line last:border-0">
-                      <td className="py-2 pr-2 tabular-nums text-ln-op-mute">{row.rank}</td>
+                      <td className="py-2 pr-2 tabular-nums text-ln-op-mute">
+                        {sortByImpact ? i + 1 : row.rank}
+                      </td>
                       <td className="py-2 pr-4">
                         {row.province}
                         {row.componentsUsed < 3 && (
@@ -323,14 +417,24 @@ export default async function AdminInteligenciaPage({
                           ? `${row.components.sterilization.rate}%`
                           : "—"}
                       </td>
-                      <td className="py-2 text-right tabular-nums">
+                      <td className="py-2 pr-4 text-right tabular-nums">
                         {row.components.microchip ? `${row.components.microchip.rate}%` : "—"}
+                      </td>
+                      <td className="py-2 text-right tabular-nums text-ln-op-mute">
+                        {row.impact === undefined
+                          ? "—"
+                          : row.impact === null
+                            ? NO_CENSUS_NOTE
+                            : `~${formatImpactUnits(row.impact)}`}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p className="mt-2 text-xs text-ln-op-mute">
+                Impacto = estimación de mascotas sin cobertura (gap × población canina estimada),
+                sumada entre las tres métricas de la provincia. «{NO_CENSUS_NOTE}» = sin fila de
+                censo INDEC para esa provincia; — = provincia sin brecha (cumple las tres metas).
                 Índice = promedio con pesos iguales del cumplimiento de metas: antirrábica (
                 {TARGETS.RABIES_COVERAGE_PCT}%), esterilización (
                 {TARGETS.STERILIZATION_COVERAGE_PCT}
