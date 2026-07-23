@@ -153,3 +153,15 @@ PO: validación visual GRANDE pendiente (Briefing + rail + hub + workqueue + tod
   PO: F4/F5 NO (Suscripciones y Mi actividad quedan en rail) · F9 mapas → fase 3.
 - PENDIENTE Ola IV: F6 (Disputas tab en Casos) + F8 (Población+Censo→Padrón) · PF1
   consolidación de queries (con harness de paridad) · forecast-a-meta.
+
+### OLA IV COMPLETA (2026-07-22) — EL PLAN MAESTRO ESTÁ EJECUTADO (Olas I-IV)
+- Privacy `8dc982d3` (FLAG legal: retención GPS indefinida sin declarar — PO/legal).
+- MPF cascade `bfdca443` (migración 0156 LOCAL).
+- Fusiones F1-F3+F6-F8: rail 27→19 (`b5f3607e`,`deb32f6e`,`a5f81c89`) + tab Triage `polish`.
+- Forecast-a-meta `b32409d6` (motor puro + guards; 1 KPI honesto calificado, 8 documentados).
+- PF1 `9bb9a566` (5 merges parity-proven, 3 rechazados por semántica, timing honesto).
+FASE 3 (futuro): F9 mapas · absorciones restantes si PO quiere <19 · trend fetchers para
+los 8 forecasts pendientes · fetchKpiTrend/microchip merges · read models materializados
+(necesita Vercel Pro).
+PO-gated acumulado: migraciones 0155+0156 remoto · flag legal GPS · Pro · validación
+visual GRANDE (rail 19 + hubs + Briefing + forecast + todo I-IV) · push/cutover #760.
