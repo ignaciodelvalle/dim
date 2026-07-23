@@ -1437,9 +1437,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       value: 100,
       source: "Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA — plazo legal según jurisdicción",
       // 100% IS "never missed the legal deadline" — the ordinance/decree sets
-      // the 10-day window itself, so the number and the law are the same fact.
-      // (The exact window is resolved per-jurisdiction via resolveBusinessRule;
-      // that's an implementation detail, not operator-facing copy.)
+      // the 10-day window itself (resolved per-jurisdiction via
+      // resolveBusinessRule — an implementation detail, never operator copy).
       sourceKind: "statutory-obligation",
     },
     semaphore: { paintAgainst: "target" },

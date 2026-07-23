@@ -48,6 +48,7 @@ import {
   riskLabel,
 } from "@/src/modules/panorama/domain/bivariate";
 
+import { AllSuppressedNoticeCard } from "@/components/panorama/all-suppressed-notice";
 import {
   type DivisionLevel,
   divisionFillColorExpr,
@@ -2776,13 +2777,8 @@ export function SituationalMap({
   // Province choropleth layers ARE visible on the map even when renderableCount
   // is 0, so the "Sin datos" overlay must be suppressed when this is true.
   const hasProvChoro = hasProvinceChoroplethLayer(layers);
-  // The centered empty-state overlay's visibility, named once — the corner
-  // all-suppressed notice (visual review 2026-07-23 #1) must never stack on it:
-  // when every suppressed cell is OMITTED from the payload the map is truly
-  // markless and the centered overlay already states the k-anon treatment; the
-  // corner card covers the OTHER convention (cells shipped flagged+hatched,
-  // renderableCount > 0, centered overlay suppressed → previously no notice at
-  // all, the "100% grey map" finding).
+  // Named once: the AllSuppressedNoticeCard (visual review 2026-07-23 #1) must
+  // never stack on the centered overlay — see all-suppressed-notice.tsx.
   const centeredOverlayVisible = renderableCount === 0 && !hasProvChoro && divisionLegend === null;
 
   // ARCHETYPE A: the map's scale legends (province ramp, division fill, graduated
@@ -3321,21 +3317,8 @@ export function SituationalMap({
             </p>
           </div>
         )}
-        {/* Visual review 2026-07-23 (#1): TOTAL-suppression corner notice. When
-            every plotted unit is k-anon suppressed the canvas is 100% hatch/grey
-            and only a floating hover tooltip explained why — anchored bottom-
-            right (bottom-left belongs to the console's LegendPill, top corners
-            to the control clusters; the CabaInset docks top-right ABOVE this).
-            Same card family as the on-canvas controls. pointer-events-none: the
-            geography (hover/click on hatched cells) stays reachable under it. */}
-        {allSuppressedNotice !== null && !centeredOverlayVisible && (
-          <p
-            role="note"
-            className="pointer-events-none absolute bottom-3.5 right-3.5 z-10 max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-xs leading-snug text-ln-op-ink-2 shadow-md"
-          >
-            {allSuppressedNotice}
-          </p>
-        )}
+        {/* Visual review 2026-07-23 (#1) — see all-suppressed-notice.tsx. */}
+        <AllSuppressedNoticeCard notice={allSuppressedNotice} hidden={centeredOverlayVisible} />
         {/* task #39 hardening — basemap fetch failed: an HONEST error state with a
             retry, NEVER a silent blank canvas. Opaque so the operator can't mistake
             it for an empty (but working) map. */}

@@ -149,6 +149,46 @@ export function legendRampTitle(input: {
   return input.captionLabel ?? "Eventos por unidad";
 }
 
+/**
+ * Round-3 QA fix 6: low/high endpoint labels flanking the collapsed ramp, so
+ * "what does dark mean" is answerable WITHOUT opening the pill (LegendPill.tsx
+ * collapsed strip). Sequential: the classed domain's low/high breaks. Meta
+ * (rate + compliance target): the target IS the anchor that makes the color
+ * meaningful, so the high end names it explicitly ("70% meta") instead of a
+ * bare quantile threshold. Mirrors legendRampColors' source precedence
+ * (caption layer's own province ramp, else the drilled division ramp).
+ * Extracted from PanoramaConsole (fase-3 split discipline) — pure, structural
+ * inputs so this module stays free of the console's type graph.
+ */
+export function legendRampEndpointLabels(input: {
+  bivariateActive: boolean;
+  captionLayer: { dataType: string; complianceTarget?: number } | null;
+  /** The lifted classed breaks the caption layer's province fill paints, or null. */
+  liftedBreaks: readonly number[] | null;
+  divisionLegend: { hasRamp: boolean; min: number; max: number } | null;
+}): { min: string; max: string } | null {
+  const { bivariateActive, captionLayer, liftedBreaks, divisionLegend } = input;
+  if (bivariateActive) return null;
+  if (captionLayer && liftedBreaks) {
+    if (liftedBreaks.length === 0) return null;
+    const isMeta =
+      captionLayer.dataType === "rate" && typeof captionLayer.complianceTarget === "number";
+    const unit = captionLayer.dataType === "rate" ? "%" : "";
+    const lo = Math.round(liftedBreaks[0]);
+    const hi = isMeta
+      ? Math.round(captionLayer.complianceTarget as number)
+      : Math.round(liftedBreaks[liftedBreaks.length - 1]);
+    return { min: `${lo}${unit}`, max: isMeta ? `${hi}${unit} meta` : `${hi}${unit}` };
+  }
+  if (divisionLegend?.hasRamp) {
+    return {
+      min: Math.round(divisionLegend.min).toLocaleString("es-AR"),
+      max: Math.round(divisionLegend.max).toLocaleString("es-AR"),
+    };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Filtro counter semantics (item 3).
 // ---------------------------------------------------------------------------

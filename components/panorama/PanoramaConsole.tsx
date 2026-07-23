@@ -62,6 +62,7 @@ import type {
 } from "@/components/panorama/SituationalMap";
 import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynamic";
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
+import { buildAllSuppressedNotice } from "@/components/panorama/all-suppressed-notice";
 import { coalescedGet } from "@/components/panorama/coalesced-get";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
@@ -71,6 +72,7 @@ import {
   countFiltroModifiers,
   describeCapasMeta,
   filtroBadgeAriaLabel,
+  legendRampEndpointLabels,
   legendRampTitle,
 } from "@/components/panorama/panorama-labels";
 import {
@@ -127,10 +129,7 @@ import {
   isProvinceOnlyChoropleth,
   isTemporalLayer,
 } from "@/src/modules/panorama/domain/layers";
-import {
-  KPI_RELATED_LAYERS,
-  partitionKpiIdsByRelevance,
-} from "@/src/modules/panorama/domain/metric-relevance";
+import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
 import {
   censusMetaOf,
   isPercapitaEligible,
@@ -3368,33 +3367,11 @@ export function PanoramaConsole({
     [rankingLayer, activeLayers],
   );
 
-  // Visual review 2026-07-23 (#1): the TOTAL-suppression in-map notice. When the
-  // base layer HAS data in scope but EVERY plotted unit is k-anon suppressed,
-  // the canvas is 100% hatch/grey and the only explanation was an unanchored
-  // hover tooltip — operators read it as a broken map. Compose an anchored
-  // corner-card notice: the privacy treatment + the scope AGGREGATE, sourced
-  // from the layer's own headline KPI (KPI_RELATED_LAYERS is the same subject
-  // mapping the relevance gate uses). The KPI value is already rendered in the
-  // metrics column, so this discloses nothing new and issues no query. Null
-  // (card hidden) whenever at least one unit paints a real value — the map
-  // explains itself then. Covers BOTH suppression conventions: layers whose
-  // server envelope OMITS suppressed cells (features empty, suppressedCount
-  // discloses them) and layers that ship them flagged `suppressed: true`
-  // (every plotted feature hatched) — `every` is vacuously true on [].
-  const allSuppressedNotice = useMemo(() => {
-    if (captionLayer === null) return null;
-    const st = states[captionLayer.id];
-    if (!st?.active || st.loading || st.suppressedCount === 0) return null;
-    const live = activeLayers.find((l) => l.id === captionLayer.id);
-    if (!live) return null;
-    const allHidden = live.features.features.every(
-      (f) => (f.properties as { suppressed?: boolean } | null)?.suppressed === true,
-    );
-    if (!allHidden) return null;
-    const kpi = kpis.kpis.find((k) => KPI_RELATED_LAYERS[k.id]?.includes(captionLayer.id));
-    const aggregate = kpi ? ` — ${kpi.label}: ${kpi.value} en el total del alcance` : "";
-    return `Detalle por localidad protegido por privacidad (k<5)${aggregate}.`;
-  }, [captionLayer, states, activeLayers, kpis]);
+  // Visual review 2026-07-23 (#1) — full story in all-suppressed-notice.tsx.
+  const allSuppressedNotice = useMemo(
+    () => buildAllSuppressedNotice({ captionLayer, states, activeLayers, kpis: kpis.kpis }),
+    [captionLayer, states, activeLayers, kpis],
+  );
 
   // Coherence with Registros (P1.1 / C2): a rate layer at LOCALITY grain returns
   // per-unit COUNTS, not percentages (repository "V1 LIMITATION") — MapDataTable
@@ -3503,10 +3480,8 @@ export function PanoramaConsole({
         ? "Provincia seleccionada"
         : "Nacional";
     const days = Math.max(1, Math.round((until.getTime() - since.getTime()) / 86_400_000));
-    // Visual review 2026-07-23 (#14): a year preset used to read "últimos 1095
-    // días" here while explainViewState's PERIOD_PHRASE said "últimos 3 años"
-    // for the SAME window — humanize year-shaped day counts (shared helper,
-    // same one captionFor's window phrase uses).
+    // #14 (2026-07-23): humanize year-shaped day counts ("últimos 3 años", not
+    // "últimos 1095 días") — same helper captionFor's window phrase uses.
     const periodLabel = periodDaysPhrase(days);
     const suppressedCount = PANORAMA_LAYERS.reduce(
       (sum, l) => sum + (states[l.id]?.active ? (states[l.id]?.suppressedCount ?? 0) : 0),
@@ -4244,34 +4219,17 @@ export function PanoramaConsole({
     [activeLayers],
   );
 
-  // Round-3 QA fix 6: low/high endpoint labels flanking the collapsed ramp, so
-  // "what does dark mean" is answerable WITHOUT opening the pill
-  // (LegendPill.tsx collapsed strip). Sequential: the classed domain's low/high
-  // breaks. Meta (rate + compliance target): the target IS the anchor that
-  // makes the color meaningful, so the high end names it explicitly
-  // ("70% meta") instead of a bare quantile threshold.
-  const legendRampEndpoints = useMemo<{ min: string; max: string } | null>(() => {
-    if (bivariateActive) return null;
-    if (captionLayer && provinceSeqLegend[captionLayer.id]) {
-      const { breaks } = provinceSeqLegend[captionLayer.id];
-      if (breaks.length === 0) return null;
-      const isMeta =
-        captionLayer.dataType === "rate" && typeof captionLayer.complianceTarget === "number";
-      const unit = captionLayer.dataType === "rate" ? "%" : "";
-      const lo = Math.round(breaks[0]);
-      const hi = isMeta
-        ? Math.round(captionLayer.complianceTarget as number)
-        : Math.round(breaks[breaks.length - 1]);
-      return { min: `${lo}${unit}`, max: isMeta ? `${hi}${unit} meta` : `${hi}${unit}` };
-    }
-    if (divisionLegend?.hasRamp) {
-      return {
-        min: Math.round(divisionLegend.min).toLocaleString("es-AR"),
-        max: Math.round(divisionLegend.max).toLocaleString("es-AR"),
-      };
-    }
-    return null;
-  }, [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive]);
+  // Round-3 QA fix 6 — collapsed-ramp endpoint labels (panorama-labels.ts).
+  const legendRampEndpoints = useMemo(
+    () =>
+      legendRampEndpointLabels({
+        bivariateActive,
+        captionLayer,
+        liftedBreaks: captionLayer ? (provinceSeqLegend[captionLayer.id]?.breaks ?? null) : null,
+        divisionLegend,
+      }),
+    [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive],
+  );
 
   // A2 (cowork demo 2026-07-17): the pill TITLE must name the layer that painted
   // the ramp above, NOT `captionLayer` (the first active non-reference layer =
@@ -4385,14 +4343,10 @@ export function PanoramaConsole({
       title: "Per cápita se calcula por provincia",
     });
   }
-  // Department-grain per-cápita stays PHASE 2 (needs an INDEC department-
-  // population import — see percapita.ts). It USED to render here as a disabled
-  // "Per cápita por departamento (en desarrollo)" roadmap option, but a visibly
-  // unfinished control shipped to operators reads as broken product, not
-  // roadmap (visual review 2026-07-23, #14 — same call as retiring the
-  // "Informe de situación (en desarrollo)" stub). The option is HIDDEN until
-  // the census import lands; the percapita drill-fallback note above already
-  // names the missing prerequisite when the operator drills below province.
+  // Department-grain per-cápita stays PHASE 2 (INDEC census import pending —
+  // see percapita.ts). Its disabled "(en desarrollo)" roadmap option is HIDDEN
+  // (#14, 2026-07-23): a visibly unfinished control reads as broken product;
+  // the percapita drill-fallback note above already names the prerequisite.
   // The ACTIVE segment mirrors what the MAP paints: "auto" when the operator
   // hasn't selected an encoding; the encoding id while it actually renders; and
   // NO segment while the selection is suspended (mode on, mid-scrub/degenerate/
