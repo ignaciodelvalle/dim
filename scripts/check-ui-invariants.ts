@@ -298,12 +298,39 @@ export const ENGLISH_UI_WORDS: Array<{ word: string; suggestion: string; re: Reg
   { word: "high", suggestion: "Alta (severidad)", re: /\bhigh\b/gi },
   { word: "low", suggestion: "Baja (severidad)", re: /\blow\b/gi },
   { word: "critical", suggestion: "Crítica (severidad)", re: /\bcritical\b/gi },
+  // validacion-A 2026-07-23: "foster" and "dormant" leaked into rendered
+  // Spanish copy as English parentheticals/adjectives ("En tránsito
+  // (foster)", "mascotas dormant") across adopciones + censo. Neither word was
+  // denylisted — added here for the JSX-text-child / bare-expression shapes
+  // Rule 4 already covers. NOTE: the specific leaks found were `label:`/`sub=`
+  // string VALUES (an object-literal property or a custom JSX attribute), a
+  // shape Rule 4's looksLikeJsxTextCI does not scan at all (by design — it
+  // only matches `>text<` children and `{"literal"}` expression children, to
+  // avoid false-flagging identifiers/hrefs/classNames). Adding
+  // lib/metrics/kpi-catalog.ts to REGISTRY_LABEL_FILES below closes the gap
+  // for ITS `label:` values (arm B scans by key, not by JSX shape); the same
+  // gap for arbitrary custom JSX attributes (`sub=`, `label=` as a prop on a
+  // component) across app/components is NOT covered by any rule yet — a
+  // wordlist entry alone cannot catch it. Flagged as a follow-up, not solved
+  // by this change.
+  { word: "foster", suggestion: "tránsito / hogar de tránsito", re: /\bfoster\b/gi },
+  { word: "dormant", suggestion: "inactiva/s", re: /\bdormant\b/gi },
 ];
 
 // Curated registries whose LABELS are English-checked as string values (arm B).
 // operator-breadcrumbs is lib/ (outside STANDARD_FILES) and nav-presets stores
 // its labels as object values (not JSX text), so both need the value-side scan.
-const REGISTRY_LABEL_FILES = ["lib/ui/operator-breadcrumbs.ts", "components/layout/nav-presets.ts"];
+const REGISTRY_LABEL_FILES = [
+  "lib/ui/operator-breadcrumbs.ts",
+  "components/layout/nav-presets.ts",
+  // validacion-A 2026-07-23: kpi-catalog is lib/ (outside STANDARD_FILES) and
+  // its ~70 `label:` values are read into JSX via `{KPI_CATALOG.x.label}`
+  // (an identifier expression Rule 4 never resolves) — the exact shape that
+  // let "En tránsito (foster)" ship undetected. Same rationale as the other
+  // two entries: scan the label VALUE directly instead of relying on Rule 4
+  // catching it at the render site.
+  "lib/metrics/kpi-catalog.ts",
+];
 
 // Lines that should be excluded from English-word rule matching
 // (same exclusion strategy as the screaming enum rule).

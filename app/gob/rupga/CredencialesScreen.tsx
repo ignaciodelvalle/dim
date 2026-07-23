@@ -37,6 +37,7 @@ import {
   OpPill,
   SearchFilterField,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
   type ServiceDogCredentialStatusFilter,
   searchServiceDogCredentials,
@@ -67,9 +68,17 @@ const STATUS_PILL: Record<string, { label: string; tone: PillTone }> = {
 
 export type CredencialesScreenProps = {
   searchParams: { q?: string; status?: string };
+  /**
+   * True when rendered as the Directorio hub's "Credenciales" tab
+   * (app/gob/directorio/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function CredencialesScreen({ searchParams: sp }: CredencialesScreenProps) {
+export async function CredencialesScreen({
+  searchParams: sp,
+  underHub = false,
+}: CredencialesScreenProps) {
   const query = (sp.q ?? "").trim();
   const statusFilter = parseCredentialStatus(sp.status);
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -81,24 +90,26 @@ export async function CredencialesScreen({ searchParams: sp }: CredencialesScree
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          miMAR Gobierno · Credenciales RUPGA
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Credenciales RUPGA
-        </h1>
-        {/* C2 glossary primitive (lib/ui/operator-vocabulary.ts) — first-use
-            expansion + one-line purpose, so RUPGA is never assumed knowledge
-            for a first-time operator (S2 "RUPGA sin expandir"). */}
-        <p className="text-[var(--text-sm)] text-ln-op-mute">{expandAcronym("RUPGA")}</p>
-        <p className="text-[var(--text-sm)] text-ln-op-ink-2">{acronymPurpose("RUPGA")}</p>
-        <p className="text-[var(--text-sm)] text-ln-op-ink-2">
-          {profile.role === "admin"
-            ? "Buscá por nombre de la mascota, token o número RUPGA. Tu vista es universal."
-            : `Credenciales en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        eyebrow="miMAR Gobierno · Credenciales RUPGA"
+        title="Credenciales RUPGA"
+        subtitle={
+          <>
+            {/* C2 glossary primitive (lib/ui/operator-vocabulary.ts) — first-use
+                expansion + one-line purpose, so RUPGA is never assumed knowledge
+                for a first-time operator (S2 "RUPGA sin expandir"). Kept even
+                underHub — none of this repeats the "Credenciales" tab label. */}
+            <p className="text-[var(--text-sm)] text-ln-op-mute">{expandAcronym("RUPGA")}</p>
+            <p className="text-[var(--text-sm)] text-ln-op-ink-2">{acronymPurpose("RUPGA")}</p>
+            <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+              {profile.role === "admin"
+                ? "Buscá por nombre de la mascota, token o número RUPGA. Tu vista es universal."
+                : `Credenciales en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
+            </p>
+          </>
+        }
+      />
 
       {/* Unified filter bar (opfilterbar-sweep2-2026-07-21 item 5b) — migrated
           off the bespoke GET <form>. Estado stays on UrlTabs (unchanged): its
@@ -114,7 +125,7 @@ export async function CredencialesScreen({ searchParams: sp }: CredencialesScree
           paramKey="q"
           value={query}
           label="Buscar"
-          placeholder="Buscar por nombre de la mascota, token o número RUPGA"
+          placeholder="Buscar por nombre, token o RUPGA"
         />
       </OpFilterBar>
 

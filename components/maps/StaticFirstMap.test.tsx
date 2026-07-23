@@ -18,6 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mapOptionsSeen: Record<string, unknown>[] = [];
 const markerCalls: Array<{ options: Record<string, unknown>; lngLat: unknown }> = [];
 
+const controlsAdded: Array<{ control: unknown; position: unknown }> = [];
+
 class FakeMap {
   options: Record<string, unknown>;
   constructor(options: Record<string, unknown>) {
@@ -25,6 +27,18 @@ class FakeMap {
     mapOptionsSeen.push(options);
   }
   remove() {}
+  addControl(control: unknown, position: unknown) {
+    controlsAdded.push({ control, position });
+  }
+}
+
+// zoom-out fix (validacion-A 2026-07-23): the component now adds a
+// NavigationControl so the fake maplibre-gl module needs one too.
+class FakeNavigationControl {
+  options: Record<string, unknown>;
+  constructor(options: Record<string, unknown>) {
+    this.options = options;
+  }
 }
 
 class FakeMarker {
@@ -44,7 +58,7 @@ class FakeMarker {
 }
 
 vi.mock("maplibre-gl", () => ({
-  default: { Map: FakeMap, Marker: FakeMarker },
+  default: { Map: FakeMap, Marker: FakeMarker, NavigationControl: FakeNavigationControl },
 }));
 
 vi.mock("maplibre-gl/dist/maplibre-gl.css", () => ({}));
@@ -54,6 +68,7 @@ import { StaticFirstMap } from "./StaticFirstMap";
 beforeEach(() => {
   mapOptionsSeen.length = 0;
   markerCalls.length = 0;
+  controlsAdded.length = 0;
 });
 
 afterEach(() => {
@@ -97,6 +112,19 @@ describe("<StaticFirstMap> — static-first embed", () => {
     // rendered in its place.
     expect(screen.queryByText("Activar mapa interactivo")).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Mapa interactivo de Plaza Italia/)).toBeInTheDocument();
+  });
+
+  it("adds a NavigationControl so the viewer has an explicit zoom-out affordance (PO fix, validacion-A 2026-07-23)", async () => {
+    render(<StaticFirstMap lat={-34.6} lng={-58.4} />);
+
+    fireEvent.click(screen.getByText("Activar mapa interactivo"));
+
+    await waitFor(() => expect(controlsAdded).toHaveLength(1));
+    expect(controlsAdded[0]?.control).toBeInstanceOf(FakeNavigationControl);
+    expect((controlsAdded[0]?.control as FakeNavigationControl).options).toMatchObject({
+      showCompass: false,
+    });
+    expect(controlsAdded[0]?.position).toBe("top-right");
   });
 
   it("removes the map on unmount after activation", async () => {

@@ -61,7 +61,9 @@ export default async function AdminPadronPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           ¿Crece sano el padrón y contenemos la población?
         </h1>
-        <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+        {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
+            see app/gob/padron/page.tsx for the full rationale. */}
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Vista nacional. Población (cobertura de esterilización vs. meta) y Censo (crecimiento y
           calidad del registro) leen el mismo padrón desde dos preguntas distintas.
         </p>
@@ -77,8 +79,10 @@ export default async function AdminPadronPage({
         >
           <UrlTabsContent value={vista}>
             {vista === "censo" ? (
-              <AdminCensoScreen searchParams={sp} />
+              <AdminCensoScreen searchParams={sp} underHub />
             ) : (
+              // AdminPoblacionScreen's own h1 ("Control poblacional") does NOT
+              // repeat the "Población" tab label — no underHub needed here.
               <AdminPoblacionScreen searchParams={sp} />
             )}
           </UrlTabsContent>

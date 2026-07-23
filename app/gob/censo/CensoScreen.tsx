@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { toChoroplethData } from "@/lib/analytics/choropleth-data";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -69,9 +70,16 @@ export type CensoScreenProps = {
     locality?: string;
     species?: string;
   };
+  /**
+   * True when rendered as the Padrón hub's "Censo" tab (app/gob/padron/page.tsx)
+   * — the hub's own h1 + the active tab already name this screen, so its own
+   * eyebrow+h1 are suppressed (ScreenHeader keeps only the subtitle, which adds
+   * scope info the tab label doesn't carry). See components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function CensoScreen({ searchParams: sp }: CensoScreenProps) {
+export async function CensoScreen({ searchParams: sp, underHub = false }: CensoScreenProps) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role } as const;
 
@@ -128,19 +136,19 @@ export async function CensoScreen({ searchParams: sp }: CensoScreenProps) {
 
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Registro · Censo poblacional
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-        Censo y salud del registro
-      </h1>
-      <p className="text-[13px] text-ln-op-mute">
-        {profile.role === "admin"
-          ? "Vista universal — todas las jurisdicciones."
-          : "Crecimiento del padrón, mascotas dormant y calidad de identificación en tu cobertura."}
-      </p>
-    </header>
+    <ScreenHeader
+      underHub={underHub}
+      className="space-y-2"
+      eyebrow="Registro · Censo poblacional"
+      title="Censo y salud del registro"
+      subtitle={
+        <p className="text-[13px] text-ln-op-mute">
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Crecimiento del padrón, mascotas inactivas y calidad de identificación en tu cobertura."}
+        </p>
+      }
+    />
   );
   // Unified filter bar — jurisdiction + period, with "Exportar CSV" rendered
   // via the bar's `actions` slot (header row) instead of floating beside it.
@@ -266,7 +274,7 @@ export async function CensoScreen({ searchParams: sp }: CensoScreenProps) {
             hasData && dormantPct > 40 ? "danger" : hasData && dormantPct > 20 ? "warn" : undefined
           }
           info={{
-            definition: `Mascotas activas/extraviadas sin ningún evento de actividad del propietario en los últimos ${TARGETS.DORMANT_MONTHS} meses. Mascotas sin ningún evento registrado también cuentan como dormant.`,
+            definition: `Mascotas activas/extraviadas sin ningún evento de actividad del propietario en los últimos ${TARGETS.DORMANT_MONTHS} meses. Mascotas sin ningún evento registrado también cuentan como inactivas.`,
             formula: `NOT EXISTS (pet_events WHERE event_type <> 'credential_scanned' AND occurred_at >= now - ${TARGETS.DORMANT_MONTHS}m)`,
             caveat:
               "Los eventos credential_scanned se excluyen porque se purgan automáticamente a los 90 días y no representan actividad del propietario.",

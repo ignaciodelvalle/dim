@@ -238,7 +238,7 @@ export default async function GobAdopcionesPage({
               ? fosterPool.activeFosterPlacements.toLocaleString("es-AR")
               : "—"
           }
-          sub="colocaciones foster activas en la cobertura"
+          sub="colocaciones en tránsito activas en la cobertura"
           info={{
             definition: "Ownerships.role = 'foster' con ended_at IS NULL en el scope.",
             formula: "COUNT(ownerships) WHERE role='foster' AND ended_at IS NULL AND scope",
@@ -326,7 +326,7 @@ export default async function GobAdopcionesPage({
                 {/* Stage 2: Foster */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Asignados a tránsito (foster): ${funnel.foster.toLocaleString("es-AR")}`}
+                  aria-label={`Asignados a tránsito: ${funnel.foster.toLocaleString("es-AR")}`}
                 >
                   <span className="w-48 shrink-0 text-[var(--text-md)] text-ln-op-ink">
                     Asignados a tránsito
@@ -505,7 +505,7 @@ export default async function GobAdopcionesPage({
                 <tbody>
                   {[
                     { key: "shelter_custody", label: "Custodia en refugio" },
-                    { key: "foster", label: "Tránsito (foster)" },
+                    { key: "foster", label: "Tránsito" },
                   ].map(({ key, label }) => {
                     const row = timeInState.find((r) => r.role === key);
                     if (!row) return null;

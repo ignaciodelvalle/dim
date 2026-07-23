@@ -103,6 +103,18 @@ export function StaticFirstMap({
         attributionControl: { compact: true },
       });
       new ml.Marker({ color: "#dc2626" }).setLngLat([lng, lat]).addTo(map);
+      // PO fix (validacion-A 2026-07-23, "no me deja hacer zoom out" on the
+      // case-detail location embed): `interactive: true` already enables
+      // scrollZoom/doubleClickZoom/touchZoomRotate at the MapLibre level, but
+      // with NO visible control the only zoom-OUT gestures are Ctrl+scroll or
+      // a touch pinch — cooperativeGestures (kept, so a page-scroll over the
+      // map isn't hijacked) makes even that first gesture non-obvious, and
+      // double-click/box-zoom only ever zoom IN. An explicit +/- control gives
+      // every viewer (mouse-only included) a discoverable way to zoom out.
+      // This is a point-detail embed (case/lost-pet/refugio location), never
+      // the dashboard choropleth family (components/charts/MapChoropleth.tsx)
+      // — that lockdown (no pan, no zoom, no controls) is untouched.
+      map.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
     })();
 
     return () => {

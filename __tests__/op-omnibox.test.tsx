@@ -89,7 +89,7 @@ describe("<OpOmnibox> — empty state", () => {
     expect(html).toContain('role="combobox"');
     expect(html).toContain('aria-autocomplete="list"');
     expect(html).toContain('aria-label="Búsqueda global"');
-    expect(html).toContain("Buscar mascota, nombre, DNI o caso…");
+    expect(html).toContain("Mascota, nombre, DNI o caso…");
   });
 
   it("shows the / keyboard shortcut hint when empty", () => {

@@ -112,6 +112,23 @@ export function isDeclaredBivariatePair(a: LayerId, b: LayerId): boolean {
   );
 }
 
+/**
+ * Plain-language caption for the bivariate encoding — the Informe caption and the
+ * LegendPill expanded description both read THIS, so neither hardcodes a specific
+ * pair's axis names. PO fix (validacion-A 2026-07-23): both call sites used to spell
+ * out "cobertura antirrábica × señales de zoonosis" unconditionally, which named the
+ * zoonosis pair's vocabulary even while the ppp × mordeduras pair was the one active —
+ * the reference then lied about what the matrix actually crossed. Building the
+ * sentence from the ACTIVE pair's own declared axis/risk-corner copy keeps it honest
+ * for every declared pair, present and future.
+ */
+export function bivariateCaptionText(pair: BivariatePair | null): string {
+  const coverage = (pair?.coverageAxis ?? "Cobertura →").replace(" →", "").toLowerCase();
+  const signal = (pair?.signalAxis ?? "Señales ↑").replace(" ↑", "").toLowerCase();
+  const risk = pair?.riskCornerNote ?? "Intensidad alta: cobertura baja · señales altas";
+  return `Intensidad combinada por provincia: ${coverage} (terciles) × ${signal} (terciles). ${risk}.`;
+}
+
 // ---------------------------------------------------------------------------
 // Terciles
 // ---------------------------------------------------------------------------

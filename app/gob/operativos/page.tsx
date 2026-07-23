@@ -59,7 +59,9 @@ export default async function GobOperativosPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           ¿Dónde y cómo intervengo esta semana?
         </h1>
-        <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+        {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
+            see app/gob/padron/page.tsx for the full rationale. */}
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Alcance comunitario convierte un indicador en una lista objetivo para actuar ahora;
           Campañas muestra cómo están rindiendo los operativos ya lanzados.
         </p>
@@ -73,7 +75,11 @@ export default async function GobOperativosPage({
           aria-label="Vista de operativos"
         >
           <UrlTabsContent value={vista}>
-            {vista === "campanas" ? <CampanasScreen searchParams={sp} /> : <AlcanceScreen />}
+            {vista === "campanas" ? (
+              <CampanasScreen searchParams={sp} underHub />
+            ) : (
+              <AlcanceScreen underHub />
+            )}
           </UrlTabsContent>
         </UrlTabs>
       </Suspense>

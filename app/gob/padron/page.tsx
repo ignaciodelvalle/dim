@@ -67,7 +67,15 @@ export default async function GobPadronPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           ¿Crece sano el padrón y contenemos la población?
         </h1>
-        <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+        {/* PO fix (validacion-A 2026-07-23, systemic across every hub header):
+            max-w-prose (65ch) forced this onto 2-3 lines even on a desktop
+            wide enough for one — the hub's header row has no reason to cap
+            narrower than prose reading width intends. Dropping the cap lets
+            it use the actual available width (one line on desktop, natural
+            wrap on narrow viewports); same change applied to every other hub
+            header below (casos/directorio/denuncias/operativos + the admin
+            padron twin). */}
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Población (cobertura de esterilización vs. meta) y Censo (crecimiento y calidad del
           registro) leen el mismo padrón desde dos preguntas distintas. Elegí la vista en la que
           querés trabajar ahora.
@@ -84,8 +92,10 @@ export default async function GobPadronPage({
         >
           <UrlTabsContent value={vista}>
             {vista === "censo" ? (
-              <CensoScreen searchParams={sp} />
+              <CensoScreen searchParams={sp} underHub />
             ) : (
+              // PoblacionScreen's own h1 ("Control poblacional") does NOT
+              // repeat the "Población" tab label — no underHub needed here.
               <PoblacionScreen searchParams={sp} />
             )}
           </UrlTabsContent>

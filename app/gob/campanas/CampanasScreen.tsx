@@ -29,6 +29,7 @@ import {
   OpKpi,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchCampaignDashboard, formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -56,9 +57,14 @@ export type CampanasScreenProps = {
     locality?: string;
     kind?: string;
   };
+  /**
+   * True when rendered as the Operativos hub's "Campañas" tab
+   * (app/gob/operativos/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function CampanasScreen({ searchParams: sp }: CampanasScreenProps) {
+export async function CampanasScreen({ searchParams: sp, underHub = false }: CampanasScreenProps) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
 
@@ -69,14 +75,13 @@ export async function CampanasScreen({ searchParams: sp }: CampanasScreenProps) 
   if (!hasCampaignsRead) {
     return (
       <div className="space-y-4">
-        <header className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            miMAR Gobierno · Campañas
-          </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Performance de campañas
-          </h1>
-        </header>
+        <ScreenHeader
+          underHub={underHub}
+          eyebrow="miMAR Gobierno · Campañas"
+          // English-copy sweep (validacion-A 2026-07-23, item 5 follow-on):
+          // "Performance" → "Rendimiento" — es-AR invariant (AGENTS.md #4).
+          title="Rendimiento de campañas"
+        />
         <LnEmptyState
           icon="lock"
           title="Sin acceso"
@@ -159,17 +164,19 @@ export async function CampanasScreen({ searchParams: sp }: CampanasScreenProps) 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Campañas</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Performance de campañas
-        </h1>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        className="space-y-2"
+        eyebrow="Campañas"
+        title="Rendimiento de campañas"
+        subtitle={
+          <p className="text-[var(--text-md)] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas sanitarias en tu cobertura."}
+          </p>
+        }
+      />
 
       {/* Unified filter bar — jurisdiction + period, with "Exportar CSV"
           rendered via the bar's `actions` slot (header row) instead of

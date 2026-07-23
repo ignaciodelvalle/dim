@@ -253,8 +253,16 @@ export function OpOmnibox({
           setTimeout(() => setOpen(false), 150);
         }}
         onKeyDown={onInputKeyDown}
-        placeholder={orgToken ? "Buscar mascota…" : "Buscar mascota, nombre, DNI o caso…"}
-        className="w-48 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-64 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-56 md:focus:w-72 transition-[width]"
+        // PO fix (validacion-A 2026-07-23): the old placeholder ("Buscar
+        // mascota, nombre, DNI o caso…", 36 chars) truncated inside the
+        // collapsed w-48/md:w-56 input — the affordance describing what's
+        // searchable was unreadable at rest. Dropping the redundant "Buscar"
+        // verb (the search icon + aria-label already say "this is search")
+        // shortens it to 29 chars without losing any of the four enumerated
+        // categories, and the box widened (w-64/md:w-72, growing further on
+        // focus) so it reads complete without needing to focus first.
+        placeholder={orgToken ? "Mascota…" : "Mascota, nombre, DNI o caso…"}
+        className="w-64 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-72 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-72 md:focus:w-80 transition-[width]"
       />
 
       {/* Keyboard shortcut hint — only when empty + unfocused-ish (always shown

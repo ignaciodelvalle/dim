@@ -43,6 +43,7 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, welfareReports } from "@/db";
 import {
   type ModerationQueueStatus,
@@ -95,9 +96,17 @@ export type ModeracionQueueScreenProps = {
     severity?: string;
     cursor?: string;
   };
+  /**
+   * True when rendered as the Denuncias hub's "Moderación" tab
+   * (app/gob/denuncias/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function ModeracionQueueScreen({ searchParams: sp }: ModeracionQueueScreenProps) {
+export async function ModeracionQueueScreen({
+  searchParams: sp,
+  underHub = false,
+}: ModeracionQueueScreenProps) {
   const { profile, jurisdictions } = await requireDenunciaModerationPrincipal();
   const actor = { role: profile.role };
 
@@ -163,18 +172,19 @@ export async function ModeracionQueueScreen({ searchParams: sp }: ModeracionQueu
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Moderación</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Moderación de denuncias
-        </h1>
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
-          Denuncias anónimas de tus localidades que las heurísticas marcaron para revisión, antes de
-          que entren a la cola de triage. Aprobalas para pasarlas a triage, rechazalas como abuso, o
-          escalalas al equipo de plataforma. Las denuncias sin jurisdicción claras las modera el
-          equipo de plataforma.
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        eyebrow="Moderación"
+        title="Moderación de denuncias"
+        subtitle={
+          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+            Denuncias anónimas de tus localidades que las heurísticas marcaron para revisión, antes
+            de que entren a la cola de triage. Aprobalas para pasarlas a triage, rechazalas como
+            abuso, o escalalas al equipo de plataforma. Las denuncias sin jurisdicción claras las
+            modera el equipo de plataforma.
+          </p>
+        }
+      />
 
       {noScope && (
         <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">

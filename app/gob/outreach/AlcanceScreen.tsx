@@ -28,6 +28,7 @@ import { Icon } from "@/components/Icon";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   fetchOverdueRabiesVaccine,
@@ -39,7 +40,16 @@ import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { relativeDaysShort, speciesLabel } from "@/lib/utils/format";
 
-export async function AlcanceScreen() {
+export type AlcanceScreenProps = {
+  /**
+   * True when rendered as the Operativos hub's "Alcance comunitario" tab
+   * (app/gob/operativos/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   * This is the exact case the PO flagged (eyebrow === tab label verbatim).
+   */
+  underHub?: boolean;
+};
+
+export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {}) {
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
   // Capability gate: same pattern as analytics/campañas.
@@ -49,14 +59,11 @@ export async function AlcanceScreen() {
   if (!hasOutreachAccess) {
     return (
       <div className="space-y-4">
-        <header className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            miMAR Gobierno · Alcance comunitario
-          </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Pipelines de alcance comunitario
-          </h1>
-        </header>
+        <ScreenHeader
+          underHub={underHub}
+          eyebrow="miMAR Gobierno · Alcance comunitario"
+          title="Pipelines de alcance comunitario"
+        />
         <LnEmptyState
           icon="lock"
           title="Sin acceso"
@@ -93,18 +100,18 @@ export async function AlcanceScreen() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Alcance comunitario
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Pipelines de alcance comunitario
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
-          campañas de contacto. Las consultas quedan registradas en el audit log.
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        className="space-y-2"
+        eyebrow="Alcance comunitario"
+        title="Pipelines de alcance comunitario"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
+            campañas de contacto. Las consultas quedan registradas en el audit log.
+          </p>
+        }
+      />
 
       {/* Summary KPIs */}
       <section aria-label="Resumen de pipelines" className="grid grid-cols-3 gap-3">

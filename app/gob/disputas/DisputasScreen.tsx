@@ -15,9 +15,11 @@
 import { Suspense } from "react";
 
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { custodyDisputes, db, pets } from "@/db";
 import { custodyDisputesScopeClause } from "@/lib/analytics/govt-dashboards";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { type SQL, and, desc, eq, ne } from "drizzle-orm";
 
 function parseStatus(raw: string | undefined): "open" | "closed" | null {
@@ -26,9 +28,16 @@ function parseStatus(raw: string | undefined): "open" | "closed" | null {
   return null;
 }
 
-export type DisputasScreenProps = { searchParams: { status?: string } };
+export type DisputasScreenProps = {
+  searchParams: { status?: string };
+  /**
+   * True when rendered as the Casos hub's "Disputas" tab
+   * (app/gob/casos/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
+};
 
-export async function DisputasScreen({ searchParams: sp }: DisputasScreenProps) {
+export async function DisputasScreen({ searchParams: sp, underHub = false }: DisputasScreenProps) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const activeStatus = parseStatus(sp.status);
 
@@ -81,17 +90,18 @@ export async function DisputasScreen({ searchParams: sp }: DisputasScreenProps) 
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Disputas</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Disputas de custodia
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Todas las disputas en el sistema."
-            : "Disputas en tu cobertura."}
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        eyebrow="Disputas"
+        title={KPI_CATALOG.custody_disputes_open.label}
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Todas las disputas en el sistema."
+              : "Disputas en tu cobertura."}
+          </p>
+        }
+      />
 
       <Suspense>
         <CaseQueue

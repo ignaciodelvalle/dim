@@ -99,6 +99,7 @@ import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import {
   BIVARIATE_MIN_UNITS,
+  bivariateCaptionText,
   bivariatePairFor,
   bivariateRefusalReason,
   buildBivariateCells,
@@ -4416,7 +4417,7 @@ export function PanoramaConsole({
   // for the method footnotes. Honesty invariants (demo banner + k-anon disclosure
   // + method notes) live inside buildInformeModel and are never dropped.
   const informeCaption = bivariateActive
-    ? "Intensidad de reporte combinada por provincia: cobertura antirrábica (terciles) × señales de zoonosis (terciles). El rincón de mayor intensidad — cobertura baja · señales altas — resalta en rosa."
+    ? bivariateCaptionText(bivariatePair)
     : captionLayer
       ? percapitaActive && percapitaCensusMeta
         ? `${captionFor(captionLayer, level, captionPeriod, { perCapita: true })} ${percapitaFooterLabel(percapitaCensusMeta)}.`
@@ -5073,11 +5074,9 @@ export function PanoramaConsole({
                   encoding it explains the 3×3 matrix + tercile method instead. */}
               {bivariateActive ? (
                 <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
-                  Intensidad de reporte combinada por provincia: cobertura antirrábica (terciles) ×
-                  señales de zoonosis (terciles). El rincón de mayor intensidad — cobertura baja ·
-                  señales altas — resalta en rosa. Terciles calculados sobre la distribución del
-                  alcance actual. Una provincia protegida por privacidad (k-anonimato) se muestra
-                  con trama, nunca con color.
+                  {bivariateCaptionText(bivariatePair)} Terciles calculados sobre la distribución
+                  del alcance actual. Una provincia protegida por privacidad (k-anonimato) se
+                  muestra con trama, nunca con color.
                 </p>
               ) : (
                 <>

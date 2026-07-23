@@ -168,7 +168,7 @@ export default async function AdminAdopcionesPage({
         <OpKpi
           label={KPI_CATALOG.foster_active_placements.label}
           value={fosterPool.activeFosterPlacements.toLocaleString("es-AR")}
-          sub="colocaciones foster activas"
+          sub="colocaciones en tránsito activas"
           info={{
             definition: "Cantidad de animales con ownerships.role = 'foster' y ended_at IS NULL.",
             formula: "COUNT(ownerships) WHERE role='foster' AND ended_at IS NULL",
@@ -264,7 +264,7 @@ export default async function AdminAdopcionesPage({
                 {/* Stage 2: Foster */}
                 <li
                   className="flex items-center gap-3"
-                  aria-label={`Asignados a tránsito (foster): ${funnel.foster.toLocaleString("es-AR")}`}
+                  aria-label={`Asignados a tránsito: ${funnel.foster.toLocaleString("es-AR")}`}
                 >
                   <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
                     Asignados a tránsito
@@ -381,7 +381,7 @@ export default async function AdminAdopcionesPage({
                 <tbody>
                   {[
                     { key: "shelter_custody", label: "Custodia en refugio" },
-                    { key: "foster", label: "Tránsito (foster)" },
+                    { key: "foster", label: "Tránsito" },
                   ].map(({ key, label }) => {
                     const row = timeInState.find((r) => r.role === key);
                     if (!row) return null;

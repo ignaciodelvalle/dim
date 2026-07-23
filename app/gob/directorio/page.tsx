@@ -77,7 +77,9 @@ export default async function DirectorioPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           ¿Esta entidad es legítima y está bien registrada?
         </h1>
-        <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+        {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
+            see app/gob/padron/page.tsx for the full rationale. */}
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Organizaciones, usuarios, servicios y credenciales RUPGA comparten la misma gramática de
           registro: buscar, verificar y revocar. Elegí el registro en el que querés trabajar ahora.
         </p>
@@ -93,13 +95,13 @@ export default async function DirectorioPage({
         >
           <UrlTabsContent value={registro}>
             {registro === "usuarios" ? (
-              <UsuariosScreen searchParams={sp} />
+              <UsuariosScreen searchParams={sp} underHub />
             ) : registro === "servicios" ? (
-              <ServiciosScreen searchParams={sp} />
+              <ServiciosScreen searchParams={sp} underHub />
             ) : registro === "credenciales" ? (
-              <CredencialesScreen searchParams={sp} />
+              <CredencialesScreen searchParams={sp} underHub />
             ) : (
-              <OrganizacionesScreen searchParams={sp} />
+              <OrganizacionesScreen searchParams={sp} underHub />
             )}
           </UrlTabsContent>
         </UrlTabs>

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { adminProvinceHref } from "@/lib/infra/admin-province-link";
@@ -62,9 +63,17 @@ const SPECIES_OPTIONS = [
 
 export type AdminCensoScreenProps = {
   searchParams: { period?: string; from?: string; to?: string; species?: string };
+  /**
+   * True when rendered as the admin Padrón hub's "Censo" tab
+   * (app/admin/padron/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function AdminCensoScreen({ searchParams: sp }: AdminCensoScreenProps) {
+export async function AdminCensoScreen({
+  searchParams: sp,
+  underHub = false,
+}: AdminCensoScreenProps) {
   await requireAdminOrRedirect();
 
   // Admin context: global scope (no jurisdiction restriction), trailing 12m window.
@@ -77,18 +86,18 @@ export async function AdminCensoScreen({ searchParams: sp }: AdminCensoScreenPro
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Admin · Censo nacional
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-        Censo y salud del registro
-      </h1>
-      <p className="text-[13px] text-ln-op-mute">
-        Vista nacional: total del padrón, mascotas dormant, calidad de identificación y ranking por
-        provincia.
-      </p>
-    </header>
+    <ScreenHeader
+      underHub={underHub}
+      className="space-y-2"
+      eyebrow="Admin · Censo nacional"
+      title="Censo y salud del registro"
+      subtitle={
+        <p className="text-[13px] text-ln-op-mute">
+          Vista nacional: total del padrón, mascotas inactivas, calidad de identificación y ranking
+          por provincia.
+        </p>
+      }
+    />
   );
 
   // D2: bound the fetcher set with a deadline so a pathological query degrades
@@ -190,7 +199,7 @@ export async function AdminCensoScreen({ searchParams: sp }: AdminCensoScreenPro
             hasData && dormantPct > 40 ? "danger" : hasData && dormantPct > 20 ? "warn" : undefined
           }
           info={{
-            definition: `Mascotas activas/extraviadas sin ningún evento del propietario en los últimos ${TARGETS.DORMANT_MONTHS} meses. Mascotas sin ningún evento registrado también cuentan como dormant.`,
+            definition: `Mascotas activas/extraviadas sin ningún evento del propietario en los últimos ${TARGETS.DORMANT_MONTHS} meses. Mascotas sin ningún evento registrado también cuentan como inactivas.`,
             formula: `NOT EXISTS (pet_events WHERE event_type <> 'credential_scanned' AND occurred_at >= now - ${TARGETS.DORMANT_MONTHS}m)`,
             caveat:
               "Los eventos credential_scanned se excluyen porque se purgan automáticamente a los 90 días y no representan actividad del propietario.",

@@ -24,6 +24,7 @@ import {
   SearchFilterField,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchChipReplacementSignal } from "@/lib/analytics/compliance-metrics";
 import type { UserRoleFilter } from "@/lib/infra/admin-search";
 import { searchUsers } from "@/lib/infra/admin-search";
@@ -70,9 +71,14 @@ function parseRoleFilter(raw: string | undefined): UserRoleFilter {
 
 export type UsuariosScreenProps = {
   searchParams: { q?: string; test?: string; role?: string };
+  /**
+   * True when rendered as the Directorio hub's "Usuarios" tab
+   * (app/gob/directorio/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function UsuariosScreen({ searchParams: sp }: UsuariosScreenProps) {
+export async function UsuariosScreen({ searchParams: sp, underHub = false }: UsuariosScreenProps) {
   const query = (sp.q ?? "").trim();
   const showTestAccounts = sp.test === "1";
   const roleFilter = parseRoleFilter(sp.role);
@@ -132,16 +138,17 @@ export async function UsuariosScreen({ searchParams: sp }: UsuariosScreenProps) 
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          {base === "/admin" ? "Admin · Usuarios" : "miMAR Gobierno · Usuarios"}
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Usuarios</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Buscá por nombre y proponé cambios de rol. Las búsquedas quedan registradas en el audit
-          log.
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        eyebrow={base === "/admin" ? "Admin · Usuarios" : "miMAR Gobierno · Usuarios"}
+        title="Usuarios"
+        subtitle={
+          <p className="text-[13px] text-ln-op-ink-2">
+            Buscá por nombre y proponé cambios de rol. Las búsquedas quedan registradas en el audit
+            log.
+          </p>
+        }
+      />
 
       {/* C5 — chip-fraud signal (Item 4). Replacements flagged fraud/duplicate
           route to human review. This is a SIGNAL, not an auto-classification. */}

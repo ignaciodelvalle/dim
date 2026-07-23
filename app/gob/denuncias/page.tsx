@@ -115,7 +115,9 @@ export default async function GobDenunciasPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           El recorrido de una denuncia
         </h1>
-        <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+        {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
+            see app/gob/padron/page.tsx for the full rationale. */}
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Una denuncia ciudadana pasa por moderación, triage según Ley 14.346, y puede escalar a un
           caso regulatorio. Elegí la etapa en la que querés trabajar ahora — Caso vive en su propia
           pantalla, con seguimiento formal.
@@ -160,8 +162,10 @@ export default async function GobDenunciasPage({
         >
           <UrlTabsContent value={etapa}>
             {etapa === "moderacion" ? (
-              <ModeracionQueueScreen searchParams={sp} />
+              <ModeracionQueueScreen searchParams={sp} underHub />
             ) : (
+              // MaltratoQueueScreen's own header ("Denuncias de maltrato") does
+              // NOT repeat the "Triage" tab label — no underHub needed here.
               <MaltratoQueueScreen searchParams={sp} />
             )}
           </UrlTabsContent>

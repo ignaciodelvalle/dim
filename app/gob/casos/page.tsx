@@ -68,7 +68,9 @@ export default async function GobCasosPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
           ¿Qué expediente necesita mi próxima acción?
         </h1>
-        <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+        {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
+            see app/gob/padron/page.tsx for the full rationale. */}
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           Casos regulatorios y disputas de custodia comparten la misma gramática de expediente —
           abrir, sumar partes, resolver. Elegí el expediente en el que querés trabajar ahora.
         </p>
@@ -84,9 +86,9 @@ export default async function GobCasosPage({
         >
           <UrlTabsContent value={expediente}>
             {expediente === "disputas" ? (
-              <DisputasScreen searchParams={sp} />
+              <DisputasScreen searchParams={sp} underHub />
             ) : (
-              <CasosScreen searchParams={sp} />
+              <CasosScreen searchParams={sp} underHub />
             )}
           </UrlTabsContent>
         </UrlTabs>

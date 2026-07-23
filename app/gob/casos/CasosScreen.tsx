@@ -53,6 +53,7 @@ import {
   parseCasoEstado,
 } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   countCasesForAdmin,
@@ -73,7 +74,14 @@ const KIND_OPTIONS = CASE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) 
 
 type GovtCasosSearchParams = { cursor?: string; status?: string; kind?: string; province?: string };
 
-export type CasosScreenProps = { searchParams: GovtCasosSearchParams };
+export type CasosScreenProps = {
+  searchParams: GovtCasosSearchParams;
+  /**
+   * True when rendered as the Casos hub's "Casos" tab (app/gob/casos/page.tsx)
+   * — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
+};
 
 // Viewer scope for this page — mirrors the shape used in
 // app/gob/mascotas/[token]/page.tsx. Admin = universal (no jurisdiction
@@ -203,7 +211,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   };
 }
 
-export async function CasosScreen({ searchParams: sp }: CasosScreenProps) {
+export async function CasosScreen({ searchParams: sp, underHub = false }: CasosScreenProps) {
   const session = await requireAdminOrGovtOrRedirect();
   const scope: ViewerScope =
     session.profile.role === "admin"
@@ -227,17 +235,19 @@ export async function CasosScreen({ searchParams: sp }: CasosScreenProps) {
 
   return (
     <div className="space-y-6">
-      <header className="mb-6 space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Casos regulatorios
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Casos</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {scope.role === "admin"
-            ? "Expedientes en todo el sistema. Vista universal admin."
-            : "Expedientes en tu jurisdicción asignada."}
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        className="mb-6 space-y-1"
+        eyebrow="Casos regulatorios"
+        title="Casos"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            {scope.role === "admin"
+              ? "Expedientes en todo el sistema. Vista universal admin."
+              : "Expedientes en tu jurisdicción asignada."}
+          </p>
+        }
+      />
 
       {scope.role === "govt" && scope.jurisdictions.length === 0 ? (
         <LnEmptyState

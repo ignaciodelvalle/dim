@@ -32,6 +32,7 @@ import { Suspense } from "react";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
@@ -85,9 +86,17 @@ const STATUS_NOUN: Record<OfferingStatusFilter, string> = {
 
 export type ServiciosScreenProps = {
   searchParams: { status?: string };
+  /**
+   * True when rendered as the Directorio hub's "Servicios" tab
+   * (app/gob/directorio/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function ServiciosScreen({ searchParams: sp }: ServiciosScreenProps) {
+export async function ServiciosScreen({
+  searchParams: sp,
+  underHub = false,
+}: ServiciosScreenProps) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
 
@@ -96,12 +105,7 @@ export async function ServiciosScreen({ searchParams: sp }: ServiciosScreenProps
   if (profile.role !== "admin" && jurisdictions.length === 0) {
     return (
       <div className="space-y-4">
-        <header className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            miMAR Gobierno · Servicios
-          </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Servicios</h1>
-        </header>
+        <ScreenHeader underHub={underHub} eyebrow="miMAR Gobierno · Servicios" title="Servicios" />
         <LnEmptyState
           icon="usuarios"
           title="Sin localidades asignadas"
@@ -150,13 +154,12 @@ export async function ServiciosScreen({ searchParams: sp }: ServiciosScreenProps
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          miMAR Gobierno · Servicios
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Servicios</h1>
-        <p className="text-[13px] text-ln-op-ink-2">{subtitle}</p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        eyebrow="miMAR Gobierno · Servicios"
+        title="Servicios"
+        subtitle={<p className="text-[13px] text-ln-op-ink-2">{subtitle}</p>}
+      />
 
       <Suspense>
         <UrlTabs

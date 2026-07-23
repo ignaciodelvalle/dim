@@ -23,6 +23,7 @@ import {
   OpPill,
   SearchFilterField,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import type { OrgTypeFilter, OrgVerifiedFilter } from "@/lib/infra/admin-search";
 import { searchOrganizations } from "@/lib/infra/admin-search";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -73,9 +74,17 @@ function parseOrgTypeFilter(raw: string | undefined): OrgTypeFilter {
 
 export type OrganizacionesScreenProps = {
   searchParams: { q?: string; verified?: string; orgType?: string };
+  /**
+   * True when rendered as the Directorio hub's "Organizaciones" tab
+   * (app/gob/directorio/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function OrganizacionesScreen({ searchParams: sp }: OrganizacionesScreenProps) {
+export async function OrganizacionesScreen({
+  searchParams: sp,
+  underHub = false,
+}: OrganizacionesScreenProps) {
   const query = (sp.q ?? "").trim();
   const verifiedFilter = parseVerifiedFilter(sp.verified);
   const orgTypeFilter = parseOrgTypeFilter(sp.orgType);
@@ -95,17 +104,18 @@ export async function OrganizacionesScreen({ searchParams: sp }: OrganizacionesS
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          miMAR Gobierno · Organizaciones
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Organizaciones</h1>
-        <p className="text-sm text-ln-op-ink-2">
-          {profile.role === "admin"
-            ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
-            : `Buscá entre las orgs en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
-        </p>
-      </header>
+      <ScreenHeader
+        underHub={underHub}
+        eyebrow="miMAR Gobierno · Organizaciones"
+        title="Organizaciones"
+        subtitle={
+          <p className="text-sm text-ln-op-ink-2">
+            {profile.role === "admin"
+              ? "Buscá por nombre, razón social o CUIT. Tu vista es universal."
+              : `Buscá entre las orgs en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
+          </p>
+        }
+      />
 
       {/* Unified filter bar (opfilterbar-sweep2-2026-07-21 item 2) — migrated
           off the bespoke GET form. Verificación and Tipo are both genuinely

@@ -17,10 +17,17 @@ import { serverNavCommit } from "@/lib/ui/filter-commit";
 
 const captionClasses = "text-sm font-medium text-ln-op-ink-2";
 
+// PO fix (validacion-A 2026-07-23): sm:w-56 (224px) clipped every placeholder
+// longer than ~28 characters (e.g. "Buscar por nombre de mascota o dueño/a",
+// "Buscar por nombre, razón social o CUIT") — the affordance describing what's
+// searchable was unreadable without focusing + selecting the text. w-80 (320px)
+// comfortably fits the longest surviving consumer placeholder (~40 chars at
+// text-sm) with margin; shortened outliers (see CredencialesScreen) stay well
+// under that too.
 const inputClasses =
   "h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 text-sm " +
   "text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus-visible:ring-2 " +
-  "focus-visible:ring-ln-op-azul sm:w-56";
+  "focus-visible:ring-ln-op-azul sm:w-80";
 
 export type SearchFilterFieldProps = {
   /** searchParam key for the query string. Default "q". */

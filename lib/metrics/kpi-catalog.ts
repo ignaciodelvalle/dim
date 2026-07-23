@@ -1424,7 +1424,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   registry_dormant_pets: {
     id: "registry_dormant_pets",
-    label: "Mascotas inactivas (dormant)",
+    label: "Mascotas inactivas",
     numerator: `COUNT active/lost pets with NO pet_events (event_type <> 'credential_scanned') in the trailing ${TARGETS.DORMANT_MONTHS} months — pets with zero logged events also count as dormant`,
     denominator: "COUNT active/lost pets in scope",
     source: "pets, pet_events",
@@ -1548,7 +1548,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   foster_active_placements: {
     id: "foster_active_placements",
-    label: "En tránsito (foster)",
+    label: "En tránsito",
     numerator: "COUNT ownerships where role='foster' AND ended_at IS NULL",
     denominator: "n/a — absolute count",
     source: "ownerships",
@@ -1560,8 +1560,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "now",
     species: "all_species",
     basis: "stock",
-    question:
-      "¿Cuántas colocaciones de tránsito (foster) están activas ahora mismo, en este scope?",
+    question: "¿Cuántas colocaciones de tránsito están activas ahora mismo, en este scope?",
     semaphore: { paintAgainst: "none" },
   },
 
