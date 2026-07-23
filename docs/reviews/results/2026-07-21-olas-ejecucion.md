@@ -222,3 +222,14 @@ con cuidado) → batch impacto (2) → Operativos+Pérdidas (3/4) → KPIs acci�
 - "Preexistente/no-relacionado" desmentido 15 veces esta semana. La disciplina queda.
 NEXT: **EL PRE-PUSH GATE** (review adversarial fresco sobre ~140 commits + verify + suite)
 → push/#760 (PO) → más reviews adversariales (plan PO).
+
+## PRE-PUSH GATE — VEREDICTO (2026-07-23)
+1. pnpm verify (typecheck + ~35 fences + build): ✅ VERDE.
+2. Review adversarial fresco #3 (rango 7aa17275..HEAD, 41 commits): ✅ 0 Critical.
+   2 hallazgos, ambos arreglados en `d78bab13`: guard muerto del tile de adopción
+   (0/0 pintaba rojo) + LA BANDEJA DE ESCALADAS DEL ADMIN restaurada (invisible para
+   todos desde el redirect F1 — includeEscalated ahora derivado del rol).
+3. Suite completa: 12.025/12.026 ✅ — la única falla es el artefacto conocido
+   demo-data-vs-suite (disputa de Bruno), ahora AUTO-CURABLE (spine self-heal) y
+   verificado verde post-heal.
+LA RAMA ESTÁ PUSH-READY. Push + cutover #760 = PO. :3000 fresco en HEAD.
