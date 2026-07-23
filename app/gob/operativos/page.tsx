@@ -78,7 +78,7 @@ export default async function GobOperativosPage({
             {vista === "campanas" ? (
               <CampanasScreen searchParams={sp} underHub />
             ) : (
-              <AlcanceScreen underHub />
+              <AlcanceScreen underHub searchParams={sp} />
             )}
           </UrlTabsContent>
         </UrlTabs>

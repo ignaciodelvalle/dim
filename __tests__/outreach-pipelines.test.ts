@@ -14,6 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { auditLog, db, petEvents, pets, profiles } from "@/db";
 import {
+  type OverdueRabiesPet,
+  aggregateOverdueByLocality,
   fetchOverdueRabiesVaccine,
   fetchSterilizationVetRanking,
   fetchStrayDensityAreas,
@@ -342,6 +344,103 @@ describe("logOutreachPiiQuery — mandatory audit row", () => {
       await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
     });
     await db.delete(profiles).where(eq(profiles.id, actorId));
+  });
+
+  // PO decision 3 ("Operativos geo-first + PII tras confirmación",
+  // 2026-07-23): the overdue_rabies audit row now fires on ZONE EXPANSION,
+  // not on the aggregates page load, and must carry WHICH zone was opened.
+  it("carries zone_province/zone_locality when a zone context is passed", async () => {
+    const actorId = crypto.randomUUID();
+    await db
+      .insert(profiles)
+      .values({ id: actorId, displayName: "Audit Zone Test Operator", role: "govt" });
+
+    await logOutreachPiiQuery(actorId, "overdue_rabies", 3, {
+      province: TEST_PROVINCE,
+      locality: TEST_LOCALITY,
+    });
+
+    const rows = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.actorUserId, actorId), eq(auditLog.action, "pii_queried")));
+
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    const payload = rows[0].payload as Record<string, unknown>;
+    expect(payload.result_count).toBe(3);
+    expect(payload.zone_province).toBe(TEST_PROVINCE);
+    expect(payload.zone_locality).toBe(TEST_LOCALITY);
+
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
+      await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
+    });
+    await db.delete(profiles).where(eq(profiles.id, actorId));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// aggregateOverdueByLocality — pipeline (a) geo-first aggregation
+// ---------------------------------------------------------------------------
+
+describe("aggregateOverdueByLocality — geo-first aggregation (PO decision 3)", () => {
+  function pet(province: string | null, locality: string | null): OverdueRabiesPet {
+    return {
+      petId: crypto.randomUUID(),
+      petName: "X",
+      species: "dog",
+      publicToken: "DIM-TEST-0000",
+      jurisdictionProvince: province,
+      jurisdictionLocality: locality,
+      lastVaccineAt: new Date(0),
+    };
+  }
+
+  it("groups pets by (province, locality) and counts them", () => {
+    const result = aggregateOverdueByLocality([
+      pet("Buenos Aires", "La Plata"),
+      pet("Buenos Aires", "La Plata"),
+      pet("Buenos Aires", "Quilmes"),
+    ]);
+    const laPlata = result.find((r) => r.locality === "La Plata");
+    const quilmes = result.find((r) => r.locality === "Quilmes");
+    expect(laPlata?.count).toBe(2);
+    expect(quilmes?.count).toBe(1);
+  });
+
+  it("sorts descending by count — largest backlog first", () => {
+    const result = aggregateOverdueByLocality([
+      pet("Buenos Aires", "Quilmes"),
+      pet("Buenos Aires", "La Plata"),
+      pet("Buenos Aires", "La Plata"),
+      pet("Buenos Aires", "La Plata"),
+    ]);
+    expect(result[0].locality).toBe("La Plata");
+    expect(result[0].count).toBe(3);
+  });
+
+  it("groups pets with no recorded locality/province under the null key — none are dropped", () => {
+    const result = aggregateOverdueByLocality([pet(null, null), pet(null, null)]);
+    expect(result).toHaveLength(1);
+    expect(result[0].locality).toBeNull();
+    expect(result[0].province).toBeNull();
+    expect(result[0].count).toBe(2);
+  });
+
+  it("returns an empty array for an empty input", () => {
+    expect(aggregateOverdueByLocality([])).toEqual([]);
+  });
+
+  it("total across all aggregate rows equals the input length (no double-count, no drop)", () => {
+    const pets = [
+      pet("Buenos Aires", "La Plata"),
+      pet("Buenos Aires", "Quilmes"),
+      pet("CABA", "Palermo"),
+      pet(null, null),
+    ];
+    const result = aggregateOverdueByLocality(pets);
+    const total = result.reduce((sum, r) => sum + r.count, 0);
+    expect(total).toBe(pets.length);
   });
 });
 

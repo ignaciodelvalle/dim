@@ -35,6 +35,7 @@ import {
   windows,
 } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { isNarrowedToOperativeJurisdiction } from "@/lib/ui/view-scope-caption";
 import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
@@ -119,6 +120,21 @@ export default async function GobPerdidasPage({
   // hoisted once so every fetcher below shares the identical admin-scope value.
   const adminProvince = adminSelectedProvince ?? undefined;
   const adminLocality = adminSelectedLocality ?? undefined;
+
+  // PO decision 4b ("Pérdidas: ubicación legible + scope operativo",
+  // 2026-07-23): presentation-only minimization keyed off the SAME resolved
+  // ctx/filter the fetchers above already use (C3 ViewScope) — admin's
+  // universal/national view, or a govt view still spanning multiple
+  // provinces, renders list rows WITHOUT owner-identifying fields; narrowing
+  // to a single province (admin drill or a single-province govt view) shows
+  // the full detail row. This does NOT change fetchLostPets'/
+  // fetchPerdidasMetrics' scope security — it only decides what the already
+  // scoped rows may DISPLAY.
+  const showOwnerDetail = isNarrowedToOperativeJurisdiction({
+    role: profile.role,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+  });
 
   // Fetch the display list with all active display filters applied. `listSince`
   // is always undefined (no period control — full currently-lost stock).
@@ -207,7 +223,7 @@ export default async function GobPerdidasPage({
         eyebrow="Perdidas"
         title="Mascotas perdidas"
         subtitle={
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             {profile.role === "admin"
               ? "Vista universal — todas las jurisdicciones."
               : "Mascotas marcadas como perdidas dentro de tu cobertura."}
@@ -217,7 +233,7 @@ export default async function GobPerdidasPage({
 
       {/* No-scope warning */}
       {noScope && (
-        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[13px] text-ln-op-warn">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[var(--text-md)] text-ln-op-warn">
           Tu cuenta no tiene localidades asignadas. Un administrador debe asignarte al menos una
           para ver casos.{" "}
           <a
@@ -412,7 +428,7 @@ export default async function GobPerdidasPage({
                           : lostPets.length}
                         )
                         {q && (
-                          <span className="ml-2 text-[11px] font-normal text-ln-op-mute">
+                          <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
                             {"—"} búsqueda: &ldquo;{q}&rdquo;
                           </span>
                         )}
@@ -420,6 +436,16 @@ export default async function GobPerdidasPage({
                     }
                   />
                   <OpCardBody>
+                    {/* PO decision 4b — honest disclosure of the presentation
+                        rule above: only renders when the current view is
+                        NOT yet narrowed to one operative jurisdiction. */}
+                    {!showOwnerDetail && lostPets.length > 0 && (
+                      <p className="mb-2 text-[var(--text-sm)] text-ln-op-mute">
+                        Vista nacional/multi-provincial: se ocultan los datos de contacto y
+                        ubicación exacta. Filtrá a tu jurisdicción operativa para ver el detalle de
+                        contacto.
+                      </p>
+                    )}
                     {lostPets.length === 0 ? (
                       <LnEmptyState
                         icon="search"
@@ -437,6 +463,7 @@ export default async function GobPerdidasPage({
                             key={p.petId}
                             pet={p}
                             caseCode={caseCodesByPet.get(p.petId)}
+                            showOwnerDetail={showOwnerDetail}
                           />
                         ))}
                       </ul>

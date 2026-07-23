@@ -373,12 +373,19 @@ export default async function GobVigilanciaPage({
             C4 (same date): sub-copy aligned to the one epistemic phrasing
             pattern ("la ausencia de X no implica ausencia de Y") shared with
             LnEmptyState/OpCallout's nature="no-signal" copy below — one
-            phrasing, not two. */}
+            phrasing, not two.
+            PO decision 7 (2026-07-23, "Vigilancia: acción primaria en los
+            KPIs de alerta"): this is a genuinely actionable alert tile, so
+            its primary action goes to where the escalation ACTUALLY happens
+            — the open bite-incident case queue (/gob/casos?kind=
+            bite_incident, both-role-accessible) — not an in-page anchor to a
+            card that only shows rabies-OBSERVATION compliance numbers, never
+            the bite side of the gap. */}
         <OpKpi
           label={KPI_CATALOG.bite_escalation_gap.label}
           value={String(escalationGap.bites12m)}
           sub={`vs ${escalationGap.openObservations} observaciones rábicas abiertas — la ausencia de escalamiento no implica ausencia de riesgo`}
-          href={`#${panelComplianceId}`}
+          href="/gob/casos?kind=bite_incident"
           descriptorId="bite_escalation_gap"
         />
       </section>

@@ -206,3 +206,19 @@ validación visual de ESTA ronda · pre-push (review fresco + verify + suite) ·
 Extra: sembrar UNA disputa de demo (V9 nunca pudo probarse — 0 disputas en seed).
 EJECUCIÓN: batch mecánico (5/6/2-smalls/13/banner/TTL/disputa) → migraciones remoto (yo,
 con cuidado) → batch impacto (2) → Operativos+Pérdidas (3/4) → KPIs acción (7) → PRE-PUSH.
+
+### ENTREVISTA — EJECUCIÓN COMPLETA (2026-07-23)
+- Batch mecánico `2d279d57` · Migraciones 0155/0156/0157 APLICADAS+VERIFICADAS en
+  DIM-staging (agnwyifsdxxoznodutgq) vía MCP con bookkeeping _dim_migrations correcto ·
+  Impacto `47345189` (gap×población + faltan-~N-dosis) · Batch final UX (Operativos
+  geo-primero con PII tras "Armar operativo" + audit por zona; Pérdidas legible + detalle
+  de dueño solo en jurisdicción operativa; escalation-gap KPI → cola real de mordeduras).
+- REGLA OPERATIVA nueva: la data de demo comparte la DB local con la suite — una corrida
+  completa puede borrar entidades sembradas dejando tríos inconsistentes (pasó 2×: disputa
+  de Bruno borrada dejando caso+flag huérfanos → el re-seed choca con el índice de caso
+  único; healing: borrar caso huérfano + flag, re-seed). ANTES DE UN DEMO: re-correr
+  seed-demo-spine tras cualquier full-suite. Wiper exacto sin identificar (candidato a
+  investigación fase 3).
+- "Preexistente/no-relacionado" desmentido 15 veces esta semana. La disciplina queda.
+NEXT: **EL PRE-PUSH GATE** (review adversarial fresco sobre ~140 commits + verify + suite)
+→ push/#760 (PO) → más reviews adversariales (plan PO).

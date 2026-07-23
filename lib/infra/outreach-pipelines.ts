@@ -40,11 +40,21 @@ import type { ProjectionContext } from "@/lib/metrics";
  * Write a mandatory pii_queried audit row on every outreach-pipeline list view.
  * surface is always "outreach_pipeline"; pipeline identifies which of the three
  * fetchers was called. Fire-and-forget — callers do not need to await.
+ *
+ * `zone` (PO decision 3, "Operativos geo-first", 2026-07-23): for the
+ * overdue_rabies pipeline the Alcance screen now opens with locality
+ * AGGREGATES (not row-level PII) and only reveals the named pet list after an
+ * operator explicitly expands one zone — see aggregateOverdueByLocality below
+ * and app/gob/outreach/AlcanceScreen.tsx. The audit row for that pipeline
+ * fires on THAT expansion, not on the aggregate page load, and carries which
+ * zone was expanded so the trail says WHERE the PII was viewed, not just how
+ * many rows.
  */
 export async function logOutreachPiiQuery(
   actorUserId: string,
   pipeline: "overdue_rabies" | "stray_density" | "sterilization_ranking",
   resultCount: number,
+  zone?: { province: string | null; locality: string | null },
 ): Promise<void> {
   await db.insert(auditLog).values({
     actorUserId,
@@ -53,6 +63,7 @@ export async function logOutreachPiiQuery(
       surface: "outreach_pipeline",
       pipeline,
       result_count: resultCount,
+      ...(zone ? { zone_province: zone.province, zone_locality: zone.locality } : {}),
     },
   });
 }
@@ -245,6 +256,43 @@ export async function fetchOverdueRabiesVaccine(
   }));
 
   return { pets: petsResult, empty: petsResult.length === 0 };
+}
+
+export type OverdueRabiesLocalityAggregate = {
+  province: string | null;
+  locality: string | null;
+  count: number;
+};
+
+/**
+ * Aggregate an already-fetched overdue-rabies pet list by (province,
+ * locality) — PO decision 3, "Operativos geo-first" (2026-07-23): the
+ * Alcance screen must open with WHERE-to-intervene aggregates, not a
+ * named-row dump. Pure in-memory fold over the SAME single query
+ * fetchOverdueRabiesVaccine already ran (capped at 500 rows there) — no
+ * second DB round-trip; judged cheap enough given that row ceiling. Sorted
+ * desc by count (largest backlog first). Pets with no recorded locality (or
+ * no recorded province) group under the `null` key so no overdue pet is
+ * silently dropped from the aggregate.
+ */
+export function aggregateOverdueByLocality(
+  pets: readonly OverdueRabiesPet[],
+): OverdueRabiesLocalityAggregate[] {
+  const map = new Map<string, OverdueRabiesLocalityAggregate>();
+  for (const pet of pets) {
+    const key = `${pet.jurisdictionProvince ?? ""}_${pet.jurisdictionLocality ?? ""}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      map.set(key, {
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+        count: 1,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => b.count - a.count);
 }
 
 // ---------------------------------------------------------------------------

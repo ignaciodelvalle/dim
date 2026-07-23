@@ -96,3 +96,38 @@ export function describeNarrowedView(params: DescribeNarrowedViewParams): string
     ? `${effectiveJurisdictions.length} ${localidadesWord} · ${provinces[0]}`
     : `${effectiveJurisdictions.length} ${localidadesWord} · ${provinces.length} provincias`;
 }
+
+export type OperativeJurisdictionScopeParams = {
+  role: "admin" | "govt";
+  /**
+   * The EFFECTIVE (already-filtered) jurisdictions in view — e.g.
+   * `filteredJurisdictions` from `resolveJurisdictionScope`. Ignored for
+   * admin (admin's narrowing is expressed via `adminProvince` instead).
+   */
+  effectiveJurisdictions: readonly ViewScopeJurisdiction[];
+  /** Admin province drill (set only when role === "admin" and a province was selected). */
+  adminProvince?: string;
+};
+
+/**
+ * True when the CURRENT effective view is narrowed to a SINGLE PROVINCE — the
+ * grain PO decision 4 (2026-07-23, "Pérdidas: ubicación legible + scope
+ * operativo") calls "an operative jurisdiction", i.e. where dispatch/contact
+ * actually happens. False for admin's national/universal view (no province
+ * drill) and for a govt view whose effective jurisdictions still span
+ * MULTIPLE provinces — the two "NATIONAL/multi-province" cases the same
+ * decision requires owner-identifying fields to stay hidden for.
+ *
+ * Deliberately keyed off the SAME resolved values a page already computes
+ * for its ProjectionContext (`filteredJurisdictions`, `adminProvince`) — this
+ * does not re-derive scope, it only classifies the already-resolved view
+ * (C3, ONE VIEWSCOPE — mirrors `describeNarrowedView` above).
+ */
+export function isNarrowedToOperativeJurisdiction(
+  params: OperativeJurisdictionScopeParams,
+): boolean {
+  if (params.role === "admin") return params.adminProvince != null;
+  if (params.effectiveJurisdictions.length === 0) return false;
+  const provinces = new Set(params.effectiveJurisdictions.map((j) => j.province));
+  return provinces.size === 1;
+}

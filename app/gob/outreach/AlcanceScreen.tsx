@@ -4,9 +4,7 @@
 // /gob/outreach page.tsx, relocated so the Operativos hub (app/gob/operativos/
 // page.tsx) can render it as its "Alcance comunitario" tab under
 // ?vista=alcance. /gob/outreach itself now only redirects here via the hub
-// (see app/gob/outreach/page.tsx) — this is a RELOCATION, not a redesign:
-// same auth guard, same query logic (this screen takes no searchParams of
-// its own — it never had a filter contract to preserve).
+// (see app/gob/outreach/page.tsx).
 //
 // "Del dato a la acción": each pipeline converts a KPI into a target list
 // that an operator can review and export for a contact campaign.
@@ -16,11 +14,28 @@
 //   (b) Stray-scan density  — barrios with elevated stray-scan count
 //   (c) Sterilization ranking — vets ranked by throughput (recognition)
 //
-// PII contract: every page render writes a pii_queried audit row per pipeline
-// viewed. Lists are operational + scoped — NOT k-anonymized public aggregates.
+// GEO-FIRST redesign (PO decision 3, "Operativos geo-first + PII tras
+// confirmación", 2026-07-23): pipeline (a) used to render up to 500 NAMED
+// pet rows the instant the page loaded. It now opens with LOCALITY
+// AGGREGATES ("dónde intervenir" — ranked desc by overdue count), computed
+// in-memory from the SAME single fetchOverdueRabiesVaccine query (no second
+// DB round-trip — aggregateOverdueByLocality in lib/infra/outreach-pipelines.ts).
+// The named PII list for one zone appears only after the operator clicks
+// that zone's "Armar operativo →" — a plain `?zona=<locality>&provincia=
+// <province>` link (server-rendered, honest URL — no client-side disclosure
+// widget), read via the searchParams prop below. That expansion IS the
+// confirmation; the "Recordar" reminder buttons + CSV export live INSIDE it.
+// Pipelines (b)/(c) were already aggregate-shaped (locality/vet counts, not a
+// named-row dump) — unchanged.
+//
+// PII contract: pipelines (b)/(c) still write a pii_queried audit row on every
+// page render (they were never a row-level PII dump). Pipeline (a) now writes
+// its audit row on ZONE EXPANSION ONLY, carrying the zone — aggregates are
+// not row-level PII, so there is nothing to audit until a zone is opened.
 //
 // Capability gate: requireAdminOrGovtOrRedirect (same as all /gob pages).
-// Export: /gob/outreach/export?pipeline=<id>&... for CSV download.
+// Export: /gob/outreach/export?pipeline=<id>&... for CSV download (zone-scoped
+// for overdue_rabies when accessed from inside an expanded zone).
 
 import Link from "next/link";
 
@@ -32,6 +47,9 @@ import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFre
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
+  type OverdueRabiesPet,
+  type OverdueRabiesResult,
+  aggregateOverdueByLocality,
   fetchOverdueRabiesVaccine,
   fetchSterilizationVetRanking,
   fetchStrayDensityAreas,
@@ -47,9 +65,233 @@ export type AlcanceScreenProps = {
    * This is the exact case the PO flagged (eyebrow === tab label verbatim).
    */
   underHub?: boolean;
+  /**
+   * `zona`/`provincia` (PO decision 3, geo-first): the locality/province of
+   * the ONE zone the operator expanded to see named overdue-rabies pets. Both
+   * absent = the aggregates view. A null locality/province (pets with no
+   * jurisdiction on file) round-trips through the sentinel below rather than
+   * an empty string, so "no locality" is a real, distinguishable zone rather
+   * than indistinguishable from "no zone selected".
+   */
+  searchParams?: { zona?: string; provincia?: string };
 };
 
-export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {}) {
+/** Sentinel for a null province/locality in the `?zona=`/`?provincia=` URL params. */
+const ZONE_NONE = "__sin-dato__";
+
+function zoneParamValue(value: string | null): string {
+  return value ?? ZONE_NONE;
+}
+
+function zoneParamToValue(raw: string | undefined): string | null {
+  if (raw === undefined || raw === ZONE_NONE) return null;
+  return raw;
+}
+
+function zoneLabel(province: string | null, locality: string | null): string {
+  return `${locality ?? "Sin localidad registrada"}, ${province ?? "sin provincia registrada"}`;
+}
+
+type ZoneSelection =
+  | { selected: false }
+  | { selected: true; locality: string | null; province: string | null; pets: OverdueRabiesPet[] };
+
+/**
+ * Resolve the `?zona=`/`?provincia=` selection against the already-fetched
+ * overdue-pets list — pulled out of AlcanceScreen itself purely to keep the
+ * screen's own cognitive complexity under the repo's lint ceiling (no
+ * behavior change from inlining this).
+ */
+function resolveZoneSelection(
+  searchParams: AlcanceScreenProps["searchParams"],
+  pets: readonly OverdueRabiesPet[],
+): ZoneSelection {
+  if (searchParams?.zona === undefined) return { selected: false };
+  const locality = zoneParamToValue(searchParams.zona);
+  const province = zoneParamToValue(searchParams.provincia);
+  const matched = pets.filter(
+    (p) =>
+      (p.jurisdictionLocality ?? null) === locality &&
+      (p.jurisdictionProvince ?? null) === province,
+  );
+  return { selected: true, locality, province, pets: matched };
+}
+
+/**
+ * Pipeline (a) card — extracted from AlcanceScreen (which was otherwise over
+ * the repo's cognitive-complexity ceiling) with NO behavior change: the same
+ * aggregates-vs-zone-detail branches, byte-identical markup/copy.
+ */
+function OverdueRabiesPipelineCard({
+  panelId,
+  overdueResult,
+  overdueByLocality,
+  zone,
+}: {
+  panelId: string;
+  overdueResult: OverdueRabiesResult;
+  overdueByLocality: ReturnType<typeof aggregateOverdueByLocality>;
+  zone: ZoneSelection;
+}) {
+  return (
+    <OpCard aria-labelledby={panelId}>
+      <OpCardHead
+        title={
+          <span id={panelId} className="flex items-center gap-2">
+            Antirrábica vencida
+            <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+              · pipeline (a) ·{" "}
+              {zone.selected
+                ? "datos operativos con PII · audit registrado"
+                : "agregado por localidad · sin PII"}
+            </span>
+          </span>
+        }
+        actions={
+          zone.selected && zone.pets.length > 0 ? (
+            <a
+              href={`/gob/outreach/export?pipeline=overdue_rabies&province=${encodeURIComponent(
+                zoneParamValue(zone.province),
+              )}&locality=${encodeURIComponent(zoneParamValue(zone.locality))}`}
+              className="text-[var(--text-sm)] text-ln-op-azul hover:underline"
+            >
+              Exportar CSV →
+            </a>
+          ) : undefined
+        }
+      />
+      <OpCardBody>
+        {overdueResult.empty ? (
+          <LnEmptyState
+            icon="check-circle"
+            title="Sin mascotas que cumplan el criterio en tu jurisdicción"
+            description="No hay mascotas activas con antirrábica vencida (> 365 días) en tu cobertura."
+          />
+        ) : zone.selected ? (
+          <ZoneDetail zone={zone} />
+        ) : (
+          <ZoneAggregates
+            overdueByLocality={overdueByLocality}
+            totalPets={overdueResult.pets.length}
+          />
+        )}
+      </OpCardBody>
+    </OpCard>
+  );
+}
+
+function ZoneDetail({ zone }: { zone: Extract<ZoneSelection, { selected: true }> }) {
+  return (
+    <>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <p className="text-[var(--text-md)] font-medium text-ln-op-ink">
+          {zoneLabel(zone.province, zone.locality)} · {zone.pets.length} mascota(s)
+        </p>
+        <Link
+          href="?"
+          className="text-[var(--text-sm)] text-ln-op-mute underline underline-offset-2 hover:text-ln-op-ink"
+        >
+          ← Volver a todas las zonas
+        </Link>
+      </div>
+      {zone.pets.length === 0 ? (
+        <LnEmptyState
+          icon="check-circle"
+          title="Sin mascotas en esta zona"
+          description="Esta zona no tiene mascotas con antirrábica vencida en este momento."
+        />
+      ) : (
+        <>
+          <OutreachRabiesReminderList pets={zone.pets.slice(0, 50)} />
+          {zone.pets.length > 50 && (
+            <p className="py-1 text-center text-[var(--text-sm)] text-ln-op-mute">
+              … y {zone.pets.length - 50} más — exportá el CSV para la lista completa
+            </p>
+          )}
+        </>
+      )}
+      <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+        Estos datos son PII operativos, scoped a esta zona. Esta consulta queda registrada.{" "}
+        <Link href="/gob/historial" className="underline underline-offset-2 hover:text-ln-op-ink">
+          Ver historial →
+        </Link>
+      </p>
+    </>
+  );
+}
+
+function ZoneAggregates({
+  overdueByLocality,
+  totalPets,
+}: {
+  overdueByLocality: ReturnType<typeof aggregateOverdueByLocality>;
+  totalPets: number;
+}) {
+  return (
+    <>
+      <table className="w-full text-sm border-collapse">
+        <caption className="sr-only">
+          Localidades con mascotas con antirrábica vencida, de mayor a menor
+        </caption>
+        <thead>
+          <tr className="border-b border-ln-op-line">
+            <th scope="col" className="py-1.5 text-left font-semibold text-ln-op-mute">
+              Localidad
+            </th>
+            <th scope="col" className="py-1.5 text-left font-semibold text-ln-op-mute">
+              Provincia
+            </th>
+            <th scope="col" className="py-1.5 text-right font-semibold text-ln-op-mute">
+              Vencidas
+            </th>
+            <th scope="col" className="py-1.5 text-right font-semibold text-ln-op-mute">
+              Acción
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {overdueByLocality.map((zoneRow) => (
+            <tr
+              key={`${zoneRow.province ?? "—"}|${zoneRow.locality ?? "—"}`}
+              className="border-b border-ln-op-line/50"
+            >
+              <td className="py-1.5 text-ln-op-ink">
+                {zoneRow.locality ?? "Sin localidad registrada"}
+              </td>
+              <td className="py-1.5 text-ln-op-mute">{zoneRow.province ?? "—"}</td>
+              <td className="py-1.5 text-right tabular-nums font-medium text-ln-op-danger">
+                {zoneRow.count}
+              </td>
+              <td className="py-1.5 text-right">
+                <Link
+                  href={`?zona=${encodeURIComponent(
+                    zoneParamValue(zoneRow.locality),
+                  )}&provincia=${encodeURIComponent(zoneParamValue(zoneRow.province))}`}
+                  className="inline-flex items-center gap-1 rounded-[var(--radius-op-btn,6px)] border border-[var(--color-ln-op-azul)] bg-[var(--color-ln-op-azul)] px-2.5 py-1 text-[var(--text-sm)] font-semibold text-white hover:bg-[var(--color-ln-op-azul-700)]"
+                >
+                  Armar operativo →
+                </Link>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {totalPets >= 500 && (
+        <p className="mt-2 text-[var(--text-sm)] text-ln-op-mute">
+          Estos totales reflejan como máximo los primeros 500 casos de tu cobertura (orden por
+          antigüedad) — puede haber más sin contar aquí.
+        </p>
+      )}
+      <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+        Agregado por localidad — sin datos de mascotas individuales. Elegí una zona y hacé clic en
+        &quot;Armar operativo →&quot; para ver la lista con nombres, contactar dueños/as y exportar
+        el CSV; esa acción queda registrada en el audit log.
+      </p>
+    </>
+  );
+}
+
+export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceScreenProps = {}) {
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
   // Capability gate: same pattern as analytics/campañas.
@@ -88,10 +330,27 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
     fetchSterilizationVetRanking(ctx30d),
   ]);
 
-  // Mandatory PII audit log — one row per pipeline viewed, fire-and-forget.
-  void logOutreachPiiQuery(user.id, "overdue_rabies", overdueResult.pets.length);
+  // Pipeline (a) geo-first aggregation — in-memory fold over the SAME query
+  // above, no second DB round-trip (PO decision 3).
+  const overdueByLocality = aggregateOverdueByLocality(overdueResult.pets);
+
+  // Zone drill-down: `?zona=`/`?provincia=` select ONE locality's named list.
+  // Absent `zona` = aggregates view (the default, PII-free page load).
+  const zone = resolveZoneSelection(searchParams, overdueResult.pets);
+
+  // Mandatory PII audit log. Pipelines (b)/(c) are aggregate-shaped
+  // (locality/vet counts, never a named-row dump) — one row per page render,
+  // as before. Pipeline (a) is now the exception: aggregates carry no
+  // row-level PII, so the audit row fires ONLY when a zone is expanded,
+  // logging exactly which zone + how many pets were revealed (PO decision 3).
   void logOutreachPiiQuery(user.id, "stray_density", strayResult.areas.length);
   void logOutreachPiiQuery(user.id, "sterilization_ranking", sterilResult.vets.length);
+  if (zone.selected) {
+    void logOutreachPiiQuery(user.id, "overdue_rabies", zone.pets.length, {
+      province: zone.province,
+      locality: zone.locality,
+    });
+  }
 
   const panelRabiesId = "panel-outreach-rabies";
   const panelStrayId = "panel-outreach-stray";
@@ -106,7 +365,7 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
         eyebrow="Alcance comunitario"
         title="Pipelines de alcance comunitario"
         subtitle={
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
             campañas de contacto. Las consultas quedan registradas en el audit log.
           </p>
@@ -151,59 +410,15 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
         />
       </section>
 
-      {/* Pipeline (a): Overdue antirrábica */}
-      <OpCard aria-labelledby={panelRabiesId}>
-        <OpCardHead
-          title={
-            <span id={panelRabiesId} className="flex items-center gap-2">
-              Antirrábica vencida
-              <span className="text-[11px] font-normal text-ln-op-mute">
-                · pipeline (a) · datos operativos con PII · audit registrado
-              </span>
-            </span>
-          }
-          actions={
-            overdueResult.pets.length > 0 ? (
-              <a
-                href="/gob/outreach/export?pipeline=overdue_rabies"
-                className="text-[11px] text-ln-op-azul hover:underline"
-              >
-                Exportar CSV →
-              </a>
-            ) : undefined
-          }
-        />
-        <OpCardBody>
-          {overdueResult.empty ? (
-            <LnEmptyState
-              icon="check-circle"
-              title="Sin mascotas que cumplan el criterio en tu jurisdicción"
-              description="No hay mascotas activas con antirrábica vencida (> 365 días) en tu cobertura."
-            />
-          ) : (
-            <>
-              <OutreachRabiesReminderList pets={overdueResult.pets.slice(0, 50)} />
-              {overdueResult.pets.length > 50 && (
-                <p className="py-1 text-center text-[11px] text-ln-op-mute">
-                  … y {overdueResult.pets.length - 50} más — exportá el CSV para la lista completa
-                </p>
-              )}
-            </>
-          )}
-          {!overdueResult.empty && (
-            <p className="mt-3 text-[11px] text-ln-op-mute">
-              Estos datos son PII operativos, scoped a tu jurisdicción. Cada consulta queda
-              registrada.{" "}
-              <Link
-                href="/gob/historial"
-                className="underline underline-offset-2 hover:text-ln-op-ink"
-              >
-                Ver historial →
-              </Link>
-            </p>
-          )}
-        </OpCardBody>
-      </OpCard>
+      {/* Pipeline (a): Overdue antirrábica — geo-first (PO decision 3):
+          aggregates by locality by default; a zone's named PII list appears
+          only after "Armar operativo →" expands it (?zona=/?provincia=). */}
+      <OverdueRabiesPipelineCard
+        panelId={panelRabiesId}
+        overdueResult={overdueResult}
+        overdueByLocality={overdueByLocality}
+        zone={zone}
+      />
 
       {/* Pipeline (b): Stray-scan density */}
       <OpCard aria-labelledby={panelStrayId}>
@@ -211,7 +426,7 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
           title={
             <span id={panelStrayId} className="flex items-center gap-2">
               Densidad de escaneos callejeros por barrio
-              <span className="text-[11px] font-normal text-ln-op-mute">
+              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
                 · pipeline (b) · últimos 30 días
               </span>
             </span>
@@ -220,7 +435,7 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
             !strayResult.empty ? (
               <a
                 href="/gob/outreach/export?pipeline=stray_density"
-                className="text-[11px] text-ln-op-azul hover:underline"
+                className="text-[var(--text-sm)] text-ln-op-azul hover:underline"
               >
                 Exportar CSV →
               </a>
@@ -266,13 +481,20 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
         </OpCardBody>
       </OpCard>
 
-      {/* Pipeline (c): Sterilization vet ranking */}
+      {/* Pipeline (c): Sterilization vet ranking — geo-first check (PO
+          decision 3): this DOES name rows (vet + clinic), but it is a
+          RECOGNITION ranking, not an owner-contact PII dump like pipeline
+          (a) — the names ARE the point (there is no "aggregate" form of a
+          leaderboard), and vets act in a professional/institutional
+          capacity, not as the citizen-owner data pipeline (a) exposes.
+          Left unredesigned; no "Recordar"-style write action exists here to
+          relocate either. */}
       <OpCard aria-labelledby={panelSterilId}>
         <OpCardHead
           title={
             <span id={panelSterilId} className="flex items-center gap-2">
               Ranking de esterilización por veterinario/a
-              <span className="text-[11px] font-normal text-ln-op-mute">
+              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
                 · pipeline (c) · reconocimiento · últimos 30 días
               </span>
             </span>

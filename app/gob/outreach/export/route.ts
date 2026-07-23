@@ -78,12 +78,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   if (pipeline === "overdue_rabies") {
     const result = await fetchOverdueRabiesVaccine(ctx12m);
-    // Mandatory PII export audit log.
-    void logOutreachPiiQuery(user.id, "overdue_rabies", result.pets.length);
+    // Zone scoping (PO decision 3, geo-first, 2026-07-23): the Alcance
+    // screen's CSV link now lives INSIDE an expanded zone
+    // (AlcanceScreen.tsx), so it only ever passes province/locality for the
+    // SAME zone the operator just confirmed — filtered here in-memory from
+    // the SAME single query, no new DB round-trip. Absent params (a direct
+    // API hit) fall back to the whole in-scope list, unchanged.
+    const zoneProvinceRaw = searchParams.get("province");
+    const zoneLocalityRaw = searchParams.get("locality");
+    const ZONE_NONE = "__sin-dato__";
+    const zoneProvince =
+      zoneProvinceRaw === null ? null : zoneProvinceRaw === ZONE_NONE ? null : zoneProvinceRaw;
+    const zoneLocality =
+      zoneLocalityRaw === null ? null : zoneLocalityRaw === ZONE_NONE ? null : zoneLocalityRaw;
+    const hasZoneFilter = zoneProvinceRaw !== null || zoneLocalityRaw !== null;
+    const pets = hasZoneFilter
+      ? result.pets.filter(
+          (p) =>
+            (p.jurisdictionProvince ?? null) === zoneProvince &&
+            (p.jurisdictionLocality ?? null) === zoneLocality,
+        )
+      : result.pets;
+    // Mandatory PII export audit log — carries the zone when one was applied.
+    void logOutreachPiiQuery(
+      user.id,
+      "overdue_rabies",
+      pets.length,
+      hasZoneFilter ? { province: zoneProvince, locality: zoneLocality } : undefined,
+    );
     filename = `outreach-antirrabica-vencida-${new Date().toISOString().slice(0, 10)}.csv`;
     csvContent = buildCsv(
       ["pet_id", "nombre", "especie", "provincia", "localidad", "ultima_vacuna_antirrabica"],
-      result.pets.map((p) => [
+      pets.map((p) => [
         p.petId,
         p.petName,
         p.species,

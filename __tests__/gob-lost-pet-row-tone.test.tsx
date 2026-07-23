@@ -45,6 +45,11 @@ function renderRow(
         lastSeenLng: null,
         ownerDisplayName: null,
       }}
+      // Full-detail row (narrowed-view path) — these tests cover status-pill
+      // tone and the shared lost-time vocabulary, unrelated to the PO
+      // decision 4b owner-detail redaction (see
+      // gob-perdidas-owner-detail-scope.test.tsx for that behavior).
+      showOwnerDetail={true}
     />,
   );
 }
