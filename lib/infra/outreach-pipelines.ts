@@ -57,6 +57,39 @@ export async function logOutreachPiiQuery(
   });
 }
 
+/**
+ * Write a mandatory audit row for the outreach "Enviar recordatorio(s)"
+ * write action (lib/infra/outreach-reminders.ts) — the write-path companion
+ * to logOutreachPiiQuery's read-path row. One row per invocation (single-row
+ * "Recordar" or the bulk "Enviar recordatorios (N)"), never per notification,
+ * mirroring the (actor, pipeline, count) shape the read-log already uses.
+ */
+export async function logOutreachReminderSent(
+  actorUserId: string,
+  pipeline: "overdue_rabies",
+  counts: {
+    requested: number;
+    sent: number;
+    alreadyNotified: number;
+    noOwner: number;
+    outOfScope: number;
+  },
+): Promise<void> {
+  await db.insert(auditLog).values({
+    actorUserId,
+    action: "outreach_reminder_sent",
+    payload: {
+      surface: "outreach_pipeline",
+      pipeline,
+      requested_count: counts.requested,
+      sent_count: counts.sent,
+      already_notified_count: counts.alreadyNotified,
+      no_owner_count: counts.noOwner,
+      out_of_scope_count: counts.outOfScope,
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
@@ -101,6 +134,9 @@ export type OverdueRabiesPet = {
   petId: string;
   petName: string;
   species: string;
+  /** Needed to deep-link the owner straight to the vaccine registration form
+   * (outreach reminder action, lib/infra/outreach-reminders.ts). */
+  publicToken: string;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   /** Date of the most recent antirrábica vaccination event. */
@@ -122,12 +158,23 @@ export type OverdueRabiesResult = {
  * CTE — those with no matching vaccine row (never vaccinated) or whose latest
  * vaccine predates the cutoff are returned as overdue.
  *
+ * `petIdsFilter` (outreach reminder action, lib/infra/outreach-reminders.ts):
+ * when provided, narrows the result to exactly those pet ids AND re-applies
+ * the SAME jurisdiction-scope + overdue-criteria WHERE clauses — this is the
+ * server-side re-derivation the reminder action uses so it NEVER trusts a
+ * client-supplied pet list; a petId that is out of the operator's
+ * jurisdiction, or no longer actually overdue, simply will not come back.
+ *
  * The caller must write a pii_queried audit row via logOutreachPiiQuery.
  */
 export async function fetchOverdueRabiesVaccine(
   ctx: ProjectionContext,
+  petIdsFilter?: string[],
 ): Promise<OverdueRabiesResult> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
+    return { pets: [], empty: true };
+  }
+  if (petIdsFilter && petIdsFilter.length === 0) {
     return { pets: [], empty: true };
   }
 
@@ -143,6 +190,7 @@ export async function fetchOverdueRabiesVaccine(
     pet_id: string;
     pet_name: string;
     species: string;
+    public_token: string;
     jurisdiction_province: string | null;
     jurisdiction_locality: string | null;
     last_vaccine_at: string | null;
@@ -161,6 +209,7 @@ export async function fetchOverdueRabiesVaccine(
       p.id               AS pet_id,
       p.name             AS pet_name,
       p.species,
+      p.public_token,
       p.jurisdiction_province,
       p.jurisdiction_locality,
       lr.last_vaccine_at
@@ -169,6 +218,14 @@ export async function fetchOverdueRabiesVaccine(
     WHERE
       p.status = 'active'
       ${scopeClause ? sql`AND (${scopeClause})` : sql``}
+      ${
+        petIdsFilter
+          ? sql`AND p.id IN (${sql.join(
+              petIdsFilter.map((id) => sql`${id}`),
+              sql`, `,
+            )})`
+          : sql``
+      }
       AND (
         lr.last_vaccine_at IS NULL
         OR lr.last_vaccine_at < ${cutoff}
@@ -181,6 +238,7 @@ export async function fetchOverdueRabiesVaccine(
     petId: r.pet_id,
     petName: r.pet_name,
     species: r.species,
+    publicToken: r.public_token,
     jurisdictionProvince: r.jurisdiction_province,
     jurisdictionLocality: r.jurisdiction_locality,
     lastVaccineAt: r.last_vaccine_at ? new Date(r.last_vaccine_at) : new Date(0),

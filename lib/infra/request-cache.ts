@@ -41,6 +41,10 @@ import {
 } from "@/db";
 import type { Organization, OrganizationMembership } from "@/db";
 import { type OrgQueueKey, fetchOrgQueueCounts } from "@/lib/analytics/org-dashboard";
+import {
+  excludeResolvedLostEpisodeSql,
+  excludeStaleWelcomeSql,
+} from "@/lib/infra/notification-reconcile";
 
 // ---------------------------------------------------------------------------
 // Profile — canonical per-request read
@@ -174,6 +178,17 @@ export const getOrgMembershipsCached = cache(
 /**
  * Cached unread-notifications count. Layout and /inicio page both render in
  * the same pass; without caching they issue identical COUNT queries.
+ *
+ * Must apply the SAME reconciliation predicate as every other owner-inbox
+ * read (fetchUnreadNotifications/fetchUnreadNotificationCount in
+ * lib/analytics/owner-dashboard.ts, and the /notificaciones page itself) —
+ * excludeResolvedLostEpisodeSql + excludeStaleWelcomeSql. Before this fix the
+ * masthead bell badge counted raw (readAt IS NULL, archivedAt IS NULL) rows
+ * without reconciling against current pet/ownership state, so a stale
+ * `welcome` notification (owner already has an active pet) or a resolved
+ * lost-episode alert inflated the badge to a number the /notificaciones page
+ * — which DOES reconcile — could never actually show, producing "badge says
+ * 1, page shows 0" (sweep-fixes-2 2026-07-23).
  */
 export const getUnreadCountCached = cache(async (userId: string): Promise<number> => {
   const [{ unreadCount }] = await db
@@ -184,6 +199,8 @@ export const getUnreadCountCached = cache(async (userId: string): Promise<number
         eq(notifications.userId, userId),
         isNull(notifications.readAt),
         isNull(notifications.archivedAt),
+        excludeResolvedLostEpisodeSql,
+        excludeStaleWelcomeSql,
       ),
     );
   return unreadCount;

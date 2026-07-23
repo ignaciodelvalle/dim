@@ -32,6 +32,14 @@ export const RENDERABLE_TEXT_COLUMNS: ReadonlyArray<{
   { table: "welfare_reports", column: "description", tsKey: "description" },
   { table: "pets", column: "name", tsKey: "name" },
   { table: "organizations", column: "display_name", tsKey: "displayName" },
+  // notifications.title — added after the owner-notifications badge/page
+  // investigation (sweep-fixes-2 2026-07-23) found the handle_new_user()
+  // trigger's welcome notification carrying a wrong-cased brand literal
+  // ("MiMAR" instead of canonical "miMAR") with no gate covering it. This
+  // column is DB-trigger-authored, not seed-script-authored, so it is exempt
+  // from check-seed-ids.ts's static fence (which only scans scripts/seed-*.ts
+  // source) but IS covered by the dynamic DB validator below.
+  { table: "notifications", column: "title", tsKey: "title" },
 ] as const;
 
 /** Seed-marker patterns — any hit inside a renderable column is a violation. */

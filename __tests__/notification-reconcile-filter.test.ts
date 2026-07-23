@@ -6,7 +6,7 @@
 // tears them down in afterAll.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, pets } from "@/db";
@@ -15,6 +15,11 @@ import {
   fetchNotificationCategoryCounts,
   fetchUnreadNotificationCount,
 } from "@/lib/analytics/owner-dashboard";
+import {
+  excludeResolvedLostEpisodeSql,
+  excludeStaleWelcomeSql,
+} from "@/lib/infra/notification-reconcile";
+import { getUnreadCountCached } from "@/lib/infra/request-cache";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -122,6 +127,12 @@ describe("notification reconcile filter", () => {
     expect(counts.all).toBe(3);
     expect(await countUnreadNotifications(userId)).toBe(3);
     expect(await fetchUnreadNotificationCount(userId, "perdidas")).toBe(2);
+    // Badge/page parity (sweep-fixes-2 2026-07-23 root cause): the masthead
+    // bell badge (getUnreadCountCached) must reconcile the same way as the
+    // /notificaciones page's unread count, or an owner sees "badge says N,
+    // page shows fewer". Before the fix this returned 4 (raw unread count,
+    // no reconciliation) instead of 3.
+    expect(await getUnreadCountCached(userId)).toBe(3);
   });
 
   it("suppresses the sighting alert once the pet is marked found (status → active)", async () => {
@@ -135,6 +146,7 @@ describe("notification reconcile filter", () => {
     expect(counts.all).toBe(2);
     expect(await countUnreadNotifications(userId)).toBe(2);
     expect(await fetchUnreadNotificationCount(userId, "perdidas")).toBe(1);
+    expect(await getUnreadCountCached(userId)).toBe(2);
   });
 });
 
@@ -178,5 +190,81 @@ describe("stale-welcome reconcile — user without pets keeps the welcome", () =
     const counts = await fetchNotificationCategoryCounts(noPetsUserId);
     expect(counts.all).toBe(1);
     expect(await countUnreadNotifications(noPetsUserId)).toBe(1);
+    expect(await getUnreadCountCached(noPetsUserId)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// NULL-category row — must render under "all" and count consistently
+// (sweep-fixes-2 2026-07-23, owner-notifications badge item 1a)
+// ---------------------------------------------------------------------------
+//
+// A category-less notification (e.g. the handle_new_user trigger's `welcome`
+// row before migration 0157, or any future direct-insert call site that
+// forgets `category`) must never disappear from the /notificaciones "all"
+// tab: fetchNotificationCategoryCounts folds it into `all`, and the page's
+// "all" WHERE clause (no `eq(category, ...)` predicate) must still return it.
+// This test drives the page's OWN query shape directly — same table, same
+// reconcile fragments, same "no category filter on all" contract — so a
+// future change to either side that breaks parity fails here first.
+
+describe("NULL-category notification — renders under 'all' and counts agree", () => {
+  const EMAIL_NULL_CAT = "notif-null-category@dim-test.local";
+  let nullCatUserId: string;
+
+  beforeAll(async () => {
+    await ensureUserDeleted(EMAIL_NULL_CAT);
+    const { data, error } = await admin.auth.admin.createUser({
+      email: EMAIL_NULL_CAT,
+      password: "NotifNullCategory_2026!",
+      email_confirm: true,
+    });
+    if (error || !data.user) throw new Error(`createUser: ${error?.message}`);
+    nullCatUserId = data.user.id;
+    // Deterministic fixture: drop whatever the trigger inserted, seed exactly
+    // one unread, non-archived, NULL-category notification of a type that is
+    // NOT reconciled away by either filter (so this isolates the category
+    // question from the reconcile-filter behavior already covered above).
+    await db.delete(notifications).where(eq(notifications.userId, nullCatUserId));
+    await db.insert(notifications).values({
+      userId: nullCatUserId,
+      notificationType: "first_stranger_scan",
+      title: "Alguien escaneó la credencial de Firulais por primera vez",
+      severity: "info",
+      category: null,
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(notifications).where(eq(notifications.userId, nullCatUserId));
+    await admin.auth.admin.deleteUser(nullCatUserId);
+  });
+
+  it("counts toward 'all' and the badge, and appears in the page's all-tab row set", async () => {
+    const counts = await fetchNotificationCategoryCounts(nullCatUserId);
+    expect(counts.all).toBe(1);
+    expect(await countUnreadNotifications(nullCatUserId)).toBe(1);
+    expect(await fetchUnreadNotificationCount(nullCatUserId)).toBe(1);
+    expect(await getUnreadCountCached(nullCatUserId)).toBe(1);
+
+    // The /notificaciones page's "all" tab applies no category predicate at
+    // all (app/(app)/notificaciones/page.tsx: `activeCat !== "all" ? eq(...) :
+    // undefined`) — reproduced here so a NULL-category row's presence in the
+    // actual row list is asserted, not just its count.
+    const rows = await db
+      .select({ id: notifications.id, category: notifications.category })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, nullCatUserId),
+          isNull(notifications.archivedAt),
+          excludeResolvedLostEpisodeSql,
+          excludeStaleWelcomeSql,
+        ),
+      )
+      .orderBy(desc(notifications.createdAt));
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].category).toBeNull();
   });
 });

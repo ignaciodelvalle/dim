@@ -22,6 +22,7 @@
 
 import postgres from "postgres";
 
+import { WRONG_CASE_BRAND } from "./check-brand-casing";
 import { RENDERABLE_TEXT_COLUMNS, findSeedMarker } from "./hygiene-rules";
 
 export type SeedHygieneOffender = {
@@ -64,6 +65,66 @@ export async function findSeedHygieneOffenders(sql: postgres.Sql): Promise<SeedH
   return offenders;
 }
 
+/**
+ * Notification-specific hygiene checks (sweep-fixes-2 2026-07-23), separate
+ * from the generic seed-marker scan above because these two checks aren't
+ * "does this text carry a seed marker" — they're structural:
+ *
+ *   1. Brand casing — notifications.title must never carry the wrong-cased
+ *      "MiMAR"/"Mimar"/"MIMAR" literal (canonical is "miMAR", PO decision
+ *      2026-07-18). check-brand-casing.ts already fences app/**+components/**
+ *      SOURCE; this is the DB-side companion for content a Postgres trigger
+ *      writes (handle_new_user's welcome insert), which that static scanner
+ *      cannot see.
+ *   2. `welcome` category presence — the ONE notification_type this repo
+ *      fully controls end-to-end (a single trigger, migration 0157). NOT a
+ *      blanket "category must never be NULL" rule: several OTHER production
+ *      write paths (notifyOwnerOfFirstStrangerScan, the
+ *      approval_request_auto_expired cron, and a handful of direct
+ *      db.insert(notifications) call sites — see 0157's follow-up note)
+ *      still omit category, and asserting NOT NULL across the whole table
+ *      would fail for reasons unrelated to seed/trigger hygiene. Scoping to
+ *      `welcome` keeps this gate honest about what it actually guarantees.
+ */
+export type NotificationHygieneOffender = {
+  id: string;
+  issue: "wrong_cased_brand" | "welcome_missing_category";
+  sample: string;
+};
+
+export async function findNotificationHygieneOffenders(
+  sql: postgres.Sql,
+): Promise<NotificationHygieneOffender[]> {
+  const offenders: NotificationHygieneOffender[] = [];
+
+  const titledRows = await sql.unsafe<Array<{ id: string; title: string }>>(
+    "SELECT id::text AS id, title FROM notifications WHERE title IS NOT NULL",
+  );
+  for (const row of titledRows) {
+    WRONG_CASE_BRAND.lastIndex = 0;
+    if (WRONG_CASE_BRAND.test(row.title)) {
+      offenders.push({
+        id: row.id,
+        issue: "wrong_cased_brand",
+        sample: row.title.slice(0, 80),
+      });
+    }
+  }
+
+  const staleWelcomeRows = await sql.unsafe<Array<{ id: string; title: string }>>(
+    "SELECT id::text AS id, title FROM notifications WHERE notification_type = 'welcome' AND category IS NULL",
+  );
+  for (const row of staleWelcomeRows) {
+    offenders.push({
+      id: row.id,
+      issue: "welcome_missing_category",
+      sample: row.title.slice(0, 80),
+    });
+  }
+
+  return offenders;
+}
+
 async function runCheck(): Promise<void> {
   const dbUrl =
     process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:54322/postgres";
@@ -71,8 +132,10 @@ async function runCheck(): Promise<void> {
   const sql = postgres(dbUrl, { max: 1, connect_timeout: 5 });
 
   let offenders: SeedHygieneOffender[];
+  let notificationOffenders: NotificationHygieneOffender[];
   try {
     offenders = await findSeedHygieneOffenders(sql);
+    notificationOffenders = await findNotificationHygieneOffenders(sql);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.warn(
@@ -84,7 +147,10 @@ async function runCheck(): Promise<void> {
   }
   await sql.end({ timeout: 1 }).catch(() => {});
 
+  let failed = false;
+
   if (offenders.length > 0) {
+    failed = true;
     for (const o of offenders) {
       console.error(
         `✗ ${o.table}.${o.column} id=${o.id}: seed marker "${o.matchedPattern}" in "${o.sample}"`,
@@ -93,11 +159,24 @@ async function runCheck(): Promise<void> {
     console.error(
       `\n✗ ${offenders.length} seed-hygiene offender(s) — a renderable column carries a seed-identifiable marker. Run scripts/seed-demo-polish.ts to repair, or fix the generator at the source (scripts/seed-panorama.ts).`,
     );
+  }
+
+  if (notificationOffenders.length > 0) {
+    failed = true;
+    for (const o of notificationOffenders) {
+      console.error(`✗ notifications id=${o.id}: ${o.issue} — "${o.sample}"`);
+    }
+    console.error(
+      `\n✗ ${notificationOffenders.length} notification-hygiene offender(s) — see db/migrations/0157_welcome_notification_category_and_casing.sql for the repair pattern.`,
+    );
+  }
+
+  if (failed) {
     process.exit(1);
   }
 
   console.log(
-    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s).`,
+    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders.`,
   );
 }
 

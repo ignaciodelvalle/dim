@@ -29,6 +29,11 @@
 --   input (user_metadata OR app_metadata) can set a privileged role at signup.
 --   See migration 0134.
 --
+-- CATEGORY + BRAND CASING (migration 0157): the welcome notification carries
+-- category = 'admin' (the "Sistema" tab on /notificaciones) and the canonical
+-- "miMAR" brand casing. Kept in sync with db/migrations/0157_welcome_
+-- notification_category_and_casing.sql.
+--
 -- TODO(25b): when Mi Argentina OIDC lands, wire additional metadata keys:
 --   - miarg_sub     → profiles.miarg_sub
 --   - dni_hash      → profiles.dni_hash  (pre-hashed by the OIDC callback)
@@ -64,11 +69,12 @@ begin
     resolved_display_name
   );
 
-  insert into public.notifications (user_id, notification_type, title, body, severity, cta_label, cta_url)
+  insert into public.notifications (user_id, notification_type, category, title, body, severity, cta_label, cta_url)
   values (
     new.id,
     'welcome',
-    '¡Te damos la bienvenida a MiMAR, ' || resolved_display_name || '!',
+    'admin',
+    '¡Te damos la bienvenida a miMAR, ' || resolved_display_name || '!',
     'La libreta digital de tu mascota empieza acá. Empezá agregando tu primera mascota — vamos a generar su credencial digital y armar el historial juntos.',
     'info'::public.notification_severity,
     'Registrá tu primera mascota',

@@ -2283,6 +2283,14 @@ export const AUDIT_LOG_ACTIONS = [
   // reason, changes, actor_role). Payload: { pet_id, target_event_id,
   // amendment_event_id, reason, changes, actor_role }.
   "event_amended_sensitive",
+  // Outreach "Enviar recordatorio(s)" (sweep-fixes-2 2026-07-23) — a govt/admin
+  // operator triggers a system-mediated vaccine_due reminder from the overdue-
+  // antirrábica list (/gob/operativos?vista=alcance). One row per invocation
+  // (single "Recordar" or the bulk "Enviar recordatorios (N)"), never per
+  // notification — the write-path companion to pii_queried. Payload:
+  // { surface, pipeline, requested_count, sent_count, already_notified_count,
+  //   no_owner_count, out_of_scope_count }.
+  "outreach_reminder_sent",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 

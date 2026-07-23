@@ -14,7 +14,10 @@
 import postgres from "postgres";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { findSeedHygieneOffenders } from "../scripts/check-seed-hygiene";
+import {
+  findNotificationHygieneOffenders,
+  findSeedHygieneOffenders,
+} from "../scripts/check-seed-hygiene";
 import { RENDERABLE_TEXT_COLUMNS } from "../scripts/hygiene-rules";
 
 const DATABASE_URL =
@@ -37,6 +40,24 @@ describe("seed hygiene — renderable columns carry no seed markers", () => {
         .join("\n");
       throw new Error(
         `${offenders.length} seed-hygiene offender(s) found — a renderable column carries a seed-identifiable marker.\n${summary}\n\nRun \`pnpm exec tsx scripts/seed-demo-polish.ts\` to repair, or fix the generator at the source (scripts/seed-panorama.ts).`,
+      );
+    }
+
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("notification hygiene — brand casing + welcome category (migration 0157)", () => {
+  it("has 0 wrong-cased brand titles and 0 welcome rows missing a category", async () => {
+    const offenders = await findNotificationHygieneOffenders(sql);
+
+    if (offenders.length > 0) {
+      const summary = offenders
+        .slice(0, 10)
+        .map((o) => `  id=${o.id}: ${o.issue} — "${o.sample}"`)
+        .join("\n");
+      throw new Error(
+        `${offenders.length} notification-hygiene offender(s) found.\n${summary}\n\nSee db/migrations/0157_welcome_notification_category_and_casing.sql for the repair pattern.`,
       );
     }
 

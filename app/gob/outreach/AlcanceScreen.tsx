@@ -25,6 +25,7 @@
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
+import { OutreachRabiesReminderList } from "@/components/gob/OutreachRabiesReminderList";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -38,7 +39,6 @@ import {
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
-import { relativeDaysShort, speciesLabel } from "@/lib/utils/format";
 
 export type AlcanceScreenProps = {
   /**
@@ -181,41 +181,14 @@ export async function AlcanceScreen({ underHub = false }: AlcanceScreenProps = {
               description="No hay mascotas activas con antirrábica vencida (> 365 días) en tu cobertura."
             />
           ) : (
-            <ul className="space-y-1" aria-label="Lista de mascotas con antirrábica vencida">
-              {overdueResult.pets.slice(0, 50).map((pet) => {
-                // epoch sentinel (new Date(0)) = pet never had a rabies vaccine
-                // on record. Show "sin registro" instead of a meaningless
-                // "hace 20624d"; real overdue dates render as a capped "hace Nd".
-                const overdueLabel =
-                  pet.lastVaccineAt.getTime() === 0
-                    ? "sin registro"
-                    : relativeDaysShort(pet.lastVaccineAt);
-                return (
-                  <li
-                    key={pet.petId}
-                    className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0 space-y-0.5">
-                      <p className="font-medium text-ln-op-ink">{pet.petName}</p>
-                      <p className="text-ln-op-mute">
-                        {speciesLabel(pet.species)} ·{" "}
-                        {[pet.jurisdictionLocality, pet.jurisdictionProvince]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </p>
-                    </div>
-                    <span className="shrink-0 text-ln-op-danger font-medium tabular-nums">
-                      {overdueLabel}
-                    </span>
-                  </li>
-                );
-              })}
+            <>
+              <OutreachRabiesReminderList pets={overdueResult.pets.slice(0, 50)} />
               {overdueResult.pets.length > 50 && (
-                <li className="py-1 text-center text-[11px] text-ln-op-mute">
+                <p className="py-1 text-center text-[11px] text-ln-op-mute">
                   … y {overdueResult.pets.length - 50} más — exportá el CSV para la lista completa
-                </li>
+                </p>
               )}
-            </ul>
+            </>
           )}
           {!overdueResult.empty && (
             <p className="mt-3 text-[11px] text-ln-op-mute">
