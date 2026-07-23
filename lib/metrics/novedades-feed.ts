@@ -63,8 +63,8 @@ import { petsScopeClause } from "./scope";
  *       outbreak_signal, disease_reported, rabies_observation_started
  *       (the three signals the /gob/vigilancia KPIs already read), plus
  *       incident_reported (bites/attacks — the mordeduras queue).
- *   - Custody governance → /gob/disputas
- *       custody_dispute_raised (the disputes the /gob/disputas queue works).
+ *   - Custody governance → /gob/casos?expediente=disputas (F6 fusion, 2026-07-22)
+ *       custody_dispute_raised (the disputes the Casos hub's Disputas tab works).
  *
  * Deliberately EXCLUDED (grounded in reality, not the plan's example list):
  *   - denuncias/welfare live in a SEPARATE table (welfare_reports), not

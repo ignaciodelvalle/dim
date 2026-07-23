@@ -102,16 +102,34 @@ const GOB_PROGRAMA: ScreenManifestEntry = {
   decision: "¿El programa cumple sus metas de cobertura este período, y dónde no?",
 };
 
+// F8 fusion (2026-07-22) — ABSORBED into GOB_PADRON as the "poblacion"
+// vista (the default). This route still exists as a page.tsx file
+// (permanent redirect into /gob/padron?vista=poblacion, preserving query
+// params — see lib/ui/padron-hub-redirect.ts), so it still needs a manifest
+// entry to satisfy the coverage fence; it has no nav entry anymore
+// (nav-presets.ts GOB_NAV_SECTIONS).
 const GOB_POBLACION: ScreenManifestEntry = {
   route: "/gob/poblacion",
   layer: "programa",
-  decision: "¿La población de mascotas crece dentro de la meta de control poblacional?",
+  decision: "[Absorbida] Redirige a /gob/padron?vista=poblacion — ver GOB_PADRON.",
 };
 
+// F8 fusion (2026-07-22) — ABSORBED into GOB_PADRON as the "censo" vista.
+// Same redirect-shim shape as GOB_POBLACION above.
 const GOB_CENSO: ScreenManifestEntry = {
   route: "/gob/censo",
   layer: "programa",
-  decision: "¿Qué tan completo y saludable está el registro censal de mi jurisdicción?",
+  decision: "[Absorbida] Redirige a /gob/padron?vista=censo — ver GOB_PADRON.",
+};
+
+// F8 fusion (2026-07-22, PO-approved route unification — both are
+// registry-derived Programa surfaces the registry manager reads together):
+// this screen now OWNS both the policy-target question (población) and the
+// registry-health question (censo) as tabbed vistas.
+const GOB_PADRON: ScreenManifestEntry = {
+  route: "/gob/padron",
+  layer: "programa",
+  decision: "¿Crece sano el padrón y contenemos la población?",
 };
 
 // F2 fusion (2026-07-22) — ABSORBED into GOB_OPERATIVOS as the "campanas"
@@ -208,16 +226,28 @@ const GOB_COLA: ScreenManifestEntry = {
   decision: "¿Apruebo o rechazo esta solicitud pendiente (matrícula, organización, credencial)?",
 };
 
+// F6 fusion (2026-07-22, PO-approved route unification — the "expediente"
+// family: same legal-administrative operator, identical case-file grammar
+// of open/parties/resolve): this screen now OWNS both regulatory cases and
+// custody disputes as tabbed expedientes (`?expediente=casos|disputas`).
 const GOB_CASOS: ScreenManifestEntry = {
   route: "/gob/casos",
   layer: "bandeja",
-  decision: "¿Qué caso regulatorio necesita mi próxima acción?",
+  decision: "¿Qué caso regulatorio o disputa de tenencia necesita mi próxima acción?",
 };
 
+// F6 fusion (2026-07-22) — ABSORBED into GOB_CASOS as the "disputas"
+// expediente. This route still exists as a page.tsx file (permanent
+// redirect into /gob/casos?expediente=disputas, preserving query params —
+// see lib/ui/casos-hub-redirect.ts), so it still needs a manifest entry to
+// satisfy the coverage fence; it has no nav entry anymore (nav-presets.ts
+// GOB_NAV_SECTIONS). Admin has no /admin/disputas twin — disputes are a
+// /gob-only surface (govt jurisdiction custody), so there is no ADMIN_
+// counterpart to this entry.
 const GOB_DISPUTAS: ScreenManifestEntry = {
   route: "/gob/disputas",
   layer: "bandeja",
-  decision: "¿Cómo resuelvo esta disputa de tenencia?",
+  decision: "[Absorbida] Redirige a /gob/casos?expediente=disputas — ver GOB_CASOS.",
 };
 
 const GOB_OUTBOX: ScreenManifestEntry = {
@@ -292,11 +322,44 @@ const GOB_DIRECTORIO: ScreenManifestEntry = {
 const ADMIN_PANEL = twin("/admin", GOB_PANEL, "briefing");
 const ADMIN_PANORAMA = twin("/admin/panorama", GOB_PANORAMA, "situacion");
 const ADMIN_PROGRAMA = twin("/admin/programa", GOB_PROGRAMA, "programa");
-const ADMIN_CENSO = twin("/admin/censo", GOB_CENSO, "programa");
+
+// NOT twin()s of GOB_CENSO/GOB_POBLACION: F8 fusion (2026-07-22) absorbed
+// both into the gob Padrón hub, but /admin/censo and /admin/poblacion
+// redirect into the ADMIN's OWN Padrón hub (/admin/padron — its own hub
+// page rendering admin-only screens, not a thin re-export), never
+// /gob/padron. Reusing the gob entries' now-"absorbed" decision text would
+// point at the wrong hub.
+const ADMIN_CENSO: ScreenManifestEntry = {
+  route: "/admin/censo",
+  layer: "programa",
+  decision: "[Absorbida] Redirige a /admin/padron?vista=censo — ver ADMIN_PADRON.",
+};
 const ADMIN_ADOPCIONES = twin("/admin/adopciones", GOB_ADOPCIONES, "programa");
-const ADMIN_POBLACION = twin("/admin/poblacion", GOB_POBLACION, "programa");
+const ADMIN_POBLACION: ScreenManifestEntry = {
+  route: "/admin/poblacion",
+  layer: "programa",
+  decision: "[Absorbida] Redirige a /admin/padron?vista=poblacion — ver ADMIN_PADRON.",
+};
+// NOT a twin() of GOB_PADRON either: the admin hub renders genuinely
+// different screens (national ranked tables, no jurisdiction filter), but
+// it answers the SAME decision question at national scope — twin()'s
+// "reuse the gob decision text verbatim" is accurate here (unlike the two
+// absorbed shims above, which point at a DIFFERENT hub route).
+const ADMIN_PADRON = twin("/admin/padron", GOB_PADRON, "programa");
 const ADMIN_COLA = twin("/admin/cola", GOB_COLA, "bandeja");
-const ADMIN_CASOS = twin("/admin/casos", GOB_CASOS, "bandeja");
+
+// NOT a twin() of GOB_CASOS: F6 fusion (2026-07-22) absorbed /gob/disputas
+// into the Casos hub as a tabbed expediente, but /admin/casos has no
+// disputas twin (disputes are a /gob-only surface — govt jurisdiction
+// custody) — it remains its own single-purpose, non-tabbed screen. Reusing
+// GOB_CASOS's now-dual-expediente decision text via twin() would incorrectly
+// describe this still-cases-only screen. Own entry, own (original,
+// pre-fusion) decision.
+const ADMIN_CASOS: ScreenManifestEntry = {
+  route: "/admin/casos",
+  layer: "bandeja",
+  decision: "¿Qué caso regulatorio necesita mi próxima acción?",
+};
 
 // NOT a twin() of GOB_MODERACION: F1 fusion (2026-07-22) absorbed
 // /gob/moderacion into the Denuncias hub, but /admin/moderacion is judged
@@ -401,6 +464,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_VIGILANCIA,
   GOB_PERDIDAS,
   GOB_PROGRAMA,
+  GOB_PADRON,
   GOB_POBLACION,
   GOB_CENSO,
   GOB_CAMPANAS,
@@ -430,6 +494,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   ADMIN_PANORAMA,
   ADMIN_OBSERVACIONES,
   ADMIN_PROGRAMA,
+  ADMIN_PADRON,
   ADMIN_CENSO,
   ADMIN_ADOPCIONES,
   ADMIN_POBLACION,

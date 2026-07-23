@@ -25,9 +25,10 @@ const ROUTE_ACTION: Record<string, string> = {
   "/admin": "Volvés a este panel: las colas del día y el mapa del portal.",
   "/admin/panorama": "Explorás eventos y capas sobre el mapa nacional.",
   "/admin/programa": "Leés el resumen ejecutivo del programa a nivel país.",
-  "/admin/censo": "Consultás cuántas mascotas hay registradas por jurisdicción.",
+  // F8 fusion (2026-07-22): Censo + Población collapse into ONE Padrón hub row.
+  "/admin/padron":
+    "Consultás el padrón: registro por jurisdicción, estimaciones y cobertura poblacional.",
   "/admin/adopciones": "Seguís el embudo de adopciones y sus métricas.",
-  "/admin/poblacion": "Revisás las estimaciones y la cobertura poblacional.",
   "/admin/inteligencia": "Comparás jurisdicciones por índice y calidad de datos.",
   "/admin/cola": "Aprobás o rechazás matrículas, organizaciones y RUPGA.",
   "/admin/alertas": "Revisás las alertas de vigilancia que dispararon las reglas.",
@@ -54,9 +55,8 @@ const ROUTE_ICON: Record<string, IconName> = {
   "/admin": "dashboard",
   "/admin/panorama": "capas",
   "/admin/programa": "chart-line",
-  "/admin/censo": "huella",
+  "/admin/padron": "huella",
   "/admin/adopciones": "corazon",
-  "/admin/poblacion": "usuarios",
   "/admin/inteligencia": "microscopio",
   "/admin/cola": "check-circle",
   "/admin/alertas": "alerta",

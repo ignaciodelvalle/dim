@@ -111,6 +111,16 @@ export interface CaseQueueProps {
    * to avoid a duplicate status control. Defaults to true.
    */
   showStatusChips?: boolean;
+  /**
+   * Extra query params ALWAYS carried on every chip link, on top of kind/
+   * status (F6, 2026-07-22). Needed when `filterBase` points at a TABBED HUB
+   * route rather than a dedicated page — e.g. the Casos hub's "Disputas"
+   * expediente (filterBase="/gob/casos") must keep `expediente=disputas` on
+   * every chip click, or the chip would silently drop the viewer back onto
+   * the hub's default "casos" tab. Omit on non-hub, single-purpose routes
+   * (existing behavior, unchanged).
+   */
+  extraFilterParams?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,8 +137,12 @@ function buildFilterHref(
   base: string,
   kind: CaseKind | null | undefined,
   status: "open" | "closed" | null | undefined,
+  extraParams?: Record<string, string>,
 ): string {
   const params = new URLSearchParams();
+  if (extraParams) {
+    for (const [key, value] of Object.entries(extraParams)) params.set(key, value);
+  }
   if (kind) params.set("kind", kind);
   if (status) params.set("status", status);
   const qs = params.toString();
@@ -153,6 +167,7 @@ export function CaseQueue({
   totalCount,
   emptyMessage = "No hay casos en esta cola.",
   showStatusChips = true,
+  extraFilterParams,
 }: CaseQueueProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -187,7 +202,7 @@ export function CaseQueue({
             return (
               <Link
                 key={opt.value ?? "all"}
-                href={buildFilterHref(filterBase, activeKind, opt.value)}
+                href={buildFilterHref(filterBase, activeKind, opt.value, extraFilterParams)}
                 aria-pressed={isActive}
                 className={[
                   "rounded-full border px-3 py-1 text-sm font-medium no-underline transition-colors",

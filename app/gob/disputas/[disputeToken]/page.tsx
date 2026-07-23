@@ -121,7 +121,7 @@ export default async function DisputeDetailPage({
     <div className="space-y-6 max-w-3xl">
       <header className="space-y-2">
         <Link
-          href="/gob/disputas"
+          href="/gob/casos?expediente=disputas"
           className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
         >
           {"←"} Volver a la lista

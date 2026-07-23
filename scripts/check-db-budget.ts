@@ -51,12 +51,17 @@ export const DASHBOARD_PAGES = [
   "app/admin/programa/page.tsx",
   // D2 analytics pages (same shape as admin/programa — already wrapped with
   // loadWithTimeout today; enforced here so a future silent drop is caught).
-  "app/admin/censo/page.tsx",
-  "app/admin/poblacion/page.tsx",
+  // F8 fusion (2026-07-22): app/admin/censo, app/admin/poblacion, app/gob/censo
+  // and app/gob/poblacion's page.tsx are now thin redirect shims into the
+  // Padrón hub — the heavy fan-out (and its loadWithTimeout wrapper) relocated
+  // byte-identical into these Screen components, so the scan target moves
+  // with it.
+  "app/admin/censo/AdminCensoScreen.tsx",
+  "app/admin/poblacion/AdminPoblacionScreen.tsx",
   "app/admin/inteligencia/page.tsx",
   "app/gob/programa/page.tsx",
-  "app/gob/censo/page.tsx",
-  "app/gob/poblacion/page.tsx",
+  "app/gob/censo/CensoScreen.tsx",
+  "app/gob/poblacion/PoblacionScreen.tsx",
   // DB2 resilience finding: heavy multi-query fan-outs with no time budget —
   // wrapped with loadWithTimeout in the same pass that added this line.
   "app/gob/analytics/page.tsx",

@@ -274,10 +274,10 @@ export default async function GobAnalyticsPage({
           value={String(metrics.custodyDisputes)}
           tone={metrics.custodyDisputes > 0 ? "warn" : undefined}
           sub="casos abiertos"
-          href="/gob/disputas"
+          href="/gob/casos?expediente=disputas"
           info={{
             definition:
-              "Disputas de custodia abiertas en la jurisdicción seleccionada — la misma cola accionable que lista /gob/disputas.",
+              "Disputas de custodia abiertas en la jurisdicción seleccionada — la misma cola accionable que lista el expediente Disputas del hub Casos (/gob/casos?expediente=disputas).",
             formula: "COUNT(custody_disputes WHERE status='open')",
           }}
           descriptorId="custody_disputes_open"

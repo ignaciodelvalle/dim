@@ -442,7 +442,6 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/historial",
   "/gob/analytics",
   "/gob/perdidas",
-  "/gob/disputas",
   // /gob/maltrato and /gob/moderacion REMOVED from nav (F1 fusion, 2026-07-22):
   // absorbed into the Denuncias hub as tabbed stages (?etapa=moderacion|triage).
   // Both routes still exist as permanent redirects, but neither has a nav entry.
@@ -454,8 +453,13 @@ const GOB_HREF_SNAPSHOT = new Set([
   // from nav (F3+F7 fusion, 2026-07-22): absorbed into the Directorio hub as
   // tabbed registros (?registro=organizaciones|usuarios|servicios|credenciales).
   "/gob/directorio",
-  "/gob/censo", // Paquete E — censo poblacional & salud del registro
-  "/gob/poblacion", // Paquete G — control poblacional (North Star)
+  // /gob/disputas REMOVED from nav (F6 fusion, 2026-07-22): absorbed into the
+  // Casos hub as a tabbed expediente (?expediente=casos|disputas). Route
+  // still exists as a permanent redirect, but has no nav entry.
+  // /gob/censo and /gob/poblacion REMOVED from nav (F8 fusion, 2026-07-22):
+  // absorbed into the Padrón hub as tabbed vistas (?vista=poblacion|censo).
+  // Both routes still exist as permanent redirects, but neither has a nav entry.
+  "/gob/padron", // F8 — Padrón hub (Población + Censo)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
   // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
   // operators (2026-07-09 audit). Route still exists as a redirect for deep
@@ -504,13 +508,34 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(allHrefs).not.toContain("/gob/maltrato");
   });
 
-  it("includes /gob/mortalidad and /gob/poblacion in the Programa section (C6a — outcome dashboards)", () => {
+  it("does NOT include /gob/disputas anywhere (F6 fusion — absorbed into the Casos hub as an expediente)", () => {
+    const allHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(allHrefs).not.toContain("/gob/disputas");
+  });
+
+  it("does NOT include /gob/poblacion or /gob/censo anywhere (F8 fusion — absorbed into the Padrón hub as vistas)", () => {
+    const allHrefs = GOB_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(allHrefs).not.toContain("/gob/poblacion");
+    expect(allHrefs).not.toContain("/gob/censo");
+  });
+
+  it("includes /gob/mortalidad and /gob/padron in the Programa section (F8 — Padrón absorbs Población + Censo)", () => {
     const progSection = GOB_NAV_SECTIONS.find((s) => s.label === "Programa");
     const hrefs = progSection?.items.map((i) => i.href) ?? [];
     expect(hrefs).toContain("/gob/mortalidad");
-    expect(hrefs).toContain("/gob/poblacion");
+    expect(hrefs).toContain("/gob/padron");
+    const padron = progSection?.items.find((i) => i.href === "/gob/padron");
+    expect(padron?.label).toBe("Padrón");
     // Judgment call: Adopciones (outcome-vs-target dashboard) also lives here.
     expect(hrefs).toContain("/gob/adopciones");
+  });
+
+  it("includes /gob/casos in the Bandeja operativa section (F6 — Casos absorbs Disputas as an expediente)", () => {
+    const bandejaSection = GOB_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
+    const hrefs = bandejaSection?.items.map((i) => i.href) ?? [];
+    expect(hrefs).toContain("/gob/casos");
+    const casos = bandejaSection?.items.find((i) => i.href === "/gob/casos");
+    expect(casos?.label).toBe("Casos");
   });
 
   it("includes /gob/programa in the Programa section, not the unlabeled top (C6a — top holds only Panel)", () => {
@@ -631,9 +656,10 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/casos",
   "/admin/alertas", // WS-K — bandeja de alertas + triage
   "/admin/suscripciones", // promoted out of /admin/programa's alert sub-panel (2026-07-21)
-  "/admin/censo", // Paquete E — censo poblacional & salud del registro
+  // F8 fusion (2026-07-22): /admin/censo + /admin/poblacion collapse into ONE
+  // /admin/padron hub entry (own admin hub page, tabbed ?vista=poblacion|censo).
+  "/admin/padron",
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
-  "/admin/poblacion", // Paquete G — control poblacional (North Star)
   "/admin/programa", // Paquete H — resumen ejecutivo del programa
   "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
   "/admin/inteligencia", // Task #44 — inteligencia operativa territorial
@@ -679,13 +705,21 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   // GOB_NAV_SECTIONS where the same screens exist. These tests now encode
   // the NEW grouping (superseding the C26/C27 taxonomy split below).
 
-  it("includes /admin/poblacion and /admin/programa in the Programa section (C6a)", () => {
+  it("includes /admin/padron and /admin/programa in the Programa section (F8 — Padrón absorbs Población + Censo)", () => {
     const progSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Programa");
     const hrefs = progSection?.items.map((i) => i.href) ?? [];
-    expect(hrefs).toContain("/admin/poblacion");
+    expect(hrefs).toContain("/admin/padron");
     expect(hrefs).toContain("/admin/programa");
+    const padron = progSection?.items.find((i) => i.href === "/admin/padron");
+    expect(padron?.label).toBe("Padrón");
     // Programa leads the layer (highest-level view first).
     expect(progSection?.items[0]?.href).toBe("/admin/programa");
+  });
+
+  it("does NOT include /admin/poblacion or /admin/censo anywhere (F8 fusion — absorbed into the Padrón hub)", () => {
+    const allHrefs = ADMIN_NAV_SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+    expect(allHrefs).not.toContain("/admin/poblacion");
+    expect(allHrefs).not.toContain("/admin/censo");
   });
 
   it("Situación is the first labeled section (C6a — Panorama leads, mirrors gob)", () => {

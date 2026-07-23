@@ -1,88 +1,84 @@
 // @vitest-environment jsdom
 //
-// /gob/casos — render smoke test (opfilterbar-sweep-2026-07-21, R1).
+// /gob/casos — the Casos hub. F6 fusion (2026-07-22, PO-approved route
+// unification: the "expediente" family, same legal-administrative operator,
+// identical case-file grammar of open/parties/resolve): the hub ABSORBS
+// Disputas as a TABBED EXPEDIENTE (`?expediente=casos|disputas`) of one
+// screen.
 //
-// THE BUG this was ADDED to catch: /gob/casos and /admin/casos crashed at
-// runtime ("Algo salió mal", digest attached) even though `tsc --noEmit` was
-// clean and every existing unit test passed. Root cause: `parseCasoEstado`
-// was defined and exported from CasoEstadoFilter.tsx, a "use client" module.
-// Next's RSC bundler treats EVERY export of a "use client" module as a
-// client reference — including a plain, hook-free function — so calling it
-// (not rendering it) from this Server Component's data-loading function threw:
-// "Attempted to call parseCasoEstado() from the server but parseCasoEstado is
-// on the client." That boundary is enforced by Next's actual webpack/turbopack
-// build (react-server-dom-webpack), which this project's Vitest config does
-// NOT replicate (see vitest.config.ts — plain @vitejs/plugin-react, no
-// `react-server` condition) — so calling parseCasoEstado() here does NOT, by
-// itself, reproduce the exact throw. This test instead pins the OTHER half
-// of the contract: the page must actually render its real JSX tree (Estado
-// control, KIND/Provincia axes, CaseQueue) end to end with realistic props,
-// so any FUTURE break in that render path — a thrown exception, a bad prop,
-// an undefined access — fails here instead of only on the running server.
-// The module-boundary invariant itself (parseCasoEstado must NOT live in a
-// "use client" file) is pinned separately in
-// components/ui/dashboard/caso-estado.test.ts, and was verified against the
-// real Next dev server (the only thing that actually enforces the RSC
-// boundary) as part of the same fix.
+// The two embedded expediente screens (CasosScreen / DisputasScreen) are
+// heavy server components with their own DB/auth-guard/jurisdiction-scope
+// dependencies — their own bodies are unit-tested separately (CasosScreen.
+// test.tsx, relocated verbatim from the former page-level test; Disputas
+// never had one, unchanged by this fusion). This test stubs them out
+// entirely so it can focus on what the HUB itself owns: the header, the
+// expediente tab switcher, and — critically — that the default expediente is
+// "casos" and that ?expediente= actually selects the right embedded screen.
 import "@testing-library/jest-dom/vitest";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+let mockSearch = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearch,
 }));
 
-vi.mock("@/lib/infra/auth-guards", () => ({
-  requireAdminOrGovtOrRedirect: vi.fn(async () => ({
-    supabase: {},
-    user: { id: "user-1", email: "govt@dim.test" },
-    profile: { id: "user-1", role: "govt" },
-    jurisdictions: [
-      { province: "Buenos Aires", locality: "La Plata" },
-      { province: "Buenos Aires", locality: "Quilmes" },
-    ],
-  })),
+vi.mock("./CasosScreen", () => ({
+  CasosScreen: () => <div data-testid="casos-stub">CASOS EXPEDIENTE CONTENT</div>,
 }));
 
-vi.mock("@/lib/infra/case-queries", () => ({
-  listCasesForGovt: vi.fn(async () => []),
-  countCasesForGovt: vi.fn(async () => 0),
-  listCasesForAdmin: vi.fn(async () => []),
-  countCasesForAdmin: vi.fn(async () => 0),
+vi.mock("@/app/gob/disputas/DisputasScreen", () => ({
+  DisputasScreen: () => <div data-testid="disputas-stub">DISPUTAS EXPEDIENTE CONTENT</div>,
 }));
 
-import GovtCasosPage from "./page";
+import GobCasosPage from "./page";
 
-describe("/gob/casos — render smoke test", () => {
-  it("renders the govt viewer's Estado control + queue caption without throwing", async () => {
-    const node = await GovtCasosPage({ searchParams: Promise.resolve({}) });
+function renderHub(query: Record<string, string> = {}) {
+  mockSearch = new URLSearchParams(query);
+  return GobCasosPage({ searchParams: Promise.resolve(query) });
+}
+
+describe("/gob/casos — the hub (F6 fusion: Disputas as a tabbed expediente)", () => {
+  it("renders the hub header", async () => {
+    const node = await renderHub();
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Casos");
-    expect(html).toContain("Estado");
-    expect(html).toContain("Abiertos");
-    expect(html).toContain("No hay casos abiertos en tu jurisdicción.");
+    expect(html).toContain("¿Qué expediente necesita mi próxima acción?");
   });
 
-  it("renders with an explicit status + kind + province query without throwing", async () => {
-    const node = await GovtCasosPage({
-      searchParams: Promise.resolve({ status: "all", kind: "maltrato", province: "Buenos Aires" }),
-    });
+  it("renders both expediente tab labels", async () => {
+    const node = await renderHub();
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Casos");
+    expect(html).toContain("Disputas");
   });
 
-  it("renders the admin-universal branch (role=admin viewing /gob/casos) without throwing", async () => {
-    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
-    const adminSession: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>> = {
-      supabase: {} as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>["supabase"],
-      user: { id: "admin-1", email: "admin@dim.test" },
-      profile: { id: "admin-1", role: "admin" },
-      jurisdictions: [],
-    };
-    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce(adminSession);
-    const node = await GovtCasosPage({ searchParams: Promise.resolve({}) });
+  it("defaults to the 'casos' expediente when no ?expediente= is given", async () => {
+    const node = await renderHub();
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Vista universal admin.");
+    expect(html).toContain("CASOS EXPEDIENTE CONTENT");
+    expect(html).not.toContain("DISPUTAS EXPEDIENTE CONTENT");
+  });
+
+  it("?expediente=disputas renders the Disputas expediente instead", async () => {
+    const node = await renderHub({ expediente: "disputas" });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("DISPUTAS EXPEDIENTE CONTENT");
+    expect(html).not.toContain("CASOS EXPEDIENTE CONTENT");
+  });
+
+  it("an unrecognized ?expediente= value falls back to the casos default (never crashes, never shows blank)", async () => {
+    const node = await renderHub({ expediente: "not-a-real-expediente" });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("CASOS EXPEDIENTE CONTENT");
+  });
+
+  it("does not link out to the old standalone /gob/disputas route from the hub itself", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    // Regression guard against reintroducing the pre-fusion link — the hub's
+    // own chrome must never point at the (now-redirecting) old route.
+    expect(html).not.toContain('href="/gob/disputas"');
   });
 });

@@ -237,7 +237,7 @@ export default async function GobProgramaPage({
           label="Total registradas"
           value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
           sub="mascotas activas o extraviadas"
-          href="/gob/censo"
+          href="/gob/padron?vista=censo"
           info={{
             definition: "Total de mascotas con status 'active' o 'lost' en tu jurisdicción.",
             formula: "COUNT(pets) WHERE status IN ('active','lost') AND scope",
@@ -249,7 +249,7 @@ export default async function GobProgramaPage({
           value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
           tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
-          href="/gob/poblacion"
+          href="/gob/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
         />
@@ -258,7 +258,7 @@ export default async function GobProgramaPage({
           value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
           tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
-          href="/gob/censo"
+          href="/gob/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
         />

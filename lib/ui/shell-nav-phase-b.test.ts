@@ -38,7 +38,6 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/historial",
   "/gob/analytics",
   "/gob/perdidas",
-  "/gob/disputas",
   "/gob/decomisos",
   // /gob/campanas and /gob/outreach REMOVED (F2 fusion, 2026-07-22): absorbed
   // into the Operativos hub as tabbed vistas.
@@ -47,8 +46,11 @@ const GOB_HREF_SNAPSHOT = new Set([
   // (F3+F7 fusion, 2026-07-22): absorbed into the Directorio hub as tabbed
   // registros.
   "/gob/directorio",
-  "/gob/censo", // Paquete E — censo poblacional & salud del registro
-  "/gob/poblacion", // Paquete G — control poblacional (North Star)
+  // /gob/disputas REMOVED (F6 fusion, 2026-07-22): absorbed into the Casos
+  // hub as a tabbed expediente (?expediente=casos|disputas).
+  // /gob/censo and /gob/poblacion REMOVED (F8 fusion, 2026-07-22): absorbed
+  // into the Padrón hub as tabbed vistas (?vista=poblacion|censo).
+  "/gob/padron", // F8 — Padrón hub (Población + Censo)
   "/gob/adopciones", // Paquete F — pipeline de custodia & adopción
   // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
   // operators (2026-07-09 audit), matches nav-presets.test.ts.
@@ -79,9 +81,10 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/casos",
   "/admin/alertas", // WS-K — bandeja de alertas + triage
   "/admin/suscripciones", // promoted out of /admin/programa's alert sub-panel (2026-07-21)
-  "/admin/censo", // Paquete E — censo poblacional & salud del registro
+  // F8 fusion (2026-07-22): /admin/censo + /admin/poblacion collapse into ONE
+  // /admin/padron hub entry (admin's own hub page, tabbed ?vista=poblacion|censo).
+  "/admin/padron",
   "/admin/adopciones", // Paquete F — pipeline de custodia & adopción
-  "/admin/poblacion", // Paquete G — control poblacional (North Star)
   "/admin/programa", // Paquete H — resumen ejecutivo del programa
   "/admin/libro", // WS-L — Libro de eventos (event-sourcing visible)
   "/admin/inteligencia", // Task #44 — inteligencia operativa territorial
@@ -160,9 +163,12 @@ describe("Phase B operator parity — gob", () => {
   // Floor lowered 24 → 21 (F2+F3+F7 fusions, 2026-07-22): campañas/outreach
   // collapsed into /gob/operativos and organizaciones/usuarios/servicios/
   // rupga collapsed into /gob/directorio — 6 routes dropped from nav, 2 hub
-  // routes added, net -4. Matches GOB_HREF_SNAPSHOT's new cardinality.
-  it("has at least 21 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
-    expect(allHrefs.length).toBeGreaterThanOrEqual(21);
+  // routes added, net -4. Further lowered 21 → 19 (F6+F8 fusions, same day):
+  // disputas collapsed into /gob/casos (-1) and censo+poblacion collapsed
+  // into /gob/padron (-2 routes, +1 hub route, net -1). Matches
+  // GOB_HREF_SNAPSHOT's new cardinality.
+  it("has at least 19 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
+    expect(allHrefs.length).toBeGreaterThanOrEqual(19);
   });
 
   it("sections form the expected structure (5 groups including 1 unlabeled)", () => {

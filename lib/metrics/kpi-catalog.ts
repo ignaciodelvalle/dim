@@ -421,7 +421,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat:
-      "Programmatic benchmark (70%), not a universal legal mandate — obligatory by provincial law only in Santa Fe, Mendoza, La Rioja, Chubut, San Juan. Shared by /gob/poblacion and Panorama (same fetcher — dashboard parity guaranteed by construction).",
+      "Programmatic benchmark (70%), not a universal legal mandate — obligatory by provincial law only in Santa Fe, Mendoza, La Rioja, Chubut, San Juan. Shared by /gob/padron (vista Población, F8 fusion) and Panorama (same fetcher — dashboard parity guaranteed by construction).",
     window: "all_time",
     species: "all_species",
     basis: "ratio",
@@ -902,7 +902,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none (province rows are never small enough to require k-anon)",
     caveat:
-      "Sanitary-coverage sibling of rabies_coverage_dogs_12m and sterilization_coverage_population, surfaced on /gob/poblacion. Unlike sterilization (once-ever), deworming is periodic — the 12-month window is a 'currently protected' proxy. Only counts dewormings logged in miMAR; real-world coverage may be higher. SEED-DENSITY CAVEAT: deworming_administered has low seed density, so this reads a low but HONEST value until owners/vets log antiparasitic doses.",
+      "Sanitary-coverage sibling of rabies_coverage_dogs_12m and sterilization_coverage_population, surfaced on /gob/padron (vista Población, F8 fusion). Unlike sterilization (once-ever), deworming is periodic — the 12-month window is a 'currently protected' proxy. Only counts dewormings logged in miMAR; real-world coverage may be higher. SEED-DENSITY CAVEAT: deworming_administered has low seed density, so this reads a low but HONEST value until owners/vets log antiparasitic doses.",
     window: "12m",
     species: "all_species",
     basis: "ratio",
@@ -1314,7 +1314,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "count",
     suppression: "none",
     caveat:
-      "Sin meta — es un conteo de tamaño del padrón, no una tasa de cumplimiento. Compartido por /gob/programa, /admin/programa, /gob/censo, /admin/censo (vía registryCounts) y /gob/analytics (vía fetchAnalyticsMetrics, lib/analytics/dashboards/analytics.ts) — DOS fetchers distintos, mismo predicado exacto (status IN ('active','lost')) verificado — no un cómputo duplicado por accidente.",
+      "Sin meta — es un conteo de tamaño del padrón, no una tasa de cumplimiento. Compartido por /gob/programa, /admin/programa, /gob/padron (vista Censo), /admin/padron (vista Censo) (vía registryCounts, F8 fusion) y /gob/analytics (vía fetchAnalyticsMetrics, lib/analytics/dashboards/analytics.ts) — DOS fetchers distintos, mismo predicado exacto (status IN ('active','lost')) verificado — no un cómputo duplicado por accidente.",
     window: "now",
     species: "all_species",
     basis: "stock",
@@ -1369,7 +1369,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
   },
 
   // ---------------------------------------------------------------------------
-  // C1 sweep (2026-07-22) — /gob/censo + /admin/censo's KPI row.
+  // C1 sweep (2026-07-22) — /gob/padron (vista Censo) + /admin/padron (vista
+  // Censo)'s KPI row (F8 fusion, formerly /gob/censo + /admin/censo).
   // ---------------------------------------------------------------------------
 
   registry_active_pets: {
@@ -1438,7 +1439,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
   },
 
   // ---------------------------------------------------------------------------
-  // C1 sweep (2026-07-22) — /gob/poblacion + /admin/poblacion's KPI row.
+  // C1 sweep (2026-07-22) — /gob/padron (vista Población) + /admin/padron
+  // (vista Población)'s KPI row (F8 fusion, formerly /gob/poblacion +
+  // /admin/poblacion).
   // ---------------------------------------------------------------------------
 
   registered_births: {
@@ -1994,7 +1997,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "count",
     suppression: "none",
     caveat:
-      "Misma fuente que la cola de /gob/disputas (custody_disputes, no cases) — el conteo y la cola siempre reconcilian. Sin meta formal — el tono de atención (ámbar cuando >0) es operativo.",
+      "Misma fuente que la cola de disputas en /gob/casos?expediente=disputas (custody_disputes, no cases) — el conteo y la cola siempre reconcilian. Sin meta formal — el tono de atención (ámbar cuando >0) es operativo.",
     window: "now",
     species: "n/a",
     basis: "stock",

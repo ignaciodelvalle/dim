@@ -225,7 +225,7 @@ export default async function AdminProgramaPage({
           label="Total registradas"
           value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
           sub="mascotas activas o extraviadas"
-          href="/admin/censo"
+          href="/admin/padron?vista=censo"
           info={{
             definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
             formula: "COUNT(pets) WHERE status IN ('active','lost')",
@@ -237,7 +237,7 @@ export default async function AdminProgramaPage({
           value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
           tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
-          href="/admin/poblacion"
+          href="/admin/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
         />
@@ -246,7 +246,7 @@ export default async function AdminProgramaPage({
           value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
           tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
-          href="/admin/censo"
+          href="/admin/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
         />

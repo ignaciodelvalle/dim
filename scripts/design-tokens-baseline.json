@@ -2,7 +2,7 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 2052,
+    "totalViolations": 2040,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
@@ -14,7 +14,7 @@
       "hexStyle": 0
     },
     "components/AdoptionQueueList.tsx": {
-      "text": 5,
+      "text": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -595,7 +595,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/transferencias/recibidas/IncomingTransferActions.tsx": {
-      "text": 4,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -749,7 +749,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/mascotas/OrgMascotasBulkList.tsx": {
-      "text": 17,
+      "text": 16,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1008,7 +1008,7 @@
       "hexStyle": 0
     },
     "app/org/[orgToken]/admin/layout.tsx": {
-      "text": 3,
+      "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1043,7 +1043,7 @@
       "hexStyle": 0
     },
     "app/gob/page.tsx": {
-      "text": 3,
+      "text": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1105,7 +1105,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/usuarios/page.tsx": {
+    "app/gob/usuarios/UsuariosScreen.tsx": {
       "text": 2,
       "space": 0,
       "rounded": 0,
@@ -1119,7 +1119,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/servicios/page.tsx": {
+    "app/gob/servicios/ServiciosScreen.tsx": {
       "text": 2,
       "space": 0,
       "rounded": 0,
@@ -1224,7 +1224,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/poblacion/page.tsx": {
+    "app/gob/poblacion/PoblacionScreen.tsx": {
       "text": 8,
       "space": 0,
       "rounded": 0,
@@ -1238,7 +1238,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/outreach/page.tsx": {
+    "app/gob/outreach/AlcanceScreen.tsx": {
       "text": 8,
       "space": 0,
       "rounded": 0,
@@ -1308,7 +1308,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/disputas/page.tsx": {
+    "app/gob/disputas/DisputasScreen.tsx": {
       "text": 1,
       "space": 0,
       "rounded": 0,
@@ -1385,21 +1385,21 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/censo/page.tsx": {
+    "app/gob/censo/CensoScreen.tsx": {
       "text": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/casos/page.tsx": {
+    "app/gob/casos/CasosScreen.tsx": {
       "text": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/campanas/page.tsx": {
+    "app/gob/campanas/CampanasScreen.tsx": {
       "text": 0,
       "space": 1,
       "rounded": 0,
@@ -1469,7 +1469,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/poblacion/page.tsx": {
+    "app/admin/poblacion/AdminPoblacionScreen.tsx": {
       "text": 7,
       "space": 0,
       "rounded": 0,
@@ -1574,7 +1574,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/admin/censo/page.tsx": {
+    "app/admin/censo/AdminCensoScreen.tsx": {
       "text": 12,
       "space": 0,
       "rounded": 0,
@@ -2163,8 +2163,8 @@
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/[eventId]/page.tsx": {
-      "text": 11,
-      "space": 3,
+      "text": 10,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0

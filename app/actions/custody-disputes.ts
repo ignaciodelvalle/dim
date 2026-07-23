@@ -87,7 +87,11 @@ export async function resolveDisputeAction(
   const session = await requireAdminOrGovtOrRedirect();
   const result = await resolveDisputeUseCase(session, input);
   if ("resolvedAt" in result) {
-    revalidatePath("/gob/disputas");
+    // F6 fusion (2026-07-22): the disputes queue now renders under the Casos
+    // hub (/gob/casos?expediente=disputas), not /gob/disputas (a redirect
+    // shim). revalidatePath("/gob/casos") revalidates the hub path for every
+    // expediente/query variant.
+    revalidatePath("/gob/casos");
     revalidatePath(`/gob/disputas/${input.disputeToken}`);
   }
   return result;
@@ -99,7 +103,9 @@ export async function withdrawDisputeAction(
   const session = await requireAdminOrGovtOrRedirect();
   const result = await withdrawDisputeUseCase(session, input);
   if ("withdrawnAt" in result) {
-    revalidatePath("/gob/disputas");
+    // F6 fusion (2026-07-22): see resolveDisputeAction above — the queue now
+    // renders under the Casos hub, not the /gob/disputas redirect shim.
+    revalidatePath("/gob/casos");
     revalidatePath(`/gob/disputas/${input.disputeToken}`);
   }
   return result;

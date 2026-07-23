@@ -83,6 +83,18 @@ let welfareBridgeOwnershipId: string | null = null;
 let fixtureWelfareCaseId: string | null = null;
 let fixtureWelfareBridgeEventId: string | null = null;
 let fixtureNormalEventId: string | null = null;
+// Dedicated CASE-FREE pet for the generic `pet_events` probes. The shared
+// `ownerPetId` fixture belongs to the seeded demo world, and seed evolution
+// (e.g. seed-demo-spine's "denuncia con mascota vinculada") can attach a case
+// to one of its events at any time — which flips the admin probe to `allow`
+// through the legitimate `can_read_case` OR-branch and breaks the
+// `admin.pet_events.select = deny` cell, whose real meaning is "admin has NO
+// RLS path to a NON-case-attached event". Probing a pet this test creates and
+// fully controls (one plain event, never a case) makes the cell assert
+// exactly that, immune to seed-data drift. Cleaned up in afterAll.
+let cleanEventsPetId: string | null = null;
+let cleanEventsOwnershipId: string | null = null;
+let cleanEventsEventId: string | null = null;
 
 beforeAll(async () => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -283,6 +295,42 @@ beforeAll(async () => {
       })
       .returning({ id: petEvents.id });
     fixtureNormalEventId = normalEventRow.id;
+
+    // Dedicated case-free pet + one plain event for the generic pet_events
+    // probes (see cleanEventsPetId declaration for the WHY).
+    const [cleanPetRow] = await db
+      .insert(pets)
+      .values({
+        publicToken: `DIM-RLSCLN-${Date.now().toString(36).toUpperCase()}`,
+        name: "RLS Matrix Clean Events Pet",
+        species: "dog",
+        sex: "male",
+        potentiallyDangerousBreed: false,
+      })
+      .returning({ id: pets.id });
+    cleanEventsPetId = cleanPetRow.id;
+
+    const [cleanOwnershipRow] = await db
+      .insert(ownerships)
+      .values({
+        petId: cleanEventsPetId,
+        ownerUserId: ownerCtxForWelfare.userId,
+        role: "owner",
+      })
+      .returning({ id: ownerships.id });
+    cleanEventsOwnershipId = cleanOwnershipRow.id;
+
+    const [cleanEventRow] = await db
+      .insert(petEvents)
+      .values({
+        petId: cleanEventsPetId,
+        eventType: "note_added",
+        occurredAt: new Date(),
+        authorRole: "owner",
+        payload: { text: "rls-matrix fixture: case-free event for generic pet_events probes" },
+      })
+      .returning({ id: petEvents.id });
+    cleanEventsEventId = cleanEventRow.id;
   }
 });
 
@@ -333,6 +381,23 @@ afterAll(async () => {
       .where(eq(pets.id, welfareBridgePetId))
       .catch(() => {});
   }
+  if (cleanEventsEventId) {
+    await withMutationOverride(async (tx) => {
+      await tx.delete(petEvents).where(eq(petEvents.id, cleanEventsEventId as string));
+    }).catch(() => {});
+  }
+  if (cleanEventsOwnershipId) {
+    await db
+      .delete(ownerships)
+      .where(eq(ownerships.id, cleanEventsOwnershipId))
+      .catch(() => {});
+  }
+  if (cleanEventsPetId) {
+    await db
+      .delete(pets)
+      .where(eq(pets.id, cleanEventsPetId))
+      .catch(() => {});
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -359,7 +424,17 @@ async function probeSelect(
   // tables: unfiltered it probed "any row", and any LOST pet in the DB
   // (whose disclosure policies deliberately expose its chip for finder
   // lookup) flipped the other_user deny probe — a data-dependent assertion.
-  if (ctx.ownerPetId && ["pet_events", "ownerships", "pet_identifications"].includes(table)) {
+  if (table === "pet_events" && (cleanEventsPetId ?? ctx.ownerPetId)) {
+    // pet_events probes target the test-owned CASE-FREE pet, not the shared
+    // seeded fixture pet — any case-attached event on the shared pet flips
+    // admin to `allow` via can_read_case, which is legitimate policy but not
+    // what the deny cell asserts (no RLS path to NON-case events).
+    query = client
+      .from(table)
+      .select("*")
+      .eq("pet_id", cleanEventsPetId ?? (ctx.ownerPetId as string))
+      .limit(1);
+  } else if (ctx.ownerPetId && ["ownerships", "pet_identifications"].includes(table)) {
     query = client.from(table).select("*").eq("pet_id", ctx.ownerPetId).limit(1);
   } else if (ctx.ownerPetId && table === "cases") {
     query = client.from(table).select("*").eq("primary_pet_id", ctx.ownerPetId).limit(1);

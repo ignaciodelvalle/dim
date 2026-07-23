@@ -51,7 +51,7 @@ describe("feedDestinationLabel — derives from capability class, never hardcode
     expect(feedQueueHref("incident_reported")).toBe("/gob/vigilancia");
   });
 
-  it("the queue destination for custody disputes is /gob/disputas", () => {
-    expect(feedQueueHref("custody_dispute_raised")).toBe("/gob/disputas");
+  it("the queue destination for custody disputes is the Casos hub's Disputas tab (F6 fusion)", () => {
+    expect(feedQueueHref("custody_dispute_raised")).toBe("/gob/casos?expediente=disputas");
   });
 });

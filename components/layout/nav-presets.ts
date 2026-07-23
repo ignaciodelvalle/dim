@@ -379,12 +379,18 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
   },
   {
     // Outcome-vs-target program surfaces.
+    //
+    // F8 fusion (2026-07-22, PO-approved route unification — both are
+    // registry-derived Programa surfaces the registry manager reads
+    // together): Padrón ABSORBS Población + Censo as tabbed vistas
+    // (`?vista=poblacion|censo`) of ONE screen. /gob/poblacion and /gob/censo
+    // survive only as permanent redirects into /gob/padron?vista=... for old
+    // links/bookmarks; neither has its own nav entry anymore.
     label: "Programa",
     items: [
       // Paquete gov-vis — exec summary (highest-level view, leads the layer)
       { href: "/gob/programa", label: "Programa", matchPrefix: "/gob/programa" },
-      { href: "/gob/poblacion", label: "Población", matchPrefix: "/gob/poblacion" },
-      { href: "/gob/censo", label: "Censo", matchPrefix: "/gob/censo" },
+      { href: "/gob/padron", label: "Padrón", matchPrefix: "/gob/padron" },
       { href: "/gob/mortalidad", label: "Mortalidad", matchPrefix: "/gob/mortalidad" },
       // Judgment call: custody/adoption pipeline dashboard (KPI+funnel+trend),
       // not a review queue — grouped with the other outcome dashboards.
@@ -421,12 +427,18 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     // nav siblings). /gob/moderacion and /gob/maltrato survive only as
     // permanent redirects into /gob/denuncias?etapa=... for old links/
     // bookmarks; neither has its own nav entry anymore.
+    //
+    // F6 fusion (2026-07-22, PO-approved route unification — the "expediente"
+    // family, same legal-administrative operator, identical case-file
+    // grammar of open/parties/resolve): Casos ABSORBS Disputas as a tabbed
+    // expediente (`?expediente=casos|disputas`) of ONE screen. /gob/disputas
+    // survives only as a permanent redirect into /gob/casos?expediente=
+    // disputas for old links/bookmarks; it has no nav entry anymore.
     label: "Bandeja operativa",
     items: [
       { href: "/gob/denuncias", label: "Denuncias", matchPrefix: "/gob/denuncias" },
       { href: "/gob/cola", label: "Cola", matchPrefix: "/gob/cola" },
       { href: "/gob/casos", label: "Casos", matchPrefix: "/gob/casos" },
-      { href: "/gob/disputas", label: "Disputas", matchPrefix: "/gob/disputas" },
       // /gob/sistema deliberately EXCLUDED — folded into /gob/programa for govt
       // operators (2026-07-09 audit). Route still exists as a redirect for deep
       // links but is no longer in nav.
@@ -509,13 +521,20 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    // F8 fusion (2026-07-22): Censo/Población (each its own genuine admin
+    // screen — a national ranked table + forecast on top of the gob panels,
+    // NOT a thin re-export) collapse into ONE /admin/padron entry, mirroring
+    // the gob Padrón hub's tabs (?vista=poblacion|censo) with admin's own
+    // hub page (app/admin/padron/page.tsx renders the admin-only screens —
+    // not a thin re-export, since the admin bodies genuinely diverge from
+    // gob's). /admin/poblacion and /admin/censo now redirect into
+    // /admin/padron?vista=... rather than rendering inline.
     label: "Programa",
     items: [
       // Paquete H — exec summary / programa (top of section: highest-level view first)
       { href: "/admin/programa", label: "Programa", matchPrefix: "/admin/programa" },
-      { href: "/admin/censo", label: "Censo", matchPrefix: "/admin/censo" },
+      { href: "/admin/padron", label: "Padrón", matchPrefix: "/admin/padron" },
       { href: "/admin/adopciones", label: "Adopciones", matchPrefix: "/admin/adopciones" },
-      { href: "/admin/poblacion", label: "Población", matchPrefix: "/admin/poblacion" },
     ],
   },
   {

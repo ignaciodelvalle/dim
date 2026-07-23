@@ -30,7 +30,9 @@ export type FeedEventType = (typeof FEED_EVENT_TYPES)[number];
 // fix for "Ver en su cola →" pointing at /gob/vigilancia, which is a MAP
 // ("Mapa de vigilancia"), not a queue. 4 of the 5 feed event types land on
 // that map; only custody_dispute_raised lands on a genuine triage queue
-// (/gob/disputas, CaseQueue). A free-text label next to an href can drift
+// (/gob/casos?expediente=disputas, CaseQueue — F6 fusion, 2026-07-22, moved
+// off the standalone /gob/disputas route into the Casos hub's "Disputas"
+// tab). A free-text label next to an href can drift
 // from what the destination actually is — this registry makes that
 // impossible: every entry declares its destination's CAPABILITY CLASS, and
 // the label is DERIVED from the class (never retyped per event type), so a
@@ -43,8 +45,9 @@ export type FeedDestinationCapability = "queue" | "map" | "form" | "report" | "c
 
 type FeedDestination = {
   href: string;
-  /** What /gob/vigilancia (a map) or /gob/disputas (a queue) actually IS —
-   * the label below is derived from this, never written inline per type. */
+  /** What /gob/vigilancia (a map) or /gob/casos?expediente=disputas (a queue)
+   * actually IS — the label below is derived from this, never written
+   * inline per type. */
   capability: FeedDestinationCapability;
 };
 
@@ -57,8 +60,9 @@ const FEED_DESTINATION: Record<FeedEventType, FeedDestination> = {
   disease_reported: { href: "/gob/vigilancia", capability: "map" },
   rabies_observation_started: { href: "/gob/vigilancia", capability: "map" },
   incident_reported: { href: "/gob/vigilancia", capability: "map" },
-  // /gob/disputas IS a genuine triage queue (CaseQueue, tomar→actuar→cerrar).
-  custody_dispute_raised: { href: "/gob/disputas", capability: "queue" },
+  // The Disputas expediente (Casos hub, F6 fusion 2026-07-22) IS a genuine
+  // triage queue (CaseQueue, tomar→actuar→cerrar).
+  custody_dispute_raised: { href: "/gob/casos?expediente=disputas", capability: "queue" },
 };
 
 /** One canonical label per capability class — the ONLY place feed-link copy
