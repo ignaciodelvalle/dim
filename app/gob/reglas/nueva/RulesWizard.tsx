@@ -25,7 +25,11 @@ import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton, OpCheckbox, OpSelect } from "@/components/ui/dashboard";
 import { OpField } from "@/components/ui/dashboard/OpField";
-import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
+// Value import from "@/db/schema" (NOT "@/db"): this is a "use client"
+// component and @/db carries `import "server-only"` — a value import through
+// the barrel breaks the webpack build (type-only imports would be erased,
+// but GOVT_BUSINESS_RULE_TYPES is a runtime const).
+import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db/schema";
 import { jurisdictionLabel } from "@/lib/domain/jurisdiction-rules-href";
 import { RULE_TYPE_REGISTRY } from "@/lib/domain/rule-types-registry";
 import { PROVINCES, provinceByCode } from "@/lib/reference/ar-provincias";
