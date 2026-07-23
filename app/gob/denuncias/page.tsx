@@ -83,7 +83,10 @@ export default async function GobDenunciasPage({
     actor,
     jurisdictions,
     status: "pending",
-    includeEscalated: false,
+    // Matches the stage screen's role-derived semantics (prepush-review-3
+    // fix): admin's badge counts the escalation inbox too — the badge must
+    // never disagree with what the tab shows.
+    includeEscalated: profile.role === "admin",
   });
 
   const [moderationRows, triage, casosCount] = await Promise.all([

@@ -131,6 +131,14 @@ export async function ModeracionQueueScreen({
     status: statusFilter,
     kind: kindFilter,
     severity: severityFilter,
+    // REGRESSION FIX (prepush-review-3 2026-07-23): /admin/moderacion was THE
+    // escalation inbox (includeEscalated: true — see welfare.ts's own header)
+    // before the F1 fusion turned it into a redirect to this screen. Without
+    // this role-derived flag, escalated-to-admin denuncias became invisible to
+    // EVERYONE: govt correctly excludes them, and the admin inbox was gone.
+    // Admin viewing this screen keeps the escalation-inbox semantics; govt
+    // keeps the pre-escalation view.
+    includeEscalated: profile.role === "admin",
   });
 
   // Keyset (seek) pagination — same contract as /admin/moderacion:

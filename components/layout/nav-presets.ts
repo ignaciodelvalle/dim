@@ -562,6 +562,14 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
         matchPrefix: "/admin/suscripciones",
       },
       { href: "/admin/casos", label: "Casos", matchPrefix: "/admin/casos" },
+      // DOCUMENTED cross-portal exception (prepush-review-3 2026-07-23):
+      // /admin/moderacion permanently redirects into the gob Denuncias hub
+      // (?etapa=moderacion) — the admin lands in gob chrome, unlike its
+      // Bandeja siblings. Kept because the [id] detail routes still live under
+      // /admin/moderacion/ (matchPrefix highlighting) and the hub screen is
+      // role-aware (admin keeps the escalation-inbox semantics via
+      // includeEscalated). A thin admin-scoped hub stub is the fase-3 cleanup
+      // if the chrome jump bothers operators in practice.
       { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
       { href: "/admin/outbox", label: "Bandeja de salida", matchPrefix: "/admin/outbox" },
     ],

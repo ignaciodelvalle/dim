@@ -86,6 +86,7 @@ function seedDefaults() {
   });
   vi.mocked(fetchAnalyticsMetrics).mockResolvedValue({
     totalPets: 12345,
+    totalAcquisitions: 100,
     adoptionRate: 0,
     rabiesVaccinationRate: 0,
     custodyDisputes: 0,

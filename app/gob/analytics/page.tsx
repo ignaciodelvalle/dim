@@ -275,7 +275,10 @@ export default async function GobAnalyticsPage({
             formula: "COUNT(acquisition_method='adoption') / COUNT(all acquisitions) × 100",
           }}
           descriptorId="acquisition_adoption_rate"
-          guardInput={{ trendMonths: adoptionRateTrend.length }}
+          // `n` wires the descriptor's zeroDenominator/smallN guards (prepush-
+          // review-3: without the denominator the guards were dead code and a
+          // 0-acquisition jurisdiction rendered a confident red 0%).
+          guardInput={{ n: metrics.totalAcquisitions, trendMonths: adoptionRateTrend.length }}
         />
         <OpKpi
           label={RABIES_VACCINATION_RATE_LABEL_ES}

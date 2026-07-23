@@ -37,6 +37,13 @@ export type AnalyticsMetrics = {
    */
   adoptionRate: number;
   /**
+   * Denominator behind adoptionRate: total acquisitions (pet_registered, 12m)
+   * in scope. Exposed so the tile can wire the descriptor's zeroDenominator/
+   * smallN guards (prepush-review-3 2026-07-23: without it the guard was dead
+   * code and 0/0 rendered as a confident red 0%).
+   */
+  totalAcquisitions: number;
+  /**
    * % of pets in scope with at least one vaccination_administered event where
    * vaccine_name matches rabia/rabies/antirrábica/antirrabica (accent-insensitive).
    * Uses unaccent() so accented forms like "antirrábica" are counted alongside
@@ -123,7 +130,13 @@ export async function fetchAnalyticsMetrics(
 ): Promise<AnalyticsMetrics> {
   // Early-return for govt with no assignments.
   if (actor.role === "govt" && jurisdictions.length === 0) {
-    return { totalPets: 0, adoptionRate: 0, rabiesVaccinationRate: 0, custodyDisputes: 0 };
+    return {
+      totalPets: 0,
+      adoptionRate: 0,
+      totalAcquisitions: 0,
+      rabiesVaccinationRate: 0,
+      custodyDisputes: 0,
+    };
   }
 
   const since12m = opts.since ?? new Date(Date.now() - 365 * DAY_MS);
@@ -294,6 +307,7 @@ export async function fetchAnalyticsMetrics(
   return {
     totalPets,
     adoptionRate,
+    totalAcquisitions,
     rabiesVaccinationRate,
     custodyDisputes: custodyDisputesCount,
   };
