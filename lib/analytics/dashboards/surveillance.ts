@@ -8,7 +8,7 @@
 // is empty by contract for admin), govt sees only rows matching one of their
 // active assignments.
 
-import { type SQL, and, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { type SQL, and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import {
@@ -335,9 +335,7 @@ export async function fetchVigilanciaMetrics(
   if (outbreakScope) outbreakConditions.push(sql`(${outbreakScope})`);
 
   // 2. Count open cases with caseKind='rabies_observation'.
-  const rabiesConditions = [eq(cases.caseKind, "rabies_observation"), eq(cases.status, "open")];
   const casesScope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
-  if (casesScope) rabiesConditions.push(sql`(${casesScope})`);
 
   // 3. Count pets created today.
   const petsConditions = [gte(pets.createdAt, todayStart)];
@@ -356,24 +354,33 @@ export async function fetchVigilanciaMetrics(
   // every scoped-govt viewer). The outbreak arm above keeps its payload scope.
   if (petsScope) vaccConditions.push(sql`(${petsScope})`);
 
-  // 5. Count cases under ACTIVE outbreak investigation (open or escalated —
-  // same "active" definition listOutbreakInvestigationsForGovt uses). Reuses
-  // casesScope (arm 2's clause) — same table, same jurisdiction predicate.
-  const investigationConditions = [
-    eq(cases.caseKind, "outbreak_investigation"),
-    inArray(cases.status, ["open", "escalated"]),
-  ];
-  if (casesScope) investigationConditions.push(sql`(${casesScope})`);
-
-  const [outbreakRows, rabiesRows, petsRows, vaccRows, investigationRows] = await Promise.all([
+  // PF1 consolidation (2026-07-22, query-fan-out audit): arms 2 (rabies open
+  // cases) and 5 (outbreak-investigation open|escalated cases) are the SAME
+  // table (`cases`) scoped by the IDENTICAL `casesScope` predicate — neither
+  // carries a time window, so they only differ in the counted condition. That
+  // is exactly the "same table, same scope, same window" shape the fan-out
+  // audit calls out — merged into ONE query with two `count(*) FILTER` arms
+  // instead of two round-trips. Parity pinned in
+  // __tests__/pf1-consolidation-parity.test.ts against independently-written
+  // reference queries over seeded fixtures (multiple scopes).
+  const [outbreakRows, casesRows, petsRows, vaccRows] = await Promise.all([
     db
       .select({ n: count() })
       .from(petEvents)
       .where(and(...outbreakConditions)),
     db
-      .select({ n: count() })
+      .select({
+        rabies:
+          sql<number>`count(*) filter (where ${cases.caseKind} = 'rabies_observation' and ${cases.status} = 'open')`.mapWith(
+            Number,
+          ),
+        investigation:
+          sql<number>`count(*) filter (where ${cases.caseKind} = 'outbreak_investigation' and ${cases.status} in ('open', 'escalated'))`.mapWith(
+            Number,
+          ),
+      })
       .from(cases)
-      .where(and(...rabiesConditions)),
+      .where(casesScope ?? sql`true`),
     db
       .select({ n: count() })
       .from(pets)
@@ -383,18 +390,14 @@ export async function fetchVigilanciaMetrics(
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .where(and(...vaccConditions)),
-    db
-      .select({ n: count() })
-      .from(cases)
-      .where(and(...investigationConditions)),
   ]);
 
   return {
     outbreakActiveCount: outbreakRows[0]?.n ?? 0,
-    rabiesActiveCount: rabiesRows[0]?.n ?? 0,
+    rabiesActiveCount: casesRows[0]?.rabies ?? 0,
     petsRegisteredToday: petsRows[0]?.n ?? 0,
     vaccinationsThisWeek: vaccRows[0]?.n ?? 0,
-    investigationActiveCount: investigationRows[0]?.n ?? 0,
+    investigationActiveCount: casesRows[0]?.investigation ?? 0,
   };
 }
 

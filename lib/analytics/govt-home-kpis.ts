@@ -544,34 +544,36 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
   if (petsGuard) baseConditions.push(petsGuard);
 
-  const currentConditions = [
-    ...baseConditions,
-    gte(petEvents.occurredAt, since30d),
-    lte(petEvents.occurredAt, until),
-  ];
-  const prevConditions = [
-    ...baseConditions,
-    gte(petEvents.occurredAt, since60d),
-    lt(petEvents.occurredAt, since30d),
-  ];
+  // PF1 consolidation (2026-07-22, query-fan-out audit): all three arms are
+  // the SAME table (petEvents) with the SAME base conditions
+  // (eventType='sterilization_performed' + petsGuard) — current/prev only
+  // differ by window, and orgs is a distinct-count over the SAME current
+  // window. `COUNT(*) FILTER (WHERE …)` and `COUNT(DISTINCT … ) FILTER
+  // (WHERE …)` are both valid Postgres aggregate forms, so all three collapse
+  // into ONE query instead of three round-trips. Parity pinned in
+  // __tests__/pf1-consolidation-parity.test.ts against an independently
+  // written reference query over seeded fixtures.
+  const until30Iso = until.toISOString();
+  const since30dIso = since30d.toISOString();
+  const since60dIso = since60d.toISOString();
+  const rows = await db
+    .select({
+      current:
+        sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since30dIso} and ${petEvents.occurredAt} <= ${until30Iso})`.mapWith(
+          Number,
+        ),
+      prev: sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since60dIso} and ${petEvents.occurredAt} < ${since30dIso})`.mapWith(
+        Number,
+      ),
+      orgs: sql<number>`count(distinct ${petEvents.authorOrganizationId}) filter (where ${petEvents.occurredAt} >= ${since30dIso} and ${petEvents.occurredAt} <= ${until30Iso})`.mapWith(
+        Number,
+      ),
+    })
+    .from(petEvents)
+    .where(and(...baseConditions));
 
-  const [currentRows, prevRows, orgsRows] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(petEvents)
-      .where(and(...currentConditions)),
-    db
-      .select({ n: count() })
-      .from(petEvents)
-      .where(and(...prevConditions)),
-    db
-      .select({ n: countDistinct(petEvents.authorOrganizationId) })
-      .from(petEvents)
-      .where(and(...currentConditions)),
-  ]);
-
-  const currentCount = currentRows[0]?.n ?? 0;
-  const prevCount = prevRows[0]?.n ?? 0;
+  const currentCount = rows[0]?.current ?? 0;
+  const prevCount = rows[0]?.prev ?? 0;
   // Use the centralized computeDeltaPct which rounds to one decimal and guards /0.
   // Re-imported inline to avoid circular dep — TARGETS is already imported from lib/metrics.
   const deltaPct =
@@ -580,7 +582,7 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
   return {
     count: currentCount,
     deltaPct,
-    orgs: orgsRows[0]?.n ?? 0,
+    orgs: rows[0]?.orgs ?? 0,
     prevCount,
   };
 }
@@ -685,31 +687,33 @@ export async function fetchBitesPer10k(ctx: ProjectionContext): Promise<BitesPer
   const petsGuard = petsCurrentJurisdictionGuard(ctx);
   if (petsGuard) baseConditions.push(petsGuard);
 
-  const currentConditions = [
-    ...baseConditions,
-    gte(petEvents.occurredAt, since12m),
-    lte(petEvents.occurredAt, until),
-  ];
-  const prevConditions = [
-    ...baseConditions,
-    gte(petEvents.occurredAt, since24m),
-    lt(petEvents.occurredAt, since12m),
-  ];
-
-  const [currentRows, prevRows, population] = await Promise.all([
+  // PF1 consolidation (2026-07-22, query-fan-out audit): current/prev are the
+  // SAME table + SAME base conditions (eventType + incident_type + petsGuard),
+  // differing only by window — merged into ONE query with two `count(*)
+  // FILTER` arms instead of two round-trips. Parity pinned in
+  // __tests__/pf1-consolidation-parity.test.ts against an independently
+  // written reference query over seeded fixtures.
+  const untilIso = until.toISOString();
+  const since12mIso = since12m.toISOString();
+  const since24mIso = since24m.toISOString();
+  const [rows, population] = await Promise.all([
     db
-      .select({ n: count() })
+      .select({
+        current:
+          sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since12mIso} and ${petEvents.occurredAt} <= ${untilIso})`.mapWith(
+            Number,
+          ),
+        prev: sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since24mIso} and ${petEvents.occurredAt} < ${since12mIso})`.mapWith(
+          Number,
+        ),
+      })
       .from(petEvents)
-      .where(and(...currentConditions)),
-    db
-      .select({ n: count() })
-      .from(petEvents)
-      .where(and(...prevConditions)),
+      .where(and(...baseConditions)),
     fetchCensusPopulation(ctx),
   ]);
 
-  const reports = currentRows[0]?.n ?? 0;
-  const prevReports = prevRows[0]?.n ?? 0;
+  const reports = rows[0]?.current ?? 0;
+  const prevReports = rows[0]?.prev ?? 0;
 
   // Per-cápita honesty (H1): at sub-province grain the numerator is
   // locality-scoped (petsCurrentJurisdictionGuard) but fetchCensusPopulation can
@@ -982,36 +986,41 @@ export async function fetchOpenRabiesObservations(
   const rabiesConditions = [sql`${pets.rabiesObservationStatus} = ${"in_progress"}`];
   if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
 
-  const startedThisWeekConditions = [
-    eq(petEvents.eventType, "rabies_observation_started"),
-    gte(petEvents.occurredAt, since7d),
-  ];
-  if (petsGuard) startedThisWeekConditions.push(petsGuard);
+  const startedBaseConditions = [eq(petEvents.eventType, "rabies_observation_started")];
+  if (petsGuard) startedBaseConditions.push(petsGuard);
 
-  const startedLastWeekConditions = [
-    eq(petEvents.eventType, "rabies_observation_started"),
-    gte(petEvents.occurredAt, since14d),
-    lt(petEvents.occurredAt, since7d),
-  ];
-  if (petsGuard) startedLastWeekConditions.push(petsGuard);
-
-  const [rabiesRows, thisWeekRows, lastWeekRows] = await Promise.all([
+  // PF1 consolidation (2026-07-22, query-fan-out audit): thisWeek/lastWeek are
+  // the SAME table + SAME base conditions (eventType + petsGuard), differing
+  // only by window — merged into ONE query with two `count(*) FILTER` arms.
+  // rabiesRows stays a SEPARATE query — it reads a different table (pets, a
+  // "now" snapshot column) with a different scope clause (petsScope, not
+  // petsGuard), so it does not share this query's shape. Parity pinned in
+  // __tests__/pf1-consolidation-parity.test.ts against an independently
+  // written reference query over seeded fixtures.
+  const since7dIso = since7d.toISOString();
+  const since14dIso = since14d.toISOString();
+  const [rabiesRows, eventRows] = await Promise.all([
     db
       .select({ n: count() })
       .from(pets)
       .where(and(...rabiesConditions)),
     db
-      .select({ n: count() })
+      .select({
+        thisWeek:
+          sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since7dIso})`.mapWith(
+            Number,
+          ),
+        lastWeek:
+          sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since14dIso} and ${petEvents.occurredAt} < ${since7dIso})`.mapWith(
+            Number,
+          ),
+      })
       .from(petEvents)
-      .where(and(...startedThisWeekConditions)),
-    db
-      .select({ n: count() })
-      .from(petEvents)
-      .where(and(...startedLastWeekConditions)),
+      .where(and(...startedBaseConditions)),
   ]);
 
-  const thisWeek = thisWeekRows[0]?.n ?? 0;
-  const lastWeek = lastWeekRows[0]?.n ?? 0;
+  const thisWeek = eventRows[0]?.thisWeek ?? 0;
+  const lastWeek = eventRows[0]?.lastWeek ?? 0;
 
   return {
     count: rabiesRows[0]?.n ?? 0,
@@ -1170,31 +1179,34 @@ export async function fetchOpenWelfareReportsCount(
   const scope = welfareReportsScopeClause(ctx);
 
   // Backlog (secondary): all-time non-terminal work queue, period-independent.
-  const backlogConditions = [not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]))];
-  if (scope) backlogConditions.push(sql`(${scope})`);
+  const backlogCondition = not(inArray(welfareReports.status, [...WELFARE_TERMINAL_STATUSES]));
 
   // In-period (primary): reports created within [since, until], moderation-visible,
   // ANY status — MIRRORS repository.loadDenunciasByUnit (the map + Registros
   // population) so the KPI, the bubbles and the list agree for the active period.
-  const periodConditions = [
+  const periodCondition = and(
     gte(welfareReports.createdAt, ctx.period.since),
     lte(welfareReports.createdAt, ctx.period.until),
     sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
-  ];
-  if (scope) periodConditions.push(sql`(${scope})`);
+  );
 
-  const [backlogRows, periodRows] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(welfareReports)
-      .where(and(...backlogConditions)),
-    db
-      .select({ n: count() })
-      .from(welfareReports)
-      .where(and(...periodConditions)),
-  ]);
+  // PF1 consolidation (2026-07-22, query-fan-out audit): backlog and in-period
+  // are the SAME table (welfare_reports) scoped by the IDENTICAL `scope`
+  // predicate — they differ only in the counted condition (status backlog vs.
+  // created-at window + moderation visibility), so the shared scope moves to
+  // the query's WHERE and each arm becomes a `count(*) FILTER` column instead
+  // of a separate round-trip. Parity pinned in
+  // __tests__/pf1-consolidation-parity.test.ts against an independently
+  // written reference query over seeded fixtures.
+  const rows = await db
+    .select({
+      backlog: sql<number>`count(*) filter (where ${backlogCondition})`.mapWith(Number),
+      period: sql<number>`count(*) filter (where ${periodCondition})`.mapWith(Number),
+    })
+    .from(welfareReports)
+    .where(scope ?? sql`true`);
 
-  return { count: backlogRows[0]?.n ?? 0, inPeriod: periodRows[0]?.n ?? 0 };
+  return { count: rows[0]?.backlog ?? 0, inPeriod: rows[0]?.period ?? 0 };
 }
 
 // ---------------------------------------------------------------------------
