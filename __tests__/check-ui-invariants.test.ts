@@ -12,7 +12,9 @@ import {
   ACCENT_WORDS,
   ENGLISH_UI_WORDS,
   SCREAMING_ENUM,
+  SNAKE_CASE_PAYLOAD_FRAGMENT,
   TOUCH_TARGET_TOKENS,
+  isPayloadFragmentRenderedAsCopy,
 } from "@/scripts/check-ui-invariants";
 
 // ---------------------------------------------------------------------------
@@ -338,5 +340,37 @@ describe("RAW_BUTTON_BASELINE", () => {
     // F3-full migrated 91 admin/gob buttons to OpButton, ratcheting the
     // baseline down from 138 to 47 (the remaining genuine exceptions).
     expect(RAW_BUTTON_BASELINE).toBe(47);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 6 (gap fix, qa-triage-2026-07-23 #9) — payload fragment inside a JSX
+// STRING ATTRIBUTE, not just between tags. Regression: AdminPoblacionScreen.tsx
+// rendered `sub="mascotas con pregnancy_status='in_progress' (nacional)"` — a
+// raw enum leak the ORIGINAL between-tags-only Arm B check could not see
+// because the fragment lived inside an attribute value, not JSX children.
+// ---------------------------------------------------------------------------
+
+describe("isPayloadFragmentRenderedAsCopy — Rule 6 Arm B", () => {
+  it("catches the real regression: a payload fragment inside a JSX string attribute (OpKpi's `sub` prop)", () => {
+    const line = `          sub="mascotas con pregnancy_status='in_progress' (nacional)"`;
+    const frag = line.match(SNAKE_CASE_PAYLOAD_FRAGMENT)?.[0];
+    expect(frag).toBeTruthy();
+    expect(isPayloadFragmentRenderedAsCopy(line, frag as string)).toBe(true);
+  });
+
+  it("still catches the original between-tags shape", () => {
+    const line = `          <span>pregnancy_status='in_progress'</span>`;
+    const frag = line.match(SNAKE_CASE_PAYLOAD_FRAGMENT)?.[0];
+    expect(frag).toBeTruthy();
+    expect(isPayloadFragmentRenderedAsCopy(line, frag as string)).toBe(true);
+  });
+
+  it("does NOT flag a fragment used as a genuine code identifier / non-JSX-copy position", () => {
+    const line = `  const filter = pregnancy_status_eq('in_progress');`;
+    const frag = line.match(SNAKE_CASE_PAYLOAD_FRAGMENT)?.[0];
+    // No `key='value'` shaped match here at all (function-call syntax, not an
+    // attribute/text assignment) — nothing to flag.
+    expect(frag).toBeFalsy();
   });
 });

@@ -268,6 +268,17 @@ const GOB_ANALYTICS: ScreenManifestEntry = {
   decision: "¿Qué tendencia de fondo explica el número que vi en Programa?",
 };
 
+// Bug fix (qa-triage-2026-07-23, finding #11): /gob/analitica is a pure typo
+// alias — a permanent redirect into /gob/analytics, preserving every query
+// param (app/gob/analitica/page.tsx). Same shape as GOB_MODERACION/
+// GOB_MALTRATO above (a route that still needs a manifest entry to satisfy
+// the coverage fence, but makes no decision of its own).
+const GOB_ANALITICA: ScreenManifestEntry = {
+  route: "/gob/analitica",
+  layer: "profundidad",
+  decision: "[Alias de typo] Redirige a /gob/analytics — ver GOB_ANALYTICS.",
+};
+
 const GOB_HISTORIAL: ScreenManifestEntry = {
   route: "/gob/historial",
   layer: "profundidad",
@@ -483,6 +494,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_OUTBOX,
   GOB_SUSCRIPCIONES,
   GOB_ANALYTICS,
+  GOB_ANALITICA,
   GOB_HISTORIAL,
   GOB_REGLAS,
   GOB_ORGANIZACIONES,

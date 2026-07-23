@@ -222,7 +222,11 @@ export async function AdminPoblacionScreen({
         <OpKpi
           label="Preñeces activas"
           value={activePregnancies.toLocaleString("es-AR")}
-          sub="mascotas con pregnancy_status='in_progress' (nacional)"
+          // Bug fix (qa-triage-2026-07-23, finding #9): raw enum + column name
+          // leaked into operator-facing copy. Localized to match the gob
+          // twin's wording (app/gob/poblacion/PoblacionScreen.tsx), scoped
+          // "nacional" for this admin (universal-scope) screen.
+          sub="preñez registrada y aún no cerrada (nacional)"
           tone={activePregnancies > 0 ? "warn" : "neutral"}
           info={getKpiInfo("active_pregnancies")}
           descriptorId="active_pregnancies"

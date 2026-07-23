@@ -7,6 +7,7 @@
 // authenticated user. The return type is non-nullable: if you got here, the
 // guard passed.
 
+import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import type { Organization, OrganizationMembership } from "@/db";
@@ -116,6 +117,23 @@ export type AdminOrGovtSession = AuthenticatedSession & {
 // OrRedirect lacked the deactivation gate that requireAdminOrRedirect had).
 // The account-type and deactivation rejects always land on / regardless of the
 // guard; only the wrong-role destination is caller-specific.
+// Bug fix (qa-triage-2026-07-23, finding #13): the operator portal guards
+// below used to call requireUserOrRedirect() with no `returnTo`, so a
+// session-expiry bounce mid-triage always landed on bare /login — the
+// attempted deep link (e.g. /gob/denuncias?etapa=triage&queue=mine) was lost,
+// forcing the operator to re-navigate from scratch after logging back in.
+// middleware.ts stamps `x-full-path` (pathname + search) on every request —
+// this reads it back so the /gob and /admin guards can restore the FULL
+// attempted URL post-login. Falls back to null (bare /login, unchanged
+// behavior) if the header is somehow absent — never throws.
+async function currentReturnTo(): Promise<string | undefined> {
+  try {
+    return (await headers()).get("x-full-path") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function loadActiveInstitutionalProfile(
   userId: string,
   opts: { allow: ReadonlyArray<"admin" | "govt">; roleRejectRedirect: string },
@@ -130,7 +148,7 @@ async function loadActiveInstitutionalProfile(
 }
 
 export async function requireAdminOrGovtOrRedirect(): Promise<AdminOrGovtSession> {
-  const session = await requireUserOrRedirect();
+  const session = await requireUserOrRedirect(await currentReturnTo());
   const profile = await loadActiveInstitutionalProfile(session.user.id, {
     allow: ["admin", "govt"],
     // A4: a personal-role account is bounced to the explained access-denied
@@ -167,7 +185,7 @@ export type AdminSession = AuthenticatedSession & {
 };
 
 export async function requireAdminOrRedirect(): Promise<AdminSession> {
-  const session = await requireUserOrRedirect();
+  const session = await requireUserOrRedirect(await currentReturnTo());
 
   const profile = await loadActiveInstitutionalProfile(session.user.id, {
     allow: ["admin"],

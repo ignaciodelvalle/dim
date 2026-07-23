@@ -114,15 +114,46 @@ describe("B1 — admin widening guard", () => {
 // ---------------------------------------------------------------------------
 
 describe("B2 — govt, no province selected", () => {
-  it("returns all assignments unchanged", async () => {
+  it("A_MULTI_LOCALITY (single-province, 2 localities): filteredJurisdictions unchanged, selectedProvince/selectedLocality stay null, BUT localities now resolves for the switcher (finding #10 fix)", async () => {
     const scope = await resolveJurisdictionScope({
       role: "govt",
       jurisdictions: A_MULTI_LOCALITY,
       params: {},
     });
     expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_LOCALITY);
+    // selectedProvince/selectedLocality — unaffected by the fix. They only
+    // reflect an EXPLICIT ?province=/?locality= param, never an implied one;
+    // map-drill/choropleth-zoom/adminSelected* consumers stay byte-identical.
     expect(scope.selectedProvince).toBeNull();
     expect(scope.selectedLocality).toBeNull();
+    // Bug fix (qa-triage-2026-07-23 finding #10): this operator has exactly
+    // ONE assigned province (Buenos Aires, via two locality assignments), so
+    // the Provincia switcher offers no real choice ("Todas" is hidden — see
+    // JurisdictionSwitcher's showNationalOption) and no onChange could ever
+    // fire to populate `?province=`. Before the fix, `localities` stayed []
+    // forever, permanently disabling the Localidad <select> with no
+    // explanation. It now resolves the sole province's localities so the
+    // control is actually usable.
+    expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
+  });
+
+  it("A_MULTI_PROVINCE (2 DIFFERENT provinces): still [] — no single implied province to resolve, switcher's real 'Todas' choice must not be pre-empted", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_PROVINCE,
+      params: {},
+    });
+    expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_PROVINCE);
+    expect(scope.selectedProvince).toBeNull();
+    expect(scope.localities).toStrictEqual([]);
+  });
+
+  it("admin, no province selected: never implies a sole province (admin has 24, not 1)", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "admin",
+      jurisdictions: [],
+      params: {},
+    });
     expect(scope.localities).toStrictEqual([]);
   });
 });
@@ -196,19 +227,32 @@ describe("B5 — cannot widen (locality not in assignments)", () => {
 // ---------------------------------------------------------------------------
 
 describe("B6 — lone ?locality with no ?province", () => {
-  it("province null ⇒ localities [], selectedLocality null, narrowing no-op", async () => {
+  it("province null ⇒ selectedProvince/selectedLocality stay null, narrowing no-op (localities still resolves for the sole-province switcher, finding #10 fix)", async () => {
     const scope = await resolveJurisdictionScope({
       role: "govt",
       jurisdictions: A_MULTI_LOCALITY,
       params: { locality: "la-plata" },
     });
     expect(scope.selectedProvince).toBeNull();
-    expect(scope.localities).toStrictEqual([]);
+    // A_MULTI_LOCALITY is single-province (Buenos Aires) — the implied-sole-
+    // province fix resolves its localities for the switcher dropdown, same as
+    // B2. This is orthogonal to the stray-?locality downgrade below: narrowing
+    // stays a no-op regardless of what the switcher offers to pick FROM.
+    expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
     expect(scope.selectedLocality).toBeNull();
     // Stray locality is silently downgraded, never applied.
     expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_LOCALITY);
     // localityByName must never be consulted without a resolved province.
     expect(localityByName).not.toHaveBeenCalled();
+  });
+
+  it("A_MULTI_PROVINCE (no single implied province) ⇒ localities stays []", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_PROVINCE,
+      params: { locality: "la-plata" },
+    });
+    expect(scope.localities).toStrictEqual([]);
   });
 });
 

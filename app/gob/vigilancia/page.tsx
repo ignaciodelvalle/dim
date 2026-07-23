@@ -35,6 +35,8 @@ import { fetchSurveillanceCompliance } from "@/lib/analytics/surveillance-metric
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   buildProjectionContext,
+  enoSlaHeadline,
+  enoSlaTone,
   fetchKpiTrend,
   fetchMovementCorridors,
   windows,
@@ -252,6 +254,9 @@ export default async function GobVigilanciaPage({
   // Item 3 presentational helpers — render a metric or an em-dash placeholder.
   const { enoSla, rabiesCompliance, amrDensity, reportableIncidence } = compliance;
   const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
+  // Coherence fix (qa-triage-2026-07-23, finding #12) — see enoSlaHeadline's
+  // own doc comment (lib/metrics/targets.ts) for the full rationale.
+  const enoSlaCopy = enoSlaHeadline(enoSla, pct);
   // byDisease.value is the branded SuppressedCells (Cell[]); the fetcher built
   // each cell with the extra `confirmed` field, so widen via unknown.
   const reportableCells = reportableIncidence.byDisease.value as unknown as ReadonlyArray<{
@@ -400,28 +405,36 @@ export default async function GobVigilanciaPage({
               : `${rabiesCompliance.closed} cerrada(s) en el período`
           }
           info={{
+            // Internal indicator codes (A8/A9 — plan-maestro numbering) removed
+            // from operator-facing copy (qa-triage-2026-07-23, finding #8):
+            // jerga interna que un funcionario no puede interpretar. Kept only
+            // in code comments below for cross-reference.
             definition:
-              "Porcentaje de observaciones rábicas cerradas dentro del plazo legal de 10 días calendario (A8). Exigido por Ord. CABA 41.831 art. 9 y Decreto 4669/1973 PBA.",
+              "Porcentaje de observaciones rábicas cerradas dentro del plazo legal de 10 días calendario. Exigido por Ord. CABA 41.831 art. 9 y Decreto 4669/1973 PBA.",
             formula:
               "rabies_observation_ended con (ended_at − started_at) ≤ 10 días / total cerradas en período",
             caveat:
-              "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo (A9) y activan el banner de alerta.",
+              "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo y activan el banner de alerta.",
           }}
           descriptorId="rabies_observation_compliance_10d"
           guardInput={{ n: rabiesCompliance.closed }}
         />
+        {/* Coherence fix (qa-triage-2026-07-23, finding #12): this tile used
+            to headline the HISTORICAL onTimePct ("100%", period-scoped over
+            delivered rows only) while the CURRENT breach count sat in the sub
+            line — the exact "100% vs 12 en incumplimiento" contradiction next
+            to each other. Same fix already shipped for the admin twin
+            (components/admin/AdminKpiStrip.tsx, Cowork A3/C1), now shared via
+            lib/metrics/targets.ts's enoSlaHeadline: when there is an active
+            breach, LEAD with the live "N vencidas ahora" and demote the
+            historical % to a clearly labeled "(referencia)" sub-line — one
+            coherent state per tile, current-truth first. */}
         <OpKpi
           label="SLA notificación ENO"
-          value={pct(enoSla.onTimePct)}
-          tone={enoSla.breachedOpen > 0 ? "warn" : enoSla.onTimePct === null ? "neutral" : "ok"}
-          bar={enoSla.onTimePct ?? undefined}
-          sub={
-            enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} fuera de SLA`
-              : enoSla.medianLatencyHours !== null
-                ? `Mediana ${enoSla.medianLatencyHours} h`
-                : "Sin entregas en el período"
-          }
+          value={enoSlaCopy.value}
+          tone={enoSlaTone(enoSla)}
+          bar={enoSla.breachedOpen > 0 ? undefined : (enoSla.onTimePct ?? undefined)}
+          sub={enoSlaCopy.sub}
           info={getKpiInfo("eno_sla_compliance")}
           descriptorId="eno_sla_compliance"
         />
@@ -434,8 +447,10 @@ export default async function GobVigilanciaPage({
               : "antimicrobianos por 1.000 pets activos"
           }
           info={{
+            // Internal indicator code (A12) removed from operator-facing copy
+            // (qa-triage-2026-07-23, finding #8) — kept only in code comments.
             definition:
-              "Densidad de uso de antimicrobianos: inicios de tratamiento antimicrobiano por cada 1.000 mascotas activas en la jurisdicción (A12). Indicador de presión selectiva de resistencia antimicrobiana (AMR).",
+              "Densidad de uso de antimicrobianos: inicios de tratamiento antimicrobiano por cada 1.000 mascotas activas en la jurisdicción. Indicador de presión selectiva de resistencia antimicrobiana (AMR).",
             formula:
               "COUNT(medication_started donde drug_code ∈ catálogo antimicrobial) / activePets × 1.000",
             caveat:
@@ -477,7 +492,8 @@ export default async function GobVigilanciaPage({
           />
           <OpCardBody>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
-              <dt className="text-ln-op-mute">Cumplimiento 10 días (A8)</dt>
+              {/* (A8) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
+              <dt className="text-ln-op-mute">Cumplimiento 10 días</dt>
               <dd className="text-right font-semibold text-ln-op-ink">
                 {pct(rabiesCompliance.compliancePct)}
               </dd>
@@ -485,7 +501,8 @@ export default async function GobVigilanciaPage({
               <dd className="text-right font-semibold text-ln-op-ink">
                 {rabiesCompliance.closedWithinWindow}/{rabiesCompliance.closed}
               </dd>
-              <dt className="text-ln-op-mute">Abiertas &gt; 10 días (A9)</dt>
+              {/* (A9) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
+              <dt className="text-ln-op-mute">Abiertas &gt; 10 días</dt>
               <dd
                 className={`text-right font-semibold ${
                   rabiesCompliance.openBreaches > 0 ? "text-ln-op-danger" : "text-ln-op-ink"
@@ -511,7 +528,8 @@ export default async function GobVigilanciaPage({
           />
           <OpCardBody>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
-              <dt className="text-ln-op-mute">Entregadas en SLA (A7)</dt>
+              {/* (A7) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
+              <dt className="text-ln-op-mute">Entregadas en SLA</dt>
               <dd className="text-right font-semibold text-ln-op-ink">{pct(enoSla.onTimePct)}</dd>
               <dt className="text-ln-op-mute">Fuera de SLA (abiertas)</dt>
               <dd
@@ -544,7 +562,8 @@ export default async function GobVigilanciaPage({
           />
           <OpCardBody className="p-0">
             <div className="flex items-baseline justify-between px-4 py-3 border-b border-ln-op-line-2">
-              <span className="text-sm text-ln-op-mute">Confirmación de laboratorio (A10)</span>
+              {/* (A10) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
+              <span className="text-sm text-ln-op-mute">Confirmación de laboratorio</span>
               <span className="font-semibold text-ln-op-ink">
                 {pct(reportableIncidence.labConfirmationPct)}
               </span>
@@ -590,7 +609,8 @@ export default async function GobVigilanciaPage({
           <OpCardHead title={<span id={panelAmrId}>AMR — densidad de antimicrobianos</span>} />
           <OpCardBody>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
-              <dt className="text-ln-op-mute">Densidad (A12)</dt>
+              {/* (A12) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
+              <dt className="text-ln-op-mute">Densidad</dt>
               <dd className="text-right font-semibold text-ln-op-ink">
                 {amrDensity.per1000 === null ? "—" : `${amrDensity.per1000} / 1.000 pets`}
               </dd>

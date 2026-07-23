@@ -173,6 +173,42 @@ export function enoSlaTone(eno: {
   return pctTone;
 }
 
+/**
+ * Headline value + sub-line for the SLA ENO tile — shared coherence rule
+ * (qa-triage-2026-07-23, finding #12; same shape already proven in
+ * components/admin/AdminKpiStrip.tsx, Cowork A3/C1). `onTimePct` is
+ * period-scoped over DELIVERED rows only, so it can read "100%" while
+ * notifications sit pending PAST their sla_due_at — a tile that headlines the
+ * historical % next to a live breach count contradicts itself ("100%" vs "12
+ * en incumplimiento"). When there is an active breach, this LEADS with the
+ * live, actionable "N vencidas ahora" and demotes the historical % to a
+ * clearly labeled "(referencia)" sub-line; otherwise it reports the
+ * historical % as the headline (nothing to contradict when there's no open
+ * breach) with a median-latency or no-data sub.
+ */
+export function enoSlaHeadline(
+  eno: { onTimePct: number | null; breachedOpen: number; medianLatencyHours: number | null },
+  formatPct: (v: number | null) => string,
+): { value: string; sub: string } {
+  const pctLabel = formatPct(eno.onTimePct);
+  if (eno.breachedOpen > 0) {
+    return {
+      value: `${eno.breachedOpen} vencidas ahora`,
+      sub:
+        eno.onTimePct !== null
+          ? `Cumplimiento histórico ${pctLabel} de las entregadas (referencia)`
+          : "Sin entregas en el período",
+    };
+  }
+  return {
+    value: pctLabel,
+    sub:
+      eno.medianLatencyHours !== null
+        ? `Mediana ${eno.medianLatencyHours} h`
+        : "Sin entregas en el período",
+  };
+}
+
 // ---------------------------------------------------------------------------
 // computeDeltaPct — percent change vs a prior-period value
 // ---------------------------------------------------------------------------

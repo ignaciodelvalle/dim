@@ -91,7 +91,14 @@ export type {
 export { MAX_HORIZON_MONTHS, MIN_TREND_POINTS, forecastToTarget } from "./forecast-to-target";
 
 // Fase 0 additions — targets, tone, delta, freshness.
-export { TARGETS, computeDeltaPct, decisionsDeltaPct, enoSlaTone, toneForTarget } from "./targets";
+export {
+  TARGETS,
+  computeDeltaPct,
+  decisionsDeltaPct,
+  enoSlaHeadline,
+  enoSlaTone,
+  toneForTarget,
+} from "./targets";
 export { lastIngestAt } from "./freshness";
 
 // C1 — metric-contract guard engine (docs/reviews/results/

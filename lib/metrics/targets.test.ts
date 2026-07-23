@@ -7,7 +7,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { TARGETS, computeDeltaPct, decisionsDeltaPct, enoSlaTone, toneForTarget } from "./targets";
+import {
+  TARGETS,
+  computeDeltaPct,
+  decisionsDeltaPct,
+  enoSlaHeadline,
+  enoSlaTone,
+  toneForTarget,
+} from "./targets";
 
 // ---------------------------------------------------------------------------
 // 1. TARGETS constant
@@ -237,5 +244,56 @@ describe("enoSlaTone", () => {
   it("warns on open breaches even without a percentage", () => {
     expect(enoSlaTone({ onTimePct: null, breachedOpen: 1 })).toBe("warn");
     expect(enoSlaTone({ onTimePct: null, breachedOpen: 0 })).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// enoSlaHeadline — coherence fix (qa-triage-2026-07-23, finding #12): the tile
+// must lead with the CURRENT breach count, never the historical % that reads
+// "100%"/"todo bien" while notifications sit past their SLA. Live regression
+// this reproduces: /gob/vigilancia showed "100%" as the headline right next
+// to "12 fuera de SLA" in its own sub-line — the exact "100% vs 12 en
+// incumplimiento" contradiction the review flagged.
+// ---------------------------------------------------------------------------
+
+const pctLabel = (v: number | null) => (v === null ? "—" : `${v}%`);
+
+describe("enoSlaHeadline", () => {
+  it("an active breach LEADS with the live count, never the historical %", () => {
+    const { value, sub } = enoSlaHeadline(
+      { onTimePct: 100, breachedOpen: 12, medianLatencyHours: 4 },
+      pctLabel,
+    );
+    expect(value).toBe("12 vencidas ahora");
+    // The historical % survives, but demoted + explicitly labeled as
+    // reference — never presented as the tile's headline truth.
+    expect(sub).toBe("Cumplimiento histórico 100% de las entregadas (referencia)");
+  });
+
+  it("an active breach with no delivered rows yet (onTimePct null) states that plainly", () => {
+    const { value, sub } = enoSlaHeadline(
+      { onTimePct: null, breachedOpen: 3, medianLatencyHours: null },
+      pctLabel,
+    );
+    expect(value).toBe("3 vencidas ahora");
+    expect(sub).toBe("Sin entregas en el período");
+  });
+
+  it("no open breach → headlines the historical % (nothing to contradict) with a median-latency sub", () => {
+    const { value, sub } = enoSlaHeadline(
+      { onTimePct: 95, breachedOpen: 0, medianLatencyHours: 6 },
+      pctLabel,
+    );
+    expect(value).toBe("95%");
+    expect(sub).toBe("Mediana 6 h");
+  });
+
+  it("no open breach, no deliveries yet → '—' headline with an honest no-data sub", () => {
+    const { value, sub } = enoSlaHeadline(
+      { onTimePct: null, breachedOpen: 0, medianLatencyHours: null },
+      pctLabel,
+    );
+    expect(value).toBe("—");
+    expect(sub).toBe("Sin entregas en el período");
   });
 });

@@ -633,7 +633,11 @@ export default async function GobiernoDashboardPage({
             label={KPI_CATALOG.notified_diseases.label}
             value={notifiedDiseases.count}
             tone={notifiedDiseases.count > 0 ? "danger" : "neutral"}
-            sub={`${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · últimos 30 días`}
+            sub={
+              notifiedDiseases.other > 0
+                ? `${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · ${notifiedDiseases.other} otras · últimos 30 días`
+                : `${notifiedDiseases.lepto} lepto · ${notifiedDiseases.hidat} hidat. · últimos 30 días`
+            }
             href="/gob/vigilancia"
             info={getKpiInfo("notified_diseases")}
             descriptorId="notified_diseases"

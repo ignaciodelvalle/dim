@@ -414,7 +414,9 @@ describe("hostile reader — la briefing nunca alerta desde datos no medibles (s
     ];
     const alerts = buildBriefingAlerts(candidates);
     expect(alerts).toHaveLength(1);
-    expect(alerts[0].title).toContain("33%");
+    // Rounding-drift fix (qa-triage-2026-07-23 finding #6): routes through the
+    // same 1-decimal formatPercent every KPI tile uses.
+    expect(alerts[0].title).toContain("33,0%");
   });
 });
 

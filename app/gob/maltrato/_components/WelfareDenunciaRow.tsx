@@ -12,10 +12,34 @@ import { primaryWelfareAction } from "@/src/modules/welfare/domain/welfare-statu
 
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 
+import { isHistoricalBacklog } from "../_lib/welfare-sla";
 import { ActuarButton } from "./ActuarButton";
 import { TomarButton } from "./TomarButton";
 import { WelfareRowLink } from "./WelfareRowLink";
 import { resolveAssignmentDisplay } from "./welfare-row-assignment";
+
+// Historical-backlog severity label (bug fix, qa-triage-2026-07-23 finding
+// #4): welfareReportSeverityLabel's "— peligro inmediato" / "— urgente" /
+// etc. suffix is an URGENCY claim, and SlaBadge already demotes urgency chrome
+// to "Histórico · sin SLA activo" once isHistoricalBacklog is true (>180d
+// non-terminal, welfare-sla.ts). Rendering the two pills side by side used to
+// contradict: "CRÍTICA — PELIGRO INMEDIATO" next to "HISTÓRICO · SIN SLA
+// ACTIVO" on the SAME card (e.g. DEN-VHCX-GRC9, 310 days old, still `open`).
+// One truth per card: severity stays as DATA (the base name + tone/left-edge
+// stay, nothing is hidden), only the urgency FRAMING is dropped for backlog
+// rows — matching SlaBadge's own demotion, not re-deriving a second opinion.
+const SEVERITY_BASE_LABEL: Record<WelfareReportSeverity, string> = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+  critical: "Crítica",
+};
+
+function severityDisplayLabel(severity: WelfareReportSeverity, historical: boolean): string {
+  if (!historical) return welfareReportSeverityLabel(severity);
+  const base = SEVERITY_BASE_LABEL[severity] ?? severity;
+  return `${base} (histórica)`;
+}
 
 // Severity → OpPill tone mapping.
 // critical/high → danger, medium → open (warn), low → triaged (blue), unknown → neutral.
@@ -91,6 +115,7 @@ export function WelfareDenunciaRow({
   const statusTone = STATUS_TONE[report.status] ?? "neutral";
 
   const createdAt = new Date(report.createdAt);
+  const isHistorical = isHistoricalBacklog(report.status, createdAt);
 
   // A CRITICAL row is visually escalated with the error tokens (thick danger
   // left edge) so it reads as "peligro inmediato" before any text is parsed.
@@ -134,7 +159,9 @@ export function WelfareDenunciaRow({
                 <p className="text-[13px] font-medium text-ln-op-ink">
                   {welfareReportKindLabel(report.kind)}
                 </p>
-                <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
+                <OpPill tone={severityTone}>
+                  {severityDisplayLabel(report.severity, isHistorical)}
+                </OpPill>
                 {/* SlaBadge (C2 language contract 2026-07-22) OWNS the SLA
                     semantic — it derives breached/historical/in-plazo itself
                     from severity+status+createdAt, so this row can never

@@ -40,6 +40,7 @@
 // PURE — no DB, no React. Every export is unit-tested in briefing-alerts.test.ts.
 
 import { getScreenManifestEntry } from "@/lib/ui/screen-manifest";
+import { formatPercent } from "@/lib/utils/format";
 import { type ForecastTrendPoint, forecastToTarget } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
 import { KPI_CATALOG, formatKpiTarget } from "./kpi-catalog";
@@ -222,9 +223,17 @@ export function deriveAlertConfidence(
 // Title / value formatting
 // ---------------------------------------------------------------------------
 
+// Bug fix (qa-triage-2026-07-23, finding #6 — rounding drift): this used to
+// render `${Math.round(value)}%` (a bare 0-decimal integer), while every KPI
+// tile the alert links to (OpKpi via formatPercent) renders 1 decimal — e.g.
+// the SAME underlying value read "34%" in an alert and "33,7%" on its own
+// tile. Routing through the shared `formatPercent` (lib/utils/format.ts, the
+// ONE rounding rule for every rate in the app) makes the alert's number
+// byte-identical to the tile it points at — never a second, independently
+// -rounded opinion of the same metric.
 function formatValue(value: number, unit: KpiUnit): string {
-  const rounded = Math.round(value);
-  return unit === "percent" ? `${rounded}%` : `${rounded}`;
+  if (unit === "percent") return formatPercent(value);
+  return `${Math.round(value)}`;
 }
 
 function buildTitle(descriptor: KpiDefinition, value: number): string {

@@ -110,6 +110,26 @@ describe("middleware — x-portal-base stamping (portal-follows-viewer)", () => 
   });
 });
 
+// Bug fix (qa-triage-2026-07-23, finding #13): a session-expiry bounce to
+// /login used to drop the operator's exact work URL (pathname + query string
+// both lost) — x-pathname alone can't carry the query string. x-full-path
+// carries both, so lib/infra/auth-guards.ts's guards can build a `returnTo`
+// that restores the FULL attempted deep link (e.g. /gob/denuncias?etapa=
+// triage&queue=mine), not just the bare route.
+describe("middleware — x-full-path stamping (session-kick returnTo fix)", () => {
+  it("stamps pathname + query string together", async () => {
+    const request = requestFor("/gob/denuncias", "?etapa=triage&queue=mine");
+    await middleware(request);
+    expect(request.headers.get("x-full-path")).toBe("/gob/denuncias?etapa=triage&queue=mine");
+  });
+
+  it("stamps the bare pathname when there is no query string", async () => {
+    const request = requestFor("/gob/perdidas");
+    await middleware(request);
+    expect(request.headers.get("x-full-path")).toBe("/gob/perdidas");
+  });
+});
+
 describe("middleware — /admin/jurisdicciones → /admin/reglas remap", () => {
   it("redirects the bare /admin/jurisdicciones index to /admin/reglas with a real 308", async () => {
     const request = requestFor("/admin/jurisdicciones");

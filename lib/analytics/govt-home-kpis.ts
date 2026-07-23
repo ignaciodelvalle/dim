@@ -1071,15 +1071,29 @@ export type NotifiedDiseasesKpi = {
   lepto: number;
   /** Sub-breakdown: hidatidosis reports within the same window. */
   hidat: number;
+  /**
+   * Sub-breakdown: reports with `payload.disease = 'other'` within the same
+   * window — the schema's third (and only other) enum value (see
+   * `diseaseReported` in lib/events/event-schemas.ts: `disease` is
+   * `enum(['lepto', 'hidatidosis', 'other'])`, so lepto + hidat + other is
+   * ALWAYS exactly `count`, never less). Bug fix (qa-triage-2026-07-23,
+   * finding #2): the /gob panel tile used to render only
+   * "{lepto} lepto · {hidat} hidat." — dropping this arm silently made the
+   * sub-line's total disagree with the headline `count` (e.g. count=2 shown
+   * next to "0 lepto · 1 hidat.", the 1 'other' report invisible). Returning
+   * `other` here lets the tile always reconcile numerator === sub-breakdown sum.
+   */
+  other: number;
 };
 
 /**
  * KPI: notified_diseases (decomposed from active_zoonosis_signals).
  *
  * NUMERATOR:   COUNT disease_reported events in the trailing 30 days in scope
- *              (ALL diseases, not only lepto/hidatidosis — the truest "enfermedades
- *              notificadas" axis). lepto/hidat are returned as a sub-breakdown so
- *              the tile keeps the composite's "X lepto · Y hidat." legend.
+ *              (ALL diseases: lepto + hidatidosis + other — the truest "enfermedades
+ *              notificadas" axis). lepto/hidat/other are returned as a full
+ *              sub-breakdown (never a partial one) so the tile's "X lepto · Y
+ *              hidat. · Z otras" legend always sums back to `count`.
  * DENOMINATOR: n/a — absolute count.
  * SOURCE:      pet_events (disease_reported).
  * CADENCE:     trailing 30 days ending at ctx.period.until.
@@ -1089,7 +1103,7 @@ export type NotifiedDiseasesKpi = {
  */
 export async function fetchNotifiedDiseases(ctx: ProjectionContext): Promise<NotifiedDiseasesKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { count: 0, lepto: 0, hidat: 0 };
+    return { count: 0, lepto: 0, hidat: 0, other: 0 };
   }
 
   const since30d = new Date(ctx.period.until.getTime() - 30 * DAY_MS);
@@ -1104,7 +1118,9 @@ export async function fetchNotifiedDiseases(ctx: ProjectionContext): Promise<Not
   ];
   if (petsGuard) conditions.push(petsGuard);
 
-  // Single pass: total + lepto/hidat sub-counts via conditional aggregation.
+  // Single pass: total + lepto/hidat/other sub-counts via conditional
+  // aggregation. The three filters are mutually exclusive and exhaustive
+  // (schema enum has exactly these 3 values), so lepto+hidat+other === total.
   const rows = await db
     .select({
       total: count(),
@@ -1116,6 +1132,10 @@ export async function fetchNotifiedDiseases(ctx: ProjectionContext): Promise<Not
         sql<number>`count(*) filter (where (${petEvents.payload}->>'disease') = 'hidatidosis')`.mapWith(
           Number,
         ),
+      other:
+        sql<number>`count(*) filter (where (${petEvents.payload}->>'disease') = 'other')`.mapWith(
+          Number,
+        ),
     })
     .from(petEvents)
     .where(and(...conditions));
@@ -1125,6 +1145,7 @@ export async function fetchNotifiedDiseases(ctx: ProjectionContext): Promise<Not
     count: row?.total ?? 0,
     lepto: row?.lepto ?? 0,
     hidat: row?.hidat ?? 0,
+    other: row?.other ?? 0,
   };
 }
 

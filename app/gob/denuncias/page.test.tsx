@@ -130,4 +130,20 @@ describe("/gob/denuncias — the hub (F1 fusion: Moderación + Maltrato as tabbe
     expect(html).not.toContain('href="/gob/moderacion"');
     expect(html).not.toContain('href="/gob/maltrato"');
   });
+
+  // Regression (qa-triage-2026-07-23, finding #5): "Paso 3 · Caso" used to sit
+  // ABOVE the etapa tabs, so with Triage active the single biggest header on
+  // the page read "Paso 3 · Caso" instead of the active stage's own content —
+  // the funcionario couldn't tell which step they were on. The active stage's
+  // content must now appear BEFORE the Caso link-out in DOM order (both stay
+  // present — this only re-orders them).
+  it("renders the active stage's content ABOVE the 'Paso 3 · Caso' link-out card (active stage dominates the fold)", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    const stageIndex = html.indexOf("TRIAGE STAGE CONTENT");
+    const casoIndex = html.indexOf("Paso 3 · Caso");
+    expect(stageIndex).toBeGreaterThan(-1);
+    expect(casoIndex).toBeGreaterThan(-1);
+    expect(stageIndex).toBeLessThan(casoIndex);
+  });
 });

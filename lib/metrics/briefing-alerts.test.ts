@@ -81,7 +81,11 @@ describe("buildBriefingAlerts — a real gap produces an alert", () => {
     expect(alerts).toHaveLength(1);
     const [alert] = alerts;
     expect(alert.id).toBe("mortality_disposal_traceability");
-    expect(alert.title).toContain("33%");
+    // Rounding-drift fix (qa-triage-2026-07-23 finding #6): the alert's value
+    // routes through the SAME 1-decimal formatPercent every KPI tile uses —
+    // an exact 33 renders "33,0%", never a bare 0-decimal "33%" that could
+    // silently disagree with a tile showing e.g. "33,7%" for the same metric.
+    expect(alert.title).toContain("33,0%");
     // C1 fix (claim #6, cursor red-team 2026-07-23): a law-sourced but
     // non-statutory target renders as "Obligación: <ley> · Meta programática:
     // X%" — NOT "meta X% (<ley>)", which reads as if the law set the number.

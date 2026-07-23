@@ -139,3 +139,16 @@ describe("AdminPoblacionScreen — species axis wiring", () => {
     expect(html).toContain("Especie");
   });
 });
+
+describe("AdminPoblacionScreen — Preñeces activas copy (qa-triage-2026-07-23 finding #9)", () => {
+  it("never leaks the raw pregnancy_status='in_progress' enum/column name into operator-facing copy", async () => {
+    const node = await AdminPoblacionScreen({ searchParams: {} });
+    const html = renderToStaticMarkup(node);
+    expect(html).not.toContain("pregnancy_status");
+    expect(html).not.toContain("in_progress");
+    // Localized to match the /gob twin's wording (PoblacionScreen.tsx), with
+    // an explicit "(nacional)" scope tag since this is the universal-scope
+    // admin screen.
+    expect(html).toContain("preñez registrada y aún no cerrada (nacional)");
+  });
+});

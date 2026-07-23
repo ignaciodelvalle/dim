@@ -111,7 +111,7 @@ const govtHomeKpisFixture = {
   bitesPer10k: { percapitaEligible: true, reports: 3, rate: 1.2, delta: 0 },
   openRabiesObservations: { count: 0, deltaWeek: 0 },
   openBiteCases: { count: 0 },
-  notifiedDiseases: { count: 0, lepto: 0, hidat: 0 },
+  notifiedDiseases: { count: 0, lepto: 0, hidat: 0, other: 0 },
   openWelfareReports: { count: 2 },
 };
 
@@ -215,7 +215,11 @@ describe("/gob (home) — C6b briefing block order", () => {
   it("a real gap (mortality traceability 33% vs meta 75%) surfaces as a priority-alta alert with its action + confidence", async () => {
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("33%");
+    // Rounding-drift fix (qa-triage-2026-07-23 finding #6): the alert routes
+    // through the SAME 1-decimal formatPercent every KPI tile uses, so an
+    // exact 33 renders "33,0%" — matching the tile below it verbatim, never a
+    // bare 0-decimal "33%" that could silently disagree with it.
+    expect(html).toContain("33,0%");
     // C1 fix (claim #6, cursor red-team 2026-07-23): law-sourced but
     // non-statutory target renders "Obligación: <ley> · Meta programática: X%".
     expect(html).toContain("Meta programática: 75%");

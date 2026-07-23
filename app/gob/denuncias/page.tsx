@@ -124,11 +124,43 @@ export default async function GobDenunciasPage({
         </p>
       </header>
 
+      <Suspense>
+        <UrlTabs
+          paramKey="etapa"
+          defaultValue={DEFAULT_ETAPA}
+          tabs={tabs}
+          resetParamsOnChange={ETAPA_RESET_PARAMS}
+          aria-label="Etapa del recorrido de denuncias"
+        >
+          <UrlTabsContent value={etapa}>
+            {etapa === "moderacion" ? (
+              <ModeracionQueueScreen searchParams={sp} underHub />
+            ) : (
+              // C1 fix (adversarial-gob 2026-07-23): the hub's own header
+              // already establishes identity for every stage, not just
+              // moderación — MaltratoQueueScreen now suppresses its own
+              // eyebrow/h1 under the hub the same way.
+              <MaltratoQueueScreen searchParams={sp} underHub />
+            )}
+          </UrlTabsContent>
+        </UrlTabs>
+      </Suspense>
+
       {/* Caso — the one stage that stays a link-out, not an embedded tab: a
           regulatory case is a different decision family (formal follow-up,
-          own lifecycle), not a daily triage queue. */}
+          own lifecycle), not a daily triage queue. Bug fix (qa-triage-
+          2026-07-23, finding #5): this card used to sit ABOVE the stage tabs,
+          so with Triage active the single BIGGEST header on the page read
+          "Paso 3 · Caso" — a screen about triage visually announcing itself
+          as the case step. Moved below the tabs (and visually compacted,
+          `text-sm` header instead of OpCardHead's default title size) so the
+          active stage's own content dominates the fold; the Caso link-out
+          stays fully present, just de-emphasized to match its "step 3 of the
+          journey, not today's queue" role. */}
       <OpCard>
-        <OpCardHead title="Paso 3 · Caso" />
+        <OpCardHead
+          title={<span className="text-[var(--text-sm)] font-semibold">Paso 3 · Caso</span>}
+        />
         <OpCardBody className="flex flex-wrap items-center justify-between gap-4">
           <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
             Denuncias escaladas a un caso regulatorio, con seguimiento formal.
@@ -151,28 +183,6 @@ export default async function GobDenunciasPage({
           </div>
         </OpCardBody>
       </OpCard>
-
-      <Suspense>
-        <UrlTabs
-          paramKey="etapa"
-          defaultValue={DEFAULT_ETAPA}
-          tabs={tabs}
-          resetParamsOnChange={ETAPA_RESET_PARAMS}
-          aria-label="Etapa del recorrido de denuncias"
-        >
-          <UrlTabsContent value={etapa}>
-            {etapa === "moderacion" ? (
-              <ModeracionQueueScreen searchParams={sp} underHub />
-            ) : (
-              // C1 fix (adversarial-gob 2026-07-23): the hub's own header
-              // already establishes identity for every stage, not just
-              // moderación — MaltratoQueueScreen now suppresses its own
-              // eyebrow/h1 under the hub the same way.
-              <MaltratoQueueScreen searchParams={sp} underHub />
-            )}
-          </UrlTabsContent>
-        </UrlTabs>
-      </Suspense>
     </div>
   );
 }

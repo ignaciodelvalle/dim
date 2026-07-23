@@ -84,7 +84,19 @@ export function UrlTabs({
   resetParamsOnChange = [],
 }: UrlTabsProps) {
   const searchParams = useSearchParams();
-  const activeTab = searchParams.get(paramKey) ?? defaultValue;
+  // Fall back to `defaultValue` for a param that is ABSENT *or* unrecognized
+  // (bug fix, gob-perdidas-tab-partition 2026-07-23): consumer pages sanitize
+  // an invalid searchParam server-side (e.g. /gob/denuncias's `parseEtapa`,
+  // /gob/perdidas's `parseStatusFilter` both fall back to their own default
+  // for a garbage value) and render ONLY that resolved tab's content. Before
+  // this fix, a raw unrecognized param (e.g. `?etapa=not-a-real-stage`) made
+  // THIS activeTab equal that garbage string, which matches none of `tabs` —
+  // every tabpanel's `isActive` (UrlTabsContent) came back false, so the one
+  // panel the server actually rendered content into (keyed by the SANITIZED
+  // value) was wrongly hidden/emptied even though its content was correct.
+  const rawParam = searchParams.get(paramKey);
+  const activeTab =
+    rawParam !== null && tabs.some((t) => t.value === rawParam) ? rawParam : defaultValue;
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function handleTabClick(value: string) {
@@ -195,6 +207,24 @@ export function UrlTabsContent({ value, children }: UrlTabsContentProps) {
   const activeTab = useContext(TabsContext);
   const isActive = value === activeTab;
 
+  // Only mount the ACTIVE panel's children (bug fix, gob-perdidas-tab-partition
+  // 2026-07-23): every UrlTabs switch is a full document navigation (see the
+  // router-drop design note above), so an inactive panel's markup can NEVER
+  // become visible through client interaction — there is no SPA transition to
+  // pre-render for. Consumer pages (perdidas, maltrato, denuncias, moderación,
+  // …) build each tab's OpCard from a SINGLE query scoped to the CURRENTLY
+  // active tab/status, then `.map()` that same result across every tab value
+  // just to vary the heading text. Rendering all of them (even `hidden`) put
+  // the active tab's rows in the DOM three extra times, each mislabeled under
+  // the OTHER tabs' headings (e.g. /gob/perdidas?status=lost put the 8 lost
+  // pets inside the hidden "Mascotas recuperadas" AND "Mascotas fallecidas"
+  // panels too) — invisible to a sighted human, but readable by any DOM-level
+  // inspection (a11y tooling, `element.textContent`, an automated crawler),
+  // which is exactly how the gov-ux adversarial review's browse-only pass
+  // reported "the same 8 pets under perdidas AND recuperadas AND fallecidas".
+  // The tabpanel `div` itself stays for every tab (keeps `aria-controls`
+  // resolvable and the roving-tabindex/APG structure intact) — only its
+  // content is now gated on being the active panel.
   return (
     <div
       role="tabpanel"
@@ -202,7 +232,7 @@ export function UrlTabsContent({ value, children }: UrlTabsContentProps) {
       aria-labelledby={`tab-${value}`}
       hidden={!isActive}
     >
-      {children}
+      {isActive ? children : null}
     </div>
   );
 }

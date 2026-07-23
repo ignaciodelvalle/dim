@@ -47,7 +47,12 @@ import {
 } from "@/lib/infra/ar-localidades";
 import { resolveScopedJurisdictions } from "@/lib/infra/gov-scope";
 import type { DashboardJurisdiction } from "@/lib/metrics";
-import { type Province, type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
+import {
+  type Province,
+  type ProvinceCode,
+  provinceByCode,
+  provinceByName,
+} from "@/lib/reference/ar-provincias";
 
 /** The raw ?province / ?locality searchParams, source-shape-agnostic. */
 export type JurisdictionScopeParams = {
@@ -114,9 +119,31 @@ export async function resolveJurisdictionScope(
 
   const selectedProvince = params.province ? provinceByCode(params.province) : null;
 
+  // Single-jurisdiction Localidad fix (qa-triage-2026-07-23, finding #10): a
+  // govt operator with EXACTLY ONE assigned province (e.g. a whole-CABA
+  // assignment) never gets a `?province=` searchParam by default — the
+  // Provincia switcher shows their one province with no "Todas" option to
+  // "select" (nothing to disambiguate), so no onChange ever fires to set the
+  // param. Before this fix `localities` stayed `[]` in that case, permanently
+  // trapping the Localidad <select> in a disabled, unexplained state — a dead
+  // control the operator could never unlock through the UI. Narrowing to a
+  // barrio WITHIN a whole-province assignment is already a supported, fenced
+  // drill-down (isWholeProvinceAssignment subsumption, jurisdiction-canonical.ts)
+  // — this only fills the switcher's OWN dropdown for that legitimate case; it
+  // does not touch `selectedProvince`/`filteredJurisdictions`/map-drill state
+  // below, all of which stay gated on the real (explicit) URL param.
+  const uniqueProvinceNames =
+    role === "govt" ? Array.from(new Set(jurisdictions.map((j) => j.province))) : [];
+  const impliedSoleProvince =
+    !selectedProvince && uniqueProvinceNames.length === 1
+      ? provinceByName(uniqueProvinceNames[0])
+      : null;
+
   const localities = selectedProvince
     ? await listLocalitiesByProvince(selectedProvince.code as ProvinceCode)
-    : [];
+    : impliedSoleProvince
+      ? await listLocalitiesByProvince(impliedSoleProvince.code as ProvinceCode)
+      : [];
 
   const selectedLocality =
     selectedProvince && params.locality

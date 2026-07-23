@@ -111,6 +111,15 @@ export async function middleware(request: NextRequest) {
   // This is additive and side-effect-free — it never alters routing.
   request.headers.set("x-pathname", pathname);
 
+  // Bug fix (qa-triage-2026-07-23, finding #13): pathname alone drops the
+  // query string (e.g. /gob/denuncias?etapa=triage&queue=mine), so a guard
+  // building a post-login `returnTo` from x-pathname ONLY would strand the
+  // operator back at the bare stage/tab default instead of their exact deep
+  // link. x-full-path carries pathname+search so lib/infra/auth-guards.ts's
+  // guards (requireAdminOrGovtOrRedirect, requireAdminOrRedirect) can restore
+  // the FULL attempted URL after a session-expiry bounce to /login.
+  request.headers.set("x-full-path", `${pathname}${request.nextUrl.search}`);
+
   // Permanent redirect: /pro/* → /cuenta/memberships.
   // The /pro portal has been removed; vets now operate through /org/[orgToken].
   // This catches browser bookmarks and external links for 30-day grace.

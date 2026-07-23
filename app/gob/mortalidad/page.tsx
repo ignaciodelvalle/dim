@@ -35,6 +35,7 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import {
   fetchMortalityDisposition,
   fetchPrevMortalityTotal,
+  sortLocalityCellsRollupLast,
 } from "@/lib/analytics/mortality-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -170,7 +171,13 @@ export default async function GobMortalidadPage({
   const deathsDelta = formatDelta(m.total, prevTotal, "vs período anterior");
 
   const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
-  const localityCells = m.byLocality.value;
+  // Segregate the k-anon rollup bucket(s) (qa-triage-2026-07-23, finding #14):
+  // sort them LAST regardless of count so a large aggregate (many small
+  // localities folded together — "Santiago del Estero (otras localidades)"
+  // hit 1.965 in live seed data) never visually reads as "the #1 locality" —
+  // it isn't one. Real, individually-identified localities keep their
+  // original (DB-returned) order among themselves.
+  const localityCells = sortLocalityCellsRollupLast(m.byLocality.value);
   const maxLocality = localityCells.reduce((acc, c) => Math.max(acc, c.count), 0);
   const showBreach = m.unknownRate > TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT;
   const hasDeaths = m.total > 0;
@@ -345,7 +352,15 @@ export default async function GobMortalidadPage({
                       <li
                         key={b.bucket}
                         className="flex items-center gap-3"
-                        aria-label={`${label}: ${b.count} ${pluralizeEs(b.count, "fallecimiento")} (${Math.round(pct)}% del máximo)`}
+                        // Bug fix (qa-triage-2026-07-23, finding #14): "(100%
+                        // del máximo)" read as a Ley 5470 COMPLIANCE figure
+                        // (the KPI row above literally shows a traceability
+                        // %) when it is only this bar's height relative to
+                        // the chart's own tallest bar — a distribution fact,
+                        // not a legal one. Spelled out honestly so "máximo"
+                        // unambiguously means "the most-used disposal method
+                        // this period", never a target/obligation.
+                        aria-label={`${label}: ${b.count} ${pluralizeEs(b.count, "fallecimiento")} — ${Math.round(pct)}% del método más frecuente en el período (no es una cifra de cumplimiento)`}
                       >
                         <span className="w-40 shrink-0 text-[13px] text-ln-op-ink">{label}</span>
                         <div
@@ -469,13 +484,20 @@ export default async function GobMortalidadPage({
               <ul className="space-y-2" aria-label="Fallecimientos por localidad">
                 {localityCells.map((c) => {
                   const pct = maxLocality > 0 ? (c.count / maxLocality) * 100 : 0;
+                  const isRollup = (c as { isRollup?: boolean }).isRollup === true;
                   return (
                     <li
                       key={c.key}
                       className="flex items-center gap-3"
-                      aria-label={`${c.key}: ${c.count} ${pluralizeEs(c.count, "fallecimiento")}`}
+                      aria-label={
+                        isRollup
+                          ? `${c.key}: ${c.count} ${pluralizeEs(c.count, "fallecimiento")} — agregado de varias localidades con menos de 5 fallecimientos cada una (privacidad), no una única localidad`
+                          : `${c.key}: ${c.count} ${pluralizeEs(c.count, "fallecimiento")}`
+                      }
                     >
-                      <span className="w-40 shrink-0 truncate text-[13px] text-ln-op-ink">
+                      <span
+                        className={`w-40 shrink-0 truncate text-[13px] ${isRollup ? "italic text-ln-op-mute" : "text-ln-op-ink"}`}
+                      >
                         {c.key}
                       </span>
                       <div
@@ -483,7 +505,7 @@ export default async function GobMortalidadPage({
                         aria-hidden="true"
                       >
                         <div
-                          className="h-full rounded bg-ln-op-azul"
+                          className={`h-full rounded ${isRollup ? "bg-ln-op-mute/50" : "bg-ln-op-azul"}`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>

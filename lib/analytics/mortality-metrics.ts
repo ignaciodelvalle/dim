@@ -37,6 +37,27 @@ import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
 import { petsScopeClause } from "@/lib/metrics/scope";
 import type { Cell, SuppressedCells } from "@/lib/metrics/types";
 
+/**
+ * Sort locality cells so any k-anon rollup bucket (`isRollup: true`, see the
+ * rollup builder below) sorts LAST regardless of its count — qa-triage-
+ * 2026-07-23 finding #14. A rollup aggregates many sub-threshold localities
+ * (each individually <5 deaths) into one row; its total can legitimately be
+ * the largest in the chart purely from summing many small places, which would
+ * otherwise make it read as "the #1 locality" in a plain count-desc list. Real
+ * (individually-identified) cells keep their original relative order among
+ * themselves — this only demotes the rollup, it does not re-rank the rest.
+ */
+export function sortLocalityCellsRollupLast<T extends Cell & { isRollup?: boolean }>(
+  cells: readonly T[],
+): T[] {
+  return [...cells].sort((a, b) => {
+    const aRollup = a.isRollup === true;
+    const bRollup = b.isRollup === true;
+    if (aRollup === bRollup) return 0;
+    return aRollup ? 1 : -1;
+  });
+}
+
 const DISPOSITION = sql`(${petEvents.payload}->>'disposition_method')`;
 const FACILITY = sql`(${petEvents.payload}->>'facility')`;
 
@@ -253,7 +274,21 @@ export async function fetchMortalityDisposition(
       // single-province scope share it; mixed-province scopes still produce a
       // valid coarse rollup label).
       const province = (rows[0]?.province as string) ?? "—";
-      return { key: `${province} (otras localidades)`, count: totalSuppressed, province };
+      // `isRollup` (qa-triage-2026-07-23, finding #14): this cell is a k-anon
+      // AGGREGATE of many sub-threshold localities folded together — its count
+      // can legitimately be the largest in the chart (Santiago del Estero's
+      // rollup hit 1.965 in live seed data) purely because it sums many small
+      // places, not because one locality has that much mortality. Rendered
+      // next to real single-locality bars with no distinction, it reads as "one
+      // place dominates" — a false signal. The page (app/gob/mortalidad/page.tsx)
+      // uses this flag to sort the rollup last and render it with distinct,
+      // muted styling instead of competing for the "biggest bar" spot by count.
+      return {
+        key: `${province} (otras localidades)`,
+        count: totalSuppressed,
+        province,
+        isRollup: true,
+      };
     },
   });
 

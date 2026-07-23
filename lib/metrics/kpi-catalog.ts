@@ -735,7 +735,16 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     // purely a miMAR adoption/uptake number. Renamed + semaphore: none below
     // distinguish "atestación en miMAR" (what this tile measures) from
     // "cumplimiento registral externo" (a claim this tile does NOT make).
-    label: "Atestación PPP en miMAR (razas potencialmente peligrosas)",
+    // Shortened (qa-triage-2026-07-23, finding #7): the parenthetical fully
+    // spelling out "PPP" made this the longest label in the catalog (58
+    // chars), wrapping across 3-4 lines in a narrow OpKpi tile — read as
+    // "truncated" in a browse-only review even though no CSS actually clips
+    // it (verified: overflow:visible, white-space:normal, no ellipsis). The
+    // load-bearing part of the C1 rename above — "en miMAR" (disambiguating
+    // from external registry compliance) — is kept; only the redundant
+    // acronym-expansion is dropped (PPP is glossed in the ⓘ tooltip's
+    // `definition` below, not lost).
+    label: "Atestación PPP en miMAR",
     numerator: "COUNT DISTINCT PPP-flagged active pets with ≥1 dangerous_breed_attested event",
     denominator: "COUNT active/lost pets where potentially_dangerous_breed = true",
     source: "pets, pet_events (dangerous_breed_attested)",

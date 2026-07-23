@@ -367,6 +367,31 @@ export const SNAKE_CASE_TOKEN = /\b[a-z]+_[a-z0-9_]+\b/g;
 // the snake_case value being the giveaway. Matched only in JSX text position.
 export const SNAKE_CASE_PAYLOAD_FRAGMENT = /\b[a-z][a-z0-9]*_?[a-z0-9_]*\s*=\s*["'][a-z0-9_]+["']/;
 
+// Gap fix (qa-triage-2026-07-23, finding #9): Arm B used to check ONLY the
+// `>fragment<` between-tags shape, so a fragment sitting inside a JSX STRING
+// ATTRIBUTE value — `sub="mascotas con pregnancy_status='in_progress' (nacional)"`
+// on app/admin/poblacion/AdminPoblacionScreen.tsx (the OpKpi `sub` prop) — was
+// invisible to the rule, even though this file's own module comment names
+// `pregnancy_status='in_progress'` as the CANONICAL motivating example. A
+// caption/label/sub/title/description/definition JSX attribute is exactly
+// where this class of leak lives — OpKpi's own `sub`/`label` props are
+// string-literal attributes, not JSX children. Detects the fragment appearing
+// inside a `attr="...frag..."` double-quoted string on the line.
+function isPayloadFragmentInAttrString(line: string, frag: string): boolean {
+  const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`=\\s*"[^"]*${escaped}[^"]*"`).test(line);
+}
+
+/** True when `frag` (a matched SNAKE_CASE_PAYLOAD_FRAGMENT) is rendered as
+ * visible operator copy on `line` — either as JSX children (`>frag<`) or
+ * inside a JSX string attribute value (`sub="...frag..."`). Exported for unit
+ * testing (see __tests__/check-ui-invariants.test.ts). */
+export function isPayloadFragmentRenderedAsCopy(line: string, frag: string): boolean {
+  const escaped = frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const asChildren = new RegExp(`>\\s*${escaped}\\s*<`);
+  return asChildren.test(line) || isPayloadFragmentInAttrString(line, frag);
+}
+
 // Same line-type exclusions as the SCREAMING-enum rule (skip TS statements +
 // attribute values) so identifiers and code never enter the scan.
 const SNAKE_CASE_EXCLUSIONS = JSX_TEXT_EXCLUSIONS;
@@ -621,12 +646,17 @@ function runScan(): void {
         hits += 1;
       }
 
-      // Arm B — a key='value' payload fragment shown literally between tags.
+      // Arm B — a key='value' payload fragment shown literally as copy, either
+      // between tags (`>frag<`) or inside a JSX string attribute
+      // (`sub="...frag..."` — the shape that missed the AdminPoblacionScreen
+      // leak, qa-triage-2026-07-23 finding #9).
       const fragMatch = line.match(SNAKE_CASE_PAYLOAD_FRAGMENT);
       if (fragMatch) {
         const frag = fragMatch[0];
-        const asText = new RegExp(`>\\s*${frag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<`);
-        if (asText.test(line) && !SNAKE_CASE_ALLOWLIST.has(`${relPath}:payload-fragment`)) {
+        if (
+          isPayloadFragmentRenderedAsCopy(line, frag) &&
+          !SNAKE_CASE_ALLOWLIST.has(`${relPath}:payload-fragment`)
+        ) {
           console.error(
             `${file}:${i + 1}: raw payload fragment "${frag}" rendered as JSX text — show a localized status label, not the internal key=value`,
           );
