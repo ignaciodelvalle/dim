@@ -257,6 +257,9 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "esterilizacion",
     label: "Cobertura de esterilización",
+    // Claim #3 — drilled division fill paints raw counts, not the rate;
+    // "Cobertura" would misname a headcount as a percentage.
+    countLabel: "Esterilizaciones",
     description:
       "Mascotas activas con esterilización registrada sobre el total de la unidad (meta 70% · control poblacional).",
     geomType: "choropleth",
@@ -285,6 +288,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "microchip",
     label: "Penetración microchip (C1)",
+    // Claim #3 — drilled division fill paints raw counts, not the rate.
+    countLabel: "Mascotas con microchip",
     description:
       "Mascotas activas con microchip ISO activo sobre el total de la unidad (Ley Prov 14.107 · meta 80%).",
     geomType: "choropleth",
@@ -309,6 +314,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "ppp",
     label: "Registro PPP (C7)",
+    // Claim #3 — drilled division fill paints raw counts, not the rate.
+    countLabel: "Atestaciones PPP",
     description:
       "Perros potencialmente peligrosos registrados sobre el total estimado de la unidad (Ley Prov 14.107 · benchmark 80%).",
     geomType: "choropleth",
@@ -333,6 +340,12 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "cobertura",
     label: "Cobertura antirrábica (perros, 12m)",
+    // Claim #3 (cursor red-team 2026-07-23) — the drilled division fill sums
+    // raw vaccinated-dog COUNTS per barrio/departamento (e.g. 6→235), not a
+    // percentage. Rendering "Cobertura antirrábica … (conteo)" over that
+    // scale reads as a coverage rate with a footnote; "cobertura" itself must
+    // drop once the paint is a headcount, not a rate.
+    countLabel: "Vacunaciones antirrábicas",
     description:
       "Perros del padrón con vacuna antirrábica en los últimos 12 meses sobre el total, por unidad (Ley 22.953 · meta 80%).",
     geomType: "choropleth",
@@ -414,6 +427,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   {
     id: "antiparasitario",
     label: "Cobertura antiparasitaria (12m)",
+    // Claim #3 — drilled division fill paints raw counts, not the rate.
+    countLabel: "Desparasitaciones",
     description:
       "Mascotas activas con desparasitación registrada en los últimos 12 meses sobre el total de la unidad — protección periódica (no un hito único).",
     geomType: "choropleth",

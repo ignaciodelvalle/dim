@@ -111,6 +111,17 @@ export type RegionRankingResult = {
   top: RegionRankingRow[];
   /** Bottom 5 provinces by rabies vaccination coverage (lowest first). */
   bottom: RegionRankingRow[];
+  /**
+   * Cursor red-team 2026-07-23 (claim #2) — distinct provinces WITH DATA in
+   * this scope (totalRows.length after the >0-pets filter), NOT top.length or
+   * bottom.length (both are min(this, 5) and can silently be the SAME set —
+   * a single-province govt scope, e.g. whole-CABA, has exactly 1 row, so top
+   * and bottom both resolve to that one province: it reads as
+   * simultaneously "best" AND "worst", which is not a ranking at all. The
+   * render site (RegionRankingTable) uses this to decide whether best/worst
+   * framing is honest for the current scope.
+   */
+  totalProvinces: number;
 };
 
 /**
@@ -132,7 +143,7 @@ export async function fetchRegionRanking(
   opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<RegionRankingResult> {
   if (actor.role === "govt" && jurisdictions.length === 0) {
-    return { top: [], bottom: [] };
+    return { top: [], bottom: [], totalProvinces: 0 };
   }
 
   // Build scope filter for the pets table (whole-province subsumption included).
@@ -153,7 +164,7 @@ export async function fetchRegionRanking(
     .where(and(...totalConditions))
     .groupBy(pets.jurisdictionProvince);
 
-  if (totalRows.length === 0) return { top: [], bottom: [] };
+  if (totalRows.length === 0) return { top: [], bottom: [], totalProvinces: 0 };
 
   const provinceNames = totalRows
     .filter((r) => r.province !== null)
@@ -204,5 +215,9 @@ export async function fetchRegionRanking(
     return rows.map((r) => ({ ...r, coveragePct: r.value }));
   }
 
-  return { top: toResult(topRanked), bottom: toResult(bottomRanked) };
+  return {
+    top: toResult(topRanked),
+    bottom: toResult(bottomRanked),
+    totalProvinces: unranked.length,
+  };
 }

@@ -69,6 +69,7 @@ import {
 } from "@/lib/analytics/govt-home-kpis";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchMortalityHeadline } from "@/lib/analytics/mortality-metrics";
+import { fetchRabiesObservationCompliance } from "@/lib/analytics/surveillance-metrics";
 import {
   countVisiblePendingRequests,
   countVisiblePendingRequestsByType,
@@ -80,6 +81,7 @@ import {
 } from "@/lib/infra/case-queries";
 import {
   TARGETS,
+  applyCensusCoverageGuard,
   buildProjectionContext,
   computeDeltaPct,
   fetchBitesTrend,
@@ -87,7 +89,11 @@ import {
   resolveSemaphoreTone,
   toneForTarget,
 } from "@/lib/metrics";
-import { type BriefingAlertCandidate, buildBriefingAlerts } from "@/lib/metrics/briefing-alerts";
+import {
+  type BriefingAlertCandidate,
+  type SurveillanceUrgencyCandidate,
+  buildBriefingAlerts,
+} from "@/lib/metrics/briefing-alerts";
 import { KPI_CATALOG, type KpiId, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
@@ -272,6 +278,14 @@ export default async function GobiernoDashboardPage({
       // — the one new query this pass adds, scoped + bounded exactly like its
       // sibling COUNT above.
       countVisiblePendingRequestsByType(profile, jurisdictions, "organization_verification"),
+      // Cursor red-team 2026-07-23 (claim #4) — the ONE new cheap query the
+      // PO's sweep authorized for the briefing's surveillance-urgency alerts:
+      // reuses the SAME catalogued fetcher /gob/vigilancia already calls, but
+      // home only reads its `openBreaches` (A9, a live "now" snapshot of
+      // observations already past the 10-day legal window) — the
+      // escalation-gap candidate below costs ZERO new queries (bitesPer10k +
+      // openRabiesObservations are both already fetched above).
+      fetchRabiesObservationCompliance(ctx12m),
     ]),
   );
 
@@ -312,6 +326,7 @@ export default async function GobiernoDashboardPage({
     novedades,
     myAssignedWelfareCount,
     orgVerificationPendingCount,
+    rabiesObservationCompliance,
   ] = load.value;
 
   // G3: collapse the recent-activity feed's repeated PII-search rows into a
@@ -340,8 +355,8 @@ export default async function GobiernoDashboardPage({
   // DROPPED FOR NEEDING A NEW QUERY (documented, not wired): reunification_rate
   // (this page only fetches perdidas' activeCount, not the reunification
   // ratio — that lives on /gob/perdidas), campaign_completion_rate,
-  // rabies_observation_compliance_10d, eno_sla_compliance — none of their
-  // fetchers are part of this page's bounded Promise.all today.
+  // eno_sla_compliance — none of their fetchers are part of this page's
+  // bounded Promise.all today.
   // -------------------------------------------------------------------------
   const alertCandidates: BriefingAlertCandidate[] = [
     ...(rabiesCoverage.hasData
@@ -365,7 +380,33 @@ export default async function GobiernoDashboardPage({
       n: mortality.total,
     },
   ];
-  const alerts = buildBriefingAlerts(alertCandidates);
+  // Claim #4 (cursor red-team 2026-07-23) — surveillance-urgency signals,
+  // merged into the same ranked/capped alert list. Escalation gap reuses
+  // fields already fetched above (bitesPer10k, openRabiesObservations) — zero
+  // new queries; deadline_breach reads the ONE new query this pass adds.
+  const urgencySignals: SurveillanceUrgencyCandidate[] = [
+    {
+      kind: "escalation_gap",
+      bites12m: bitesPer10k.reports,
+      openObservations: openRabiesObservations.count,
+    },
+    { kind: "deadline_breach", openBreaches: rabiesObservationCompliance.openBreaches },
+  ];
+  const alerts = buildBriefingAlerts(alertCandidates, urgencySignals);
+
+  // Claim #1 (cursor red-team 2026-07-23) — "dual-denominator hero": the
+  // registry % (rabiesCoverage.current) can read a confident 65% while the
+  // padrón it's computed over covers a sliver of the census-estimated
+  // population (e.g. ~0.4%) — that registry % must never paint an ok/warn/
+  // danger verdict on its own when the padrón itself is this thin. Computed
+  // once here (rather than inline in the JSX) so both the tone AND the
+  // warning note derive from the SAME guard call.
+  const rabiesCensusGuard = rabiesCoverage.hasData
+    ? applyCensusCoverageGuard(KPI_CATALOG.rabies_coverage_dogs_12m, {
+        censusCoveragePct: rabiesCoverage.censusCoveragePct,
+        computedTone: toneForTarget(rabiesCoverage.current, TARGETS.RABIES_COVERAGE_PCT),
+      })
+    : null;
 
   // C6b block 3 — Cola operativa, "de a 1" (PO visual-validation, 2026-07-23:
   // the condensed count+CTA chip row read as one undifferentiated strip — the
@@ -481,11 +522,7 @@ export default async function GobiernoDashboardPage({
           <OpKpi
             label="Cobertura antirrábica (perros, 12m)"
             value={rabiesCoverage.hasData ? formatPercent(rabiesCoverage.current) : "—"}
-            tone={
-              !rabiesCoverage.hasData
-                ? "neutral"
-                : toneForTarget(rabiesCoverage.current, TARGETS.RABIES_COVERAGE_PCT)
-            }
+            tone={rabiesCensusGuard?.tone ?? "neutral"}
             bar={rabiesCoverage.hasData ? rabiesCoverage.current : undefined}
             sub={
               rabiesCoverage.hasData ? (
@@ -503,6 +540,13 @@ export default async function GobiernoDashboardPage({
                     {rabiesCoverage.registryDenominator === 1 ? "perro" : "perros"} en el padrón ·
                     meta {TARGETS.RABIES_COVERAGE_PCT}%
                   </span>
+                  {/* Claim #1 — low-confidence warning: never silently forced
+                      neutral, the tile states WHY. */}
+                  {rabiesCensusGuard?.note && (
+                    <span className="block text-[var(--color-st-warn)]">
+                      {rabiesCensusGuard.note}
+                    </span>
+                  )}
                 </span>
               ) : (
                 "Sin datos en el período"

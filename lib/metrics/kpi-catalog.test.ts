@@ -18,7 +18,12 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { KPI_CATALOG, KPI_CATALOG_LIST, findKpiByFetcherName } from "./kpi-catalog";
+import {
+  KPI_CATALOG,
+  KPI_CATALOG_LIST,
+  findKpiByFetcherName,
+  formatKpiTarget,
+} from "./kpi-catalog";
 
 // ---------------------------------------------------------------------------
 // 1. Shape invariants
@@ -167,5 +172,67 @@ describe("rabies coverage disambiguation (critique-govt-2026-07-03.md)", () => {
     expect(allSpecies.window).toBe("all_time");
     expect(dogs.species).toBe("dogs");
     expect(allSpecies.species).toBe("all_species");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. formatKpiTarget — claim #6 (cursor red-team 2026-07-23): "meta X% (Ley Y)"
+//    conflates a statute's OBLIGATION with a programmatic NUMBER the statute
+//    never set. Every target-bearing entry declares a `sourceKind`.
+// ---------------------------------------------------------------------------
+
+describe("formatKpiTarget — law-vs-meta separation (claim #6)", () => {
+  it("every target-bearing catalog entry declares a sourceKind", () => {
+    for (const kpi of KPI_CATALOG_LIST) {
+      if (!kpi.target) continue;
+      expect(kpi.target.sourceKind, `${kpi.id} has a target but no sourceKind`).toBeDefined();
+    }
+  });
+
+  it("programmatic-target renders the obligation and the number as SEPARATE facts (never 'meta X% (Ley Y)')", () => {
+    const out = formatKpiTarget(
+      {
+        value: 80,
+        source: "Ley 22.953 (vacunación antirrábica obligatoria)",
+        sourceKind: "programmatic-target",
+      },
+      "percent",
+    );
+    expect(out).toBe(
+      "Obligación: Ley 22.953 (vacunación antirrábica obligatoria) · Meta programática: 80%",
+    );
+    expect(out).not.toContain("meta 80% (Ley");
+  });
+
+  it("statutory-obligation keeps the number and law together (the number IS the legal literal)", () => {
+    const out = formatKpiTarget(
+      {
+        value: 100,
+        source: "Ley CABA 4078 / Ley Prov. 14.107",
+        sourceKind: "statutory-obligation",
+      },
+      "percent",
+    );
+    expect(out).toBe("Meta: 100% (Ley CABA 4078 / Ley Prov. 14.107)");
+  });
+
+  it("benchmark renders plainly (no legal weight to conflate)", () => {
+    const out = formatKpiTarget(
+      { value: 39, source: "benchmark RSPCA (Reino Unido)", sourceKind: "benchmark" },
+      "percent",
+    );
+    expect(out).toBe("Meta: 39% (benchmark RSPCA (Reino Unido))");
+  });
+
+  it("rabies_coverage_dogs_12m and microchip_penetration (law-sourced, non-statutory %) are classified programmatic-target", () => {
+    expect(KPI_CATALOG.rabies_coverage_dogs_12m.target?.sourceKind).toBe("programmatic-target");
+    expect(KPI_CATALOG.microchip_penetration.target?.sourceKind).toBe("programmatic-target");
+  });
+
+  it("ppp_registry_compliance and rabies_observation_compliance_10d (100% IS the legal literal) are classified statutory-obligation", () => {
+    expect(KPI_CATALOG.ppp_registry_compliance.target?.sourceKind).toBe("statutory-obligation");
+    expect(KPI_CATALOG.rabies_observation_compliance_10d.target?.sourceKind).toBe(
+      "statutory-obligation",
+    );
   });
 });

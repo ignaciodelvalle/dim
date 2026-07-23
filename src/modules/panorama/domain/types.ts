@@ -151,6 +151,19 @@ export type PanoramaLayer = {
   /** Human label (es-AR) shown in the LayerPanel legend. */
   label: string;
   /**
+   * Cursor red-team 2026-07-23 (claim #3) — count-truthful label for the
+   * DRILLED division-fill count-fallback mode (division-fill.ts sums raw
+   * per-unit COUNTS, not the rate `label` names). A `dataType: "rate"` layer
+   * whose canonical label reads "Cobertura X" is a lie once the paint is a
+   * bare count (e.g. "Cobertura antirrábica … (conteo)" over a 6→235 scale —
+   * "cobertura" implies a percentage, not a headcount). Only set on rate
+   * layers that CAN drill to a division count fill; SituationalMap.tsx's
+   * division-legend builder uses `countLabel ?? label` as the ramp title's
+   * source (components/panorama/panorama-labels.ts's legendRampTitle then
+   * appends " (conteo)"). Omitted layers fall back to `label` unchanged.
+   */
+  countLabel?: string;
+  /**
    * task #38 (Filtro panel): one honest es-AR method line stating EXACTLY what
    * this layer measures and how it is located — shown in the Filtro panel's
    * Detalle mode under each layer row. Written to be truthful about aggregation

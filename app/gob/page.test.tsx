@@ -52,6 +52,19 @@ vi.mock("@/lib/analytics/mortality-metrics", () => ({
   fetchMortalityHeadline: vi.fn(async () => ({ total: 12, traceableRate: 33 })),
 }));
 
+// Claim #4 (cursor red-team 2026-07-23) — the ONE new query the home page's
+// surveillance-urgency alert candidates read (openBreaches only).
+const surveillanceComplianceFixture = {
+  closed: 0,
+  closedWithinWindow: 0,
+  compliancePct: null as number | null,
+  openBreaches: 0,
+};
+
+vi.mock("@/lib/analytics/surveillance-metrics", () => ({
+  fetchRabiesObservationCompliance: vi.fn(async () => surveillanceComplianceFixture),
+}));
+
 vi.mock("@/app/actions/novedades", () => ({
   markNovedadesSeenAction: vi.fn(),
 }));
@@ -203,7 +216,9 @@ describe("/gob (home) — C6b briefing block order", () => {
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("33%");
-    expect(html).toContain("meta 75%");
+    // C1 fix (claim #6, cursor red-team 2026-07-23): law-sourced but
+    // non-statutory target renders "Obligación: <ley> · Meta programática: X%".
+    expect(html).toContain("Meta programática: 75%");
     expect(html).toContain("Ver en Mortalidad y disposición");
     expect(html).toMatch(/Confianza: (alta|media|baja)/);
   });

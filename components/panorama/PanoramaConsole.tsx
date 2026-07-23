@@ -1463,6 +1463,10 @@ export function PanoramaConsole({
         id: l.id,
         color: l.color,
         label: l.label,
+        // Claim #3 (cursor red-team 2026-07-23): threaded so the division-fill
+        // count-fallback legend can use a count-truthful label — see
+        // PanoramaLayer.countLabel's doc comment.
+        countLabel: l.countLabel,
         geomType: l.geomType,
         renderMode,
         features,

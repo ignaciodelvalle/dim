@@ -381,6 +381,7 @@ export default async function GobAnalyticsPage({
               top={regionRanking.top}
               bottom={regionRanking.bottom}
               coverageLabel={RABIES_VACCINATION_RATE_LABEL_ES}
+              totalProvinces={regionRanking.totalProvinces}
             />
           </OpCardBody>
         </OpCard>

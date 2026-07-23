@@ -34,6 +34,23 @@ describe("PANORAMA_LAYERS registry", () => {
     expect(new Set(colors).size).toBe(colors.length);
   });
 
+  // Cursor red-team 2026-07-23 (claim #3): a drilled division-fill paints raw
+  // COUNTS, not the rate `label` names (division-fill.ts sums per-unit
+  // values). Every rate layer must declare a count-truthful `countLabel` that
+  // drops the rate stems ("Cobertura"/"Penetración"/"Registro") that would
+  // misname a headcount as a percentage once " (conteo)" is appended
+  // (components/panorama/panorama-labels.ts's legendRampTitle).
+  it("every rate layer declares a count-truthful countLabel (no rate-implying stem)", () => {
+    const rateStems = ["Cobertura", "Penetración", "Registro"];
+    for (const layer of CHOROPLETH_LAYERS) {
+      if (layer.dataType !== "rate") continue;
+      expect(layer.countLabel, `${layer.id} is dataType:"rate" but has no countLabel`).toBeTruthy();
+      for (const stem of rateStems) {
+        expect(layer.countLabel?.includes(stem)).toBe(false);
+      }
+    }
+  });
+
   it("every layer declares all required fields with valid values", () => {
     const validGeom = new Set(["point", "choropleth"]);
     const validPrivacy = new Set<LayerPrivacy>(["none", "coarse", "gated"]);

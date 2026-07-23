@@ -74,6 +74,10 @@ export type ActiveLayer = {
   id: string;
   color: string;
   label: string;
+  /** Claim #3 (cursor red-team 2026-07-23) — count-truthful label for the
+   *  division-fill count-fallback mode, threaded from PanoramaLayer.countLabel.
+   *  Undefined for layers that don't declare one (falls back to `label`). */
+  countLabel?: string;
   geomType: "point" | "choropleth";
   /**
    * Point-layer rendering mode (F1 Panorama v2). Only set for geomType="point":

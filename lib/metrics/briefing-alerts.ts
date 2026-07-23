@@ -42,7 +42,7 @@
 import { getScreenManifestEntry } from "@/lib/ui/screen-manifest";
 import { type ForecastTrendPoint, forecastToTarget } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
-import { KPI_CATALOG } from "./kpi-catalog";
+import { KPI_CATALOG, formatKpiTarget } from "./kpi-catalog";
 import { smallNGate, zeroDenominatorGate } from "./presentation-guards";
 import { toneForTarget } from "./targets";
 
@@ -169,6 +169,9 @@ const ALERT_ACTIONS: Partial<Record<KpiId, { route: string; label: string; query
   },
   // ENO SLA is a bandeja-de-salida delivery concern.
   eno_sla_compliance: { route: "/gob/outbox", label: "Ver en Bandeja de salida" },
+  // Vigilancia also owns the escalation-gap transparency pairing (claim #4,
+  // cursor red-team 2026-07-23) — same screen as rabies_observation_compliance_10d.
+  bite_escalation_gap: { route: "/gob/vigilancia", label: "Ver en Vigilancia" },
 };
 
 /** Resolve a candidate's action, validating the route still exists in the
@@ -224,8 +227,108 @@ function formatValue(value: number, unit: KpiUnit): string {
   return unit === "percent" ? `${rounded}%` : `${rounded}`;
 }
 
-function buildTitle(descriptor: KpiDefinition, value: number, target: number): string {
-  return `${descriptor.label} ${formatValue(value, descriptor.unit)} — meta ${formatValue(target, descriptor.unit)} (${descriptor.target?.source ?? ""})`;
+function buildTitle(descriptor: KpiDefinition, value: number): string {
+  // C1 fix (claim #6, cursor red-team 2026-07-23): route the target+source
+  // clause through formatKpiTarget so a law-sourced but non-statutory target
+  // (e.g. rabies coverage's 80%) never reads as "the law set this number" —
+  // see KpiTargetSourceKind. `descriptor.target` is guaranteed by the caller
+  // (buildBriefingAlerts only reaches here after its `!descriptor.target`
+  // guard already dropped the candidate).
+  const targetClause = descriptor.target ? formatKpiTarget(descriptor.target, descriptor.unit) : "";
+  return `${descriptor.label} ${formatValue(value, descriptor.unit)} — ${targetClause}`;
+}
+
+// ---------------------------------------------------------------------------
+// Surveillance urgency alerts — claim #4 (cursor red-team 2026-07-23): the
+// Panel/briefing showed a genuinely measured-zero "0 observaciones rábicas
+// abiertas" while Vigilancia's OWN screen carried 14 bite reports (12m), 0 of
+// them escalated, and 3 observations already past the 10-day legal deadline —
+// real surveillance urgency the briefing never surfaced. bite_escalation_gap
+// and rabies_observation_compliance_10d's `openBreaches` are NOT target-gap
+// shaped (see their kpi-catalog.ts caveats: a deliberate transparency PAIR,
+// never a ratio/verdict) — buildBriefingAlerts' target-gap machinery above
+// does not apply to them. This is a SEPARATE, honest composition path with
+// its OWN guards: an alert fires only on a REAL gap (never a genuine 0/0),
+// copy never implies a legal verdict the underlying KPI's own semaphore
+// forbids, and severity for the deadline-breach alert derives from the
+// breach itself (a live legal-deadline miss), not a painted color.
+// ---------------------------------------------------------------------------
+
+export type SurveillanceUrgencyCandidate =
+  | {
+      kind: "escalation_gap";
+      /** Reuses bites_per_10k's `reports` field — trailing 12 months. */
+      bites12m: number;
+      /** Reuses open_rabies_observations' `count` field — 'now' snapshot. */
+      openObservations: number;
+    }
+  | {
+      kind: "deadline_breach";
+      /** rabies_observation_compliance_10d's A9 `openBreaches` — a live
+       *  snapshot of observations already open past the legal window. */
+      openBreaches: number;
+    };
+
+/** Builds one alert from a surveillance-urgency candidate, or undefined when
+ *  the candidate doesn't actually show a gap (never fabricated on a genuine
+ *  0/0 — e.g. 0 bites, or 0 open breaches, produces no alert). */
+function buildUrgencyAlert(
+  candidate: SurveillanceUrgencyCandidate,
+): (BriefingAlert & { gap: number }) | undefined {
+  if (candidate.kind === "escalation_gap") {
+    // The gap this KPI exists to surface: bites WERE reported, but zero
+    // observations are open right now — reports that never escalated. When
+    // observations ARE open, or no bites were reported at all, there is no
+    // gap to alert on (a genuine 0/0 or a healthy escalation rate).
+    if (candidate.bites12m === 0 || candidate.openObservations > 0) return undefined;
+    const descriptor = KPI_CATALOG.bite_escalation_gap;
+    const action = resolveAlertAction("bite_escalation_gap");
+    if (!action) return undefined;
+    return {
+      id: "bite_escalation_gap",
+      title: `${descriptor.label}: ${candidate.bites12m} mordeduras (12m) vs ${candidate.openObservations} observaciones abiertas — la ausencia de escalamiento no implica ausencia de riesgo`,
+      evidence: {
+        value: candidate.bites12m,
+        target: 0,
+        unit: "count",
+        n: candidate.bites12m,
+        source: "Vigilancia — brecha de escalamiento, no un mandato legal",
+      },
+      // Never a legal-verdict severity (the KPI's own semaphore: "none"
+      // forbids painting a color from this pairing) — "media" reads as an
+      // attention signal, not a breach.
+      severity: "media",
+      confidence: "media",
+      actionHref: action.href,
+      actionLabel: action.label,
+      gap: candidate.bites12m,
+    };
+  }
+
+  // deadline_breach
+  if (candidate.openBreaches === 0) return undefined;
+  const descriptor = KPI_CATALOG.rabies_observation_compliance_10d;
+  const action = resolveAlertAction("rabies_observation_compliance_10d");
+  if (!action) return undefined;
+  const source = descriptor.target?.source ?? "";
+  return {
+    id: "rabies_observation_compliance_10d",
+    title: `${candidate.openBreaches} ${candidate.openBreaches === 1 ? "observación rábica supera" : "observaciones rábicas superan"} el plazo legal de 10 días (${source})`,
+    evidence: {
+      value: candidate.openBreaches,
+      target: 0,
+      unit: "count",
+      n: candidate.openBreaches,
+      source,
+    },
+    // A live legal-deadline miss — the one urgency-signal case that DOES
+    // warrant "alta": this is an active breach, not a painted tone guess.
+    severity: "alta",
+    confidence: "alta",
+    actionHref: action.href,
+    actionLabel: action.label,
+    gap: candidate.openBreaches,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -238,9 +341,16 @@ function buildTitle(descriptor: KpiDefinition, value: number, target: number): s
  * zero-denominator / small-N / target already met) are silently dropped —
  * NOT ranked last, never rendered. Ranking: severity desc (alta before
  * media), then gap size desc (bigger miss first).
+ *
+ * `urgencySignals` (claim #4, cursor red-team 2026-07-23) — the OPTIONAL
+ * second candidate class for the two non-target-gap surveillance signals
+ * (escalation gap, deadline breach). Merged into the SAME ranked/capped list
+ * via buildUrgencyAlert, so a genuine legal-deadline breach can outrank a
+ * target-gap alert exactly as its severity implies.
  */
 export function buildBriefingAlerts(
   candidates: readonly BriefingAlertCandidate[],
+  urgencySignals: readonly SurveillanceUrgencyCandidate[] = [],
 ): BriefingAlert[] {
   const alerts: Array<BriefingAlert & { gap: number }> = [];
 
@@ -293,7 +403,7 @@ export function buildBriefingAlerts(
 
     alerts.push({
       id: candidate.kpiId,
-      title: buildTitle(descriptor, candidate.value, descriptor.target.value),
+      title: buildTitle(descriptor, candidate.value),
       evidence: {
         value: candidate.value,
         target: descriptor.target.value,
@@ -308,6 +418,11 @@ export function buildBriefingAlerts(
       actionLabel: action.label,
       gap,
     });
+  }
+
+  for (const signal of urgencySignals) {
+    const built = buildUrgencyAlert(signal);
+    if (built) alerts.push(built);
   }
 
   alerts.sort((a, b) => {

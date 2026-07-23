@@ -142,6 +142,66 @@ export function shouldSuppressDelta(
 }
 
 // ---------------------------------------------------------------------------
+// censusCoverageLowGate — the "dual-denominator hero" class (cursor red-team
+// 2026-07-23, claim #1). A registry-coverage rate (e.g. rabies_coverage_dogs_12m)
+// can read a confident 65% while the padrón it's computed over covers well
+// under 1% of the census-estimated population — the registry % answers "of
+// the dogs we KNOW about, how many are covered", not "is the population
+// protected". Below the descriptor's `guards.censusCoverageFloor`, the tone
+// must degrade to neutral (never a green/red verdict painted from the
+// registry % alone) and an explicit low-confidence note must accompany it.
+// ---------------------------------------------------------------------------
+
+/** Note appended when the registry's own coverage of the census-estimated
+ *  population sits below the descriptor's `guards.censusCoverageFloor` — the
+ *  headline rate is real but does NOT represent population-level protection. */
+export function censusCoverageWarningNote(censusCoveragePct: number): string {
+  return `El padrón cubre ~${censusCoveragePct}% de la población estimada — el % de registro NO representa protección poblacional.`;
+}
+
+/**
+ * True when the descriptor declares `guards.censusCoverageFloor` AND the
+ * render actually has a census estimate (`censusCoveragePct !== null`) AND
+ * that coverage sits below the floor. Returns false whenever there is no
+ * census row at all — that is a DIFFERENT, already-handled "sin estimación
+ * censal" state, not a low-confidence one.
+ */
+export function censusCoverageLowGate(
+  descriptor: Pick<KpiDefinition, "guards">,
+  censusCoveragePct: number | null,
+): boolean {
+  const floor = descriptor.guards?.censusCoverageFloor;
+  if (floor === undefined || censusCoveragePct === null) return false;
+  return censusCoveragePct < floor;
+}
+
+export type CensusGuardedTone = {
+  tone: Tone;
+  /** Present only when the gate fired — callers must render this alongside
+   *  the value (never silently), same convention as `GuardedRatio.note`. */
+  note?: string;
+};
+
+/**
+ * Apply the census-coverage-floor guard to a single tile's tone. The VALUE
+ * itself is never altered (the registry % is a real, honestly-computed fact)
+ * — only the TONE is forced neutral, plus a note explaining why, exactly the
+ * same posture `guardRatioTone`'s smallN branch takes for sample size.
+ */
+export function applyCensusCoverageGuard(
+  descriptor: Pick<KpiDefinition, "guards">,
+  input: { censusCoveragePct: number | null; computedTone: Tone },
+): CensusGuardedTone {
+  if (censusCoverageLowGate(descriptor, input.censusCoveragePct)) {
+    return {
+      tone: "neutral",
+      note: censusCoverageWarningNote(input.censusCoveragePct as number),
+    };
+  }
+  return { tone: input.computedTone };
+}
+
+// ---------------------------------------------------------------------------
 // resolveSemaphoreTone — the "semáforo como veredicto legal" class
 // ---------------------------------------------------------------------------
 

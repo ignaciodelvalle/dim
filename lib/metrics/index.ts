@@ -100,6 +100,9 @@ export { lastIngestAt } from "./freshness";
 export {
   UNSTABLE_DELTA_BASE_NOTE,
   ZERO_DENOMINATOR_DASH,
+  applyCensusCoverageGuard,
+  censusCoverageLowGate,
+  censusCoverageWarningNote,
   guardRatioTone,
   resolveSemaphoreTone,
   shouldSuppressDelta,
@@ -107,7 +110,7 @@ export {
   smallNNote,
   zeroDenominatorGate,
 } from "./presentation-guards";
-export type { GuardedRatio, Tone as GuardTone } from "./presentation-guards";
+export type { CensusGuardedTone, GuardedRatio, Tone as GuardTone } from "./presentation-guards";
 
 // D4 reunification rate, per administrative unit — feeds the Panorama
 // `reunificacion` layer (src/modules/panorama/infrastructure/repository.ts).

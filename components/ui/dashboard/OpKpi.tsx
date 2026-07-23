@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
-import { KPI_CATALOG, type KpiId, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import {
   UNSTABLE_DELTA_BASE_NOTE,
   guardRatioTone,
@@ -307,8 +307,11 @@ function contractInfoExtras(
   descriptor: ReturnType<typeof resolveDescriptor>,
   trendMonths: number | undefined,
 ) {
+  // C1 fix (claim #6, cursor red-team 2026-07-23): render via formatKpiTarget
+  // so a law-sourced but non-statutory target (e.g. rabies coverage's 80%)
+  // never reads as "the law set this number" — see KpiTargetSourceKind.
   const target = descriptor?.target
-    ? `Meta: ${descriptor.target.value}${descriptor.unit === "percent" ? "%" : ""} (${descriptor.target.source})`
+    ? formatKpiTarget(descriptor.target, descriptor.unit)
     : undefined;
   const confidence = descriptor?.confidence
     ? `Confianza: ${descriptor.confidence.inputs.join(" · ")}`

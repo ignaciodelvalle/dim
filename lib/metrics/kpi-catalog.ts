@@ -198,10 +198,55 @@ export type KpiInfoTooltip = {
  * magic numbers; a catalog entry that re-types "80" instead of importing
  * `TARGETS.RABIES_COVERAGE_PCT` reintroduces exactly that drift risk.
  */
+/**
+ * Cursor red-team 2026-07-23 (claim #6) — "law next to meta" conflation
+ * class: a render site that interpolates `target.value` next to
+ * `target.source` verbatim reads "meta 80% (Ley 22.953)" as if the STATUTE
+ * set the number, when the law only creates the underlying OBLIGATION
+ * (vaccinate/chip/dispose traceably) and the specific % is a programmatic
+ * choice never written into the text of the law. `sourceKind` lets a
+ * renderer tell these apart:
+ *
+ *  - "statutory-obligation": the NUMBER is itself what the law/ordinance
+ *    requires (e.g. 100% PPP attestation is compulsory by definition; 100%
+ *    10-day-window compliance is what "no missed legal deadlines" means).
+ *    Law and number are the same fact — safe to render together unchanged.
+ *  - "programmatic-target": a real law/ordinance underlies the metric, but
+ *    the specific threshold is an internal/programmatic choice the law does
+ *    NOT itself set — the renderer must separate "obligación" (the law) from
+ *    "meta programática" (the number) so neither reads as authored by the
+ *    other.
+ *  - "benchmark": no legal obligation at all — an internal program KPI or an
+ *    external reference figure (RSPCA, ANMAT/SENASA operational benchmark).
+ */
+export type KpiTargetSourceKind = "statutory-obligation" | "programmatic-target" | "benchmark";
+
 export type KpiTarget = {
   value: number;
   source: string;
+  /** See KpiTargetSourceKind — required so every target-bearing entry makes
+   *  this classification explicit (the sweep the C1 red-team fix demands). */
+  sourceKind: KpiTargetSourceKind;
 };
+
+/**
+ * Render a target+source pair honestly, per `sourceKind` — the SINGLE place
+ * that combines `target.value` and `target.source` into copy, so every
+ * consumer (OpKpi's ⓘ popover, briefing-alerts' title) renders identically
+ * and a future KPI can't reintroduce the "meta X% (Ley Y)" conflation.
+ *
+ * PURE — no DB, no React.
+ */
+export function formatKpiTarget(target: KpiTarget, unit: KpiUnit): string {
+  const valueStr = `${target.value}${unit === "percent" ? "%" : ""}`;
+  if (target.sourceKind === "programmatic-target") {
+    return `Obligación: ${target.source} · Meta programática: ${valueStr}`;
+  }
+  // statutory-obligation and benchmark: the number and the source are either
+  // the same fact (statutory) or carry no legal weight to conflate with
+  // (benchmark) — the plain "Meta: X% (fuente)" form stays honest for both.
+  return `Meta: ${valueStr} (${target.source})`;
+}
 
 /**
  * What the tile's tone is legitimately painted against.
@@ -247,6 +292,19 @@ export type KpiGuards = {
    * "−95% MoM on an unstable base" class.
    */
   unstableDeltaBase?: { minPriorBase: number };
+  /**
+   * Cursor red-team 2026-07-23 (claim #1) — "dual-denominator hero" class:
+   * below this floor (a percent, 0-100), the registry-coverage rate's own
+   * coverage OF THE CENSUS ESTIMATE is too thin for the headline % to imply
+   * population-level protection (e.g. 65% of a 1,997-dog padrón that is
+   * itself ~0.4% of the estimated canine population). Enforced by
+   * lib/metrics/presentation-guards.ts's censusCoverageLowGate /
+   * applyCensusCoverageGuard — forces the tone neutral and surfaces
+   * censusCoverageWarningNote, same posture as smallN. Only meaningful for
+   * KPIs whose fetcher also returns a `censusCoveragePct` (currently only
+   * rabies_coverage_dogs_12m via lib/metrics/census.ts).
+   */
+  censusCoverageFloor?: number;
 };
 
 /**
@@ -374,9 +432,19 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     target: {
       value: TARGETS.RABIES_COVERAGE_PCT,
       source: "Ley 22.953 (vacunación antirrábica obligatoria)",
+      // The law mandates the VACCINATION obligation, not an 80% threshold —
+      // that figure is a public-health programmatic target (see the `ui.caveat`
+      // below), so law and number must render as separate facts (claim #6).
+      sourceKind: "programmatic-target",
     },
     semaphore: { paintAgainst: "target" },
-    guards: { zeroDenominator: "dash" },
+    guards: {
+      zeroDenominator: "dash",
+      // Claim #1 — dual-denominator hero: below 20% padrón-of-census
+      // coverage, the registry % cannot honestly imply population-level
+      // protection (see censusCoverageLowGate's doc comment).
+      censusCoverageFloor: 20,
+    },
     confidence: {
       inputs: [
         "cobertura del padrón (registryDenominator) — perros SIN dueño/no registrados no cuentan",
@@ -636,7 +704,13 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     basis: "ratio",
     question:
       "¿Qué porcentaje de mascotas del padrón (activas/perdidas) tiene un microchip ISO activo registrado, según lo exige la ley?",
-    target: { value: TARGETS.MICROCHIP_PENETRATION_PCT, source: "Ley Provincial 14.107" },
+    target: {
+      value: TARGETS.MICROCHIP_PENETRATION_PCT,
+      source: "Ley Provincial 14.107",
+      // The law mandates microchip registration, not an 80% threshold — the
+      // figure is a programmatic benchmark (claim #6).
+      sourceKind: "programmatic-target",
+    },
     semaphore: { paintAgainst: "target" },
     confidence: {
       inputs: [
@@ -677,7 +751,13 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     basis: "ratio",
     question:
       "¿Qué porcentaje de mascotas PPP en la jurisdicción tiene su atestación cargada en miMAR? (NO mide cumplimiento registral externo a la ley — solo adopción del flujo de atestación en la plataforma).",
-    target: { value: TARGETS.PPP_ATTESTATION_PCT, source: "Ley CABA 4078 / Ley Prov. 14.107" },
+    target: {
+      value: TARGETS.PPP_ATTESTATION_PCT,
+      source: "Ley CABA 4078 / Ley Prov. 14.107",
+      // 100% IS what "atestación obligatoria" legally means — number and law
+      // are the same fact here, unlike the programmatic-target entries above.
+      sourceKind: "statutory-obligation",
+    },
     // Uptake metrics never paint a legal-verdict color (S1 principle) — the
     // target is kept (for the info popover's "meta" line, honestly sourced to
     // the law) but the RENDERED tone never derives from it.
@@ -758,7 +838,13 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     basis: "ratio",
     question:
       "De los fallecimientos registrados, ¿qué porcentaje tiene una disposición final trazable (método + instalación conocidos)?",
-    target: { value: TARGETS.DISPOSAL_TRACEABILITY_PCT, source: "Ley CABA 5470" },
+    target: {
+      value: TARGETS.DISPOSAL_TRACEABILITY_PCT,
+      source: "Ley CABA 5470",
+      // The law mandates traceable disposal, not a 75% threshold — the
+      // figure is a programmatic benchmark (claim #6).
+      sourceKind: "programmatic-target",
+    },
     semaphore: { paintAgainst: "target" },
     guards: {
       // 0 deaths → 0/0 traceableRate would read "0%" (a FAILED-traceability
@@ -905,6 +991,8 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     target: {
       value: TARGETS.ADOPTION_RETURN_RATE_PCT,
       source: "meta programática interna (retención/calidad de colocación)",
+      // No underlying law at all — a pure internal benchmark.
+      sourceKind: "benchmark",
     },
     semaphore: { paintAgainst: "target" },
     guards: {
@@ -1049,7 +1137,11 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     // TARGETS.ENO_SLA_PCT is a real, sourced benchmark (ANMAT/SENASA
     // operational targets) — the honesty rule requires populating target
     // whenever one genuinely exists with a source.
-    target: { value: TARGETS.ENO_SLA_PCT, source: "benchmark operativo ANMAT/SENASA" },
+    target: {
+      value: TARGETS.ENO_SLA_PCT,
+      source: "benchmark operativo ANMAT/SENASA",
+      sourceKind: "benchmark",
+    },
     semaphore: { paintAgainst: "target" },
     guards: { zeroDenominator: "dash" },
     ui: {
@@ -1086,7 +1178,11 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     basis: "ratio",
     question:
       "De las mascotas que se perdieron en los últimos 30 días, ¿qué porcentaje volvió con su dueño/a? (a leer SIEMPRE junto al stock de perdidas activas — una tasa alta con pocos episodios no es una victoria poblacional).",
-    target: { value: TARGETS.REUNIFICATION_PCT, source: "benchmark RSPCA (Reino Unido)" },
+    target: {
+      value: TARGETS.REUNIFICATION_PCT,
+      source: "benchmark RSPCA (Reino Unido)",
+      sourceKind: "benchmark",
+    },
     semaphore: { paintAgainst: "target" },
     guards: {
       // Red-team's headline case: "100% reunificación" next to "68 perdidas
@@ -1309,6 +1405,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       value: 100,
       source:
         "Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA (ventana de 10 días, o la ventana jurisdiction-specific resuelta vía resolveBusinessRule)",
+      // 100% IS "never missed the legal deadline" — the ordinance/decree sets
+      // the 10-day window itself, so the number and the law are the same fact.
+      sourceKind: "statutory-obligation",
     },
     semaphore: { paintAgainst: "target" },
     guards: {
@@ -1662,7 +1761,11 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     species: "all_species",
     basis: "ratio",
     question: "¿Qué porcentaje de turnos reservados en campañas resultó en asistencia efectiva?",
-    target: { value: TARGETS.CAMPAIGN_COMPLETION_PCT, source: "meta programática de campañas" },
+    target: {
+      value: TARGETS.CAMPAIGN_COMPLETION_PCT,
+      source: "meta programática de campañas",
+      sourceKind: "benchmark",
+    },
     semaphore: { paintAgainst: "target" },
     guards: {
       // A handful of turnos in a small campaign can read as a deceptively
@@ -1866,6 +1969,9 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     target: {
       value: TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT,
       source: "Ley CABA 5470 (umbral de incumplimiento — lower-is-better)",
+      // Same law family as mortality_disposal_traceability — the law mandates
+      // traceability, not this specific 25% breach threshold.
+      sourceKind: "programmatic-target",
     },
     semaphore: { paintAgainst: "target" },
     guards: {
@@ -2026,7 +2132,11 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     basis: "ratio",
     question:
       "¿Qué porcentaje de las mascotas dadas de alta en los últimos 12 meses llegó por adopción, del total de adquisiciones?",
-    target: { value: TARGETS.ADOPTION_RATE_PCT, source: "meta interna de adquisición (A3)" },
+    target: {
+      value: TARGETS.ADOPTION_RATE_PCT,
+      source: "meta interna de adquisición (A3)",
+      sourceKind: "benchmark",
+    },
     semaphore: { paintAgainst: "target" },
     guards: {
       // A small registrations volume in a small jurisdiction/window can make

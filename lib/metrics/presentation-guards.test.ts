@@ -10,6 +10,9 @@ import type { KpiDefinition } from "./kpi-catalog";
 import {
   UNSTABLE_DELTA_BASE_NOTE,
   ZERO_DENOMINATOR_DASH,
+  applyCensusCoverageGuard,
+  censusCoverageLowGate,
+  censusCoverageWarningNote,
   guardRatioTone,
   resolveSemaphoreTone,
   shouldSuppressDelta,
@@ -140,5 +143,47 @@ describe("resolveSemaphoreTone — the 'semáforo como veredicto legal' class", 
 
   it("an absent semaphore policy (uncatalogued/legacy KPI) is backward-compat passthrough", () => {
     expect(resolveSemaphoreTone(noGuards, "warn")).toBe("warn");
+  });
+});
+
+// Cursor red-team 2026-07-23 (claim #1) — "dual-denominator hero" class: a
+// registry-coverage rate can read a confident % while the padrón it's
+// computed over covers a sliver of the census-estimated population.
+describe("censusCoverageLowGate / applyCensusCoverageGuard — the 'dual-denominator hero' class", () => {
+  const withFloor: Descriptor = { guards: { censusCoverageFloor: 20 } };
+
+  it("fires when the floor is declared AND censusCoveragePct is below it", () => {
+    expect(censusCoverageLowGate(withFloor, 0.4)).toBe(true);
+  });
+
+  it("does not fire when censusCoveragePct meets or beats the floor", () => {
+    expect(censusCoverageLowGate(withFloor, 20)).toBe(false);
+    expect(censusCoverageLowGate(withFloor, 55)).toBe(false);
+  });
+
+  it("does not fire when there is no census estimate at all (null — a DIFFERENT 'sin estimación' state)", () => {
+    expect(censusCoverageLowGate(withFloor, null)).toBe(false);
+  });
+
+  it("does not fire when the descriptor declares no censusCoverageFloor", () => {
+    expect(censusCoverageLowGate(noGuards, 0.4)).toBe(false);
+  });
+
+  it("applyCensusCoverageGuard forces neutral tone + a note when the gate fires — never silently", () => {
+    const result = applyCensusCoverageGuard(withFloor, {
+      censusCoveragePct: 0.4,
+      computedTone: "ok",
+    });
+    expect(result.tone).toBe("neutral");
+    expect(result.note).toBe(censusCoverageWarningNote(0.4));
+    expect(result.note).toContain("NO representa protección poblacional");
+  });
+
+  it("applyCensusCoverageGuard passes the computed tone through unchanged when the gate does not fire", () => {
+    const result = applyCensusCoverageGuard(withFloor, {
+      censusCoveragePct: 55,
+      computedTone: "warn",
+    });
+    expect(result).toEqual({ tone: "warn" });
   });
 });

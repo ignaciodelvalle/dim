@@ -20,7 +20,21 @@ type Props = {
    * as RABIES_VACCINATION_RATE_LABEL_ES.
    */
   coverageLabel: string;
+  /**
+   * Cursor red-team 2026-07-23 (claim #2) — distinct provinces WITH DATA in
+   * this scope (fetchRegionRanking's `totalProvinces`). A single-province
+   * govt scope (e.g. whole-CABA) has exactly 1 row, which top/bottom BOTH
+   * resolve to — rendering it as simultaneously "Mayor" and "Menor" is not a
+   * ranking, it's the same number twice. Below 3 provinces, best/worst
+   * framing is dropped in favor of a plain per-province value list.
+   */
+  totalProvinces: number;
 };
+
+/** Cursor red-team 2026-07-23 (claim #2) — the minimum distinct provinces a
+ *  best/worst ranking needs to be honest. Below this, `top`/`bottom` overlap
+ *  (a 1-province scope shows the SAME province as both "best" and "worst"). */
+const MIN_PROVINCES_FOR_RANKING = 3;
 
 function CoverageBar({ pct }: { pct: number }) {
   return (
@@ -89,11 +103,35 @@ function RankingHalf({
   );
 }
 
-export function RegionRankingTable({ top, bottom, coverageLabel }: Props) {
+export function RegionRankingTable({ top, bottom, coverageLabel, totalProvinces }: Props) {
   const hasData = top.length > 0 || bottom.length > 0;
 
   if (!hasData) {
     return null;
+  }
+
+  // Claim #2 — below 3 provinces, `top` and `bottom` overlap (a 1-province
+  // scope resolves the SAME row into both), so "Mayor"/"Menor" framing would
+  // show one number labelled both best and worst. `top` already contains
+  // every province in scope whenever totalProvinces <= 5 (the ranking limit),
+  // which is guaranteed here since totalProvinces < 3 <= 5.
+  if (totalProvinces < MIN_PROVINCES_FOR_RANKING) {
+    return (
+      <div className="space-y-2">
+        <p className="text-[var(--text-sm)] text-ln-op-mute">
+          Ranking disponible con alcance multi-provincia (se necesitan al menos{" "}
+          {MIN_PROVINCES_FOR_RANKING} provincias en el alcance actual).
+        </p>
+        <ul className="space-y-1">
+          {top.map((row) => (
+            <li key={row.code || row.province} className="text-[var(--text-md)] text-ln-op-ink">
+              {row.province}: {coverageLabel}{" "}
+              <span className="font-semibold tabular-nums">{row.coveragePct ?? 0}%</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
   }
 
   return (

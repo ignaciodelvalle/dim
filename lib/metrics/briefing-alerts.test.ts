@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   type BriefingAlertCandidate,
   MAX_BRIEFING_ALERTS,
+  type SurveillanceUrgencyCandidate,
   buildBriefingAlerts,
   deriveAlertConfidence,
 } from "./briefing-alerts";
@@ -81,8 +82,11 @@ describe("buildBriefingAlerts — a real gap produces an alert", () => {
     const [alert] = alerts;
     expect(alert.id).toBe("mortality_disposal_traceability");
     expect(alert.title).toContain("33%");
-    expect(alert.title).toContain("meta 75%");
-    expect(alert.title).toContain("Ley CABA 5470");
+    // C1 fix (claim #6, cursor red-team 2026-07-23): a law-sourced but
+    // non-statutory target renders as "Obligación: <ley> · Meta programática:
+    // X%" — NOT "meta X% (<ley>)", which reads as if the law set the number.
+    expect(alert.title).toContain("Meta programática: 75%");
+    expect(alert.title).toContain("Obligación: Ley CABA 5470");
     expect(alert.evidence).toEqual({
       value: 33,
       target: 75,
@@ -94,6 +98,68 @@ describe("buildBriefingAlerts — a real gap produces an alert", () => {
     expect(alert.actionLabel).toBe("Ver en Mortalidad y disposición");
     // 33 vs target 75 with the default 50% warn band → 75*0.5=37.5, 33 < 37.5 → danger.
     expect(alert.severity).toBe("alta");
+  });
+});
+
+// Cursor red-team 2026-07-23 (claim #4): "Panel calm (0 obs, 0 open bites) vs
+// Vigilancia gap (14 reports vs 0 obs, 3 past 10-day deadline)" — the
+// briefing never surfaced real surveillance urgency. These two candidates are
+// NOT target-gap shaped (bite_escalation_gap and the deadline-breach count
+// are deliberately non-ratio, semaphore:none) — a separate honest path.
+describe("buildBriefingAlerts — surveillance urgency signals (claim #4)", () => {
+  it("never fabricates an escalation-gap alert on a genuine 0/0 (no bites at all)", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [
+      { kind: "escalation_gap", bites12m: 0, openObservations: 0 },
+    ];
+    expect(buildBriefingAlerts([], signals)).toEqual([]);
+  });
+
+  it("does not alert the escalation gap when observations ARE open (no gap)", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [
+      { kind: "escalation_gap", bites12m: 14, openObservations: 2 },
+    ];
+    expect(buildBriefingAlerts([], signals)).toEqual([]);
+  });
+
+  it("fires the escalation-gap alert on a real gap (bites reported, zero observations open)", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [
+      { kind: "escalation_gap", bites12m: 14, openObservations: 0 },
+    ];
+    const [alert] = buildBriefingAlerts([], signals);
+    expect(alert.id).toBe("bite_escalation_gap");
+    expect(alert.title).toContain("14 mordeduras");
+    expect(alert.title).toContain("0 observaciones abiertas");
+    expect(alert.severity).toBe("media");
+    expect(alert.actionHref).toBe("/gob/vigilancia");
+  });
+
+  it("never fabricates a deadline-breach alert when openBreaches is 0", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [{ kind: "deadline_breach", openBreaches: 0 }];
+    expect(buildBriefingAlerts([], signals)).toEqual([]);
+  });
+
+  it("fires the deadline-breach alert with 'alta' severity — a live legal-deadline miss", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [{ kind: "deadline_breach", openBreaches: 3 }];
+    const [alert] = buildBriefingAlerts([], signals);
+    expect(alert.id).toBe("rabies_observation_compliance_10d");
+    expect(alert.title).toContain("3 observaciones rábicas superan");
+    expect(alert.title).toContain("plazo legal de 10 días");
+    expect(alert.severity).toBe("alta");
+    expect(alert.actionHref).toBe("/gob/vigilancia");
+  });
+
+  it("merges urgency signals into the SAME ranked/capped list as target-gap alerts, alta before media", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 12 }, // alta
+    ];
+    const signals: SurveillanceUrgencyCandidate[] = [
+      { kind: "escalation_gap", bites12m: 14, openObservations: 0 }, // media
+      { kind: "deadline_breach", openBreaches: 3 }, // alta
+    ];
+    const alerts = buildBriefingAlerts(candidates, signals);
+    expect(alerts).toHaveLength(3);
+    expect(alerts.filter((a) => a.severity === "alta")).toHaveLength(2);
+    expect(alerts[alerts.length - 1].severity).toBe("media");
   });
 });
 

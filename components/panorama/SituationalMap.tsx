@@ -1482,7 +1482,12 @@ export function SituationalMap({
             lockedBreaks: divLock.domain ?? null,
           });
           nextDivisionLegend = {
-            label: layer.label,
+            // Claim #3 (cursor red-team 2026-07-23): this is the COUNT
+            // fallback fill (raw per-unit sums, not the rate `label` names) —
+            // use the layer's count-truthful label when it declares one
+            // (rate layers only; see PanoramaLayer.countLabel's doc comment),
+            // falling back to `label` unchanged for layers with none.
+            label: layer.countLabel ?? layer.label,
             // Name the unit by which code space(s) are in view: a mixed
             // departamentos+barrios union reads as the generic "división".
             unitNoun:
