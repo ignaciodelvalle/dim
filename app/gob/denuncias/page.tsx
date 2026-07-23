@@ -100,7 +100,9 @@ export default async function GobDenunciasPage({
     { value: "moderacion", label: "Moderación", badge: moderationCount, badgeTone: "neutral" },
     {
       value: "triage",
-      label: "Triage (Ley 14.346)",
+      // Just "Triage" — the hub subtitle and the stage's own header already
+      // name Ley 14.346; repeating it in the tab label was noise (PO 2026-07-22).
+      label: "Triage",
       badge: triage.count,
       badgeTone: "neutral",
     },
