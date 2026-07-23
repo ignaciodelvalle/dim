@@ -86,7 +86,7 @@ import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import * as schemas from "../db/schema";
 import { generateReferenceCode } from "../src/modules/welfare/domain/reference-code";
@@ -756,6 +756,26 @@ async function seedCustodyDisputeDemo(): Promise<void> {
       log("SKIP", `Disputa demo (${DISPUTE_PET_PUBLIC_TOKEN}) ya existe.`);
       return;
     }
+
+    // SELF-HEAL (operational rule, 2026-07-23): a full test-suite run can
+    // delete this demo dispute's row while leaving its ORPHAN TRIO behind —
+    // pets.in_custody_dispute still true and the open custody_dispute case
+    // still present. Re-opening then FAILS on the unique-open-case-per-pet
+    // index, which used to require a manual psql heal. Detect the orphan
+    // state (no dispute row, but flag/case remnants) and clean it here so
+    // "reseed the spine after any full-suite run" is one guaranteed command.
+    const orphanCases = await db.execute(
+      sql`DELETE FROM cases
+          WHERE case_kind = 'custody_dispute'
+            AND status = 'open'
+            AND primary_pet_id = ${existingPet.id}` as never,
+    );
+    await db
+      .update(schemas.pets)
+      .set({ inCustodyDispute: false })
+      .where(and(eq(schemas.pets.id, existingPet.id), eq(schemas.pets.inCustodyDispute, true)));
+    void orphanCases;
+    log("OK", "Estado huérfano de disputa saneado (caso abierto/flag sin fila de disputa).");
   }
 
   const currentOwner = await findProfileByEmail(DISPUTE_CURRENT_OWNER_EMAIL);
