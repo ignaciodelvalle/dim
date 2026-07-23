@@ -29,6 +29,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles } from "@/db";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
@@ -129,25 +130,26 @@ export default async function GobProgramaPage({
 
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Gobierno · Resumen ejecutivo
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-        Resumen ejecutivo — tu jurisdicción
-      </h1>
-      <p className="text-[13px] text-ln-op-mute">
-        {profile.role === "admin"
-          ? "Vista universal — todas las jurisdicciones."
-          : "KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII en tu cobertura asignada."}
-      </p>
-      <a
-        href="/gob/suscripciones"
-        className="inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-      >
-        Alertas y suscripciones →
-      </a>
-    </header>
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow="Gobierno"
+      title="Resumen ejecutivo — tu jurisdicción"
+      subtitle={
+        <>
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII en tu cobertura asignada."}
+          </p>
+          <a
+            href="/gob/suscripciones"
+            className="inline-block text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          >
+            Alertas y suscripciones →
+          </a>
+        </>
+      }
+    />
   );
   const filtersRow = (
     <OpFilterBar

@@ -11,6 +11,7 @@ import {
   parseCasoEstado,
 } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
@@ -123,20 +124,23 @@ export default async function AdminCasosPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Casos</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Expedientes abiertos en el sistema. Vista universal admin.{" "}
-          {!statusExplicitlyOverridden && (
-            <a
-              href="/admin/casos?status=all"
-              className="underline underline-offset-2 hover:text-ln-op-ink"
-            >
-              Ver todos
-            </a>
-          )}
-        </p>
-      </header>
+      <ScreenHeader
+        eyebrow="Admin · Casos"
+        title="Casos"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            Expedientes abiertos en el sistema. Vista universal admin.{" "}
+            {!statusExplicitlyOverridden && (
+              <a
+                href="/admin/casos?status=all"
+                className="underline underline-offset-2 hover:text-ln-op-ink"
+              >
+                Ver todos
+              </a>
+            )}
+          </p>
+        }
+      />
 
       {/* Unified filter bar — Estado/Tipo/Provincia (migrated off the bespoke
           <form>, mirrors /gob/casos so the two casos twins render

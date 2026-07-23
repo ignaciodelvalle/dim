@@ -71,6 +71,7 @@ import {
   OpCard,
   OpCardBody,
   OpCardHead,
+  OpKpiSm,
   type StatusTone,
 } from "@/components/ui/dashboard";
 
@@ -291,32 +292,22 @@ export default async function GobMaltratoDetailPage({
         meta={`${report.referenceCode} · creada ${formatDateTime(report.createdAt)}`}
       />
 
-      {/* Summary chips row — case metadata at a glance */}
+      {/* Summary chips row — case metadata at a glance. H2 fix
+          (adversarial-gob 2026-07-23): these were 4 hand-rolled chips;
+          OpKpiSm already exists and is used identically by /gob/mortalidad's
+          "Contexto del fallecimiento" panel — one primitive, not a per-screen
+          reinvention. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Edad del caso</p>
-          <p className="text-[13px] font-semibold text-ln-op-ink">
-            {ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
-          </p>
-        </div>
-        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Gravedad</p>
-          <p className="text-[13px] font-semibold text-ln-op-ink">
-            {welfareReportSeverityLabel(report.severity)}
-          </p>
-        </div>
-        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Estado</p>
-          <p className="text-[13px] font-semibold text-ln-op-ink">
-            {welfareReportStatusLabel(report.status)}
-          </p>
-        </div>
-        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-          <p className="text-xs uppercase tracking-wider text-ln-op-mute">Asignado a</p>
-          <p className="text-[13px] font-semibold text-ln-op-ink truncate">
-            {welfareAssignmentLabel(assignedToName, derivedOrgInfo?.orgDisplayName)}
-          </p>
-        </div>
+        <OpKpiSm
+          label="Edad del caso"
+          value={ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
+        />
+        <OpKpiSm label="Gravedad" value={welfareReportSeverityLabel(report.severity)} />
+        <OpKpiSm label="Estado" value={welfareReportStatusLabel(report.status)} />
+        <OpKpiSm
+          label="Asignado a"
+          value={welfareAssignmentLabel(assignedToName, derivedOrgInfo?.orgDisplayName)}
+        />
       </div>
 
       {/* Assignment actions */}

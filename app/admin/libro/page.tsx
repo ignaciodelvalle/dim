@@ -21,6 +21,7 @@ import {
   OpFilterBar,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
@@ -170,16 +171,17 @@ export default async function AdminLibroPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin · Gobernanza
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Libro de eventos</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Registro append-only — nada se edita, todo se anexa. Las correcciones son eventos nuevos
-          que referencian al original; el original se conserva.
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Admin · Gobernanza"
+        title="Libro de eventos"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            Registro append-only — nada se edita, todo se anexa. Las correcciones son eventos nuevos
+            que referencian al original; el original se conserva.
+          </p>
+        }
+      />
 
       {/* Unified filter bar (F-migration 2026-07-21, off the bespoke GET
           <form>) — Tipo/Rol are registered axes (both no-param defaults are

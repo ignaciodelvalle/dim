@@ -10,6 +10,7 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
@@ -251,14 +252,16 @@ export default async function AdminAuditoriaPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Auditoría global</h1>
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
-          {hasFilters
-            ? `${entries.length} ${entries.length === 1 ? "entrada" : "entradas"} del registro de auditoría que coinciden con los filtros.`
-            : `Últimas ${entries.length} entradas del registro de auditoría (todas las acciones de autoridad).`}
-        </p>
-      </header>
+      <ScreenHeader
+        title="Auditoría global"
+        subtitle={
+          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+            {hasFilters
+              ? `${entries.length} ${entries.length === 1 ? "entrada" : "entradas"} del registro de auditoría que coinciden con los filtros.`
+              : `Últimas ${entries.length} entradas del registro de auditoría (todas las acciones de autoridad).`}
+          </p>
+        }
+      />
 
       {/* Unified filter bar — Actor as a registered axis (its no-param default
           is genuinely "todos los actores", so it gets OpFilterBar's own

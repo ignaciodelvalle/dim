@@ -3,6 +3,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics/analytics-ranking";
@@ -128,17 +129,18 @@ export default async function GobAnalyticsPage({
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Vigilancia sanitaria · Analítica
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Analítica</h1>
-      <p className="text-[13px] text-ln-op-mute">
-        {profile.role === "admin"
-          ? "Vista universal — todas las jurisdicciones."
-          : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
-      </p>
-    </header>
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow="Vigilancia sanitaria"
+      title="Analítica"
+      subtitle={
+        <p className="text-[13px] text-ln-op-mute">
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Métricas analíticas de salud animal y gestión de mascotas en tu cobertura."}
+        </p>
+      }
+    />
   );
 
   // D2: bound the fetcher set with a deadline so a pathological query degrades

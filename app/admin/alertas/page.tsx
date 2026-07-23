@@ -18,6 +18,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
   ALERT_FIRING_STATUSES,
   ALERT_METRIC_KEYS,
@@ -132,19 +133,18 @@ export default async function AdminAlertasPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin · Operaciones
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Bandeja de alertas
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Alertas disparadas al cruzar un umbral suscripto. Reconocé, investigá, contactá a la
-          autoridad de la jurisdicción y cerrá cada alerta. El SLA de atención (antigüedad) refuerza
-          el grado sanitario del programa.
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Admin · Operaciones"
+        title="Bandeja de alertas"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            Alertas disparadas al cruzar un umbral suscripto. Reconocé, investigá, contactá a la
+            autoridad de la jurisdicción y cerrá cada alerta. El SLA de atención (antigüedad)
+            refuerza el grado sanitario del programa.
+          </p>
+        }
+      />
 
       {/* Unified filter bar — Métrica/Provincia axes + Estado/Desde/Hasta as
           children (F-migration 2026-07-21, off the divergent OpCard-wrapped

@@ -6,6 +6,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
@@ -90,19 +91,18 @@ export default async function GobVigilanciaBrotesPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Vigilancia · Brotes
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Brotes y señales epidemiológicas
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Lista completa de señales de brote en tu cobertura."}
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Vigilancia · Brotes"
+        title="Brotes y señales epidemiológicas"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Lista completa de señales de brote en tu cobertura."}
+          </p>
+        }
+      />
 
       {/* Unified filter bar — period + jurisdiction + disease axis, same rail as
           vigilancia's own /gob/vigilancia. A.5's confidence-tier toggle ("solo

@@ -20,6 +20,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpFilterBar, OpKpi } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import {
@@ -121,18 +122,17 @@ export default async function AdminInteligenciaPage({
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Admin · Inteligencia territorial
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-        Inteligencia operativa
-      </h1>
-      <p className="text-[var(--text-md)] text-ln-op-mute">
-        Índice compuesto por jurisdicción, correlación regla→métrica y calidad de datos. Señales
-        agregadas por territorio — sin puntuación de personas.
-      </p>
-    </header>
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow="Admin · Inteligencia territorial"
+      title="Inteligencia operativa"
+      subtitle={
+        <p className="text-[var(--text-md)] text-ln-op-mute">
+          Índice compuesto por jurisdicción, correlación regla→métrica y calidad de datos. Señales
+          agregadas por territorio — sin puntuación de personas.
+        </p>
+      }
+    />
   );
 
   const load = await loadWithTimeout(

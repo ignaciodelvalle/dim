@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { auditLog, db } from "@/db";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
@@ -187,15 +188,16 @@ export default async function GobiernoDashboardPage({
   // the individual cola-operativa cards below (with its own live count), so
   // the header carries no primary action at all.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        miMAR Gobierno · {roleLabel} · {scopeLabel}
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-        Panel de jurisdicción
-      </h1>
-      <ViewScopeCaption scope={narrowedView} />
-    </header>
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow={
+        <>
+          miMAR Gobierno · {roleLabel} · {scopeLabel}
+        </>
+      }
+      title="Panel de jurisdicción"
+      subtitle={<ViewScopeCaption scope={narrowedView} />}
+    />
   );
 
   // D2: bound the fetcher set with a deadline so a pathological query degrades

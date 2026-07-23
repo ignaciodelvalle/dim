@@ -10,6 +10,7 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { OpStatusPill } from "@/components/ui/dashboard/OpStatusPill";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchCronHealth } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -64,52 +65,55 @@ export default async function AdminSistemaCronsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin · Sistema ·{" "}
-          <Link
-            href="/admin/sistema"
-            className="hover:underline underline-offset-4 text-ln-op-azul"
-          >
-            Salud del sistema
-          </Link>{" "}
-          · Crons
-        </p>
-        <div className="flex items-center gap-2">
-          <h1 className="text-lg font-semibold text-ln-op-ink">Salud de crons</h1>
-          {/* Ola 4 / decision-density audit (2026-07-21): a read-only ops
-              screen with zero in-UI action — grouped under "Profundidad" in
-              the admin nav (C6a regroup, 2026-07-22; was "Confiabilidad" —
-              not alongside queue-shaped screens like Cola/Moderación), but
-              the disclosure that this is tooling, not a decision surface,
-              used to live only in the legend at the bottom of the page.
-              Promoted here so WHERE AM I is answered immediately, not after
-              scrolling. */}
-          <span className="inline-flex items-center rounded-full border border-ln-op-line bg-ln-op-stripe px-2 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-ln-op-mute">
-            Herramienta de sistema · solo lectura
-          </span>
-        </div>
-        <p className="text-sm text-ln-op-ink-2">
-          Estado de cada cron registrado en vercel.json — lectura de cronRuns en vivo. Solo admin.
-        </p>
-        <div className="flex gap-4 pt-1 text-sm">
-          <span className="text-ln-op-mute">
-            <span className="font-semibold text-ln-op-ink">{healthyCount}</span> saludables
-          </span>
-          <span className="text-ln-op-mute">
-            <span
-              className={[
-                "font-semibold",
-                unhealthyCount > 0 ? "text-ln-op-danger" : "text-ln-op-ink",
-              ].join(" ")}
+      {/* Page header — non-canonical h1 fix (adversarial-admin 2026-07-23):
+          was text-lg + a bespoke breadcrumb-style eyebrow instead of the
+          canonical ScreenHeader h1. The "solo lectura" pill (Ola 4 /
+          decision-density audit, 2026-07-21 — WHERE AM I answered immediately,
+          not after scrolling) moves into the subtitle, right under the
+          canonical h1, instead of squeezed beside it. */}
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow={
+          <>
+            Admin · Sistema ·{" "}
+            <Link
+              href="/admin/sistema"
+              className="hover:underline underline-offset-4 text-ln-op-azul"
             >
-              {unhealthyCount}
-            </span>{" "}
-            con problemas
-          </span>
-        </div>
-      </header>
+              Salud del sistema
+            </Link>{" "}
+            · Crons
+          </>
+        }
+        title="Salud de crons"
+        subtitle={
+          <>
+            <span className="inline-flex items-center rounded-full border border-ln-op-line bg-ln-op-stripe px-2 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-wide text-ln-op-mute">
+              Herramienta de sistema · solo lectura
+            </span>
+            <p className="text-sm text-ln-op-ink-2">
+              Estado de cada cron registrado en vercel.json — lectura de cronRuns en vivo. Solo
+              admin.
+            </p>
+            <div className="flex gap-4 pt-1 text-sm">
+              <span className="text-ln-op-mute">
+                <span className="font-semibold text-ln-op-ink">{healthyCount}</span> saludables
+              </span>
+              <span className="text-ln-op-mute">
+                <span
+                  className={[
+                    "font-semibold",
+                    unhealthyCount > 0 ? "text-ln-op-danger" : "text-ln-op-ink",
+                  ].join(" ")}
+                >
+                  {unhealthyCount}
+                </span>{" "}
+                con problemas
+              </span>
+            </div>
+          </>
+        }
+      />
 
       {/* Cron health table */}
       <OpCard>

@@ -29,6 +29,7 @@ import {
   OpKpiSm,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import {
@@ -188,19 +189,18 @@ export default async function GobMortalidadPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Vigilancia sanitaria · Mortalidad y disposición
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Mortalidad y disposición
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura."}
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Vigilancia sanitaria"
+        title="Mortalidad y disposición"
+        subtitle={
+          <p className="text-[13px] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu cobertura."}
+          </p>
+        }
+      />
 
       {/* Unified filter bar — jurisdiction + period + species/cause axes +
           active-filter chips. */}

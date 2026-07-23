@@ -22,6 +22,7 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { cases, db, organizations, pets } from "@/db";
 import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
@@ -178,25 +179,25 @@ export default async function DecomisosDashboardPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between">
-        <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Ley 14.346
-          </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Decomisos</h1>
-          <p className="text-[13px] text-ln-op-mute">
-            {session.profile.role === "admin"
-              ? "Todos los episodios de custodia del sistema."
-              : "Decomisos ejecutados por tu autoridad sanitaria."}
-          </p>
-        </div>
+      <div className="flex items-center justify-between">
+        <ScreenHeader
+          eyebrow="Ley 14.346"
+          title="Decomisos"
+          subtitle={
+            <p className="text-[13px] text-ln-op-mute">
+              {session.profile.role === "admin"
+                ? "Todos los episodios de custodia del sistema."
+                : "Decomisos ejecutados por tu autoridad sanitaria."}
+            </p>
+          }
+        />
         <Link
           href="/gob/decomisos/nuevo"
           className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
           {"+ Nuevo decomiso"}
         </Link>
-      </header>
+      </div>
 
       {/* Unified filter bar — period only (no jurisdiction/domain axes: rows
           are org-scoped via govtOrgId above, and the seizures KPI below is

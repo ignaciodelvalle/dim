@@ -23,6 +23,7 @@ import {
   OpKpi,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -176,17 +177,18 @@ export default async function GobAdopcionesPage({
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Custodia & adopción
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Adopciones</h1>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
-          {profile.role === "admin"
-            ? "Vista universal — todas las jurisdicciones."
-            : "Embudo de colocación, tiempos de custodia y pool de tránsitos en tu cobertura."}
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Custodia & adopción"
+        title="Adopciones"
+        subtitle={
+          <p className="text-[var(--text-md)] text-ln-op-mute">
+            {profile.role === "admin"
+              ? "Vista universal — todas las jurisdicciones."
+              : "Embudo de colocación, tiempos de custodia y pool de tránsitos en tu cobertura."}
+          </p>
+        }
+      />
 
       {/* Unified filter bar — jurisdiction + period, with "Exportar CSV"
           rendered via the bar's `actions` slot (header row) instead of

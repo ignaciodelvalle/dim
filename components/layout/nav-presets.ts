@@ -468,7 +468,7 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     label: "Profundidad",
     items: [
       { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
-      { href: "/gob/historial", label: "Mi actividad", matchPrefix: "/gob/historial" },
+      { href: "/gob/historial", label: "Historial", matchPrefix: "/gob/historial" },
       { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
       { href: "/gob/directorio", label: "Directorio", matchPrefix: "/gob/directorio" },
     ],

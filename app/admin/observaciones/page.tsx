@@ -11,6 +11,7 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, ownerships, petEvents, profiles } from "@/db";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -67,14 +68,7 @@ export default async function ObservacionesPage({
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const eyebrow = surveillanceEyebrow(profile.role);
 
-  const header = (
-    <header className="space-y-1">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-        Observaciones antirrábicas
-      </h1>
-    </header>
-  );
+  const header = <ScreenHeader eyebrow={eyebrow} title="Observaciones antirrábicas" />;
 
   // Govt with zero assignments has nothing to scope a filter bar over —
   // same early-return precedent as /gob/casos, /gob/vigilancia.

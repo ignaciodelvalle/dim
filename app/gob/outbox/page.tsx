@@ -29,6 +29,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, eventNotificationOutbox } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildBreachCue } from "@/lib/infra/outbox-list";
@@ -147,19 +148,17 @@ export default async function GobOutboxPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Gobierno · Bandeja de salida
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Cola de notificaciones — tu jurisdicción
-        </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          {hasFilters
-            ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
-            : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
-        </p>
-      </header>
+      <ScreenHeader
+        eyebrow="Gobierno"
+        title="Bandeja de salida — tu jurisdicción"
+        subtitle={
+          <p className="text-[13px] text-ln-op-ink-2">
+            {hasFilters
+              ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
+              : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
+          </p>
+        }
+      />
 
       {/* SLA breach banner */}
       {breachCount > 0 && (

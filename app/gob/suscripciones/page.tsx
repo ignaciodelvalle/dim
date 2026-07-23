@@ -39,6 +39,7 @@ import { toggleAlertSubscriptionAction } from "@/app/actions/alert-subscriptions
 import { AlertSubscriptionForm } from "@/components/admin/AlertSubscriptionForm";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpButton, OpCard, OpCardBody, OpCardHead, OpFilterBar } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { type ALERT_DIRECTIONS, ALERT_METRIC_KEYS } from "@/db/schema";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { evaluateAlertSubscriptions } from "@/lib/metrics";
@@ -131,15 +132,16 @@ export default async function SuscripcionesPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Alertas y suscripciones
-        </h1>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
-          Suscribite a umbrales de métricas del programa y recibí un aviso cuando se rompan. Cada
-          suscripción es personal — solo ves y gestionás las tuyas.
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        title="Alertas y suscripciones"
+        subtitle={
+          <p className="text-[var(--text-md)] text-ln-op-mute">
+            Suscribite a umbrales de métricas del programa y recibí un aviso cuando se rompan. Cada
+            suscripción es personal — solo ves y gestionás las tuyas.
+          </p>
+        }
+      />
 
       {/* Both axes' blank/unset default genuinely means "todas" (all metrics,
           both states) — not a hidden narrower default, so both are safe as

@@ -361,18 +361,18 @@ const ADMIN_CASOS: ScreenManifestEntry = {
   decision: "¿Qué caso regulatorio necesita mi próxima acción?",
 };
 
-// NOT a twin() of GOB_MODERACION: F1 fusion (2026-07-22) absorbed
-// /gob/moderacion into the Denuncias hub, but /admin/moderacion is judged
-// OUT of scope for that round (see app/admin/moderacion/page.tsx's own
-// header comment) — it is a genuinely separate page (own auth guard
-// `requireAdminOrRedirect`, own includeEscalated:true query, own [id] link
-// shape), not a shared component with a gob twin. Reusing GOB_MODERACION's
-// now-"absorbed" decision text via twin() would incorrectly describe this
-// still-standalone screen. Own entry, own (original, pre-fusion) decision.
+// NOT a twin() of GOB_MODERACION (different route string, same fused
+// destination): fix (adversarial-admin 2026-07-23) closed the gap the F1
+// fusion (2026-07-22) left open — /admin/moderacion now ALSO permanently
+// redirects into /gob/denuncias?etapa=moderacion (see app/admin/moderacion/
+// page.tsx), same as its gob twin. Own entry (own route string) so the
+// coverage fence still requires one per route, but the decision text now
+// points at the hub instead of restating a decision this screen no longer
+// makes on its own — same shape as GOB_MODERACION/GOB_MALTRATO above.
 const ADMIN_MODERACION: ScreenManifestEntry = {
   route: "/admin/moderacion",
   layer: "bandeja",
-  decision: "¿Esta denuncia anónima es válida para pasar a triage, o es spam?",
+  decision: "[Absorbida] Redirige a /gob/denuncias?etapa=moderacion — ver GOB_DENUNCIAS.",
 };
 const ADMIN_OUTBOX = twin("/admin/outbox", GOB_OUTBOX, "bandeja");
 const ADMIN_SUSCRIPCIONES = twin("/admin/suscripciones", GOB_SUSCRIPCIONES, "bandeja");

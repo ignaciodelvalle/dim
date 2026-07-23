@@ -9,6 +9,7 @@ import {
   OpPill,
   SearchFilterField,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
@@ -72,20 +73,22 @@ export default async function AdminsPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight text-ln-op-ink">Administradores</h1>
-          <p className="text-sm text-ln-op-ink-2">
-            Operadores institucionales con acceso de administrador.
-          </p>
-        </div>
+      <div className="flex items-start justify-between gap-4">
+        <ScreenHeader
+          title="Administradores"
+          subtitle={
+            <p className="text-sm text-ln-op-ink-2">
+              Operadores institucionales con acceso de administrador.
+            </p>
+          }
+        />
         <Link
           href="/admin/admins/new"
           className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
         >
           + Crear admin
         </Link>
-      </header>
+      </div>
 
       {/* R4 fix — this roster had zero filters (PO: "admin no tiene ningún
           tipo de filtro posible"). Role is fixed (this list IS the admin

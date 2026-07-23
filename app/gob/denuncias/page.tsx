@@ -164,9 +164,11 @@ export default async function GobDenunciasPage({
             {etapa === "moderacion" ? (
               <ModeracionQueueScreen searchParams={sp} underHub />
             ) : (
-              // MaltratoQueueScreen's own header ("Denuncias de maltrato") does
-              // NOT repeat the "Triage" tab label — no underHub needed here.
-              <MaltratoQueueScreen searchParams={sp} />
+              // C1 fix (adversarial-gob 2026-07-23): the hub's own header
+              // already establishes identity for every stage, not just
+              // moderación — MaltratoQueueScreen now suppresses its own
+              // eyebrow/h1 under the hub the same way.
+              <MaltratoQueueScreen searchParams={sp} underHub />
             )}
           </UrlTabsContent>
         </UrlTabs>

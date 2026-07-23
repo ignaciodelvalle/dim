@@ -51,6 +51,7 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
@@ -337,13 +338,12 @@ export default async function GobHistorialPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Historial</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Historial de auditoría
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">{scopeCopy}</p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Historial"
+        title="Historial de auditoría"
+        subtitle={<p className="text-[13px] text-ln-op-mute">{scopeCopy}</p>}
+      />
 
       {/* Unified filter bar — Período (shared PeriodPicker, same param names
           and default preset as before) + Acción/Actor as registered axes

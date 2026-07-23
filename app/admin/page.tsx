@@ -7,6 +7,7 @@ import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
 import { QueueHealthCockpit } from "@/components/admin/QueueHealthCockpit";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
   fetchDecisionsMetrics,
   fetchFailedCronNames,
@@ -50,19 +51,20 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          miMAR Plataforma {"·"} ADMIN {"·"} Universal
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Panel de administración
-        </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Alcance universal sobre todas las jurisdicciones. Estas colas se comparten con Gobierno,
-          que las trabaja acotadas a la suya.
-        </p>
-      </header>
+      {/* Page header — "Universal" scope lives in ONE place: the topbar's
+          OpScopeChip (app/admin/layout.tsx), visible on every admin screen.
+          The eyebrow/subtitle used to repeat it a 2nd and 3rd time (LOW,
+          adversarial-admin 2026-07-23) — rephrased so scope is stated once. */}
+      <ScreenHeader
+        className="space-y-1"
+        eyebrow="miMAR Plataforma · Admin"
+        title="Panel de administración"
+        subtitle={
+          <p className="text-[13px] text-ln-op-ink-2">
+            Estas colas se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
+          </p>
+        }
+      />
 
       {/* Crons-down banner (operator-trust T3) — leads the page when any
           background job's latest run failed, so the operator sees the impact

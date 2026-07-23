@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
@@ -71,9 +72,17 @@ const SPECIES_OPTIONS = [
 
 export type AdminPoblacionScreenProps = {
   searchParams: { period?: string; from?: string; to?: string; species?: string };
+  /**
+   * True when rendered as the admin Padrón hub's "Población" tab
+   * (app/admin/padron/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function AdminPoblacionScreen({ searchParams: sp }: AdminPoblacionScreenProps) {
+export async function AdminPoblacionScreen({
+  searchParams: sp,
+  underHub = false,
+}: AdminPoblacionScreenProps) {
   await requireAdminOrRedirect();
 
   // Admin context: global scope (no jurisdiction restriction), trailing 12m window.
@@ -85,16 +94,18 @@ export async function AdminPoblacionScreen({ searchParams: sp }: AdminPoblacionS
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Admin · Control poblacional nacional
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Control poblacional</h1>
-      <p className="text-[13px] text-ln-op-mute">
-        Vista nacional: cobertura de esterilización, reproducción y balance, con ranking por
-        provincia.
-      </p>
-    </header>
+    <ScreenHeader
+      underHub={underHub}
+      className="space-y-2"
+      eyebrow="Admin · Control poblacional nacional"
+      title="Control poblacional"
+      subtitle={
+        <p className="text-[13px] text-ln-op-mute">
+          Vista nacional: cobertura de esterilización, reproducción y balance, con ranking por
+          provincia.
+        </p>
+      }
+    />
   );
 
   // D2: bound the fetcher set with a deadline (see /admin/censo).

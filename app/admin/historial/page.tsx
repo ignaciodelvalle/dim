@@ -36,6 +36,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import {
@@ -251,10 +252,12 @@ export default async function AdminHistorialPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Historial</h1>
-        <p className="text-[13px] text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
-      </header>
+      <ScreenHeader
+        title="Historial"
+        subtitle={
+          <p className="text-[13px] text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
+        }
+      />
 
       {/* Unified filter bar — twin of /gob/historial's (#26 D1 parity): Período
           + Acción/Actor as registered axes (both no-param defaults are

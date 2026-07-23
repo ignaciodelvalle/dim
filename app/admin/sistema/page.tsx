@@ -5,6 +5,7 @@ import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
 import { PetStatusDriftCard } from "@/components/admin/PetStatusDriftCard";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
   fetchCronRuns,
   fetchDecisionsMetrics,
@@ -159,31 +160,33 @@ export default async function AdminSistemaPage() {
 
   return (
     <div className="space-y-8">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin {"·"} Sistema
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Salud del sistema</h1>
-        <p className="text-[13px] text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
-        {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
-            métricas agregadas). El admin no tiene charts propios todavía; el
-            Centro de Situación es la superficie integradora pendiente. */}
-        <div className="flex flex-wrap gap-4 pt-1">
-          <Link
-            href="/gob/analytics"
-            className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-          >
-            Ver analítica nacional {"→"}
-          </Link>
-          {/* Paquete H — executive summary cross-link */}
-          <Link
-            href="/admin/programa"
-            className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-          >
-            Resumen ejecutivo {"→"}
-          </Link>
-        </div>
-      </header>
+      <ScreenHeader
+        eyebrow="Admin · Sistema"
+        title="Salud del sistema"
+        subtitle={
+          <>
+            <p className="text-[13px] text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
+            {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
+                métricas agregadas). El admin no tiene charts propios todavía; el
+                Centro de Situación es la superficie integradora pendiente. */}
+            <div className="flex flex-wrap gap-4 pt-1">
+              <Link
+                href="/gob/analytics"
+                className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+              >
+                Ver analítica nacional {"→"}
+              </Link>
+              {/* Paquete H — executive summary cross-link */}
+              <Link
+                href="/admin/programa"
+                className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+              >
+                Resumen ejecutivo {"→"}
+              </Link>
+            </div>
+          </>
+        }
+      />
 
       {/* Crons-down banner (operator-trust T3) — mirrors the Crons card below
           but leads the page so the operator sees the impact first. No

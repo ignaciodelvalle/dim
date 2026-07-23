@@ -10,6 +10,7 @@ import {
   OpPill,
   SearchFilterField,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -150,20 +151,22 @@ export default async function GovtsPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-xl font-semibold tracking-tight text-ln-op-ink">Gobiernos</h1>
-          <p className="text-sm text-ln-op-ink-2">
-            Operadores institucionales con rol de gobierno.
-          </p>
-        </div>
+      <div className="flex items-start justify-between gap-4">
+        <ScreenHeader
+          title="Gobiernos"
+          subtitle={
+            <p className="text-sm text-ln-op-ink-2">
+              Operadores institucionales con rol de gobierno.
+            </p>
+          }
+        />
         <Link
           href="/admin/govts/new"
           className="px-4 py-2 text-sm font-semibold bg-ln-op-azul text-white rounded-[var(--radius-md)] hover:bg-ln-op-azul-700 shrink-0"
         >
           + Crear gobierno
         </Link>
-      </header>
+      </div>
 
       {/* R4 fix (opfilterbar-sweep-2026-07-21): was a bespoke GET <form>
           (submit-to-search) + a separate hand-rolled status chip <nav> —

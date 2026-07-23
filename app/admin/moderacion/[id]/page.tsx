@@ -126,7 +126,10 @@ export default async function ModeracionDetailPage({
     <div className="space-y-6">
       <OpCrumbs
         items={[
-          { label: "Moderación", href: "/admin/moderacion" },
+          // Fix (adversarial-admin 2026-07-23, mirrors the gob twin): /admin/
+          // moderacion is now a redirect into the Denuncias hub — the crumb
+          // links straight there instead of through that redirect hop.
+          { label: "Moderación", href: "/gob/denuncias?etapa=moderacion" },
           { label: report.referenceCode ?? "Sin código", mono: true },
         ]}
       />

@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -77,9 +78,17 @@ export type PoblacionScreenProps = {
     locality?: string;
     species?: string;
   };
+  /**
+   * True when rendered as the Padrón hub's "Población" tab (app/gob/padron/
+   * page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function PoblacionScreen({ searchParams: sp }: PoblacionScreenProps) {
+export async function PoblacionScreen({
+  searchParams: sp,
+  underHub = false,
+}: PoblacionScreenProps) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role } as const;
 
@@ -135,17 +144,19 @@ export async function PoblacionScreen({ searchParams: sp }: PoblacionScreenProps
 
   // Header + filters render in both the data and degraded (timeout) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Registro · Control poblacional
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Control poblacional</h1>
-      <p className="text-[13px] text-ln-op-mute">
-        {profile.role === "admin"
-          ? "Vista universal — todas las jurisdicciones."
-          : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
-      </p>
-    </header>
+    <ScreenHeader
+      underHub={underHub}
+      className="space-y-2"
+      eyebrow="Registro"
+      title="Control poblacional"
+      subtitle={
+        <p className="text-[13px] text-ln-op-mute">
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Cobertura de esterilización, reproducción activa y balance poblacional en tu cobertura."}
+        </p>
+      }
+    />
   );
   // Unified filter bar — jurisdiction + period, with "Exportar CSV" rendered
   // via the bar's `actions` slot (header row) instead of floating beside it.

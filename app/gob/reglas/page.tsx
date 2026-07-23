@@ -9,6 +9,7 @@
 // not parallel routes (AC3 pattern).
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
 import {
   RULE_TYPE_REGISTRY,
@@ -73,18 +74,16 @@ async function GovtReglasReadOnlyView({
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          miMAR Gobierno · Reglas
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Reglas que aplican a tu jurisdicción
-        </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
-          reglas la hace el admin nacional.
-        </p>
-      </header>
+      <ScreenHeader
+        eyebrow="miMAR Gobierno · Reglas"
+        title="Reglas que aplican a tu jurisdicción"
+        subtitle={
+          <p className="text-[13px] text-ln-op-ink-2">
+            Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
+            reglas la hace el admin nacional.
+          </p>
+        }
+      />
 
       {groups.map((g, idx) => (
         <OpCard key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}>

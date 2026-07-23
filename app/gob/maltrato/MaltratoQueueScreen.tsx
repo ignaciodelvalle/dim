@@ -24,6 +24,7 @@ import {
   OpKpi,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles, welfareReports } from "@/db";
 import {
   type MaltratoQueue,
@@ -115,9 +116,17 @@ export type MaltratoQueueScreenProps = {
     cursor?: string;
     status?: string;
   };
+  /**
+   * True when rendered as the Denuncias hub's "Triage" stage
+   * (app/gob/denuncias/page.tsx) — see components/ui/dashboard/ScreenHeader.tsx.
+   */
+  underHub?: boolean;
 };
 
-export async function MaltratoQueueScreen({ searchParams: sp }: MaltratoQueueScreenProps) {
+export async function MaltratoQueueScreen({
+  searchParams: sp,
+  underHub = false,
+}: MaltratoQueueScreenProps) {
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
   const actor = { role: profile.role };
 
@@ -279,17 +288,18 @@ export async function MaltratoQueueScreen({ searchParams: sp }: MaltratoQueueScr
       {/* Top section — pinned above the master/detail split (full width) */}
       <div className="space-y-6 lg:flex-shrink-0">
         {/* Page header */}
-        <header className="space-y-1">
-          <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
-            Denuncias de maltrato
-          </h1>
-          <p className="text-sm text-ln-op-mute">
-            Cola de triage bajo Ley Nacional 14.346.{" "}
-            {profile.role === "admin"
-              ? "Vista universal — todas las jurisdicciones."
-              : "Filtradas por tu jurisdicción."}
-          </p>
-        </header>
+        <ScreenHeader
+          underHub={underHub}
+          title="Denuncias de maltrato"
+          subtitle={
+            <p className="text-sm text-ln-op-mute">
+              Cola de triage bajo Ley Nacional 14.346.{" "}
+              {profile.role === "admin"
+                ? "Vista universal — todas las jurisdicciones."
+                : "Filtradas por tu jurisdicción."}
+            </p>
+          }
+        />
 
         {/* No-scope warning */}
         {noScope && (

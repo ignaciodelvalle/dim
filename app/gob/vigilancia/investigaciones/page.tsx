@@ -10,6 +10,7 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { listOutbreakInvestigationsForGovt } from "@/lib/infra/case-queries";
@@ -63,25 +64,23 @@ export default async function GobInvestigacionesPage({
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Vigilancia · Investigaciones
-          </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Investigaciones de brote
-          </h1>
-          <p className="text-[13px] text-ln-op-mute">
-            Casos abiertos, escalados y cerrados en los últimos 90 días.
-          </p>
-        </div>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <ScreenHeader
+          eyebrow="Vigilancia · Investigaciones"
+          title="Investigaciones de brote"
+          subtitle={
+            <p className="text-[13px] text-ln-op-mute">
+              Casos abiertos, escalados y cerrados en los últimos 90 días.
+            </p>
+          }
+        />
         <Link
           href="/gob/vigilancia/investigaciones/nuevo"
           className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
           Nueva investigación
         </Link>
-      </header>
+      </div>
 
       <OpBreach
         title="Notificación externa no integrada"

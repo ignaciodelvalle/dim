@@ -25,6 +25,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
 } from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
 import {
   buildJurisdictionRulesHref,
@@ -159,19 +160,17 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <header className="space-y-1">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Admin {"·"} Reglas
-          </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Reglas por jurisdicción
-          </h1>
-          <p className="text-[var(--text-md)] text-ln-op-ink-2">
-            {groups.length === 0
-              ? "Ninguna jurisdicción tiene reglas personalizadas."
-              : `${groups.length} ${pluralizeEs(groups.length, "jurisdicción", "jurisdicciones")} con reglas propias.`}
-          </p>
-        </header>
+        <ScreenHeader
+          eyebrow="Admin · Reglas"
+          title="Reglas por jurisdicción"
+          subtitle={
+            <p className="text-[var(--text-md)] text-ln-op-ink-2">
+              {groups.length === 0
+                ? "Ninguna jurisdicción tiene reglas personalizadas."
+                : `${groups.length} ${pluralizeEs(groups.length, "jurisdicción", "jurisdicciones")} con reglas propias.`}
+            </p>
+          }
+        />
         <Link
           href={createHref}
           className="shrink-0 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"

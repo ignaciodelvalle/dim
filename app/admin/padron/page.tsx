@@ -81,9 +81,11 @@ export default async function AdminPadronPage({
             {vista === "censo" ? (
               <AdminCensoScreen searchParams={sp} underHub />
             ) : (
-              // AdminPoblacionScreen's own h1 ("Control poblacional") does NOT
-              // repeat the "Población" tab label — no underHub needed here.
-              <AdminPoblacionScreen searchParams={sp} />
+              // Fix (adversarial-admin 2026-07-23, twin of gob C2): the hub's
+              // own header already establishes identity for every vista, not
+              // just censo — AdminPoblacionScreen now suppresses its own
+              // eyebrow/h1 under the hub the same way.
+              <AdminPoblacionScreen searchParams={sp} underHub />
             )}
           </UrlTabsContent>
         </UrlTabs>

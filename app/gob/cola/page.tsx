@@ -3,6 +3,7 @@ import { inArray } from "drizzle-orm";
 import Link from "next/link";
 
 import { BulkApprovalQueueList } from "@/components/BulkApprovalQueueList";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "@/db";
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -81,12 +82,11 @@ export default async function ColaPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-[var(--text-title)] font-semibold tracking-tight text-ln-op-ink">
-          {pageTitle}
-        </h1>
-        {subtitle && <p className="text-[13px] text-ln-op-mute">{subtitle}</p>}
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        title={pageTitle}
+        subtitle={subtitle ? <p className="text-[13px] text-ln-op-mute">{subtitle}</p> : undefined}
+      />
 
       {/*
        * Type filter chips — links drop ?cursor so filters reset to page 1.

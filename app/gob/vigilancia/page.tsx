@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
@@ -102,17 +103,18 @@ export default async function GobVigilanciaPage({
 
   // Page header — rendered in both the data and degraded (D2) branches.
   const header = (
-    <header className="space-y-2">
-      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-        Vigilancia epidemiológica
-      </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Mapa de vigilancia</h1>
-      <p className="text-[var(--text-md)] text-ln-op-mute">
-        {profile.role === "admin"
-          ? "Vista universal — todas las jurisdicciones."
-          : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
-      </p>
-    </header>
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow="Vigilancia epidemiológica"
+      title="Mapa de vigilancia"
+      subtitle={
+        <p className="text-[var(--text-md)] text-ln-op-mute">
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Señales de zoonosis y enfermedades reportables detectadas en tu cobertura."}
+        </p>
+      }
+    />
   );
 
   // D2: bound the fetcher set with a deadline so a pathological query degrades

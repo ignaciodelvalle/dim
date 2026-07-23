@@ -14,6 +14,7 @@ import Link from "next/link";
 
 import { OpBreach, OpCard, type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
 import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
@@ -101,19 +102,17 @@ export default async function AdminOutboxPage({
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin {"·"} Bandeja de salida
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Bandeja de salida de notificaciones
-        </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          {hasFilters
-            ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
-            : `Últimas ${rows.length} filas de la bandeja de salida de eventos de notificación ENO/govt.`}
-        </p>
-      </header>
+      <ScreenHeader
+        eyebrow="Admin"
+        title="Bandeja de salida de notificaciones"
+        subtitle={
+          <p className="text-[13px] text-ln-op-ink-2">
+            {hasFilters
+              ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
+              : `Últimas ${rows.length} filas de la bandeja de salida de eventos de notificación ENO/govt.`}
+          </p>
+        }
+      />
 
       {/* SLA breach banner */}
       {breachCount > 0 && (

@@ -927,25 +927,28 @@ describe("buildOrgNav — section invariants", () => {
 });
 
 // ---------------------------------------------------------------------------
-// UX 1.4 — label rename: /gob/historial "Histórico" → "Mi actividad"
+// C3 (adversarial-gob 2026-07-23) — label honesty fix: /gob/historial
+// "Mi actividad" → "Historial". The page defaults to ALL operators' activity
+// in the viewer's jurisdiction (the "solo mía" toggle is OFF by default), so
+// "Mi actividad" promised a scope the screen doesn't deliver by default.
 // Route is unchanged (href preserved); only the surface label is updated.
 // ---------------------------------------------------------------------------
 
-describe("UX 1.4 — gob /historial label rename", () => {
+describe("C3 — gob /historial label honesty fix", () => {
   it("/gob/historial href is preserved in GOB_NAV (no route loss)", () => {
     const hrefs = GOB_NAV.map((i) => i.href);
     expect(hrefs).toContain("/gob/historial");
   });
 
-  it('/gob/historial item label is "Mi actividad" (not "Histórico")', () => {
+  it('/gob/historial item label is "Historial" (not "Mi actividad")', () => {
     const allItems = GOB_NAV_SECTIONS.flatMap((s) => s.items);
     const item = allItems.find((i) => i.href === "/gob/historial");
     expect(item).toBeDefined();
-    expect(item?.label).toBe("Mi actividad");
-    expect(item?.label).not.toBe("Histórico");
+    expect(item?.label).toBe("Historial");
+    expect(item?.label).not.toBe("Mi actividad");
   });
 
-  it('/admin/historial retains its original "Historial" label (only gob label changed)', () => {
+  it('/admin/historial retains its original "Historial" label (both now say "Historial")', () => {
     const allAdminItems = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
     const item = allAdminItems.find((i) => i.href === "/admin/historial");
     expect(item).toBeDefined();

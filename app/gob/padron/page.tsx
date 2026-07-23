@@ -94,9 +94,11 @@ export default async function GobPadronPage({
             {vista === "censo" ? (
               <CensoScreen searchParams={sp} underHub />
             ) : (
-              // PoblacionScreen's own h1 ("Control poblacional") does NOT
-              // repeat the "Población" tab label — no underHub needed here.
-              <PoblacionScreen searchParams={sp} />
+              // C2 fix (adversarial-gob 2026-07-23): the hub's own header
+              // already establishes identity for every vista, not just censo
+              // — PoblacionScreen now suppresses its own eyebrow/h1 under the
+              // hub the same way.
+              <PoblacionScreen searchParams={sp} underHub />
             )}
           </UrlTabsContent>
         </UrlTabs>
