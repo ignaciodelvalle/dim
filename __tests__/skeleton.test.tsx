@@ -499,21 +499,23 @@ const loadingPages: [string, () => React.ReactElement][] = [
 ];
 
 // ---------------------------------------------------------------------------
-// GobLoading — C6b shape (2026-07-22): 2 alert-card placeholders + the
-// unchanged 4-tile KPI row + a queue-row card + a collapsed-activity card.
-// Pins the new home briefing layout's skeleton to the same block count the
-// page itself renders, so a future page edit that adds/removes a block is
-// caught here too (skeleton drifting from the real layout is its own CLS bug).
+// GobLoading — PO visual-validation batch B shape (2026-07-23): 2 alert-card
+// placeholders + a 10-tile "Brechas vs meta" grid (8 original + 2
+// mortalidad/disposición, now ordinary tiles) + its chart-card sub-row + 5
+// individual "Cola operativa" tiles ("de a 1") + a collapsed-activity card.
+// Pins the home briefing layout's skeleton to the same block count the page
+// itself renders, so a future page edit that adds/removes a block is caught
+// here too (skeleton drifting from the real layout is its own CLS bug).
 // ---------------------------------------------------------------------------
 
-describe("GobLoading — mirrors the C6b briefing's 4-block shape", () => {
-  it("renders exactly 4 KPI-tile placeholders (the 'Brechas vs meta' strip)", () => {
+describe("GobLoading — mirrors the revised briefing's block shape", () => {
+  it("renders exactly 15 KPI-tile placeholders (10 'Brechas vs meta' + 5 'Cola operativa')", () => {
     const html = render(<GobLoading />);
     const kpiTiles = html.match(/min-h-\[112px\]/g) ?? [];
-    expect(kpiTiles).toHaveLength(4);
+    expect(kpiTiles).toHaveLength(15);
   });
 
-  it("renders 4 OpCardSkeleton-shaped blocks (2 alerts + 1 queue row + 1 activity)", () => {
+  it("renders 4 OpCardSkeleton-shaped blocks (2 alerts + 1 chart-card + 1 activity)", () => {
     const html = render(<GobLoading />);
     // OpCardSkeleton's header row is a distinctive, stable marker.
     const cardHeaders = html.match(/border-b border-ln-op-line px-\[15px\] py-\[11px\]/g) ?? [];

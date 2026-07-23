@@ -1,18 +1,33 @@
 // /gob home — C6b "THE BRIEFING" (docs/reviews/results/2026-07-22-plan-maestro-
-// integridad.md §C6 "Capa 1"). PO-locked structure, four blocks in strict
-// order — hierarchy by ORDER + COLLAPSE + CONDITIONALITY, never tile-size:
+// integridad.md §C6 "Capa 1"), revised per PO visual-validation batch B
+// (2026-07-23). PO-locked structure, five blocks in strict order — hierarchy
+// by ORDER + COLLAPSE + CONDITIONALITY, never tile-size:
 //   1. Alertas priorizadas (hero, max 5) — lib/metrics/briefing-alerts.ts
 //      composes these PURELY from metrics this page already fetches.
 //   2. Brechas vs meta — the former KPI wall, demoted to "evidence" under the
-//      alerts (same OpKpi tiles, same descriptorIds — no new visual language).
-//   3. Cola operativa condensada — one compact row of counts+CTAs, absorbing
-//      the old header's 3 action buttons + the old Cola/Denuncias/Casos/
-//      Pérdidas cards (deduplicated: Denuncias existed as BOTH a header
-//      button and its own "Denuncias ciudadanas" card before this pass).
-//   4. Mi trabajo asignado — renders ONLY when non-empty.
+//      alerts. Every tile in this strip is the SAME OpKpi primitive,
+//      including mortalidad/disposición (folded in as two ordinary tiles,
+//      2026-07-23 — it used to be its own oddly-shaped OpCard). Genuine
+//      chart/trend content (mordeduras por período) lives in its own
+//      chart-cards sub-row below the tile grid, never mixed into it.
+//   3. Cola operativa — "de a 1": one OpKpi tile per queue (Cola de
+//      aprobaciones, Habilitación de organizaciones, Denuncias de maltrato,
+//      Casos regulatorios, Pérdidas activas), ALL carrying a live count,
+//      ALL the same primitive/size (2026-07-23 — replaces the former
+//      condensed single-row of count+CTA chips, and "Habilitación" now
+//      carries a count for the first time — see countVisiblePendingRequestsByType).
+//   4. Mi trabajo asignado — same "de a 1" OpKpi-tile primitive as block 3.
+//      Renders ONLY when non-empty.
 //   5. Novedades — demoted into a collapsed <details> ("Actividad reciente"),
 //      alongside the operator's own recent-action audit log (same content
 //      that used to sit as a standalone "Actividad reciente" card).
+//
+// The header carries ONLY title + mandate chrome + ViewScopeCaption — no
+// primary action (the former lone "Cola de aprobaciones" button felt out of
+// place at the top; that queue is now just one of the block-3 cards).
+// Filters go through the canonical OpFilterBar (jurisdiction-only, no period
+// control — same as every other /gob screen's commit strategy), not a
+// bespoke standalone <JurisdictionSwitcher>.
 //
 // Preserved from the pre-C6b /gob/page.tsx:
 //   - fetchVisiblePendingRequests → cola count
@@ -24,9 +39,15 @@ import { and, desc, eq, gte } from "drizzle-orm";
 import Link from "next/link";
 
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
-import { OpCard, OpCardBody, OpCardHead, OpKpi, ViewScopeCaption } from "@/components/ui/dashboard";
+import {
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpFilterBar,
+  OpKpi,
+  ViewScopeCaption,
+} from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { auditLog, db } from "@/db";
@@ -47,7 +68,10 @@ import {
 } from "@/lib/analytics/govt-home-kpis";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchMortalityHeadline } from "@/lib/analytics/mortality-metrics";
-import { countVisiblePendingRequests } from "@/lib/infra/approval-scope";
+import {
+  countVisiblePendingRequests,
+  countVisiblePendingRequestsByType,
+} from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   listOpenCasesForAdminPreview,
@@ -61,10 +85,9 @@ import {
   fetchKpiTrend,
   resolveSemaphoreTone,
   toneForTarget,
-  zeroDenominatorGate,
 } from "@/lib/metrics";
 import { type BriefingAlertCandidate, buildBriefingAlerts } from "@/lib/metrics/briefing-alerts";
-import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, type KpiId, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { type ActivityFeedRow, collapseActivityFeed } from "@/lib/ui/activity-feed";
@@ -158,9 +181,11 @@ export default async function GobiernoDashboardPage({
   });
 
   // Page header — rendered in both the data and degraded (D2) branches.
-  // C6b: the header keeps AT MOST ONE primary action (the PO-locked "no
-  // duplication" rule) — "Habilitación" and "Denuncias de maltrato" fold into
-  // the condensed queue row (block 3) below instead of living here too.
+  // PO visual-validation (2026-07-23): the header keeps ONLY title + mandate
+  // chrome + ViewScopeCaption. The old lone "Cola de aprobaciones" action
+  // button felt out of place at the very top — approvals now live as one of
+  // the individual cola-operativa cards below (with its own live count), so
+  // the header carries no primary action at all.
   const header = (
     <header className="space-y-2">
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -170,15 +195,6 @@ export default async function GobiernoDashboardPage({
         Panel de jurisdicción
       </h1>
       <ViewScopeCaption scope={narrowedView} />
-
-      <div className="flex flex-wrap items-center gap-2 pt-1">
-        <Link
-          href="/gob/cola"
-          className="rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white hover:bg-ln-op-azul-700 transition-colors no-underline"
-        >
-          Cola de aprobaciones
-        </Link>
-      </div>
     </header>
   );
 
@@ -248,6 +264,12 @@ export default async function GobiernoDashboardPage({
       // task allows: welfare reports assigned to the viewer, still actionable.
       // NOT fetchWelfareMetrics (that bundles 3 unused counts in one call).
       fetchMyAssignedWelfareCount(actor, filteredJurisdictions, user.id),
+      // PO visual-validation (2026-07-23): "Habilitación de organizaciones" had
+      // NO metric while every other cola-operativa card carried one. Reuses the
+      // SAME scope predicate as countVisiblePendingRequests (visibleRequestsClause)
+      // — the one new query this pass adds, scoped + bounded exactly like its
+      // sibling COUNT above.
+      countVisiblePendingRequestsByType(profile, jurisdictions, "organization_verification"),
     ]),
   );
 
@@ -287,6 +309,7 @@ export default async function GobiernoDashboardPage({
     openCasesPreview,
     novedades,
     myAssignedWelfareCount,
+    orgVerificationPendingCount,
   ] = load.value;
 
   // G3: collapse the recent-activity feed's repeated PII-search rows into a
@@ -304,16 +327,6 @@ export default async function GobiernoDashboardPage({
   const bitesBucketWord = bitesTrend.granularity === "month" ? "mes" : "semana";
 
   const openCasesTotal = openCasesPreview.total;
-
-  // C1 (2026-07-22, plan-maestro §3a): 0 deaths → mortality.traceableRate is a
-  // 0/0 ratio that reads "0%" as if disposition tracing had FAILED, when it
-  // simply never had a death to trace (the latent 0/0 the /gob/mortalidad
-  // page already gates on `hasDeaths`). Mirrors that same gate here via the
-  // descriptor's guard, not a re-invented inline check.
-  const mortalityHasDeaths = !zeroDenominatorGate(
-    KPI_CATALOG.mortality_deaths_12m,
-    mortality.total,
-  );
 
   // -------------------------------------------------------------------------
   // C6b block 1 — Alertas priorizadas. Pure composition from metric values
@@ -352,23 +365,30 @@ export default async function GobiernoDashboardPage({
   ];
   const alerts = buildBriefingAlerts(alertCandidates);
 
-  // C6b block 3 — Cola operativa condensada. Absorbs the old header's
-  // "Habilitación"/"Denuncias de maltrato" buttons + the old Casos
-  // regulatorios/Denuncias ciudadanas/Pérdidas cards into ONE row of
-  // count+CTA chips. Denuncias previously existed as BOTH a header button
-  // AND a "Denuncias ciudadanas" card reading the SAME count — this row is
-  // its single occurrence now. Cola de aprobaciones keeps its header button
-  // (the page's one primary action) AND appears here with its live count —
-  // that pairing (button = quick top-of-page shortcut, row = queue depth) is
-  // the same one the page already used before this pass, not a new duplicate.
-  const queueItems: Array<{ href: string; label: string; count?: number }> = [
-    { href: "/gob/cola", label: "Cola de aprobaciones", count: pendingCount },
+  // C6b block 3 — Cola operativa, "de a 1" (PO visual-validation, 2026-07-23:
+  // the condensed count+CTA chip row read as one undifferentiated strip — the
+  // PO wants individual cards, one per queue, ALL carrying a live count, ALL
+  // the same primitive/size (OpKpi tiles with href — same primitive the
+  // Brechas vs meta strip already uses, so the whole page reads as one
+  // system). "Habilitación de organizaciones" used to be the one queue
+  // WITHOUT a metric; it now carries orgVerificationPendingCount (the one new
+  // query this pass adds — see countVisiblePendingRequestsByType above).
+  // Cola de aprobaciones no longer duplicates as a header button (removed,
+  // see `header` above) — this card is its single occurrence now.
+  const queueItems: Array<{ href: string; label: string; count: number; descriptorId?: KpiId }> = [
+    {
+      href: "/gob/cola",
+      label: "Cola de aprobaciones",
+      count: pendingCount,
+      descriptorId: "queue_pending_total",
+    },
     {
       // F3+F7 fusion (2026-07-22): Organizaciones is now the Directorio hub's
       // "organizaciones" tab (the default) — link straight there instead of
       // through the old /gob/organizaciones redirect.
       href: "/gob/directorio?registro=organizaciones",
       label: "Habilitación de organizaciones",
+      count: orgVerificationPendingCount,
     },
     {
       // F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's "Triage"
@@ -376,23 +396,31 @@ export default async function GobiernoDashboardPage({
       href: "/gob/denuncias?etapa=triage",
       label: openWelfareReports.count === 1 ? "Denuncia de maltrato" : "Denuncias de maltrato",
       count: openWelfareReports.count,
+      descriptorId: "open_welfare_reports",
     },
     { href: "/gob/casos", label: "Casos regulatorios", count: openCasesTotal },
     {
       href: "/gob/perdidas",
       label: perdidas.activeCount === 1 ? "Mascota perdida activa" : "Mascotas perdidas activas",
       count: perdidas.activeCount,
+      descriptorId: "lost_pets_active_stock",
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Page header — mandate chrome (C3) + the one primary action */}
+      {/* Page header — mandate chrome (C3) only, no primary action */}
       {header}
 
-      {/* Jurisdiction filter — same URL contract (province=ISO, locality=slug)
-          as every /gob sub-page, so scope carries across drill-downs. */}
-      <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
+      {/* Filters — PO visual-validation (2026-07-23): the home rendered a
+          bespoke standalone <JurisdictionSwitcher>, not the canonical filter
+          component every other /gob screen commits through. The home has no
+          period control (fixed trailing-12m ctx, no picker) and no
+          screen-specific domain axes — jurisdiction-only, same as
+          /gob/reglas's showPeriod={false} bar, same URL contract
+          (province=ISO, locality=slug) and commit strategy
+          (serverNavCommit) as every other screen. */}
+      <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces, localities }} />
 
       {/* ===================================================================
           BLOCK 1 — Alertas priorizadas (the hero, max 5)
@@ -595,46 +623,40 @@ export default async function GobiernoDashboardPage({
             href="/gob/analytics"
             descriptorId="ppp_registry_compliance"
           />
+
+          {/* Mortalidad y disposición (§5 narrative) — the third citizen-
+              traceable projection: death events + how traceable their
+              disposition is. PO visual-validation (2026-07-23): these two
+              numbers used to live in their own OpCard, unlike every neighbor
+              tile in this strip — folded into the SAME OpKpi primitive here.
+              Zero-denominator / small-N guarding is now the descriptor's own
+              guard engine (guardInput.n) instead of a re-invented inline
+              `mortalityHasDeaths` check — same guarantee, one fewer bespoke
+              gate. Full view at /gob/mortalidad. */}
+          <OpKpi
+            label={KPI_CATALOG.mortality_deaths_12m.label}
+            value={formatCount(mortality.total)}
+            sub="últimos 12 meses"
+            href="/gob/mortalidad"
+            descriptorId="mortality_deaths_12m"
+            guardInput={{ n: mortality.total }}
+          />
+          <OpKpi
+            label={KPI_CATALOG.mortality_disposal_traceability.label}
+            value={formatPercent(mortality.traceableRate)}
+            tone={toneForTarget(mortality.traceableRate, TARGETS.DISPOSAL_TRACEABILITY_PCT)}
+            sub="últimos 12 meses"
+            href="/gob/mortalidad"
+            descriptorId="mortality_disposal_traceability"
+            guardInput={{ n: mortality.total }}
+          />
         </div>
 
-        {/* Mortalidad y disposición (§5 narrative) — the third citizen-
-            traceable projection: death events + how traceable their
-            disposition is. Full view at /gob/mortalidad. */}
-        <OpCard aria-labelledby="panel-mortalidad-titulo">
-          <OpCardHead
-            title={
-              <span id="panel-mortalidad-titulo">
-                Mortalidad y disposición{" "}
-                <span className="text-xs font-normal text-ln-op-mute">últimos 12 meses</span>
-              </span>
-            }
-            actions={
-              <Link
-                href="/gob/mortalidad"
-                className="text-sm text-ln-op-azul hover:underline no-underline"
-              >
-                Ver detalle →
-              </Link>
-            }
-          />
-          <OpCardBody>
-            <div className="flex flex-wrap gap-6">
-              <div>
-                <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
-                  {mortalityHasDeaths ? mortality.total : "—"}
-                </p>
-                <p className="text-xs text-ln-op-mute">Fallecimientos registrados</p>
-              </div>
-              <div>
-                <p className="text-2xl font-semibold tabular-nums text-ln-op-ink">
-                  {mortalityHasDeaths ? formatPercent(mortality.traceableRate) : "—"}
-                </p>
-                <p className="text-xs text-ln-op-mute">Disposición trazable</p>
-              </div>
-            </div>
-          </OpCardBody>
-        </OpCard>
-
+        {/* Chart-cards sub-row — PO visual-validation (2026-07-23): a tile
+            that genuinely carries a chart/trend does NOT get squeezed into
+            the OpKpi grid above; it gets its OWN row of matching chart-cards
+            instead. Only one chart card exists on this page today (mordeduras
+            por período); this row is where any future one joins it. */}
         {/* D1 — mordeduras por período (tendencia) */}
         <OpCard aria-labelledby="panel-bites-trend-titulo">
           <OpCardHead
@@ -674,59 +696,50 @@ export default async function GobiernoDashboardPage({
       </section>
 
       {/* ===================================================================
-          BLOCK 3 — Cola operativa condensada: one compact row of counts+CTAs
+          BLOCK 3 — Cola operativa, "de a 1": one OpKpi tile per queue, all
+          carrying a live count.
           =================================================================== */}
       <section aria-label="Cola operativa" className="space-y-2">
         <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Cola operativa
         </h2>
-        <OpCard>
-          <OpCardBody className="flex flex-wrap gap-x-8 gap-y-3">
-            {queueItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex min-w-[120px] flex-col gap-0.5 no-underline text-inherit"
-              >
-                {item.count !== undefined && (
-                  <span className="font-ln-serif text-[22px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-ln-op-ink">
-                    {item.count.toLocaleString("es-AR")}
-                  </span>
-                )}
-                <span className="text-sm text-ln-op-azul hover:underline">{item.label} →</span>
-              </Link>
-            ))}
-          </OpCardBody>
-        </OpCard>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {queueItems.map((item) => (
+            <OpKpi
+              key={item.href}
+              label={item.label}
+              value={formatCount(item.count)}
+              href={item.href}
+              descriptorId={item.descriptorId}
+            />
+          ))}
+        </div>
       </section>
 
       {/* ===================================================================
           BLOCK 4 — Mi trabajo asignado. Renders ONLY when non-empty — an
-          operator with nothing assigned sees no empty "0" card here.
+          operator with nothing assigned sees no empty "0" card here. Same
+          "de a 1" OpKpi-tile primitive as Cola operativa above (PO
+          visual-validation, 2026-07-23).
           =================================================================== */}
       {myAssignedWelfareCount > 0 && (
         <section aria-label="Mi trabajo asignado" className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             Mi trabajo asignado
           </h2>
-          <OpCard>
-            <OpCardBody>
-              <Link
-                href="/gob/denuncias?etapa=triage&queue=mine"
-                className="flex items-baseline gap-2 no-underline text-inherit hover:underline"
-              >
-                <span className="font-ln-serif text-[26px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-ln-op-ink">
-                  {myAssignedWelfareCount}
-                </span>
-                <span className="text-sm text-ln-op-azul">
-                  {myAssignedWelfareCount === 1
-                    ? "denuncia de maltrato asignada a vos"
-                    : "denuncias de maltrato asignadas a vos"}{" "}
-                  →
-                </span>
-              </Link>
-            </OpCardBody>
-          </OpCard>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <OpKpi
+              label={
+                myAssignedWelfareCount === 1
+                  ? "Denuncia de maltrato asignada"
+                  : "Denuncias de maltrato asignadas"
+              }
+              value={formatCount(myAssignedWelfareCount)}
+              sub="a vos"
+              href="/gob/denuncias?etapa=triage&queue=mine"
+              descriptorId="my_assigned_welfare_reports"
+            />
+          </div>
         </section>
       )}
 

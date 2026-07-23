@@ -152,6 +152,27 @@ export async function countVisiblePendingRequests(
   return Number(row?.n ?? 0);
 }
 
+// Scoped COUNT of pending requests of ONE type, visible to this authority.
+// Shares `visibleRequestsClause` with `countVisiblePendingRequests` so a
+// per-type tile (e.g. /gob home's "Habilitación de organizaciones" queue
+// card, scoped to organization_verification) can never disagree with the
+// lumped total or the queue list over what's "visible" — same scope
+// predicate, just an extra type filter pushed into the same COUNT query.
+export async function countVisiblePendingRequestsByType(
+  profile: { id: string; role: "admin" | "govt" },
+  jurisdictions: readonly AdminOrGovtJurisdiction[],
+  type: ApprovalRequestType,
+): Promise<number> {
+  const scopeClause = visibleRequestsClause(profile, jurisdictions);
+  const [row] = await db
+    .select({ n: count() })
+    .from(approvalRequests)
+    .where(
+      and(eq(approvalRequests.status, "pending"), eq(approvalRequests.type, type), scopeClause),
+    );
+  return Number(row?.n ?? 0);
+}
+
 // Unused import guard for `exists` — kept for symmetry with notExists when
 // future types need the inverted form. Stripped at build time.
 void exists;

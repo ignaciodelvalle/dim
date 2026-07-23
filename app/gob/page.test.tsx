@@ -38,6 +38,9 @@ vi.mock("@/lib/analytics/jurisdiction-scope", () => ({
 
 vi.mock("@/lib/infra/approval-scope", () => ({
   countVisiblePendingRequests: vi.fn(async () => 4),
+  // PO visual-validation batch B (2026-07-23): "Habilitación de
+  // organizaciones" now carries its own live count.
+  countVisiblePendingRequestsByType: vi.fn(async () => 2),
 }));
 
 vi.mock("@/lib/infra/case-queries", () => ({
@@ -168,26 +171,32 @@ describe("/gob (home) — C6b briefing block order", () => {
     expect(miTrabajoIdx).toBeLessThan(actividadIdx);
   });
 
-  it("header keeps at most ONE primary action (Cola de aprobaciones) — Habilitación/Denuncias buttons are gone from the header", async () => {
+  it("header carries NO primary action — no lone CTA button at the top (PO visual-validation batch B)", async () => {
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
     const headerEnd = html.indexOf("</header>");
     const headerHtml = html.slice(0, headerEnd);
-    expect(headerHtml).toContain("Cola de aprobaciones");
+    expect(headerHtml).not.toContain("Cola de aprobaciones");
     expect(headerHtml).not.toContain("Habilitación");
     expect(headerHtml).not.toContain("Denuncias de maltrato");
+    // Only title + mandate chrome + ViewScopeCaption remain.
+    expect(headerHtml).toContain("Panel de jurisdicción");
   });
 
-  it("Cola operativa condensada renders one row with Habilitación, Denuncias, Casos regulatorios and Pérdidas counts", async () => {
+  it("Cola operativa renders individual cards — one per queue, each carrying its own live count (PO visual-validation batch B: no more condensed row)", async () => {
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
+    expect(html).toContain("Cola de aprobaciones");
     expect(html).toContain("Habilitación de organizaciones");
     expect(html).toContain("Denuncias de maltrato");
     expect(html).toContain("Casos regulatorios");
     expect(html).toContain("Mascotas perdidas activas");
-    // Counts from the mocked fetchers are visible somewhere in the row.
-    expect(html).toContain("6"); // openCasesTotal
-    expect(html).toContain("5"); // perdidas.activeCount
+    // Every card carries its own count, including Habilitación (previously
+    // the one queue WITHOUT a metric).
+    expect(html).toContain("4"); // pendingCount (Cola de aprobaciones)
+    expect(html).toContain("2"); // orgVerificationPendingCount (Habilitación)
+    expect(html).toContain("6"); // openCasesTotal (Casos regulatorios)
+    expect(html).toContain("5"); // perdidas.activeCount (Pérdidas activas)
   });
 
   it("a real gap (mortality traceability 33% vs meta 75%) surfaces as a priority-alta alert with its action + confidence", async () => {
@@ -217,15 +226,24 @@ describe("/gob (home) — Mi trabajo asignado: conditional rendering", () => {
     expect(html).not.toContain("Mi trabajo asignado");
   });
 
-  it("shows the block with its count + link when non-zero", async () => {
+  it("shows the block with its count + link when non-zero, as the same 'de a 1' OpKpi-tile card Cola operativa uses (PO visual-validation batch B)", async () => {
     govtDashboardsFixture.myAssignedWelfareCount = 7;
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Mi trabajo asignado");
     expect(html).toContain("7");
+    expect(html).toContain("Denuncias de maltrato asignadas");
     // F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's "Triage"
     // stage — the link points straight there, not through the old redirect.
     // (& is HTML-escaped to &amp; in the rendered markup.)
     expect(html).toContain("/gob/denuncias?etapa=triage&amp;queue=mine");
+  });
+
+  it("uses the singular label when exactly 1 report is assigned", async () => {
+    govtDashboardsFixture.myAssignedWelfareCount = 1;
+    const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("Denuncia de maltrato asignada");
+    expect(html).not.toContain("Denuncias de maltrato asignadas");
   });
 });

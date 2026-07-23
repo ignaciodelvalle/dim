@@ -66,6 +66,7 @@ export type KpiId =
   | "microchip_penetration"
   | "ppp_registry_compliance"
   | "open_welfare_reports"
+  | "my_assigned_welfare_reports"
   | "mortality_disposal_traceability"
   | "mortality_deaths_12m"
   | "active_pregnancies"
@@ -701,6 +702,28 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     source: "welfare_reports",
     fetcherName: "fetchOpenWelfareReportsCount",
     fetcherPath: "lib/analytics/govt-home-kpis.ts",
+    cadence: "point-in-time snapshot",
+    unit: "count",
+    suppression: "none",
+    window: "now",
+    species: "n/a",
+    basis: "stock",
+  },
+
+  // PO visual-validation batch B (2026-07-23) — /gob home's "Mi trabajo
+  // asignado" tile. DISTINCT from open_welfare_reports above: that's every
+  // non-terminal welfare report in the operator's scope; this is the subset
+  // assigned TO THE VIEWER specifically (currentUserId), same moderation
+  // exclusion.
+  my_assigned_welfare_reports: {
+    id: "my_assigned_welfare_reports",
+    label: "Denuncias de maltrato asignadas a vos",
+    numerator:
+      "COUNT welfare_reports rows where assignedToUserId = viewer AND status NOT IN terminal states AND (not flagged OR moderation resolved)",
+    denominator: "n/a — absolute count",
+    source: "welfare_reports",
+    fetcherName: "fetchMyAssignedWelfareCount",
+    fetcherPath: "lib/analytics/dashboards/welfare.ts",
     cadence: "point-in-time snapshot",
     unit: "count",
     suppression: "none",
