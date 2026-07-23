@@ -108,7 +108,10 @@ vi.mock("@/db", () => ({
   // The notifications reconcile SQL (excludeResolvedLostEpisodeSql, pulled in
   // via getUnreadCountCached's badge/page-parity fix) references these columns
   // at module-eval time — the mock only needs the column refs to exist.
-  notifications: { notificationType: "notifications.notificationType", relatedPetId: "notifications.relatedPetId" },
+  notifications: {
+    notificationType: "notifications.notificationType",
+    relatedPetId: "notifications.relatedPetId",
+  },
 }));
 
 // next/navigation — avoid redirect errors.
