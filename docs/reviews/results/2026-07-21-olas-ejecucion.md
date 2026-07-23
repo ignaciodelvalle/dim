@@ -165,3 +165,21 @@ los 8 forecasts pendientes · fetchKpiTrend/microchip merges · read models mate
 (necesita Vercel Pro).
 PO-gated acumulado: migraciones 0155+0156 remoto · flag legal GPS · Pro · validación
 visual GRANDE (rail 19 + hubs + Briefing + forecast + todo I-IV) · push/cutover #760.
+
+### RONDA DE VALIDACIÓN PO + SWEEP ADVERSARIAL TOTAL (2026-07-23) — COMPLETA
+- Batch A `0e2a560d` (omnibox/bivariado-pair-blind/buscadores/subtítulos/foster→tránsito/
+  zoom casos/ScreenHeader underHub) · Batch B `98f35777` (Briefing de-a-1 según PO) ·
+  Batch C `fa256e6d` (Reglas: lista solo-customizadas + wizard Crear Regla).
+- Sweep adversarial (2 revisores, TODAS las pantallas admin+gob): docs 2026-07-23-adversarial-*.md.
+  Batch 1 `9983141c`: headers dobles en tabs DEFAULT (Denuncias/Padrón) · ScreenHeader 11→45
+  (root cause cerrada) · "Mi actividad"→"Historial" honesto · admin/moderacion stale→redirect ·
+  paridad savedViews · OpKpiSm en maltrato/[id].
+- Batch 2 `1efc8556`: badge de notificaciones (bug real: getUnreadCountCached sin filtros de
+  reconciliación — MI diagnóstico de categoría-NULL era mitad-erróneo, refutado por el writer;
+  trigger de bienvenida dispara en PRODUCCIÓN → migración 0157 LOCAL) + "Enviar recordatorio"
+  outreach (privacy-by-design, throttle 14d, audit, authz server-derived).
+- Build fix `715f6d63`: RulesWizard importaba const runtime vía @/db (server-only) — roto
+  desde batch C, invisible a tsc, cazado en el primer build. LECCIÓN: build antes de commitear
+  batches con imports nuevos en client components.
+PO-GATED ahora: migraciones 0155+0156+**0157** a remoto · flag legal GPS · Vercel Pro ·
+validación visual de ESTA ronda · pre-push (review fresco + verify + suite) · push/#760.
