@@ -71,6 +71,10 @@ type InfoTooltip = {
   /** C1 contract extra — "confianza: …" line, appended when a
    *  `descriptorId` resolves a catalog entry with `confidence.inputs`. */
   confidence?: string;
+  /** FORECAST-A-META contract extra — the "proyección lineal simple…"
+   *  methodology sentence, appended when a `descriptorId` resolves a catalog
+   *  entry carrying `forecast` (see kpi-catalog.ts's KpiForecast). */
+  methodology?: string;
 };
 
 type Props = {
@@ -114,6 +118,15 @@ type Props = {
   drillHref?: string;
 
   /**
+   * FORECAST-A-META: the metric's forecast-to-target line (lib/metrics/
+   * forecast-to-target.ts's `.line`), rendered as a muted, small line under
+   * the tile's value/sub — the SAME tile, zero extra clicks, no new screen.
+   * Pass the engine's raw `.line` output verbatim (already null-safe: pass
+   * `undefined`/the engine's `null` result and nothing renders).
+   */
+  forecast?: string | null;
+
+  /**
    * C1 metric-contract id (lib/metrics/kpi-catalog.ts). Purely additive —
    * see the module-level comment above. Omit for descriptor-less tiles (the
    * grandfathered baseline scripts/check-metric-contract.ts ratchets down).
@@ -130,6 +143,13 @@ type Props = {
     n?: number;
     /** The PRIOR period's raw count, for delta-suppression. */
     priorBase?: number;
+    /**
+     * FORECAST-A-META: number of real trend points backing this render's
+     * forecast — feeds the auto-appended methodology sentence's "últimos N
+     * meses" when the descriptor carries `forecast`. Omit to fall back to a
+     * generic (N-less) methodology sentence.
+     */
+    trendMonths?: number;
   };
 };
 
@@ -243,6 +263,10 @@ function InfoButton({ info }: { info: InfoTooltip }) {
                 when descriptorId resolved a catalog entry carrying them. */}
             {info.target && <p className="text-xs text-ln-ink-3">{info.target}</p>}
             {info.confidence && <p className="text-xs text-ln-ink-3">{info.confidence}</p>}
+            {/* FORECAST-A-META: the "proyección lineal simple…" methodology
+                sentence, appended when descriptorId resolved a catalog entry
+                carrying `forecast`. */}
+            {info.methodology && <p className="text-xs text-ln-ink-3">{info.methodology}</p>}
           </div>
         </>
       )}
@@ -275,15 +299,27 @@ type ContractResolution = {
   info: InfoTooltip | undefined;
 };
 
-/** "Meta: X% (fuente)" / "Confianza: …" popover extras from a resolved descriptor. */
-function contractInfoExtras(descriptor: ReturnType<typeof resolveDescriptor>) {
+/** "Meta: X% (fuente)" / "Confianza: …" / methodology popover extras from a
+ *  resolved descriptor. `trendMonths` is the live render's real trend-point
+ *  count (guardInput.trendMonths) — undefined falls back to an N-less
+ *  sentence rather than inventing a number. */
+function contractInfoExtras(
+  descriptor: ReturnType<typeof resolveDescriptor>,
+  trendMonths: number | undefined,
+) {
   const target = descriptor?.target
     ? `Meta: ${descriptor.target.value}${descriptor.unit === "percent" ? "%" : ""} (${descriptor.target.source})`
     : undefined;
   const confidence = descriptor?.confidence
     ? `Confianza: ${descriptor.confidence.inputs.join(" · ")}`
     : undefined;
-  return { target, confidence };
+  // FORECAST-A-META: the methodology sentence lives HERE (auto-appended),
+  // not as static catalog prose — it names the actual window this render
+  // used, same spirit as target/confidence being computed, not typed once.
+  const methodology = descriptor?.forecast
+    ? `Proyección lineal simple sobre los últimos ${trendMonths !== undefined ? `${trendMonths} meses` : "meses disponibles"} — extrapolación, no promesa.`
+    : undefined;
+  return { target, confidence, methodology };
 }
 
 function resolveDescriptor(descriptorId: KpiId | undefined) {
@@ -333,9 +369,12 @@ function resolveOpKpiContract(
 
   // Auto-resolve `info` from the catalog when descriptorId is set and the
   // caller didn't pass an explicit one, then append the contract extras
-  // (target+source, confidence) regardless of which info source won.
+  // (target+source, confidence, forecast methodology) regardless of which
+  // info source won.
   const baseInfo = rawInfo ?? (descriptorId ? getKpiInfo(descriptorId) : undefined);
-  const info = baseInfo ? { ...baseInfo, ...contractInfoExtras(descriptor) } : undefined;
+  const info = baseInfo
+    ? { ...baseInfo, ...contractInfoExtras(descriptor, guardInput?.trendMonths) }
+    : undefined;
 
   return { value, tone, deltaV2, guardNote, info };
 }
@@ -360,6 +399,7 @@ export function OpKpi({
   deltaV2: rawDeltaV2,
   sparkline,
   drillHref,
+  forecast,
   descriptorId,
   guardInput,
 }: Props) {
@@ -474,6 +514,13 @@ export function OpKpi({
 
       {/* Sub */}
       {sub && <div className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-mute">{sub}</div>}
+
+      {/* FORECAST-A-META: the forecast-to-target line — a PROPERTY of this
+          metric, rendered right where its value already lives (zero extra
+          clicks, no new screen). `forecast` is the engine's `.line` output
+          verbatim: null/undefined (met/insufficient/no descriptor.forecast)
+          renders nothing, by construction — never an invented line. */}
+      {forecast && <p className="mt-1 text-xs text-ln-op-mute">{forecast}</p>}
 
       {/* Drill link (v2) */}
       {drillHref && (

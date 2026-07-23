@@ -40,6 +40,7 @@
 // PURE — no DB, no React. Every export is unit-tested in briefing-alerts.test.ts.
 
 import { getScreenManifestEntry } from "@/lib/ui/screen-manifest";
+import { type ForecastTrendPoint, forecastToTarget } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
 import { KPI_CATALOG } from "./kpi-catalog";
 import { smallNGate, zeroDenominatorGate } from "./presentation-guards";
@@ -76,6 +77,16 @@ export type BriefingAlertCandidate = {
    * from `n`/guards/caveat alone.
    */
   auxPresent?: boolean;
+  /**
+   * FORECAST-A-META: the metric's OWN trend series, if this candidate's KPI
+   * carries a `forecast` descriptor (lib/metrics/kpi-catalog.ts's
+   * KpiForecast) AND the caller's page already fetched it (zero new query
+   * fan-out — the same rule the module header's guards enforce for
+   * target/gap math). Omit when no such trend is at hand; the alert still
+   * fires on target/gap alone, simply without a forecast line (see the
+   * "insufficient" guard note below).
+   */
+  trend?: ForecastTrendPoint[];
 };
 
 /** The numbers behind an alert — rendered as the tile's evidence line. */
@@ -87,6 +98,16 @@ export type BriefingAlertEvidence = {
   n: number;
   /** Legal/programmatic source of the target (Ley/programa/benchmark). */
   source: string;
+  /**
+   * FORECAST-A-META: the forecast-to-target line (lib/metrics/
+   * forecast-to-target.ts's `.line`), appended to the alert's evidence when
+   * the descriptor carries `forecast` AND the candidate supplied a `trend`
+   * with enough points. Undefined — never a fabricated line — whenever the
+   * descriptor has no `forecast`, no trend was passed, or the engine itself
+   * guards out (insufficient/met, though "met" cannot reach here — a met
+   * target never becomes an alert in the first place, see below).
+   */
+  forecastLine?: string;
 };
 
 export type BriefingAlert = {
@@ -254,6 +275,22 @@ export function buildBriefingAlerts(
       auxPresent: candidate.auxPresent,
     });
 
+    // FORECAST-A-META: only when the descriptor declares a qualifying trend
+    // source AND this candidate actually supplied one — guards flow through
+    // the engine itself (an insufficient/flat/receding trend simply yields no
+    // `.line`, never a fabricated one). SCOPE NOTE above: this engine's
+    // gap/tone math is higher-is-better-only, so forecastToTarget is called
+    // with its default (higherIsBetter: true) — consistent with every KPI
+    // this module resolves an action for today.
+    const forecastLine =
+      descriptor.forecast && candidate.trend && candidate.trend.length > 0
+        ? (forecastToTarget({
+            current: candidate.value,
+            target: descriptor.target.value,
+            trend: candidate.trend,
+          }).line ?? undefined)
+        : undefined;
+
     alerts.push({
       id: candidate.kpiId,
       title: buildTitle(descriptor, candidate.value, descriptor.target.value),
@@ -263,6 +300,7 @@ export function buildBriefingAlerts(
         unit: descriptor.unit,
         n: candidate.n,
         source: descriptor.target.source,
+        forecastLine,
       },
       severity,
       confidence,

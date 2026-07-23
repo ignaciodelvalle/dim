@@ -427,6 +427,44 @@ export async function fetchAcquisitionTrend(
   });
 }
 
+/**
+ * FORECAST-A-META: reconstruct a per-month adoption-RATE series from
+ * fetchAcquisitionTrend's ALREADY-FETCHED (month, method) rows — zero new
+ * query. This is the ONE catalog KPI (acquisition_adoption_rate,
+ * lib/metrics/kpi-catalog.ts) that qualifies for a forecast-to-target line:
+ * unlike a stock coverage ratio (rabies/microchip), both this rate's
+ * numerator (shelter_adoption count) and denominator (total count, all
+ * methods) are FLOW quantities that resolve within the SAME month bucket, so
+ * a per-bucket ratio is honestly backdatable from data already in hand.
+ *
+ * Mirrors adoptionRate's own definition (fetchAnalyticsMetrics, this file):
+ * NUMERATOR = pet_registered with acquisition_method='adopted' (bucketed to
+ * "shelter_adoption"); DENOMINATOR = pet_registered, ALL acquisition methods,
+ * same window. A month with zero registrations of any method is OMITTED
+ * (not a fabricated 0%) — the regression fits only months with real data.
+ *
+ * @param points - fetchAcquisitionTrend's raw (month × method) rows.
+ * @returns Chronological {period, value} percent-rate series for
+ *   lib/metrics/forecast-to-target.ts's `trend` input.
+ */
+export function acquisitionAdoptionRateSeries(
+  points: AcquisitionTrendPoint[],
+): Array<{ period: string; value: number }> {
+  const byMonth = new Map<string, { label: string; adopted: number; total: number }>();
+
+  for (const p of points) {
+    const bucket = byMonth.get(p.periodStart) ?? { label: p.x, adopted: 0, total: 0 };
+    bucket.total += p.y;
+    if (p.method === "shelter_adoption") bucket.adopted += p.y;
+    byMonth.set(p.periodStart, bucket);
+  }
+
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter(([, b]) => b.total > 0)
+    .map(([, b]) => ({ period: b.label, value: (b.adopted / b.total) * 100 }));
+}
+
 // ============================================================================
 
 export type DeathCauseRow = {

@@ -19,6 +19,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { OpKpi } from "@/components/ui/dashboard/OpKpi";
 import { type BriefingAlertCandidate, buildBriefingAlerts } from "@/lib/metrics/briefing-alerts";
+import { forecastToTarget } from "@/lib/metrics/forecast-to-target";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import {
   UNSTABLE_DELTA_BASE_NOTE,
@@ -425,5 +426,170 @@ describe("hostile reader — vigilancia: casos de observación (cases) nunca se 
     expect(cases.fetcherName).not.toBe(pets.fetcherName);
     expect(cases.exclusions ?? "").toMatch(/CASOS/);
     expect(cases.exclusions ?? "").toMatch(/tablas distintas/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. FORECAST-A-META (2026-07-22) — a forecast line is a PROPERTY of a
+// metric's own tile (no new screen), but it must never manufacture false
+// confidence: no line from thin data, no line on a met goal, a receding
+// trend must never read as progress, and every ETA is explicitly approximate.
+// ---------------------------------------------------------------------------
+
+describe("hostile reader — el forecast nunca renderiza desde <3 puntos", () => {
+  it("the engine itself abstains (insufficient, null line) below MIN_TREND_POINTS", () => {
+    const result = forecastToTarget({
+      current: 30,
+      target: 80,
+      trend: [
+        { period: "ene 2026", value: 20 },
+        { period: "feb 2026", value: 30 },
+      ],
+    });
+    expect(result.kind).toBe("insufficient");
+    expect(result.line).toBeNull();
+  });
+
+  it("OpKpi renders no forecast line at all when the engine abstains", () => {
+    render(
+      <OpKpi
+        label={KPI_CATALOG.acquisition_adoption_rate.label}
+        value="30%"
+        descriptorId="acquisition_adoption_rate"
+        forecast={
+          forecastToTarget({
+            current: 30,
+            target: 80,
+            trend: [{ period: "ene 2026", value: 30 }],
+          }).line
+        }
+      />,
+    );
+    expect(screen.queryByText(/a este ritmo/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no se alcanza/)).not.toBeInTheDocument();
+  });
+});
+
+describe("hostile reader — el forecast nunca renderiza sobre una meta ya cumplida", () => {
+  it("a met target reports 'met' with a null line, never an ETA", () => {
+    const result = forecastToTarget({
+      current: 85,
+      target: TARGETS.ADOPTION_RATE_PCT,
+      trend: [
+        { period: "ene 2026", value: 60 },
+        { period: "feb 2026", value: 72 },
+        { period: "mar 2026", value: 85 },
+      ],
+    });
+    expect(result.kind).toBe("met");
+    expect(result.line).toBeNull();
+  });
+
+  it("OpKpi shows no forecast line for a tile already at/above its target", () => {
+    render(
+      <OpKpi
+        label={KPI_CATALOG.acquisition_adoption_rate.label}
+        value="85%"
+        descriptorId="acquisition_adoption_rate"
+        forecast={
+          forecastToTarget({
+            current: 85,
+            target: TARGETS.ADOPTION_RATE_PCT,
+            trend: [
+              { period: "ene 2026", value: 60 },
+              { period: "feb 2026", value: 72 },
+              { period: "mar 2026", value: 85 },
+            ],
+          }).line
+        }
+      />,
+    );
+    expect(screen.getByText("85%")).toBeInTheDocument();
+    expect(screen.queryByText(/a este ritmo/)).not.toBeInTheDocument();
+  });
+});
+
+describe("hostile reader — 'retroceso' nunca se lee como progreso", () => {
+  it("a trend moving away from the target reports 'receding', never a 'months' ETA", () => {
+    const result = forecastToTarget({
+      current: 10,
+      target: 80,
+      trend: [
+        { period: "ene 2026", value: 18 },
+        { period: "feb 2026", value: 14 },
+        { period: "mar 2026", value: 10 },
+      ],
+    });
+    expect(result.kind).toBe("receding");
+    // The line names the direction honestly — no "meta en ~N meses" framing,
+    // no digit that could be misread as an ETA.
+    expect(result.line).toBe("→ tendencia en retroceso");
+    expect(result.line).not.toMatch(/\d/);
+  });
+
+  it("OpKpi renders the receding line as plain muted text, never inside an 'ok'/progress-tone tile", () => {
+    const result = forecastToTarget({
+      current: 10,
+      target: 80,
+      trend: [
+        { period: "ene 2026", value: 18 },
+        { period: "feb 2026", value: 14 },
+        { period: "mar 2026", value: 10 },
+      ],
+    });
+    render(
+      <OpKpi
+        label={KPI_CATALOG.acquisition_adoption_rate.label}
+        value="10%"
+        tone="danger"
+        descriptorId="acquisition_adoption_rate"
+        forecast={result.line}
+      />,
+    );
+    expect(screen.getByText("→ tendencia en retroceso")).toBeInTheDocument();
+    const card = screen.getByText("10%").closest("div.flex.flex-col");
+    expect(card?.className).not.toContain("st-ok-bg");
+  });
+});
+
+describe("hostile reader — los meses de un forecast siempre son aproximados (~), nunca precisión falsa", () => {
+  it("a 'months' result is always a rounded integer, and its line is always prefixed '~'", () => {
+    const result = forecastToTarget({
+      current: 13,
+      target: 80,
+      trend: [
+        { period: "ene 2026", value: 9 },
+        { period: "feb 2026", value: 11 },
+        { period: "mar 2026", value: 13 },
+      ],
+    });
+    expect(result.kind).toBe("months");
+    if (result.kind === "months") {
+      expect(Number.isInteger(result.months)).toBe(true);
+      expect(result.line).toContain("~");
+      // Never false precision like "~33.5 meses".
+      expect(result.line).not.toMatch(/~\d+\.\d/);
+    }
+  });
+
+  it("OpKpi renders the '~N meses' line verbatim, never a bare number reading like a promise", () => {
+    const result = forecastToTarget({
+      current: 13,
+      target: 80,
+      trend: [
+        { period: "ene 2026", value: 9 },
+        { period: "feb 2026", value: 11 },
+        { period: "mar 2026", value: 13 },
+      ],
+    });
+    render(
+      <OpKpi
+        label={KPI_CATALOG.acquisition_adoption_rate.label}
+        value="13%"
+        descriptorId="acquisition_adoption_rate"
+        forecast={result.line}
+      />,
+    );
+    expect(screen.getByText(/→ a este ritmo: meta en ~\d+ meses/)).toBeInTheDocument();
   });
 });

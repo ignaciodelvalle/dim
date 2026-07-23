@@ -258,6 +258,31 @@ export type KpiConfidence = {
   inputs: string[];
 };
 
+/**
+ * FORECAST-A-META (docs/reviews — 2026-07-22): the forecast a KPI can carry
+ * is a PROPERTY of the metric, declared here, not a new screen or chart.
+ * `trendSource` documents WHICH already-fetched trend feeds it — the honesty
+ * rule mirrors `target.source`: a render site must be able to point at a
+ * real fetcher already in its own bounded Promise.all, never a new query.
+ *
+ * Only set this when the render surface can derive a genuine PER-BUCKET
+ * ratio/rate from that trend (numerator AND denominator both resolvable
+ * within the same bucket) — a trend of the metric's NUMERATOR alone (a flow
+ * count) is not the same thing and must not be wired here. This is why most
+ * target-bearing ratio KPIs in this catalog do NOT set `forecast`: their
+ * only fetched trend is a numerator flow (e.g. rabies_coverage_dogs_12m's
+ * fetchRabiesVaccinationTrend is vaccinations/bucket, NOT a recomputed
+ * coverage-% per bucket — see that fetcher's own doc comment), or no trend
+ * is fetched on their render surface at all. See lib/metrics/forecast-to-target.ts
+ * for the engine this field feeds and the honest per-KPI audit in its
+ * kpi-catalog.ts consumer comment.
+ */
+export type KpiForecast = {
+  /** Fetcher (+ file) whose ALREADY-FETCHED series this forecast reuses —
+   *  e.g. "fetchAcquisitionTrend (lib/analytics/dashboards/analytics.ts)". */
+  trendSource: string;
+};
+
 export type KpiDefinition = {
   /** Stable id — see KpiId. */
   id: KpiId;
@@ -281,6 +306,10 @@ export type KpiDefinition = {
   guards?: KpiGuards;
   /** What feeds the confidence note next to the value — see KpiConfidence. */
   confidence?: KpiConfidence;
+  /** FORECAST-A-META: which already-fetched trend backs a forecast-to-target
+   *  line for this KPI — see KpiForecast. Omit unless a real per-bucket
+   *  ratio trend is at hand (the honesty rule, not a target/gap rule). */
+  forecast?: KpiForecast;
   /** Free-form prose naming what this KPI's population EXCLUDES, when that
    *  exclusion could otherwise be mistaken for under-counting (e.g. "no
    *  incluye reportes sin escalar"). Omit when `caveat` already covers it. */
@@ -1983,6 +2012,18 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       smallN: { min: 5 },
       zeroDenominator: "dash",
     },
+    // FORECAST-A-META (2026-07-22): the ONLY catalog KPI wired to a forecast
+    // line — see the "honest remainder" audit below KPI_CATALOG for why every
+    // other target-bearing ratio was investigated and rejected. This one
+    // qualifies because /gob/analytics ALREADY fetches fetchAcquisitionTrend
+    // (month × acquisition_method_bucket rows) in its bounded Promise.all —
+    // summing y where method==="shelter_adoption" (numerator) over the SAME
+    // month's total y across all buckets (denominator) reconstructs a genuine
+    // per-month adoption-RATE series, zero new query fan-out.
+    forecast: {
+      trendSource:
+        "fetchAcquisitionTrend (lib/analytics/dashboards/analytics.ts) — per-(month, acquisition_method_bucket) rows, aggregated at the render site into a monthly adoption-rate series (shelter_adoption / total)",
+    },
   },
 
   custody_disputes_open: {
@@ -2243,6 +2284,58 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     semaphore: { paintAgainst: "none" },
   },
 };
+
+// ---------------------------------------------------------------------------
+// FORECAST-A-META (2026-07-22) — the honest remainder.
+//
+// Every target-bearing KPI in this catalog was checked for a genuine,
+// ALREADY-FETCHED per-bucket ratio trend (numerator AND denominator both
+// resolvable within the same bucket — the bar `forecast.trendSource` must
+// clear). Only `acquisition_adoption_rate` qualified. The rest, and WHY:
+//
+//   rabies_coverage_dogs_12m    — fetchRabiesVaccinationTrend (admin/programa)
+//                                 is vaccinations-applied/bucket, a FLOW of the
+//                                 numerator, not a recomputed coverage-% per
+//                                 bucket (the active-dog denominator is a "now"
+//                                 snapshot with no historical back-dating — see
+//                                 that fetcher's own doc comment). Would need a
+//                                 new fetchRabiesCoverageTrend; none exists.
+//   microchip_penetration       — same stock-ratio problem; zero trend fetched
+//                                 anywhere on its render surfaces (/gob home,
+//                                 /gob/padron, Panorama). Needs a new fetcher.
+//   mortality_disposal_traceability /
+//   mortality_unknown_disposal_rate — /gob/mortalidad fetches death COUNTS by
+//                                 cause (fetchDeathCausesTrend) and a plain
+//                                 death-count sparkline, neither a traceable/
+//                                 total ratio per bucket. Feasible in principle
+//                                 (both numerator and denominator are period
+//                                 flows, unlike the two stock ratios above) but
+//                                 no such fetcher exists yet.
+//   custody_return_rate         — /gob/adopciones fetches fetchAdoptionTrend
+//                                 (adoption_finalized COUNTS/bucket) for the
+//                                 adjacent adoptions_finalized tile — not the
+//                                 reversed/finalized RATIO the return-rate tile
+//                                 needs. Would need a paired reversed-count
+//                                 trend; none exists.
+//   eno_sla_compliance          — no trend fetched anywhere (/gob/outbox,
+//                                 /gob/sistema, /gob/programa, /admin/programa
+//                                 all render a snapshot only).
+//   reunification_rate          — /gob/perdidas has no trend fetch at all, and
+//                                 the KPI's own window is FIXED 30d (no period
+//                                 picker to bucket against in the first place).
+//   rabies_observation_compliance_10d — /gob/vigilancia fetches a rabies-
+//                                 OBSERVATION-STARTED count trend (a flow),
+//                                 not the closed-within-10-days/closed ratio.
+//   campaign_completion_rate    — CampanasScreen fetches an ENROLLMENT count
+//                                 sparkline (a flow), not attended/enrollment.
+//
+// All eight are FEASIBLE future work (each would need one new bucketed
+// fetcher mirroring the fetchKpiTrend/fetchAcquisitionTrend pattern) — they
+// are deliberately NOT wired here because doing so would violate the
+// zero-new-query-fan-out rule this task set. ppp_registry_compliance has a
+// target but `semaphore.paintAgainst: "none"` (uptake, not a legal-verdict
+// ratio) and no trend either way — excluded on both counts.
+// ---------------------------------------------------------------------------
 
 /** All catalog entries as an array — convenience for iteration/rendering. */
 export const KPI_CATALOG_LIST: KpiDefinition[] = Object.values(KPI_CATALOG);

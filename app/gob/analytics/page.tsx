@@ -8,6 +8,7 @@ import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { fetchRegionRanking } from "@/lib/analytics/analytics-ranking";
 import {
   RABIES_VACCINATION_RATE_LABEL_ES,
+  acquisitionAdoptionRateSeries,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
   fetchCasesPerCapita,
@@ -22,6 +23,7 @@ import {
   fetchKpiTrend,
   fetchOutbreakSignalsTrend,
   fetchVetAccessByLocality,
+  forecastToTarget,
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
@@ -192,6 +194,18 @@ export default async function GobAnalyticsPage({
   const signalsTrendPoints = signalsTrend.points.map((p) => ({ x: p.x, y: p.y }));
   const signalsBucketWord = signalsTrend.granularity === "month" ? "mes" : "semana";
 
+  // FORECAST-A-META: acquisition_adoption_rate is the ONE catalog KPI with a
+  // genuine per-bucket ratio trend already at hand (see kpi-catalog.ts's
+  // "honest remainder" audit) — reconstruct the monthly adoption-rate series
+  // from the SAME acquisitionTrend rows the page already fetched (zero new
+  // query), then project it toward TARGETS.ADOPTION_RATE_PCT.
+  const adoptionRateTrend = acquisitionAdoptionRateSeries(acquisitionTrend);
+  const adoptionForecast = forecastToTarget({
+    current: metrics.adoptionRate,
+    target: TARGETS.ADOPTION_RATE_PCT,
+    trend: adoptionRateTrend,
+  });
+
   // Compute bar chart max for death causes.
   const maxDeathCount = deathCauses.reduce((m, r) => Math.max(m, r.count), 0);
 
@@ -250,11 +264,16 @@ export default async function GobAnalyticsPage({
           tone={toneForTarget(metrics.adoptionRate, TARGETS.ADOPTION_RATE_PCT)}
           bar={metrics.adoptionRate}
           sub={`meta ${TARGETS.ADOPTION_RATE_PCT}% del total de adquisiciones`}
+          // FORECAST-A-META: the forecast is a PROPERTY of this tile, shown
+          // right here — no new screen. `.line` is already null-safe (met/
+          // insufficient render nothing).
+          forecast={adoptionForecast.line}
           info={{
             definition: `Porcentaje de mascotas adquiridas por adopción sobre el total de adquisiciones en el período (A3). Meta interna: ${TARGETS.ADOPTION_RATE_PCT}%.`,
             formula: "COUNT(acquisition_method='adoption') / COUNT(all acquisitions) × 100",
           }}
           descriptorId="acquisition_adoption_rate"
+          guardInput={{ trendMonths: adoptionRateTrend.length }}
         />
         <OpKpi
           label={RABIES_VACCINATION_RATE_LABEL_ES}

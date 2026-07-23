@@ -93,7 +93,11 @@ describe("/gob/denuncias — the hub (F1 fusion: Moderación + Maltrato as tabbe
     const node = await renderHub();
     const html = renderToStaticMarkup(node);
     expect(html).toContain("Moderación");
-    expect(html).toContain("Triage (Ley 14.346)");
+    // Tab label is just "Triage" (PO 2026-07-22): the hub subtitle + stage
+    // header already name Ley 14.346 — but the LAW must still be named ON the
+    // page (the honesty part), so assert both.
+    expect(html).toContain(">Triage<");
+    expect(html).toContain("Ley 14.346");
     expect(html).toContain("3"); // moderationCount mock (db count() → n:3)
     expect(html).toContain("12"); // triage.count mock
   });

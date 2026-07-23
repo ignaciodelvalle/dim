@@ -80,6 +80,16 @@ export type {
 } from "./forecast";
 export { DEFAULT_HORIZON, MIN_POINTS, projectSeries, targetCrossing } from "./forecast";
 
+// FORECAST-A-META — a metric's forecast as a PROPERTY of its (current,
+// target) pair, rendered where the number already lives (see
+// lib/metrics/kpi-catalog.ts's `forecast` field for which KPIs qualify).
+export type {
+  ForecastToTargetInput,
+  ForecastToTargetResult,
+  ForecastTrendPoint,
+} from "./forecast-to-target";
+export { MAX_HORIZON_MONTHS, MIN_TREND_POINTS, forecastToTarget } from "./forecast-to-target";
+
 // Fase 0 additions — targets, tone, delta, freshness.
 export { TARGETS, computeDeltaPct, decisionsDeltaPct, enoSlaTone, toneForTarget } from "./targets";
 export { lastIngestAt } from "./freshness";
