@@ -16,6 +16,7 @@ import {
   govtBusinessRules,
   profiles,
 } from "@/db";
+import { jurisdictionLabel } from "@/lib/domain/jurisdiction-rules-href";
 import {
   RULE_TYPE_REGISTRY,
   RULE_SOURCE_LABEL as SOURCE_LABEL,
@@ -34,11 +35,6 @@ export const dynamic = "force-dynamic";
 function decodeNullable(raw: string): string | null {
   if (raw === "_") return null;
   return decodeURIComponent(raw);
-}
-
-function jurisdictionLabel(country: string, province: string | null, locality: string | null) {
-  const parts = [country, province ?? "(nivel país)", locality ?? "(toda la provincia)"];
-  return parts.join(" · ");
 }
 
 export default async function JurisdictionReglasPage({

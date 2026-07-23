@@ -45,3 +45,20 @@ export function buildJurisdictionRulesHref(input: {
   const locality = seg(input.locality);
   return `${input.base ?? "/gob"}/reglas/${country}/${province}/${locality}`;
 }
+
+/**
+ * es-AR display label for a jurisdiction tuple — shared by the customized-
+ * jurisdictions list (AdminReglasLens), the jurisdiction detail page, and the
+ * "Crear regla" wizard's step-4 summary, so the three surfaces can never say
+ * three different things about the same (country, province, locality) triple.
+ * `null` province/locality render as "(nivel país)" / "(toda la provincia)" —
+ * the same placeholders the pre-wizard console already used verbatim.
+ */
+export function jurisdictionLabel(
+  country: string,
+  province: string | null,
+  locality: string | null,
+): string {
+  const parts = [country, province ?? "(nivel país)", locality ?? "(toda la provincia)"];
+  return parts.join(" · ");
+}

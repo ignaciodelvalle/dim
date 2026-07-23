@@ -1,39 +1,38 @@
 // @vitest-environment jsdom
 //
-// AdminReglasLens — search filter test (opfilterbar-sweep2-2026-07-21, item 3).
-//
-// This screen (the /admin+/gob "reglas" console index) had NO filter at all —
-// a scroll-and-scan-only list of the 24 AR provincias. This test pins that the
-// new `query` prop genuinely NARROWS the rendered provincia list (accent/case
-// -insensitive, matches on province name OR a locality-with-a-rule under it),
-// not just that the search input renders.
+// AdminReglasLens — customized-jurisdictions-only IA (PO redesign 2026-07-23).
+// The previous IA opened with all 24 provincias regardless of whether they
+// had any override ("se ve inconexa... muchísimas cajitas para buscar
+// localidad" — PO verdict). This pins the new contract:
+//   - a jurisdiction with NO custom rules never renders at all (no more
+//     scroll-and-scan grid of every province);
+//   - a jurisdiction WITH custom rules renders as its own card, naming the
+//     rule kind(s), a value summary, and its provenance (país/provincia/
+//     localidad level);
+//   - the honest empty state when NOTHING anywhere has an override;
+//   - the `kind` filter narrows the list to jurisdictions overriding that
+//     exact rule type.
 import "@testing-library/jest-dom/vitest";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Chainable @/db mock — both queries AdminReglasLens issues
-// (province-wide rows, locality-level rows) terminate on .groupBy(), FIFO.
+// Chainable @/db mock — AdminReglasLens issues ONE flat select().from().orderBy()
+// over every govt_business_rules row (grouped client-side by jurisdiction).
 const { chain, dbState } = vi.hoisted(() => {
-  const dbState = { results: [] as unknown[][] };
-  const terminal = () => Promise.resolve(dbState.results.shift() ?? []);
+  const dbState = { rows: [] as unknown[] };
   const chain: Record<string, unknown> = {
     select: () => chain,
     from: () => chain,
-    where: () => chain,
-    groupBy: () => terminal(),
+    orderBy: () => Promise.resolve(dbState.rows),
   };
   return { chain, dbState };
 });
 
-vi.mock("@/db", () => ({
-  db: chain,
-  govtBusinessRules: {
-    jurisdictionCountry: "jurisdiction_country",
-    jurisdictionProvince: "jurisdiction_province",
-    jurisdictionLocality: "jurisdiction_locality",
-  },
-}));
+vi.mock("@/db", async () => {
+  const actual = await vi.importActual<typeof import("@/db")>("@/db");
+  return { ...actual, db: chain };
+});
 
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrRedirect: vi.fn(async () => ({
@@ -42,78 +41,132 @@ vi.mock("@/lib/infra/auth-guards", () => ({
   })),
 }));
 
+// OpFilterBar (rendered when >1 rule kind is present) calls useSearchParams()
+// unconditionally — same mock CredencialesScreen.test.tsx uses for the same reason.
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 import { AdminReglasLens } from "./AdminReglasLens";
 
-function queue(...rows: unknown[][]) {
-  dbState.results = rows;
+function queueRows(rows: unknown[]) {
+  dbState.rows = rows;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  dbState.results = [];
+  dbState.rows = [];
 });
 
-describe("AdminReglasLens — search", () => {
-  it("with no query, renders every provincia (unfiltered)", async () => {
-    queue([], []); // no province-wide rows, no locality rows
+describe("AdminReglasLens — customized-jurisdictions-only list", () => {
+  it("honest empty state when NO jurisdiction anywhere has a custom rule", async () => {
+    queueRows([]);
     const node = await AdminReglasLens({ base: "/admin" });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Córdoba");
-    expect(html).toContain("Buenos Aires");
-    expect(html).toContain("Chubut");
+
+    expect(html).toContain("Ninguna jurisdicción tiene reglas personalizadas");
+    expect(html).toContain("Rigen los defaults nacionales");
+    expect(html).toContain("Crear regla");
+    // The old grid scanned every province regardless of overrides — none of
+    // that should survive even as leftover markup.
+    expect(html).not.toContain("Córdoba");
   });
 
-  it("filters OUT non-matching provincias when a query matches a province name", async () => {
-    queue([], []);
-    const node = await AdminReglasLens({ base: "/admin", query: "cordoba" });
+  it("renders a card for a jurisdiction WITH a rule; a jurisdiction with none never appears", async () => {
+    queueRows([
+      {
+        country: "AR",
+        province: "Chaco",
+        locality: null,
+        ruleType: "ppp_breed_list",
+        rulePayload: { breeds: ["Pitbull"] },
+      },
+    ]);
+    const node = await AdminReglasLens({ base: "/admin" });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Córdoba");
-    // Buenos Aires and Chubut do not match "cordoba" and no locality under
-    // them matches either — they must be filtered OUT, not just present
-    // alongside Córdoba.
-    expect(html).not.toContain("Buenos Aires");
-    expect(html).not.toContain("Chubut");
+
+    expect(html).toContain("Chaco");
+    expect(html).toContain("Lista de razas PPP");
+    expect(html).toContain("Pitbull");
+    // Provenance: this row is a PROVINCE-level override (locality is null).
+    expect(html).toContain("Override provincia");
+    // Córdoba has no rule row at all — must not appear as a phantom card.
+    expect(html).not.toContain("Córdoba");
   });
 
-  it("is accent/case-insensitive (normalizeText)", async () => {
-    queue([], []);
-    const node = await AdminReglasLens({ base: "/admin", query: "CÓRDOBA" });
+  it("keeps a province-wide row and a locality row as two SEPARATE cards, each with its own provenance", async () => {
+    queueRows([
+      {
+        country: "AR",
+        province: "Buenos Aires",
+        locality: null,
+        ruleType: "microchip_required",
+        rulePayload: { required: false },
+      },
+      {
+        country: "AR",
+        province: "Buenos Aires",
+        locality: "San Isidro",
+        ruleType: "ppp_weight_threshold",
+        rulePayload: { kg: 25, appliesIfBreedNotPPP: false },
+      },
+    ]);
+    const node = await AdminReglasLens({ base: "/admin" });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Córdoba");
-    expect(html).not.toContain("Buenos Aires");
-  });
 
-  it("surfaces a province via a MATCHING LOCALITY name, not just the province name", async () => {
-    // Locality-level row: San Isidro, under Buenos Aires, has 1 rule override.
-    queue(
-      [], // province-wide rows
-      [
-        {
-          country: "AR",
-          province: "Buenos Aires",
-          locality: "San Isidro",
-          count: 1,
-        },
-      ],
-    );
-    const node = await AdminReglasLens({ base: "/admin", query: "san isidro" });
-    const html = renderToStaticMarkup(node);
-    expect(html).toContain("Buenos Aires");
     expect(html).toContain("San Isidro");
-    expect(html).not.toContain("Córdoba");
-    expect(html).not.toContain("Chubut");
+    expect(html).toContain("Override localidad");
+    expect(html).toContain("Override provincia");
+    expect(html).toContain("Microchip obligatorio");
+    expect(html).toContain("Umbral de peso PPP");
   });
 
-  it("renders 'Sin resultados.' when nothing matches", async () => {
-    queue([], []);
-    const node = await AdminReglasLens({ base: "/admin", query: "not-a-real-place-xyz" });
+  it("the `kind` filter narrows the list to jurisdictions overriding that exact rule type", async () => {
+    queueRows([
+      {
+        country: "AR",
+        province: "Buenos Aires",
+        locality: null,
+        ruleType: "microchip_required",
+        rulePayload: { required: false },
+      },
+      {
+        country: "AR",
+        province: "Chaco",
+        locality: null,
+        ruleType: "ppp_weight_threshold",
+        rulePayload: { kg: 25, appliesIfBreedNotPPP: false },
+      },
+    ]);
+    const node = await AdminReglasLens({ base: "/admin", kind: "microchip_required" });
     const html = renderToStaticMarkup(node);
-    expect(html).toContain("Sin resultados.");
-    expect(html).not.toContain("Córdoba");
+
+    expect(html).toContain("Buenos Aires");
+    expect(html).not.toContain("Chaco");
+  });
+
+  it("shows a 'no results for this filter' state (NOT the fully-empty message) when the kind filter matches nothing", async () => {
+    queueRows([
+      {
+        country: "AR",
+        province: "Chaco",
+        locality: null,
+        ruleType: "ppp_weight_threshold",
+        rulePayload: { kg: 25, appliesIfBreedNotPPP: false },
+      },
+    ]);
+    const node = await AdminReglasLens({ base: "/admin", kind: "mpf_export_format" });
+    const html = renderToStaticMarkup(node);
+
+    expect(html).toContain("Sin resultados para este filtro");
+    expect(html).not.toContain("Ninguna jurisdicción tiene reglas personalizadas");
+  });
+
+  it("always surfaces the national-defaults reference, even with an empty list", async () => {
+    queueRows([]);
+    const node = await AdminReglasLens({ base: "/admin" });
+    const html = renderToStaticMarkup(node);
+
+    expect(html).toContain("Defaults nacionales");
   });
 });

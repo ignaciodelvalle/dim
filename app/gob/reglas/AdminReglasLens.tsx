@@ -1,30 +1,42 @@
 // AdminReglasLens — the admin capability lens of the unified /gob/reglas
-// surface (design ADR-1). Folded in verbatim from the old /admin/jurisdicciones
-// index page; only the rules-href target moved (buildJurisdictionRulesHref now
-// points at /gob/reglas/... instead of /admin/jurisdicciones/.../reglas).
+// surface (design ADR-1).
 //
-// Province-wide rules (locality IS NULL) and locality overrides are counted
-// separately so the numbers reconcile with the per-jurisdiction rules page.
-// Localities that have at least one rule are surfaced as direct links.
-
-import { isNull, sql } from "drizzle-orm";
+// REDESIGN (2026-07-23, PO verdict): the previous IA opened with a grid of
+// all 24 provincias (plus a per-province locality search box each — "muchísimas
+// cajitas para buscar localidad") even though most jurisdictions carry no
+// customization at all. That grid is gone. This screen now lists ONLY the
+// jurisdictions that actually HAVE custom rules — each one a card naming
+// which rule kinds it overrides, with a value summary and its provenance
+// (país / provincia / localidad level). Creating a NEW rule goes through the
+// step-by-step wizard at `${base}/reglas/nueva` (RulesWizard.tsx) instead of
+// drilling through the old provincia→localidad grid; the deep per-jurisdiction
+// detail route ([country]/[province]/[locality]/page.tsx) stays reachable
+// from every card's "Ver detalle ->" link (and from the wizard's own
+// post-create redirect) — nothing that used to work stops working, only the
+// ENTRY point simplified.
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpCard,
   OpCardBody,
   OpCardHead,
+  OpCodeBadge,
+  type OpFilterAxis,
   OpFilterBar,
-  SearchFilterField,
 } from "@/components/ui/dashboard";
-import { db, govtBusinessRules } from "@/db";
-import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
+import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType, db, govtBusinessRules } from "@/db";
+import {
+  buildJurisdictionRulesHref,
+  jurisdictionLabel,
+} from "@/lib/domain/jurisdiction-rules-href";
+import {
+  RULE_TYPE_REGISTRY,
+  RULE_SOURCE_LABEL as SOURCE_LABEL,
+  summarizeRulePayload,
+} from "@/lib/domain/rule-types-registry";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { pluralizeEs } from "@/lib/utils/format";
-import { normalizeText } from "@/lib/utils/text-normalize";
-
-import { LocalityRuleDrilldown } from "./LocalityRuleDrilldown";
 
 type Props = {
   /**
@@ -33,212 +45,246 @@ type Props = {
    */
   base: "/admin" | "/gob";
   /**
-   * Free-text filter over jurisdiction (provincia/localidad) names
-   * (opfilterbar-sweep2-2026-07-21 item 3). Empty/undefined = show all.
-   *
-   * Why jurisdiction, not rule name/type: this screen is the index of the
-   * rules console, not a flat rules table — each provincia row shows an
-   * AGGREGATE COUNT per rule type, not individually named rule rows (those
-   * only exist one jurisdiction at a time, on the [country]/[province]/
-   * [locality] drill-down, capped at the ~9 GOVT_BUSINESS_RULE_TYPES — too
-   * short a list to benefit from search). The field an admin actually wants
-   * to search by HERE, scanning 24 provincias plus their localities, is the
-   * jurisdiction name itself, to jump straight to e.g. "Córdoba" or "San
-   * Isidro" instead of scrolling.
+   * Rule-kind filter (opfilterbar) — narrows the customized-jurisdictions
+   * list to only cards that override this exact GovtBusinessRuleType. Empty
+   * = show every customized jurisdiction. Unlike the old free-text search
+   * (dropped — this list is short by construction, it only ever contains
+   * jurisdictions that HAVE an override), a bounded kind dropdown is the
+   * filter an admin actually reaches for here: "which jurisdictions touched
+   * microchip_required?", not "find me a locality by name" (that job now
+   * belongs to the wizard's own locality picker).
    */
-  query?: string;
+  kind?: string;
 };
 
-export async function AdminReglasLens({ base, query = "" }: Props) {
+type JurisdictionLevel = "country" | "province" | "locality";
+
+type RuleOverride = {
+  ruleType: GovtBusinessRuleType;
+  label: string;
+  summary: string;
+};
+
+type JurisdictionGroup = {
+  key: string;
+  country: string;
+  province: string | null;
+  locality: string | null;
+  level: JurisdictionLevel;
+  rules: RuleOverride[];
+};
+
+type RuleRow = {
+  country: string;
+  province: string | null;
+  locality: string | null;
+  ruleType: GovtBusinessRuleType;
+  rulePayload: unknown;
+};
+
+/** Groups flat rule rows by their exact (country, province, locality) tuple —
+ * one card per jurisdiction that has at least one override. Sort order: país
+ * first, then provinces alphabetically, each province's own province-wide row
+ * before its localities (also alphabetical) — a stable, scan-friendly order
+ * with no artificial two-level tree UI. */
+function buildJurisdictionGroups(rows: RuleRow[]): JurisdictionGroup[] {
+  const map = new Map<string, JurisdictionGroup>();
+  for (const row of rows) {
+    const key = `${row.country}|${row.province ?? ""}|${row.locality ?? ""}`;
+    let group = map.get(key);
+    if (!group) {
+      group = {
+        key,
+        country: row.country,
+        province: row.province,
+        locality: row.locality,
+        level: row.locality ? "locality" : row.province ? "province" : "country",
+        rules: [],
+      };
+      map.set(key, group);
+    }
+    group.rules.push({
+      ruleType: row.ruleType,
+      label: RULE_TYPE_REGISTRY[row.ruleType].label,
+      summary: summarizeRulePayload(row.ruleType, row.rulePayload),
+    });
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    const provinceCompare = (a.province ?? "").localeCompare(b.province ?? "", "es");
+    if (provinceCompare !== 0) return provinceCompare;
+    return (a.locality ?? "").localeCompare(b.locality ?? "", "es");
+  });
+}
+
+export async function AdminReglasLens({ base, kind = "" }: Props) {
   // Defense in depth (R1.9): the parent page already branches on
   // profile.role === "admin", but this component re-asserts the stricter
   // admin-only guard independently.
   await requireAdminOrRedirect();
 
-  // Separate query for province-wide rules (locality IS NULL).
-  const provinceWideRows = await db
-    .select({
-      country: govtBusinessRules.jurisdictionCountry,
-      province: govtBusinessRules.jurisdictionProvince,
-      count: sql<number>`count(*)::int`,
-    })
-    .from(govtBusinessRules)
-    .where(isNull(govtBusinessRules.jurisdictionLocality))
-    .groupBy(govtBusinessRules.jurisdictionCountry, govtBusinessRules.jurisdictionProvince);
-
-  // Separate query for locality-level rules (locality IS NOT NULL).
-  const localityRows = await db
+  const rows = await db
     .select({
       country: govtBusinessRules.jurisdictionCountry,
       province: govtBusinessRules.jurisdictionProvince,
       locality: govtBusinessRules.jurisdictionLocality,
-      count: sql<number>`count(*)::int`,
+      ruleType: govtBusinessRules.ruleType,
+      rulePayload: govtBusinessRules.rulePayload,
     })
     .from(govtBusinessRules)
-    .where(sql`${govtBusinessRules.jurisdictionLocality} IS NOT NULL`)
-    .groupBy(
-      govtBusinessRules.jurisdictionCountry,
-      govtBusinessRules.jurisdictionProvince,
-      govtBusinessRules.jurisdictionLocality,
-    );
+    .orderBy(govtBusinessRules.jurisdictionProvince, govtBusinessRules.jurisdictionLocality);
 
-  // Province-wide counts (locality IS NULL, province IS NOT NULL).
-  const provinceWideCount = new Map<string, number>();
-  let countryWideCount = 0;
-  for (const r of provinceWideRows) {
-    if (r.province === null) {
-      countryWideCount += r.count;
-    } else {
-      provinceWideCount.set(r.province, r.count);
-    }
-  }
+  const groups = buildJurisdictionGroups(rows as RuleRow[]);
 
-  // Locality-level counts grouped by province.
-  type LocalityEntry = { locality: string; count: number };
-  const localitiesByProvince = new Map<string, LocalityEntry[]>();
-  for (const r of localityRows) {
-    if (r.province === null || r.locality === null) continue;
-    const existing = localitiesByProvince.get(r.province) ?? [];
-    existing.push({ locality: r.locality, count: r.count });
-    localitiesByProvince.set(r.province, existing);
-  }
+  const availableKinds = Array.from(new Set(groups.flatMap((g) => g.rules.map((r) => r.ruleType))));
+  availableKinds.sort((a, b) =>
+    RULE_TYPE_REGISTRY[a].label.localeCompare(RULE_TYPE_REGISTRY[b].label, "es"),
+  );
 
-  // Search (item 3, see the `query` prop doc above) — accent/case-insensitive
-  // substring match, same normalizeText helper the admins/govts roster fix
-  // uses. A province is kept if ITS OWN name matches, or if any locality
-  // under it (one that already has a rule override) matches — so searching
-  // "san isidro" surfaces the Buenos Aires card, not a dead end.
-  const normalizedQuery = normalizeText(query);
-  const visibleProvinces = normalizedQuery
-    ? PROVINCES.filter((p) => {
-        if (normalizeText(p.name).includes(normalizedQuery)) return true;
-        const localities = localitiesByProvince.get(p.name) ?? [];
-        return localities.some((l) => normalizeText(l.locality).includes(normalizedQuery));
-      })
-    : PROVINCES;
+  const normalizedKind = (GOVT_BUSINESS_RULE_TYPES as readonly string[]).includes(kind) ? kind : "";
+  const visibleGroups = normalizedKind
+    ? groups.filter((g) => g.rules.some((r) => r.ruleType === normalizedKind))
+    : groups;
+
+  const createHref = `${base}/reglas/nueva`;
+
+  const kindAxis: OpFilterAxis = {
+    id: "kind",
+    label: "Tipo de regla",
+    paramKey: "kind",
+    current: normalizedKind || null,
+    allLabel: "Todos",
+    options: availableKinds.map((t) => ({ value: t, label: RULE_TYPE_REGISTRY[t].label })),
+  };
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Admin {"·"} Jurisdicciones
-        </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Jurisdicciones</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Configurá reglas según la jurisdicción — país, provincia o localidad. Sin excepciones
-          {" → "}se usan los valores nacionales por defecto.
-        </p>
-      </header>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <header className="space-y-1">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            Admin {"·"} Reglas
+          </p>
+          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+            Reglas por jurisdicción
+          </h1>
+          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+            {groups.length === 0
+              ? "Ninguna jurisdicción tiene reglas personalizadas."
+              : `${groups.length} ${pluralizeEs(groups.length, "jurisdicción", "jurisdicciones")} con reglas propias.`}
+          </p>
+        </header>
+        <Link
+          href={createHref}
+          className="shrink-0 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+        >
+          {"+ Crear regla"}
+        </Link>
+      </div>
 
-      {/* Unified filter bar (opfilterbar-sweep2-2026-07-21 item 3) — this
-          screen had no filter at all. No period/jurisdiction axis (this IS
-          the jurisdiction browser), so just the free-text search child. */}
-      <OpFilterBar showPeriod={false}>
-        <SearchFilterField
-          paramKey="q"
-          value={query}
-          label="Buscar"
-          placeholder="Buscar provincia o localidad"
-        />
-      </OpFilterBar>
+      {/* Defaults nacionales — compact disclosure (native <details>), so the
+          baseline every jurisdiction's override is MEASURED AGAINST stays one
+          click away without competing for attention with the actual content
+          of this screen (the customized jurisdictions). */}
+      <details className="group rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[var(--text-md)] font-semibold text-ln-op-ink">
+          <span>Defaults nacionales (referencia)</span>
+          <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">{"Ver ->"}</span>
+        </summary>
+        <div className="space-y-3 border-t border-ln-op-line-2 px-4 py-3">
+          <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+            Valores que rigen cuando ninguna jurisdicción los anula.
+          </p>
+          <ul className="divide-y divide-ln-op-line-2">
+            {GOVT_BUSINESS_RULE_TYPES.map((t) => (
+              <li key={t} className="flex items-baseline justify-between gap-3 py-1.5">
+                <span className="text-[var(--text-md)] text-ln-op-ink">
+                  {RULE_TYPE_REGISTRY[t].label}
+                </span>
+                <span className="text-right text-[var(--text-sm)] text-ln-op-ink-2">
+                  {summarizeRulePayload(t, RULE_TYPE_REGISTRY[t].default)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+            ¿Necesitás una excepción a nivel país (sin ligar a ninguna provincia)?{" "}
+            <Link
+              href={buildJurisdictionRulesHref({ country: "AR", base })}
+              className="font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+            >
+              {"Configurala acá ->"}
+            </Link>
+          </p>
+        </div>
+      </details>
 
-      {/* Country-level */}
-      <OpCard>
-        <OpCardHead
-          title="AR (país)"
-          actions={
-            <span className="text-sm text-ln-op-mute">
-              {countryWideCount} {pluralizeEs(countryWideCount, "regla")}
-            </span>
+      {groups.length === 0 ? (
+        <LnEmptyState
+          title="Ninguna jurisdicción tiene reglas personalizadas"
+          description="Rigen los defaults nacionales en todo el país."
+          action={
+            <Link
+              href={createHref}
+              className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[var(--text-md)] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+            >
+              {"+ Crear regla"}
+            </Link>
           }
         />
-        <OpCardBody className="p-0">
-          <ul>
-            <li className="flex items-center justify-between border-t border-ln-op-line px-4 py-3">
-              <span className="text-[13px] text-ln-op-ink-2">Reglas a nivel país AR</span>
-              <Link
-                href={buildJurisdictionRulesHref({ country: "AR", base })}
-                className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-              >
-                {"Ver reglas ->"}
-              </Link>
-            </li>
-          </ul>
-        </OpCardBody>
-      </OpCard>
+      ) : (
+        <>
+          {availableKinds.length > 1 && <OpFilterBar showPeriod={false} axes={[kindAxis]} />}
 
-      {/* Provinces */}
-      <OpCard>
-        <OpCardHead title="Provincias" />
-        <OpCardBody className="p-0">
-          {visibleProvinces.length === 0 && (
-            <p className="px-4 py-3 text-[13px] text-ln-op-mute">Sin resultados.</p>
-          )}
-          <ul>
-            {visibleProvinces.map((p) => {
-              const pwCount = provinceWideCount.get(p.name) ?? 0;
-              const localities = localitiesByProvince.get(p.name) ?? [];
-              const localityRuleCount = localities.reduce((sum, l) => sum + l.count, 0);
-              return (
-                <li key={p.code} className="border-t border-ln-op-line px-4 py-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
-                      <p className="text-[11px] text-ln-op-mute">
-                        {pwCount === 0 && localityRuleCount === 0
-                          ? "Sin excepciones (usando valores por defecto)"
-                          : [
-                              pwCount > 0
-                                ? `${pwCount} ${pluralizeEs(pwCount, "provincial")}`
-                                : null,
-                              localityRuleCount > 0 ? `${localityRuleCount} en localidades` : null,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                      </p>
-                    </div>
-                    <Link
-                      href={buildJurisdictionRulesHref({ country: "AR", province: p.name, base })}
-                      className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-                    >
-                      {pwCount === 0 ? "Crear regla ->" : "Ver reglas ->"}
-                    </Link>
-                  </div>
-                  {/* Localities with overrides — surfaced as direct links */}
-                  {localities.length > 0 && (
-                    <ul className="pl-4 space-y-1">
-                      {localities.map((l) => (
-                        <li key={l.locality} className="flex items-center justify-between gap-3">
-                          <span className="text-[11px] text-ln-op-ink-2">
-                            {l.locality}
-                            <span className="ml-1 text-ln-op-mute">
-                              · {l.count} {pluralizeEs(l.count, "regla")}
-                            </span>
-                          </span>
-                          <Link
-                            href={buildJurisdictionRulesHref({
-                              country: "AR",
-                              province: p.name,
-                              locality: l.locality,
-                              base,
-                            })}
-                            className="text-[11px] font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+          {visibleGroups.length === 0 ? (
+            <LnEmptyState
+              title="Sin resultados para este filtro"
+              description="Ninguna jurisdicción customiza este tipo de regla."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {visibleGroups.map((group) => (
+                <li key={group.key}>
+                  <OpCard>
+                    <OpCardHead
+                      title={jurisdictionLabel(group.country, group.province, group.locality)}
+                      actions={
+                        <Link
+                          href={buildJurisdictionRulesHref({
+                            country: group.country,
+                            province: group.province,
+                            locality: group.locality,
+                            base,
+                          })}
+                          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                        >
+                          {"Ver detalle ->"}
+                        </Link>
+                      }
+                    />
+                    <OpCardBody className="space-y-3">
+                      <OpCodeBadge tone="neutral">{SOURCE_LABEL[group.level]}</OpCodeBadge>
+                      <ul className="divide-y divide-ln-op-line-2">
+                        {group.rules.map((rule) => (
+                          <li
+                            key={rule.ruleType}
+                            className="flex items-baseline justify-between gap-3 py-1.5"
                           >
-                            {"Ver ->"}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {/* AC4 — reach ANY locality (not just ones with existing
-                      rules) so a fresh locality override can be created. */}
-                  <LocalityRuleDrilldown provinceCode={p.code} provinceName={p.name} base={base} />
+                            <span className="text-[var(--text-md)] font-medium text-ln-op-ink">
+                              {rule.label}
+                            </span>
+                            <span className="text-right text-[var(--text-sm)] text-ln-op-ink-2">
+                              {rule.summary}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </OpCardBody>
+                  </OpCard>
                 </li>
-              );
-            })}
-          </ul>
-        </OpCardBody>
-      </OpCard>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
     </div>
   );
 }

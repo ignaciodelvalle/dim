@@ -26,20 +26,20 @@ export const dynamic = "force-dynamic";
 export default async function ReglasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ kind?: string }>;
 }) {
   const { jurisdictions, profile } = await requireAdminOrGovtOrRedirect();
   const base = await portalBase();
 
   if (profile.role === "admin") {
-    // Search (opfilterbar-sweep2-2026-07-21 item 3) only applies to the admin
-    // lens: it's the jurisdiction browser (24 provincias + their localities),
-    // the screen that actually grows unwieldy to scan. The govt read-only
-    // cascade view below is pre-scoped to the viewer's own few assigned
-    // localities — always a short, already-filtered list — so a search
-    // control there would filter almost nothing.
-    const { q } = await searchParams;
-    return <AdminReglasLens base={base} query={(q ?? "").trim()} />;
+    // Rule-kind filter (PO redesign 2026-07-23) only applies to the admin
+    // lens — it's now a short list of ONLY the jurisdictions that have custom
+    // rules, so a "which jurisdictions touched this rule kind?" dropdown is
+    // useful. The govt read-only cascade view below is pre-scoped to the
+    // viewer's own few assigned localities — always a short, already-filtered
+    // list — so a filter there would narrow almost nothing.
+    const { kind } = await searchParams;
+    return <AdminReglasLens base={base} kind={(kind ?? "").trim()} />;
   }
 
   return <GovtReglasReadOnlyView jurisdictions={jurisdictions} />;

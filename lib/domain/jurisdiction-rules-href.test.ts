@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildJurisdictionRulesHref } from "./jurisdiction-rules-href";
+import { buildJurisdictionRulesHref, jurisdictionLabel } from "./jurisdiction-rules-href";
 
 describe("buildJurisdictionRulesHref", () => {
   it('defaults to "/gob" when base is omitted (backward-compatible)', () => {
@@ -51,5 +51,19 @@ describe("buildJurisdictionRulesHref", () => {
     });
     const withUndefined = buildJurisdictionRulesHref({ country: "AR", base: "/admin" });
     expect(withNull).toBe(withUndefined);
+  });
+});
+
+describe("jurisdictionLabel", () => {
+  it("renders país-level (both null) with both placeholders", () => {
+    expect(jurisdictionLabel("AR", null, null)).toBe("AR · (nivel país) · (toda la provincia)");
+  });
+
+  it("renders province-wide (locality null) with the toda-la-provincia placeholder", () => {
+    expect(jurisdictionLabel("AR", "Chaco", null)).toBe("AR · Chaco · (toda la provincia)");
+  });
+
+  it("renders a full country/province/locality triple with no placeholders", () => {
+    expect(jurisdictionLabel("AR", "Chaco", "Resistencia")).toBe("AR · Chaco · Resistencia");
   });
 });
