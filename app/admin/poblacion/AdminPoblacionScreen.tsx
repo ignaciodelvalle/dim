@@ -133,7 +133,7 @@ export async function AdminPoblacionScreen({
         {header}
         <AnalyticsLoadFallback
           reason={load.reason}
-          retryHref={analyticsRetryHref("/admin/poblacion", sp)}
+          retryHref={analyticsRetryHref("/admin/padron", { ...sp, vista: "poblacion" })}
         />
       </div>
     );

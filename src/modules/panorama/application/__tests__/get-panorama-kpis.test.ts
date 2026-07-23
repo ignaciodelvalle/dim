@@ -233,7 +233,12 @@ describe("getPanoramaKpis", () => {
     // Percentage — one decimal, es-AR comma (72.4 → "72,4%").
     expect(byId.cobertura.value).toBe("72,4%");
     expect(byId.cobertura.bar).toBe(72.4);
-    expect(byId.cobertura.tone).toBe("warn"); // 72.4 < target 80
+    // Census-coverage-floor guard (parity with /gob, consistency sweep
+    // 2026-07-23): the fixture's padrón covers only 2.6% of the estimated
+    // canine population, so the 72.4% registry rate must NOT paint a verdict —
+    // the tone degrades to neutral and the sub carries the reason.
+    expect(byId.cobertura.tone).toBe("neutral");
+    expect(byId.cobertura.sub).toContain("NO representa protección poblacional");
 
     // Decimal comma (es-AR) — 3.5 → "3,5".
     expect(byId.mordeduras.value).toBe("3,5");

@@ -1171,6 +1171,12 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       sourceKind: "benchmark",
     },
     semaphore: { paintAgainst: "target" },
+    // MANUAL ENFORCEMENT (consistency sweep 2026-07-23): no call site feeds this
+    // guard via `guardInput` — all 4 render sites compute value/tone through
+    // enoSlaHeadline/enoSlaTone (lib/metrics/targets.ts), which null-check
+    // onTimePct (the zero-denominator case renders "—") AND degrade the tone on
+    // open breaches, a richer rule than the generic gate. Any new consumer of
+    // this descriptor MUST go through those helpers, not raw value/tone.
     guards: { zeroDenominator: "dash" },
     ui: {
       definition:

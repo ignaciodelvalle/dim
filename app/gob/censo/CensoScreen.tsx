@@ -195,7 +195,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
-          retryHref={analyticsRetryHref("/gob/censo", sp)}
+          retryHref={analyticsRetryHref("/gob/padron", { ...sp, vista: "censo" })}
         />
       </div>
     );

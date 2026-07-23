@@ -14,6 +14,7 @@
 import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpBreach,
   OpCard,
@@ -191,15 +192,25 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
         />
       </OpFilterBar>
 
-      <p className="text-sm text-ln-op-mute">
-        {results.length === 0
-          ? query || roleFilter !== "all"
-            ? "Sin resultados."
-            : "No hay usuarios registrados."
-          : query || roleFilter !== "all"
+      {/* Directorio hub sibling consistency (consistency sweep 2026-07-23):
+          the empty-list case renders the shared LnEmptyState like the
+          Servicios/Credenciales tabs, not a bare caption line. */}
+      {results.length === 0 ? (
+        <LnEmptyState
+          title={query || roleFilter !== "all" ? "Sin resultados" : "No hay usuarios registrados"}
+          description={
+            query || roleFilter !== "all"
+              ? "Ajustá la búsqueda o el filtro de rol."
+              : "Cuando haya usuarios en tu cobertura vas a verlos acá."
+          }
+        />
+      ) : (
+        <p className="text-sm text-ln-op-mute">
+          {query || roleFilter !== "all"
             ? `${results.length} ${pluralizeEs(results.length, "resultado")}`
             : `Mostrando los primeros ${results.length} usuarios ordenados por rol y nombre.`}
-      </p>
+        </p>
+      )}
 
       <BulkRevokeList
         items={results.map((u) => ({

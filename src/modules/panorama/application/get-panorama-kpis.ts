@@ -34,8 +34,10 @@ import {
   buildProjectionContext,
 } from "@/lib/metrics";
 import { lastIngestAt } from "@/lib/metrics/freshness";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+import { applyCensusCoverageGuard } from "@/lib/metrics/presentation-guards";
 import { TARGETS, toneForTarget } from "@/lib/metrics/targets";
 // v+1 rail — the SAME generic/typed trend fetchers /gob home wires into its
 // KPI tiles (app/gob/page.tsx: rabiesVaxTrend/bitesTrend/zoonosisTrend). No
@@ -620,6 +622,18 @@ export async function getPanoramaKpis(
   // read as bad registry adoption when the honest reading is "there are no PPP here".
   const pppNoData = ppp.flaggedCount === 0;
 
+  // Guard parity (consistency sweep 2026-07-23): this is the SECOND render site
+  // of rabies_coverage_dogs_12m. /gob/page.tsx applies the descriptor's
+  // zero-denominator + census-coverage-floor guards; this tile painted raw
+  // value/tone, so a 0-dog padrón showed a confident "0%"/warn and a sliver-thin
+  // padrón kept its ok/warn verdict. Same descriptor ⇒ same guards.
+  const coverageGuard = coverage.hasData
+    ? applyCensusCoverageGuard(KPI_CATALOG.rabies_coverage_dogs_12m, {
+        censusCoveragePct: coverage.censusCoveragePct,
+        computedTone: toneForTarget(coverage.current, coverage.target),
+      })
+    : null;
+
   // Display order (legal-analysis intake 2026-07-03, metric reorientation):
   // the two legally-grounded compliance coverages lead — antirrábica
   // (Ley 22.953, near-universal) and esterilización (mandated in 5 provinces)
@@ -636,12 +650,14 @@ export async function getPanoramaKpis(
       // that `current` is a % of, AND how much of the estimated canine population
       // the registry itself covers. The firmado-por-matrícula share (task #78
       // Part 3) and the meta close the line.
-      value: formatPercent(coverage.current),
-      sub: coberturaSub(coverage, coverageSigned),
-      bar: coverage.current,
+      value: coverage.hasData ? formatPercent(coverage.current) : "—",
+      sub: coverage.hasData
+        ? [coberturaSub(coverage, coverageSigned), coverageGuard?.note].filter(Boolean).join(" · ")
+        : "Sin datos en el período",
+      bar: coverage.hasData ? coverage.current : undefined,
       // STOCK: a point-in-time coverage snapshot — does not vary with the scrub.
       currentState: true,
-      tone: coverage.current >= coverage.target ? "ok" : "warn",
+      tone: coverageGuard?.tone ?? "neutral",
       href: "/gob/analytics",
       source: "govt-home-kpis.fetchRabiesCoverage",
       // H9: cobertura is a PERCENTAGE — its period delta is percentage POINTS, not

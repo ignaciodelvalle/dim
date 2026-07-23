@@ -139,7 +139,11 @@ export async function CredencialesScreen({
           <UrlTabsContent value={statusFilter}>
             {results.length === 0 ? (
               query ? (
-                <p className="mt-4 text-sm text-ln-op-mute">Sin resultados.</p>
+                <LnEmptyState
+                  title="Sin resultados"
+                  description="Ajustá la búsqueda o cambiá el estado arriba."
+                  className="mt-4"
+                />
               ) : (
                 // Actionable empty state (C2 — first RUPGA consumer, S2 "RUPGA
                 // sin expandir"): names WHAT this registry is, WHY it might be

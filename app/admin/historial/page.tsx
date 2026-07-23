@@ -49,7 +49,7 @@ import { windows } from "@/lib/metrics";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/metrics/period-presets";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 const ADMIN_HISTORIAL_PAGE_LIMIT = 100;
@@ -95,11 +95,7 @@ function HistorialRow({
           ))}
       </div>
       <time className="whitespace-nowrap text-sm text-ln-op-mute">
-        {new Date(entry.performedAt).toLocaleString("es-AR", {
-          dateStyle: "short",
-          timeStyle: "short",
-          timeZone: AR_TIME_ZONE,
-        })}
+        {formatDateTimeNumericAr(entry.performedAt)}
       </time>
     </li>
   );

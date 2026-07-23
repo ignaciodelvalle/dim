@@ -15,6 +15,7 @@
 import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpCard,
   OpCardBody,
@@ -163,15 +164,29 @@ export async function OrganizacionesScreen({
         />
       </OpFilterBar>
 
-      <p className="text-sm text-ln-op-mute">
-        {results.length === 0
-          ? query || verifiedFilter !== "all" || orgTypeFilter !== "all"
-            ? "Sin resultados."
-            : "Ingresa una consulta para buscar organizaciones."
-          : truncated
+      {/* Directorio hub sibling consistency (consistency sweep 2026-07-23):
+          the empty-list case renders the shared LnEmptyState like the
+          Servicios/Credenciales tabs, not a bare caption line. */}
+      {results.length === 0 ? (
+        <LnEmptyState
+          title={
+            query || verifiedFilter !== "all" || orgTypeFilter !== "all"
+              ? "Sin resultados"
+              : "Buscá organizaciones"
+          }
+          description={
+            query || verifiedFilter !== "all" || orgTypeFilter !== "all"
+              ? "Ajustá la búsqueda o los filtros."
+              : "Ingresá nombre, razón social o CUIT para ver organizaciones."
+          }
+        />
+      ) : (
+        <p className="text-sm text-ln-op-mute">
+          {truncated
             ? `Mostrando los primeros ${results.length} ${pluralizeEs(results.length, "resultado")}. Usá el buscador para acotar la lista.`
             : `${results.length} ${pluralizeEs(results.length, "resultado")}`}
-      </p>
+        </p>
+      )}
 
       <BulkRevokeList
         items={results.map((o) => ({

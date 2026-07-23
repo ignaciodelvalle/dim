@@ -120,7 +120,7 @@ export async function AdminCensoScreen({
         {header}
         <AnalyticsLoadFallback
           reason={load.reason}
-          retryHref={analyticsRetryHref("/admin/censo", sp)}
+          retryHref={analyticsRetryHref("/admin/padron", { ...sp, vista: "censo" })}
         />
       </div>
     );

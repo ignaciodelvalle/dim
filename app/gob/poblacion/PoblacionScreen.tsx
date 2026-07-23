@@ -210,7 +210,7 @@ export async function PoblacionScreen({
         {filtersRow}
         <AnalyticsLoadFallback
           reason={load.reason}
-          retryHref={analyticsRetryHref("/gob/poblacion", sp)}
+          retryHref={analyticsRetryHref("/gob/padron", { ...sp, vista: "poblacion" })}
         />
       </div>
     );
