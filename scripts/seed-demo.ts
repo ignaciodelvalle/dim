@@ -947,6 +947,14 @@ async function loadStoryline(
   // below can mirror replayPetAdoptionEligibility (latest-wins). We capture the
   // DB-assigned recordedAt so adoptionEligibilitySetAt matches the event instant.
   let lastAdoptionEligibility: { recordedAt: Date; payload: Record<string, unknown> } | null = null;
+  // Pairing invariant (cursor UX G1, 2026-07-23): every production close path
+  // stamps rabies_observation_ended with observation_started_event_id; the A9
+  // breach query pairs strictly on it, so a storyline that omits the key
+  // leaves a PHANTOM open observation — the panel then shows a legal-breach
+  // alert beside a KPI reading 0. The runner (not each storyline author)
+  // guarantees the pairing: track the last started id and inject it into a
+  // keyless ended payload.
+  let lastRabiesObservationStartedId: string | null = null;
   for (const e of story.events) {
     const author = pickAuthorFromRole(e.author_role, ownerResolved.user ?? null, userIds);
     // If the event author_role is 'shelter' or the pet is org-owned, attribute
@@ -957,6 +965,14 @@ async function loadStoryline(
         : ownerOrgId && e.author_role === "owner"
           ? ownerOrgId
           : null;
+    let payload: Record<string, unknown> = (e.payload ?? {}) as Record<string, unknown>;
+    if (
+      e.event_type === "rabies_observation_ended" &&
+      lastRabiesObservationStartedId &&
+      payload.observation_started_event_id === undefined
+    ) {
+      payload = { ...payload, observation_started_event_id: lastRabiesObservationStartedId };
+    }
     const [inserted] = await db
       .insert(schemas.petEvents)
       .values({
@@ -967,9 +983,12 @@ async function loadStoryline(
         authorRole: e.author_role ?? "system",
         authorOrganizationId: authorOrgId,
         authorVerified: true,
-        payload: e.payload ?? {},
+        payload,
       })
-      .returning({ recordedAt: schemas.petEvents.recordedAt });
+      .returning({ id: schemas.petEvents.id, recordedAt: schemas.petEvents.recordedAt });
+    if (e.event_type === "rabies_observation_started") {
+      lastRabiesObservationStartedId = inserted.id;
+    }
     if (e.event_type === "adoption_eligibility_set") {
       lastAdoptionEligibility = {
         recordedAt: inserted.recordedAt,

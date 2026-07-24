@@ -258,6 +258,18 @@ async function fetchRabiesComplianceForScope(
 
   // A9 live breaches: started observations with NO ending event, started more
   // than `windowDays` days ago.
+  //
+  // SUBSET INVARIANT (cursor UX G1, verified 2026-07-23): a live breach is by
+  // definition an observation that is STILL OPEN, so openBreaches must be a
+  // subset of the open-observations KPI (pets.rabies_observation_status =
+  // 'in_progress' — the projection fetchOpenRabiesObservations reads). The
+  // event-pairing predicate alone can violate that: an ended event written
+  // WITHOUT observation_started_event_id (a seed script did exactly this)
+  // leaves a phantom "unclosed" start, and the panel then shows a legal-breach
+  // alert next to a KPI reading 0 — a trust-destroying contradiction where the
+  // ALERT is the false positive. Requiring the projection to agree restores
+  // breaches ⊆ open by construction; a pairing bug can then only ever
+  // UNDER-count closures on a pet that is genuinely still in progress.
   const breachCutoffIso = new Date(Date.now() - windowDays * DAY_MS).toISOString();
   const breachRows = await db.execute<{ n: string }>(sql`
     SELECT COUNT(*)::text AS n
@@ -265,6 +277,7 @@ async function fetchRabiesComplianceForScope(
     JOIN pets ON pets.id = started.pet_id
     WHERE started.event_type = 'rabies_observation_started'
       AND started.occurred_at < ${breachCutoffIso}::timestamptz
+      AND pets.rabies_observation_status = 'in_progress'
       AND NOT EXISTS (
         SELECT 1 FROM pet_events ended
         WHERE ended.event_type = 'rabies_observation_ended'

@@ -589,7 +589,10 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       { href: "/admin/inteligencia", label: "Inteligencia", matchPrefix: "/admin/inteligencia" },
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
-      { href: "/admin/govts", label: "Gobiernos", matchPrefix: "/admin/govts" },
+      // "Cuentas gobierno", not "Gobiernos" (cursor UX A3, verified): the bare
+      // noun collided with the Portales menu's "Ir a Gobierno" — two different
+      // jobs (managing govt ACCOUNTS vs switching portal) shared one word.
+      { href: "/admin/govts", label: "Cuentas gobierno", matchPrefix: "/admin/govts" },
       { href: "/admin/admins", label: "Administradores", matchPrefix: "/admin/admins" },
       { href: "/admin/directorio", label: "Directorio", matchPrefix: "/admin/directorio" },
       // Reglas exists under both portals (portal-follows-viewer,
