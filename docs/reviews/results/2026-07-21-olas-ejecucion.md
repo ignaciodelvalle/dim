@@ -347,3 +347,16 @@ FASE 3 (specs para lectura PO, NO código): death_voided (D1) · token de creden
 fase 3) · plan de particionado pet_events (S4) · Ola ES agrupa T2/T3/T4 + D3 amend gob + D4 audit.
 
 Informe de desayuno: ledger de commits por lote + specs para leer + verify verde + suite+reseed.
+
+## COLA NOCTURNA — COMPLETADA (2026-07-24)
+Fase 0 (verificación 26 claims) ✓ · Fase 2 (18 auto-fixes, b1-b4) ✓ · Fase 3 (3 specs PO) ✓
+Cola aprobada:
+- Seeds ≥5 + suavizado cliff ✓ (b90e3b7b)
+- Home dueño: YA era libreta-primero (redirect a credencial, shipped 2026-07-15) — sentiment 5/10 era estado stale, sin cambio.
+- Coropletas clasificadas + caption "conteos absolutos" ✓ (7b7ff94b)
+- Cubo ON + frescura (2 crons Hobby) ✓ (6882212b)
+- CTA sticky credencial mobile ✓ (56c5221f)
+- Dieta nav refugio (5 buckets + Administración) ✓ (f18b8b1e)
+- Sueltos: empty-state positivo Panorama + teardown crons + LegendPill ✓ (18783b92)
+- Doc "2 modos 1 ADN" ✓ (docs/design/design-system-two-modes.md)
+TODO verify-verde. LISTO para el red team local del PO.
