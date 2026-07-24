@@ -50,6 +50,33 @@ export default async function FinderInPossessionPage({
   const { pet, photo } = petRow;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
+  // Gate 0 (D2 hardening, red-team 2026-07): custody dispute — the finder flow
+  // relays the finder's contact to the contested owner, so the whole route is
+  // replaced by the neutral authority notice while titularidad is under
+  // review. The action is gated server-side too (encontre/action.ts).
+  if (pet.inCustodyDispute) {
+    return (
+      // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
+        <div className="mx-auto max-w-md space-y-4 text-center">
+          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
+            Titularidad en revisión
+          </h1>
+          <p className="text-sm text-[var(--color-ln-mute)]">
+            La titularidad de esta mascota está en revisión por la autoridad. Si tenés información,
+            será dirigida a la autoridad competente, no a las partes.
+          </p>
+          <Link
+            href={`/p/${publicToken}`}
+            className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm"
+          >
+            Ver el perfil público
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   // Gate 1: not lost.
   if (pet.status !== "lost") {
     return (

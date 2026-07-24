@@ -421,32 +421,42 @@ export default async function PublicCredentialPage({
   // Sticky primary CTA (mobile <sm) — cursor citizen review P3: one verb for
   // the street scanner, per state. EVERY disclosure decision is resolved HERE,
   // server-side, so the client bar never receives undisclosed PII:
+  //   disputed → NO relay CTA of any kind (D2 hardening, red-team 2026-07):
+  //              both finder flows (/encontre AND /sighting) end in an
+  //              owner-directed notification / owner-visible finder contact,
+  //              so a disputed pet must not surface them — the system cannot
+  //              take sides in a legal dispute. Only the neutral medical
+  //              scroll survives; otherwise no bar (the in-card neutral
+  //              notice + dispute banner carry the state).
   //   lost     → finder form (owner-allowed) else sighting form; secondary
   //              "Llamar" only when the phone is disclosed AND no custody
-  //              dispute is open (D2 — never contact a contested owner; the
-  //              reporting CTAs route through the system and stay available).
+  //              dispute is open (D2).
   //   active   → tier2 visible: scroll to the medical summary (low urgency);
   //              tier 0: open + scroll to the existing found-report form.
   //   deceased → no bar (memorial — there is no useful street action).
-  const actionBar: CredentialActionBarProps | null = isLost
-    ? {
-        mode: "lost",
-        primaryHref: pet.allowFinderFormWhenLost
-          ? `/p/${publicToken}/encontre`
-          : `/p/${publicToken}/sighting`,
-        primaryLabel: pet.allowFinderFormWhenLost
-          ? foundPossessivePhrase(pet.sex)
-          : sightingPhrase(pet.sex),
-        phoneHref:
-          pet.disclosePhoneWhenLost && !pet.inCustodyDispute && lostContext?.phone
-            ? `tel:${normalizePhoneForTel(lostContext.phone) ?? lostContext.phone}`
-            : null,
-      }
-    : pet.status === "active"
-      ? tier2Active
-        ? { mode: "medical" }
-        : { mode: "report", label: foundReportPrompt(pet.sex) }
-      : null;
+  const actionBar: CredentialActionBarProps | null = pet.inCustodyDispute
+    ? pet.status === "active" && tier2Active
+      ? { mode: "medical" }
+      : null
+    : isLost
+      ? {
+          mode: "lost",
+          primaryHref: pet.allowFinderFormWhenLost
+            ? `/p/${publicToken}/encontre`
+            : `/p/${publicToken}/sighting`,
+          primaryLabel: pet.allowFinderFormWhenLost
+            ? foundPossessivePhrase(pet.sex)
+            : sightingPhrase(pet.sex),
+          phoneHref:
+            pet.disclosePhoneWhenLost && lostContext?.phone
+              ? `tel:${normalizePhoneForTel(lostContext.phone) ?? lostContext.phone}`
+              : null,
+        }
+      : pet.status === "active"
+        ? tier2Active
+          ? { mode: "medical" }
+          : { mode: "report", label: foundReportPrompt(pet.sex) }
+        : null;
 
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
@@ -688,8 +698,13 @@ export default async function PublicCredentialPage({
               identityLine={lostIdentityLine}
               // cursor UX D2: titularidad en revisión — never disclose the
               // contested owner's name/phone/email while a custody dispute is
-              // open. The reporting CTAs (finderFormHref / sightingFormHref)
-              // stay untouched below — only the direct-contact fields go null.
+              // open. Red-team hardening 2026-07: the reporting CTAs
+              // (finderFormHref / sightingFormHref) now ALSO go null — both
+              // flows relay the finder's contact to the contested owner
+              // (notification and/or owner-visible timeline payload), which
+              // takes sides in a legal dispute. custodyDisputed renders the
+              // neutral authority notice in their place.
+              custodyDisputed={pet.inCustodyDispute}
               ownerFirstName={
                 pet.discloseFirstNameWhenLost && !pet.inCustodyDispute
                   ? lostContext.ownerFirstName
@@ -706,8 +721,12 @@ export default async function PublicCredentialPage({
                 pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
               }
               distinguishingFeatures={pet.distinguishingFeatures}
-              finderFormHref={pet.allowFinderFormWhenLost ? `/p/${publicToken}/encontre` : null}
-              sightingFormHref={`/p/${publicToken}/sighting`}
+              finderFormHref={
+                pet.allowFinderFormWhenLost && !pet.inCustodyDispute
+                  ? `/p/${publicToken}/encontre`
+                  : null
+              }
+              sightingFormHref={pet.inCustodyDispute ? null : `/p/${publicToken}/sighting`}
               lastSeenLat={pet.discloseLastLocationWhenLost ? lostContext.lostLat : null}
               lastSeenLng={pet.discloseLastLocationWhenLost ? lostContext.lostLng : null}
               lostSince={lostContext.lostSince ?? new Date()}
@@ -810,33 +829,52 @@ export default async function PublicCredentialPage({
             <CredentialOriginOrg petId={pet.id} />
           </Suspense>
 
-          {/* "Found this pet?" action area */}
-          <div className="border-t border-ln-line bg-ln-stripe px-4 py-3.5">
-            {/* id: the sticky bar's tier-0 "report" action opens + scrolls to
+          {/* "Found this pet?" action area. Disputed pets (D2 hardening,
+              red-team 2026-07) get the neutral authority notice INSTEAD of the
+              owner-contact-relay form: while titularidad is under review the
+              system must not relay a finder's name/contact to the contested
+              owner. */}
+          {pet.inCustodyDispute ? (
+            <div
+              data-section="found-form-disputed"
+              className="border-t border-ln-line bg-ln-stripe px-4 py-3.5"
+            >
+              <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
+                ¿Encontraste a esta mascota?
+              </p>
+              <p className="mt-1 text-sm text-ln-ink-2">
+                La titularidad de esta mascota está en revisión por la autoridad. Si tenés
+                información, será dirigida a la autoridad competente, no a las partes.
+              </p>
+            </div>
+          ) : (
+            <div className="border-t border-ln-line bg-ln-stripe px-4 py-3.5">
+              {/* id: the sticky bar's tier-0 "report" action opens + scrolls to
                 this existing form (no new flow); scroll-mt clears the sticky
                 emergency banner when present. */}
-            <details id={REPORT_SECTION_ID} className="group scroll-mt-24">
-              <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3">
-                <div>
-                  <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
-                    ¿Encontraste a esta mascota?
-                  </p>
-                  <p className="mt-0.5 text-[11.5px] text-ln-mute">
-                    Tocá acá para avisarle al dueño.
-                  </p>
+              <details id={REPORT_SECTION_ID} className="group scroll-mt-24">
+                <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3">
+                  <div>
+                    <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
+                      ¿Encontraste a esta mascota?
+                    </p>
+                    <p className="mt-0.5 text-[11.5px] text-ln-mute">
+                      Tocá acá para avisarle al dueño.
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="flex-shrink-0 text-lg text-ln-mute transition-transform group-open:rotate-90"
+                  >
+                    ›
+                  </span>
+                </summary>
+                <div className="mt-3 border-t border-ln-line pt-3.5">
+                  <FoundPetForm publicToken={publicToken} />
                 </div>
-                <span
-                  aria-hidden="true"
-                  className="flex-shrink-0 text-lg text-ln-mute transition-transform group-open:rotate-90"
-                >
-                  ›
-                </span>
-              </summary>
-              <div className="mt-3 border-t border-ln-line pt-3.5">
-                <FoundPetForm publicToken={publicToken} />
-              </div>
-            </details>
-          </div>
+              </details>
+            </div>
+          )}
 
           {/* Credential footer */}
           <div className="px-4 py-3 text-center font-[var(--font-ln-mono)] text-[9.5px] leading-[1.7] tracking-[.02em] text-ln-faint">

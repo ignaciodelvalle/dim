@@ -408,12 +408,13 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     expect(html).toContain(EMAIL);
   });
 
-  it("LOST + open custody dispute (D2): disclosed contact PII is suppressed EVERYWHERE — in-card CTAs and the sticky action bar — while the reporting CTAs stay", async () => {
+  it("LOST + open custody dispute (D2): disclosed contact PII AND every finder-relay path are suppressed — neutral authority notice renders instead", async () => {
     // All disclose flags ON, but a custody dispute is open: no contested-owner
-    // contact may render anywhere. The sticky action bar (mobile primary CTA)
-    // computes its own tel: href from lostContext — this pins that it applies
-    // the SAME dispute gate as the PublicLostSections props, so a regression
-    // in either path fails here.
+    // contact may render anywhere, AND (red-team hardening 2026-07) no
+    // finder-report relay may be offered either — both /encontre and /sighting
+    // end in an owner-directed notification / owner-visible finder contact,
+    // which would take sides in a legal dispute. The page renders the neutral
+    // authority notice in place of the relay CTAs and the found form.
     const pet = {
       ...lostPet({ firstName: true, phone: true, email: true, location: true }),
       inCustodyDispute: true,
@@ -438,10 +439,22 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     });
     const html = renderToStaticMarkup(element as React.ReactElement);
 
-    // The system-routed reporting path stays available (sticky bar primary:
-    // allowFinderFormWhenLost is false in the fixture → sighting form).
-    expect(html).toContain('data-section="sticky-action-bar"');
-    expect(html).toContain("/sighting");
+    // NO relay path renders: no sticky bar (its only lost-mode verbs are
+    // relays), no finder/sighting routes, no "Avisar al dueño" found form.
+    expect(html).not.toContain('data-section="sticky-action-bar"');
+    expect(html).not.toContain("/sighting");
+    expect(html).not.toContain("/encontre");
+    expect(html).not.toContain("Avisar al dueño");
+
+    // The neutral authority notice renders in the found-form slot, and the
+    // lost-sections spy proves the page threads the dispute state + nulled
+    // relay hrefs into PublicLostSections (which renders its own notice —
+    // covered by its colocated test).
+    expect(html).toContain("La titularidad de esta mascota está en revisión por la autoridad.");
+    expect(html).toContain('data-section="found-form-disputed"');
+    expect(html).toContain("&quot;custodyDisputed&quot;:true");
+    expect(html).toContain("&quot;finderFormHref&quot;:null");
+    expect(html).toContain("&quot;sightingFormHref&quot;:null");
 
     // No direct-contact channel anywhere: no tel: href (bar or card), no
     // phone/email/name marker in the whole render.

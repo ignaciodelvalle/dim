@@ -400,11 +400,16 @@ export default async function OrgDashboardPage({
             {ROLE_LABELS[membership.role] ?? membership.role}
           </strong>
           {membership.title ? ` — ${membership.title}` : ""}
-          {" · "}
+          {/* Portal links are gated on userRole below — each link carries its
+              own leading separator so a plain org member never sees a dangling
+              "·" with nothing after it. */}
           {userRole === "admin" && (
-            <Link href="/admin" className="text-ln-op-azul hover:underline">
-              Admin
-            </Link>
+            <>
+              {" · "}
+              <Link href="/admin" className="text-ln-op-azul hover:underline">
+                Admin
+              </Link>
+            </>
           )}
           {(userRole === "govt" || userRole === "admin") && (
             <>

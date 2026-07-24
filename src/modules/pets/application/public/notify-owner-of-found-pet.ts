@@ -44,11 +44,30 @@ export async function notifyOwnerOfFoundPet(
   }
 
   const [pet] = await db
-    .select({ id: pets.id, name: pets.name, status: pets.status, publicToken: pets.publicToken })
+    .select({
+      id: pets.id,
+      name: pets.name,
+      status: pets.status,
+      publicToken: pets.publicToken,
+      inCustodyDispute: pets.inCustodyDispute,
+    })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
+
+  // D2 hardening (red-team 2026-07): while titularidad is under review the
+  // system must not relay the finder's name/contact to the contested owner —
+  // that takes sides in a legal dispute. Server-side gate, not just UI: the
+  // credential page hides the form, but the action is anon-callable.
+  if (pet.inCustodyDispute) {
+    return {
+      ok: false,
+      error:
+        "La titularidad de esta mascota está en revisión por la autoridad. " +
+        "Si tenés información, será dirigida a la autoridad competente, no a las partes.",
+    };
+  }
 
   // The form is part of Tier 0 per AGENTS.md:376 — anyone scanning the QR can
   // notify the owner regardless of pet status. The notification is the

@@ -105,7 +105,12 @@ export async function reportPetSighting(
   const lng = normalizedLoc.lng as number;
 
   const [pet] = await db
-    .select({ id: pets.id, name: pets.name, status: pets.status })
+    .select({
+      id: pets.id,
+      name: pets.name,
+      status: pets.status,
+      inCustodyDispute: pets.inCustodyDispute,
+    })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
@@ -113,6 +118,19 @@ export async function reportPetSighting(
   if (pet.status !== "lost") {
     // Only meaningful while the pet is in lost mode.
     return { ok: false, error: "Esta mascota no está marcada como perdida." };
+  }
+
+  // D2 hardening (red-team 2026-07): the sighting flow ends in an owner
+  // notification AND an owner-visible timeline payload that can carry the
+  // finder's contact — it cannot be cleanly separated from the relay, so a
+  // disputed pet blocks the whole submission server-side.
+  if (pet.inCustodyDispute) {
+    return {
+      ok: false,
+      error:
+        "La titularidad de esta mascota está en revisión por la autoridad. " +
+        "Si tenés información, será dirigida a la autoridad competente, no a las partes.",
+    };
   }
 
   const [owner] = await db

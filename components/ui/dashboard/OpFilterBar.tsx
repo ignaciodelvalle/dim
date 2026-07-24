@@ -282,17 +282,50 @@ function buildActiveChips(params: {
  * narrowed, but the window is still worth a glance) or a plain "no filters"
  * note. Module-level so OpFilterBar's own cognitive complexity stays under
  * the lint budget.
+ *
+ * Summary honesty (red-team 2026-07): a ?province/?locality param that does
+ * NOT resolve against the allowed set correctly narrows nothing (fail-closed)
+ * and renders no chip — but the summary then claimed "Sin filtros activos"
+ * while the URL plainly carried a filter the viewer intended. When no chip
+ * resolved AND a raw jurisdiction param was present, say so instead of
+ * asserting there are no filters. Resolution itself is untouched.
  */
 function buildMobileSummary(
   chips: ActiveChip[],
   showPeriod: boolean,
   defaultPreset: PeriodPresetId,
+  hasUnresolvedJurisdictionParam: boolean,
 ): string {
   const parts = chips.map((c) => c.valueLabel);
+  if (parts.length === 0 && hasUnresolvedJurisdictionParam) {
+    return "Filtro no reconocido — mostrando tu cobertura completa";
+  }
   if (parts.length === 0 && showPeriod) {
     parts.push(PERIOD_CHIP_LABELS[defaultPreset] ?? defaultPreset);
   }
   return parts.length > 0 ? parts.join(" · ") : "Sin filtros activos";
+}
+
+/**
+ * True when a raw ?province/?locality param sits in the URL but resolved to no
+ * chip (invalid code/slug → fail-closed, nothing narrowed). Feeds the summary
+ * honesty branch in buildMobileSummary — never the resolution itself.
+ * Module-level so OpFilterBar stays under the cognitive-complexity budget.
+ */
+function detectUnresolvedJurisdictionParam(params: {
+  searchParams: URLSearchParams;
+  jurisdiction?: OpFilterBarJurisdiction;
+  provinceKey: string;
+  localityKey: string;
+  chips: ActiveChip[];
+}): boolean {
+  const { searchParams, jurisdiction, provinceKey, localityKey, chips } = params;
+  if (!jurisdiction) return false;
+  const provinceUnresolved =
+    Boolean(searchParams.get(provinceKey)) && !chips.some((c) => c.id === "province");
+  const localityUnresolved =
+    Boolean(searchParams.get(localityKey)) && !chips.some((c) => c.id === "locality");
+  return provinceUnresolved || localityUnresolved;
 }
 
 /**
@@ -406,7 +439,18 @@ export function OpFilterBar({
   const hasDomainGroup = axes.length > 0 || Boolean(children);
   const rhythm = hasDomainGroup ? "space-y-4" : "space-y-3";
 
-  const mobileSummary = buildMobileSummary(chips, showPeriod, defaultPreset);
+  const mobileSummary = buildMobileSummary(
+    chips,
+    showPeriod,
+    defaultPreset,
+    detectUnresolvedJurisdictionParam({
+      searchParams,
+      jurisdiction,
+      provinceKey,
+      localityKey,
+      chips,
+    }),
+  );
 
   return (
     <section

@@ -34,11 +34,39 @@ export default async function PetSightingPage({
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
       discloseLastLocationWhenLost: pets.discloseLastLocationWhenLost,
+      inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
   if (!pet) notFound();
+
+  // D2 hardening (red-team 2026-07): the sighting flow notifies the contested
+  // owner and its payload can carry the finder's contact — replaced by the
+  // neutral authority notice while titularidad is under review. The action is
+  // gated server-side too (report-pet-sighting.ts).
+  if (pet.inCustodyDispute) {
+    return (
+      // Landing shell (AppShell variant=landing) owns #main-content + min-height.
+      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
+        <div className="mx-auto max-w-md space-y-4 text-center">
+          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
+            Titularidad en revisión
+          </h1>
+          <p className="text-sm text-[var(--color-ln-mute)]">
+            La titularidad de esta mascota está en revisión por la autoridad. Si tenés información,
+            será dirigida a la autoridad competente, no a las partes.
+          </p>
+          <Link
+            href={`/p/${publicToken}`}
+            className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm"
+          >
+            Ver el perfil público
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (pet.status !== "lost") {
     return (

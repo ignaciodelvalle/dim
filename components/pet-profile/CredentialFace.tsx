@@ -360,22 +360,31 @@ export function CredentialFace({
                 same tone/gate). The disclosure is a native <details>, so it is
                 keyboard-operable with no client JS (CredentialFace stays a
                 server component). Titled "Obligaciones" — a NAME, not a repeat
-                of the divider's "Cumplimiento" label family. */}
-            <DiscList className="md:hidden">
-              <DiscRow
-                icon="shield"
-                title="Obligaciones"
-                summary={complianceSummary}
-                trailing={complianceStamp ? <LnVstamp variant={complianceStamp} /> : undefined}
-              >
-                <ComplianceObligationsPanel
-                  state={complianceState}
-                  petPublicToken={petPublicToken}
-                  bare
-                />
-                {serviceDogRow}
-              </DiscRow>
-            </DiscList>
+                of the divider's "Cumplimiento" label family.
+
+                The md:hidden lives on a plain WRAPPER div, not on DiscList:
+                `.ln-disc-list` sets `display:flex` as an UNLAYERED rule in
+                globals.css, and unlayered author CSS beats Tailwind's layered
+                utilities — `md:hidden` on the DiscList itself silently lost,
+                mounting BOTH the expanded panel and this collapsed disclosure
+                on desktop (double compliance widget on /inicio). */}
+            <div className="md:hidden">
+              <DiscList>
+                <DiscRow
+                  icon="shield"
+                  title="Obligaciones"
+                  summary={complianceSummary}
+                  trailing={complianceStamp ? <LnVstamp variant={complianceStamp} /> : undefined}
+                >
+                  <ComplianceObligationsPanel
+                    state={complianceState}
+                    petPublicToken={petPublicToken}
+                    bare
+                  />
+                  {serviceDogRow}
+                </DiscRow>
+              </DiscList>
+            </div>
           </div>
         </>
       )}

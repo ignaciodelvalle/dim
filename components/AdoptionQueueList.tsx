@@ -266,12 +266,14 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
         })}
       </nav>
 
-      {/* Row count */}
-      <p aria-live="polite" className="text-sm text-ln-op-mute">
-        {rows.length === 0
-          ? "Sin postulaciones"
-          : `${rows.length} ${rows.length === 1 ? "postulación" : "postulaciones"}`}
-      </p>
+      {/* Row count — suppressed when empty: the empty-state box below already
+          says it, and "Sin postulaciones" + "No tenés postulaciones…" back to
+          back was the same message twice. */}
+      {rows.length > 0 && (
+        <p aria-live="polite" className="text-sm text-ln-op-mute">
+          {`${rows.length} ${rows.length === 1 ? "postulación" : "postulaciones"}`}
+        </p>
+      )}
 
       {/* Empty state */}
       {rows.length === 0 ? (

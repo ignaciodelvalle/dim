@@ -106,6 +106,7 @@ import {
   formatCount,
   formatPercent,
   formatRate,
+  pluralizeEs,
   relativeDayLabel,
 } from "@/lib/utils/format";
 
@@ -582,8 +583,8 @@ export default async function GobiernoDashboardPage({
             // declared count (omitted at 0 events — no lens over nothing).
             sub={
               sterilizations.count > 0
-                ? `${sterilizations.orgs} organizaciones · ${formatPercent(sterilizations.signedPct)} firmado por matrícula`
-                : `${sterilizations.orgs} organizaciones`
+                ? `${sterilizations.orgs} ${pluralizeEs(sterilizations.orgs, "organización", "organizaciones")} · ${formatPercent(sterilizations.signedPct)} firmado por matrícula`
+                : `${sterilizations.orgs} ${pluralizeEs(sterilizations.orgs, "organización", "organizaciones")}`
             }
             href="/gob/analytics"
             descriptorId="sterilizations_per_month"

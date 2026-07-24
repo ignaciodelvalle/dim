@@ -20,6 +20,11 @@
 //   • active, tier 0    → found-report prompt (opens + scrolls to the
 //                         existing "¿Encontraste a esta mascota?" form).
 //   • deceased          → page renders NO bar (memorial, no street action).
+//   • custody dispute   → page renders NO relay CTA at all (D2 hardening,
+//                         red-team 2026-07): both finder flows end in an
+//                         owner-directed relay, so a disputed pet gets only
+//                         the neutral "medical" mode (tier-2 active) or no
+//                         bar — resolved server-side in page.tsx.
 //
 // Plain <a> ON PURPOSE for the finder/sighting navigation (lint:hard-nav):
 // one-shot anonymous finder routes must hard-navigate — a next/link soft nav

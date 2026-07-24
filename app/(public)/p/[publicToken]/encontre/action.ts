@@ -131,6 +131,7 @@ export async function reportFinderInPossessionAction(
       id: pets.id,
       name: pets.name,
       status: pets.status,
+      inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
@@ -138,6 +139,18 @@ export async function reportFinderInPossessionAction(
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
   if (pet.status !== "lost") {
     return { ok: false, error: "Esta mascota no está marcada como perdida." };
+  }
+
+  // D2 hardening (red-team 2026-07): a disputed pet's finder flow relays the
+  // finder's contact to the contested owner (event payload + urgent
+  // notification) — blocked server-side while titularidad is under review.
+  if (pet.inCustodyDispute) {
+    return {
+      ok: false,
+      error:
+        "La titularidad de esta mascota está en revisión por la autoridad. " +
+        "Si tenés información, será dirigida a la autoridad competente, no a las partes.",
+    };
   }
 
   // Resolve owner.

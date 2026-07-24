@@ -292,14 +292,15 @@ export function CaseQueue({
         </fieldset>
       )}
 
-      {/* Row count */}
-      <p aria-live="polite" className="text-sm text-ln-op-mute">
-        {rows.length === 0
-          ? "Sin casos"
-          : totalCount !== undefined && totalCount > rows.length
+      {/* Row count — suppressed when empty: the empty-state box below already
+          carries the message, so "Sin casos" + emptyMessage was a double. */}
+      {rows.length > 0 && (
+        <p aria-live="polite" className="text-sm text-ln-op-mute">
+          {totalCount !== undefined && totalCount > rows.length
             ? `Mostrando los ${rows.length.toLocaleString("es-AR")} más recientes de ${totalCount.toLocaleString("es-AR")}`
             : `${rows.length} ${pluralizeEs(rows.length, "caso")}${truncated ? " (hay más — refiná los filtros)" : ""}`}
-      </p>
+        </p>
+      )}
 
       {/* Table */}
       {rows.length === 0 ? (

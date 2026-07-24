@@ -87,6 +87,11 @@ interface Props {
    * opted into `discloseConditionsPublicly` AND the pet has at least one
    * condition. See lib/reference/permanent-conditions.ts `resolveLostSpecialConditions`. */
   specialConditions?: { labels: string[]; other: string | null } | null;
+  /** D2 hardening (red-team 2026-07): true while pets.inCustodyDispute is set.
+   * The caller must ALSO null the contact fields and both form hrefs; this flag
+   * only swaps the "no channels" warning for the neutral authority notice so
+   * the card explains WHY there is no way to contact anyone. */
+  custodyDisputed?: boolean;
 }
 
 export function PublicLostSections({
@@ -110,6 +115,7 @@ export function PublicLostSections({
   lastSeenLng = null,
   lostDescription = null,
   specialConditions = null,
+  custodyDisputed = false,
 }: Props) {
   const tattooLocLabel = tattooLocationLabel(tattooLocation);
   const hasLastSeenCoords =
@@ -200,16 +206,35 @@ export function PublicLostSections({
           </p>
         )}
 
+        {/* Custody dispute (D2 hardening, red-team 2026-07): every contact and
+            relay channel is suppressed by the caller, so explain WHY with the
+            neutral authority notice — never the misleading "no channels
+            enabled" warning below. */}
+        {custodyDisputed && (
+          <p
+            data-section="lost-custody-dispute-notice"
+            className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-ink-2"
+          >
+            La titularidad de esta mascota está en revisión por la autoridad. Si tenés información,
+            será dirigida a la autoridad competente, no a las partes.
+          </p>
+        )}
+
         {/* Honest warning — the DEGENERATE state: no phone, no email, and no
             aviso path (neither the finder form nor the sighting form). email and
             sighting are included in the check because telling a finder there are
             "no contact channels" next to a working mailto or a sighting CTA would
-            lie. */}
-        {!ownerPhoneE164 && !finderFormHref && !sightingFormHref && !ownerEmail && (
-          <p className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-warn">
-            Esta mascota no tiene canales de contacto habilitados.
-          </p>
-        )}
+            lie. Suppressed for a disputed pet — the neutral notice above owns
+            that state. */}
+        {!custodyDisputed &&
+          !ownerPhoneE164 &&
+          !finderFormHref &&
+          !sightingFormHref &&
+          !ownerEmail && (
+            <p className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-warn">
+              Esta mascota no tiene canales de contacto habilitados.
+            </p>
+          )}
       </div>
 
       {/* Special-conditions disclosure (welfare safety) — a finder handling a

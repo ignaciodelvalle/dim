@@ -208,6 +208,41 @@ describe("OpFilterBar — active-filter chips + Limpiar todo", () => {
     expect(url.searchParams.get("period")).toBe("90d");
   });
 
+  it("mobile summary says the jurisdiction param was not recognized instead of 'Sin filtros activos'", () => {
+    // ?province=CABA is a NAME, not the ISO code AR-C — fail-closed resolution
+    // narrows nothing and renders no chip. The collapsed summary must not
+    // affirmatively claim there are no filters while the URL carries one.
+    setUrl("/gob/perdidas?province=CABA");
+    render(
+      <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces: PROVINCES }} axes={[]} />,
+    );
+    expect(screen.getByText("Filtro no reconocido — mostrando tu cobertura completa")).toBeTruthy();
+    expect(screen.queryByText("Sin filtros activos")).toBeNull();
+  });
+
+  it("mobile summary flags an unresolvable locality slug too, even with the period fallback", () => {
+    setUrl("/gob/perdidas?locality=Palermo");
+    render(
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{
+          allowedProvinces: PROVINCES,
+          localities: [{ slug: "la-plata", name: "La Plata" }],
+        }}
+        axes={[]}
+      />,
+    );
+    expect(screen.getByText("Filtro no reconocido — mostrando tu cobertura completa")).toBeTruthy();
+  });
+
+  it("mobile summary keeps 'Sin filtros activos' when no jurisdiction param is in the URL", () => {
+    setUrl("/gob/perdidas");
+    render(
+      <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces: PROVINCES }} axes={[]} />,
+    );
+    expect(screen.getByText("Sin filtros activos")).toBeTruthy();
+  });
+
   it("'Limpiar todo' resets every owned param", () => {
     setUrl("/gob/perdidas?period=90d&province=AR-B&locality=la-plata&species=dog");
     render(
