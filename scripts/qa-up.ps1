@@ -36,9 +36,35 @@ if ($headTime -gt $buildTime) {
 }
 
 # 3. Server
+# Stale-server guard (incident 2026-07-23, twice): a server started BEFORE the
+# last rebuild keeps serving its old in-memory BUILD_ID while .next on disk has
+# a new one — every page then 400s on the dead chunk hashes. "Something listens
+# on :3000" is NOT enough; the served build must MATCH the disk build. We probe
+# a page and look for the on-disk BUILD_ID in its /_next/static asset URLs; on
+# mismatch the stale server is killed and a fresh one started.
 $listening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 if ($listening) {
-    Write-Host "Port $Port already listening - reusing running server."
+    $diskBuildId = (Get-Content $buildIdPath -Raw).Trim()
+    $servedFresh = $false
+    try {
+        $probe = Invoke-WebRequest -Uri "http://localhost:$Port/login" -UseBasicParsing -TimeoutSec 10
+        if ($probe.Content -match [regex]::Escape("/_next/static/$diskBuildId/")) { $servedFresh = $true }
+    } catch {
+        Write-Warning "Probe of the running server failed - treating it as stale."
+    }
+    if ($servedFresh) {
+        Write-Host "Port $Port already listening and serving the on-disk build ($diskBuildId) - reusing."
+    } else {
+        Write-Warning "Server on port $Port serves a DIFFERENT build than .next on disk - restarting it."
+        $listening | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
+            Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Seconds 2
+        $listening = $null
+    }
+}
+if ($listening) {
+    # fresh server confirmed above - nothing to do
 } else {
     Write-Host "Starting production server on port $Port..."
     $env:PORT = $Port
