@@ -72,12 +72,16 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
     expect(html).toContain("linear-gradient");
   });
 
-  it("renders gradient aria-label with min and max textual description", () => {
+  it("renders the classed legend with a labeled range fieldset", () => {
+    // Since 2026-07-24 the sequential fill is CLASSED (discrete color per
+    // break), not a continuous min→max gradient — the legend now exposes
+    // clickable range bins under a labeled fieldset instead of a min/max
+    // textual gradient aria description (dataviz review #5: the continuous
+    // ramp read flat).
     const html = renderToStaticMarkup(
       <MapChoropleth data={baseData} scaleLabel="Casos abiertos" />,
     );
-    expect(html).toContain("mínimo");
-    expect(html).toContain("máximo");
+    expect(html).toContain("Resaltar regiones por rango de valores");
     expect(html).toContain("Casos abiertos");
   });
 
