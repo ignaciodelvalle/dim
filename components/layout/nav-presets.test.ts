@@ -23,6 +23,7 @@ import {
 // now also capability-gated (Cobertura gates on role — see FULL_NAV below).
 const ALL_GATED_CAPS = new Set([
   "appointment.manage",
+  "event.write",
   "intake.create",
   "adoption.review",
   "capability.grant",
@@ -115,8 +116,8 @@ describe("buildOrgNavFlat", () => {
     expect(labels).toEqual(["Panel"]);
   });
 
-  it("produces 18 items when all capabilities are granted and role is admin", () => {
-    expect(buildOrgNavFlat("ORG-ABC", FULL_NAV)).toHaveLength(18);
+  it("produces 19 items when all capabilities are granted and role is admin", () => {
+    expect(buildOrgNavFlat("ORG-ABC", FULL_NAV)).toHaveLength(19);
   });
 
   it("hides Agenda, Ingresos, Check-ins, Mordeduras and Permisos without their capabilities", () => {
@@ -852,6 +853,7 @@ describe("ADMIN_NAV_FLAT — derived flat list", () => {
 const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC",
   "/org/ORG-ABC/agenda",
+  "/org/ORG-ABC/atender",
   "/org/ORG-ABC/intake",
   "/org/ORG-ABC/transitos",
   "/org/ORG-ABC/voluntarios",
@@ -972,6 +974,7 @@ describe("buildOrgNav — nav diet (primary jobs + collapsible Administración)"
     const sections = buildOrgNav("ORG-ABC", SHELTER);
     expect(section(sections, "Administración")?.items.map((i) => i.label)).toEqual([
       "Agenda",
+      "Atender",
       "Transferencias",
       "Servicios",
       "Cobertura",
@@ -992,7 +995,11 @@ describe("buildOrgNav — nav diet (primary jobs + collapsible Administración)"
 
   it("clinic: Agenda surfaces in the unlabeled top next to Panel, not buried under Administración", () => {
     const sections = buildOrgNav("ORG-ABC", CLINIC);
-    expect(section(sections, "")?.items.map((i) => i.label)).toEqual(["Panel", "Agenda"]);
+    expect(section(sections, "")?.items.map((i) => i.label)).toEqual([
+      "Panel",
+      "Agenda",
+      "Atender",
+    ]);
     expect(section(sections, "Administración")?.items.map((i) => i.label)).not.toContain("Agenda");
   });
 
@@ -1000,14 +1007,18 @@ describe("buildOrgNav — nav diet (primary jobs + collapsible Administración)"
     const sections = buildOrgNav("ORG-ABC", CLINIC);
     // Postulaciones bucket empties (adopciones + checkins are shelterOnly) and drops.
     expect(section(sections, "Postulaciones")).toBeUndefined();
+    // Ingresos bucket also drops for a clinic: both its items (Ingresos intake,
+    // Censo) are shelterOnly (red-team 2026-07-24 #4). Atender + Agenda surface
+    // in the unlabeled top for clinics instead.
+    expect(section(sections, "Ingresos")).toBeUndefined();
     expect(sections.map((s) => s.label)).toEqual([
       "",
-      "Ingresos",
       "Custodia",
       "Casos",
       "Equipo",
       "Administración",
     ]);
+    expect(section(sections, "")?.items.map((i) => i.label)).toContain("Atender");
     const admin = section(sections, "Administración");
     expect(admin?.collapsible).toBe(true);
     expect(admin?.items.map((i) => i.label)).toEqual([

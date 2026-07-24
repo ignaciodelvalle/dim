@@ -156,13 +156,32 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       requiredCapability: "appointment.manage",
       section: hideShelterOnly ? "" : "Administración",
     },
-    // Ingresos — intake + census (the "what entered / what do we hold" job).
+    {
+      // Atender (walk-in credential → sign a clinical event) is the CLINIC's
+      // core daily flow — the route existed and worked but had NO nav item, so
+      // the org's #1 job was reachable only via a panel card (red-team
+      // 2026-07-24 #2). Surfaced in the unlabeled top for clinics/authorities
+      // (where it IS the main work), kept under Administración for rehoming
+      // orgs that can also sign events. Gated on event.write — the exact
+      // capability the atender flow requires (atender-access.ts).
+      href: `/org/${orgToken}/atender`,
+      label: "Atender",
+      matchPrefix: `/org/${orgToken}/atender`,
+      requiredCapability: "event.write",
+      section: hideShelterOnly ? "" : "Administración",
+    },
+    // Ingresos — shelter/rescue intake (the "what entered" job). shelterOnly:
+    // a clinic doesn't take shelter intake, and a clinic admin holds implicit
+    // all-caps, so without this flag it saw an "Ingresos" item in refugio
+    // language that isn't its job (red-team 2026-07-24 #4, same class as the
+    // Censo fix).
     {
       href: `/org/${orgToken}/intake`,
       label: "Ingresos",
       matchPrefix: `/org/${orgToken}/intake`,
       requiredCapability: "intake.create",
       section: "Ingresos",
+      shelterOnly: true,
     },
     {
       href: `/org/${orgToken}/censo`,
