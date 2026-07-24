@@ -79,25 +79,28 @@ describe("buildOrgNav (section structure)", () => {
     }
   });
 
-  it("returns exactly 5 sections when all gated capabilities are granted", () => {
+  it("returns exactly 7 sections when all gated capabilities are granted", () => {
     const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
-    expect(sections).toHaveLength(5);
+    expect(sections).toHaveLength(7);
   });
 
-  it("section labels are Operación, Animales, Adopciones, Casos, Administración (in order)", () => {
+  it("section labels are the nav-diet buckets: unlabeled top, 5 jobs, Administración (in order)", () => {
     const sections = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
     expect(sections.map((s) => s.label)).toEqual([
-      "Operación",
-      "Animales",
-      "Adopciones",
+      "",
+      "Ingresos",
+      "Custodia",
+      "Postulaciones",
       "Casos",
+      "Equipo",
       "Administración",
     ]);
   });
 
-  it("first section is Operación", () => {
+  it("first section is the unlabeled top holding Panel", () => {
     const [first] = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
-    expect(first.label).toBe("Operación");
+    expect(first.label).toBe("");
+    expect(first.items[0]?.label).toBe("Panel");
   });
 });
 
@@ -908,13 +911,15 @@ describe("buildOrgNav — section invariants", () => {
     }
   });
 
-  it("with full grants, exactly 5 sections are present and in order", () => {
+  it("with full grants, exactly 7 sections are present and in order (nav diet)", () => {
     const sections = buildOrgNav("ORG-ABC", FULL_NAV);
     expect(sections.map((s) => s.label)).toEqual([
-      "Operación",
-      "Animales",
-      "Adopciones",
+      "",
+      "Ingresos",
+      "Custodia",
+      "Postulaciones",
       "Casos",
+      "Equipo",
       "Administración",
     ]);
   });
@@ -923,6 +928,100 @@ describe("buildOrgNav — section invariants", () => {
     const sections = buildOrgNav("ORG-ABC", FULL_NAV);
     const flat = buildOrgNavFlat("ORG-ABC", FULL_NAV);
     expect(flat).toEqual(sections.flatMap((s) => s.items));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Org nav diet (2026-07-24, PO-approved) — 5 primary jobs + collapsible
+// Administración. Pure regrouping: routes, labels, capability gates and the
+// shelterOnly filter are untouched (fenced by the snapshot tests above).
+// ---------------------------------------------------------------------------
+
+describe("buildOrgNav — nav diet (primary jobs + collapsible Administración)", () => {
+  const SHELTER = { ...FULL_NAV, orgType: "shelter" } as const;
+  const CLINIC = { ...FULL_NAV, orgType: "clinic" } as const;
+
+  function section(sections: ReturnType<typeof buildOrgNav>, label: string) {
+    return sections.find((s) => s.label === label);
+  }
+
+  it("shelter: the 5 primary job buckets hold the expected items", () => {
+    const sections = buildOrgNav("ORG-ABC", SHELTER);
+    expect(section(sections, "Ingresos")?.items.map((i) => i.label)).toEqual(["Ingresos", "Censo"]);
+    expect(section(sections, "Custodia")?.items.map((i) => i.label)).toEqual([
+      "Mascotas",
+      "Tránsitos",
+    ]);
+    expect(section(sections, "Postulaciones")?.items.map((i) => i.label)).toEqual([
+      "Postulaciones",
+      "Check-ins",
+    ]);
+    expect(section(sections, "Casos")?.items.map((i) => i.label)).toEqual([
+      "Casos",
+      "Maltrato",
+      "Mordeduras",
+    ]);
+    expect(section(sections, "Equipo")?.items.map((i) => i.label)).toEqual([
+      "Miembros",
+      "Voluntarios",
+      "Permisos",
+    ]);
+  });
+
+  it("shelter: Administración holds the managerial rest (Agenda, Transferencias, Servicios, Cobertura, Configuración)", () => {
+    const sections = buildOrgNav("ORG-ABC", SHELTER);
+    expect(section(sections, "Administración")?.items.map((i) => i.label)).toEqual([
+      "Agenda",
+      "Transferencias",
+      "Servicios",
+      "Cobertura",
+      "Configuración",
+    ]);
+  });
+
+  it("only Administración is collapsible; every primary section stays expanded", () => {
+    const sections = buildOrgNav("ORG-ABC", SHELTER);
+    for (const s of sections) {
+      if (s.label === "Administración") {
+        expect(s.collapsible).toBe(true);
+      } else {
+        expect(s.collapsible).toBeUndefined();
+      }
+    }
+  });
+
+  it("clinic: Agenda surfaces in the unlabeled top next to Panel, not buried under Administración", () => {
+    const sections = buildOrgNav("ORG-ABC", CLINIC);
+    expect(section(sections, "")?.items.map((i) => i.label)).toEqual(["Panel", "Agenda"]);
+    expect(section(sections, "Administración")?.items.map((i) => i.label)).not.toContain("Agenda");
+  });
+
+  it("clinic: gets a proportional structure — shelter-only buckets drop, Administración stays collapsible", () => {
+    const sections = buildOrgNav("ORG-ABC", CLINIC);
+    // Postulaciones bucket empties (adopciones + checkins are shelterOnly) and drops.
+    expect(section(sections, "Postulaciones")).toBeUndefined();
+    expect(sections.map((s) => s.label)).toEqual([
+      "",
+      "Ingresos",
+      "Custodia",
+      "Casos",
+      "Equipo",
+      "Administración",
+    ]);
+    const admin = section(sections, "Administración");
+    expect(admin?.collapsible).toBe(true);
+    expect(admin?.items.map((i) => i.label)).toEqual([
+      "Transferencias",
+      "Servicios",
+      "Cobertura",
+      "Configuración",
+    ]);
+  });
+
+  it("zero-capability member: only the unlabeled Panel section remains — no empty Administración group", () => {
+    const sections = buildOrgNav("ORG-ABC");
+    expect(sections.map((s) => s.label)).toEqual([""]);
+    expect(sections[0].collapsible).toBeUndefined();
   });
 });
 

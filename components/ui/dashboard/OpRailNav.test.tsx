@@ -87,3 +87,61 @@ describe("OpRailNav — deferred items (D7)", () => {
     nav.path = "/admin/programa"; // reset for any later test
   });
 });
+
+// Org nav diet (2026-07-24): a `collapsible` section renders as a native
+// <details> disclosure, collapsed by default, holding its items — nothing is
+// removed, secondary destinations are one tap away. Auto-opens when it
+// contains the active route so the current location is never hidden.
+describe("OpRailNav — collapsible section (Administración group)", () => {
+  const COLLAPSIBLE: NavSection[] = [
+    {
+      label: "Ingresos",
+      items: [{ href: "/org/T/intake", label: "Ingresos", matchPrefix: "/org/T/intake" }],
+    },
+    {
+      label: "Administración",
+      collapsible: true,
+      items: [
+        { href: "/org/T/servicios", label: "Servicios", matchPrefix: "/org/T/servicios" },
+        {
+          href: "/org/T/configuracion",
+          label: "Configuración",
+          matchPrefix: "/org/T/configuracion",
+        },
+      ],
+    },
+  ];
+
+  it("renders the collapsible section as a <details> with its label in the <summary>, collapsed by default", () => {
+    nav.path = "/org/T/intake";
+    const html = render(COLLAPSIBLE);
+    const detailsTag = html.match(/<details[^>]*>/)?.[0];
+    expect(detailsTag).toBeDefined();
+    expect(detailsTag).not.toContain(" open");
+    expect(html).toMatch(/<summary[^>]*>[\s\S]*?Administración[\s\S]*?<\/summary>/);
+  });
+
+  it("keeps every grouped item rendered (links exist inside the details — nothing removed)", () => {
+    nav.path = "/org/T/intake";
+    const html = render(COLLAPSIBLE);
+    expect(html).toContain('href="/org/T/servicios"');
+    expect(html).toContain('href="/org/T/configuracion"');
+  });
+
+  it("opens the group when it contains the active route", () => {
+    nav.path = "/org/T/configuracion";
+    const html = render(COLLAPSIBLE);
+    const detailsTag = html.match(/<details[^>]*>/)?.[0];
+    expect(detailsTag).toContain(" open");
+    expect(html).toContain('aria-current="page"');
+    nav.path = "/admin/programa"; // reset for any later test
+  });
+
+  it("non-collapsible sections keep rendering as plain headed groups (no <details>)", () => {
+    nav.path = "/org/T/intake";
+    const html = render([COLLAPSIBLE[0]]);
+    expect(html).not.toContain("<details");
+    expect(html).not.toContain("<summary");
+    expect(html).toContain("Ingresos");
+  });
+});

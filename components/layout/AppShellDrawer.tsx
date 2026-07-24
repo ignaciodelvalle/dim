@@ -21,6 +21,12 @@ import { Drawer } from "vaul";
 export type DrawerNavSection = {
   label: string;
   items: NavItem[];
+  /**
+   * Collapsible group (org nav diet, 2026-07-24): rendered as a native
+   * <details> COLLAPSED by default — mirrors OpRailNav. Auto-opens when it
+   * contains the active route.
+   */
+  collapsible?: boolean;
 };
 
 type Props = {
@@ -89,14 +95,14 @@ export function AppShellDrawer({
         >
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
-            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
+            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
               m·
             </div>
             <div className="flex flex-col leading-tight">
               <span className="font-ln-serif text-[15px] font-semibold text-white">
                 {BRANDING.appName}
               </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
+              <span className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
                 {brandSubtitle}
               </span>
             </div>
@@ -116,13 +122,8 @@ export function AppShellDrawer({
             aria-label="Navegación principal"
             className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
           >
-            {resolved.map((section) => (
-              <div key={section.label} className="flex flex-col">
-                {section.label && (
-                  <div className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-ln-op-rail-mute">
-                    {section.label}
-                  </div>
-                )}
+            {resolved.map((section) => {
+              const sectionItems = (
                 <div className="flex flex-col gap-0.5">
                   {section.items.map((item) => {
                     const active = isActive(item, pathname);
@@ -144,7 +145,7 @@ export function AppShellDrawer({
                             : item.label
                         }
                         className={[
-                          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
+                          "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
                           "text-[12.5px] no-underline transition-colors -ml-0.5",
                           active
                             ? activeClasses
@@ -161,8 +162,55 @@ export function AppShellDrawer({
                     );
                   })}
                 </div>
-              </div>
-            ))}
+              );
+
+              if (section.collapsible) {
+                // Mirror OpRailNav EXACTLY: native <details>, collapsed by
+                // default, forced open when it holds the active route so the
+                // current location is never hidden.
+                const containsActive = section.items.some((item) => isActive(item, pathname));
+                return (
+                  <details key={section.label} className="group" open={containsActive || undefined}>
+                    <summary
+                      className={[
+                        "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",
+                        "rounded-[var(--radius-sm)] px-2 py-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em]",
+                        "text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.05)]",
+                        "[&::-webkit-details-marker]:hidden",
+                      ].join(" ")}
+                    >
+                      {section.label}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 12 12"
+                        className="h-3 w-3 transition-transform group-open:rotate-180"
+                      >
+                        <path
+                          d="M2.5 4.25 6 7.75l3.5-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </summary>
+                    {sectionItems}
+                  </details>
+                );
+              }
+
+              return (
+                <div key={section.label} className="flex flex-col">
+                  {section.label && (
+                    <div className="mb-1.5 px-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em] text-ln-op-rail-mute">
+                      {section.label}
+                    </div>
+                  )}
+                  {sectionItems}
+                </div>
+              );
+            })}
           </nav>
         </Drawer.Content>
       </Drawer.Portal>

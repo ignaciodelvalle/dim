@@ -45,6 +45,14 @@ export const OWNER_NAV: NavItem[] = [
 // Org portal
 // Sections model: capability-filtered items partitioned into NavSection[].
 // Sections that end up empty after filtering are dropped.
+//
+// Nav diet (2026-07-24, PO-approved, cursor R1 + sentiment): the shelter rail
+// had grown into an 18-item ERP sitemap; a shift lead needs today's jobs. The
+// rail now leads with the 5 primary JOBS (Ingresos, Custodia, Postulaciones,
+// Casos, Equipo) and folds every managerial/setup surface into ONE collapsible
+// "Administración" group, collapsed by default. Pure regrouping: no route,
+// label, capability gate, or shelterOnly filter changed — every destination
+// survives, one tap away at most.
 // ---------------------------------------------------------------------------
 
 export type OrgNavOptions = {
@@ -130,58 +138,58 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
     orgType !== undefined && orgType !== "shelter" && orgType !== "rescue_network";
   const role = opts.role;
 
-  // All candidate items with their section assignment and optional capability gate.
+  // All candidate items with their section assignment and optional capability
+  // gate. Sections ARE the two-tier diet: the unlabeled top (Panel) + the 5
+  // primary job buckets, then "Administración" (collapsible, collapsed by
+  // default) for everything managerial.
   const allItems: Array<OrgNavItem & { section: string }> = [
-    // Operación
-    { href: `/org/${orgToken}`, label: "Panel", section: "Operación" },
+    // Unlabeled top — the org home, mirrors the gob/admin Panel-only top.
+    { href: `/org/${orgToken}`, label: "Panel", section: "" },
     {
+      // Judgment call (nav diet): Agenda is not one of the 5 shelter jobs →
+      // Administración for rehoming orgs. But for a clinic/sanitary authority
+      // the appointment book IS daily work — surface it in the unlabeled top
+      // next to Panel instead of burying it behind the collapsed group.
       href: `/org/${orgToken}/agenda`,
       label: "Agenda",
       matchPrefix: `/org/${orgToken}/agenda`,
       requiredCapability: "appointment.manage",
-      section: "Operación",
+      section: hideShelterOnly ? "" : "Administración",
     },
+    // Ingresos — intake + census (the "what entered / what do we hold" job).
     {
       href: `/org/${orgToken}/intake`,
       label: "Ingresos",
       matchPrefix: `/org/${orgToken}/intake`,
       requiredCapability: "intake.create",
-      section: "Operación",
+      section: "Ingresos",
     },
     {
       href: `/org/${orgToken}/censo`,
       label: "Censo",
       matchPrefix: `/org/${orgToken}/censo`,
       requiredCapability: "intake.create",
-      section: "Operación",
+      section: "Ingresos",
       // The census page itself is shelter-only (app/org/[t]/censo/page.tsx
       // SHELTER_TYPES) — without this flag a clinic admin (implicit all-caps)
       // got a nav item leading to an H1-less dead end (cursor citizen UX V1).
       shelterOnly: true,
+    },
+    // Custodia — the animals the org holds and their foster placements.
+    {
+      href: `/org/${orgToken}/mascotas`,
+      label: "Mascotas",
+      matchPrefix: `/org/${orgToken}/mascotas`,
+      requiredCapability: "pet.read_held",
+      section: "Custodia",
     },
     {
       href: `/org/${orgToken}/transitos`,
       label: "Tránsitos",
       matchPrefix: `/org/${orgToken}/transitos`,
       requiredCapability: "foster.assign",
-      section: "Operación",
+      section: "Custodia",
       shelterOnly: true,
-    },
-    {
-      href: `/org/${orgToken}/voluntarios`,
-      label: "Voluntarios",
-      matchPrefix: `/org/${orgToken}/voluntarios`,
-      requiredCapability: "foster.assign",
-      section: "Operación",
-      shelterOnly: true,
-    },
-    // Animales
-    {
-      href: `/org/${orgToken}/mascotas`,
-      label: "Mascotas",
-      matchPrefix: `/org/${orgToken}/mascotas`,
-      requiredCapability: "pet.read_held",
-      section: "Animales",
     },
     {
       // Gated on the cross-org handshake capabilities (spec
@@ -196,25 +204,30 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       label: "Transferencias",
       matchPrefix: `/org/${orgToken}/transferencias`,
       requiredAnyCapability: ["org.transfer.propose", "org.transfer.accept"],
-      section: "Animales",
+      // Nav diet judgment call: the cross-org handshake is an occasional
+      // managerial flow, not a shift job — Administración.
+      section: "Administración",
     },
-    // Adopciones — label matches the target page's H1 ("Postulaciones"):
-    // "Operaciones" promised a hub and delivered an applications list, and
-    // operators learn not to trust labels (cursor citizen UX R2, 2026-07-24).
+    // Postulaciones — the adoption-cycle job (applications + follow-ups).
+    // Label matches the target page's H1 ("Postulaciones"): "Operaciones"
+    // promised a hub and delivered an applications list, and operators learn
+    // not to trust labels (cursor citizen UX R2, 2026-07-24).
     {
       href: `/org/${orgToken}/adopciones`,
       label: "Postulaciones",
       matchPrefix: `/org/${orgToken}/adopciones`,
       requiredCapability: "adoption.review",
-      section: "Adopciones",
+      section: "Postulaciones",
       shelterOnly: true,
     },
     {
+      // Post-adoption follow-ups belong to the same adoption-cycle job as the
+      // applications queue — kept beside Postulaciones, not Administración.
       href: `/org/${orgToken}/checkins`,
       label: "Check-ins",
       matchPrefix: `/org/${orgToken}/checkins`,
       requiredCapability: "adoption.review",
-      section: "Adopciones",
+      section: "Postulaciones",
       shelterOnly: true,
     },
     // Casos
@@ -245,14 +258,7 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       requiredCapability: "bite.report",
       section: "Casos",
     },
-    // Administración
-    {
-      href: `/org/${orgToken}/servicios`,
-      label: "Servicios",
-      matchPrefix: `/org/${orgToken}/servicios`,
-      requiredCapability: "service_offering.create",
-      section: "Administración",
-    },
+    // Equipo — the people-running-the-shift job (staff, fosters, access).
     {
       // The members page itself is viewable by any member (roster), but the
       // page is only ACTIONABLE (invite/manage) with member.invite — gate
@@ -263,6 +269,29 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       label: "Miembros",
       matchPrefix: `/org/${orgToken}/miembros`,
       requiredCapability: "member.invite",
+      section: "Equipo",
+    },
+    {
+      href: `/org/${orgToken}/voluntarios`,
+      label: "Voluntarios",
+      matchPrefix: `/org/${orgToken}/voluntarios`,
+      requiredCapability: "foster.assign",
+      section: "Equipo",
+      shelterOnly: true,
+    },
+    {
+      href: `/org/${orgToken}/admin/permisos`,
+      label: "Permisos",
+      matchPrefix: `/org/${orgToken}/admin`,
+      requiredCapability: "capability.grant",
+      section: "Equipo",
+    },
+    // Administración — collapsed managerial/setup group (nav diet).
+    {
+      href: `/org/${orgToken}/servicios`,
+      label: "Servicios",
+      matchPrefix: `/org/${orgToken}/servicios`,
+      requiredCapability: "service_offering.create",
       section: "Administración",
     },
     {
@@ -277,13 +306,6 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       section: "Administración",
     },
     {
-      href: `/org/${orgToken}/admin/permisos`,
-      label: "Permisos",
-      matchPrefix: `/org/${orgToken}/admin`,
-      requiredCapability: "capability.grant",
-      section: "Administración",
-    },
-    {
       href: `/org/${orgToken}/configuracion`,
       label: "Configuración",
       matchPrefix: `/org/${orgToken}/configuracion`,
@@ -292,8 +314,20 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
     },
   ];
 
-  // Section order determines render order — must match the spec exactly.
-  const SECTION_ORDER = ["Operación", "Animales", "Adopciones", "Casos", "Administración"] as const;
+  // Section order determines render order: unlabeled top (Panel [+ Agenda for
+  // non-rehoming orgs]) → the 5 primary jobs → collapsed Administración.
+  const SECTION_ORDER = [
+    "",
+    "Ingresos",
+    "Custodia",
+    "Postulaciones",
+    "Casos",
+    "Equipo",
+    "Administración",
+  ] as const;
+  // The one collapsible tier — rendered collapsed by default by OpRailNav /
+  // OpMobileDrawer (native <details>). Everything else stays expanded.
+  const COLLAPSED_SECTION = "Administración";
 
   // Filter by capability AND org type (a clinic admin implicitly holds every
   // capability, so the shelter-only modules must be dropped by org type — not
@@ -327,7 +361,11 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       .filter((item) => item.section === sectionLabel)
       .map(({ section: _sec, ...item }) => item);
     if (items.length > 0) {
-      sections.push({ label: sectionLabel, items });
+      sections.push(
+        sectionLabel === COLLAPSED_SECTION
+          ? { label: sectionLabel, items, collapsible: true }
+          : { label: sectionLabel, items },
+      );
     }
   }
 

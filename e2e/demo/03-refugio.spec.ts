@@ -13,7 +13,10 @@ import {
 } from "./_helpers";
 
 // SEGMENT 03 — REFUGIO / shelter org (orgadmin@dim.test → /org/[orgToken]).
-// Nav order: Operación · Animales · Adopciones · Casos · Administración.
+// Rail (nav diet 2026-07-24): Panel · Ingresos · Custodia · Postulaciones ·
+// Casos · Equipo · Administración (collapsible, collapsed by default). This
+// journey navigates by URL, so the collapsed group does not block any beat;
+// the numbered segments below keep the original journey order.
 //
 // NON-DESTRUCTIVE on curated story data: lost/found/deceased, org→org
 // transfers of existing pets, adoption finalize, foster-fin, devolver-al-dueno

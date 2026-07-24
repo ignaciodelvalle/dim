@@ -72,14 +72,14 @@ export function OpMobileDrawer({
         >
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
-            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
+            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
               m·
             </div>
             <div className="flex flex-col leading-tight">
               <span className="font-ln-serif text-[15px] font-semibold text-white">
                 {BRANDING.appName}
               </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
+              <span className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
                 {brandSubtitle}
               </span>
             </div>
@@ -99,13 +99,8 @@ export function OpMobileDrawer({
             aria-label="Navegación principal"
             className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
           >
-            {resolved.map((section) => (
-              <div key={section.label} className="flex flex-col">
-                {section.label && (
-                  <div className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-ln-op-rail-mute">
-                    {section.label}
-                  </div>
-                )}
+            {resolved.map((section) => {
+              const sectionItems = (
                 <div className="flex flex-col gap-0.5">
                   {section.items.map((item) => {
                     // Deferred destination: non-interactive muted "Próximamente"
@@ -118,13 +113,13 @@ export function OpMobileDrawer({
                           key={item.href}
                           aria-disabled="true"
                           className={[
-                            "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
+                            "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
                             "text-[12.5px] -ml-0.5 border-l-2 border-transparent",
                             "text-ln-op-rail-mute cursor-not-allowed select-none",
                           ].join(" ")}
                         >
                           <span className="flex-1 truncate">{item.label}</span>
-                          <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
+                          <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
                             Próximamente
                           </span>
                         </span>
@@ -147,7 +142,7 @@ export function OpMobileDrawer({
                         prefetch={false}
                         aria-current={active ? "page" : undefined}
                         className={[
-                          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
+                          "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
                           "text-[12.5px] no-underline transition-colors -ml-0.5",
                           active
                             ? activeClasses
@@ -164,8 +159,54 @@ export function OpMobileDrawer({
                     );
                   })}
                 </div>
-              </div>
-            ))}
+              );
+
+              if (section.collapsible) {
+                // Mirror OpRailNav EXACTLY (D3): native <details>, collapsed by
+                // default, forced open when it holds the active route.
+                const containsActive = section.items.some((item) => isActive(item, pathname));
+                return (
+                  <details key={section.label} className="group" open={containsActive || undefined}>
+                    <summary
+                      className={[
+                        "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",
+                        "rounded-[var(--radius-sm)] px-2 py-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em]",
+                        "text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.05)]",
+                        "[&::-webkit-details-marker]:hidden",
+                      ].join(" ")}
+                    >
+                      {section.label}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 12 12"
+                        className="h-3 w-3 transition-transform group-open:rotate-180"
+                      >
+                        <path
+                          d="M2.5 4.25 6 7.75l3.5-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </summary>
+                    {sectionItems}
+                  </details>
+                );
+              }
+
+              return (
+                <div key={section.label} className="flex flex-col">
+                  {section.label && (
+                    <div className="mb-1.5 px-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em] text-ln-op-rail-mute">
+                      {section.label}
+                    </div>
+                  )}
+                  {sectionItems}
+                </div>
+              );
+            })}
           </nav>
         </Drawer.Content>
       </Drawer.Portal>

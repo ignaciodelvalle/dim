@@ -7,6 +7,13 @@ import { usePathname } from "next/navigation";
 export type NavSection = {
   label: string;
   items: NavItem[];
+  /**
+   * Collapsible group (org nav diet, 2026-07-24): rendered as a native
+   * <details> COLLAPSED by default, so secondary destinations stay one tap
+   * away without crowding the rail. Auto-opens when it contains the active
+   * route so the current location is never hidden.
+   */
+  collapsible?: boolean;
 };
 
 type Props = {
@@ -41,13 +48,13 @@ function NavLink({
       <span
         aria-disabled="true"
         className={[
-          "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
+          "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
           "text-[12.5px] -ml-0.5 border-l-2 border-transparent",
           "text-ln-op-rail-mute cursor-not-allowed select-none",
         ].join(" ")}
       >
         <span className="flex-1 truncate">{item.label}</span>
-        <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
+        <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
           Próximamente
         </span>
       </span>
@@ -83,7 +90,7 @@ function NavLink({
           : item.label
       }
       className={[
-        "flex min-h-11 items-center gap-2.5 rounded-[5px] px-[9px] py-2",
+        "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
         "text-[12.5px] no-underline transition-colors",
         "-ml-0.5",
         active
@@ -112,13 +119,8 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
       className="op-scroll flex flex-1 flex-col gap-4 overflow-y-auto px-[9px] py-[13px]"
       aria-label="Navegación principal"
     >
-      {resolved.map((section) => (
-        <div key={section.label} className="flex flex-col">
-          {section.label && (
-            <div className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--color-ln-op-rail-mute)]">
-              {section.label}
-            </div>
-          )}
+      {resolved.map((section) => {
+        const items = (
           <div className="flex flex-col gap-0.5">
             {section.items.map((item) => (
               <NavLink
@@ -129,8 +131,55 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
               />
             ))}
           </div>
-        </div>
-      ))}
+        );
+
+        if (section.collapsible) {
+          // Native <details>: no client state, keyboard/screen-reader
+          // disclosure for free. Collapsed by default; forced open when the
+          // active route lives inside so the current location never hides.
+          const containsActive = section.items.some((item) => isActive(item, pathname));
+          return (
+            <details key={section.label} className="group" open={containsActive || undefined}>
+              <summary
+                className={[
+                  "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",
+                  "rounded-[var(--radius-sm)] px-2 py-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em]",
+                  "text-[var(--color-ln-op-rail-mute)] hover:bg-[rgba(255,255,255,0.05)]",
+                  "[&::-webkit-details-marker]:hidden",
+                ].join(" ")}
+              >
+                {section.label}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 12 12"
+                  className="h-3 w-3 transition-transform group-open:rotate-180"
+                >
+                  <path
+                    d="M2.5 4.25 6 7.75l3.5-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </summary>
+              {items}
+            </details>
+          );
+        }
+
+        return (
+          <div key={section.label} className="flex flex-col">
+            {section.label && (
+              <div className="mb-1.5 px-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em] text-[var(--color-ln-op-rail-mute)]">
+                {section.label}
+              </div>
+            )}
+            {items}
+          </div>
+        );
+      })}
     </nav>
   );
 }
