@@ -295,3 +295,25 @@ Push + cutover #760 · migraciones a PROD · Vercel Pro · revisión legal GPS (
 Orden de ejecución: A) mecánicos (G7 de-énfasis, subtitle token, error page, footer, org picker,
 badges legales) → B) seeds (≥5 + suavizado, con chequeo de tests) → C) coropletas clasificadas →
 D) CTA sticky credencial → E) dieta nav refugio → F) frente Analítica decision desk (después: trend fetchers → forecasts).
+
+## DECISIONES PO — QA sentiment + ES critique (2026-07-24, segunda tanda)
+
+12. Invariante #3: **reescrito honesto** (CLAUDE.md + AGENTS.md) — "hechos event-sourced,
+    runtime híbrido declarado"; el slogan "every view is a projection" sobre-prometía.
+13. Cubo Panorama: **ON para superficies nacionales + disclosure de frescura** en UI;
+    reactivar el cron de refresh (pausado por prolijidad, no costo). → cola actual, después
+    de coropletas.
+14. Home dueño: **la libreta pasa a ser la portada de /inicio** (card con foto/estado/botones
+    arriba de todo, carrusel multi-mascota, onboarding como franja). → cola actual, después
+    de seeds.
+15. Ola integridad ES: **post decision-desk** — verificación de los 6 gaps del crítico
+    (idempotencia, upcast en readers, case_events, particionado, boundary único, tombstones)
+    y ejecución de lo confirmado como frente propio.
+
+Tareas nuevas del sentiment (sin pregunta, alineadas): empty-state positivo en Panorama
+("Sin zoonosis en 30d — esto es bueno") → se pliega al lote seeds/panorama; doc de design
+system "2 modos, 1 ADN" (tokens compartidos, layouts divergentes) → fase de documentación.
+
+Cola actualizada: seeds (≥5 + suavizado) → home dueño libreta-portada → coropletas
+clasificadas → cubo ON + frescura → CTA sticky credencial → dieta nav refugio →
+FRENTE Analítica decision desk → OLA integridad ES → (después) trend fetchers.
