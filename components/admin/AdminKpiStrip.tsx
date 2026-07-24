@@ -129,7 +129,7 @@ export function AdminKpiStrip({
           tone={data.pendingTotal > 0 ? "warn" : "neutral"}
           sub={
             data.oldestPendingDaysAgo != null
-              ? `Más vieja: ${data.oldestPendingDaysAgo}d`
+              ? `Más antigua pendiente: ${data.oldestPendingDaysAgo}d`
               : undefined
           }
           href="/admin/cola"

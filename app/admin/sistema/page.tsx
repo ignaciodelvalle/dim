@@ -235,7 +235,7 @@ export default async function AdminSistemaPage() {
           <OpCardHead title="Aprobaciones" />
           <OpCardBody>
             <StatRow label="Pendientes" value={queue.pendingTotal} />
-            <StatRow label="Más vieja (días)" value={queue.oldestPendingDaysAgo ?? "—"} />
+            <StatRow label="Más antigua pendiente (días)" value={queue.oldestPendingDaysAgo ?? "—"} />
             <StatRow
               label="14d+ / 30d+ / 60d+"
               value={`${queue.pending14dPlus} / ${queue.pending30dPlus} / ${queue.pending60dPlus}`}
