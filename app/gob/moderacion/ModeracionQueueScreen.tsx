@@ -259,7 +259,7 @@ export async function ModeracionQueueScreen({
                   title={statusFilter === "pending" ? "Cola vacía" : "Sin resultados"}
                   description={
                     statusFilter === "pending"
-                      ? "No hay denuncias pendientes de moderación en tus localidades."
+                      ? `No hay denuncias pendientes de moderación ${scopePhrase}.`
                       : "No hay denuncias que coincidan con los filtros aplicados."
                   }
                 />

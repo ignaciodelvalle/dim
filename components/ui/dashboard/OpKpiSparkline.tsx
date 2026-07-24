@@ -13,7 +13,9 @@
 // Decorative only (aria-hidden in the parent) — safe to defer without
 // affecting SSR content or accessibility.
 
-import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { Area, AreaChart } from "recharts";
+
+import { ChartSizingBox } from "@/components/charts/ChartSizingBox";
 
 type Tone = "neutral" | "danger" | "warn" | "ok" | "blue";
 
@@ -34,26 +36,27 @@ export function OpKpiSparkline({ values, tone }: { values: number[]; tone: Tone 
   const chartData = values.map((v, i) => ({ i, v }));
 
   return (
-    <div className="mt-2 h-8 w-full" aria-hidden="true">
-      <ResponsiveContainer width="100%" height={32}>
-        <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id={`sparkFill-${tone}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={strokeColor} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Area
-            type="monotone"
-            dataKey="v"
-            stroke={strokeColor}
-            strokeWidth={1.5}
-            fill={`url(#sparkFill-${tone})`}
-            dot={false}
-            isAnimationActive={false}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    // #15: use the shared ChartSizingBox (inline width/height) so recharts'
+    // ResponsiveContainer never measures 0 on first paint under the ssr:false
+    // dynamic import — the width(-1)/height(-1) console warning source on tiles.
+    <ChartSizingBox height={32} className="mt-2 w-full" aria-hidden="true">
+      <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id={`sparkFill-${tone}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={strokeColor} stopOpacity={0.3} />
+            <stop offset="95%" stopColor={strokeColor} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area
+          type="monotone"
+          dataKey="v"
+          stroke={strokeColor}
+          strokeWidth={1.5}
+          fill={`url(#sparkFill-${tone})`}
+          dot={false}
+          isAnimationActive={false}
+        />
+      </AreaChart>
+    </ChartSizingBox>
   );
 }

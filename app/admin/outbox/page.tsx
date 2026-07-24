@@ -118,7 +118,7 @@ export default async function AdminOutboxPage({
       {breachCount > 0 && (
         <OpBreach
           title={`${breachCount} ${pluralizeEs(breachCount, "item", "items")} en incumplimiento de SLA`}
-          detail="Revisa los items marcados en rojo y reintenta si es necesario."
+          detail="Revisá los items marcados en rojo y reintentá si es necesario."
         />
       )}
 
