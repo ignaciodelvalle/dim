@@ -1528,7 +1528,11 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   alerted_provinces_below_target: {
     id: "alerted_provinces_below_target",
-    label: "Provincias en alerta",
+    // red-team-admin-2 P2.6: renamed from "Provincias en alerta" — "alerta"
+    // collided with the operational alert-firings inbox (a different system). This
+    // tile counts provinces with ≥1 metric below its programmatic target, so
+    // "bajo meta" is both accurate and free of the word collision.
+    label: "Provincias bajo meta",
     numerator:
       "COUNT DISTINCT provinces with ≥1 metric (rabies/sterilization/microchip) below its programmatic target",
     denominator: "n/a — absolute count (bounded by the ~24 AR provinces)",
