@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
+      "path": "/api/cron/refresh-cube",
+      "schedule": "0 3 * * *"
+    },
+    {
       "path": "/api/cron/daily",
       "schedule": "0 4 * * *"
     }

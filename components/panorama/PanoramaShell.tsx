@@ -115,9 +115,9 @@ type Props = {
   /**
    * Cursor I2 — the aggregate cube's build timestamp when the seeded view is
    * served from the cube (admin, cubeable choropleth, fresh). Forwarded to the
-   * console's "Acerca" footer as an honest "Datos agregados actualizados: …"
-   * stamp. Null/undefined → the view was live-served (or points-only) and the
-   * stamp is omitted (never fabricate a freshness the cube can't back).
+   * console's "Acerca" footer as the honest "Datos precalculados al …" caption.
+   * Null/undefined → the view was live-served (or points-only) and the caption
+   * says "Datos en vivo" (never fabricate a freshness the cube can't back).
    */
   cubeBuiltAt?: Date | string | null;
 };

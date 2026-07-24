@@ -30,7 +30,7 @@ import { refreshCube } from "../../infrastructure/cube-builder";
 import { getLayerFeatures } from "../get-layer-features";
 import type { LayerFeaturesResult } from "../get-layer-features";
 import { getPanoramaKpis } from "../get-panorama-kpis";
-import { loadLayerFeaturesFromCube } from "../load-layer-features-cube";
+import { CUBE_STALE_MAX_MS, loadLayerFeaturesFromCube } from "../load-layer-features-cube";
 import {
   KPI_CUBE_BIRTHS_KPI,
   KPI_CUBE_SCOPE_NATIONAL,
@@ -78,7 +78,8 @@ beforeAll(async () => {
 }, 240_000);
 
 afterAll(() => {
-  // "" reads as disabled (≠ '1'), restoring the absent-flag behavior.
+  // Restore the pre-suite value (flag default is ON since the cube-ON decision;
+  // '0' is the only disabling value, so "" restores the default-ON behavior).
   process.env.CUBE_READS = prevFlag ?? "";
 });
 
@@ -300,7 +301,8 @@ describe("staleness gate falls back to live", () => {
   });
 
   it("built_at older than STALE_MAX → reader returns null", async () => {
-    const old = new Date(Date.now() - 7 * 60 * 60 * 1000); // 7h > 6h STALE_MAX
+    // One hour past the staleness ceiling (26h daily-cadence window).
+    const old = new Date(Date.now() - (CUBE_STALE_MAX_MS + 60 * 60 * 1000));
     await db.update(panoramaCubeMeta).set({ builtAt: old, status: "ok" });
     const r = await loadLayerFeaturesFromCube("cobertura", ADMIN, "province");
     expect(r).toBeNull();
@@ -383,7 +385,8 @@ describe("KPI cube eligibility + staleness gates fall back to live (null)", () =
     const period = await storedKpiPeriod();
     const eligible = { actor: ADMIN, jurisdictions: [], period };
 
-    process.env.CUBE_READS = "";
+    // '0' is the kill switch (flag default is ON since the cube-ON decision).
+    process.env.CUBE_READS = "0";
     expect(await loadPanoramaKpisFromCube(eligible)).toBeNull();
     process.env.CUBE_READS = "1";
 
@@ -414,7 +417,8 @@ describe("KPI cube eligibility + staleness gates fall back to live (null)", () =
     expect(await loadPanoramaKpisFromCube(eligible)).toBeNull();
     await db.update(panoramaKpiCubeMeta).set({ status: "ok" });
 
-    const old = new Date(Date.now() - 7 * 60 * 60 * 1000); // 7h > 6h STALE_MAX
+    // One hour past the staleness ceiling (26h daily-cadence window).
+    const old = new Date(Date.now() - (CUBE_STALE_MAX_MS + 60 * 60 * 1000));
     await db.update(panoramaKpiCubeMeta).set({ builtAt: old });
     expect(await loadPanoramaKpisFromCube(eligible)).toBeNull();
     // restore a fresh stamp for any later reads

@@ -21,6 +21,14 @@
 // once daily via the dispatcher, so the sub-daily entries that previously had
 // tighter staleness windows are folded to the daily window (Hobby cannot run
 // anything sub-daily; the minimum plan for sub-daily cadence is Vercel Pro).
+//
+// STANDALONE SCHEDULED JOB (cube-ON decision, 2026-07-24 K4/S3): `refresh_cube`
+// is registered + monitored like any job, but it does NOT run inside the daily
+// dispatcher (its ~105s build exceeds the dispatcher's 55s budget). It has its
+// OWN vercel.json cron entry (0 3 * * *, one hour AHEAD of the daily bag) and
+// its own 300s function (vercel.json `functions` pin). This uses the 2nd and
+// LAST Hobby cron slot — Hobby allows exactly 2 cron jobs, both daily. Any
+// sub-daily cube refresh cadence (e.g. */15) requires Vercel Pro (fase 3).
 
 const DAILY_STALENESS_MS = 26 * 60 * 60 * 1000; // 26 hours
 
@@ -91,6 +99,9 @@ export const CRON_REGISTRY: CronRegistryEntry[] = [
   { cronName: "process_eno_queue", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 4 * * *" },
   { cronName: "purge_scan_events", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 1 * * *" },
   { cronName: "reconcile_pet_status", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 9 * * *" },
+  // Standalone scheduled job — its own vercel.json cron (NOT in DAILY_JOB_ORDER;
+  // see the STANDALONE SCHEDULED JOB note above).
+  { cronName: "refresh_cube", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 3 * * *" },
   { cronName: "vaccine_due", maxStalenessMs: DAILY_STALENESS_MS, schedule: "0 12 * * *" },
 ];
 
@@ -128,8 +139,8 @@ const CRON_DISPLAY_LABELS: Record<string, string> = {
   process_eno_queue: "Procesamiento de la cola ENO",
   purge_scan_events: "Depuración de escaneos de credenciales",
   reconcile_pet_status: "Reconciliación de estados de mascotas",
-  // Standalone dispatcher (its own Vercel Pro function; writes cron_runs as
-  // `refresh_cube`). Surfaces on /admin/sistema like any other row.
+  // Standalone scheduled job (own vercel.json cron 0 3 * * * + 300s function;
+  // registered in CRON_REGISTRY above). Surfaces on /admin/sistema like any row.
   refresh_cube: "Actualización del cubo de análisis",
   vaccine_due: "Recordatorio de vacunas por vencer",
 };

@@ -9,12 +9,12 @@
 //
 // The cube COMPOSES IN FRONT of the live path (L1 Map cache → budget → L2 Data
 // Cache → fan-out): an eligible request reads the cube; everything else keeps
-// the current cached-live path untouched. Flag default OFF (CUBE_READS
-// unset/≠'1' → this returns null → caller falls back to live, byte-identical
-// to before this train).
+// the current cached-live path untouched. Flag default ON since the cube-ON
+// decision (2026-07-24, K4/S3); CUBE_READS='0' is the kill switch (→ this
+// returns null → caller falls back to live, byte-identical to the pre-ON path).
 //
 // ELIGIBILITY (all must hold, else null → live):
-//   - CUBE_READS === '1' (same flag as the layer cube).
+//   - CUBE_READS !== '0' (same flag + default as the layer cube).
 //   - actor is ADMIN with NO drill (adminProvince/adminLocality unset) and the
 //     empty jurisdiction set (national) — the only scope the v1 cube stores.
 //     Mirrors the layer cube's admin-only reasoning; govt scopes stay live.
@@ -24,7 +24,8 @@
 //     cube), so a 12m request must never read a 3y strip.
 //   - cube fresh: meta status === 'ok' AND now − built_at ≤ CUBE_STALE_MAX_MS
 //     (same staleness doctrine as the layers: day-granularity metrics tolerate
-//     the 15-min refresh cadence and the 6h ceiling).
+//     the daily refresh cadence and the 26h ceiling; a sub-daily cadence with
+//     a tighter ceiling is Vercel Pro — fase 3).
 
 import type { AnalyticsPeriod, DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 

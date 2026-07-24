@@ -6,12 +6,14 @@
 // runs behind a SINGLE daily dispatcher (/api/cron/daily). The invariants that
 // keep drift from silently recurring changed shape accordingly:
 //
-//   - vercel.json schedules ONLY the dispatcher route(s).
+//   - vercel.json schedules ONLY the dispatcher route(s) + the standalone
+//     scheduled jobs (refresh-cube — too heavy for the dispatcher budget).
 //   - CRON_REGISTRY (lib/infra/cron-registry.ts) === snake_case of the JOB
 //     route directories (every job is still monitored by cron-health).
-//   - DAILY_JOB_ORDER (lib/infra/cron-dispatcher.ts) === the registered jobs,
-//     so the dispatcher runs exactly the monitored fleet — no job silently
-//     dropped from the daily run, none run that isn't monitored.
+//   - DAILY_JOB_ORDER (lib/infra/cron-dispatcher.ts) === the registered jobs
+//     minus the standalone-scheduled ones, so the dispatcher runs exactly the
+//     monitored fleet — no job silently dropped from the daily run, none run
+//     that isn't monitored.
 //   - every job route declares CRON_NAME = snake(dir) and records telemetry.
 
 import { readFileSync, readdirSync } from "node:fs";
@@ -27,23 +29,17 @@ const CRON_DIR = join(ROOT, "app", "api", "cron");
 // Dispatcher routes are the scheduled orchestrators — they appear in
 // vercel.json and have a route directory, but they are NOT individual jobs
 // (they run the jobs) so they are excluded from the job-registry checks.
-// Routes scheduled DIRECTLY in vercel.json that are NOT fleet jobs (so they are
-// excluded from the job-registry/DAILY_JOB_ORDER checks): the daily dispatcher,
-// plus any standalone cron that legitimately cannot fold into it. `refresh-cube`
-// is standalone because the cube build (~105s) exceeds the 60s daily-dispatcher
-// budget — it needs its own Vercel Pro function (maxDuration 300, */15). On
-// Hobby its schedule never fires and the cube stays inert (reader falls to live).
-const DISPATCHER_DIRS = ["daily", "refresh-cube"];
+const DISPATCHER_DIRS = ["daily"];
 
-// refresh-cube's vercel.json schedule was PAUSED (commit 489fc1a4): the cube build
-// (~105s) exceeds the daily-dispatcher budget and needs its own Vercel Pro function,
-// and on Hobby its schedule never fired anyway (the reader falls back to live). Its
-// route dir still exists (so it stays a DISPATCHER_DIR, excluded from job checks),
-// but it is no longer SCHEDULED in vercel.json. Re-add here if the schedule returns.
-const PAUSED_DISPATCHER_DIRS = ["refresh-cube"];
-const SCHEDULED_DISPATCHER_DIRS = DISPATCHER_DIRS.filter(
-  (d) => !PAUSED_DISPATCHER_DIRS.includes(d),
-);
+// STANDALONE scheduled jobs (cube-ON decision, 2026-07-24 K4/S3): registered +
+// monitored fleet jobs (they pass every job-route check below) whose schedule
+// is their OWN vercel.json cron entry instead of the daily dispatcher —
+// `refresh-cube`'s ~105s build exceeds the dispatcher's 55s budget, so it runs
+// as its own daily cron (0 3 * * *, 300s function pin). These are therefore in
+// CRON_REGISTRY but NOT in DAILY_JOB_ORDER. NOTE: dispatcher + standalone crons
+// saturate the Vercel Hobby limit (2 cron jobs, daily only) — a third scheduled
+// entry, or any sub-daily cadence, requires Vercel Pro.
+const STANDALONE_JOB_DIRS = ["refresh-cube"];
 
 function snake(dir: string): string {
   return dir.replace(/-/g, "_");
@@ -67,9 +63,9 @@ describe("cron fleet parity (vercel.json ⇄ dispatcher ⇄ registry ⇄ routes)
   const jobDirs = dirs.filter((d) => !DISPATCHER_DIRS.includes(d));
   const registryNames = new Set(CRON_REGISTRY.map((e) => e.cronName));
 
-  it("vercel.json schedules ONLY the active (non-paused) dispatcher route(s)", () => {
+  it("vercel.json schedules ONLY the dispatcher(s) + standalone jobs", () => {
     const pathDirs = vercelCronPaths().map((p) => p.replace("/api/cron/", ""));
-    expect([...pathDirs].sort()).toEqual([...SCHEDULED_DISPATCHER_DIRS].sort());
+    expect([...pathDirs].sort()).toEqual([...DISPATCHER_DIRS, ...STANDALONE_JOB_DIRS].sort());
   });
 
   it("every dispatcher has a route directory", () => {
@@ -83,8 +79,16 @@ describe("cron fleet parity (vercel.json ⇄ dispatcher ⇄ registry ⇄ routes)
     expect([...registryNames].sort()).toEqual(expected);
   });
 
-  it("DAILY_JOB_ORDER runs exactly the registered jobs (no drops, no extras)", () => {
-    expect([...DAILY_JOB_ORDER].sort()).toEqual([...registryNames].sort());
+  it("DAILY_JOB_ORDER runs exactly the registered jobs minus standalone-scheduled ones", () => {
+    const standalone = new Set(STANDALONE_JOB_DIRS.map(snake));
+    const expected = [...registryNames].filter((n) => !standalone.has(n)).sort();
+    expect([...DAILY_JOB_ORDER].sort()).toEqual(expected);
+  });
+
+  it("every standalone-scheduled job is registered (monitored by cron-health)", () => {
+    for (const d of STANDALONE_JOB_DIRS) {
+      expect(registryNames, `standalone job "${d}" must be in CRON_REGISTRY`).toContain(snake(d));
+    }
   });
 
   it("DAILY_JOB_ORDER has no duplicate entries", () => {
@@ -155,12 +159,13 @@ describe("cronDisplayLabel — es-AR operator labels", () => {
     expect(cronDisplayLabel("some_future_cron")).toBe("some_future_cron");
   });
 
-  // M2 (cowork demo 2026-07-17): the WRAPPER/dispatcher jobs (cron_daily,
-  // cron_health, refresh_cube) are NOT in CRON_REGISTRY — they run/monitor the
-  // fleet — but each writes its OWN cron_runs row (const CRON_NAME in its route),
-  // so they appear on /admin/sistema + the CronsDownBanner just like a job. The
-  // banner's "Detalle técnico" showed raw "cron_daily"; pin that every wrapper
-  // telemetry name also resolves to an es-AR label.
+  // M2 (cowork demo 2026-07-17): the WRAPPER/dispatcher telemetry names each
+  // write their OWN cron_runs row (const CRON_NAME in the route), so they appear
+  // on /admin/sistema + the CronsDownBanner just like a job. The banner's
+  // "Detalle técnico" showed raw "cron_daily"; pin that every such telemetry
+  // name resolves to an es-AR label. (refresh_cube graduated into CRON_REGISTRY
+  // when its schedule returned — kept here so the union sweep below still
+  // covers it independently of the registry.)
   const WRAPPER_CRON_NAMES = ["cron_daily", "cron_health", "refresh_cube"] as const;
   it("maps EVERY wrapper/dispatcher telemetry name to a non-raw es-AR label", () => {
     for (const name of WRAPPER_CRON_NAMES) {

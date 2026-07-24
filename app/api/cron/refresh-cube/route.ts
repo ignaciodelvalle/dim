@@ -8,16 +8,21 @@
 //
 // Runs the TS cube-builder (src/modules/panorama/infrastructure/cube-builder.ts),
 // which REUSES the live choropleth loaders and writes panorama_cube + cube_meta in
-// one transaction. Currently UNSCHEDULED — not in vercel.json crons nor in
-// DAILY_JOB_ORDER; invoked manually (or via `pnpm cube:refresh` locally) pending
-// the cube-ON decision. Scheduling it is a separate task.
+// one transaction. SCHEDULED (cube-ON decision, K4/S3 2026-07-24): its OWN daily
+// vercel.json cron entry (`0 3 * * *`, one hour ahead of the 04:00 daily bag) —
+// it cannot ride the daily dispatcher because the build (~105s) exceeds the
+// dispatcher's 55s budget. Registered in CRON_REGISTRY as a standalone scheduled
+// job (NOT in DAILY_JOB_ORDER), so cron-health monitors it. This uses the 2nd and
+// last Vercel Hobby cron slot; a sub-daily cadence (the original */15 idea) needs
+// Vercel Pro (fase 3). Manual runs (`pnpm cube:refresh` locally) still work.
 //
 // NOTE: the builder brings its OWN lazy session-pooler clients for BOTH phases
 // (task #22): reads AND the write transaction get a long statement_timeout
 // (default 120s, CUBE_BUILDER_STATEMENT_TIMEOUT_MS) — the shared analyticsDb
 // pool's 15s request-path backstop never applies to the build. The LOCAL
 // measured rebuild is ~105s (24 province × 5 metric loader calls) — well past
-// the 60s cron default, so this route pins maxDuration to 300s (Pro). Staging
+// the 60s cron default, so this route pins maxDuration to 300s (the Fluid
+// compute ceiling, available on Hobby). Staging
 // should be faster (gru1 + session pooler), but the pin makes the cap a
 // non-issue either way.
 //

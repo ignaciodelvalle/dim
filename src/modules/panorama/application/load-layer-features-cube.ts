@@ -9,11 +9,15 @@
 // order (pinned by the parity test's order-independent normalization).
 //
 // The cube COMPOSES IN FRONT of the live Data Cache: an eligible request reads the
-// cube; everything else keeps the current cached-live path untouched. Flag default OFF
-// (CUBE_READS unset/≠'1' → this returns null → caller falls back to live).
+// cube; everything else keeps the current cached-live path untouched. Flag default ON
+// since the cube-ON decision (Metrics review K4 + Scale S3, 2026-07-24): national
+// admin surfaces must not silently truncate, so they read the cube WHEN FRESH and
+// fall back to live (with the live path's honest `truncated` flag) otherwise.
+// CUBE_READS === '0' is the kill switch (→ this returns null → live, the pre-ON
+// behavior).
 //
 // ELIGIBILITY (all must hold, else null → live):
-//   - CUBE_READS === '1'.
+//   - CUBE_READS !== '0' (default ON; '0' = kill switch).
 //   - layer ∈ {cobertura, esterilizacion, microchip, ppp, mortalidad}.
 //   - actor is ADMIN.
 //   - NOT a locality drill (adminLocality unset). A locality drill counts ONE
@@ -75,12 +79,20 @@ const CUBE_LAYER_METRIC: Partial<Record<LayerId, ChoroplethMetric>> = {
 };
 
 /** Max age of the cube before a read falls back to live. Current-state choropleth
- * tolerates staleness well (day-granularity data); 6h per the locked answer. */
-export const CUBE_STALE_MAX_MS = 6 * 60 * 60 * 1000;
+ * tolerates staleness well (day-granularity data). The window matches the build
+ * CADENCE: refresh_cube runs once daily (vercel.json `0 3 * * *` — Vercel Hobby
+ * allows daily schedules only), so the ceiling is daily + slack = 26h, mirroring
+ * the fleet's DAILY_STALENESS_MS (lib/infra/cron-registry.ts). A tighter window
+ * (the original 6h, with a sub-daily every-15-min refresh) and an always-on national
+ * cube need Vercel Pro — fase 3; until then a >26h-old cube reads as stale and
+ * the request degrades to live with its honest truncation disclosure. */
+export const CUBE_STALE_MAX_MS = 26 * 60 * 60 * 1000;
 
-/** Whether cube reads are enabled (flag default OFF; absent = OFF). */
+/** Whether cube reads are enabled. Default ON (cube-ON decision 2026-07-24);
+ * CUBE_READS='0' is the explicit kill switch — any other value (unset, '1', …)
+ * keeps reads enabled. Freshness still gates every read (CUBE_STALE_MAX_MS). */
 export function cubeReadsEnabled(): boolean {
-  return process.env.CUBE_READS === "1";
+  return process.env.CUBE_READS !== "0";
 }
 
 /** A cube-served layer result plus the cube's build timestamp (surfaced as the
@@ -125,9 +137,9 @@ export async function loadLayerFeaturesFromCube(
  * the cube's `built_at` when a choropleth request for (layer, scope) WOULD be served
  * from the cube (eligible AND fresh), else null. This is the exact eligibility +
  * staleness gate `loadLayerFeaturesFromCube` applies — extracted so a caller can
- * ANNOTATE a view with the cube's freshness (the "Datos agregados actualizados"
- * stamp) without triggering a second cube assembly. Read-only: it never touches the
- * layer data path.
+ * ANNOTATE a view with the cube's freshness (the "Datos precalculados al …"
+ * caption) without triggering a second cube assembly. Read-only: it never touches
+ * the layer data path.
  *
  * Mirrors the eligibility in `loadLayerFeaturesFromCube`'s header: CUBE_READS on,
  * admin actor, not a locality drill, default numerator (verifiedOnly === false), a
@@ -150,10 +162,17 @@ export async function resolveCubeFreshness(
   if (!CUBE_LAYER_METRIC[layer]) return null;
 
   // --- staleness gate ---
-  const meta = await readCubeMeta();
-  if (!meta || meta.status !== "ok" || !meta.builtAt) return null;
-  if (Date.now() - meta.builtAt.getTime() > CUBE_STALE_MAX_MS) return null;
-  return meta.builtAt;
+  // Defensive try/catch: SSR pages call this annotation helper OUTSIDE the
+  // cube-or-live readers' own catch, and with the flag default ON a transient
+  // meta-read failure must degrade to "no stamp" (live), never 500 the page.
+  try {
+    const meta = await readCubeMeta();
+    if (!meta || meta.status !== "ok" || !meta.builtAt) return null;
+    if (Date.now() - meta.builtAt.getTime() > CUBE_STALE_MAX_MS) return null;
+    return meta.builtAt;
+  } catch {
+    return null;
+  }
 }
 
 /**

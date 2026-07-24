@@ -392,10 +392,10 @@ export type PanoramaConsoleProps = {
   /**
    * Cursor I2 — the aggregate cube's build timestamp when the SEEDED view is
    * served from the cube (admin, cubeable choropleth, fresh). Rendered by the
-   * "Acerca" footer as an honest "Datos agregados actualizados: …" stamp.
-   * Null/undefined → live-served (or points-only) seed; the stamp is omitted.
-   * Reflects the FIRST-render (seeded) source; it is a freshness annotation, not
-   * a per-toggle live signal.
+   * "Acerca" footer as the honest "Datos precalculados al …" caption.
+   * Null/undefined → live-served (or points-only) seed; the caption reads
+   * "Datos en vivo". Reflects the FIRST-render (seeded) source; it is a
+   * freshness annotation, not a per-toggle live signal.
    */
   cubeBuiltAt?: Date | string | null;
 };

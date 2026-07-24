@@ -228,14 +228,11 @@ export function PanoramaConsole({
   // per key; superseded fetches abort instead of racing the UI state.
   const { signalFor } = useKeyedAbort();
 
-  // The cube-freshness stamp describes the SSR-SEEDED frame only: every client
-  // /api/panorama/[layer] response comes from the LIVE path, so the first such
-  // fetch invalidates the "datos agregados actualizados" claim (review
-  // 2026-07-17: a lingering stamp on a live view asserts cube lag the view does
-  // not have). One-way latch — dropCubeStamp() sits beside every layer-data
-  // fetch dispatch below; a clean first visit fires none of them, so the stamp
-  // survives exactly as long as the seeded frame does. Prefetch-triggered drops
-  // err on the honest side (stamp omitted while data is still cube-served).
+  // Cube-freshness stamp describes the SSR-SEEDED frame only: the first client
+  // layer refetch invalidates "Datos precalculados al …" (review 2026-07-17).
+  // One-way latch — dropCubeStamp() fires beside every layer fetch below; after
+  // it the caption reads "Datos en vivo". (Pessimistic; per-response source
+  // threading deferred — fence panorama-dropcubestamp-adjacency.test.ts.)
   const [seedCubeBuiltAt, setSeedCubeBuiltAt] = useState(cubeBuiltAt);
   const cubeStampDroppedRef = useRef(false);
   const dropCubeStamp = useCallback(() => {
@@ -4728,7 +4725,12 @@ export function PanoramaConsole({
           </p>
           {demoNotice}
           {aboutSlot}
-          <PanoramaKpiFooter kpis={kpis} pending={kpisPending} cubeBuiltAt={seedCubeBuiltAt} />
+          <PanoramaKpiFooter
+            kpis={kpis}
+            pending={kpisPending}
+            cubeBuiltAt={seedCubeBuiltAt}
+            truncatedLayers={mapTableTruncatedLayers}
+          />
         </div>
       ),
     },

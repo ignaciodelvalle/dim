@@ -666,6 +666,8 @@ const CRON_SCHEDULE_MAP: Record<string, string> = {
   purge_scan_events: "0 1 * * *",
   evaluate_alerts: "0 8 * * *",
   reconcile_pet_status: "0 9 * * *",
+  // Standalone scheduled job (cube-ON 2026-07-24): own vercel.json cron entry.
+  refresh_cube: "0 3 * * *",
   cron_health: "0 10 * * *",
 };
 

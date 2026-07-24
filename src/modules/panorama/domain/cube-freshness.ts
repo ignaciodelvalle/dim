@@ -1,31 +1,49 @@
-// Panorama cube-freshness stamp (staging QA 2026-07-17, Cursor I2).
+// Panorama freshness/liveness caption (staging QA 2026-07-17 Cursor I2; reshaped
+// by the cube-ON decision, Metrics review K4 + Scale S3, 2026-07-24).
 //
 // The choropleth layers can be served from the precomputed panorama_cube, which
-// refreshes on a schedule (once daily on staging). When a view IS cube-served,
-// the operator must be able to tell a genuinely empty dataset from one that is
-// simply lagging behind — so we declare the cube's build time, honestly and
-// unobtrusively.
+// refreshes once daily (vercel.json cron `0 3 * * *`; sub-daily cadence needs
+// Vercel Pro). The operator must always be able to tell which of the two worlds
+// the view comes from:
+//   - cube-served → "Datos precalculados al {fecha/hora AR}" — the data is a
+//     daily snapshot, and its age is declared;
+//   - live-served → "Datos en vivo" — computed on request; and when any active
+//     layer hit the per-layer row cap, the caption names the capped layers so a
+//     truncated live view is never presented as complete (the same disclosure
+//     the LayerPanel badge and the map-table CSV comment carry).
 //
-// Pure domain helper: it turns a build timestamp into the es-AR footer line, or
-// returns null when there is nothing honest to say (no meta row, never refreshed,
-// or an unparseable timestamp). The CALLER decides WHEN to pass a builtAt — the
-// cube-vs-live decision lives in the application layer (load-layer-features-cube.ts);
-// this only formats what it's given. No DB, no React, no Next.
+// Pure domain helper: it turns (build timestamp, truncated-layer labels) into
+// the es-AR caption line. The CALLER decides WHAT to pass — the cube-vs-live
+// decision lives in the application layer (load-layer-features-cube.ts); this
+// only formats what it's given. No DB, no React, no Next.
 
 import { formatDateTimeNumericAr } from "@/lib/utils/format";
 
 /**
- * The es-AR aggregate-freshness footer line for a cube-served view, e.g.
- * "Datos agregados actualizados: 17/07/2026 04:30".
+ * The es-AR freshness/liveness caption for the panorama map chrome, e.g.
+ *   "Datos precalculados al 17/07/2026 04:30"          (fresh cube)
+ *   "Datos en vivo"                                     (live)
+ *   "Datos en vivo · capas al tope (2.000): Perdidas"   (live, capped layer)
  *
- * Returns `null` (omit the stamp entirely) when `builtAt` is null/undefined —
- * the meta row is missing or the cube was never refreshed — or when the value
- * cannot be parsed into a real date. Omitting is the honest fallback: never show
- * a freshness the cube can't actually back.
+ * `builtAt` null/undefined/unparseable → the view is live-served (or the cube
+ * has nothing honest to claim), so the caption says so instead of fabricating a
+ * freshness the cube can't back. `truncatedLayers` (labels of live layers that
+ * hit the per-layer cap) only decorates the LIVE caption: a cube-served view is
+ * not subject to the live cap, and its own residual truncation is already
+ * disclosed per layer by the LayerPanel badge.
  */
-export function cubeFreshnessStamp(builtAt: Date | string | null | undefined): string | null {
-  if (!builtAt) return null;
-  const date = builtAt instanceof Date ? builtAt : new Date(builtAt);
-  if (Number.isNaN(date.getTime())) return null;
-  return `Datos agregados actualizados: ${formatDateTimeNumericAr(date)}`;
+export function panoramaFreshnessCaption(
+  builtAt: Date | string | null | undefined,
+  truncatedLayers: string[] = [],
+): string {
+  if (builtAt) {
+    const date = builtAt instanceof Date ? builtAt : new Date(builtAt);
+    if (!Number.isNaN(date.getTime())) {
+      return `Datos precalculados al ${formatDateTimeNumericAr(date)}`;
+    }
+  }
+  if (truncatedLayers.length > 0) {
+    return `Datos en vivo · capas al tope (2.000): ${truncatedLayers.join(", ")}`;
+  }
+  return "Datos en vivo";
 }

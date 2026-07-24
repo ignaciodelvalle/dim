@@ -6,7 +6,7 @@
 
 import { AR_TIME_ZONE, formatCount } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
-import { cubeFreshnessStamp } from "@/src/modules/panorama/domain/cube-freshness";
+import { panoramaFreshnessCaption } from "@/src/modules/panorama/domain/cube-freshness";
 
 type Props = {
   kpis: PanoramaKpis;
@@ -22,12 +22,19 @@ type Props = {
    */
   pending?: boolean;
   /**
-   * Cursor I2 — the aggregate cube's build timestamp when the view is served from
-   * the precomputed cube. Renders an honest "Datos agregados actualizados: …"
-   * line so an operator can tell data lagging a day from no data. Null/undefined
-   * (live-served, or no/never-refreshed meta) → the line is omitted entirely.
+   * Cursor I2, reshaped by the cube-ON decision (K4/S3 2026-07-24) — the
+   * aggregate cube's build timestamp when the view is served from the
+   * precomputed cube. Non-null → "Datos precalculados al …" (age declared);
+   * null/undefined (live-served, or no/never-refreshed meta) → "Datos en vivo".
+   * One honest freshness/liveness line, always rendered.
    */
   cubeBuiltAt?: Date | string | null;
+  /**
+   * Labels of active layers whose live fetch hit the per-layer row cap (the
+   * same list the map-table CSV discloses, K4). Decorates the LIVE caption so
+   * a truncated live view is never presented as complete.
+   */
+  truncatedLayers?: string[];
 };
 
 export function PanoramaKpiFooter({
@@ -36,8 +43,9 @@ export function PanoramaKpiFooter({
   refreshing = false,
   pending = false,
   cubeBuiltAt = null,
+  truncatedLayers = [],
 }: Props) {
-  const cubeStamp = cubeFreshnessStamp(cubeBuiltAt);
+  const freshnessCaption = panoramaFreshnessCaption(cubeBuiltAt, truncatedLayers);
   return (
     <div className="space-y-1.5">
       {/* metric-honesty demotion 2026-07-09: the coverage denominator ("N
@@ -91,11 +99,14 @@ export function PanoramaKpiFooter({
           </button>
         )}
       </div>
-      {/* Cursor I2 — aggregate-cube freshness. Rendered ONLY when the view is
-          actually cube-served (cubeStamp non-null); a live-served view omits it
-          rather than claim a freshness the cube can't back. Unobtrusive: mute
-          text, below the KPI row. */}
-      {cubeStamp && <p className="text-[var(--text-xs)] text-ln-op-mute">{cubeStamp}</p>}
+      {/* Cube-ON K4/S3 — the honest freshness/liveness line, ALWAYS rendered:
+          "Datos precalculados al …" when the view is cube-served (never claim
+          live for a daily snapshot), "Datos en vivo" when live — plus the
+          capped-layer disclosure when a live layer hit the row cap. Unobtrusive:
+          mute text, below the KPI row. */}
+      <p suppressHydrationWarning className="text-[var(--text-xs)] text-ln-op-mute">
+        {freshnessCaption}
+      </p>
     </div>
   );
 }
