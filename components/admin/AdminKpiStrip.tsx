@@ -13,8 +13,9 @@
 // Tokens: relies entirely on OpKpi (design tokens `ln-op-*`). No raw colours.
 
 import { OpKpi } from "@/components/ui/dashboard";
-import { enoSlaTone } from "@/lib/metrics";
+import { enoSlaHeadline, enoSlaTone } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { formatPercent } from "@/lib/utils/format";
 
 export type AdminKpiStripData = {
   /** Total personal accounts (count). */
@@ -55,6 +56,8 @@ export type AdminKpiStripData = {
     onTimePct: number | null;
     breachedOpen: number;
     total: number;
+    /** Median delivery latency (h) — fed to the shared enoSlaHeadline sub-line. */
+    medianLatencyHours: number | null;
   };
 };
 
@@ -170,39 +173,21 @@ export function AdminKpiStrip({
       {hasEno &&
         eno &&
         (() => {
-          // Headline honesty (Cowork A3/C1). `onTimePct` measures ONLY delivered
-          // rows (onTime / delivered), so it reads 100% while notifications sit
-          // pending PAST their sla_due_at — the tile showed "100%" in green next
-          // to "12 en breach activo", two numbers that contradict. The two
-          // windows don't share a denominator (onTimePct is period-scoped over
-          // delivered rows; breachedOpen is a live "now" count of pending+overdue
-          // rows), so folding them into one % would be dishonest. Instead, when
-          // there is an active breach we LEAD with the breach count (the live,
-          // actionable number) and demote the historical % to the sub-line, which
-          // states exactly what it measures ("de las entregadas"). Tone comes from
-          // enoSlaTone, which already degrades to warn/danger on any open breach.
-          const hasBreach = eno.breachedOpen > 0;
-          const pctLabel = eno.onTimePct !== null ? `${eno.onTimePct}%` : "—";
+          // red-team-admin-2 P2.2: this strip (on /admin/sistema) had its OWN
+          // inline SLA render — a THIRD copy of the headline that never received
+          // the #1/Path-B fixes applied to enoSlaHeadline, so it still showed
+          // "Cumplimiento histórico 100% (referencia)" beside "12 vencidas". Route
+          // it through the SHARED enoSlaHeadline so there is ONE source of truth:
+          // with an open breach it drops the misleading % and shows median
+          // latency; otherwise it headlines the on-time %. (tone still via
+          // enoSlaTone, which degrades to warn/danger on any open breach.)
+          const headline = enoSlaHeadline(eno, formatPercent);
           return (
             <OpKpi
               label="SLA ENO"
-              // W3: when there is an open breach LEAD with the live, actionable
-              // "N vencidas ahora" — the historical % (which counts only delivered
-              // rows) reads as "todo bien" and must never be the headline while
-              // notifications sit past their SLA. Plain es-AR, no jargon.
-              value={hasBreach ? `${eno.breachedOpen} vencidas ahora` : pctLabel}
+              value={headline.value}
               tone={enoSlaTone(eno)}
-              sub={
-                hasBreach
-                  ? eno.onTimePct !== null
-                    ? `Cumplimiento histórico ${pctLabel} de las entregadas (referencia)`
-                    : "Sin entregas en el período"
-                  : eno.total > 0
-                    ? eno.onTimePct !== null
-                      ? `${pctLabel} de las entregadas a tiempo · sin vencidas`
-                      : "Sin entregas en el período"
-                    : "Sin notificaciones en el período"
-              }
+              sub={headline.sub}
               href="/admin/outbox"
               info={getKpiInfo("eno_sla_compliance")}
             />

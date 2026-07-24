@@ -212,6 +212,7 @@ export default async function AdminSistemaPage() {
               onTimePct: enoSla.onTimePct,
               breachedOpen: enoSla.breachedOpen,
               total: enoSla.total,
+              medianLatencyHours: enoSla.medianLatencyHours,
             },
           }}
         />
