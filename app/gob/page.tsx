@@ -405,7 +405,7 @@ export default async function GobiernoDashboardPage({
     },
     { kind: "deadline_breach", openBreaches: rabiesObservationCompliance.openBreaches },
   ];
-  const alerts = buildBriefingAlerts(alertCandidates, urgencySignals);
+  const alerts = buildBriefingAlerts(alertCandidates, urgencySignals, mandateProvinces);
 
   // Claim #1 (cursor red-team 2026-07-23) — "dual-denominator hero": the
   // registry % (rabiesCoverage.current) can read a confident 65% while the

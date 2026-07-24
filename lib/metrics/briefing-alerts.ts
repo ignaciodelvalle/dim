@@ -44,6 +44,7 @@ import { formatPercent } from "@/lib/utils/format";
 import { type ForecastTrendPoint, forecastToTarget, resourceGap } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
 import { KPI_CATALOG, formatKpiTarget } from "./kpi-catalog";
+import { type MandateProvinces, formatMetricLegalBasis } from "./metric-legal-basis";
 import { smallNGate, zeroDenominatorGate } from "./presentation-guards";
 import { toneForTarget } from "./targets";
 
@@ -244,14 +245,23 @@ function formatValue(value: number, unit: KpiUnit): string {
   return `${Math.round(value)}`;
 }
 
-function buildTitle(descriptor: KpiDefinition, value: number): string {
+function buildTitle(descriptor: KpiDefinition, value: number, sourceOverride?: string): string {
   // C1 fix (claim #6, cursor red-team 2026-07-23): route the target+source
   // clause through formatKpiTarget so a law-sourced but non-statutory target
   // (e.g. rabies coverage's 80%) never reads as "the law set this number" —
   // see KpiTargetSourceKind. `descriptor.target` is guaranteed by the caller
   // (buildBriefingAlerts only reaches here after its `!descriptor.target`
   // guard already dropped the candidate).
-  const targetClause = descriptor.target ? formatKpiTarget(descriptor.target, descriptor.unit) : "";
+  //
+  // `sourceOverride` (red-team CRITICAL follow-up 2026-07-24): when the caller
+  // resolves a mandate-scoped legal citation, the target's `source` clause is
+  // swapped for it so the title never cites a province's law to an operator
+  // whose mandate excludes that province — matching the tile fix.
+  const target =
+    descriptor.target && sourceOverride
+      ? { ...descriptor.target, source: sourceOverride }
+      : descriptor.target;
+  const targetClause = target ? formatKpiTarget(target, descriptor.unit) : "";
   return `${descriptor.label} ${formatValue(value, descriptor.unit)} — ${targetClause}`;
 }
 
@@ -368,6 +378,15 @@ function buildUrgencyAlert(
 export function buildBriefingAlerts(
   candidates: readonly BriefingAlertCandidate[],
   urgencySignals: readonly SurveillanceUrgencyCandidate[] = [],
+  // Mandate-scoped legal citation (red-team CRITICAL follow-up 2026-07-24). The
+  // gob tile fix (formatMetricLegalBasis) scoped the KPI tile but NOT this
+  // briefing alert — a jurisdictional operator still saw a foreign province's
+  // law (e.g. "PBA: Ley Prov. 14.107" to a CABA+TdF+SC operator) in the
+  // microchip alert. Admin/national callers pass "all" (the default) and keep
+  // the catalog's canonical source wording; a jurisdictional operator passes
+  // their mandate provinces and gets the resolved citation — or neutral framing
+  // when no mandate province regulates the metric, never a foreign law.
+  mandateProvinces: MandateProvinces = "all",
 ): BriefingAlert[] {
   const alerts: Array<BriefingAlert & { gap: number }> = [];
 
@@ -429,15 +448,24 @@ export function buildBriefingAlerts(
         ).line ?? undefined)
       : undefined;
 
+    // Only a jurisdictional operator (mandate !== "all") is re-scoped; admin/
+    // national keeps the catalog's canonical source. formatMetricLegalBasis
+    // returns null for a KPI with no registered provincial basis (e.g. rabies
+    // coverage), so those keep their static source untouched.
+    const scopedSource =
+      mandateProvinces === "all"
+        ? undefined
+        : (formatMetricLegalBasis(candidate.kpiId, mandateProvinces) ?? undefined);
+
     alerts.push({
       id: candidate.kpiId,
-      title: buildTitle(descriptor, candidate.value),
+      title: buildTitle(descriptor, candidate.value, scopedSource),
       evidence: {
         value: candidate.value,
         target: descriptor.target.value,
         unit: descriptor.unit,
         n: candidate.n,
-        source: descriptor.target.source,
+        source: scopedSource ?? descriptor.target.source,
         forecastLine,
         resourceLine,
       },

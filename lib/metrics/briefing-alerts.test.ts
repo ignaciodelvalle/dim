@@ -234,6 +234,36 @@ describe("buildBriefingAlerts — resourceLine (PO decision 2, item 2)", () => {
   });
 });
 
+describe("buildBriefingAlerts — mandate-scoped legal citation (red-team CRITICAL follow-up)", () => {
+  // The gob tile fix (formatMetricLegalBasis) scoped the KPI tile but left this
+  // briefing alert citing a foreign province's law to a jurisdictional
+  // operator. The alert's title AND evidence.source must resolve the citation
+  // against the operator's mandate — same contract as the tile.
+  const candidates: BriefingAlertCandidate[] = [
+    { kpiId: "microchip_penetration", value: 30, n: 500 },
+  ];
+
+  it("default (admin/'all') keeps the catalog's canonical source wording", () => {
+    const [alert] = buildBriefingAlerts(candidates);
+    expect(alert.evidence.source).toBe("Ley Prov. 14.107 (PBA)");
+    expect(alert.title).toContain("Ley Prov. 14.107 (PBA)");
+  });
+
+  it("cites the province's law to an operator whose mandate INCLUDES it", () => {
+    const [alert] = buildBriefingAlerts(candidates, [], ["Buenos Aires"]);
+    expect(alert.evidence.source).toBe("PBA: Ley Prov. 14.107");
+    expect(alert.title).toContain("PBA: Ley Prov. 14.107");
+  });
+
+  it("NEVER cites a foreign province's law to an operator whose mandate EXCLUDES it", () => {
+    const [alert] = buildBriefingAlerts(candidates, [], ["CABA", "Tierra del Fuego", "Santa Cruz"]);
+    // Neutral framing — never "Ley Prov. 14.107 (PBA)", never a blank.
+    expect(alert.evidence.source).toBe("Según la normativa provincial de tu jurisdicción");
+    expect(alert.title).not.toContain("14.107");
+    expect(alert.title).not.toContain("PBA");
+  });
+});
+
 describe("deriveAlertConfidence", () => {
   const withSmallN = { guards: { smallN: { min: 5 } } };
 
