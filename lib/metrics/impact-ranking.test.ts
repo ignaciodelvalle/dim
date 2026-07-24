@@ -199,15 +199,29 @@ describe("formatImpactUnits", () => {
 });
 
 describe("formatTopImpactLine", () => {
-  it("builds the PO's 'El X% del gap nacional está en: ...' line", () => {
+  it("builds the PO's 'El X% del gap nacional está en: ...' line for national scope", () => {
     const summary = {
       topJurisdictions: ["Buenos Aires", "Córdoba", "Santa Fe"],
       topImpact: 600,
       totalImpact: 1000,
       sharePct: 60,
     };
-    expect(formatTopImpactLine(summary)).toBe(
+    expect(formatTopImpactLine(summary, "national")).toBe(
       "El 60% del gap nacional está en: Buenos Aires, Córdoba, Santa Fe",
+    );
+  });
+
+  it("mandate scope says 'gap de tu cobertura', never 'nacional' (red-team #5)", () => {
+    // A gob operator's summary covers ONLY their fenced assignments — calling
+    // their 3-province mandate "el gap nacional" misstates the universe.
+    const summary = {
+      topJurisdictions: ["CABA", "Santa Cruz", "Tierra del Fuego"],
+      topImpact: 100,
+      totalImpact: 100,
+      sharePct: 100,
+    };
+    expect(formatTopImpactLine(summary, "mandate")).toBe(
+      "El 100% del gap de tu cobertura está en: CABA, Santa Cruz, Tierra del Fuego",
     );
   });
 
@@ -218,6 +232,6 @@ describe("formatTopImpactLine", () => {
       totalImpact: 3,
       sharePct: 33.3,
     };
-    expect(formatTopImpactLine(summary)).toBe("El 33,3% del gap nacional está en: A");
+    expect(formatTopImpactLine(summary, "national")).toBe("El 33,3% del gap nacional está en: A");
   });
 });

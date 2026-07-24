@@ -346,6 +346,8 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
+          // Red-team 2026-07 #3: zero-denominator guard input (padrón size).
+          guardInput={{ n: microchip.active }}
           forecast={chipResourceLine}
         />
         {/* Breach-aware headline (red-team 2026-07-24 #3): the bare % read
@@ -463,7 +465,7 @@ export default async function AdminProgramaPage({
             <div className="space-y-2">
               {topImpactSummary && (
                 <p className="text-[var(--text-md)] font-medium text-ln-op-ink-2">
-                  {formatTopImpactLine(topImpactSummary)}
+                  {formatTopImpactLine(topImpactSummary, "national")}
                 </p>
               )}
               {/* Denominator honesty (red-team 2026-07-24 #4): the impact

@@ -222,14 +222,27 @@ export function formatImpactUnits(units: number): string {
 export const NO_CENSUS_NOTE = "sin dato censal";
 
 /**
+ * The scope this line is computed OVER — decides the label's honesty
+ * (red-team 2026-07 finding #5): "national" only when the summary was built
+ * from a truly national dataset (/admin/programa); "mandate" when it was
+ * built from a jurisdictional operator's fenced assignment set
+ * (/gob/programa), where calling THEIR 3 provinces "el gap nacional" is a
+ * lie — 100% of what they can see is not 100% of the country.
+ */
+export type ImpactLineScope = "national" | "mandate";
+
+/**
  * The PO's "El 60% del gap nacional está en: X, Y, Z" line, built from a
  * resolved ImpactSummary. `sharePct` is rendered with an es-AR decimal comma
  * only when it isn't a whole number (mirrors lib/utils/format.ts's
  * formatPercent convention, kept local here to stay dependency-free/pure).
+ * `scope` is REQUIRED (no default) so every caller declares which universe
+ * its summary covers — see ImpactLineScope above.
  */
-export function formatTopImpactLine(summary: ImpactSummary): string {
+export function formatTopImpactLine(summary: ImpactSummary, scope: ImpactLineScope): string {
   const pct = Number.isInteger(summary.sharePct)
     ? String(summary.sharePct)
     : summary.sharePct.toFixed(1).replace(".", ",");
-  return `El ${pct}% del gap nacional está en: ${summary.topJurisdictions.join(", ")}`;
+  const gapLabel = scope === "national" ? "del gap nacional" : "del gap de tu cobertura";
+  return `El ${pct}% ${gapLabel} está en: ${summary.topJurisdictions.join(", ")}`;
 }

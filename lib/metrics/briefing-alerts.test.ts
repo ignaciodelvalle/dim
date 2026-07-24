@@ -222,17 +222,15 @@ describe("buildBriefingAlerts — resourceLine (PO decision 2, item 2)", () => {
     expect(alert.evidence.resourceLine).toBeUndefined();
   });
 
-  it("never fabricates a resourceLine when n is 0 (no denominator)", () => {
+  it("never alerts at all when n is 0 (zeroDenominator guard, red-team 2026-07 #3)", () => {
     const candidates: BriefingAlertCandidate[] = [
       { kpiId: "microchip_penetration", value: 20, n: 0 },
     ];
-    // n=0 also fails the zeroDenominator guard for this descriptor's
-    // guards, but microchip_penetration declares no zeroDenominator guard —
-    // confirm resourceGap's own no_denominator guard covers it independently.
-    const alerts = buildBriefingAlerts(candidates);
-    if (alerts.length > 0) {
-      expect(alerts[0].evidence.resourceLine).toBeUndefined();
-    }
+    // microchip_penetration now declares guards.zeroDenominator ("dash") —
+    // a 0/0 padrón (e.g. an out-of-mandate locality filter) must never
+    // surface a "Confianza: alta · n = 0" briefing alert.
+    expect(KPI_CATALOG.microchip_penetration.guards?.zeroDenominator).toBe("dash");
+    expect(buildBriefingAlerts(candidates)).toHaveLength(0);
   });
 });
 

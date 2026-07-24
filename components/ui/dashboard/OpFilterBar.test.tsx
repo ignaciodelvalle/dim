@@ -208,19 +208,23 @@ describe("OpFilterBar — active-filter chips + Limpiar todo", () => {
     expect(url.searchParams.get("period")).toBe("90d");
   });
 
-  it("mobile summary says the jurisdiction param was not recognized instead of 'Sin filtros activos'", () => {
+  it("says the jurisdiction param was not recognized in BOTH viewports (red-team #4)", () => {
     // ?province=CABA is a NAME, not the ISO code AR-C — fail-closed resolution
-    // narrows nothing and renders no chip. The collapsed summary must not
-    // affirmatively claim there are no filters while the URL carries one.
+    // narrows nothing and renders no chip. Neither viewport may affirmatively
+    // claim there are no filters while the URL carries one: the <md collapsed
+    // summary AND the >=md notice row must both surface the same copy (before
+    // the fix, desktop silently fell back mandate-wide with no message).
     setUrl("/gob/perdidas?province=CABA");
     render(
       <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces: PROVINCES }} axes={[]} />,
     );
-    expect(screen.getByText("Filtro no reconocido — mostrando tu cobertura completa")).toBeTruthy();
+    expect(
+      screen.getAllByText("Filtro no reconocido — mostrando tu cobertura completa"),
+    ).toHaveLength(2);
     expect(screen.queryByText("Sin filtros activos")).toBeNull();
   });
 
-  it("mobile summary flags an unresolvable locality slug too, even with the period fallback", () => {
+  it("flags an unresolvable locality slug too, in both viewports, even with the period fallback", () => {
     setUrl("/gob/perdidas?locality=Palermo");
     render(
       <OpFilterBar
@@ -232,7 +236,17 @@ describe("OpFilterBar — active-filter chips + Limpiar todo", () => {
         axes={[]}
       />,
     );
-    expect(screen.getByText("Filtro no reconocido — mostrando tu cobertura completa")).toBeTruthy();
+    expect(
+      screen.getAllByText("Filtro no reconocido — mostrando tu cobertura completa"),
+    ).toHaveLength(2);
+  });
+
+  it("renders NO unresolved-filter notice anywhere when the jurisdiction param resolves", () => {
+    setUrl("/gob/perdidas?province=AR-B");
+    render(
+      <OpFilterBar showPeriod={false} jurisdiction={{ allowedProvinces: PROVINCES }} axes={[]} />,
+    );
+    expect(screen.queryByText("Filtro no reconocido — mostrando tu cobertura completa")).toBeNull();
   });
 
   it("mobile summary keeps 'Sin filtros activos' when no jurisdiction param is in the URL", () => {

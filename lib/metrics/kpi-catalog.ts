@@ -724,13 +724,13 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     target: {
       value: TARGETS.MICROCHIP_PENETRATION_PCT,
       source: "Ley Prov. 14.107 (PBA)",
-      // The law mandates microchip registration, not an 80% threshold — the
-      // figure is a programmatic benchmark (claim #6).
+      // The law mandates registration, not an 80% threshold — programmatic benchmark (claim #6).
       sourceKind: "programmatic-target",
     },
     semaphore: { paintAgainst: "target" },
-    // PO decision 2 item 2 — "faltan ~N chips" (one microchip per unchipped
-    // pet in the padrón the % is computed over).
+    // Red-team 2026-07 #3: 0/0 padrón (out-of-mandate locality) dashes, never a "0%" n=0 alert.
+    guards: { zeroDenominator: "dash" },
+    // PO decision 2 item 2 — "faltan ~N chips" (one per unchipped pet in the % padrón).
     resourceUnit: "chips",
     confidence: {
       inputs: [

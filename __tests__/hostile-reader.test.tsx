@@ -251,6 +251,21 @@ describe("hostile reader — microchip: el denominador declarado coincide con el
     );
     expect(screen.getByText(/activas\/perdidas/)).toBeInTheDocument();
   });
+
+  it("a 0-pet padrón renders '—', never a fabricated '0%' (red-team 2026-07 #3)", () => {
+    // Out-of-mandate locality filter ⇒ active=0. The descriptor's
+    // zeroDenominator guard must dash the value through guardInput.n.
+    render(
+      <OpKpi
+        label={KPI_CATALOG.microchip_penetration.label}
+        value="0%"
+        descriptorId="microchip_penetration"
+        guardInput={{ n: 0 }}
+      />,
+    );
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

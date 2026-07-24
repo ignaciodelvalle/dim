@@ -375,6 +375,8 @@ export default async function GobProgramaPage({
           href="/gob/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
+          // Red-team 2026-07 #3: zero-denominator guard input (padrón size).
+          guardInput={{ n: microchip.active }}
           forecast={chipResourceLine}
         />
         <OpKpi
@@ -462,7 +464,11 @@ export default async function GobProgramaPage({
             <div className="space-y-2">
               {topImpactSummary && (
                 <p className="text-[var(--text-md)] font-medium text-ln-op-ink-2">
-                  {formatTopImpactLine(topImpactSummary)}
+                  {/* Scope honesty (red-team 2026-07 #5): this summary is built
+                      from the operator's FENCED assignment set, so the line must
+                      say "tu cobertura", never "nacional" — the admin twin is the
+                      only truly national caller. */}
+                  {formatTopImpactLine(topImpactSummary, "mandate")}
                 </p>
               )}
               <div className="overflow-x-auto">

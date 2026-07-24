@@ -163,7 +163,7 @@ describe("B2 — govt, no province selected", () => {
 // ---------------------------------------------------------------------------
 
 describe("B3 — govt, province-only", () => {
-  it("filters to that province, keeps every assigned locality within it", async () => {
+  it("filters to that province; dropdown offers ONLY the assigned locality (finding #2 fix)", async () => {
     const scope = await resolveJurisdictionScope({
       role: "govt",
       jurisdictions: A_MULTI_PROVINCE,
@@ -174,7 +174,10 @@ describe("B3 — govt, province-only", () => {
     ]);
     expect(scope.selectedProvince?.name).toBe("Buenos Aires");
     expect(scope.selectedLocality).toBeNull();
-    expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
+    // Red-team finding #2: only "La Plata" is assigned in AR-B, so the
+    // Localidad dropdown must not offer "Mar del Plata" (an out-of-mandate
+    // pick that would fail-closed to an empty set with no signal).
+    expect(scope.localities).toStrictEqual([{ slug: "la-plata", name: "La Plata" }]);
   });
 
   it("whole-province subsumption: N assigned localities all survive province-only", async () => {
@@ -184,6 +187,48 @@ describe("B3 — govt, province-only", () => {
       params: { province: "AR-B" },
     });
     expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_LOCALITY);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B3b — mandate-scoped Localidad dropdown (red-team 2026-07 finding #2)
+// ---------------------------------------------------------------------------
+
+describe("B3b — mandate-scoped locality dropdown (finding #2)", () => {
+  it("govt with every provincial locality assigned keeps the full dropdown", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_LOCALITY, // La Plata + Mar del Plata = all of AR-B's catalog
+      params: { province: "AR-B" },
+    });
+    expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
+  });
+
+  it("whole-province assignment ('' sentinel) keeps every locality of that province", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: [{ province: "Buenos Aires", locality: "" }],
+      params: { province: "AR-B" },
+    });
+    expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
+  });
+
+  it("govt selecting a province with NO assignments in it ⇒ empty dropdown (fail-closed)", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_SINGLE, // only Buenos Aires / La Plata assigned
+      params: { province: "AR-X" }, // Córdoba — outside the mandate
+    });
+    expect(scope.localities).toStrictEqual([]);
+  });
+
+  it("admin is universal: dropdown always offers the province's FULL locality list", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "admin",
+      jurisdictions: [],
+      params: { province: "AR-B" },
+    });
+    expect(scope.localities).toStrictEqual(LOCALITIES_BY_PROVINCE["AR-B"]);
   });
 });
 

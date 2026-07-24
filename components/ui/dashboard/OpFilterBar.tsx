@@ -171,6 +171,14 @@ const PERIOD_CHIP_LABELS: Record<string, string> = {
   custom: "personalizado",
 };
 
+/**
+ * Honesty copy for an unresolved ?province/?locality param (fail-closed:
+ * nothing narrowed). Single-sourced — the <md collapsed summary AND the >=md
+ * notice row (red-team 2026-07 finding #4) must tell the same truth; before
+ * that fix only mobile said it and desktop silently fell back mandate-wide.
+ */
+const UNRESOLVED_JURISDICTION_NOTICE = "Filtro no reconocido — mostrando tu cobertura completa";
+
 type ActiveChip = {
   id: string;
   label: string;
@@ -298,7 +306,7 @@ function buildMobileSummary(
 ): string {
   const parts = chips.map((c) => c.valueLabel);
   if (parts.length === 0 && hasUnresolvedJurisdictionParam) {
-    return "Filtro no reconocido — mostrando tu cobertura completa";
+    return UNRESOLVED_JURISDICTION_NOTICE;
   }
   if (parts.length === 0 && showPeriod) {
     parts.push(PERIOD_CHIP_LABELS[defaultPreset] ?? defaultPreset);
@@ -439,17 +447,18 @@ export function OpFilterBar({
   const hasDomainGroup = axes.length > 0 || Boolean(children);
   const rhythm = hasDomainGroup ? "space-y-4" : "space-y-3";
 
+  const hasUnresolvedJurisdictionParam = detectUnresolvedJurisdictionParam({
+    searchParams,
+    jurisdiction,
+    provinceKey,
+    localityKey,
+    chips,
+  });
   const mobileSummary = buildMobileSummary(
     chips,
     showPeriod,
     defaultPreset,
-    detectUnresolvedJurisdictionParam({
-      searchParams,
-      jurisdiction,
-      provinceKey,
-      localityKey,
-      chips,
-    }),
+    hasUnresolvedJurisdictionParam,
   );
 
   return (
@@ -604,6 +613,18 @@ export function OpFilterBar({
             </div>
           )}
         </div>
+
+        {/* Desktop honesty notice (red-team 2026-07 #4): an unresolved
+            ?province/?locality (fail-closed, nothing narrowed) was only
+            confessed in the <md collapsed summary — on desktop the bar
+            silently showed mandate-wide data with no signal. Same
+            single-sourced copy, rendered >=md only (the mobile summary row
+            already carries it below md), muted like the chips-row label. */}
+        {hasUnresolvedJurisdictionParam && (
+          <p className="hidden border-t border-ln-op-line-2 pt-3 text-xs font-medium text-ln-op-mute md:block">
+            {UNRESOLVED_JURISDICTION_NOTICE}
+          </p>
+        )}
 
         {/* Region 3 — active-filter chips + clear-all */}
         {chips.length > 0 && (

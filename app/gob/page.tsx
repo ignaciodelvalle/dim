@@ -673,6 +673,9 @@ export default async function GobiernoDashboardPage({
             sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas · PBA: Ley 14.107`}
             href="/gob/analytics"
             descriptorId="microchip_penetration"
+            // Red-team 2026-07 #3: 0-pet padrón (e.g. out-of-mandate locality
+            // filter) renders "—", not a fabricated 0%.
+            guardInput={{ n: microchipPenetration.active }}
           />
           <OpKpi
             label={KPI_CATALOG.ppp_registry_compliance.label}

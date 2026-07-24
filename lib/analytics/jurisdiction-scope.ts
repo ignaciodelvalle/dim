@@ -39,6 +39,7 @@
  */
 
 import { GOB_ALL_PROVINCES, PROVINCE_ISO_MAP } from "@/lib/analytics/govt-dashboards";
+import { isWholeProvinceAssignment } from "@/lib/domain/jurisdiction-canonical";
 import {
   type Locality,
   type LocalityOption,
@@ -139,11 +140,25 @@ export async function resolveJurisdictionScope(
       ? provinceByName(uniqueProvinceNames[0])
       : null;
 
-  const localities = selectedProvince
-    ? await listLocalitiesByProvince(selectedProvince.code as ProvinceCode)
-    : impliedSoleProvince
-      ? await listLocalitiesByProvince(impliedSoleProvince.code as ProvinceCode)
-      : [];
+  const dropdownProvince = selectedProvince ?? impliedSoleProvince;
+  const provinceLocalities = dropdownProvince
+    ? await listLocalitiesByProvince(dropdownProvince.code as ProvinceCode)
+    : [];
+  // Mandate-scoped dropdown (red-team 2026-07 finding #2): a govt operator's
+  // Localidad <select> must only OFFER localities inside their mandate. Before
+  // this fix it listed the WHOLE province (all 48 CABA barrios for a
+  // Palermo-only operator) — selecting an out-of-mandate barrio resolved to an
+  // empty set (fail-closed, no leak) but let the operator "operate" outside
+  // their mandate with no signal. A whole-province assignment ("" sentinel or
+  // the CABA whole-city entry) legitimately covers every barrio and keeps the
+  // full list; only locality-scoped mandates constrain it. Admin is universal
+  // and always keeps the full list. Display-only: `filteredJurisdictions`
+  // (THE FENCE) is untouched — this narrows what the switcher offers, never
+  // what the queries scope by.
+  const localities =
+    role === "govt" && dropdownProvince
+      ? constrainLocalitiesToMandate(provinceLocalities, jurisdictions, dropdownProvince.name)
+      : provinceLocalities;
 
   const selectedLocality =
     selectedProvince && params.locality
@@ -177,4 +192,24 @@ export async function resolveJurisdictionScope(
     adminSelectedProvince,
     adminSelectedLocality,
   };
+}
+
+/**
+ * Intersect a province's full locality catalog with a GOVT operator's
+ * assignments for that province (by canonical locality name — the exact
+ * strings both `jurisdictions` and the catalog's `name` carry). Any
+ * whole-province assignment for the province keeps the full list (the mandate
+ * legitimately covers every locality/barrio). No assignments for the province
+ * at all (an out-of-mandate ?province the switcher never offers) ⇒ empty —
+ * fail-closed, same posture as the fence itself.
+ */
+function constrainLocalitiesToMandate(
+  provinceLocalities: LocalityOption[],
+  jurisdictions: DashboardJurisdiction[],
+  provinceName: string,
+): LocalityOption[] {
+  const assigned = jurisdictions.filter((j) => j.province === provinceName);
+  if (assigned.some((j) => isWholeProvinceAssignment(j))) return provinceLocalities;
+  const assignedNames = new Set(assigned.map((j) => j.locality));
+  return provinceLocalities.filter((l) => assignedNames.has(l.name));
 }
