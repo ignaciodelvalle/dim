@@ -50,6 +50,7 @@ import {
   TARGETS,
   buildProjectionContext,
   countAlertedProvinces,
+  enoSlaHeadline,
   enoSlaTone,
   fetchCrossJurisdictionOutliers,
   fetchDataQuality,
@@ -347,15 +348,16 @@ export default async function AdminProgramaPage({
           descriptorId="microchip_penetration"
           forecast={chipResourceLine}
         />
+        {/* Breach-aware headline (red-team 2026-07-24 #3): the bare % read
+            "100%" beside "12 en incumplimiento activo" — the exact contradiction
+            enoSlaHeadline resolves (leads with "N vencidas ahora", demotes the
+            historical % to a reference sub). The K2 fix on /gob/vigilancia was
+            never propagated here. */}
         <OpKpi
           label="SLA ENO (resueltos)"
-          value={enoSla.onTimePct !== null ? formatPercent(enoSla.onTimePct) : "—"}
+          value={enoSlaHeadline(enoSla, formatPercent).value}
           tone={enoSlaTone(enoSla)}
-          sub={
-            enoSla.breachedOpen > 0
-              ? `${enoSla.breachedOpen} en incumplimiento activo`
-              : "sin incumplimientos activos"
-          }
+          sub={enoSlaHeadline(enoSla, formatPercent).sub}
           href="/admin/outbox"
           info={getKpiInfo("eno_sla_compliance")}
           descriptorId="eno_sla_compliance"
@@ -464,6 +466,16 @@ export default async function AdminProgramaPage({
                   {formatTopImpactLine(topImpactSummary)}
                 </p>
               )}
+              {/* Denominator honesty (red-team 2026-07-24 #4): the impact
+                  column projects the gap over the ESTIMATED canine population
+                  (census-derived), not the registered padrón — so its
+                  magnitudes (e.g. ~1M sin chip en una provincia) dwarf the
+                  padrón counts and read as invented without this label. */}
+              <p className="text-[var(--text-sm)] text-ln-op-mute">
+                El impacto proyecta la brecha sobre la población canina <strong>estimada</strong>{" "}
+                (censo INDEC), no sobre el padrón registrado — por eso sus magnitudes superan a las
+                mascotas registradas.
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-[13px] text-ln-op-ink border-collapse">
                   <caption className="sr-only">

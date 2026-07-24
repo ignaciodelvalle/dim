@@ -26,6 +26,7 @@ import {
   welfareReports,
 } from "@/db";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
+import { isTestAccount } from "@/lib/infra/test-accounts";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 
@@ -365,7 +366,7 @@ export async function fetchDecisionsMetrics(): Promise<DecisionsMetrics> {
 // (any). Three small queries are cheaper than one CTE here because Drizzle
 // doesn't compose lateral joins well and the govt count is small.
 export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
-  const govts = await db
+  const govtsRaw = await db
     .select({ id: profiles.id, displayName: profiles.displayName })
     .from(profiles)
     .where(
@@ -375,6 +376,12 @@ export async function fetchGovtActivity(): Promise<GovtActivityRow[]> {
         sql`${profiles.deactivatedAt} is null`,
       ),
     );
+
+  // Test/smoke-account hygiene (red-team 2026-07-24 #9): the /admin/govts
+  // roster already defaults these OUT (uc-cd-*, -gen-*, …), but this activity
+  // table did not — dozens of `uc-cd-govt` rows flooded it and buried the real
+  // operators. Same filter, same reasoning; production carries no such rows.
+  const govts = govtsRaw.filter((g) => !isTestAccount(g.displayName));
 
   if (govts.length === 0) return [];
 
