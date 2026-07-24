@@ -772,6 +772,7 @@ export default async function GobVigilanciaPage({
               {...mapProps}
               fallbackTableLabel={mapCardTitle}
               scaleLabel="Casos abiertos"
+              caption="Conteos absolutos por jurisdicción — no es una tasa poblacional."
               cartography="panorama"
             />
           </OpCardBody>

@@ -1,10 +1,12 @@
 "use client";
 
 import {
+  choroplethClassed,
   choroplethColorStops,
   choroplethDomain,
-  choroplethLegendBins,
+  divergentLegendBins,
 } from "@/components/charts/choropleth-stops";
+import { stepColorExpr } from "@/components/panorama/class-scale";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
@@ -31,6 +33,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  *  - Drill jerárquico: provincia → departamento → barrio (CABA).
  *  - Cross-filter: selección persiste en searchParams (mismo patrón que PeriodPicker).
  *  - Escala tokenizada: colorScale viene de lib/viz-scales.ts (no hex literal).
+ *  - Escala secuencial CLASIFICADA (dataviz review #5): fill discreto por
+ *    clases vía components/panorama/class-scale.ts (reutilizado) — la
+ *    interpolación continua min→max comprimía los conteos y el mapa "leía
+ *    plano". Leyenda y fill derivan de la MISMA ClassScale (choropleth-stops).
  *  - Join robusto: normalizador por nivel, orphanData explícito, flag de supresión.
  *  - A11y: <details> con tabla de datos; aria-label; teclado (Escape para volver).
  *
@@ -79,6 +85,12 @@ export type MapChoroplethProps = {
    * Acepta tanto ColorRamp (readonly) como [string, string] mutable
    * para compatibilidad con callers v1. Migrar a ColorRamp de viz-scales.ts.
    * Default: RAMP_BLUE.
+   *
+   * NOTE (dataviz review #5): the SEQUENTIAL fill is now CLASSED — discrete
+   * steps sampled from the governed SCALE_BLUE_SEQ ramp via the shared
+   * panorama class-scale helpers (RAMP_BLUE is that ramp's poles). This prop
+   * no longer drives the sequential fill; it remains only as the fallback
+   * palette for the divergent stop sanitizer.
    */
   colorScale?: readonly [string, string] | [string, string];
   /** Centro del mapa [lng, lat]. Default: centroide de Argentina. */
@@ -124,6 +136,13 @@ export type MapChoroplethProps = {
    * encodes a quantitative variable.
    */
   scaleLabel?: string;
+  /**
+   * One-line muted caption rendered under the map + legend (es-AR). The /gob
+   * dashboards use it for the honesty note that the choropleth encodes
+   * ABSOLUTE COUNTS, not a population rate (dataviz review #5; per-capita
+   * comparison is fase 3).
+   */
+  caption?: string;
   /**
    * Color scale rendering mode.
    *  - `"sequential"` (default): linear interpolation from colorScale[0] → colorScale[1].
@@ -245,6 +264,7 @@ export function MapChoropleth({
   allowDrill = false,
   paramKeys,
   scaleLabel,
+  caption,
   scaleMode = "sequential",
   target,
   scopeAggregate,
@@ -270,6 +290,14 @@ export function MapChoropleth({
 
   const paramKeysRef = useRef(paramKeys);
   paramKeysRef.current = paramKeys;
+
+  // Classed sequential scale (dataviz review #5) — computed ONCE from the data
+  // prop and consumed by BOTH the MapLibre step fill (via ref, map init reads
+  // refs) and the legend bins below. Single source of truth: the legend can
+  // never imply classes the fill doesn't paint.
+  const classed = useMemo(() => choroplethClassed(data), [data]);
+  const classedRef = useRef(classed);
+  classedRef.current = classed;
 
   // ---------------------------------------------------------------------------
   // Cross-filter
@@ -473,29 +501,41 @@ export function MapChoropleth({
             // MapLibre color expression:
             // - suppressed: COLOR_SUPPRESSED
             // - no data:    COLOR_NO_DATA
-            // - has data:   interpolation (sequential or divergent — divergent
-            //   anchors at `target`: orange=below, neutral=at, teal=above,
-            //   reusing divergentStops via choroplethColorStops).
-            const flatStops = choroplethColorStops({
-              domain: { minVal, maxVal },
-              colorScale,
-              scaleMode,
-              target,
-            }).flat();
+            // - has data:
+            //     · sequential (dataviz review #5): CLASSED step fill — discrete
+            //       color per class from the SAME ClassScale that builds the
+            //       legend bins (components/panorama/class-scale.ts, reused).
+            //       The old continuous 2-stop min→max interpolation compressed
+            //       clustered counts into a low-contrast slice ("reads flat").
+            //     · divergent: continuous interpolation anchored at `target`
+            //       (orange=below, neutral=at, teal=above) — unchanged.
+            const isDivergent =
+              scaleMode === "divergent" && typeof target === "number" && Number.isFinite(target);
 
-            const dataInterpolateExpr = [
-              "interpolate",
-              ["linear"],
-              ["get", "choropleth_value"],
-              ...flatStops,
-            ] as maplibregl.ExpressionSpecification;
+            const dataFillExpr = isDivergent
+              ? ([
+                  "interpolate",
+                  ["linear"],
+                  ["get", "choropleth_value"],
+                  ...choroplethColorStops({
+                    domain: { minVal, maxVal },
+                    colorScale,
+                    scaleMode,
+                    target,
+                  }).flat(),
+                ] as maplibregl.ExpressionSpecification)
+              : // A break-less (flat) scale returns a plain color string — a
+                // valid `case` branch output.
+                (stepColorExpr(["get", "choropleth_value"], classedRef.current.scale) as
+                  | maplibregl.ExpressionSpecification
+                  | string);
 
             const colorExpr: maplibregl.ExpressionSpecification = [
               "case",
               ["==", ["get", "choropleth_suppressed"], "yes"],
               COLOR_SUPPRESSED,
               ["has", "choropleth_value"],
-              dataInterpolateExpr,
+              dataFillExpr,
               COLOR_NO_DATA,
             ];
 
@@ -793,14 +833,18 @@ export function MapChoropleth({
 
   const [activeBin, setActiveBin] = useState<number | null>(null);
 
-  // Bin construction lives in choropleth-stops.ts (unit-tested there): notably
-  // the visual-review 2026-07-23 #3 fix — a narrow INTEGER domain (e.g. 4→6)
-  // collapses to one bucket per value ("4", "5", "6") instead of degenerate
-  // overlapping quarter bins ("4–5", "5–5", "5–6", "6–6").
+  // Bin construction lives in choropleth-stops.ts (unit-tested there).
+  // Sequential bins come from the SAME ClassScale as the painted step fill
+  // (dataviz review #5 — legend === encoding by construction); the narrow
+  // INTEGER domain still collapses to one bucket per value ("4", "5", "6" —
+  // visual review 2026-07-23 #3). Divergent keeps its two target-split bins.
+  const divergentActive =
+    scaleMode === "divergent" && typeof target === "number" && Number.isFinite(target);
+
   const legendBins = useMemo(() => {
-    if (!scaleBounds) return [];
-    return choroplethLegendBins({ min: scaleBounds.min, max: scaleBounds.max, scaleMode, target });
-  }, [scaleBounds, scaleMode, target]);
+    if (divergentActive) return divergentLegendBins(target as number);
+    return classed.bins;
+  }, [divergentActive, target, classed]);
 
   // A drill re-init rebuilds the map with the no-match filter — reset the bin.
   // biome-ignore lint/correctness/useExhaustiveDependencies: the drill identity is the intended trigger.
@@ -817,14 +861,18 @@ export function MapChoropleth({
       map.setFilter("regions-bin-highlight", ["==", ["get", "code"], "__none__"]);
       return;
     }
+    // Half-open bin semantics (mirrors the step fill): lo inclusive, hi
+    // EXCLUSIVE, null = unbounded — a value exactly AT a break highlights in
+    // the UPPER class only, exactly as it is painted.
     const bin = legendBins[next];
-    map.setFilter("regions-bin-highlight", [
+    const conditions: unknown[] = [
       "all",
       ["has", "choropleth_value"],
       ["!=", ["get", "choropleth_suppressed"], "yes"],
-      [">=", ["get", "choropleth_value"], bin.lo],
-      ["<=", ["get", "choropleth_value"], bin.hi],
-    ]);
+    ];
+    if (bin.lo !== null) conditions.push([">=", ["get", "choropleth_value"], bin.lo]);
+    if (bin.hi !== null) conditions.push(["<", ["get", "choropleth_value"], bin.hi]);
+    map.setFilter("regions-bin-highlight", conditions as maplibregl.FilterSpecification);
   };
 
   // map-QOL empty states — the note says WHY the map is empty, not just that it is.
@@ -920,59 +968,51 @@ export function MapChoropleth({
           {scaleLabel ?? fallbackTableLabel} — escala de colores y estados especiales del mapa
         </figcaption>
 
-        {/* Gradient scale — only shown when we have data and a label */}
-        {scaleLabel && scaleBounds && scaleBounds.min !== scaleBounds.max && (
+        {/* Divergent scale — continuous gradient anchored at the target.
+            (Unchanged; the classed redesign applies to sequential only.) */}
+        {scaleLabel && divergentActive && scaleBounds && scaleBounds.min !== scaleBounds.max && (
           <div
             role="img"
-            aria-label={
-              scaleMode === "divergent" && typeof target === "number"
-                ? `Escala de color para ${scaleLabel}: bajo meta ${target}% (naranja) — sobre meta (verde azulado)`
-                : `Escala de color para ${scaleLabel}: de ${scaleBounds.min} (mínimo) a ${scaleBounds.max} (máximo)`
-            }
+            aria-label={`Escala de color para ${scaleLabel}: bajo meta ${target}% (naranja) — sobre meta (verde azulado)`}
           >
             <p className="text-xs text-ln-op-mute mb-0.5">{scaleLabel}</p>
-            {scaleMode === "divergent" && typeof target === "number" ? (
-              // Divergent legend: two poles with the target anchor labeled.
-              // Mirrors the F5 Panorama province-choropleth legend semantics.
-              // Colorblind-safe: orange=below, neutral=at target, teal=above.
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-ln-op-mute">bajo meta</span>
-                  <div
-                    className="h-2.5 flex-1 rounded-sm border border-ln-op-line"
-                    style={{
-                      background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
-                    }}
-                    aria-hidden="true"
-                  />
-                  <span className="text-xs text-ln-op-mute">sobre meta</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-xs text-ln-op-mute">
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
-                    style={{ background: COLOR_DIVERGENT_NEUTRAL }}
-                    aria-hidden="true"
-                  />
-                  <span>
-                    meta <strong>{target}%</strong>
-                  </span>
-                </div>
-              </div>
-            ) : (
-              // Sequential legend: min → max gradient bar.
+            {/* Divergent legend: two poles with the target anchor labeled.
+                Mirrors the F5 Panorama province-choropleth legend semantics.
+                Colorblind-safe: orange=below, neutral=at target, teal=above. */}
+            <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs tabular-nums text-ln-op-mute">{scaleBounds.min}</span>
+                <span className="text-xs text-ln-op-mute">bajo meta</span>
                 <div
                   className="h-2.5 flex-1 rounded-sm border border-ln-op-line"
                   style={{
-                    background: `linear-gradient(to right, ${colorScale[0]}, ${colorScale[1]})`,
+                    background: `linear-gradient(to right, ${COLOR_DIVERGENT_BELOW}, ${COLOR_DIVERGENT_NEUTRAL}, ${COLOR_DIVERGENT_ABOVE})`,
                   }}
                   aria-hidden="true"
                 />
-                <span className="text-xs tabular-nums text-ln-op-mute">{scaleBounds.max}</span>
+                <span className="text-xs text-ln-op-mute">sobre meta</span>
               </div>
-            )}
+              <div className="flex items-center gap-1.5 text-xs text-ln-op-mute">
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
+                  style={{ background: COLOR_DIVERGENT_NEUTRAL }}
+                  aria-hidden="true"
+                />
+                <span>
+                  meta <strong>{target}%</strong>
+                </span>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Sequential scale (dataviz review #5): the old min→max gradient bar
+            is GONE — a continuous ramp implied resolution the classed fill
+            doesn't paint. The clickable class bins below now double as the
+            color legend: each carries the exact painted class color + its
+            half-open value range, derived from the SAME ClassScale as the
+            fill. Only the scale-label line remains here. */}
+        {scaleLabel && !divergentActive && legendBins.length > 0 && (
+          <p className="text-xs text-ln-op-mute mb-0.5">{scaleLabel}</p>
         )}
 
         {/* map-QOL: clickable legend bins — outline the regions in a range. */}
@@ -987,12 +1027,23 @@ export function MapChoropleth({
                 type="button"
                 aria-pressed={activeBin === i}
                 onClick={() => onBinClick(i)}
-                className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs transition-colors ${
                   activeBin === i
                     ? "border-ln-op-azul bg-ln-op-azul/10 font-medium text-ln-op-azul"
                     : "border-ln-op-line text-ln-op-mute hover:border-ln-op-azul/40"
                 }`}
               >
+                {/* Classed sequential: the chip shows the EXACT painted class
+                    color (same ClassScale as the fill) — the bin row IS the
+                    color legend. Divergent bins carry no color (gradient
+                    legend above covers them). */}
+                {bin.color && (
+                  <span
+                    className="inline-block h-2.5 w-2.5 flex-none rounded-[var(--radius-xs)] border border-ln-op-line"
+                    style={{ background: bin.color }}
+                    aria-hidden="true"
+                  />
+                )}
                 {bin.label}
               </button>
             ))}
@@ -1028,6 +1079,11 @@ export function MapChoropleth({
             Datos insuficientes (privacidad)
           </li>
         </ul>
+
+        {/* Honesty caption (dataviz review #5): e.g. the /gob dashboards state
+            the values are absolute counts, not a population rate. A <p>, not a
+            second <figcaption> — the figure already has its sr-only one. */}
+        {caption && <p className="text-xs text-ln-op-mute">{caption}</p>}
       </figure>
 
       {/* Tabla a11y */}

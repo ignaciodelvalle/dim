@@ -16,6 +16,14 @@
 // Extracted from MapChoropleth.tsx so it is unit-testable WITHOUT importing
 // maplibre-gl (same pattern as components/panorama/province-choropleth-style.ts).
 
+import {
+  CLASS_COUNT,
+  type ClassScale,
+  type ClassSwatch,
+  classColors,
+  classSwatches,
+  computeClassScale,
+} from "@/components/panorama/class-scale";
 import { divergentStops } from "@/lib/analytics/viz-scales";
 
 export type ChoroplethDomain = { minVal: number; maxVal: number };
@@ -67,59 +75,118 @@ export function choroplethColorStops(args: {
   return sanitizeStops(stops, args.colorScale);
 }
 
-/** One clickable legend bin: es-AR range label + the [lo, hi] value filter. */
-export type ChoroplethLegendBin = { label: string; lo: number; hi: number };
+/**
+ * One clickable legend bin.
+ *
+ * Semantics (aligned with MapLibre `step` / panorama's half-open classing):
+ *  - `lo` is the INCLUSIVE lower bound; `null` = open below.
+ *  - `hi` is the EXCLUSIVE upper bound; `null` = open above.
+ *  - `color` is the painted class fill for this bin — present only for the
+ *    classed sequential scale, where the bin row doubles as the color legend
+ *    (single source of truth: swatch color === painted fill). Divergent bins
+ *    keep the separate gradient legend and carry no color.
+ */
+export type ChoroplethLegendBin = {
+  label: string;
+  color?: string;
+  lo: number | null;
+  hi: number | null;
+};
+
+/** A resolved classed sequential scale + its legend bins — both derived from
+ *  the SAME breaks/colors so on-map fill and legend can never disagree. */
+export type ChoroplethClassed = { scale: ClassScale; bins: ChoroplethLegendBin[] };
+
+/** Round a class break to a readable precision for the legend label.
+ *  (Same convention as panorama's MapLegends formatBound — kept local because
+ *  MapLegends' formatter is private to that client component.) */
+function formatBound(n: number): string {
+  const rounded = Math.abs(n) >= 10 ? Math.round(n) : Math.round(n * 10) / 10;
+  return rounded.toLocaleString("es-AR");
+}
+
+/** es-AR range label for one class swatch. Half-open disambiguation mirrors
+ *  panorama's MapLegends: the interior range reads "lo – <hi" so the exclusive
+ *  upper bound is explicit (a value exactly AT a break belongs to the UPPER
+ *  class — pinned by class-scale.test.ts). */
+function swatchBinLabel(s: ClassSwatch): string {
+  if (s.lo === null && s.hi === null) return "Todos";
+  if (s.lo === null) return `< ${formatBound(s.hi as number)}`;
+  if (s.hi === null) return `≥ ${formatBound(s.lo as number)}`;
+  return `${formatBound(s.lo)} – <${formatBound(s.hi)}`;
+}
 
 /**
- * Build the clickable legend bins for MapChoropleth's bin-highlight control.
+ * Resolve the CLASSED sequential scale for MapChoropleth (dataviz review #5 —
+ * port of the Panorama Theme-3 fix). The continuous 2-stop min→max ramp
+ * compressed clustered counts into a narrow low-contrast slice and the map
+ * read flat; classing buckets values into discrete classes painted distinct
+ * steps of the governed SCALE_BLUE_SEQ ramp (components/panorama/class-scale.ts
+ * — REUSED, not reimplemented).
  *
- * - `divergent` (requires finite `target`): two bins split at the compliance
- *   target ("bajo meta" / "sobre meta").
- * - `sequential`: 4 equal intervals over [min, max] — EXCEPT when the domain is
- *   an integer span holding fewer than 4 distinct steps. Quarter-splitting a
- *   4→6 domain produced degenerate, overlapping labels ("4–5", "5–5", "5–6",
- *   "6–6" — the /gob/vigilancia "Casos abiertos" finding, visual review
- *   2026-07-23 #3); a narrow integer domain collapses to one bucket per
- *   integer value instead ("4", "5", "6") — never a zero-width or overlapping
- *   range.
+ * Returns the scale (for the MapLibre `step` fill expression) AND the legend
+ * bins derived from the same breaks/colors — the single source of truth that
+ * guarantees legend === painted encoding.
  *
- * A degenerate domain (min === max) returns no bins — a single-valued map has
- * no ranges to highlight. Extracted from MapChoropleth.tsx so the degenerate
- * cases are unit-testable without maplibre-gl (same pattern as the stops above).
+ * Narrow INTEGER domain (visual review 2026-07-23 #3, carried over): an
+ * integer span with fewer than CLASS_COUNT distinct steps (e.g. "Casos
+ * abiertos" 4→6) classes one bucket per integer value ("4", "5", "6") instead
+ * of fractional quantile cutoffs that would produce empty/misleading classes.
+ *
+ * Suppressed (k-anon) and non-finite values are excluded — they are painted
+ * their own categorical states, never a class. A degenerate domain (empty or
+ * all-equal) yields a single flat class and NO bins.
  */
-export function choroplethLegendBins(args: {
-  min: number;
-  max: number;
-  scaleMode?: "sequential" | "divergent";
-  target?: number;
-}): ChoroplethLegendBin[] {
-  const { min, max } = args;
-  if (!Number.isFinite(min) || !Number.isFinite(max) || min === max) return [];
+export function choroplethClassed(
+  data: ReadonlyArray<{ value: number; suppressed?: boolean }>,
+): ChoroplethClassed {
+  const values = data.filter((d) => !d.suppressed && Number.isFinite(d.value)).map((d) => d.value);
 
-  if (args.scaleMode === "divergent" && typeof args.target === "number") {
-    return [
-      { label: `bajo meta (< ${args.target.toLocaleString("es-AR")})`, lo: min, hi: args.target },
-      { label: `sobre meta (≥ ${args.target.toLocaleString("es-AR")})`, lo: args.target, hi: max },
-    ];
+  if (values.length > 0) {
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    if (Number.isInteger(min) && Number.isInteger(max) && max > min && max - min < CLASS_COUNT) {
+      // One class per integer value: breaks at min+1 … max ⇒ class i holds
+      // exactly the value min+i under step semantics (v ≥ break → next class).
+      const breaks = Array.from({ length: max - min }, (_, i) => min + i + 1);
+      const colors = classColors(breaks.length + 1);
+      const scale: ClassScale = { breaks, colors, method: "interval" };
+      const bins: ChoroplethLegendBin[] = Array.from({ length: max - min + 1 }, (_, i) => {
+        const v = min + i;
+        return {
+          label: v.toLocaleString("es-AR"),
+          color: colors[i],
+          lo: v,
+          hi: v === max ? null : v + 1,
+        };
+      });
+      return { scale, bins };
+    }
   }
 
-  if (Number.isInteger(min) && Number.isInteger(max) && max - min < 4) {
-    return Array.from({ length: max - min + 1 }, (_, i) => {
-      const v = min + i;
-      return { label: v.toLocaleString("es-AR"), lo: v, hi: v };
-    });
-  }
+  const scale = computeClassScale(values);
+  if (scale.breaks.length === 0) return { scale, bins: [] };
+  const bins = classSwatches(scale).map((s) => ({
+    label: swatchBinLabel(s),
+    color: s.color,
+    lo: s.lo,
+    hi: s.hi,
+  }));
+  return { scale, bins };
+}
 
-  const stepSize = (max - min) / 4;
-  return Array.from({ length: 4 }, (_, i) => {
-    const lo = min + i * stepSize;
-    const hi = i === 3 ? max : min + (i + 1) * stepSize;
-    return {
-      label: `${Math.round(lo).toLocaleString("es-AR")}–${Math.round(hi).toLocaleString("es-AR")}`,
-      lo,
-      hi,
-    };
-  });
+/**
+ * Legend bins for the DIVERGENT compliance scale: two half-open bins split at
+ * the target — "bajo meta (< t)" / "sobre meta (≥ t)". Half-open (hi exclusive)
+ * so a value exactly AT the target belongs to "sobre meta" only, matching the
+ * labels. The divergent fill stays a continuous interpolation (unchanged).
+ */
+export function divergentLegendBins(target: number): ChoroplethLegendBin[] {
+  if (!Number.isFinite(target)) return [];
+  return [
+    { label: `bajo meta (< ${target.toLocaleString("es-AR")})`, lo: null, hi: target },
+    { label: `sobre meta (≥ ${target.toLocaleString("es-AR")})`, lo: target, hi: null },
+  ];
 }
 
 /**

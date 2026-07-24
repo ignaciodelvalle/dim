@@ -522,6 +522,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
               data={choroplethData}
               level="province"
               scaleLabel="Mascotas registradas"
+              caption="Conteos absolutos por jurisdicción — no es una tasa poblacional."
               fallbackTableLabel="Mascotas registradas por provincia"
               height={GOB_MAP_HEIGHT}
               {...mapScopeProps}

@@ -414,6 +414,7 @@ export default async function GobPerdidasPage({
             key={selectedProvince?.code ?? "national"}
             {...mapProps}
             scaleLabel="Mascotas perdidas"
+            caption="Conteos absolutos por jurisdicción — no es una tasa poblacional."
             fallbackTableLabel="Mascotas perdidas por provincia"
             // Visual review 2026-07-23 (#1): when the drilled view is 100%
             // k-anon suppressed, the in-map notice cites the scope aggregate.

@@ -10,15 +10,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  choroplethClassed,
   choroplethColorStops,
   choroplethDomain,
-  choroplethLegendBins,
+  divergentLegendBins,
   sanitizeStops,
 } from "@/components/charts/choropleth-stops";
+import { CLASS_COUNT, colorForValue, stepColorExpr } from "@/components/panorama/class-scale";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_NEUTRAL,
   RAMP_BLUE,
+  SCALE_BLUE_SEQ,
 } from "@/lib/analytics/viz-scales";
 
 /** Assert the MapLibre invariant: stop inputs strictly ascend. */
@@ -200,45 +203,97 @@ describe("sanitizeStops", () => {
   });
 });
 
-describe("choroplethLegendBins", () => {
+describe("choroplethClassed — classed sequential scale (dataviz review #5)", () => {
+  const datum = (value: number, suppressed = false) => ({ value, suppressed });
+
+  it("legend bins and painted classes are the SAME scale (single source of truth)", () => {
+    // Wide spread → quantile classing. Every bin's color must be the scale's
+    // class color, and every bin's boundaries must be the scale's breaks.
+    const { scale, bins } = choroplethClassed([2, 5, 9, 14, 30, 55, 80, 120].map((v) => datum(v)));
+    expect(scale.method).toBe("quantile");
+    expect(bins).toHaveLength(scale.colors.length);
+    expect(bins.map((b) => b.color)).toEqual(scale.colors);
+    // Interior boundaries tile the breaks exactly: bin i ends where break i sits.
+    expect(bins.map((b) => b.hi).slice(0, -1)).toEqual(scale.breaks);
+    expect(bins.map((b) => b.lo).slice(1)).toEqual(scale.breaks);
+    expect(bins[0].lo).toBeNull();
+    expect(bins[bins.length - 1].hi).toBeNull();
+  });
+
+  it("a value paints the same class color its legend bin claims (step semantics)", () => {
+    const { scale, bins } = choroplethClassed([2, 5, 9, 14, 30, 55, 80, 120].map((v) => datum(v)));
+    for (const bin of bins) {
+      // Probe a value inside the half-open bin: lo itself (or just under hi).
+      const probe = bin.lo ?? (bin.hi as number) - 0.001;
+      expect(colorForValue(scale, probe)).toBe(bin.color);
+    }
+  });
+
   it("collapses a narrow INTEGER domain to one bucket per value (visual review 2026-07-23 #3)", () => {
-    // The /gob/vigilancia "Casos abiertos" repro: domain 4→6 quarter-split into
-    // degenerate, overlapping labels ("4–5", "5–5", "5–6", "6–6").
-    expect(choroplethLegendBins({ min: 4, max: 6 })).toEqual([
-      { label: "4", lo: 4, hi: 4 },
-      { label: "5", lo: 5, hi: 5 },
-      { label: "6", lo: 6, hi: 6 },
+    // The /gob/vigilancia "Casos abiertos" repro: counts 4→6.
+    const { scale, bins } = choroplethClassed([4, 5, 6, 4, 5].map((v) => datum(v)));
+    expect(bins.map((b) => b.label)).toEqual(["4", "5", "6"]);
+    expect(scale.breaks).toEqual([5, 6]);
+    // Each integer paints exactly its bucket's color.
+    expect(colorForValue(scale, 4)).toBe(bins[0].color);
+    expect(colorForValue(scale, 5)).toBe(bins[1].color);
+    expect(colorForValue(scale, 6)).toBe(bins[2].color);
+    // Half-open filter bounds: lo inclusive, hi exclusive, last open above.
+    expect(bins[0]).toMatchObject({ lo: 4, hi: 5 });
+    expect(bins[2]).toMatchObject({ lo: 6, hi: null });
+  });
+
+  it("classes come from the governed SCALE_BLUE_SEQ ramp, palest → darkest", () => {
+    const { scale } = choroplethClassed([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => datum(v)));
+    expect(scale.colors[0]).toBe(SCALE_BLUE_SEQ[0]);
+    expect(scale.colors[scale.colors.length - 1]).toBe(SCALE_BLUE_SEQ[SCALE_BLUE_SEQ.length - 1]);
+    expect(scale.colors.length).toBe(CLASS_COUNT);
+  });
+
+  it("excludes suppressed (k-anon) and non-finite values from the classing", () => {
+    const withOutlier = choroplethClassed([
+      datum(1),
+      datum(2),
+      datum(3),
+      datum(1_000_000, true), // suppressed — must not stretch the classes
+      { value: Number.NaN },
     ]);
-    // Two-value span → two exact buckets.
-    expect(choroplethLegendBins({ min: 1, max: 2 })).toEqual([
-      { label: "1", lo: 1, hi: 1 },
-      { label: "2", lo: 2, hi: 2 },
+    const clean = choroplethClassed([datum(1), datum(2), datum(3)]);
+    expect(withOutlier.scale.breaks).toEqual(clean.scale.breaks);
+  });
+
+  it("degenerate domains yield a flat single class and NO bins", () => {
+    for (const values of [[], [7], [7, 7, 7]]) {
+      const { scale, bins } = choroplethClassed(values.map((v) => datum(v)));
+      expect(scale.breaks).toEqual([]);
+      expect(bins).toEqual([]);
+      // The step expression degrades to a plain color string MapLibre accepts.
+      expect(typeof stepColorExpr(["get", "v"], scale)).toBe("string");
+    }
+  });
+
+  it("builds a valid MapLibre step expression from the same scale", () => {
+    const { scale } = choroplethClassed([2, 5, 9, 14, 30, 55, 80, 120].map((v) => datum(v)));
+    const expr = stepColorExpr(["get", "choropleth_value"], scale) as unknown[];
+    expect(expr[0]).toBe("step");
+    // Thresholds strictly ascend — MapLibre rejects the expression otherwise.
+    const thresholds = expr.filter((_, i) => i >= 3 && i % 2 === 1) as number[];
+    for (let i = 1; i < thresholds.length; i++) {
+      expect(thresholds[i]).toBeGreaterThan(thresholds[i - 1]);
+    }
+    expect(thresholds).toEqual(scale.breaks);
+  });
+});
+
+describe("divergentLegendBins", () => {
+  it("splits at the compliance target with half-open bounds (AT target → sobre meta)", () => {
+    expect(divergentLegendBins(80)).toEqual([
+      { label: "bajo meta (< 80)", lo: null, hi: 80 },
+      { label: "sobre meta (≥ 80)", lo: 80, hi: null },
     ]);
   });
 
-  it("keeps 4 equal intervals for a wide domain, never overlapping labels", () => {
-    const bins = choroplethLegendBins({ min: 0, max: 100 });
-    expect(bins).toHaveLength(4);
-    expect(bins.map((b) => b.label)).toEqual(["0–25", "25–50", "50–75", "75–100"]);
-    // Filter ranges tile the domain: each bin starts where the previous ended.
-    for (let i = 1; i < bins.length; i++) expect(bins[i].lo).toBe(bins[i - 1].hi);
-  });
-
-  it("an exactly-4-step integer span keeps interval bins (only NARROWER spans collapse)", () => {
-    const bins = choroplethLegendBins({ min: 4, max: 8 });
-    expect(bins).toHaveLength(4);
-    expect(bins.map((b) => b.label)).toEqual(["4–5", "5–6", "6–7", "7–8"]);
-  });
-
-  it("returns no bins for a degenerate or non-finite domain", () => {
-    expect(choroplethLegendBins({ min: 5, max: 5 })).toEqual([]);
-    expect(choroplethLegendBins({ min: Number.NaN, max: 3 })).toEqual([]);
-  });
-
-  it("divergent mode splits at the compliance target", () => {
-    expect(choroplethLegendBins({ min: 10, max: 95, scaleMode: "divergent", target: 80 })).toEqual([
-      { label: "bajo meta (< 80)", lo: 10, hi: 80 },
-      { label: "sobre meta (≥ 80)", lo: 80, hi: 95 },
-    ]);
+  it("returns no bins for a non-finite target", () => {
+    expect(divergentLegendBins(Number.NaN)).toEqual([]);
   });
 });
