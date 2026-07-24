@@ -887,7 +887,7 @@ export async function getPanoramaKpis(
       label: "Denuncias en el período",
       value: formatCount(welfare.inPeriod),
       sub: welfare.inPeriod === 1 ? "denuncia en el período" : "denuncias en el período",
-      secondary: `backlog: ${formatCount(welfare.count)} ${
+      secondary: `acumulado: ${formatCount(welfare.count)} ${
         welfare.count === 1 ? "activa en total" : "activas en total"
       }`,
       tone: welfare.inPeriod > 0 ? "warn" : "neutral",

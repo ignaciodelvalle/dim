@@ -7,6 +7,17 @@
 
 import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
+// es-AR severity labels for the welfare-report event label (red-team-admin-2
+// P1.8): the unit-history flyout showed the raw DB enum ("medium"/"high"…). The
+// client DetailDrawer's SEVERITY_LABEL twin never reached this server-built
+// string, so translate it here at the source.
+const SEVERITY_LABEL_ES: Record<string, string> = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+  critical: "Crítica",
+};
+
 import {
   cases,
   analyticsDb as db,
@@ -710,7 +721,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
         return rows.map((r) => ({
           date: r.createdAt,
           type: r.kind ?? "other",
-          label: r.severity ? `Denuncia (${r.severity})` : "Denuncia",
+          label: r.severity
+            ? `Denuncia (${SEVERITY_LABEL_ES[r.severity] ?? r.severity})`
+            : "Denuncia",
         }));
       }
 

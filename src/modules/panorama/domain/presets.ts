@@ -283,7 +283,10 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // v+1 rail: the "reunificacion" KPI (D4 rate vs TARGETS.REUNIFICATION_PCT,
     // target-progress bar) headlines the question this preset asks — it was
     // previously absent from the column despite naming the preset.
-    metrics: ["perdidas", "reunificacion", "denuncias"],
+    // red-team-admin-2 P1.6: dropped the off-mission "denuncias" (bienestar/
+    // welfare-complaints, /gob/maltrato) — a different domain that confused this
+    // lost-and-reunification lens. "perdidas" already carries the lost-pets count.
+    metrics: ["perdidas", "reunificacion"],
     // Locality-level drill-down question — stays framing-less, same as sintomas
     // and bienestar (design-QA 2026-07-04 convention).
   },

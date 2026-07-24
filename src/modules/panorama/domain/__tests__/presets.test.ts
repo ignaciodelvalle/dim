@@ -463,12 +463,11 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     ]);
   });
 
-  it("perdidas-reunificacion includes reunificacion (the D4 rate the preset is named for)", () => {
-    expect(getPreset("perdidas-reunificacion")!.metrics).toEqual([
-      "perdidas",
-      "reunificacion",
-      "denuncias",
-    ]);
+  it("perdidas-reunificacion headlines perdidas + reunificacion, WITHOUT off-mission denuncias", () => {
+    // red-team-admin-2 P1.6: "denuncias" (bienestar/welfare-complaints) was
+    // dropped — a different domain than lost-and-reunification that confused the
+    // lens. Only the two on-mission metrics remain.
+    expect(getPreset("perdidas-reunificacion")!.metrics).toEqual(["perdidas", "reunificacion"]);
   });
 
   // Orphaned-layer wiring: the PPP + mortality vistas headline their own layer's KPI.
