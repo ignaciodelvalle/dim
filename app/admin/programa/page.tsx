@@ -304,22 +304,23 @@ export default async function AdminProgramaPage({
       {/* Page header */}
       {header}
 
-      {/* Unified filter bar — period only (F-migration 2026-07-21, off the
-          bare <PeriodPicker>). Admin scope is universal (parity with
-          /gob/programa's OpFilterBar, minus the jurisdiction axis that only
-          makes sense for a govt viewer with assignments). */}
-      <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
-
-      {/* North-Star KPI strip */}
+      {/* North-Star KPI strip — CURRENT STATE. red-team-admin-2 #1 (Path B,
+          RESOLVE not label): the page-level period control used to sit HERE, above
+          KPIs it never moved (registradas/esterilización/microchip are
+          point-in-time). That read as a broken filter. The control now lives down
+          at the projection — the only period-driven visual — and this strip is
+          framed as estado actual, so no KPI sits under a filter that ignores it. */}
+      <h2 className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
+        Estado actual del programa
+      </h2>
       <section
-        aria-label="KPIs principales del programa"
+        aria-label="KPIs principales del programa (estado actual)"
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
       >
         <OpKpi
           label="Total registradas"
           value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
           sub="mascotas activas o extraviadas"
-          periodInvariant
           href="/admin/padron?vista=censo"
           info={{
             definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
@@ -335,9 +336,6 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
-          // #20: point-in-time stock ratio ("ever sterilized") — does not track
-          // the period control it sits under.
-          periodInvariant
           // PO decision 2 item 2 — "faltan ~N cirugías sobre el padrón
           // registrado" (undefined when the target is already met).
           forecast={sterilResourceLine}
@@ -350,8 +348,6 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
-          // #20: point-in-time penetration snapshot — does not track the period.
-          periodInvariant
           // Red-team 2026-07 #3: zero-denominator guard input (padrón size).
           guardInput={{ n: microchip.active }}
           forecast={chipResourceLine}
@@ -418,6 +414,22 @@ export default async function AdminProgramaPage({
           descriptorId="alerted_provinces_below_target"
         />
       </section>
+
+      {/* Period control — relocated here from the page top (red-team-admin-2 #1,
+          Path B). The projection below is the ONLY period-driven visual on this
+          page; binding the control to it (with the scope caption) removes the
+          "I changed the period and nothing moved" confusion the top placement
+          created over the current-state KPI strip above. */}
+      <div className="space-y-1">
+        <p className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
+          Tendencia y proyección
+        </p>
+        <p className="text-[var(--text-xs)] text-ln-op-mute">
+          El período aplica a la proyección de abajo; los indicadores de estado actual no varían con
+          él.
+        </p>
+        <OpFilterBar period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }} />
+      </div>
 
       {/* Antirrábica vaccination forecast — Paquete J (additive) */}
       <OpCard aria-labelledby={panelRabiesForecastId}>

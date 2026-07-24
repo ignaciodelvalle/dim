@@ -222,12 +222,16 @@ export function enoSlaHeadline(
   if (eno.breachedOpen > 0) {
     return {
       value: `${eno.breachedOpen} vencidas ahora`,
-      // red-team-admin #1: state WHY 100% and "N vencidas" coexist — the % is over
-      // delivered rows only; the breached-open ones are a disjoint pending set.
+      // red-team-admin-2 #3 (Path B — RESOLVE, not label): when there's an open
+      // breach, DROP the historical on-time % entirely. A "100%" beside "12
+      // vencidas" reads as success/makeup no matter how it's captioned; the
+      // reviewer was right that the parenthesis doesn't save the first read.
+      // Show the operationally useful median delivery latency instead (neutral,
+      // no false-success signal), or a plain pending note when unavailable.
       sub:
-        eno.onTimePct !== null
-          ? `Cumplimiento histórico ${pctLabel} de las entregadas — no incluye estas ${eno.breachedOpen} pendientes vencidas (referencia)`
-          : "Sin entregas en el período",
+        eno.medianLatencyHours !== null
+          ? `Mediana de entrega ${eno.medianLatencyHours} h`
+          : "Pendientes de reintento",
     };
   }
   return {

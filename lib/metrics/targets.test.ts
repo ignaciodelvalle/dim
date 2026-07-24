@@ -291,21 +291,22 @@ describe("enoSlaHeadline", () => {
       pctLabel,
     );
     expect(value).toBe("12 vencidas ahora");
-    // The historical % survives, but demoted + explicitly labeled as reference,
-    // and (red-team-admin #1) states WHY it can read 100% next to 12 breaches:
-    // the % is over delivered rows only; the breached-open set is disjoint.
-    expect(sub).toBe(
-      "Cumplimiento histórico 100% de las entregadas — no incluye estas 12 pendientes vencidas (referencia)",
-    );
+    // Path B (red-team-admin-2 #3): with an open breach the historical on-time %
+    // is DROPPED entirely (a "100%" beside "12 vencidas" reads as makeup no
+    // matter the caption). The sub shows neutral operational context — median
+    // delivery latency — never the success %.
+    expect(sub).toBe("Mediana de entrega 4 h");
+    expect(sub).not.toContain("100%");
   });
 
-  it("an active breach with no delivered rows yet (onTimePct null) states that plainly", () => {
+  it("an active breach with no latency data falls back to a plain pending note (no %)", () => {
     const { value, sub } = enoSlaHeadline(
       { onTimePct: null, breachedOpen: 3, medianLatencyHours: null },
       pctLabel,
     );
     expect(value).toBe("3 vencidas ahora");
-    expect(sub).toBe("Sin entregas en el período");
+    expect(sub).toBe("Pendientes de reintento");
+    expect(sub).not.toContain("%");
   });
 
   it("no open breach → headlines the historical % (nothing to contradict) with a median-latency sub", () => {
