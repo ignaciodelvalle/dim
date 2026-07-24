@@ -35,6 +35,8 @@ import { and, count, countDistinct, eq, gte, lte, sql } from "drizzle-orm";
 import { analyticsDb as db, petEvents, pets } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
+import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
+
 import type { ProjectionContext } from "./context";
 import { petEventsScopeClause, petsScopeClause } from "./scope";
 import {
@@ -47,6 +49,8 @@ import {
   pivotStackedSeries,
   suppressSmallBuckets,
   suppressSmallStackedCells,
+  zeroFillLabeledBuckets,
+  zeroFillStackedPoints,
 } from "./timeseries";
 
 /** True when a govt actor has no jurisdictions — every projection is empty. */
@@ -151,7 +155,9 @@ export async function fetchDeathCausesTrend(
     };
   });
 
-  const pivoted = pivotStackedSeries(seriesRows);
+  // Zero-fill BEFORE suppression (dataviz review 2026-07-23 #2) — see
+  // finalizeSingleSeries below for the rationale.
+  const pivoted = zeroFillStackedPoints(pivotStackedSeries(seriesRows), ctx.period, granularity);
   const { series, suppressedCount } = suppressSmallStackedCells(pivoted, 5);
   return { granularity, series, suppressedCount };
 }
@@ -200,7 +206,7 @@ export async function fetchBitesTrend(ctx: ProjectionContext): Promise<SingleSer
     .groupBy(bucket)
     .orderBy(bucket);
 
-  return finalizeSingleSeries(rows, granularity);
+  return finalizeSingleSeries(rows, granularity, ctx.period);
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +248,7 @@ export async function fetchOutbreakSignalsTrend(
     .groupBy(bucket)
     .orderBy(bucket);
 
-  return finalizeSingleSeries(rows, granularity);
+  return finalizeSingleSeries(rows, granularity, ctx.period);
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +308,7 @@ export async function fetchRabiesVaccinationTrend(
     .groupBy(bucket)
     .orderBy(bucket);
 
-  return finalizeSingleSeries(rows, granularity);
+  return finalizeSingleSeries(rows, granularity, ctx.period);
 }
 
 // ---------------------------------------------------------------------------
@@ -372,7 +378,7 @@ export async function fetchKpiTrend(
     .groupBy(bucket)
     .orderBy(bucket);
 
-  return finalizeSingleSeries(rows, granularity);
+  return finalizeSingleSeries(rows, granularity, ctx.period);
 }
 
 // ---------------------------------------------------------------------------
@@ -382,15 +388,22 @@ export async function fetchKpiTrend(
 function finalizeSingleSeries(
   rows: Array<{ bucket: string; n: number }>,
   granularity: BucketGranularity,
+  period: AnalyticsPeriod,
 ): SingleSeriesTrend {
-  const labeled = rows
-    .map((r) => {
-      const start = new Date(r.bucket);
-      return { start: start.toISOString(), x: formatBucketLabel(start, granularity), y: r.n };
-    })
-    .sort((a, b) => a.start.localeCompare(b.start))
-    .map(({ x, y }) => ({ x, y }));
+  const labeled = rows.map((r) => {
+    const start = new Date(r.bucket);
+    return { start: start.toISOString(), x: formatBucketLabel(start, granularity), y: r.n };
+  });
 
-  const { points, suppressedCount } = suppressSmallBuckets(labeled, 5);
+  // Zero-fill BEFORE suppression (dataviz review 2026-07-23 #2): the SQL
+  // GROUP BY drops empty buckets, erasing quiet periods from the categorical
+  // axis and compressing the forecast regression's time base. Suppression
+  // runs after so genuine zeros stay visible (they are non-identifying).
+  const complete = zeroFillLabeledBuckets(labeled, period, granularity).map(({ x, y }) => ({
+    x,
+    y,
+  }));
+
+  const { points, suppressedCount } = suppressSmallBuckets(complete, 5);
   return { granularity, points, suppressedCount };
 }

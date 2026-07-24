@@ -12,11 +12,14 @@ import {
   type SeriesBucketRow,
   bucketGranularityFor,
   dateTruncUnit,
+  enumerateBucketStarts,
   formatBucketLabel,
   isoWeekLabel,
   pivotStackedSeries,
   suppressSmallBuckets,
   suppressSmallStackedCells,
+  zeroFillLabeledBuckets,
+  zeroFillStackedPoints,
 } from "./timeseries";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -70,6 +73,87 @@ describe("isoWeekLabel / formatBucketLabel", () => {
 
   it("week granularity returns the ISO-week label", () => {
     expect(formatBucketLabel(new Date("2026-01-15T00:00:00Z"), "week")).toBe("2026-W03");
+  });
+});
+
+describe("zero-fill (dataviz review 2026-07-23 #2)", () => {
+  const monthPeriod = {
+    since: new Date("2026-01-10T00:00:00Z"),
+    until: new Date("2026-07-01T00:00:00Z"),
+  } as never;
+
+  it("enumerates every month start the window spans (UTC month firsts)", () => {
+    const starts = enumerateBucketStarts(monthPeriod, "month");
+    expect(starts.map((d) => d.toISOString().slice(0, 10))).toEqual([
+      "2026-01-01",
+      "2026-02-01",
+      "2026-03-01",
+      "2026-04-01",
+      "2026-05-01",
+      "2026-06-01",
+      "2026-07-01",
+    ]);
+  });
+
+  it("enumerates ISO-week Mondays for week granularity", () => {
+    const p = {
+      since: new Date("2026-01-15T00:00:00Z"), // Thursday of W03
+      until: new Date("2026-02-02T00:00:00Z"), // Monday of W06
+    } as never;
+    const starts = enumerateBucketStarts(p, "week");
+    expect(starts.map((d) => d.toISOString().slice(0, 10))).toEqual([
+      "2026-01-12", // Monday W03
+      "2026-01-19",
+      "2026-01-26",
+      "2026-02-02",
+    ]);
+  });
+
+  it("inserts y=0 buckets for months the SQL GROUP BY skipped", () => {
+    const feb = new Date("2026-02-01T00:00:00Z");
+    const may = new Date("2026-05-01T00:00:00Z");
+    const labeled = [
+      { start: feb.toISOString(), x: formatBucketLabel(feb, "month"), y: 7 },
+      { start: may.toISOString(), x: formatBucketLabel(may, "month"), y: 3 },
+    ];
+    const filled = zeroFillLabeledBuckets(labeled, monthPeriod, "month");
+    // ene..jun complete (jul is a trailing partial with no row → not fabricated);
+    // the quiet months (ene, mar, abr, jun) are explicit zeros, not missing ticks.
+    expect(filled.map((p) => p.y)).toEqual([0, 7, 0, 0, 3, 0]);
+  });
+
+  it("does not fabricate a zero for a trailing partial bucket, but keeps a real row there", () => {
+    const p = {
+      since: new Date("2026-01-01T00:00:00Z"),
+      until: new Date("2026-03-10T00:00:00Z"), // March only partially covered
+    } as never;
+    const mar = new Date("2026-03-01T00:00:00Z");
+    // No March row → no fake terminal collapse.
+    expect(zeroFillLabeledBuckets([], p, "month").map((b) => b.x)).toHaveLength(2);
+    // A real March row passes through untouched.
+    const withMar = zeroFillLabeledBuckets(
+      [{ start: mar.toISOString(), x: formatBucketLabel(mar, "month"), y: 4 }],
+      p,
+      "month",
+    );
+    expect(withMar.at(-1)?.y).toBe(4);
+    expect(withMar).toHaveLength(3);
+  });
+
+  it("zero-fills stacked points with all-zero value maps, leaving rowless results empty", () => {
+    const feb = new Date("2026-02-01T00:00:00Z");
+    const series = {
+      seriesKeys: ["natural", "disease"],
+      points: [{ x: formatBucketLabel(feb, "month"), values: { natural: 5, disease: 2 } }],
+    };
+    const filled = zeroFillStackedPoints(series, monthPeriod, "month");
+    expect(filled.points).toHaveLength(6); // ene..jun (jul trailing partial skipped)
+    expect(filled.points[0].values).toEqual({ natural: 0, disease: 0 });
+    expect(filled.points[1].values).toEqual({ natural: 5, disease: 2 });
+    // Zero series → stays empty (the in-chart empty state owns that case).
+    expect(
+      zeroFillStackedPoints({ seriesKeys: [], points: [] }, monthPeriod, "month").points,
+    ).toHaveLength(0);
   });
 });
 

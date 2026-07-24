@@ -112,6 +112,129 @@ export function pivotStackedSeries(rows: SeriesBucketRow[]): StackedSeries {
   return { seriesKeys, points };
 }
 
+// ---------------------------------------------------------------------------
+// Zero-fill (dataviz review 2026-07-23, finding #2)
+//
+// The SQL GROUP BY drops buckets with zero events, so a quiet week/month
+// simply produced NO row — and the categorical x-axis then glued "feb." to
+// "jun." as adjacent ticks. That erased quiet periods (the most decision-
+// relevant surveillance signal), silently desynced sparkline point counts
+// between tiles sharing a window, and made the forecast regression (which
+// fits by INDEX) run over compressed time, corrupting "alcanza la meta en
+// ~N períodos". These helpers restore the complete bucket axis.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every bucket start (UTC) the window [since, until] spans at a granularity —
+ * the same starts Postgres date_trunc(unit) would emit for events in range:
+ * calendar-month firsts, or ISO-week Mondays.
+ */
+export function enumerateBucketStarts(
+  period: AnalyticsPeriod,
+  granularity: BucketGranularity,
+): Date[] {
+  const starts: Date[] = [];
+  const until = period.until.getTime();
+  if (granularity === "month") {
+    let d = new Date(Date.UTC(period.since.getUTCFullYear(), period.since.getUTCMonth(), 1));
+    while (d.getTime() <= until) {
+      starts.push(d);
+      d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+    }
+  } else {
+    const dow = period.since.getUTCDay() || 7; // Sun=0 → 7 (ISO)
+    let d = new Date(
+      Date.UTC(
+        period.since.getUTCFullYear(),
+        period.since.getUTCMonth(),
+        period.since.getUTCDate() - (dow - 1),
+      ),
+    );
+    while (d.getTime() <= until) {
+      starts.push(d);
+      d = new Date(d.getTime() + 7 * DAY_MS);
+    }
+  }
+  return starts;
+}
+
+/** A labeled single-series bucket before the sort key is stripped. */
+export type LabeledBucket = { start: string; x: string; y: number };
+
+/** Exclusive end of the bucket that starts at `start`. */
+function bucketEndMs(start: Date, granularity: BucketGranularity): number {
+  return granularity === "month"
+    ? Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1)
+    : start.getTime() + 7 * DAY_MS;
+}
+
+/**
+ * Insert an explicit y=0 bucket for every enumerated bucket the SQL rows
+ * skipped, matching by label (labels are unique per bucket: ISO weeks carry
+ * the year; months carry a 2-digit year). One honesty exception: a TRAILING
+ * bucket the window only partially covers is NOT fabricated when it has no
+ * row — a zero there would paint a fake terminal collapse for a period that
+ * simply hasn't finished (the "dives to 0 at jul 26" artifact). Real rows in
+ * a partial bucket still pass through untouched. Unmatched SQL rows (never
+ * expected; a TZ-drift safety) are merged back in chronological order.
+ */
+export function zeroFillLabeledBuckets(
+  labeled: LabeledBucket[],
+  period: AnalyticsPeriod,
+  granularity: BucketGranularity,
+): LabeledBucket[] {
+  const byLabel = new Map(labeled.map((p) => [p.x, p]));
+  const filled: LabeledBucket[] = [];
+  for (const start of enumerateBucketStarts(period, granularity)) {
+    const label = formatBucketLabel(start, granularity);
+    const existing = byLabel.get(label);
+    if (existing) {
+      filled.push(existing);
+      byLabel.delete(label);
+      continue;
+    }
+    if (bucketEndMs(start, granularity) > period.until.getTime()) continue;
+    filled.push({ start: start.toISOString(), x: label, y: 0 });
+  }
+  for (const leftover of byLabel.values()) filled.push(leftover);
+  return filled.sort((a, b) => a.start.localeCompare(b.start));
+}
+
+/**
+ * Stacked variant: insert an all-zero point for every enumerated bucket the
+ * pivoted series skipped (same label matching + trailing-partial exception).
+ * A rowless result stays empty — filling zero-months under ZERO series would
+ * draw bare axes with nothing to decode (the in-chart empty state's job).
+ */
+export function zeroFillStackedPoints(
+  series: StackedSeries,
+  period: AnalyticsPeriod,
+  granularity: BucketGranularity,
+): StackedSeries {
+  if (series.seriesKeys.length === 0) return series;
+  const byLabel = new Map(series.points.map((p) => [p.x, p]));
+  const zeroValues = () => Object.fromEntries(series.seriesKeys.map((k) => [k, 0]));
+  const filled: Array<{ start: string; point: StackedPoint }> = [];
+  for (const start of enumerateBucketStarts(period, granularity)) {
+    const label = formatBucketLabel(start, granularity);
+    const existing = byLabel.get(label);
+    if (existing) {
+      filled.push({ start: start.toISOString(), point: existing });
+      byLabel.delete(label);
+      continue;
+    }
+    if (bucketEndMs(start, granularity) > period.until.getTime()) continue;
+    filled.push({ start: start.toISOString(), point: { x: label, values: zeroValues() } });
+  }
+  // TZ-drift safety: unmatched pivoted points keep their original order slot.
+  let merged = filled.sort((a, b) => a.start.localeCompare(b.start)).map((f) => f.point);
+  if (byLabel.size > 0) {
+    const leftovers = new Set(byLabel.values());
+    merged = series.points.filter((p) => leftovers.has(p)).concat(merged);
+  }
+  return { seriesKeys: series.seriesKeys, points: merged };
+}
+
 /**
  * k-anonymity for a single-series trend.
  *
