@@ -174,7 +174,10 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
             />
             <QueueTile
               href="/admin/observaciones"
-              label="Observaciones antirrábicas"
+              // red-team-admin #3: this counts only in-progress observations, so
+              // a "0" here sits next to a full /admin/observaciones list (which
+              // also shows recently-closed ones) — "(en curso)" preempts that.
+              label="Observaciones antirrábicas (en curso)"
               count={cockpit.rabiesInProgress}
               tone={warnIf(cockpit.rabiesInProgress)}
             />

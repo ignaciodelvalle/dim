@@ -291,9 +291,12 @@ describe("enoSlaHeadline", () => {
       pctLabel,
     );
     expect(value).toBe("12 vencidas ahora");
-    // The historical % survives, but demoted + explicitly labeled as
-    // reference — never presented as the tile's headline truth.
-    expect(sub).toBe("Cumplimiento histórico 100% de las entregadas (referencia)");
+    // The historical % survives, but demoted + explicitly labeled as reference,
+    // and (red-team-admin #1) states WHY it can read 100% next to 12 breaches:
+    // the % is over delivered rows only; the breached-open set is disjoint.
+    expect(sub).toBe(
+      "Cumplimiento histórico 100% de las entregadas — no incluye estas 12 pendientes vencidas (referencia)",
+    );
   });
 
   it("an active breach with no delivered rows yet (onTimePct null) states that plainly", () => {

@@ -222,9 +222,11 @@ export function enoSlaHeadline(
   if (eno.breachedOpen > 0) {
     return {
       value: `${eno.breachedOpen} vencidas ahora`,
+      // red-team-admin #1: state WHY 100% and "N vencidas" coexist — the % is over
+      // delivered rows only; the breached-open ones are a disjoint pending set.
       sub:
         eno.onTimePct !== null
-          ? `Cumplimiento histórico ${pctLabel} de las entregadas (referencia)`
+          ? `Cumplimiento histórico ${pctLabel} de las entregadas — no incluye estas ${eno.breachedOpen} pendientes vencidas (referencia)`
           : "Sin entregas en el período",
     };
   }

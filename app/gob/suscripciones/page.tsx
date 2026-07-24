@@ -179,6 +179,15 @@ export default async function SuscripcionesPage({
       >
         <OpCardHead title={<span id={panelAlertasId}>Alertas activas</span>} />
         <OpCardBody>
+          {/* red-team-admin #10: this banner is unfiltered by design; say so in
+              the UI (not only in a source comment) when a filter is active, so a
+              cleared "Mis suscripciones" list next to a still-shown alert reads as
+              intentional, not a bug. */}
+          {(metricFilter || stateFilter) && (
+            <p className="mb-2 text-[var(--text-xs)] text-ln-op-mute">
+              Muestra todas las alertas activas, sin importar los filtros de arriba.
+            </p>
+          )}
           {breachingAlerts.length === 0 ? (
             <p className="text-[var(--text-md)] text-ln-op-mute">Sin alertas activas.</p>
           ) : (

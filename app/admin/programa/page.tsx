@@ -518,7 +518,9 @@ export default async function AdminProgramaPage({
                         Brecha
                       </th>
                       <th scope="col" className="text-right py-2 font-semibold text-ln-op-mute">
-                        Impacto
+                        {/* red-team-admin #6: tie the column to the "(estimado)"
+                            caption below so the big number survives a skim. */}
+                        Impacto (estimado)
                       </th>
                     </tr>
                   </thead>
