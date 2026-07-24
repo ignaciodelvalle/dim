@@ -179,71 +179,71 @@ export function ForecastChart({
         // on first mount under the ssr:false dynamic wrapper). See #14.
         <ChartSizingBox height={height} className="w-full" data-forecast-chart="true">
           <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-              <XAxis dataKey="x" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
 
-              {/* Confidence band — low-opacity area between lo and hi of the tail. */}
-              <Area
-                type="monotone"
-                dataKey="hi"
-                name="Banda de confianza"
-                stroke="none"
-                fill={FORECAST_COLOR}
-                fillOpacity={0.12}
-                isAnimationActive={!reducedMotion}
-                activeDot={false}
-                legendType="none"
-              />
-              <Area
-                type="monotone"
-                dataKey="lo"
-                name="Banda de confianza (mín.)"
-                stroke="none"
-                fill="#ffffff"
-                fillOpacity={1}
-                isAnimationActive={!reducedMotion}
-                activeDot={false}
-                legendType="none"
-              />
+            {/* Confidence band — low-opacity area between lo and hi of the tail. */}
+            <Area
+              type="monotone"
+              dataKey="hi"
+              name="Banda de confianza"
+              stroke="none"
+              fill={FORECAST_COLOR}
+              fillOpacity={0.12}
+              isAnimationActive={!reducedMotion}
+              activeDot={false}
+              legendType="none"
+            />
+            <Area
+              type="monotone"
+              dataKey="lo"
+              name="Banda de confianza (mín.)"
+              stroke="none"
+              fill="#ffffff"
+              fillOpacity={1}
+              isAnimationActive={!reducedMotion}
+              activeDot={false}
+              legendType="none"
+            />
 
-              {/* Actual segment — SOLID. */}
-              <Line
-                type="monotone"
-                dataKey="actual"
-                name={seriesLabel}
-                stroke={ACTUAL_COLOR}
-                strokeWidth={2}
-                dot={false}
-                connectNulls={false}
-                isAnimationActive={!reducedMotion}
-              />
+            {/* Actual segment — SOLID. */}
+            <Line
+              type="monotone"
+              dataKey="actual"
+              name={seriesLabel}
+              stroke={ACTUAL_COLOR}
+              strokeWidth={2}
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={!reducedMotion}
+            />
 
-              {/* Forecast segment — DASHED (distinct by style, not colour alone). */}
-              <Line
-                type="monotone"
-                dataKey="forecast"
-                name="Proyección"
-                stroke={FORECAST_COLOR}
-                strokeWidth={2}
-                strokeDasharray="6 4"
-                dot={false}
-                connectNulls={false}
-                isAnimationActive={!reducedMotion}
-              />
+            {/* Forecast segment — DASHED (distinct by style, not colour alone). */}
+            <Line
+              type="monotone"
+              dataKey="forecast"
+              name="Proyección"
+              stroke={FORECAST_COLOR}
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              dot={false}
+              connectNulls={false}
+              isAnimationActive={!reducedMotion}
+            />
 
-              {/* Target reference line — ONLY when a same-unit target is provided. */}
-              {target ? (
-                <ReferenceLine
-                  y={target.value}
-                  stroke={CHART_COLORS.orange}
-                  strokeDasharray="4 4"
-                  label={{ value: target.label, position: "insideTopRight", fontSize: 10 }}
-                />
-              ) : null}
-            </ComposedChart>
+            {/* Target reference line — ONLY when a same-unit target is provided. */}
+            {target ? (
+              <ReferenceLine
+                y={target.value}
+                stroke={CHART_COLORS.orange}
+                strokeDasharray="4 4"
+                label={{ value: target.label, position: "insideTopRight", fontSize: 10 }}
+              />
+            ) : null}
+          </ComposedChart>
         </ChartSizingBox>
       )}
 

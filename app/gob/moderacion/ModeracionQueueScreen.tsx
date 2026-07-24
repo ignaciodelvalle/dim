@@ -103,6 +103,16 @@ export type ModeracionQueueScreenProps = {
   underHub?: boolean;
 };
 
+/**
+ * Role-aware subtitle scope (red-team-admin #5c): a national admin sees this
+ * shared queue universally, so "de tus localidades" (mandate wording) is wrong
+ * for them. Module-level so the branch does not add to the screen's cognitive
+ * complexity budget.
+ */
+function moderationScopePhrase(role: string): string {
+  return role === "admin" ? "de todo el país" : "de tus localidades";
+}
+
 export async function ModeracionQueueScreen({
   searchParams: sp,
   underHub = false,
@@ -122,10 +132,7 @@ export async function ModeracionQueueScreen({
       : null;
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
-  // Role-aware subtitle scope (red-team-admin #5c): a national admin sees this
-  // shared queue universally, so "de tus localidades" (mandate wording) is wrong
-  // for them — mirror the role branch already used by `noScope` below.
-  const scopePhrase = profile.role === "admin" ? "de todo el país" : "de tus localidades";
+  const scopePhrase = moderationScopePhrase(profile.role);
 
   // Shared moderation predicate + jurisdiction scope (govt sees only their
   // localities; admin universal). Returns sql`false` for a govt with no scope.

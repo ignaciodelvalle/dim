@@ -9,9 +9,9 @@ import { GOVT_BUSINESS_RULE_TYPES } from "@/db/schema";
 
 import {
   POLICY_OUTCOME_K_ANON,
+  POLICY_OUTCOME_MIN_AFTER_DAYS,
   POLICY_OUTCOME_WINDOW_DAYS,
   RULE_OUTCOME_METRICS,
-  POLICY_OUTCOME_MIN_AFTER_DAYS,
   isDeltaUnstable,
   isSuppressedPair,
   outcomeDelta,

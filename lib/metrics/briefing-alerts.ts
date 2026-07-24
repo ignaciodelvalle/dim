@@ -363,6 +363,19 @@ function buildUrgencyAlert(
 // ---------------------------------------------------------------------------
 
 /**
+ * Mandate-scoped legal citation for an alert's title/evidence (red-team-admin
+ * follow-up). Only a jurisdictional operator (mandate !== "all") is re-scoped;
+ * admin/national keeps the catalog's canonical source. formatMetricLegalBasis
+ * returns null for a KPI with no registered provincial basis (e.g. rabies
+ * coverage), so those keep their static source untouched. Module-level so the
+ * branch stays off buildBriefingAlerts' cognitive-complexity budget.
+ */
+function resolveScopedSource(kpiId: KpiId, mandateProvinces: MandateProvinces): string | undefined {
+  if (mandateProvinces === "all") return undefined;
+  return formatMetricLegalBasis(kpiId, mandateProvinces) ?? undefined;
+}
+
+/**
  * Compose the ranked, capped-at-5 briefing alert list from candidate metric
  * values. Candidates that fail a guard (no target / semaphore:none /
  * zero-denominator / small-N / target already met) are silently dropped —
@@ -448,14 +461,7 @@ export function buildBriefingAlerts(
         ).line ?? undefined)
       : undefined;
 
-    // Only a jurisdictional operator (mandate !== "all") is re-scoped; admin/
-    // national keeps the catalog's canonical source. formatMetricLegalBasis
-    // returns null for a KPI with no registered provincial basis (e.g. rabies
-    // coverage), so those keep their static source untouched.
-    const scopedSource =
-      mandateProvinces === "all"
-        ? undefined
-        : (formatMetricLegalBasis(candidate.kpiId, mandateProvinces) ?? undefined);
+    const scopedSource = resolveScopedSource(candidate.kpiId, mandateProvinces);
 
     alerts.push({
       id: candidate.kpiId,
