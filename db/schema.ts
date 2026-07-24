@@ -3881,6 +3881,11 @@ export const CASE_EVENT_ENTRY_TYPES = [
   // Reporter comment — welfare_denuncia: reporter adds a free-text note to their case.
   // entryType is a plain string (not an enum) so this is a non-breaking additive change.
   "reporter_comment",
+  // Anonymous finder tip on a custody_dispute case — written from the public
+  // credential of a disputed pet (report-dispute-tip.ts). Authority-only:
+  // CaseDetailView filters these entries for every non-govt/non-admin viewer
+  // (the disputing parties can read the case detail, but must never see tips).
+  "finder_tip",
   // outbreak_investigation entry types
   "classification",
   "lab_result",

@@ -31,16 +31,18 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
 
   return (
     <form action={formAction} className="space-y-3">
+      {/* PO 2026-07-24: name + contact are OPTIONAL (anonymous report allowed)
+          — lowering the barrier matters more than a guaranteed callback. One
+          explanatory line says why leaving a contact helps, without forcing it. */}
       <div className="space-y-1">
         <label htmlFor="finderName" className="block text-xs font-medium text-ln-warn">
-          Tu nombre<span className="text-ln-err ml-0.5">*</span>
+          Tu nombre (opcional)
         </label>
         <input
           id="finderName"
           name="finderName"
           type="text"
           autoComplete="name"
-          required
           placeholder="Nombre y apellido"
           aria-describedby={state.error ? errorId : undefined}
           className={inputClass}
@@ -49,7 +51,7 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
 
       <div className="space-y-1">
         <label htmlFor="finderContact" className="block text-xs font-medium text-ln-warn">
-          Cómo te contactamos<span className="text-ln-err ml-0.5">*</span>
+          Cómo te contactamos (opcional)
         </label>
         {/* UX 3.5 item 8a: combined phone-or-email field. inputMode="email"
             surfaces "@"/"." while keeping digits reachable — the best single
@@ -61,11 +63,13 @@ export function FoundPetForm({ publicToken }: { publicToken: string }) {
           type="text"
           inputMode="email"
           autoComplete="email"
-          required
           placeholder="Teléfono o email"
           aria-describedby={state.error ? errorId : undefined}
           className={inputClass}
         />
+        <p className="text-xs text-ln-mute">
+          Dejar un contacto ayuda a coordinar la entrega, pero no es obligatorio.
+        </p>
       </div>
 
       <div className="space-y-1">

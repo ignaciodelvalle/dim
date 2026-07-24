@@ -17,14 +17,17 @@
 //                         dispute is open (D2).
 //   • active + tier 2   → "Ver resumen médico" (scroll to the streamed
 //                         medical section) — low urgency, ghost treatment.
-//   • active, tier 0    → found-report prompt (opens + scrolls to the
-//                         existing "¿Encontraste a esta mascota?" form).
+//   • active, tier 0    → NO bar (PO 2026-07-24: a sticky "¿La encontraste?"
+//                         on a pet nobody is looking for invites false
+//                         reports and dilutes genuinely-lost urgency — the
+//                         found form stays reachable inline on the page).
 //   • deceased          → page renders NO bar (memorial, no street action).
-//   • custody dispute   → page renders NO relay CTA at all (D2 hardening,
-//                         red-team 2026-07): both finder flows end in an
-//                         owner-directed relay, so a disputed pet gets only
-//                         the neutral "medical" mode (tier-2 active) or no
-//                         bar — resolved server-side in page.tsx.
+//   • custody dispute   → neutral "Tengo información sobre esta mascota"
+//                         (PO 2026-07-24): opens + scrolls to the dispute-tip
+//                         form, whose submission goes to the reviewing
+//                         authority ONLY — never a relay to either party
+//                         (D2 hardening, red-team 2026-07, still holds:
+//                         no finder/sighting/phone CTA ever renders here).
 //
 // Plain <a> ON PURPOSE for the finder/sighting navigation (lint:hard-nav):
 // one-shot anonymous finder routes must hard-navigate — a next/link soft nav
@@ -39,8 +42,10 @@ import { LnButton } from "@/components/ui/Button";
 
 /** Scroll target: the Tier-2 medical section wrapper in page.tsx. */
 export const MEDICAL_SECTION_ID = "resumen-medico";
-/** Scroll+reveal target: the "¿Encontraste a esta mascota?" <details> in page.tsx. */
+/** Anchor id of the "¿Encontraste a esta mascota?" <details> in page.tsx. */
 export const REPORT_SECTION_ID = "reportar-hallazgo";
+/** Scroll+reveal target: the dispute-tip <details> in page.tsx (disputed pets). */
+export const DISPUTE_SECTION_ID = "informacion-disputa";
 
 export type CredentialActionBarProps =
   | {
@@ -57,9 +62,9 @@ export type CredentialActionBarProps =
     }
   | { mode: "medical" }
   | {
-      mode: "report";
-      /** Sex-aware found-report prompt (foundReportPrompt). */
-      label: string;
+      /** Custody-disputed pet: neutral tip for the reviewing authority —
+       * opens + scrolls to the dispute-tip form. Never a relay. */
+      mode: "dispute";
     };
 
 /** Open (when it's a <details>) and scroll to an in-page section. */
@@ -112,15 +117,15 @@ export function CredentialActionBar(props: CredentialActionBarProps) {
             Ver resumen médico
           </LnButton>
         )}
-        {props.mode === "report" && (
+        {props.mode === "dispute" && (
           <LnButton
             variant="primary"
             size="lg"
             block
             className="min-h-11"
-            onClick={() => revealSection(REPORT_SECTION_ID)}
+            onClick={() => revealSection(DISPUTE_SECTION_ID)}
           >
-            {props.label}
+            Tengo información sobre esta mascota
           </LnButton>
         )}
       </div>

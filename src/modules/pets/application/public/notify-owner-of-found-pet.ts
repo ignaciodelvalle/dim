@@ -34,14 +34,12 @@ export async function notifyOwnerOfFoundPet(
 ): Promise<PublicActionState> {
   if (!publicToken) return { ok: false, error: "Token de mascota inválido." };
 
+  // PO 2026-07-24: name and contact are OPTIONAL — an anonymous found-report
+  // still tells the owner their pet was found, which beats a finder bouncing
+  // off a mandatory form. The UI explains why leaving a contact helps.
   const finderName = String(formData.get("finderName") ?? "").trim();
   const finderContact = String(formData.get("finderContact") ?? "").trim();
   const message = String(formData.get("message") ?? "").trim();
-
-  if (!finderName) return { ok: false, error: "Falta tu nombre." };
-  if (!finderContact) {
-    return { ok: false, error: "Falta tu contacto (teléfono o email)." };
-  }
 
   const [pet] = await db
     .select({
@@ -82,8 +80,8 @@ export async function notifyOwnerOfFoundPet(
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
 
   // Rate limit — consumed only AFTER validation passes (tester fix #6): a
-  // rejected form (missing name/contact) must not burn the (IP, token) budget
-  // and block the immediate retry. Reads the trusted caller IP via callerIp()
+  // rejected submission (bad token, unknown pet, disputed pet) must not burn
+  // the (IP, token) budget. Reads the trusted caller IP via callerIp()
   // — prefers x-real-ip (edge-set), falls back to the LAST segment of
   // x-forwarded-for; never the first XFF segment (client-spoofable).
   const reqHeaders = await headers();
@@ -109,9 +107,16 @@ export async function notifyOwnerOfFoundPet(
   const safeContact = finderContact.slice(0, 120);
   const safeMessage = message.slice(0, 500);
 
+  // Anonymous-safe body: never render an empty name slot, and be honest when
+  // there is no way to call back (the owner should not hunt for a contact
+  // that was never left).
+  const who = safeName || "Alguien";
+  const contactLine = safeContact
+    ? ` Te podés contactar al ${safeContact}.`
+    : " No dejó datos de contacto.";
   const body = safeMessage
-    ? `${safeName} dejó un mensaje: "${safeMessage}". Te podés contactar al ${safeContact}.`
-    : `${safeName} encontró a ${pet.name}. Te podés contactar al ${safeContact}.`;
+    ? `${who} dejó un mensaje: "${safeMessage}".${contactLine}`
+    : `${who} encontró a ${pet.name}.${contactLine}`;
 
   // Insert notification — best-effort; a failure must not surface an error to the
   // anonymous finder (they already submitted successfully).

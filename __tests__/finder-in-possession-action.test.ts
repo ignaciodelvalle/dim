@@ -8,8 +8,8 @@
 //   4. Rate limit → ok:false.
 //   5. Idempotency guard → ok:true without second insert.
 //   6. Photo upload failure → non-fatal (ok:true + warning).
-//   7. Missing name → ok:false.
-//   8. Missing both phone and email → ok:false.
+//   7. Missing name → accepted (anonymous handoff, PO 2026-07-24).
+//   8. Missing both phone and email → accepted; owner told no contact left.
 //   9. Missing location → ok:false.
 //  10. Notification severity=urgent, category=perdidas.
 //  11. Vet-urgent condition sets urgent body copy in notification.
@@ -367,9 +367,10 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(capturedPetEventInsert).toBeNull();
   });
 
-  it("returns ok:false when finderName is missing", async () => {
+  it("accepts a handoff without finderName (anonymous, PO 2026-07-24) — payload carries null, copy falls back to 'Alguien'", async () => {
     vi.resetModules();
     buildMockDb("lost");
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
       "@/app/(public)/p/[publicToken]/encontre/action"
@@ -379,8 +380,10 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain("nombre");
+    expect(result.ok).toBe(true);
+    const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
+    expect(payload.finderName).toBeNull();
+    expect(capturedNotificationInsert?.body as string).toContain("Alguien");
   });
 
   it("a validation-rejected submission does NOT consume the rate-limit budget (tester fix #6)", async () => {
@@ -391,25 +394,10 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const { reportFinderInPossessionAction } = await import(
       "@/app/(public)/p/[publicToken]/encontre/action"
     );
-    const { finderName: _dropped, ...noName } = BASE_FIELDS;
-    const fd = makeFormData({ ...noName, canKeepIndefinite: "true" }); // no name → rejected
-
-    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
-
-    expect(result.ok).toBe(false);
-    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
-  });
-
-  it("returns ok:false when both phone and email are missing", async () => {
-    vi.resetModules();
-    buildMockDb("lost");
-
-    const { reportFinderInPossessionAction } = await import(
-      "@/app/(public)/p/[publicToken]/encontre/action"
-    );
-    const { finderPhone: _dropped, ...noPhone } = BASE_FIELDS;
+    // No lat/lng — the required map point is missing → rejected pre-limit.
     const fd = makeFormData({
       finderName: "Ana",
+      finderPhone: "1111",
       localityName: "La Plata",
       petCondition: "bien",
       canKeepIndefinite: "true",
@@ -418,7 +406,32 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("contacto");
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("accepts a handoff without any contact — owner is told no contact was left (PO 2026-07-24)", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const fd = makeFormData({
+      finderName: "Ana",
+      locationLat: "-34.92",
+      locationLng: "-57.95",
+      localityName: "La Plata",
+      petCondition: "bien",
+      canKeepIndefinite: "true",
+    });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
+    expect(payload.finderContact).toBeNull();
+    expect(capturedNotificationInsert?.body as string).toContain("No dejó datos de contacto");
   });
 
   it("returns ok:false when the map point is missing", async () => {

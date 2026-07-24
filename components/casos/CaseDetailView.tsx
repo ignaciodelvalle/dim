@@ -159,10 +159,22 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
   // rendered. Privacy gate: institutional viewers only (govt/admin) — a
   // case's primary location can be a denounced address, so it is never
   // surfaced to anonymous, owner or vet viewers (data minimisation).
+  // Dispute-safe finder tips (PO 2026-07-24): a "finder_tip" case entry is
+  // written from the public credential of a custody-disputed pet FOR the
+  // reviewing authority ONLY (report-dispute-tip.ts). The disputing parties
+  // (subject owner, registered dispute parties) pass canReadCase for this
+  // case kind, so the filter lives here: tips render — title, payload AND
+  // notes — exclusively for govt/admin viewers. Everyone else must not even
+  // learn a tip exists.
+  const isAuthorityViewer = viewerRole === "govt" || viewerRole === "admin";
+  const timelineEvents = detail.events.filter(
+    (e) => e.eventType !== "finder_tip" || isAuthorityViewer,
+  );
+
   const caseLat = detail.primaryLocationLat !== null ? Number(detail.primaryLocationLat) : null;
   const caseLng = detail.primaryLocationLng !== null ? Number(detail.primaryLocationLng) : null;
   const showCaseMap =
-    (viewerRole === "govt" || viewerRole === "admin") &&
+    isAuthorityViewer &&
     caseLat !== null &&
     caseLng !== null &&
     Number.isFinite(caseLat) &&
@@ -234,18 +246,22 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
           <h2 className="mb-3 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-ln-ink">
             Línea de tiempo
           </h2>
-          {detail.events.length === 0 ? (
+          {timelineEvents.length === 0 ? (
             <LnEmptyState icon="nota" title="Todavía no hay eventos registrados en este caso." />
           ) : (
             <ol className="space-y-3">
-              {detail.events.map((e) => (
+              {timelineEvents.map((e) => (
                 <li
                   key={e.id}
                   className="rounded-[var(--radius-sm)] border border-ln-line bg-ln-card p-4"
                 >
                   <div className="flex items-baseline justify-between">
                     <span className="text-[13.5px] font-medium text-ln-ink">
-                      {eventTypeLabel(e.eventType as EventType)}
+                      {/* finder_tip is a case_events entry type, not a pet
+                          EventType — label it directly (authority-only render). */}
+                      {e.eventType === "finder_tip"
+                        ? "Información de un tercero"
+                        : eventTypeLabel(e.eventType as EventType)}
                     </span>
                     <time className="font-ln-mono text-[10.5px] text-ln-mute">
                       {formatDateTime(e.occurredAt)}

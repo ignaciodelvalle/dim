@@ -48,7 +48,6 @@ import { derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   AR_TIME_ZONE,
   foundPossessivePhrase,
-  foundReportPrompt,
   normalizePhoneForTel,
   pluralizeEs,
   sexLabel,
@@ -66,6 +65,7 @@ import { Suspense } from "react";
 import {
   CredentialActionBar,
   type CredentialActionBarProps,
+  DISPUTE_SECTION_ID,
   MEDICAL_SECTION_ID,
   REPORT_SECTION_ID,
 } from "./CredentialActionBar";
@@ -75,6 +75,7 @@ import {
   CredentialTier2MedicalSkeleton,
 } from "./CredentialStreamedSections";
 import { DegradedCredentialCard } from "./DegradedCredentialCard";
+import { DisputeTipForm } from "./DisputeTipForm";
 import { FoundPetForm } from "./FoundPetForm";
 import { ScanLogger } from "./ScanLogger";
 import { type CredentialEvent, deriveRabiesSemaphore, isRabiesAtRisk } from "./credential-badges";
@@ -421,23 +422,28 @@ export default async function PublicCredentialPage({
   // Sticky primary CTA (mobile <sm) — cursor citizen review P3: one verb for
   // the street scanner, per state. EVERY disclosure decision is resolved HERE,
   // server-side, so the client bar never receives undisclosed PII:
-  //   disputed → NO relay CTA of any kind (D2 hardening, red-team 2026-07):
-  //              both finder flows (/encontre AND /sighting) end in an
-  //              owner-directed notification / owner-visible finder contact,
-  //              so a disputed pet must not surface them — the system cannot
-  //              take sides in a legal dispute. Only the neutral medical
-  //              scroll survives; otherwise no bar (the in-card neutral
-  //              notice + dispute banner carry the state).
+  //   disputed → NEUTRAL "Tengo información sobre esta mascota" (PO
+  //              2026-07-24): opens + scrolls to the dispute-tip form, which
+  //              lands on the dispute case for the reviewing authority ONLY.
+  //              The D2 hardening (red-team 2026-07) still holds — no relay
+  //              CTA of any kind (/encontre, /sighting, tel:) ever surfaces:
+  //              those flows end in an owner-directed notification, which
+  //              would take sides in a legal dispute. Deceased + disputed
+  //              keeps the memorial contract: no bar (the inline tip form
+  //              below remains reachable).
   //   lost     → finder form (owner-allowed) else sighting form; secondary
   //              "Llamar" only when the phone is disclosed AND no custody
   //              dispute is open (D2).
   //   active   → tier2 visible: scroll to the medical summary (low urgency);
-  //              tier 0: open + scroll to the existing found-report form.
+  //              tier 0: NO bar (PO 2026-07-24 — a sticky found-report on a
+  //              pet nobody is looking for invites false reports and dilutes
+  //              genuinely-lost urgency; the "¿Encontraste a esta mascota?"
+  //              form stays reachable inline lower on the page).
   //   deceased → no bar (memorial — there is no useful street action).
   const actionBar: CredentialActionBarProps | null = pet.inCustodyDispute
-    ? pet.status === "active" && tier2Active
-      ? { mode: "medical" }
-      : null
+    ? pet.status === "deceased"
+      ? null
+      : { mode: "dispute" }
     : isLost
       ? {
           mode: "lost",
@@ -452,23 +458,17 @@ export default async function PublicCredentialPage({
               ? `tel:${normalizePhoneForTel(lostContext.phone) ?? lostContext.phone}`
               : null,
         }
-      : pet.status === "active"
-        ? tier2Active
-          ? { mode: "medical" }
-          : { mode: "report", label: foundReportPrompt(pet.sex) }
+      : pet.status === "active" && tier2Active
+        ? { mode: "medical" }
         : null;
 
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
-      {/* Lost mode: ScanLogger also renders the visible location-consent prompt
-          so a finder can share precise GPS (Task #45). Active credentials never
-          prompt — the server rejects coords for non-lost pets anyway. */}
-      {isLost ? (
-        <ScanLogger publicToken={publicToken} isLost petName={pet.name} />
-      ) : (
-        <ScanLogger publicToken={publicToken} />
-      )}
+      {/* Passive scan floor only — no on-load location prompt (PO 2026-07-24,
+          Option A: precise finder GPS is captured intent-driven inside the
+          sighting flow, not "antes de tiempo" on scan). */}
+      <ScanLogger publicToken={publicToken} />
 
       {/* Guilloché band — LN security stripe */}
       <div
@@ -830,22 +830,41 @@ export default async function PublicCredentialPage({
           </Suspense>
 
           {/* "Found this pet?" action area. Disputed pets (D2 hardening,
-              red-team 2026-07) get the neutral authority notice INSTEAD of the
-              owner-contact-relay form: while titularidad is under review the
-              system must not relay a finder's name/contact to the contested
-              owner. */}
+              red-team 2026-07) never get the owner-contact-relay form: while
+              titularidad is under review the system must not relay a finder's
+              name/contact to the contested owner. PO 2026-07-24: instead of a
+              dead-end notice, they get the neutral dispute-tip form — the
+              submission lands on the dispute case for the reviewing authority
+              only (see DisputeTipForm / report-dispute-tip.ts). */}
           {pet.inCustodyDispute ? (
             <div
               data-section="found-form-disputed"
               className="border-t border-ln-line bg-ln-stripe px-4 py-3.5"
             >
-              <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
-                ¿Encontraste a esta mascota?
-              </p>
-              <p className="mt-1 text-sm text-ln-ink-2">
-                La titularidad de esta mascota está en revisión por la autoridad. Si tenés
-                información, será dirigida a la autoridad competente, no a las partes.
-              </p>
+              {/* id: the sticky bar's "dispute" action opens + scrolls here;
+                  scroll-mt clears the sticky emergency banner when present. */}
+              <details id={DISPUTE_SECTION_ID} className="group scroll-mt-24">
+                <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3">
+                  <div>
+                    <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
+                      ¿Tenés información sobre esta mascota?
+                    </p>
+                    <p className="mt-0.5 text-[var(--text-sm)] text-ln-mute">
+                      La titularidad de esta mascota está en revisión por la autoridad. Si tenés
+                      información, será dirigida a la autoridad competente, no a las partes.
+                    </p>
+                  </div>
+                  <span
+                    aria-hidden="true"
+                    className="flex-shrink-0 text-lg text-ln-mute transition-transform group-open:rotate-90"
+                  >
+                    ›
+                  </span>
+                </summary>
+                <div className="mt-3 border-t border-ln-line pt-3.5">
+                  <DisputeTipForm publicToken={publicToken} />
+                </div>
+              </details>
             </div>
           ) : (
             <div className="border-t border-ln-line bg-ln-stripe px-4 py-3.5">

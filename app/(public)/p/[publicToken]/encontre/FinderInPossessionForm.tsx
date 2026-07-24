@@ -5,7 +5,8 @@
 // This form captures contact, current location (L1), condition, availability, and
 // an optional current photo.
 //
-// Client-side validation: name + (phone OR email) required before submit.
+// Name and contact are OPTIONAL (PO decision 2026-07-24): the finder can
+// report anonymously — one muted line explains why leaving a contact helps.
 // No prefill (PO decision 2026-07-16): even when the user is logged in, the
 // finder types every field by hand. Logged-in detection remains only to render
 // the "¿No sos vos? Salí de la sesión" advisory banner.
@@ -89,13 +90,7 @@ export function FinderInPossessionForm({
   const requiredMark = <span className="text-[var(--color-ln-seal)] ml-0.5">*</span>;
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    const phone = finderPhone.trim();
-    const email = finderEmail.trim();
-    if (!phone && !email) {
-      e.preventDefault();
-      setClientError("Dejá al menos un medio de contacto (teléfono o email).");
-      return;
-    }
+    // Name/contact are optional (PO 2026-07-24) — only availability is checked.
     if (!canKeepIndefinite && !canKeepUntil.trim()) {
       e.preventDefault();
       setClientError(
@@ -141,17 +136,17 @@ export function FinderInPossessionForm({
         className="space-y-5"
         encType="multipart/form-data"
       >
-        {/* Finder name */}
+        {/* Finder name — optional (PO 2026-07-24: anonymous handoff allowed) */}
         <div className="space-y-1.5">
           <label htmlFor="finderName" className={labelClass}>
-            Tu nombre{requiredMark}
+            Tu nombre{" "}
+            <span className="font-normal text-[var(--color-ln-faint)] text-xs">(opcional)</span>
           </label>
           <input
             id="finderName"
             name="finderName"
             type="text"
             autoComplete="name"
-            required
             maxLength={80}
             value={finderName}
             onChange={(e) => setFinderName(e.target.value)}
@@ -161,12 +156,15 @@ export function FinderInPossessionForm({
           />
         </div>
 
-        {/* Contact: phone (tel) + email — at least one required */}
+        {/* Contact: phone (tel) + email — both optional (PO 2026-07-24) */}
         <fieldset className="space-y-3">
           <legend className={`${labelClass} mb-1`}>
-            Contacto{requiredMark}{" "}
-            <span className="font-normal text-[var(--color-ln-faint)] text-xs">(al menos uno)</span>
+            Contacto{" "}
+            <span className="font-normal text-[var(--color-ln-faint)] text-xs">(opcional)</span>
           </legend>
+          <p className="text-xs text-[var(--color-ln-mute)]">
+            Dejar un contacto ayuda a coordinar la entrega, pero no es obligatorio.
+          </p>
           <div className="space-y-1.5">
             <label
               htmlFor="finderPhone"

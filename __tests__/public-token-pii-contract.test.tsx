@@ -152,6 +152,9 @@ vi.mock("@/lib/infra/storage", () => ({ petPhotoUrl: vi.fn(() => null) }));
 vi.mock("@/components/PppPublicBadge", () => ({ PppPublicBadge: vi.fn(() => null) }));
 vi.mock("@/components/event/ConfidenceBadge", () => ({ ConfidenceBadge: vi.fn(() => null) }));
 vi.mock("@/app/(public)/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/DisputeTipForm", () => ({
+  DisputeTipForm: vi.fn(() => null),
+}));
 vi.mock("@/app/(public)/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
 vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
   Tier2MedicalView: vi.fn(() => null),
@@ -408,13 +411,14 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     expect(html).toContain(EMAIL);
   });
 
-  it("LOST + open custody dispute (D2): disclosed contact PII AND every finder-relay path are suppressed — neutral authority notice renders instead", async () => {
+  it("LOST + open custody dispute (D2): disclosed contact PII AND every finder-relay path are suppressed — the neutral authority tip renders instead", async () => {
     // All disclose flags ON, but a custody dispute is open: no contested-owner
     // contact may render anywhere, AND (red-team hardening 2026-07) no
     // finder-report relay may be offered either — both /encontre and /sighting
     // end in an owner-directed notification / owner-visible finder contact,
-    // which would take sides in a legal dispute. The page renders the neutral
-    // authority notice in place of the relay CTAs and the found form.
+    // which would take sides in a legal dispute. PO 2026-07-24: instead of a
+    // dead end, the page renders the NEUTRAL dispute-tip path (sticky CTA +
+    // inline form) whose submission goes to the reviewing authority only.
     const pet = {
       ...lostPet({ firstName: true, phone: true, email: true, location: true }),
       inCustodyDispute: true,
@@ -439,14 +443,16 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     });
     const html = renderToStaticMarkup(element as React.ReactElement);
 
-    // NO relay path renders: no sticky bar (its only lost-mode verbs are
-    // relays), no finder/sighting routes, no "Avisar al dueño" found form.
-    expect(html).not.toContain('data-section="sticky-action-bar"');
+    // NO relay path renders: no finder/sighting routes, no "Avisar al dueño"
+    // found form. The sticky bar DOES render (PO 2026-07-24) but carries only
+    // the neutral dispute-tip verb — never a relay.
+    expect(html).toContain('data-section="sticky-action-bar"');
+    expect(html).toContain("Tengo información sobre esta mascota");
     expect(html).not.toContain("/sighting");
     expect(html).not.toContain("/encontre");
     expect(html).not.toContain("Avisar al dueño");
 
-    // The neutral authority notice renders in the found-form slot, and the
+    // The neutral authority tip renders in the found-form slot, and the
     // lost-sections spy proves the page threads the dispute state + nulled
     // relay hrefs into PublicLostSections (which renders its own notice —
     // covered by its colocated test).

@@ -68,15 +68,12 @@ export async function reportFinderInPossessionAction(
   const photoFile =
     formData.get("photoNow") instanceof File ? (formData.get("photoNow") as File) : null;
 
-  // Validation.
-  const finderName = rawFinderName ? rawFinderName.slice(0, 80) : "";
-  if (!finderName) return { ok: false, error: "Falta tu nombre." };
-
+  // Validation. PO 2026-07-24: name and contact are OPTIONAL — an anonymous
+  // handoff report is still a report (the pet is safe somewhere, at a known
+  // point). The form explains why leaving a contact helps, without forcing it.
+  const finderName = rawFinderName ? rawFinderName.slice(0, 80) : null;
   const finderPhone = rawFinderPhone ? rawFinderPhone.slice(0, 40) : null;
   const finderEmail = rawFinderEmail ? rawFinderEmail.slice(0, 120) : null;
-  if (!finderPhone && !finderEmail) {
-    return { ok: false, error: "Dejá al menos un medio de contacto (teléfono o email)." };
-  }
 
   // requireCoords:true + locality:"none" — coords required and range-checked; no locality
   // lookup (finder possession behavior unchanged, now routed through the shared gate).
@@ -183,32 +180,37 @@ export async function reportFinderInPossessionAction(
   }
 
   // Build the canonical contact string: phone takes precedence; append email
-  // when both are provided. The schema's finderContact is a single text field.
-  const primaryContact = finderPhone ?? finderEmail ?? "";
+  // when both are provided. The schema's finderContact is a single text field;
+  // null = anonymous handoff (PO 2026-07-24).
   const finderContact =
-    finderPhone && finderEmail ? `${finderPhone} / ${finderEmail}` : primaryContact;
+    finderPhone && finderEmail ? `${finderPhone} / ${finderEmail}` : (finderPhone ?? finderEmail);
 
   // Idempotency: skip insert when an identical finder_in_possession event for
-  // (petId, finderContact) already exists in the last 5 minutes.
-  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-  const [existingEvent] = await db
-    .select({ id: petEvents.id })
-    .from(petEvents)
-    .where(
-      and(
-        eq(petEvents.petId, pet.id),
-        eq(petEvents.eventType, "note_added"),
-        gt(petEvents.recordedAt, fiveMinutesAgo),
-        sql`${petEvents.payload}->>'kind' = 'finder_in_possession'`,
-        sql`${petEvents.payload}->>'finderContact' = ${finderContact}`,
-      ),
-    )
-    .limit(1);
+  // (petId, finderContact) already exists in the last 5 minutes. Only keyed
+  // when a contact WAS left — two distinct anonymous finders within 5 minutes
+  // must not swallow each other's report (the per-IP 1/min limiter already
+  // covers double-taps from the same person).
+  if (finderContact) {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const [existingEvent] = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, pet.id),
+          eq(petEvents.eventType, "note_added"),
+          gt(petEvents.recordedAt, fiveMinutesAgo),
+          sql`${petEvents.payload}->>'kind' = 'finder_in_possession'`,
+          sql`${petEvents.payload}->>'finderContact' = ${finderContact}`,
+        ),
+      )
+      .limit(1);
 
-  if (existingEvent) {
-    // Idempotent: return ok so the UI shows the success state without alarming
-    // the finder — from their perspective the report was already sent.
-    return { ok: true, error: null };
+    if (existingEvent) {
+      // Idempotent: return ok so the UI shows the success state without
+      // alarming the finder — from their perspective the report was sent.
+      return { ok: true, error: null };
+    }
   }
 
   // Optional photo upload. Non-fatal on failure.
@@ -269,7 +271,7 @@ export async function reportFinderInPossessionAction(
   const locationLabel =
     [localityName, provinceName].filter(Boolean).join(", ") ||
     `el punto marcado (${lat.toFixed(5)}, ${lng.toFixed(5)})`;
-  const noteText = `${finderName} tiene a ${pet.name}. Condición: ${petCondition}. Ubicación: ${locationLabel}.`;
+  const noteText = `${finderName ?? "Alguien"} tiene a ${pet.name}. Condición: ${petCondition}. Ubicación: ${locationLabel}.`;
   const payload = validateEventPayload("note_added", {
     category: "otro" as const,
     text: noteText,
@@ -320,20 +322,16 @@ export async function reportFinderInPossessionAction(
     });
   }
 
-  // Notification to owner.
+  // Notification to owner. Anonymous-safe: never render an empty name slot,
+  // and be honest when the finder left no way to call back.
   const locationDisplay = locationLabel;
-
-  const contactDisplay =
-    finderPhone && finderEmail
-      ? `${finderPhone} / ${finderEmail}`
-      : (finderPhone ?? finderEmail ?? finderContact);
 
   const isUrgent = petCondition === "necesita_vet_urgente";
 
   const notifBody = [
-    `${finderName} dice que tiene a ${pet.name} en ${locationDisplay}.`,
+    `${finderName ?? "Alguien"} dice que tiene a ${pet.name} en ${locationDisplay}.`,
     isUrgent ? "URGENTE: necesita atención veterinaria." : `Estado: ${petCondition}.`,
-    `Contactalo/a al ${contactDisplay}.`,
+    finderContact ? `Contactalo/a al ${finderContact}.` : "No dejó datos de contacto.",
     safeMessage ? `Mensaje: "${safeMessage}".` : null,
     canKeepIndefinite
       ? "Puede cuidarlo indefinidamente."

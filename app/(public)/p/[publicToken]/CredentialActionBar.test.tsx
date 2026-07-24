@@ -6,9 +6,10 @@
 //             pre-gated tel: href arrives — the bar itself never decides
 //             disclosure; page.tsx does, including the D2 dispute gate).
 //   medical → "Ver resumen médico" scrolls to the tier-2 section.
-//   report  → found-report prompt opens + scrolls to the existing
-//             "¿Encontraste a esta mascota?" <details> form.
-// The page-level gating (PII, dispute, deceased → no bar) is covered by
+//   dispute → neutral "Tengo información sobre esta mascota" opens + scrolls
+//             to the dispute-tip <details> (PO 2026-07-24) — never a relay.
+// Active tier-0 pets render NO bar at all (PO 2026-07-24 de-emphasis) — that
+// gating, plus PII/deceased → no bar, is covered by
 // __tests__/public-token-pii-contract.test.tsx.
 
 import "@testing-library/jest-dom/vitest";
@@ -16,7 +17,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CredentialActionBar, MEDICAL_SECTION_ID, REPORT_SECTION_ID } from "./CredentialActionBar";
+import { CredentialActionBar, DISPUTE_SECTION_ID, MEDICAL_SECTION_ID } from "./CredentialActionBar";
 
 // jsdom implements no scrolling — stub the one method the bar calls.
 const scrollIntoView = vi.fn();
@@ -29,7 +30,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   document.getElementById(MEDICAL_SECTION_ID)?.remove();
-  document.getElementById(REPORT_SECTION_ID)?.remove();
+  document.getElementById(DISPUTE_SECTION_ID)?.remove();
 });
 
 describe("CredentialActionBar — lost mode", () => {
@@ -85,23 +86,30 @@ describe("CredentialActionBar — medical mode (active + tier 2)", () => {
   });
 });
 
-describe("CredentialActionBar — report mode (active, tier 0)", () => {
-  it("opens the existing found-report <details> and scrolls to it", () => {
+describe("CredentialActionBar — dispute mode (custody-disputed pet, PO 2026-07-24)", () => {
+  it("opens the dispute-tip <details> and scrolls to it — the ONLY verb is the neutral tip", () => {
     const details = document.createElement("details");
-    details.id = REPORT_SECTION_ID;
+    details.id = DISPUTE_SECTION_ID;
     document.body.appendChild(details);
     expect(details.open).toBe(false);
 
-    render(<CredentialActionBar mode="report" label="¿La encontraste? Reportala" />);
-    fireEvent.click(screen.getByRole("button", { name: "¿La encontraste? Reportala" }));
+    render(<CredentialActionBar mode="dispute" />);
+    fireEvent.click(screen.getByRole("button", { name: "Tengo información sobre esta mascota" }));
 
     expect(details.open).toBe(true);
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
+  it("renders NO relay affordance of any kind (D2: no links, no tel:)", () => {
+    render(<CredentialActionBar mode="dispute" />);
+
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(document.querySelector('a[href^="tel:"]')).toBeNull();
+  });
+
   it("is a no-op (no crash) when the target section is absent", () => {
-    render(<CredentialActionBar mode="report" label="¿La encontraste? Reportala" />);
-    fireEvent.click(screen.getByRole("button", { name: "¿La encontraste? Reportala" }));
+    render(<CredentialActionBar mode="dispute" />);
+    fireEvent.click(screen.getByRole("button", { name: "Tengo información sobre esta mascota" }));
 
     expect(scrollIntoView).not.toHaveBeenCalled();
   });
