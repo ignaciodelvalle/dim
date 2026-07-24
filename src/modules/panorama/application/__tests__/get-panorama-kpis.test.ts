@@ -86,6 +86,8 @@ function seedDefaults() {
     registryDenominator: 12_480,
     censusDenominator: 474_333,
     censusCoveragePct: 2.6,
+    signedCount: 0,
+    signedPct: 0,
   });
   vi.mocked(fetchAnalyticsMetrics).mockResolvedValue({
     totalPets: 12345,
@@ -463,6 +465,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 12_480,
         censusDenominator: 474_333,
         censusCoveragePct: 2.6,
+        signedCount: 0,
+        signedPct: 0,
       })
       .mockResolvedValueOnce({
         current: 60,
@@ -472,6 +476,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 11_000,
         censusDenominator: 474_333,
         censusCoveragePct: 2.3,
+        signedCount: 0,
+        signedPct: 0,
       });
     vi.mocked(fetchBitesPer10k)
       .mockResolvedValueOnce({ rate: 3.5, delta: 0, reports: 18, percapitaEligible: true })
@@ -596,6 +602,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 12_480,
         censusDenominator: 474_333,
         censusCoveragePct: 2.6,
+        signedCount: 0,
+        signedPct: 0,
       })
       .mockResolvedValueOnce({
         current: 0.1,
@@ -605,6 +613,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 30,
         censusDenominator: 474_333,
         censusCoveragePct: 0.01,
+        signedCount: 0,
+        signedPct: 0,
       })
       .mockResolvedValueOnce({
         current: 30,
@@ -614,6 +624,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 9_000,
         censusDenominator: 474_333,
         censusCoveragePct: 1.9,
+        signedCount: 0,
+        signedPct: 0,
       });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const cobertura = kpis.find((k) => k.id === "cobertura")!;
@@ -647,6 +659,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 12_480,
         censusDenominator: 474_333,
         censusCoveragePct: 2.6,
+        signedCount: 0,
+        signedPct: 0,
       }) // total ctx
       .mockResolvedValueOnce({
         current: 39,
@@ -656,6 +670,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 11_800,
         censusDenominator: 474_333,
         censusCoveragePct: 2.5,
+        signedCount: 0,
+        signedPct: 0,
       }) // prior ctx
       .mockResolvedValueOnce({
         current: 28.9,
@@ -665,6 +681,8 @@ describe("getPanoramaKpis", () => {
         registryDenominator: 12_480,
         censusDenominator: 474_333,
         censusCoveragePct: 2.6,
+        signedCount: 0,
+        signedPct: 0,
       }); // verified ctx
 
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
@@ -713,6 +731,8 @@ describe("getPanoramaKpis", () => {
       registryDenominator: 12_480,
       censusDenominator: null,
       censusCoveragePct: null,
+      signedCount: 0,
+      signedPct: 0,
     });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const cobertura = kpis.find((k) => k.id === "cobertura")!;

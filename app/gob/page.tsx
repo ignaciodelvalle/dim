@@ -547,6 +547,11 @@ export default async function GobiernoDashboardPage({
                     {rabiesCoverage.registryDenominator === 1 ? "perro" : "perros"} en el padrón ·
                     meta {TARGETS.RABIES_COVERAGE_PCT}%
                   </span>
+                  {/* Dual-lens disclosure (T1): the declared % stays the
+                      headline; this names the vet-signed portion alongside. */}
+                  <span className="block text-ln-op-mute">
+                    {formatPercent(rabiesCoverage.signedPct)} firmado por matrícula
+                  </span>
                   {/* Claim #1 — low-confidence warning: never silently forced
                       neutral, the tile states WHY. */}
                   {rabiesCensusGuard?.note && (
@@ -573,7 +578,13 @@ export default async function GobiernoDashboardPage({
                 : undefined
             }
             sparkline={sterilizationTrend.points.map((p) => p.y)}
-            sub={`${sterilizations.orgs} organizaciones`}
+            // Dual-lens disclosure (T1): vet-signed portion alongside the
+            // declared count (omitted at 0 events — no lens over nothing).
+            sub={
+              sterilizations.count > 0
+                ? `${sterilizations.orgs} organizaciones · ${formatPercent(sterilizations.signedPct)} firmado por matrícula`
+                : `${sterilizations.orgs} organizaciones`
+            }
             href="/gob/analytics"
             descriptorId="sterilizations_per_month"
             guardInput={{ priorBase: sterilizations.prevCount }}

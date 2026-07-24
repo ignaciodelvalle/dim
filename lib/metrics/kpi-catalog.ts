@@ -471,7 +471,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       formula:
         "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,158 perros/hab.).",
       caveat:
-        "Solo se cuentan vacunas registradas en miMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., GCBA — Encuesta Anual de Hogares 2022, módulo Tenencia responsable) — es una estimación piso (CABA subestima la tenencia nacional), no un censo canino; sin fila de censo se muestra «sin estimación censal». No existe cifra oficial nacional de población canina (ni INDEC, ni SENASA, ni Ministerio de Salud) — este factor NO se atribuye a OMS/OPS.",
+        "Solo se cuentan vacunas registradas en miMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., GCBA — Encuesta Anual de Hogares 2022, módulo Tenencia responsable) — es una estimación piso (CABA subestima la tenencia nacional), no un censo canino; sin fila de censo se muestra «sin estimación censal». No existe cifra oficial nacional de población canina (ni INDEC, ni SENASA, ni Ministerio de Salud) — este factor NO se atribuye a OMS/OPS. Lente dual: el titular cuenta dosis declaradas (mayormente por dueños); el sub-renglón «firmado por matrícula» muestra la porción con firma de veterinario matriculado — es divulgación junto al declarado, nunca su reemplazo.",
     },
   },
 
@@ -581,7 +581,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     },
     ui: {
       definition:
-        "Cantidad de eventos sterilization_performed registrados en los últimos 30 días en la jurisdicción. Incluye la variación porcentual respecto a los 30 días anteriores.",
+        "Cantidad de eventos sterilization_performed registrados en los últimos 30 días en la jurisdicción. Incluye la variación porcentual respecto a los 30 días anteriores. Lente dual: el titular cuenta eventos declarados; el sub-renglón «firmado por matrícula» muestra la porción registrada por veterinarios matriculados — divulgación junto al declarado, nunca su reemplazo.",
       formula:
         "COUNT(sterilization_performed en últimos 30d) vs COUNT(sterilization_performed en 30d previos)",
     },

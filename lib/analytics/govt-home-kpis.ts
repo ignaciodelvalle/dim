@@ -165,6 +165,16 @@ export type RabiesCoverageKpi = {
    * vaccination figure.
    */
   censusCoveragePct: number | null;
+  /**
+   * DUAL-LENS disclosure (T1, PO decision 2026-07): of the dogs counted in
+   * `current`, how many hold a dose SIGNED by a matriculated vet
+   * (rabiesSignedByMatriculaCondition). ALWAYS computed — independent of
+   * ctx.verifiedOnly. The declared `current` stays the headline (DIM is a
+   * self-declared registry by design); this is disclosure, never a replacement.
+   */
+  signedCount: number;
+  /** signedCount / registryDenominator × 100, 1 decimal (0 when no dogs). */
+  signedPct: number;
 };
 
 /**
@@ -199,6 +209,8 @@ export async function fetchRabiesCoverage(
       registryDenominator: 0,
       censusDenominator: null,
       censusCoveragePct: null,
+      signedCount: 0,
+      signedPct: 0,
     };
   }
 
@@ -273,9 +285,19 @@ export async function fetchRabiesCoverage(
   // verified calls (qw#4). /gob home passes no sharedDenom, so
   // fetchRabiesDenominator runs concurrently with the numerator here — same
   // parallelism as before, no regression.
+  // DUAL-LENS (T1): the signed sub-count rides the SAME query as a FILTER arm —
+  // no extra round-trip. Under ctx.verifiedOnly the base conditions already
+  // require the signature, so signed === n (the lenses collapse, still honest).
   const [vaccDogRows, denom] = await Promise.all([
     db
-      .select({ n: countDistinct(petEvents.petId) })
+      .select({
+        n: countDistinct(petEvents.petId),
+        signed:
+          sql<number>`count(distinct ${petEvents.petId}) filter (where ${rabiesSignedByMatriculaCondition(
+            sql`${petEvents.authorRole}`,
+            sql`${petEvents.authorVerified}`,
+          )})`.mapWith(Number),
+      })
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .where(and(...rabiesVaccConditions)),
@@ -284,6 +306,7 @@ export async function fetchRabiesCoverage(
 
   const totalDogs = denom.totalDogs;
   const vaccinatedDogs = vaccDogRows[0]?.n ?? 0;
+  const signedDogs = vaccDogRows[0]?.signed ?? 0;
   // One-decimal precision (Math.round(x*1000)/10), NOT a bare integer: a
   // coverage of 41.9% must survive to the display as 41,9% instead of being
   // truncated to 41% at the fetcher (KPI precision audit 2026-07-07). Matches
@@ -321,6 +344,10 @@ export async function fetchRabiesCoverage(
     registryDenominator: totalDogs,
     censusDenominator: census?.censusDenominator ?? null,
     censusCoveragePct: census?.censusCoveragePct ?? null,
+    signedCount: signedDogs,
+    // Same 1-decimal convention as `current` — and the same denominator, so the
+    // two lenses are directly comparable on the tile.
+    signedPct: totalDogs === 0 ? 0 : Math.round((signedDogs / totalDogs) * 1000) / 10,
   };
 }
 
@@ -506,6 +533,15 @@ export type SterilizationKpi = {
    * stable trend, and the guard can't tell that from deltaPct alone.
    */
   prevCount: number;
+  /**
+   * DUAL-LENS disclosure (T1): of the current-30d `count`, how many events were
+   * authored by a matriculated vet (author_role='vet' AND author_verified —
+   * rabiesSignedByMatriculaCondition, the single "signed" predicate). The
+   * declared `count` stays the headline; this is disclosure alongside it.
+   */
+  signedCount: number;
+  /** signedCount / count × 100, 1 decimal (0 when count is 0). */
+  signedPct: number;
 };
 
 /**
@@ -522,7 +558,7 @@ export type SterilizationKpi = {
  */
 export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise<SterilizationKpi> {
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { count: 0, deltaPct: 0, orgs: 0, prevCount: 0 };
+    return { count: 0, deltaPct: 0, orgs: 0, prevCount: 0, signedCount: 0, signedPct: 0 };
   }
 
   // "Esterilizaciones / mes" is a FIXED 30-day flow, ending at ctx.period.until —
@@ -568,6 +604,15 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
       orgs: sql<number>`count(distinct ${petEvents.authorOrganizationId}) filter (where ${petEvents.occurredAt} >= ${since30dIso} and ${petEvents.occurredAt} <= ${until30Iso})`.mapWith(
         Number,
       ),
+      // DUAL-LENS (T1): vet-signed portion of the current window — one more
+      // FILTER arm on the same consolidated query, no extra round-trip. The
+      // "signed" predicate is the SHARED matrícula helper (rabies-named, but it
+      // is the single definition of "signed by a matriculated vet").
+      signed:
+        sql<number>`count(*) filter (where ${petEvents.occurredAt} >= ${since30dIso} and ${petEvents.occurredAt} <= ${until30Iso} and ${rabiesSignedByMatriculaCondition(
+          sql`${petEvents.authorRole}`,
+          sql`${petEvents.authorVerified}`,
+        )})`.mapWith(Number),
     })
     .from(petEvents)
     .where(and(...baseConditions));
@@ -579,11 +624,14 @@ export async function fetchSterilizationMetrics(ctx: ProjectionContext): Promise
   const deltaPct =
     prevCount === 0 ? 0 : Math.round(((currentCount - prevCount) / prevCount) * 1000) / 10;
 
+  const signedCount = rows[0]?.signed ?? 0;
   return {
     count: currentCount,
     deltaPct,
     orgs: rows[0]?.orgs ?? 0,
     prevCount,
+    signedCount,
+    signedPct: currentCount === 0 ? 0 : Math.round((signedCount / currentCount) * 1000) / 10,
   };
 }
 

@@ -83,6 +83,8 @@ function seedDefaults() {
     registryDenominator: 12_480,
     censusDenominator: 474_333,
     censusCoveragePct: 2.6,
+    signedCount: 0,
+    signedPct: 0,
   });
   vi.mocked(fetchAnalyticsMetrics).mockResolvedValue({
     totalPets: 12345,
