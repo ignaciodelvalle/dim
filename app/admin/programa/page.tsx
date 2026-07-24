@@ -57,6 +57,7 @@ import {
   fetchRabiesVaccinationTrend,
   formatImpactUnits,
   formatTopImpactLine,
+  futureBucketLabel,
   projectSeries,
   rankByImpact,
   resourceGap,
@@ -204,7 +205,13 @@ export default async function AdminProgramaPage({
   // (a stock, 80%), which is a DIFFERENT unit than these vaccination COUNTS — so
   // we project the volume band WITHOUT painting a %-meta ReferenceLine on the
   // counts axis. The coverage-% forecast is deferred to Fase J3.
-  const rabiesForecast = projectSeries(rabiesTrend.points, { horizon: 3 });
+  // Projection ticks carry REAL calendar labels ("ago 26"), not "+1/+2/+3"
+  // (axis-format unification, visual review 2026-07-23 #13).
+  const rabiesForecast = projectSeries(rabiesTrend.points, {
+    horizon: 3,
+    labelForecast: (h) =>
+      futureBucketLabel(period, rabiesTrend.granularity, rabiesTrend.points.length, h),
+  });
   const hasRabiesTrend = rabiesTrend.points.length > 0;
 
   // Batch-resolve actor UUIDs in the PII oversight table to display names.

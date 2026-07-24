@@ -55,6 +55,7 @@ export {
   bucketGranularityFor,
   dateTruncUnit,
   formatBucketLabel,
+  futureBucketLabel,
   isoWeekLabel,
   pivotStackedSeries,
   suppressSmallBuckets,

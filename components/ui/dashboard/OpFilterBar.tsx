@@ -228,25 +228,36 @@ function buildActiveChips(params: {
   if (jurisdiction) {
     const province = searchParams.get(provinceKey);
     const locality = searchParams.get(localityKey);
+    // Chip honesty (visual review 2026-07-23 #9): only a param that RESOLVES
+    // against the allowed set gets a chip. resolveJurisdictionScope is
+    // fail-closed — an invalid ?province (e.g. a name where the ISO code
+    // belongs) narrows NOTHING — so the old `?? province` fallback fabricated
+    // a removable "Provincia: CABA ×" chip (and a filter-count badge) for a
+    // filter that was never applied, directly contradicting the select, which
+    // honestly showed "Todas". An unresolvable param renders no chip.
     if (province) {
-      const name = jurisdiction.allowedProvinces.find((p) => p.code === province)?.name ?? province;
-      chips.push({
-        id: "province",
-        label: `Provincia: ${name}`,
-        valueLabel: name,
-        // Clearing the province also clears the locality (a locality without its
-        // province is meaningless — same rule JurisdictionSwitcher enforces).
-        clear: { [provinceKey]: null, [localityKey]: null },
-      });
+      const name = jurisdiction.allowedProvinces.find((p) => p.code === province)?.name;
+      if (name) {
+        chips.push({
+          id: "province",
+          label: `Provincia: ${name}`,
+          valueLabel: name,
+          // Clearing the province also clears the locality (a locality without its
+          // province is meaningless — same rule JurisdictionSwitcher enforces).
+          clear: { [provinceKey]: null, [localityKey]: null },
+        });
+      }
     }
     if (locality) {
-      const name = jurisdiction.localities?.find((l) => l.slug === locality)?.name ?? locality;
-      chips.push({
-        id: "locality",
-        label: `Localidad: ${name}`,
-        valueLabel: name,
-        clear: { [localityKey]: null },
-      });
+      const name = jurisdiction.localities?.find((l) => l.slug === locality)?.name;
+      if (name) {
+        chips.push({
+          id: "locality",
+          label: `Localidad: ${name}`,
+          valueLabel: name,
+          clear: { [localityKey]: null },
+        });
+      }
     }
   }
 

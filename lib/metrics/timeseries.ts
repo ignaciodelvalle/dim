@@ -236,6 +236,30 @@ export function zeroFillStackedPoints(
 }
 
 /**
+ * Real calendar label for the h-th FORECAST bucket after the last actual
+ * (axis-format unification, visual review 2026-07-23 #13: projection ticks
+ * rendered literally "+1, +2, +3"). Anchored on `actualCount` — the number of
+ * points the zero-filled series actually plots — so when the trailing partial
+ * bucket was skipped, +1 correctly names IT, not the bucket after it. Falls
+ * back to the old relative label if the window enumerates nothing.
+ */
+export function futureBucketLabel(
+  period: AnalyticsPeriod,
+  granularity: BucketGranularity,
+  actualCount: number,
+  h: number,
+): string {
+  const starts = enumerateBucketStarts(period, granularity);
+  const base = starts[Math.min(Math.max(actualCount, 1), starts.length) - 1];
+  if (!base) return `+${h}`;
+  const future =
+    granularity === "month"
+      ? new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + h, 1))
+      : new Date(base.getTime() + h * 7 * DAY_MS);
+  return formatBucketLabel(future, granularity);
+}
+
+/**
  * k-anonymity for a single-series trend.
  *
  * Per-bucket counts below `k` are noise that can re-identify a small cohort

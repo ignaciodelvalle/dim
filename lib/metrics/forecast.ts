@@ -52,6 +52,12 @@ export type ForecastOpts = {
   horizon?: number;
   /** Projection method. Default "linear" (OLS). */
   method?: ForecastMethod;
+  /**
+   * Real calendar label for the h-th projected bucket (see timeseries.ts's
+   * futureBucketLabel) — the caller knows the period/granularity this module
+   * deliberately doesn't. Absent → the legacy relative "+1", "+2" labels.
+   */
+  labelForecast?: (h: number) => string;
 };
 
 /**
@@ -237,7 +243,7 @@ export function projectSeries(points: SeriesPoint[], opts: ForecastOpts = {}): F
     const yHat = predictAt(index);
     const hw = halfWidthAt(index);
     forecast.push({
-      x: forecastLabel(points, h),
+      x: opts.labelForecast ? opts.labelForecast(h) : forecastLabel(points, h),
       // Flow counts cannot go negative — clamp the central line and band floor.
       y: Math.max(0, round1(yHat)),
       lo: Math.max(0, round1(yHat - hw)),

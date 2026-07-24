@@ -54,6 +54,7 @@ import {
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
   fetchSterilizationTrend,
+  futureBucketLabel,
   projectSeries,
   toneForTarget,
 } from "@/lib/metrics";
@@ -175,7 +176,13 @@ export async function AdminPoblacionScreen({
   // counts/bucket). Reuses the already-fetched trend points (no extra DB call).
   // §J-D3: the legal/programmatic target is COVERAGE % (a stock); we do NOT pass
   // a %-meta ReferenceLine onto this counts axis — the volume band stands alone.
-  const sterilForecast = projectSeries(sterilTrend.points, { horizon: 3 });
+  // Projection ticks carry REAL calendar labels ("ago 26"), not "+1/+2/+3"
+  // (axis-format unification, visual review 2026-07-23 #13).
+  const sterilForecast = projectSeries(sterilTrend.points, {
+    horizon: 3,
+    labelForecast: (h) =>
+      futureBucketLabel(period, sterilTrend.granularity, sterilTrend.points.length, h),
+  });
 
   const coverageTone = toneForTarget(coverage.rate, TARGETS.STERILIZATION_COVERAGE_PCT);
 

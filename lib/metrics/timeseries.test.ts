@@ -14,6 +14,7 @@ import {
   dateTruncUnit,
   enumerateBucketStarts,
   formatBucketLabel,
+  futureBucketLabel,
   isoWeekLabel,
   pivotStackedSeries,
   suppressSmallBuckets,
@@ -154,6 +155,31 @@ describe("zero-fill (dataviz review 2026-07-23 #2)", () => {
     expect(
       zeroFillStackedPoints({ seriesKeys: [], points: [] }, monthPeriod, "month").points,
     ).toHaveLength(0);
+  });
+
+  it("futureBucketLabel names real calendar buckets after the last actual", () => {
+    // monthPeriod spans ene..jul-01; a fully-plotted series has 7 actuals →
+    // +1 is August, with the year-carrying month label.
+    const plus1 = futureBucketLabel(monthPeriod, "month", 7, 1);
+    expect(plus1.toLowerCase()).toContain("ago");
+    expect(plus1).toContain("26");
+    // When the trailing partial bucket was SKIPPED by the zero-fill (6
+    // actuals), +1 must name that very bucket (July), not the one after it.
+    const plus1Short = futureBucketLabel(monthPeriod, "month", 6, 1);
+    expect(plus1Short.toLowerCase()).toContain("jul");
+    // Degenerate window (until before since's month-floor → nothing to
+    // enumerate) → legacy relative label, never a crash.
+    expect(
+      futureBucketLabel(
+        {
+          since: new Date("2026-07-02T00:00:00Z"),
+          until: new Date("2026-06-15T00:00:00Z"),
+        } as never,
+        "month",
+        0,
+        2,
+      ),
+    ).toBe("+2");
   });
 });
 

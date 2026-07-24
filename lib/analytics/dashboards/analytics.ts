@@ -427,9 +427,11 @@ export async function fetchAcquisitionTrend(
   return rows.map((r) => {
     const d = new Date(r.month);
     // UTC pin: same date_trunc('month') bucket-boundary rationale as above.
+    // 2-digit year: matches timeseries.ts's formatBucketLabel ("sept 25") —
+    // axis-format unification, visual review 2026-07-23 #13.
     const monthLabel = d.toLocaleString("es-AR", {
       month: "short",
-      year: "numeric",
+      year: "2-digit",
       timeZone: "UTC",
     });
     return {
