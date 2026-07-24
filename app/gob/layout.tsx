@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { GovtJurisdictionsChip } from "@/components/layout/GovtJurisdictionsChip";
-import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import { ADMIN_NAV_SECTIONS, GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { OpMaintenanceScreen } from "@/components/ui/dashboard/OpMaintenanceScreen";
 import { OpOfflineBanner } from "@/components/ui/dashboard/OpOfflineBanner";
@@ -44,6 +44,16 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   // if it were the current, possibly-filtered view). A page whose OWN filter
   // narrows below this mandate discloses that separately (ViewScopeCaption).
   const scopeCode = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
+
+  // red-team-admin-2 P2.1 (PO: chrome role-aware en la cola): an admin reaches
+  // this shared segment via /admin/moderacion's redirect and used to see the
+  // full "miMAR GOBIERNO" chrome (brand + gob rail) — reading as "I left my
+  // portal / a permissions bug". Render ADMIN brand + rail for an admin viewer
+  // so they stay oriented in their own portal while working the shared queue.
+  // The scope chip, omnibox scope, and context switcher were already role-aware.
+  const isAdmin = profile.role === "admin";
+  const navSections = isAdmin ? ADMIN_NAV_SECTIONS : GOB_NAV_SECTIONS;
+  const brandSubtitle = isAdmin ? "Administración" : "Gobierno";
 
   // getProfileCached is already warmed by requireAdminOrGovtOrRedirect above —
   // this call is a memoized hit, not a second DB round-trip.
@@ -100,9 +110,9 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
       }
       rail={
         <OpRail
-          sections={GOB_NAV_SECTIONS}
+          sections={navSections}
           variant="gob"
-          brandSubtitle="Gobierno"
+          brandSubtitle={brandSubtitle}
           user={{
             name: displayName,
             role: roleLabel(profile.role).toUpperCase(),
@@ -112,7 +122,7 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
       topbar={
         <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-4 py-[11px] md:px-6">
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
-          <AppShellDrawer sections={GOB_NAV_SECTIONS} variant="gob" brandSubtitle="Gobierno" />
+          <AppShellDrawer sections={navSections} variant="gob" brandSubtitle={brandSubtitle} />
           {/* Left group: breadcrumbs + scope chip. Grows to fill and is the
               ONLY shrinkable region (same D1 discipline as the admin topbar),
               so the breadcrumb truncates instead of pushing chrome off-screen. */}
