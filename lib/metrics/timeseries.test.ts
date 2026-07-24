@@ -220,10 +220,12 @@ describe("suppressSmallBuckets (single-series k-anon)", () => {
       { x: "W02", y: 3 }, // suppressed
       { x: "W03", y: 1 }, // suppressed
     ]);
+    // Masked buckets carry the `suppressed` flag (suprimido ≠ cero) so
+    // renderers can draw a gap instead of a fake zero.
     expect(points).toEqual([
       { x: "W01", y: 9 },
-      { x: "W02", y: 0 },
-      { x: "W03", y: 0 },
+      { x: "W02", y: 0, suppressed: true },
+      { x: "W03", y: 0, suppressed: true },
     ]);
     expect(suppressedCount).toBe(2);
   });
@@ -280,5 +282,22 @@ describe("suppressSmallStackedCells (multi-series k-anon)", () => {
     const { series, suppressedCount } = suppressSmallStackedCells({ seriesKeys: [], points: [] });
     expect(series).toEqual({ seriesKeys: [], points: [] });
     expect(suppressedCount).toBe(0);
+  });
+});
+
+describe("suppressed≠zero (dataviz review 2026-07-23 #6)", () => {
+  it("flags masked buckets so renderers can distinguish them from true zeros", () => {
+    const { points, suppressedCount } = suppressSmallBuckets(
+      [
+        { x: "a", y: 0 },
+        { x: "b", y: 3 },
+        { x: "c", y: 8 },
+      ],
+      5,
+    );
+    expect(suppressedCount).toBe(1);
+    expect(points[0].suppressed).toBeUndefined(); // a true zero is never masked
+    expect(points[1]).toEqual({ x: "b", y: 0, suppressed: true });
+    expect(points[2].suppressed).toBeUndefined();
   });
 });

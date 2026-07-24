@@ -273,12 +273,18 @@ export function futureBucketLabel(
 export function suppressSmallBuckets(
   points: Array<{ x: string; y: number }>,
   k = 5,
-): { points: Array<{ x: string; y: number }>; suppressedCount: number } {
+): { points: Array<{ x: string; y: number; suppressed?: true }>; suppressedCount: number } {
   let suppressedCount = 0;
   const masked = points.map((p) => {
     if (p.y > 0 && p.y < k) {
       suppressedCount += 1;
-      return { x: p.x, y: 0 };
+      // suppressed≠zero (dataviz review 2026-07-23 #6): the masked value stays
+      // 0 (backward-compatible with every numeric consumer — sparklines,
+      // deltas), but the flag lets honest renderers distinguish "privacy-
+      // masked" from a true zero: TimeSeriesChart draws a GAP instead of a
+      // fake dip, and projectSeries excludes the point from its fit (a masked
+      // 1..k-1 rendered as 0 biased the regression downward).
+      return { x: p.x, y: 0, suppressed: true as const };
     }
     return p;
   });

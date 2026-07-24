@@ -36,7 +36,14 @@
 // transform they delegate to — mirroring the timeseries.ts / trends.ts split.
 
 /** A raw observed point from a SingleSeriesTrend. */
-export type SeriesPoint = { x: string; y: number };
+export type SeriesPoint = {
+  x: string;
+  y: number;
+  /** k-anon-masked bucket (timeseries.ts suppressSmallBuckets): the real value
+   *  is 1..k-1 rendered as 0 — EXCLUDED from the regression fit so the mask
+   *  doesn't bias the projection downward (dataviz review 2026-07-23 #6). */
+  suppressed?: true;
+};
 
 /** Minimum observed points required to fit a projection. Below this we abstain. */
 export const MIN_POINTS = 4;
@@ -107,12 +114,15 @@ type Fit = {
 };
 
 /**
- * Fit y = intercept + slope·index over indices 0..n-1 by least squares.
+ * Fit y = intercept + slope·index by least squares. `atIndices` defaults to
+ * 0..n-1; passing explicit indices lets the caller EXCLUDE k-anon-suppressed
+ * buckets from the fit while keeping the surviving observations on the real
+ * time axis (the indices stay absolute, so gaps don't compress time).
  * Returns a residual standard error so callers can build a widening band.
  */
-function olsFit(ys: number[]): Fit {
+function olsFit(ys: number[], atIndices?: number[]): Fit {
   const n = ys.length;
-  const indices = ys.map((_, i) => i);
+  const indices = atIndices ?? ys.map((_, i) => i);
   const meanIndex = indices.reduce((a, b) => a + b, 0) / n;
   const meanY = ys.reduce((a, b) => a + b, 0) / n;
 
@@ -197,26 +207,41 @@ export function projectSeries(points: SeriesPoint[], opts: ForecastOpts = {}): F
     kind: "actual" as const,
   }));
 
-  // Too few points OR a zero horizon → abstain: return actuals only.
-  if (points.length < MIN_POINTS || horizon === 0) {
+  // The fit runs over NON-suppressed observations only, at their ABSOLUTE
+  // indices (see SeriesPoint.suppressed): a masked 1..k-1 bucket fed to the
+  // regression as 0 dragged the slope down, and excluding it by index (rather
+  // than filtering the array) keeps the time axis uncompressed.
+  const fitObs = points
+    .map((p, i) => ({ i, y: p.y, suppressed: p.suppressed === true }))
+    .filter((o) => !o.suppressed);
+
+  // Too few FITTABLE points OR a zero horizon → abstain: return actuals only.
+  if (fitObs.length < MIN_POINTS || horizon === 0) {
     return {
       points: actuals,
       method,
       slopePerBucket: 0,
-      insufficient: points.length < MIN_POINTS,
+      insufficient: fitObs.length < MIN_POINTS,
     };
   }
 
-  const ys = points.map((p) => p.y);
-  const fit = olsFit(ys);
+  const ys = fitObs.map((o) => o.y);
+  const fit = olsFit(
+    ys,
+    fitObs.map((o) => o.i),
+  );
 
-  // Predicted value at a future index (n-1 is the last observed bucket).
-  const lastIndex = ys.length - 1;
+  // Predicted value at a future index (n-1 is the last observed bucket —
+  // suppressed or not, the horizon extends from the series' real end).
+  const lastIndex = points.length - 1;
 
   let predictAt: (index: number) => number;
   let slopePerBucket: number;
 
   if (method === "holt") {
+    // NOTE: Holt smooths the non-suppressed observations as if contiguous
+    // (sequential smoothing has no index concept) — acceptable for the unused
+    // v1 method; the default linear path is fully gap-aware.
     const holt = holtForecast(ys, horizon, fit.residualSe);
     predictAt = (index: number) => holt.project(index - lastIndex);
     slopePerBucket = holt.slope;

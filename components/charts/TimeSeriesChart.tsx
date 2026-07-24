@@ -42,6 +42,10 @@ export type TimeSeriesPoint = {
   x: string;
   /** Valor numérico. */
   y: number;
+  /** Bucket enmascarado por k-anonimato (suppressSmallBuckets): el valor real
+   *  es 1..k-1 renderizado como 0. El gráfico dibuja un HUECO en la línea en
+   *  vez de un cero falso — suprimido ≠ cero (dataviz review 2026-07-23 #6). */
+  suppressed?: true;
 };
 
 export type TimeSeriesChartProps = {
@@ -107,15 +111,24 @@ export function TimeSeriesChart({
 
   const areaFill = fillColor ?? `${strokeColor}33`; // 20% de opacidad si no se provee.
 
-  // recharts espera {x, y} → convertimos internamente para evitar colisión de keys.
-  const chartData = data.map((p) => ({ periodo: p.x, valor: p.y }));
+  // recharts espera {x, y} → convertimos internamente para evitar colisión de
+  // keys. Un bucket suprimido por privacidad se plotea como null → recharts
+  // corta la línea (hueco) en vez de dibujar un cero falso; el tick del eje x
+  // permanece, así el período existe pero su valor se lee como "oculto".
+  const chartData = data.map((p) => ({
+    periodo: p.x,
+    valor: p.suppressed ? null : p.y,
+  }));
 
   // Visual review 2026-07-23 (#4): estado vacío EN el gráfico. Sin puntos, los
   // ejes + leyenda solos se leen como una falla de render — se dibuja un
   // mensaje centrado en el área de trazado y se omite la leyenda (no hay serie
   // que nombrar). Con suppressedCount > 0 el vacío viene de la privacidad y el
   // mensaje lo dice.
-  const isEmpty = data.length === 0;
+  // "Vacío" incluye la serie 100% suprimida: todos los valores son null en el
+  // plot (huecos), así que sin este caso el gráfico quedaría en blanco con
+  // leyenda — exactamente la falla-muda que este estado evita.
+  const isEmpty = data.length === 0 || data.every((p) => p.suppressed);
   const emptyMessage =
     suppressedCount > 0
       ? "Datos ocultos por privacidad (k<5)."
@@ -124,7 +137,9 @@ export function TimeSeriesChart({
   // Visual review 2026-07-23 (#4): un único punto no tiene segmento que trazar —
   // sin dot la serie es invisible (el hallazgo "Altas nuevas": un punto solo en
   // un vacío 0–1000). Se muestra el punto con dot + etiqueta de valor.
-  const singlePoint = data.length === 1;
+  // Cuenta solo puntos VISIBLES: un único punto real rodeado de buckets
+  // suprimidos (null) queda sin segmento que trazar — sin dot sería invisible.
+  const singlePoint = data.filter((p) => !p.suppressed).length === 1;
   const pointDot = singlePoint ? { r: 4, fill: strokeColor, strokeWidth: 0 } : false;
   const pointLabel = singlePoint
     ? { position: "top" as const, fontSize: 11, fill: strokeColor }
@@ -232,7 +247,7 @@ export function TimeSeriesChart({
               <tr key={i}>
                 <td className="border border-ln-line px-3 py-1.5 text-ln-ink">{p.x}</td>
                 <td className="border border-ln-line px-3 py-1.5 text-ln-ink tabular-nums">
-                  {p.y}
+                  {p.suppressed ? "oculto (privacidad)" : p.y}
                 </td>
               </tr>
             ))}
