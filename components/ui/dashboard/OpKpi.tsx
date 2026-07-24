@@ -558,7 +558,7 @@ export function OpKpi({
           plainly so the picker never reads as a broken control on this tile. */}
       {periodInvariant && (
         <p
-          className="mt-1 text-[10px] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          className="mt-1 text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
           title="Valor de estado actual (point-in-time): el selector de período mueve los gráficos, no este número."
         >
           no varía con el período

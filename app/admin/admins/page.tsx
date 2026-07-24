@@ -130,7 +130,7 @@ export default async function AdminsPage({
       {(hiddenTestCount > 0 || showTestAccounts) && (
         <Link
           href={testToggleHref}
-          className="inline-block text-[11px] text-ln-op-mute underline underline-offset-4 hover:text-ln-op-ink-2"
+          className="inline-block text-[var(--text-xs)] text-ln-op-mute underline underline-offset-4 hover:text-ln-op-ink-2"
         >
           {showTestAccounts
             ? "Ocultar cuentas de prueba"
