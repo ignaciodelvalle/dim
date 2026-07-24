@@ -1,4 +1,5 @@
 import { logoutAction } from "@/app/actions/auth";
+import { Icon } from "@/components/Icon";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
@@ -61,7 +62,10 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
 
   const topbarActions = (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-ln-op-mute">
+      {/* Account text label — hidden <md (mobile-polish 2026-07: it bled off
+          the 390px viewport). The mandate stays disclosed via the scope chip
+          (>=md) and each page's ViewScopeCaption. */}
+      <span className="hidden text-xs text-ln-op-mute md:inline">
         <span className="font-semibold text-ln-op-ink-2">{roleLabel(profile.role)}</span>
         <span className="mx-1">·</span>
         {scopeCode}
@@ -69,13 +73,17 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
       {/* ContextSwitcher (D6): replaces the ad-hoc "Ir a Admin →" link. */}
       <ContextSwitcher session={switcherSession} />
       {/* Logout — institutional roles are bounced out of /mis-mascotas and
-          /cuenta by the (app) layout, so the portal must own its sign-out. */}
+          /cuenta by the (app) layout, so the portal must own its sign-out.
+          <md it collapses to an icon (same budget fix as the account label);
+          the aria-label keeps the accessible name in both forms. */}
       <form action={logoutAction}>
         <button
           type="submit"
-          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+          aria-label="Cerrar sesión"
+          className="inline-flex cursor-pointer items-center justify-center border-0 bg-transparent p-2 text-xs text-ln-op-mute hover:text-ln-op-ink md:p-0"
         >
-          Cerrar sesión →
+          <Icon name="logout" size={16} decorative className="md:hidden" />
+          <span className="hidden md:inline">Cerrar sesión →</span>
         </button>
       </form>
     </div>
@@ -102,32 +110,41 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
         />
       }
       topbar={
-        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]">
+        <header className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-4 py-[11px] md:px-6">
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
           <AppShellDrawer sections={GOB_NAV_SECTIONS} variant="gob" brandSubtitle="Gobierno" />
-          {/* Left: breadcrumbs — derived from route (UX 1.2) */}
-          <OperatorBreadcrumbs portal="gob" />
-          {/* Scope chip. A multi-locality govt gets the expandable variant so
-              the operator can see WHICH jurisdictions they cover (Cowork M5),
-              not just the count. Admin (universal) and single-locality govt
-              already read their full scope in the label. */}
-          {profile.role !== "admin" && jurisdictions.length > 1 ? (
-            <GovtJurisdictionsChip label={scopeCode} jurisdictions={jurisdictions} />
-          ) : (
-            <OpScopeChip
-              code={profile.role === "admin" ? "SUPERADMIN" : "GOB"}
-              label={scopeCode}
-              variant={profile.role === "admin" ? "superadmin" : "default"}
-            />
-          )}
-          {/* Spacer */}
-          <div className="flex-1" />
+          {/* Left group: breadcrumbs + scope chip. Grows to fill and is the
+              ONLY shrinkable region (same D1 discipline as the admin topbar),
+              so the breadcrumb truncates instead of pushing chrome off-screen. */}
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {/* Breadcrumbs — derived from route (UX 1.2). Hidden <md
+                (mobile-polish 2026-07): the drawer + page H1 orient the
+                operator on a phone; the crumb trail is desktop chrome. */}
+            <div className="hidden min-w-0 flex-shrink md:block">
+              <OperatorBreadcrumbs portal="gob" />
+            </div>
+            {/* Scope chip. A multi-locality govt gets the expandable variant so
+                the operator can see WHICH jurisdictions they cover (Cowork M5),
+                not just the count. Admin (universal) and single-locality govt
+                already read their full scope in the label (>=md; <md the chip
+                collapses to its portal code — see OpScopeChip). */}
+            {profile.role !== "admin" && jurisdictions.length > 1 ? (
+              <GovtJurisdictionsChip label={scopeCode} jurisdictions={jurisdictions} />
+            ) : (
+              <OpScopeChip
+                code={profile.role === "admin" ? "SUPERADMIN" : "GOB"}
+                label={scopeCode}
+                variant={profile.role === "admin" ? "superadmin" : "default"}
+              />
+            )}
+          </div>
           {/* Global search omnibox (Item 10) — operator jump-to-record + PII log.
               An admin visiting /gob searches universally; a govt is scoped to its
-              jurisdictions (Cowork B3). */}
+              jurisdictions (Cowork B3). <md it rests as an icon trigger that
+              expands to a full-width row over the topbar (see OpOmnibox). */}
           <OpOmnibox universalScope={profile.role === "admin"} />
           {/* Right: switcher + logout */}
-          <div className="flex items-center gap-2">{topbarActions}</div>
+          <div className="flex flex-shrink-0 items-center gap-2">{topbarActions}</div>
         </header>
       }
     >

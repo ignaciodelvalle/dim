@@ -125,14 +125,20 @@ export function PanoramaDock({
       // token ratchet bans new arbitrary values.
       style={open ? { height: "42%" } : undefined}
     >
-      <div className="flex h-10 flex-shrink-0 flex-wrap items-center gap-x-2 overflow-hidden border-b border-ln-op-line-2 pl-3 pr-2">
-        <span aria-hidden="true" className="text-ln-op-faint">
+      {/* flex-nowrap + a scrollable tablist (mobile-polish 2026-07): the old
+          flex-wrap + overflow-hidden combo silently clipped tabs into
+          truncation at 390px ("Línea de…"). The tab row now scrolls
+          horizontally inside the bar (op-scroll = the repo's thin visible
+          scrollbar affordance, + scroll snap) while the meta/CSV/expand
+          cluster stays pinned right. >=md everything fits and nothing scrolls. */}
+      <div className="flex h-10 flex-shrink-0 flex-nowrap items-center gap-x-2 overflow-hidden border-b border-ln-op-line-2 pl-3 pr-2">
+        <span aria-hidden="true" className="flex-none text-ln-op-faint">
           ≡
         </span>
         <div
           role="tablist"
           aria-label="Paneles de datos"
-          className="flex h-full items-stretch"
+          className="op-scroll flex h-full min-w-0 flex-1 snap-x items-stretch overflow-x-auto"
           onBlur={(e) => {
             // Focus left the whole tablist → drop the roving position so a later
             // Tab-in lands on the SELECTED tab again (APG).
@@ -180,7 +186,7 @@ export function PanoramaDock({
                     // Spec: clicking any tab while collapsed also expands.
                     if (!open) onOpenChange(true);
                   }}
-                  className={`inline-flex items-center gap-1.5 border-b-2 px-3 text-sm transition-colors ${
+                  className={`inline-flex flex-none snap-start items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm transition-colors ${
                     isActive
                       ? "border-ln-op-azul font-semibold text-ln-op-azul"
                       : "border-transparent text-ln-op-ink-2 hover:text-ln-op-ink"
@@ -197,7 +203,7 @@ export function PanoramaDock({
             );
           })}
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-none items-center gap-2">
           <span className="hidden text-[var(--text-xs)] tabular-nums text-ln-op-mute md:inline">
             {meta}
           </span>

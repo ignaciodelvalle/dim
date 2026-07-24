@@ -1,4 +1,5 @@
 import { logoutAction } from "@/app/actions/auth";
+import { Icon } from "@/components/Icon";
 import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
@@ -88,7 +89,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const topbarActions = (
     <div className="flex items-center gap-3">
-      <span className="text-xs text-ln-op-mute">
+      {/* Account text label — hidden <md (mobile-polish 2026-07: it bled off
+          the 390px viewport). The universal scope stays disclosed via the
+          scope chip (>=md) and each page's ViewScopeCaption. */}
+      <span className="hidden text-xs text-ln-op-mute md:inline">
         <span className="font-semibold text-ln-op-ink-2">{roleLabel(profile.role)}</span>
         <span className="mx-1">·</span>
         Universal
@@ -96,13 +100,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* ContextSwitcher (D6): replaces the ad-hoc "Ir a Gobierno →" link. */}
       <ContextSwitcher session={switcherSession} />
       {/* Logout — institutional roles are bounced out of /mis-mascotas and
-          /cuenta by the (app) layout, so the portal must own its sign-out. */}
+          /cuenta by the (app) layout, so the portal must own its sign-out.
+          <md it collapses to an icon (same budget fix as the account label);
+          the aria-label keeps the accessible name in both forms. */}
       <form action={logoutAction}>
         <button
           type="submit"
-          className="cursor-pointer border-0 bg-transparent p-0 text-xs text-ln-op-mute hover:text-ln-op-ink"
+          aria-label="Cerrar sesión"
+          className="inline-flex cursor-pointer items-center justify-center border-0 bg-transparent p-2 text-xs text-ln-op-mute hover:text-ln-op-ink md:p-0"
         >
-          Cerrar sesión →
+          <Icon name="logout" size={16} decorative className="md:hidden" />
+          <span className="hidden md:inline">Cerrar sesión →</span>
         </button>
       </form>
     </div>
@@ -136,7 +144,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       topbar={
         <header
           data-testid="admin-topbar"
-          className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-6 py-[11px]"
+          className="sticky top-0 z-[var(--z-header)] flex flex-shrink-0 flex-nowrap items-center gap-3 border-b border-ln-op-line bg-ln-op-card px-4 py-[11px] md:px-6"
         >
           {/* Mobile hamburger — AppShellDrawer mirrors the desktop rail. */}
           <AppShellDrawer sections={sections} variant="gob" brandSubtitle="Administración" />
@@ -144,8 +152,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 omnibox + actions right) and is the ONLY shrinkable region, so the
                 breadcrumb truncates rather than wrapping the topbar (D1). */}
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            {/* Breadcrumbs — derived from route (UX 1.2); truncates when tight. */}
-            <div className="min-w-0 flex-shrink">
+            {/* Breadcrumbs — derived from route (UX 1.2); truncates when tight.
+                Hidden <md (mobile-polish 2026-07): the drawer + page H1 orient
+                the operator on a phone; the crumb trail is desktop chrome. */}
+            <div className="hidden min-w-0 flex-shrink md:block">
               <OperatorBreadcrumbs portal="admin" />
             </div>
             {/* Scope chip — neutral/outline so it never out-weighs the page H1 (D1). */}

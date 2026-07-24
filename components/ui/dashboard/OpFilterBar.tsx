@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
@@ -54,7 +54,10 @@ import { serverNavCommit } from "@/lib/ui/filter-commit";
  * (implicit association) with a matching aria-label — the same aria baseline
  * PeriodPicker/JurisdictionSwitcher already meet. Chips are <button>s with a
  * descriptive aria-label ("Quitar filtro: …"). Mobile-safe: every region wraps
- * (flex-wrap / responsive grid) so nothing overflows at 375px.
+ * (flex-wrap / responsive grid) so nothing overflows at 375px — and at <md the
+ * whole bar rests COLLAPSED behind a one-line summary row (identity + active
+ * count + active values + chevron) so the panel no longer owns the entire
+ * first mobile screen; >=md always renders fully expanded, exactly as before.
  */
 
 /** A single selectable value on a domain axis. `value` is the searchParam value. */
@@ -171,6 +174,12 @@ const PERIOD_CHIP_LABELS: Record<string, string> = {
 type ActiveChip = {
   id: string;
   label: string;
+  /**
+   * The bare value ("90 días", "CABA", "Perro") — the chip `label` above keeps
+   * its "Axis: value" form; this feeds the <md collapsed-bar summary, where the
+   * axis prefixes would eat the whole line.
+   */
+  valueLabel: string;
   /** Param updates that REMOVE this filter (values are null → deleted). */
   clear: Record<string, string | null>;
 };
@@ -211,6 +220,7 @@ function buildActiveChips(params: {
     chips.push({
       id: "period",
       label: `Período: ${label}`,
+      valueLabel: label,
       clear: { [periodKey]: null, [fromKey]: null, [toKey]: null },
     });
   }
@@ -223,6 +233,7 @@ function buildActiveChips(params: {
       chips.push({
         id: "province",
         label: `Provincia: ${name}`,
+        valueLabel: name,
         // Clearing the province also clears the locality (a locality without its
         // province is meaningless — same rule JurisdictionSwitcher enforces).
         clear: { [provinceKey]: null, [localityKey]: null },
@@ -233,6 +244,7 @@ function buildActiveChips(params: {
       chips.push({
         id: "locality",
         label: `Localidad: ${name}`,
+        valueLabel: name,
         clear: { [localityKey]: null },
       });
     }
@@ -244,12 +256,48 @@ function buildActiveChips(params: {
       chips.push({
         id: axis.id,
         label: `${axis.label}: ${label}`,
+        valueLabel: label,
         clear: { [axis.paramKey]: null },
       });
     }
   }
 
   return chips;
+}
+
+/**
+ * <md summary line for the collapsed bar: the active values joined
+ * ("12 meses · CABA · Perro"), falling back to the default period (nothing
+ * narrowed, but the window is still worth a glance) or a plain "no filters"
+ * note. Module-level so OpFilterBar's own cognitive complexity stays under
+ * the lint budget.
+ */
+function buildMobileSummary(
+  chips: ActiveChip[],
+  showPeriod: boolean,
+  defaultPreset: PeriodPresetId,
+): string {
+  const parts = chips.map((c) => c.valueLabel);
+  if (parts.length === 0 && showPeriod) {
+    parts.push(PERIOD_CHIP_LABELS[defaultPreset] ?? defaultPreset);
+  }
+  return parts.length > 0 ? parts.join(" · ") : "Sin filtros activos";
+}
+
+/**
+ * Active-filter count badge — one definition, rendered in BOTH the desktop
+ * header and the <md summary row (only one is ever displayed at a time).
+ */
+function FilterCountBadge({ count }: { count: number }) {
+  if (count === 0) return null;
+  return (
+    <span
+      className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ln-op-azul px-1.5 text-xs font-semibold leading-none text-white"
+      aria-label={`Filtros activos: ${count}`}
+    >
+      {count}
+    </span>
+  );
 }
 
 // One caption treatment for every control the bar owns (Período + axes), sized
@@ -281,6 +329,15 @@ export function OpFilterBar({
 }: OpFilterBarProps) {
   const searchParams = useSearchParams();
   const uid = useId();
+
+  // Mobile collapse (mobile-polish 2026-07): at <md the full bar used to own
+  // the entire first screen — zero data visible without scrolling. It now
+  // rests as ONE summary row (identity + active count + active values +
+  // chevron); tapping it expands the full panel in place. >=md is untouched:
+  // the summary row is md:hidden and the panel body is forced visible by
+  // md:block, so this state only ever matters below md.
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const mobilePanelId = `${uid}-panel`;
 
   const periodKey = period?.paramKey ?? "period";
   const fromKey = period?.customParamKeys?.from ?? "from";
@@ -336,18 +393,44 @@ export function OpFilterBar({
   // empty box. Tighten padding + rhythm a notch ONLY in that case — rich-axes
   // screens are untouched (hasDomainGroup is true there).
   const hasDomainGroup = axes.length > 0 || Boolean(children);
+  const rhythm = hasDomainGroup ? "space-y-4" : "space-y-3";
+
+  const mobileSummary = buildMobileSummary(chips, showPeriod, defaultPreset);
 
   return (
     <section
       aria-label="Filtros"
       className={[
-        hasDomainGroup ? "space-y-4 p-4" : "space-y-3 p-3.5",
+        rhythm,
+        hasDomainGroup ? "p-4" : "p-3.5",
         "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
+      {/* Mobile summary row (<md only) — the collapsed bar in one tappable
+          line: identity + active count + a compact readout of the active
+          values + chevron. Tapping toggles the full panel below in place. */}
+      <button
+        type="button"
+        aria-expanded={mobileExpanded}
+        aria-controls={mobilePanelId}
+        onClick={() => setMobileExpanded((v) => !v)}
+        className="flex w-full items-center gap-2 text-left text-ln-op-mute md:hidden"
+      >
+        <Icon name="filter" size={15} decorative />
+        <span className="text-xs font-semibold uppercase tracking-[0.08em]">Filtros</span>
+        <FilterCountBadge count={chips.length} />
+        <span className="min-w-0 flex-1 truncate text-xs text-ln-op-ink-2">{mobileSummary}</span>
+        <Icon
+          name="chevron-down"
+          size={16}
+          decorative
+          className={`flex-shrink-0 transition-transform ${mobileExpanded ? "rotate-180" : ""}`}
+        />
+      </button>
+
       {/* Region 1 — header: bar identity + active-filter count at a glance
           (the count summarizes; the removable chips below carry the detail).
           Page-level `actions` (e.g. "Exportar CSV →"), "Vistas guardadas"
@@ -357,18 +440,12 @@ export function OpFilterBar({
           searchParams), so "Copiar vista" is a shareable link one click away
           and "Vistas guardadas" lets the operator NAME + recall that same URL
           later, and `actions` lives in the SAME bar instead of floating
-          beside it. */}
-      <div className="flex items-center gap-2 text-ln-op-mute">
+          beside it. Hidden <md — the summary row above carries the identity
+          there, and the header actions re-render inside the expanded panel. */}
+      <div className="hidden items-center gap-2 text-ln-op-mute md:flex">
         <Icon name="filter" size={15} decorative />
         <span className="text-xs font-semibold uppercase tracking-[0.08em]">Filtros</span>
-        {chips.length > 0 && (
-          <span
-            className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ln-op-azul px-1.5 text-xs font-semibold leading-none text-white"
-            aria-label={`Filtros activos: ${chips.length}`}
-          >
-            {chips.length}
-          </span>
-        )}
+        <FilterCountBadge count={chips.length} />
         <div className="flex items-center gap-2 ml-auto">
           {actions}
           {savedViewsKey && <SavedViewsControl storageKey={savedViewsKey} />}
@@ -376,7 +453,21 @@ export function OpFilterBar({
         </div>
       </div>
 
-      {/* Region 2 — unified rail, grouped by kind: SCOPE (period + jurisdiction:
+      {/* Panel body — regions 2 + 3. <md it renders only while the summary row
+          above is expanded; md:block force-shows it on desktop regardless of
+          the mobile toggle, so >=md is byte-identical to the pre-collapse bar. */}
+      <div id={mobilePanelId} className={mobileExpanded ? rhythm : `hidden md:block ${rhythm}`}>
+        {/* Header actions, mobile edition — the desktop header (region 1) is
+          hidden <md, so Exportar/Vistas guardadas/Copiar vista re-render here
+          inside the expanded panel (display:none keeps the hidden copy out of
+          the a11y tree, so the controls never double up). */}
+        <div className="flex flex-wrap items-center gap-2 md:hidden">
+          {actions}
+          {savedViewsKey && <SavedViewsControl storageKey={savedViewsKey} />}
+          <CopyViewButton />
+        </div>
+
+        {/* Region 2 — unified rail, grouped by kind: SCOPE (period + jurisdiction:
           "which universe") is set apart from DOMAIN filters (species / kind /
           severity: "which subset of it"). The split is carried by proximity +
           a hairline divider that only shows when the two groups sit inline
@@ -384,102 +475,103 @@ export function OpFilterBar({
           so grouping never fights the responsive wrap. No boxes, no group
           labels — the structure encodes the scope-vs-content distinction on
           its own. */}
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
-        {/* Scope group — period (optional) + optional jurisdiction. Omitted
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+          {/* Scope group — period (optional) + optional jurisdiction. Omitted
             entirely when neither is present, so the domain group below never
             grows a stray divider with nothing to its left. */}
-        {(showPeriod || jurisdiction) && (
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
-            {showPeriod && (
-              <div className="flex w-full flex-col gap-1 sm:w-auto">
-                <span className={captionClasses}>Período</span>
-                <PeriodPicker
-                  defaultPreset={defaultPreset}
-                  multiYear={period?.multiYear}
-                  presetParamKey={periodKey}
-                  customParamKeys={{ from: fromKey, to: toKey }}
-                />
-              </div>
-            )}
+          {(showPeriod || jurisdiction) && (
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+              {showPeriod && (
+                <div className="flex w-full flex-col gap-1 sm:w-auto">
+                  <span className={captionClasses}>Período</span>
+                  <PeriodPicker
+                    defaultPreset={defaultPreset}
+                    multiYear={period?.multiYear}
+                    presetParamKey={periodKey}
+                    customParamKeys={{ from: fromKey, to: toKey }}
+                  />
+                </div>
+              )}
 
-            {jurisdiction && (
-              <div className="w-full sm:w-auto sm:min-w-[17rem]">
-                <JurisdictionSwitcher
-                  allowedProvinces={jurisdiction.allowedProvinces}
-                  localities={jurisdiction.localities}
-                  paramKeys={{ province: provinceKey, locality: localityKey }}
-                  dropParamsOnNavigate={jurisdiction.dropParamsOnNavigate}
-                />
-              </div>
-            )}
-          </div>
-        )}
+              {jurisdiction && (
+                <div className="w-full sm:w-auto sm:min-w-[17rem]">
+                  <JurisdictionSwitcher
+                    allowedProvinces={jurisdiction.allowedProvinces}
+                    localities={jurisdiction.localities}
+                    paramKeys={{ province: provinceKey, locality: localityKey }}
+                    dropParamsOnNavigate={jurisdiction.dropParamsOnNavigate}
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Domain group — screen-specific axes + free-form slot, set off from
+          {/* Domain group — screen-specific axes + free-form slot, set off from
             the scope group by a hairline divider (sm+ only). The divider only
             applies when a scope group actually rendered above it. */}
-        {(axes.length > 0 || children) && (
-          <div
-            className={[
-              "flex flex-wrap items-end gap-x-4 gap-y-3",
-              (showPeriod || jurisdiction) && "sm:border-l sm:border-ln-op-line-2 sm:pl-5",
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            {axes.map((axis) => {
-              const selectId = `${uid}-${axis.id}`;
-              return (
-                <label
-                  key={axis.id}
-                  htmlFor={selectId}
-                  className="flex w-full flex-col gap-1 sm:w-auto"
-                >
-                  <span className={captionClasses}>{axis.label}</span>
-                  <OpSelect
-                    id={selectId}
-                    className="min-h-11 w-full sm:w-auto sm:min-w-[9rem]"
-                    value={axis.current ?? ""}
-                    onChange={(e) => handleAxisChange(axis, e.target.value)}
-                    aria-label={axis.label}
+          {(axes.length > 0 || children) && (
+            <div
+              className={[
+                "flex flex-wrap items-end gap-x-4 gap-y-3",
+                (showPeriod || jurisdiction) && "sm:border-l sm:border-ln-op-line-2 sm:pl-5",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              {axes.map((axis) => {
+                const selectId = `${uid}-${axis.id}`;
+                return (
+                  <label
+                    key={axis.id}
+                    htmlFor={selectId}
+                    className="flex w-full flex-col gap-1 sm:w-auto"
                   >
-                    <option value="">{axis.allLabel ?? "Todas"}</option>
-                    {axis.options.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </OpSelect>
-                </label>
-              );
-            })}
+                    <span className={captionClasses}>{axis.label}</span>
+                    <OpSelect
+                      id={selectId}
+                      className="min-h-11 w-full sm:w-auto sm:min-w-[9rem]"
+                      value={axis.current ?? ""}
+                      onChange={(e) => handleAxisChange(axis, e.target.value)}
+                      aria-label={axis.label}
+                    >
+                      <option value="">{axis.allLabel ?? "Todas"}</option>
+                      {axis.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </OpSelect>
+                  </label>
+                );
+              })}
 
-            {children}
+              {children}
+            </div>
+          )}
+        </div>
+
+        {/* Region 3 — active-filter chips + clear-all */}
+        {chips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-ln-op-line-2 pt-3">
+            <span className="text-xs font-medium text-ln-op-mute">Filtros activos:</span>
+            {chips.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => commit(chip.clear)}
+                className={chipClasses}
+                aria-label={`Quitar filtro: ${chip.label}`}
+              >
+                <span>{chip.label}</span>
+                <Icon name="close" size={14} decorative />
+              </button>
+            ))}
+            <button type="button" onClick={handleClearAll} className={clearAllClasses}>
+              Limpiar todo
+            </button>
           </div>
         )}
       </div>
-
-      {/* Region 3 — active-filter chips + clear-all */}
-      {chips.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-ln-op-line-2 pt-3">
-          <span className="text-xs font-medium text-ln-op-mute">Filtros activos:</span>
-          {chips.map((chip) => (
-            <button
-              key={chip.id}
-              type="button"
-              onClick={() => commit(chip.clear)}
-              className={chipClasses}
-              aria-label={`Quitar filtro: ${chip.label}`}
-            >
-              <span>{chip.label}</span>
-              <Icon name="close" size={14} decorative />
-            </button>
-          ))}
-          <button type="button" onClick={handleClearAll} className={clearAllClasses}>
-            Limpiar todo
-          </button>
-        </div>
-      )}
     </section>
   );
 }

@@ -418,7 +418,9 @@ export async function PoblacionScreen({
           <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute mb-3">
             Componentes del balance
           </p>
-          <div className="grid grid-cols-3 gap-4 text-center">
+          {/* Stacked below sm (mobile-polish 2026-07): 3-across crushed the
+              stat captions at 390px. */}
+          <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
             <div>
               <p className="text-[11px] text-ln-op-mute">Altas nuevas</p>
               <p className="text-lg font-semibold tabular-nums text-ln-op-ink">

@@ -92,11 +92,19 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
  *  SavedViewsControl.tsx (net +4 there, -4 in the now-thin wrapper — no new
  *  raw buttons overall), and the run also picked up an unrelated -2 drift.
  *  Baseline lowered 325 → 323 to lock in the net gain.
+ *  2026-07-23 (visual review V3, mobile polish — design-review sign-off):
+ *  net +2. (+1) the NEW shared OpIconButton primitive's single internal raw
+ *  <button> — the topbar's mobile search trigger/close now consume it instead
+ *  of two hand-rolled buttons (same net-positive shape as SavedViewsControl
+ *  above). (+1) OpFilterBar's mobile FILTROS summary row: a full-width
+ *  disclosure bar that neither LnButton nor OpButton models (ghost's border
+ *  would double-frame it inside the card); if a second consumer of that shape
+ *  appears, extract an OpDisclosureRow primitive and fold this back.
  *  Target: 0, via migration to LnButton (components/ui/Button.tsx).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const CITIZEN_BASELINE = 323;
+const CITIZEN_BASELINE = 325;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 

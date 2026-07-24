@@ -20,7 +20,7 @@ import type { OmniboxResults } from "@/lib/infra/omnibox-search";
 
 // Hook stubs. useState is call-order driven via a queue so each test can inject
 // a precise state vector. The order of useState calls in OpOmnibox is:
-//   [query, results, open, loading, activeIndex, searched]
+//   [query, results, open, loading, activeIndex, searched, mobileOpen]
 let stateQueue: unknown[] = [];
 let stateCursor = 0;
 
@@ -63,6 +63,8 @@ function renderWithState(state: {
   loading: boolean;
   activeIndex: number;
   searched: boolean;
+  /** Mobile-expanded search row (<md). Defaults collapsed — the desktop states above are what these tests pin. */
+  mobileOpen?: boolean;
 }): string {
   stateQueue = [
     state.query,
@@ -71,6 +73,7 @@ function renderWithState(state: {
     state.loading,
     state.activeIndex,
     state.searched,
+    state.mobileOpen ?? false,
   ];
   stateCursor = 0;
   return renderToStaticMarkup(<OpOmnibox />);

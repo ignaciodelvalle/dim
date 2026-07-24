@@ -426,7 +426,9 @@ export default async function GobMortalidadPage({
         <OpCard aria-labelledby={panelCtxId}>
           <OpCardHead title={<span id={panelCtxId}>Contexto del fallecimiento</span>} />
           <OpCardBody>
-            <div className="grid grid-cols-3 gap-3">
+            {/* Stacked below sm (mobile-polish 2026-07): 3-across crushed the
+                tiles at 390px. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <OpKpiSm
                 label="Confirmado por vet"
                 value={hasDeaths ? formatPercent(m.contextSplits.vetConfirmedRate) : "—"}

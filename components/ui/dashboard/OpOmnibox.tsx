@@ -33,6 +33,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { searchOmniboxAction, searchOmniboxOrgAction } from "@/app/actions/omnibox-search";
 import { Icon, type IconName } from "@/components/Icon";
 import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
+import { OpIconButton } from "@/components/ui/dashboard/OpIconButton";
 import type { CaseStatus } from "@/db/schema";
 import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import type { OmniboxResult, OmniboxResults } from "@/lib/infra/omnibox-search";
@@ -116,6 +117,12 @@ export function OpOmnibox({
   // Tracks whether a search has actually run for the current query, so we only
   // show "no results" after a real round-trip (not while typing the 1st char).
   const [searched, setSearched] = useState(false);
+  // Mobile (<md): the omnibox rests as an icon-only trigger; tapping it expands
+  // a full-width search row overlaying the topbar (mobile-polish 2026-07: the
+  // fixed-width input ran past the 390px viewport edge). >=md is unaffected —
+  // the input renders inline exactly as before. NOTE: this MUST stay the LAST
+  // useState — __tests__/op-omnibox.test.tsx drives state by call order.
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const groups = useMemo(() => buildGroups(results), [results]);
   const flatItems = useMemo(() => groups.flatMap((g) => g.items), [groups]);
@@ -180,9 +187,16 @@ export function OpOmnibox({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Expanding the mobile row moves focus straight into the input — the operator
+  // tapped "search", so the keyboard should be up without a second tap.
+  useEffect(() => {
+    if (mobileOpen) inputRef.current?.focus();
+  }, [mobileOpen]);
+
   const navigateTo = useCallback(
     (href: string) => {
       setOpen(false);
+      setMobileOpen(false);
       setQuery("");
       setResults(EMPTY_RESULTS);
       inputRef.current?.blur();
@@ -208,6 +222,7 @@ export function OpOmnibox({
       }
     } else if (e.key === "Escape") {
       setOpen(false);
+      setMobileOpen(false);
       setActiveIndex(-1);
     }
   }
@@ -223,155 +238,206 @@ export function OpOmnibox({
   let runningIndex = -1;
 
   return (
-    <div className="relative">
-      <Icon
-        name="search"
-        size={15}
-        decorative
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ln-op-mute"
-      />
-      <input
-        ref={inputRef}
-        type="text"
-        role="combobox"
-        aria-expanded={showDropdown}
-        aria-controls={listboxId}
-        aria-autocomplete="list"
-        aria-activedescendant={activeDescendant}
-        aria-label="Búsqueda global"
-        // System search only — no browser autofill/history overlay.
-        {...NO_BROWSER_AUTOFILL}
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // Delay close so a click on an option registers before the dropdown
-          // unmounts. 150ms is below perceptible lag.
-          setTimeout(() => setOpen(false), 150);
-        }}
-        onKeyDown={onInputKeyDown}
-        // PO fix (validacion-A 2026-07-23): the old placeholder ("Buscar
-        // mascota, nombre, DNI o caso…", 36 chars) truncated inside the
-        // collapsed w-48/md:w-56 input — the affordance describing what's
-        // searchable was unreadable at rest. Dropping the redundant "Buscar"
-        // verb (the search icon + aria-label already say "this is search")
-        // shortens it to 29 chars without losing any of the four enumerated
-        // categories, and the box widened (w-64/md:w-72, growing further on
-        // focus) so it reads complete without needing to focus first.
-        placeholder={orgToken ? "Mascota…" : "Mascota, nombre, DNI o caso…"}
-        className="w-64 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:w-72 focus:outline-none focus:ring-2 focus:ring-ln-op-azul md:w-72 md:focus:w-80 transition-[width]"
-      />
+    <>
+      {/* Mobile trigger (<md) — icon-only, same 40px hit-area idiom as the
+          AppShellDrawer hamburger. Tapping it expands the full-width search
+          row below; >=md it disappears and the inline input takes over. */}
+      <OpIconButton
+        bordered
+        aria-label="Abrir búsqueda"
+        aria-expanded={mobileOpen}
+        onClick={() => setMobileOpen(true)}
+        className="md:hidden"
+      >
+        <Icon name="search" size={16} decorative />
+      </OpIconButton>
 
-      {/* Keyboard shortcut hint — only when empty + unfocused-ish (always shown
+      {/* Search region. Collapsed mobile state: hidden entirely (<md).
+          Expanded mobile state: an absolute row covering the whole topbar
+          (the sticky <header> is the positioned ancestor), full-width input +
+          close button. >=md: static inline block — identical to the old
+          markup in both states. */}
+      <div
+        className={
+          mobileOpen
+            ? "absolute inset-x-0 top-0 z-10 flex h-full items-center gap-1 bg-ln-op-card px-3 md:static md:z-auto md:block md:h-auto md:bg-transparent md:px-0"
+            : "hidden md:block"
+        }
+      >
+        <div className="relative min-w-0 flex-1 md:flex-none">
+          <Icon
+            name="search"
+            size={15}
+            decorative
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ln-op-mute"
+          />
+          <input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded={showDropdown}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={activeDescendant}
+            aria-label="Búsqueda global"
+            // System search only — no browser autofill/history overlay.
+            {...NO_BROWSER_AUTOFILL}
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => {
+              // Delay close so a click on an option registers before the dropdown
+              // unmounts. 150ms is below perceptible lag.
+              setTimeout(() => setOpen(false), 150);
+            }}
+            onKeyDown={onInputKeyDown}
+            // PO fix (validacion-A 2026-07-23): the old placeholder ("Buscar
+            // mascota, nombre, DNI o caso…", 36 chars) truncated inside the
+            // collapsed w-48/md:w-56 input — the affordance describing what's
+            // searchable was unreadable at rest. Dropping the redundant "Buscar"
+            // verb (the search icon + aria-label already say "this is search")
+            // shortens it to 29 chars without losing any of the four enumerated
+            // categories, and the box widened (w-64/md:w-72, growing further on
+            // focus) so it reads complete without needing to focus first.
+            placeholder={orgToken ? "Mascota…" : "Mascota, nombre, DNI o caso…"}
+            // Width: full-width inside the expanded mobile row; the resting
+            // w-64/md:w-72 (+focus growth) is unchanged at >=md.
+            className={[
+              "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul transition-[width]",
+              mobileOpen ? "w-full md:w-72 md:focus:w-80" : "w-64 focus:w-72 md:w-72 md:focus:w-80",
+            ].join(" ")}
+          />
+
+          {/* Keyboard shortcut hint — only when empty + unfocused-ish (always shown
           when the field is empty so the affordance is discoverable). */}
-      {query.length === 0 && (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs font-ln-mono text-ln-op-mute"
-        >
-          /
-        </span>
-      )}
-
-      {showDropdown && (
-        // WAI-ARIA combobox listbox popup. The a11y roles (listbox/option) are
-        // required by the APG pattern and intentionally allowed on <div> via the
-        // biome override for this file. tabIndex={-1} keeps the popup focusable.
-        <div
-          id={listboxId}
-          role="listbox"
-          tabIndex={-1}
-          aria-label="Resultados de búsqueda"
-          className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 max-w-[92vw] overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)] sm:w-96"
-        >
-          {loading && (
-            <div className="flex items-center gap-2 px-4 py-3 text-sm text-ln-op-mute">
-              <span
-                aria-hidden="true"
-                className="h-3 w-3 animate-spin rounded-full border-2 border-ln-op-line border-t-ln-op-azul"
-              />
-              Buscando…
-            </div>
+          {query.length === 0 && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs font-ln-mono text-ln-op-mute"
+            >
+              /
+            </span>
           )}
 
-          {!loading && noResults && (
-            // Empty state (operator-trust T4): state the miss, then SUGGEST the
-            // formats that work so the operator knows what to type. The
-            // "en tu jurisdicción" qualifier is dropped for universal scope
-            // (admin) — it has no territorial limit and the copy must not imply
-            // one.
-            //
-            // search/omnibox-upgrade: pets ARE now searchable by token/name/
-            // chip for admin/govt too (jurisdiction-scoped — see
-            // lib/infra/omnibox-search.ts searchAdminGovtPets), not just the
-            // org variant. A DIM-token miss now reads as an ordinary scoped
-            // miss rather than naming a fence that no longer exists.
-            <div className="px-4 py-3 text-sm text-ln-op-mute">
-              <p>
-                {universalScope
-                  ? queriedDimToken
-                    ? "No encontramos esa mascota."
-                    : "Sin coincidencias"
-                  : queriedDimToken
-                    ? "No encontramos esa mascota en tu jurisdicción."
-                    : "Sin coincidencias en tu jurisdicción"}
-              </p>
-              <p className="mt-1 text-[var(--text-xs)] text-ln-op-mute">
-                {orgToken
-                  ? "Probá con el nombre de la mascota o su código (DIM-…)."
-                  : "Probá con el nombre o token (DIM-…) de una mascota, un código de caso (CAS-…), de denuncia (DEN-…), o nombre, apellido o DNI."}
+          {showDropdown && (
+            // WAI-ARIA combobox listbox popup. The a11y roles (listbox/option) are
+            // required by the APG pattern and intentionally allowed on <div> via the
+            // biome override for this file. tabIndex={-1} keeps the popup focusable.
+            <div
+              id={listboxId}
+              role="listbox"
+              tabIndex={-1}
+              aria-label="Resultados de búsqueda"
+              className="absolute right-0 z-[var(--z-header)] mt-1 max-h-[60vh] w-80 max-w-[92vw] overflow-y-auto rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-[0_18px_50px_rgba(20,40,60,.22)] sm:w-96"
+            >
+              {loading && (
+                <div className="flex items-center gap-2 px-4 py-3 text-sm text-ln-op-mute">
+                  <span
+                    aria-hidden="true"
+                    className="h-3 w-3 animate-spin rounded-full border-2 border-ln-op-line border-t-ln-op-azul"
+                  />
+                  Buscando…
+                </div>
+              )}
+
+              {!loading && noResults && (
+                // Empty state (operator-trust T4): state the miss, then SUGGEST the
+                // formats that work so the operator knows what to type. The
+                // "en tu jurisdicción" qualifier is dropped for universal scope
+                // (admin) — it has no territorial limit and the copy must not imply
+                // one.
+                //
+                // search/omnibox-upgrade: pets ARE now searchable by token/name/
+                // chip for admin/govt too (jurisdiction-scoped — see
+                // lib/infra/omnibox-search.ts searchAdminGovtPets), not just the
+                // org variant. A DIM-token miss now reads as an ordinary scoped
+                // miss rather than naming a fence that no longer exists.
+                <div className="px-4 py-3 text-sm text-ln-op-mute">
+                  <p>
+                    {universalScope
+                      ? queriedDimToken
+                        ? "No encontramos esa mascota."
+                        : "Sin coincidencias"
+                      : queriedDimToken
+                        ? "No encontramos esa mascota en tu jurisdicción."
+                        : "Sin coincidencias en tu jurisdicción"}
+                  </p>
+                  <p className="mt-1 text-[var(--text-xs)] text-ln-op-mute">
+                    {orgToken
+                      ? "Probá con el nombre de la mascota o su código (DIM-…)."
+                      : "Probá con el nombre o token (DIM-…) de una mascota, un código de caso (CAS-…), de denuncia (DEN-…), o nombre, apellido o DNI."}
+                  </p>
+                </div>
+              )}
+
+              {!loading &&
+                groups.map((group) => (
+                  <div key={group.key} className="border-b border-ln-op-line-2 last:border-b-0">
+                    <p className="flex items-center gap-1.5 px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+                      <Icon name={GROUP_ICON[group.key]} size={12} decorative />
+                      {group.label}
+                    </p>
+                    {group.items.map((item) => {
+                      runningIndex += 1;
+                      const idx = runningIndex;
+                      const optionId = `${optionBaseId}-${idx}`;
+                      const isActive = idx === activeIndex;
+                      return (
+                        <div
+                          key={`${item.type}-${item.id}`}
+                          id={optionId}
+                          role="option"
+                          tabIndex={-1}
+                          aria-selected={isActive}
+                          onMouseDown={(e) => {
+                            // mousedown (not click) so it fires before input blur
+                            // closes the dropdown.
+                            e.preventDefault();
+                            navigateTo(item.href);
+                          }}
+                          onMouseEnter={() => setActiveIndex(idx)}
+                          className={[
+                            "cursor-pointer px-4 py-2",
+                            isActive ? "bg-ln-op-stripe" : "",
+                          ].join(" ")}
+                        >
+                          <p className="text-[13px] leading-snug text-ln-op-ink">
+                            {resultLabel(item)}
+                          </p>
+                          <p className="text-[11px] leading-snug text-ln-op-mute">
+                            {resultMeta(item)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+
+              {/* PII audit notice — always visible at the bottom when the dropdown is open. */}
+              <p className="border-t border-ln-op-line px-4 py-2 text-xs text-ln-op-mute">
+                Las búsquedas quedan registradas.
               </p>
             </div>
           )}
-
-          {!loading &&
-            groups.map((group) => (
-              <div key={group.key} className="border-b border-ln-op-line-2 last:border-b-0">
-                <p className="flex items-center gap-1.5 px-4 pt-2 pb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-                  <Icon name={GROUP_ICON[group.key]} size={12} decorative />
-                  {group.label}
-                </p>
-                {group.items.map((item) => {
-                  runningIndex += 1;
-                  const idx = runningIndex;
-                  const optionId = `${optionBaseId}-${idx}`;
-                  const isActive = idx === activeIndex;
-                  return (
-                    <div
-                      key={`${item.type}-${item.id}`}
-                      id={optionId}
-                      role="option"
-                      tabIndex={-1}
-                      aria-selected={isActive}
-                      onMouseDown={(e) => {
-                        // mousedown (not click) so it fires before input blur
-                        // closes the dropdown.
-                        e.preventDefault();
-                        navigateTo(item.href);
-                      }}
-                      onMouseEnter={() => setActiveIndex(idx)}
-                      className={[
-                        "cursor-pointer px-4 py-2",
-                        isActive ? "bg-ln-op-stripe" : "",
-                      ].join(" ")}
-                    >
-                      <p className="text-[13px] leading-snug text-ln-op-ink">{resultLabel(item)}</p>
-                      <p className="text-[11px] leading-snug text-ln-op-mute">{resultMeta(item)}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
-          {/* PII audit notice — always visible at the bottom when the dropdown is open. */}
-          <p className="border-t border-ln-op-line px-4 py-2 text-xs text-ln-op-mute">
-            Las búsquedas quedan registradas.
-          </p>
         </div>
-      )}
-    </div>
+
+        {/* Mobile close — collapses the row back to the icon trigger. */}
+        {mobileOpen && (
+          <OpIconButton
+            aria-label="Cerrar búsqueda"
+            onClick={() => {
+              setMobileOpen(false);
+              setOpen(false);
+            }}
+            className="md:hidden"
+          >
+            <Icon name="close" size={16} decorative />
+          </OpIconButton>
+        )}
+      </div>
+    </>
   );
 }

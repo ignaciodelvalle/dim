@@ -637,7 +637,9 @@ export default async function GobAdopcionesPage({
       <OpCard aria-labelledby={panelFosterPoolId}>
         <OpCardHead title={<span id={panelFosterPoolId}>Pool de tránsitos</span>} />
         <OpCardBody>
-          <div className="grid grid-cols-3 gap-4">
+          {/* Stacked below sm (mobile-polish 2026-07): 3-across crushed the
+              stat captions at 390px. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="text-center">
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeVolunteers.toLocaleString("es-AR")}

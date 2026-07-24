@@ -220,6 +220,18 @@ function ZoneDetail({ zone }: { zone: Extract<ZoneSelection, { selected: true }>
   );
 }
 
+/** The `?zona=/?provincia=` expansion link for one aggregate zone row — shared
+ *  by the sm+ table and the <sm card list so the two renderings can never
+ *  drift apart on the URL contract. */
+function zoneExpandHref(zoneRow: { locality: string | null; province: string | null }): string {
+  return `?zona=${encodeURIComponent(zoneParamValue(zoneRow.locality))}&provincia=${encodeURIComponent(
+    zoneParamValue(zoneRow.province),
+  )}`;
+}
+
+const ZONE_ACTION_LINK_CLASSES =
+  "rounded-[var(--radius-op-btn,6px)] border border-[var(--color-ln-op-azul)] bg-[var(--color-ln-op-azul)] text-[var(--text-sm)] font-semibold text-white hover:bg-[var(--color-ln-op-azul-700)]";
+
 function ZoneAggregates({
   overdueByLocality,
   totalPets,
@@ -229,7 +241,46 @@ function ZoneAggregates({
 }) {
   return (
     <>
-      <table className="w-full text-sm border-collapse">
+      {/* <sm card list (mobile-polish 2026-07): in the table below, the
+          "Armar operativo →" button crowded the counts at 390px. Each zone
+          becomes a card — locality/count on the content row, the action on
+          its own full-width row beneath. Hidden at sm+, where the table
+          (proper th/caption semantics) takes over. */}
+      <ul
+        aria-label="Localidades con mascotas con antirrábica vencida"
+        className="space-y-2 sm:hidden"
+      >
+        {overdueByLocality.map((zoneRow) => (
+          <li
+            key={`${zoneRow.province ?? "—"}|${zoneRow.locality ?? "—"}`}
+            className="rounded-[var(--radius-md)] border border-ln-op-line p-3"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="min-w-0">
+                <span className="block truncate font-medium text-ln-op-ink">
+                  {zoneRow.locality ?? "Sin localidad registrada"}
+                </span>
+                <span className="block text-[var(--text-sm)] text-ln-op-mute">
+                  {zoneRow.province ?? "—"}
+                </span>
+              </p>
+              <p className="flex-shrink-0 text-right">
+                <span className="block tabular-nums font-semibold text-ln-op-danger">
+                  {zoneRow.count}
+                </span>
+                <span className="block text-[var(--text-xs)] text-ln-op-mute">vencidas</span>
+              </p>
+            </div>
+            <Link
+              href={zoneExpandHref(zoneRow)}
+              className={`mt-2 flex w-full items-center justify-center gap-1 px-2.5 py-2 ${ZONE_ACTION_LINK_CLASSES}`}
+            >
+              Armar operativo →
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <table className="hidden w-full text-sm border-collapse sm:table">
         <caption className="sr-only">
           Localidades con mascotas con antirrábica vencida, de mayor a menor
         </caption>
@@ -264,10 +315,8 @@ function ZoneAggregates({
               </td>
               <td className="py-1.5 text-right">
                 <Link
-                  href={`?zona=${encodeURIComponent(
-                    zoneParamValue(zoneRow.locality),
-                  )}&provincia=${encodeURIComponent(zoneParamValue(zoneRow.province))}`}
-                  className="inline-flex items-center gap-1 rounded-[var(--radius-op-btn,6px)] border border-[var(--color-ln-op-azul)] bg-[var(--color-ln-op-azul)] px-2.5 py-1 text-[var(--text-sm)] font-semibold text-white hover:bg-[var(--color-ln-op-azul-700)]"
+                  href={zoneExpandHref(zoneRow)}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 ${ZONE_ACTION_LINK_CLASSES}`}
                 >
                   Armar operativo →
                 </Link>
@@ -373,7 +422,9 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
       />
 
       {/* Summary KPIs */}
-      <section aria-label="Resumen de pipelines" className="grid grid-cols-3 gap-3">
+      {/* Stacked below sm (mobile-polish 2026-07): 3-across at 390px crushed
+          the tiles — info icons collided with wrapped titles. */}
+      <section aria-label="Resumen de pipelines" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <OpKpi
           label="Antirrábica vencida"
           value={String(overdueResult.pets.length)}

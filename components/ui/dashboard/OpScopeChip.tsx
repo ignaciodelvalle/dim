@@ -16,6 +16,12 @@ type Props = {
  * The "neutral" variant (D1) is an outline chip in --ln-op-* tokens: it reads as
  * secondary chrome, lighter than the page H1, instead of a saturated badge that
  * competes with the heading.
+ *
+ * Mobile (<md): the secondary `label` (the mandate text, e.g. "3 provincias")
+ * is hidden so the chip collapses to its short form — the portal code only.
+ * This is disclosure CHROME, not lost information: every page carries its own
+ * ViewScopeCaption, and the full mandate returns at >=md. Without this the chip
+ * clipped mid-word under the topbar search field at 390px.
  */
 export function OpScopeChip({ code, label, variant = "default" }: Props) {
   if (variant === "neutral") {
@@ -25,7 +31,9 @@ export function OpScopeChip({ code, label, variant = "default" }: Props) {
           {code}
         </span>
         {label && (
-          <span className="text-xs uppercase tracking-[0.04em] text-ln-op-mute">· {label}</span>
+          <span className="hidden text-xs uppercase tracking-[0.04em] text-ln-op-mute md:inline">
+            · {label}
+          </span>
         )}
       </span>
     );
@@ -48,7 +56,9 @@ export function OpScopeChip({ code, label, variant = "default" }: Props) {
     >
       <span className="font-ln-mono font-bold tracking-[0.04em]">{code}</span>
       {label && (
-        <span className="text-xs uppercase tracking-[0.04em] text-ln-op-rail-mute">· {label}</span>
+        <span className="hidden text-xs uppercase tracking-[0.04em] text-ln-op-rail-mute md:inline">
+          · {label}
+        </span>
       )}
     </span>
   );
