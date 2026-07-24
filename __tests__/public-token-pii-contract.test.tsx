@@ -129,6 +129,7 @@ vi.mock("@/lib/utils/format", () => ({
   situationLabelForSex: vi.fn((label: string) => label),
   foundPossessivePhrase: vi.fn(() => "La tengo conmigo"),
   sightingPhrase: vi.fn(() => "La vi cerca de acá"),
+  foundReportPrompt: vi.fn(() => "¿La encontraste? Reportala"),
 }));
 vi.mock("@/lib/reference/lookups", () => ({ tattooLocationLabel: vi.fn(() => null) }));
 vi.mock("@/lib/ui/branding", () => ({
@@ -405,6 +406,52 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     // Email gap CLOSED (pet-state-header R3.4.12): the disclosed email now
     // reaches the lost sections (mailto CTA).
     expect(html).toContain(EMAIL);
+  });
+
+  it("LOST + open custody dispute (D2): disclosed contact PII is suppressed EVERYWHERE — in-card CTAs and the sticky action bar — while the reporting CTAs stay", async () => {
+    // All disclose flags ON, but a custody dispute is open: no contested-owner
+    // contact may render anywhere. The sticky action bar (mobile primary CTA)
+    // computes its own tel: href from lostContext — this pins that it applies
+    // the SAME dispute gate as the PublicLostSections props, so a regression
+    // in either path fails here.
+    const pet = {
+      ...lostPet({ firstName: true, phone: true, email: true, location: true }),
+      inCustodyDispute: true,
+    };
+    mockDbSelect.mockImplementation(
+      buildSequencedSelectChain([
+        [{ pet, photo: null }],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [OWNER_ROW],
+        [LOST_EVENT_ROW],
+      ]),
+    );
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
+
+    const element = await PublicCredentialPage({
+      params: Promise.resolve({ publicToken: pet.publicToken }),
+    });
+    const html = renderToStaticMarkup(element as React.ReactElement);
+
+    // The system-routed reporting path stays available (sticky bar primary:
+    // allowFinderFormWhenLost is false in the fixture → sighting form).
+    expect(html).toContain('data-section="sticky-action-bar"');
+    expect(html).toContain("/sighting");
+
+    // No direct-contact channel anywhere: no tel: href (bar or card), no
+    // phone/email/name marker in the whole render.
+    expect(html).not.toContain("tel:");
+    for (const marker of [PHONE, EMAIL, FULL_NAME, FIRST_NAME]) {
+      expect(
+        html,
+        `contested-owner contact marker "${marker}" leaked despite the open custody dispute (D2)`,
+      ).not.toContain(marker);
+    }
   });
 
   it("LOST credential stamps the public masthead with data-situation=perdida", async () => {

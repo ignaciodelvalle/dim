@@ -527,6 +527,21 @@ export function sightingPhrase(sex: string | null | undefined): string {
   }
 }
 
+/** Found-report prompt on a NOT-lost public credential (sticky action bar,
+ * cursor citizen review P3) — the finder path stays useful for a
+ * found-but-not-marked-lost pet. Voseo imperative with enclitic pronoun. */
+export function foundReportPrompt(sex: string | null | undefined): string {
+  switch (normalizeSex(sex)) {
+    case "male":
+      return "¿Lo encontraste? Reportalo";
+    case "female":
+      return "¿La encontraste? Reportala";
+    default:
+      // Neutral: sidesteps the lo/la pronoun when sex is unknown.
+      return "¿Encontraste a esta mascota? Reportá";
+  }
+}
+
 /**
  * Owner-side action label / sheet title: "Marcar como perdido" / "Marcar como
  * perdida" / "Marcar como perdido/a". Ciclo-perdido sweep (tester ronda

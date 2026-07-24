@@ -47,8 +47,12 @@ import { BRANDING } from "@/lib/ui/branding";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   AR_TIME_ZONE,
+  foundPossessivePhrase,
+  foundReportPrompt,
+  normalizePhoneForTel,
   pluralizeEs,
   sexLabel,
+  sightingPhrase,
   situationLabelForSex,
   speciesLabel,
   statusLabel,
@@ -59,6 +63,12 @@ import { headers } from "next/headers";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import {
+  CredentialActionBar,
+  type CredentialActionBarProps,
+  MEDICAL_SECTION_ID,
+  REPORT_SECTION_ID,
+} from "./CredentialActionBar";
 import {
   CredentialOriginOrg,
   CredentialTier2Medical,
@@ -408,6 +418,36 @@ export default async function PublicCredentialPage({
     .join(" · ");
   const ageLabel = ageYears !== null ? `${ageYears} ${pluralizeEs(ageYears, "año")}` : null;
 
+  // Sticky primary CTA (mobile <sm) — cursor citizen review P3: one verb for
+  // the street scanner, per state. EVERY disclosure decision is resolved HERE,
+  // server-side, so the client bar never receives undisclosed PII:
+  //   lost     → finder form (owner-allowed) else sighting form; secondary
+  //              "Llamar" only when the phone is disclosed AND no custody
+  //              dispute is open (D2 — never contact a contested owner; the
+  //              reporting CTAs route through the system and stay available).
+  //   active   → tier2 visible: scroll to the medical summary (low urgency);
+  //              tier 0: open + scroll to the existing found-report form.
+  //   deceased → no bar (memorial — there is no useful street action).
+  const actionBar: CredentialActionBarProps | null = isLost
+    ? {
+        mode: "lost",
+        primaryHref: pet.allowFinderFormWhenLost
+          ? `/p/${publicToken}/encontre`
+          : `/p/${publicToken}/sighting`,
+        primaryLabel: pet.allowFinderFormWhenLost
+          ? foundPossessivePhrase(pet.sex)
+          : sightingPhrase(pet.sex),
+        phoneHref:
+          pet.disclosePhoneWhenLost && !pet.inCustodyDispute && lostContext?.phone
+            ? `tel:${normalizePhoneForTel(lostContext.phone) ?? lostContext.phone}`
+            : null,
+      }
+    : pet.status === "active"
+      ? tier2Active
+        ? { mode: "medical" }
+        : { mode: "report", label: foundReportPrompt(pet.sex) }
+      : null;
+
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
     <div className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
@@ -430,7 +470,9 @@ export default async function PublicCredentialPage({
         }}
       />
 
-      <div className="mx-auto max-w-[460px] px-4 py-6 pb-14">
+      {/* When the sticky bar renders, mobile bottom padding grows so the last
+          content (credential footer) is never hidden behind the fixed bar. */}
+      <div className={`mx-auto max-w-[460px] px-4 py-6 ${actionBar ? "pb-28 sm:pb-14" : "pb-14"}`}>
         {/* ------------------------------------------------------------------ */}
         {/* TIER 0+ emergency-info banner — sticky on mobile, always visible.  */}
         {/* Non-hideable by design: the medical alert is the point of 0+.      */}
@@ -678,35 +720,37 @@ export default async function PublicCredentialPage({
             />
           )}
 
-          {/* Tier 2 enabled notice */}
+          {/* Tier 2 — enabled notice + streamed medical summary (#16a), wrapped
+              with the sticky bar's "Ver resumen médico" scroll target. The
+              wrapper is style-neutral (the seam divs inside are unchanged);
+              scroll-mt clears the sticky emergency banner when present. */}
           {tier2Active && (
-            <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-4 py-2.5 font-[var(--font-ln-mono)] text-xs leading-[1.5] tracking-[.02em] text-ln-azul-700">
-              <Icon name="unlock" size="sm" decorative />
-              {pet.tier2PublicPermanent
-                ? "El dueño habilitó la libreta médica de forma permanente"
-                : tier2EnabledUntil
-                  ? `El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: AR_TIME_ZONE })}`
-                  : null}
-            </div>
-          )}
+            <div id={MEDICAL_SECTION_ID} className="scroll-mt-24">
+              <div className="flex items-center gap-[7px] border-t border-ln-celeste-100 bg-ln-celeste-050 px-4 py-2.5 font-[var(--font-ln-mono)] text-xs leading-[1.5] tracking-[.02em] text-ln-azul-700">
+                <Icon name="unlock" size="sm" decorative />
+                {pet.tier2PublicPermanent
+                  ? "El dueño habilitó la libreta médica de forma permanente"
+                  : tier2EnabledUntil
+                    ? `El dueño habilitó la libreta médica hasta el ${tier2EnabledUntil.toLocaleString("es-AR", { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: AR_TIME_ZONE })}`
+                    : null}
+              </div>
 
-          {/* Tier 2 medical summary — STREAMED (#16a). The shell (photo, name,
-              identity) paints first; this heavy vaccination projection streams in
-              behind a skeleton that reserves its height so the sections below do
-              not jump. Same rendered output as the former inline block. */}
-          {tier2Active && (
-            <Suspense fallback={<CredentialTier2MedicalSkeleton />}>
-              <CredentialTier2Medical
-                petId={pet.id}
-                sex={pet.sex}
-                species={pet.species}
-                jurisdictionProvince={pet.jurisdictionProvince}
-                jurisdictionLocality={pet.jurisdictionLocality}
-                enabledUntil={tier2EnabledUntil}
-                permanentConditions={pet.permanentConditions ?? []}
-                permanentConditionsOther={pet.permanentConditionsOther}
-              />
-            </Suspense>
+              {/* The shell (photo, name, identity) paints first; this heavy
+                  vaccination projection streams in behind a skeleton that
+                  reserves its height so the sections below do not jump. */}
+              <Suspense fallback={<CredentialTier2MedicalSkeleton />}>
+                <CredentialTier2Medical
+                  petId={pet.id}
+                  sex={pet.sex}
+                  species={pet.species}
+                  jurisdictionProvince={pet.jurisdictionProvince}
+                  jurisdictionLocality={pet.jurisdictionLocality}
+                  enabledUntil={tier2EnabledUntil}
+                  permanentConditions={pet.permanentConditions ?? []}
+                  permanentConditionsOther={pet.permanentConditionsOther}
+                />
+              </Suspense>
+            </div>
           )}
 
           {/* Identity section */}
@@ -768,7 +812,10 @@ export default async function PublicCredentialPage({
 
           {/* "Found this pet?" action area */}
           <div className="border-t border-ln-line bg-ln-stripe px-4 py-3.5">
-            <details className="group">
+            {/* id: the sticky bar's tier-0 "report" action opens + scrolls to
+                this existing form (no new flow); scroll-mt clears the sticky
+                emergency banner when present. */}
+            <details id={REPORT_SECTION_ID} className="group scroll-mt-24">
               <summary className="flex cursor-pointer list-none select-none items-center justify-between gap-3">
                 <div>
                   <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
@@ -800,6 +847,10 @@ export default async function PublicCredentialPage({
         </div>
         {/* END CREDENTIAL CARD */}
       </div>
+
+      {/* Sticky primary CTA — mobile only (<sm); desktop keeps the inline
+          actions. All props pre-gated above (disclosure + D2 dispute). */}
+      {actionBar && <CredentialActionBar {...actionBar} />}
     </div>
   );
 }

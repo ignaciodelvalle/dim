@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   foundParticiple,
   foundPossessivePhrase,
+  foundReportPrompt,
   lastSeenHeadingLabel,
   lostBannerHeadline,
   lostFirstPersonLine,
@@ -98,6 +99,19 @@ describe("sightingPhrase", () => {
     expect(sightingPhrase(null)).toBe("Vi a la mascota cerca de acá");
     expect(sightingPhrase(undefined)).toBe("Vi a la mascota cerca de acá");
     expect(sightingPhrase("nonsense")).toBe("Vi a la mascota cerca de acá");
+  });
+});
+
+describe("foundReportPrompt", () => {
+  it("genders by sex (voseo imperative + enclitic pronoun)", () => {
+    expect(foundReportPrompt("male")).toBe("¿Lo encontraste? Reportalo");
+    expect(foundReportPrompt("female")).toBe("¿La encontraste? Reportala");
+  });
+  it("neutral for unknown/null/garbage", () => {
+    expect(foundReportPrompt("unknown")).toBe("¿Encontraste a esta mascota? Reportá");
+    expect(foundReportPrompt(null)).toBe("¿Encontraste a esta mascota? Reportá");
+    expect(foundReportPrompt(undefined)).toBe("¿Encontraste a esta mascota? Reportá");
+    expect(foundReportPrompt("nonsense")).toBe("¿Encontraste a esta mascota? Reportá");
   });
 });
 

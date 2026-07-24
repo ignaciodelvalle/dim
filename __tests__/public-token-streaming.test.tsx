@@ -107,6 +107,7 @@ vi.mock("@/lib/utils/format", () => ({
   situationLabelForSex: vi.fn((label: string) => label),
   foundPossessivePhrase: vi.fn(() => "La tengo conmigo"),
   sightingPhrase: vi.fn(() => "La vi cerca de acá"),
+  foundReportPrompt: vi.fn(() => "¿La encontraste? Reportala"),
 }));
 vi.mock("@/lib/domain/location", () => ({ readPoint: vi.fn(() => null) }));
 vi.mock("@/lib/reference/permanent-conditions", () => ({

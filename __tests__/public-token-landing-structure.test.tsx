@@ -130,6 +130,7 @@ vi.mock("@/lib/utils/format", () => ({
   situationLabelForSex: vi.fn((label: string) => label),
   foundPossessivePhrase: vi.fn(() => "La tengo conmigo"),
   sightingPhrase: vi.fn(() => "La vi cerca de acá"),
+  foundReportPrompt: vi.fn(() => "¿La encontraste? Reportala"),
 }));
 // LostPublicCredential deps (lost render path).
 vi.mock("@/lib/reference/lookups", () => ({ tattooLocationLabel: vi.fn(() => null) }));
