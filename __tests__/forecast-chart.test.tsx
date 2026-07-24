@@ -160,25 +160,26 @@ describe("ForecastChart — insufficient data", () => {
 
 // B1 — Forecast no longer renders an empty SVG.
 //
-// SSR note: recharts' ResponsiveContainer emits no <svg> in renderToStaticMarkup
-// (it renders a 0×0 div placeholder). We use two reliable proxies instead:
-//   - happy path  → "recharts-responsive-container" class: recharts IS mounted
-//   - insufficient → its absence: recharts is NOT mounted (no empty SVG possible)
-// The "min-height" style on the sized wrapper ensures ResponsiveContainer can't
-// collapse to 0 on first browser paint (the actual B1 fix).
+// SSR note: the ResponsiveContainer is CLIENT-GATED (red-team-admin-2 P2.8) —
+// ChartSizingBox only mounts it once the box has measured a non-zero width, so
+// recharts never sees a 0/-1 dimension. It is therefore absent from
+// renderToStaticMarkup entirely. The reliable SSR proxies are the SIZED BOX:
+//   - happy path  → `data-forecast-chart` box with a concrete height IS present
+//   - insufficient → that box is ABSENT (the honest "insufficient" state instead)
+// The concrete height on that box is what guarantees the container can't collapse
+// to 0 once it mounts on the client (the actual B1 fix).
 describe("ForecastChart — B1: never an empty chart box", () => {
   it("gives the chart a concrete-height container so ResponsiveContainer can't collapse to 0", () => {
     const result = projectSeries(RISING, { horizon: 3 });
     const html = renderToStaticMarkup(
       <ForecastChart result={result} seriesLabel="Antirrábica" height={300} />,
     );
-    // The chart branch renders a sized box (the B1 fix), not a bare ResponsiveContainer.
+    // The chart branch renders a sized box (the B1 fix). The ResponsiveContainer
+    // itself is client-gated, so we assert the box + its concrete height, which
+    // is what prevents a 0-dimension mount on the client.
     expect(html).toContain('data-forecast-chart="true"');
     expect(html).toContain("min-height:300px");
     expect(html).toContain('data-forecast-insufficient="false"');
-    // recharts IS mounted in the happy path (the container that would produce
-    // a non-empty SVG in the browser is present).
-    expect(html).toContain("recharts-responsive-container");
   });
 
   it("falls back to the honest insufficient state when there are < 2 actuals (no empty SVG)", () => {
