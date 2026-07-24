@@ -155,6 +155,15 @@ function KpiCard({
         >
           {temporalFrameActive ? "estado actual · no varía con la fecha" : "estado actual"}
         </span>
+      ) : kpi.fixedWindowLabel ? (
+        // #12a: a flow KPI on a FIXED window (e.g. mordeduras · 12 meses) — its
+        // own label, never the generic "período" that implies the picker moves it.
+        <span
+          className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          title="Valor de flujo de una ventana fija: no cambia con la línea de tiempo (a diferencia de un valor de período, que sigue el selector)."
+        >
+          {kpi.fixedWindowLabel}
+        </span>
       ) : (
         <span
           className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"

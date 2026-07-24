@@ -133,6 +133,14 @@ export type PanoramaKpi = {
    * letting it masquerade as the in-view count. Absent → no secondary line.
    */
   secondary?: string;
+  /**
+   * Red-team-admin #12a: a flow KPI whose window is FIXED (not the scrubber's
+   * selected period) — e.g. "mordeduras (12 meses)". Without this, the chip
+   * renders the generic "período" tag identical to period-following flows like
+   * denuncias, implying the picker moves it when it does not. Present → the chip
+   * shows THIS label (e.g. "12 meses fijos") instead of "período".
+   */
+  fixedWindowLabel?: string;
   /** Optional progress-bar fill 0..100 (rabies coverage). */
   bar?: number;
   tone: KpiTone;
@@ -804,6 +812,10 @@ export async function getPanoramaKpis(
       sub: bites.percapitaEligible
         ? `${formatCount(bites.reports)} ${bites.reports === 1 ? "reporte" : "reportes"}`
         : "sin padrón censal local",
+      // #12a: this window is a FIXED trailing 12 months, NOT the scrubber's
+      // selected period — declare it so the chip tags "12 meses fijos" instead
+      // of the generic "período" (which implies the picker moves this number).
+      fixedWindowLabel: "12 meses fijos",
       // A genuine zero (0 reports) is a neutral state, not an "Atención": gate the
       // warn semaphore on reports > 0 (mirrors app/gob/page.tsx). Without this the
       // tile flags a warning over "0" — starker now that the sub-province path

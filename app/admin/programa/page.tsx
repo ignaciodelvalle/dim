@@ -319,6 +319,7 @@ export default async function AdminProgramaPage({
           label="Total registradas"
           value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
           sub="mascotas activas o extraviadas"
+          periodInvariant
           href="/admin/padron?vista=censo"
           info={{
             definition: "Total de mascotas con status 'active' o 'lost' a nivel nacional.",
@@ -334,6 +335,9 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=poblacion"
           info={getKpiInfo("sterilization_coverage_population")}
           descriptorId="sterilization_coverage_population"
+          // #20: point-in-time stock ratio ("ever sterilized") — does not track
+          // the period control it sits under.
+          periodInvariant
           // PO decision 2 item 2 — "faltan ~N cirugías sobre el padrón
           // registrado" (undefined when the target is already met).
           forecast={sterilResourceLine}
@@ -346,6 +350,8 @@ export default async function AdminProgramaPage({
           href="/admin/padron?vista=censo"
           info={getKpiInfo("microchip_penetration")}
           descriptorId="microchip_penetration"
+          // #20: point-in-time penetration snapshot — does not track the period.
+          periodInvariant
           // Red-team 2026-07 #3: zero-denominator guard input (padrón size).
           guardInput={{ n: microchip.active }}
           forecast={chipResourceLine}

@@ -8,11 +8,12 @@ import {
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+
+import { ChartSizingBox } from "./ChartSizingBox";
 
 /**
  * Gráfico de serie temporal — wrapper de recharts para línea o área.
@@ -168,7 +169,7 @@ export function TimeSeriesChart({
   return (
     <div className={className}>
       <div className="relative">
-        <ResponsiveContainer width="100%" height={height}>
+        <ChartSizingBox height={height}>
           {variant === "area" ? (
             <AreaChart {...commonProps}>
               {grid}
@@ -207,7 +208,7 @@ export function TimeSeriesChart({
               />
             </LineChart>
           )}
-        </ResponsiveContainer>
+        </ChartSizingBox>
         {isEmpty && (
           <p
             role="note"

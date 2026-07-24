@@ -4152,7 +4152,7 @@ export function PanoramaConsole({
   // already narrates that empty state in its own body).
   const dockRankingSubtitle =
     effectiveRankingKind !== null && rankingLayer !== null
-      ? `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.`
+      ? `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.${percapitaActive ? " El mapa pinta tasas por 10.000 hab.; este ranking ordena por conteos." : ""}`
       : undefined;
 
   // The calendar heatmap sits ABOVE the ranking as its own <section>, so a later

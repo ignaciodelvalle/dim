@@ -34,7 +34,6 @@ import {
   Legend,
   Line,
   ReferenceLine,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -42,6 +41,7 @@ import {
 
 import { CHART_COLORS } from "@/lib/analytics/viz-scales";
 import type { ForecastResult } from "@/lib/metrics/forecast";
+import { ChartSizingBox } from "./ChartSizingBox";
 
 export type ForecastChartProps = {
   /** The projection produced by projectSeries(). */
@@ -174,16 +174,11 @@ export function ForecastChart({
           </p>
         </div>
       ) : (
-        // B1 — give the chart a concrete-height, full-width box so recharts'
-        // ResponsiveContainer can never measure 0 (which paints an empty SVG on
-        // the first mount under the ssr:false dynamic wrapper).
-        <div
-          data-forecast-chart="true"
-          className="w-full"
-          style={{ width: "100%", height, minHeight: height }}
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+        // B1 — the shared ChartSizingBox gives recharts a concrete-height,
+        // full-width box so ResponsiveContainer can never measure 0 (empty SVG
+        // on first mount under the ssr:false dynamic wrapper). See #14.
+        <ChartSizingBox height={height} className="w-full" data-forecast-chart="true">
+          <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
               <XAxis dataKey="x" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
@@ -249,8 +244,7 @@ export function ForecastChart({
                 />
               ) : null}
             </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+        </ChartSizingBox>
       )}
 
       {/* Crossing callout — sales beat for the executive. */}

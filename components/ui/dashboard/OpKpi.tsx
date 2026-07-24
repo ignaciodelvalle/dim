@@ -101,6 +101,14 @@ type Props = {
   delta?: DeltaV1;
   bar?: number;
   sub?: ReactNode;
+  /**
+   * red-team-admin #20: TRUE for a STOCK / point-in-time KPI (esterilización,
+   * microchip, total registradas) whose value does NOT vary with a page-level
+   * period control. Renders a small "no varía con el período" tag so an adjacent
+   * period picker never implies it moves this number — mirrors the panorama
+   * KpiChips "estado actual · no varía con la fecha" idiom.
+   */
+  periodInvariant?: boolean;
   /** v1 href — wraps the whole card in <a> */
   href?: string;
   size?: "default" | "sm";
@@ -424,6 +432,7 @@ export function OpKpi({
   delta,
   bar,
   sub,
+  periodInvariant,
   href,
   info: rawInfo,
   deltaV2: rawDeltaV2,
@@ -544,6 +553,17 @@ export function OpKpi({
 
       {/* Sub */}
       {sub && <div className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-mute">{sub}</div>}
+
+      {/* red-team-admin #20: point-in-time KPI under a period control — say it
+          plainly so the picker never reads as a broken control on this tile. */}
+      {periodInvariant && (
+        <p
+          className="mt-1 text-[10px] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          title="Valor de estado actual (point-in-time): el selector de período mueve los gráficos, no este número."
+        >
+          no varía con el período
+        </p>
+      )}
 
       {/* FORECAST-A-META: the forecast-to-target line — a PROPERTY of this
           metric, rendered right where its value already lives (zero extra

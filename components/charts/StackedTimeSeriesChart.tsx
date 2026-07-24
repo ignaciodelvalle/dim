@@ -1,18 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  Legend,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, CartesianGrid, Legend, Tooltip, XAxis, YAxis } from "recharts";
 
 import { CHART_COLORS, type ChartColorKey } from "@/lib/analytics/viz-scales";
+
+import { ChartSizingBox } from "./ChartSizingBox";
 
 /**
  * Stacked time-series chart — multi-series stacked area over a shared x-axis.
@@ -124,7 +117,7 @@ export function StackedTimeSeriesChart({
   return (
     <div className={className}>
       <div className="relative">
-        <ResponsiveContainer width="100%" height={height}>
+        <ChartSizingBox height={height}>
           <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
@@ -155,7 +148,7 @@ export function StackedTimeSeriesChart({
               );
             })}
           </AreaChart>
-        </ResponsiveContainer>
+        </ChartSizingBox>
         {isEmpty && (
           <p
             role="note"
