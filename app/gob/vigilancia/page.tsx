@@ -40,6 +40,7 @@ import {
   enoSlaTone,
   fetchKpiTrend,
   fetchMovementCorridors,
+  rabiesComplianceHeadline,
   windows,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
@@ -278,6 +279,10 @@ export default async function GobVigilanciaPage({
   // Coherence fix (qa-triage-2026-07-23, finding #12) — see enoSlaHeadline's
   // own doc comment (lib/metrics/targets.ts) for the full rationale.
   const enoSlaCopy = enoSlaHeadline(enoSla, pct);
+  // K2 — same breach-aware headline swap, ported to the rabies-10d tile via
+  // rabiesComplianceHeadline (lib/metrics/targets.ts): compliancePct alone
+  // can read "100%" while openBreaches > 0, so the live count leads instead.
+  const rabiesComplianceCopy = rabiesComplianceHeadline(rabiesCompliance, pct);
   // byDisease.value is the branded SuppressedCells (Cell[]); the fetcher built
   // each cell with the extra `confirmed` field, so widen via unknown.
   const reportableCells = reportableIncidence.byDisease.value as unknown as ReadonlyArray<{
@@ -418,7 +423,7 @@ export default async function GobVigilanciaPage({
       >
         <OpKpi
           label="Cumplimiento observación 10d"
-          value={pct(rabiesCompliance.compliancePct)}
+          value={rabiesComplianceCopy.value}
           tone={
             rabiesCompliance.openBreaches > 0
               ? "danger"
@@ -426,12 +431,12 @@ export default async function GobVigilanciaPage({
                 ? "neutral"
                 : "ok"
           }
-          bar={rabiesCompliance.compliancePct ?? undefined}
-          sub={
+          bar={
             rabiesCompliance.openBreaches > 0
-              ? `${rabiesCompliance.openBreaches} ${pluralizeEs(rabiesCompliance.openBreaches, "abierta")} > 10 días`
-              : `${rabiesCompliance.closed} ${pluralizeEs(rabiesCompliance.closed, "cerrada")} en el período`
+              ? undefined
+              : (rabiesCompliance.compliancePct ?? undefined)
           }
+          sub={rabiesComplianceCopy.sub}
           info={{
             // Internal indicator codes (A8/A9 — plan-maestro numbering) removed
             // from operator-facing copy (qa-triage-2026-07-23, finding #8):

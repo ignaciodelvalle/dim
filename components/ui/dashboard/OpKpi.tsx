@@ -86,6 +86,11 @@ type InfoTooltip = {
    *  methodology sentence, appended when a `descriptorId` resolves a catalog
    *  entry carrying `forecast` (see kpi-catalog.ts's KpiForecast). */
   methodology?: string;
+  /** K8 contract extra — "Metodología v{n}" footer line, appended when a
+   *  `descriptorId` resolves a catalog entry carrying `methodologyVersion`
+   *  (see kpi-catalog.ts's KpiDefinition). Distinct from `methodology` above
+   *  (the forecast sentence) — this is the numerator/label/target version stamp. */
+  methodologyVersion?: string;
 };
 
 type Props = {
@@ -278,6 +283,11 @@ function InfoButton({ info }: { info: InfoTooltip }) {
                 sentence, appended when descriptorId resolved a catalog entry
                 carrying `forecast`. */}
             {info.methodology && <p className="text-xs text-ln-ink-3">{info.methodology}</p>}
+            {/* K8: "Metodología v{n}" footer, appended when descriptorId
+                resolved a catalog entry carrying `methodologyVersion`. */}
+            {info.methodologyVersion && (
+              <p className="text-xs text-ln-op-mute">{info.methodologyVersion}</p>
+            )}
           </div>
         </>
       )}
@@ -333,7 +343,13 @@ function contractInfoExtras(
   const methodology = descriptor?.forecast
     ? `Proyección lineal simple sobre los últimos ${trendMonths !== undefined ? `${trendMonths} meses` : "meses disponibles"} — extrapolación, no promesa.`
     : undefined;
-  return { target, confidence, methodology };
+  // K8: "Metodología v{n}" footer — only descriptors whose numerator/label/
+  // target changed on a dated basis carry `methodologyVersion` (omitted = v1,
+  // no footer line at all — v1 is the silent default, not announced).
+  const methodologyVersion = descriptor?.methodologyVersion
+    ? `Metodología v${descriptor.methodologyVersion}`
+    : undefined;
+  return { target, confidence, methodology, methodologyVersion };
 }
 
 function resolveDescriptor(descriptorId: KpiId | undefined) {

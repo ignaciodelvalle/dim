@@ -14,18 +14,23 @@
 // value lands in a pets cache column means adding one entry to REFRESH_BY_TYPE
 // here — the dispatch is centralized so a new type can't silently skip it.
 //
-// The three cache-bearing amendable types today:
+// The four cache-bearing amendable types today:
 //   - weight_recorded          → pets.estimatedWeightKg  (replayPetWeight)
 //   - clinical_info_logged     → pets.pregnancyStatus    (replayPetPregnancy,
 //                                 no-op unless sub_kind=pregnancy)
 //   - movement_recorded        → pets.jurisdiction*       (latest jurisdiction_changed
 //                                 destination, canonicalized)
-// The other amendable types (vaccination, deworming, vet visit, medication,
-// note, sterilization) have NO pets cache column, so they map to nothing.
+//   - vaccination_administered → reminders.due_at (K5)   (refreshVaccinationReminder,
+//                                 no-op unless the amended payload's next_due_at
+//                                 changed — the linked OPEN reminder's dueAt is
+//                                 re-derived so pet-compliance.ts's deriveRabies
+//                                 stops reading a stale reminder row)
+// The other amendable types (deworming, vet visit, medication, note,
+// sterilization) have NO pets cache column, so they map to nothing.
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 
-import { type db, petEvents, pets } from "@/db";
+import { type db, petEvents, pets, reminders } from "@/db";
 import { normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { replayPetPregnancy } from "@/lib/projections/pet-pregnancy";
@@ -45,7 +50,12 @@ type StreamEvent = {
 
 type OverlaidEvent = StreamEvent & { amendedAt: Date | string | null };
 
-type Refresher = (tx: Tx, petId: string, overlaid: OverlaidEvent[]) => Promise<void>;
+type Refresher = (
+  tx: Tx,
+  petId: string,
+  overlaid: OverlaidEvent[],
+  amendedEventId: string,
+) => Promise<void>;
 
 // Keyed by the ROOT (amended) event's type. Types absent from this map carry no
 // denormalized pets cache and are intentional no-ops.
@@ -53,6 +63,7 @@ const REFRESH_BY_TYPE: Record<string, Refresher> = {
   weight_recorded: refreshWeight,
   clinical_info_logged: refreshPregnancy,
   movement_recorded: refreshJurisdiction,
+  vaccination_administered: refreshVaccinationReminder,
 };
 
 /**
@@ -88,7 +99,7 @@ export async function refreshPetCacheAfterAmendment(
 
   // Project the amended payload onto its target event, then derive off that.
   const overlaid = overlayAmendments(stream) as OverlaidEvent[];
-  await refresh(tx, petId, overlaid);
+  await refresh(tx, petId, overlaid, amendedEventId);
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +114,47 @@ async function refreshWeight(tx: Tx, petId: string, overlaid: OverlaidEvent[]): 
 async function refreshPregnancy(tx: Tx, petId: string, overlaid: OverlaidEvent[]): Promise<void> {
   const { pregnancyStatus } = replayPetPregnancy(overlaid);
   await tx.update(pets).set({ pregnancyStatus }).where(eq(pets.id, petId));
+}
+
+/**
+ * K5: a vaccination_administered amendment that changes next_due_at must move
+ * the linked reminder's dueAt too — otherwise pet-compliance.ts's deriveRabies
+ * keeps reading the stale value it was created with (reminders.due_at is set
+ * once, at vaccination-use-case.ts's insertReminders call, and never re-derived
+ * on its own — see that use-case's `nextDueAt` block for the creation side).
+ *
+ * Lookup key: reminders.sourceEventId === the amended root event's id. This is
+ * the SAME link vaccination-use-case.ts stamps at creation (`sourceEventId:
+ * event.id`) — direct and unambiguous, no title/date matching needed. Only an
+ * OPEN reminder (completedAt IS NULL) is touched: a reminder already completed
+ * (dose since administered, or superseded by a later vaccination) must not be
+ * revived by a correction to an older event.
+ */
+async function refreshVaccinationReminder(
+  tx: Tx,
+  petId: string,
+  overlaid: OverlaidEvent[],
+  amendedEventId: string,
+): Promise<void> {
+  const root = overlaid.find((e) => e.id === amendedEventId);
+  if (!root) return;
+  const payload = (root.payload ?? {}) as Record<string, unknown>;
+  const nextDueRaw = typeof payload.next_due_at === "string" ? payload.next_due_at : null;
+  if (!nextDueRaw) return;
+  const nextDue = new Date(nextDueRaw);
+  if (Number.isNaN(nextDue.getTime())) return;
+
+  await tx
+    .update(reminders)
+    .set({ dueAt: nextDue })
+    .where(
+      and(
+        eq(reminders.petId, petId),
+        eq(reminders.reminderType, "vaccine"),
+        eq(reminders.sourceEventId, amendedEventId),
+        isNull(reminders.completedAt),
+      ),
+    );
 }
 
 /**

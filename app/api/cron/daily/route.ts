@@ -27,6 +27,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { authorizeCronRequest } from "@/lib/domain/cron-auth";
 import { withCronRun } from "@/lib/infra/case-cron";
+import { sendCronAlert } from "@/lib/infra/cron-alert";
 import { DAILY_JOB_ORDER, type DispatchJob, dispatchJobs } from "@/lib/infra/cron-dispatcher";
 
 // Individual job route handlers. Importing a route's GET is a plain ESM import —
@@ -151,6 +152,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.warn(
       `[cron/daily] ${result.skipped} job(s) skipped by the ${BUDGET_MS}ms budget — they run on the next daily invocation: ${skippedNames}`,
     );
+    // S8: a console.warn alone is invisible outside the function logs — page a
+    // human too (same posture as cron-health's unhealthy-fleet alert). Best-
+    // effort/no-op when CRON_ALERT_WEBHOOK is unset (sendCronAlert never throws).
+    await sendCronAlert({
+      job: CRON_NAME,
+      severity: "warning",
+      error: `${result.skipped} job(s) skipped by the ${BUDGET_MS}ms budget`,
+      details: { skippedNames: skippedNames.split(", ").filter(Boolean) },
+    });
   }
 
   const ok = result.failed === 0;

@@ -18,6 +18,8 @@
 // PURE — no DB, no side effects. Every export is unit-testable without a
 // live Postgres or Next.js runtime.
 
+import { pluralizeEs } from "@/lib/utils/format";
+
 // ---------------------------------------------------------------------------
 // TARGETS — named benchmark constants
 // ---------------------------------------------------------------------------
@@ -232,6 +234,42 @@ export function enoSlaHeadline(
       eno.medianLatencyHours !== null
         ? `Mediana ${eno.medianLatencyHours} h`
         : "Sin entregas en el período",
+  };
+}
+
+// ---------------------------------------------------------------------------
+// rabiesComplianceHeadline — breach-aware headline for the rabies-10d tile (K2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Headline value + sub-line for the rabies_observation_compliance_10d tile —
+ * same breach-aware swap as enoSlaHeadline above (qa-triage-2026-07-23,
+ * finding #12 pattern). `compliancePct` is period-scoped over CLOSED
+ * observations only, so it can read "100%" while observations sit OPEN past
+ * their 10-day legal window (`openBreaches`, a live "now" snapshot — see
+ * kpi-catalog.ts's A9 caveat). When there is an open breach, this LEADS with
+ * the live, actionable "N fuera de plazo ahora" and demotes the historical %
+ * to a clearly labeled "(referencia)" sub-line; otherwise it reports the
+ * historical % as the headline with the closed-count sub (nothing to
+ * contradict when there's no open breach).
+ */
+export function rabiesComplianceHeadline(
+  rabies: { compliancePct: number | null; openBreaches: number; closed: number },
+  formatPct: (v: number | null) => string,
+): { value: string; sub: string } {
+  const pctLabel = formatPct(rabies.compliancePct);
+  if (rabies.openBreaches > 0) {
+    return {
+      value: `${rabies.openBreaches} fuera de plazo ahora`,
+      sub:
+        rabies.compliancePct !== null
+          ? `Cumplimiento histórico ${pctLabel} de las cerradas (referencia)`
+          : "Sin cierres en el período",
+    };
+  }
+  return {
+    value: pctLabel,
+    sub: `${rabies.closed} ${pluralizeEs(rabies.closed, "cerrada")} en el período`,
   };
 }
 

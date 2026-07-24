@@ -294,15 +294,13 @@ export type KpiGuards = {
   unstableDeltaBase?: { minPriorBase: number };
   /**
    * Cursor red-team 2026-07-23 (claim #1) — "dual-denominator hero" class:
-   * below this floor (a percent, 0-100), the registry-coverage rate's own
-   * coverage OF THE CENSUS ESTIMATE is too thin for the headline % to imply
-   * population-level protection (e.g. 65% of a 1,997-dog padrón that is
-   * itself ~0.4% of the estimated canine population). Enforced by
-   * lib/metrics/presentation-guards.ts's censusCoverageLowGate /
-   * applyCensusCoverageGuard — forces the tone neutral and surfaces
-   * censusCoverageWarningNote, same posture as smallN. Only meaningful for
-   * KPIs whose fetcher also returns a `censusCoveragePct` (currently only
-   * rabies_coverage_dogs_12m via lib/metrics/census.ts).
+   * below this floor (a percent, 0-100), the registry rate's own coverage OF
+   * THE CENSUS ESTIMATE is too thin to imply population-level protection
+   * (e.g. 65% of a padrón that is itself ~0.4% of the estimated population).
+   * Enforced by presentation-guards.ts's censusCoverageLowGate / applyCensus-
+   * CoverageGuard — forces tone neutral + censusCoverageWarningNote, same
+   * posture as smallN. Only meaningful for KPIs whose fetcher also returns a
+   * `censusCoveragePct` (currently only rabies_coverage_dogs_12m).
    */
   censusCoverageFloor?: number;
   /** Dead-guard fence (check-metric-contract.ts rule 2): guards enforced by a
@@ -331,13 +329,10 @@ export type KpiConfidence = {
  * ratio/rate from that trend (numerator AND denominator both resolvable
  * within the same bucket) — a trend of the metric's NUMERATOR alone (a flow
  * count) is not the same thing and must not be wired here. This is why most
- * target-bearing ratio KPIs in this catalog do NOT set `forecast`: their
- * only fetched trend is a numerator flow (e.g. rabies_coverage_dogs_12m's
- * fetchRabiesVaccinationTrend is vaccinations/bucket, NOT a recomputed
- * coverage-% per bucket — see that fetcher's own doc comment), or no trend
- * is fetched on their render surface at all. See lib/metrics/forecast-to-target.ts
- * for the engine this field feeds and the honest per-KPI audit in its
- * kpi-catalog.ts consumer comment.
+ * target-bearing ratio KPIs do NOT set `forecast`: their only fetched trend
+ * is a numerator flow (e.g. rabies_coverage_dogs_12m's fetchRabiesVaccination-
+ * Trend is vaccinations/bucket, not a recomputed coverage-% per bucket), or no
+ * trend is fetched at all. See lib/metrics/forecast-to-target.ts for the engine.
  */
 export type KpiForecast = {
   /** Fetcher (+ file) whose ALREADY-FETCHED series this forecast reuses —
@@ -413,13 +408,13 @@ export type KpiDefinition = {
   species: KpiSpecies;
   /** Machine-readable counting basis — stock / flow / ratio. */
   basis: KpiBasis;
-  /**
-   * es-AR OpKpi ⓘ tooltip copy — omit while a KPI hasn't been wired through
-   * getKpiInfo() yet (its render sites still pass an inline `info={{ }}` prop).
-   * Task #15a wired the first batch (rabies/sterilization/microchip/mortality/
-   * custody-return/ENO-SLA); see docs/reviews/2026-07-12-staging-readiness-triage.md.
-   */
+  /** es-AR OpKpi ⓘ tooltip copy — omit while a KPI hasn't been wired through
+   *  getKpiInfo() yet (inline `info={{ }}` prop at the render site until then).
+   *  Task #15a wired the first batch — see docs/reviews/2026-07-12-staging-readiness-triage.md. */
   ui?: KpiInfoTooltip;
+  /** K8: methodology-version stamp — 2 ONLY on descriptors whose numerator/
+   *  label/target changed 2026-07-22/23 (see each entry's own comment); omitted = v1. Rendered in OpKpi's ⓘ footer. Do NOT set broadly. */
+  methodologyVersion?: number;
 };
 
 export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
@@ -503,6 +498,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "all_time",
     species: "all_species",
     basis: "ratio",
+    methodologyVersion: 2, // K8: label renamed 2026-07-22 (see above)
     question:
       "¿Qué fracción del registro histórico de miMAR tiene alguna vez una dosis antirrábica cargada, de cualquier especie, sin ventana temporal? (NO es la pregunta de cumplimiento legal — esa es rabies_coverage_dogs_12m).",
     // No `target`: there is no legal/programmatic benchmark for an all-time,
@@ -782,6 +778,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "all_time",
     species: "dogs",
     basis: "ratio",
+    methodologyVersion: 2, // K8: label + semaphore renamed 2026-07-22/23 (see above)
     question:
       "¿Qué porcentaje de mascotas PPP en la jurisdicción tiene su atestación cargada en miMAR? (NO mide cumplimiento registral externo a la ley — solo adopción del flujo de atestación en la plataforma).",
     target: {
@@ -1014,6 +1011,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "period",
     species: "all_species",
     basis: "ratio",
+    methodologyVersion: 2, // K8: target populated 2026-07-22 (see below)
     // C1 (2026-07-22): target/semaphore/guards were previously omitted even
     // though TARGETS.ADOPTION_RETURN_RATE_PCT is a real internal benchmark —
     // populated per the honesty rule (a real target with a source exists).
@@ -1740,6 +1738,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "period",
     species: "all_species",
     basis: "flow",
+    methodologyVersion: 2, // K8: label renamed 2026-07-22 (see above)
     question: "¿Cuántas adopciones se finalizaron en el período, y cómo viene la tendencia?",
     semaphore: { paintAgainst: "none" },
     guards: {
@@ -2451,6 +2450,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     window: "now",
     species: "n/a",
     basis: "stock",
+    methodologyVersion: 2, // K8: label renamed 2026-07-22/23 (see above)
     question: "¿Cuántas solicitudes de aprobación están pendientes en la cobertura?",
     semaphore: { paintAgainst: "none" },
   },

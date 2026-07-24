@@ -133,10 +133,17 @@ export async function dispatchJobs(
  * Ordered SSOT of the job names the daily dispatcher runs — every cron that was
  * previously its own vercel.json entry.
  *
- * Order rationale: producers/scans/expiries first (they enqueue notifications
- * and outbox rows), then the delivery drains (so work enqueued THIS run goes
- * out same-run), and finally cron_health (so it observes fresh telemetry from
- * every job that just ran).
+ * Order rationale (S8, revised): the delivery drains (process_eno_queue,
+ * drain_outbox, drain_notification_dead_letter) run right after the first,
+ * cheap producer batch (materialize_slots..evaluate_alerts) — BEFORE the
+ * heavier expiry/escalation/retention block. Previously the drains sat near
+ * the END of the list (after that whole heavy block), so a tight BUDGET_MS
+ * cutoff could skip them entirely, starving delivery indefinitely rather than
+ * by a bounded one-day delay. Running them early means a budget cutoff now
+ * only defers a LATER job's own outbox rows to the next daily invocation —
+ * every job is idempotent/resumable, so that's an acceptable trade for
+ * "delivery never starved". cron_health still runs last (unchanged), so it
+ * observes fresh telemetry from every job that ran this invocation.
  *
  * Sub-daily jobs are folded to daily here (drain_outbox, process_eno_queue,
  * drain_notification_dead_letter, expire_decomiso_handoffs). Vercel Hobby only
@@ -144,13 +151,17 @@ export async function dispatchJobs(
  * regardless of cron count — the minimum plan for sub-daily draining is Pro.
  */
 export const DAILY_JOB_ORDER: readonly string[] = [
-  // --- producers / scans / materializers ---
+  // --- producers / scans / materializers (cheap, run first) ---
   "materialize_slots",
   "business_rules_reeval",
   "reconcile_pet_status",
   "vaccine_due",
   "post_adoption_checkin",
   "evaluate_alerts",
+  // --- delivery drains (moved earlier, S8: never starved by the budget) ---
+  "process_eno_queue",
+  "drain_outbox",
+  "drain_notification_dead_letter",
   // --- expiries / escalations / case closers ---
   "auto_expire_approvals",
   "expire_foster_proposals",
@@ -162,13 +173,9 @@ export const DAILY_JOB_ORDER: readonly string[] = [
   "close_followup_expired_adoptions",
   "escalate_stale_welfare_cases",
   "escalate_stale_disputes",
-  // --- legal queue + retention purges ---
-  "process_eno_queue",
+  // --- retention purges ---
   "purge_scan_events",
   "data_lifecycle",
-  // --- delivery drains (after producers so same-run work is delivered) ---
-  "drain_outbox",
-  "drain_notification_dead_letter",
   // --- fleet health (last, so it sees this run's fresh telemetry) ---
   "cron_health",
 ] as const;

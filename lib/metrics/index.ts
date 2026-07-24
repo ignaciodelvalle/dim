@@ -121,6 +121,7 @@ export {
   decisionsDeltaPct,
   enoSlaHeadline,
   enoSlaTone,
+  rabiesComplianceHeadline,
   toneForBreachCeiling,
   toneForTarget,
 } from "./targets";

@@ -17,7 +17,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
+import { db, ownerships, petEvents, pets, profiles, reminders } from "@/db";
 import type { EventType } from "@/db/schema";
 import { amendEvent } from "@/src/modules/events/application/amendment/amend-event";
 import { withMutationOverride } from "../../../../../../__tests__/_helpers/db-overrides";
@@ -243,6 +243,120 @@ describe("amendEvent — pets cache refresh (Invariant #3)", () => {
     expect(result.ok).toBe(true);
     const after = await fetchPet(pet.id);
     expect(after.pregnancyStatus).toBe("completed_miscarriage");
+  });
+
+  it("an amended vaccination_administered (next_due_at) flips the linked OPEN reminder's dueAt (K5)", async () => {
+    const pet = await insertTestPet("V");
+    const originalDueAt = new Date("2026-08-01T00:00:00Z");
+    const correctedDueAt = new Date("2026-09-15T00:00:00Z");
+    const targetEventId = await insertEvent(
+      pet.id,
+      "vaccination_administered",
+      {
+        payload_version: 1,
+        vaccine_name: "Antirrábica",
+        brand: null,
+        batch: null,
+        administered_by: null,
+        next_due_at: originalDueAt.toISOString(),
+      },
+      new Date(),
+    );
+    const [reminder] = await db
+      .insert(reminders)
+      .values({
+        petId: pet.id,
+        userId: ACTOR_ID,
+        reminderType: "vaccine",
+        dueAt: originalDueAt,
+        title: "Refuerzo: Antirrábica",
+        description: "Próxima dosis programada.",
+        sourceEventId: targetEventId,
+      })
+      .returning({ id: reminders.id });
+
+    const result = await amendEvent(
+      { id: ACTOR_ID },
+      { id: pet.id, name: pet.name, publicToken: pet.publicToken },
+      ownerAuthorship,
+      {
+        publicToken: pet.publicToken,
+        targetEventId,
+        reason: null,
+        changes: [
+          {
+            field: "next_due_at",
+            old: originalDueAt.toISOString(),
+            new: correctedDueAt.toISOString(),
+          },
+        ],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    const [after] = await db
+      .select({ dueAt: reminders.dueAt })
+      .from(reminders)
+      .where(eq(reminders.id, reminder.id));
+    expect(after.dueAt.toISOString()).toBe(correctedDueAt.toISOString());
+  });
+
+  it("an amended vaccination_administered leaves an already-COMPLETED reminder untouched (K5)", async () => {
+    const pet = await insertTestPet("VC");
+    const originalDueAt = new Date("2026-08-01T00:00:00Z");
+    const completedDueAt = new Date("2026-08-01T00:00:00Z");
+    const targetEventId = await insertEvent(
+      pet.id,
+      "vaccination_administered",
+      {
+        payload_version: 1,
+        vaccine_name: "Antirrábica",
+        brand: null,
+        batch: null,
+        administered_by: null,
+        next_due_at: originalDueAt.toISOString(),
+      },
+      new Date(),
+    );
+    const [reminder] = await db
+      .insert(reminders)
+      .values({
+        petId: pet.id,
+        userId: ACTOR_ID,
+        reminderType: "vaccine",
+        dueAt: completedDueAt,
+        title: "Refuerzo: Antirrábica",
+        description: "Próxima dosis programada.",
+        sourceEventId: targetEventId,
+        completedAt: new Date(),
+      })
+      .returning({ id: reminders.id });
+
+    const result = await amendEvent(
+      { id: ACTOR_ID },
+      { id: pet.id, name: pet.name, publicToken: pet.publicToken },
+      ownerAuthorship,
+      {
+        publicToken: pet.publicToken,
+        targetEventId,
+        reason: null,
+        changes: [
+          {
+            field: "next_due_at",
+            old: originalDueAt.toISOString(),
+            new: "2026-09-15T00:00:00.000Z",
+          },
+        ],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    const [after] = await db
+      .select({ dueAt: reminders.dueAt })
+      .from(reminders)
+      .where(eq(reminders.id, reminder.id));
+    // Completed reminder must NOT be revived/moved by a later correction.
+    expect(after.dueAt.toISOString()).toBe(completedDueAt.toISOString());
   });
 
   it("a non-cache-bearing amendment (note_added) leaves the caches untouched", async () => {

@@ -482,6 +482,27 @@ export default async function PublicCredentialPage({
           </div>
         )}
 
+        {/* D2: custody dispute — neutral banner, no accusation, no dispute
+            details. Distinct from the DC13 official-custody box above (that
+            one is a sanitary_authority seizure; this is pets.inCustodyDispute,
+            set by custody_dispute_raised / cleared by custody_dispute_resolved
+            — see custody-disputes module). Reuses the same box structure. */}
+        {pet.inCustodyDispute && (
+          <div
+            role="alert"
+            data-section="custody-dispute-disclaimer"
+            className="mb-4 rounded-[var(--radius-sm)] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-4 py-3"
+          >
+            <p className="mb-1 font-[var(--font-ln-mono)] text-[var(--text-xs)] font-semibold uppercase tracking-[.1em] text-ln-warn">
+              Titularidad en revisión
+            </p>
+            <p className="m-0 text-sm text-ln-ink-2">Titularidad en revisión por la autoridad.</p>
+            <p className="mt-1 text-[var(--text-sm)] text-ln-mute">
+              Estamos revisando la situación de esta mascota junto a la autoridad competente.
+            </p>
+          </div>
+        )}
+
         {/* Permanent conditions banner — active pets only: in lost mode the
             in-card special-conditions section (PublicLostSections) carries the
             same disclosure with finder-welfare framing; both are keyed on the
@@ -623,9 +644,21 @@ export default async function PublicCredentialPage({
               petName={pet.name}
               petSex={pet.sex}
               identityLine={lostIdentityLine}
-              ownerFirstName={pet.discloseFirstNameWhenLost ? lostContext.ownerFirstName : null}
-              ownerPhoneE164={pet.disclosePhoneWhenLost ? lostContext.phone : null}
-              ownerEmail={pet.discloseEmailWhenLost ? lostContext.email : null}
+              // cursor UX D2: titularidad en revisión — never disclose the
+              // contested owner's name/phone/email while a custody dispute is
+              // open. The reporting CTAs (finderFormHref / sightingFormHref)
+              // stay untouched below — only the direct-contact fields go null.
+              ownerFirstName={
+                pet.discloseFirstNameWhenLost && !pet.inCustodyDispute
+                  ? lostContext.ownerFirstName
+                  : null
+              }
+              ownerPhoneE164={
+                pet.disclosePhoneWhenLost && !pet.inCustodyDispute ? lostContext.phone : null
+              }
+              ownerEmail={
+                pet.discloseEmailWhenLost && !pet.inCustodyDispute ? lostContext.email : null
+              }
               lastSeenPlaceName={pet.discloseLastLocationWhenLost ? lostContext.locationText : null}
               lastSeenLocality={
                 pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
