@@ -79,6 +79,12 @@ function DeltaCell({ row }: { row: PolicyOutcomeRow }) {
   if (row.suppressed) {
     return <span className="text-ln-op-mute">&lt;5 (privacidad)</span>;
   }
+  // red-team-admin #15: an after-window with almost no elapsed time collapses to
+  // a spurious ≈-100% for any before>0. Show "ventana insuficiente" instead of a
+  // full-strength colored verdict on a change that just happened.
+  if (row.deltaUnstable) {
+    return <span className="text-ln-op-mute">ventana insuficiente</span>;
+  }
   if (row.deltaPct === null) {
     return <span className="text-ln-op-mute">sin línea de base</span>;
   }

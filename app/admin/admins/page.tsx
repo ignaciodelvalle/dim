@@ -13,17 +13,20 @@ import {
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { isTestAccount } from "@/lib/infra/test-accounts";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
+import { pluralizeEs } from "@/lib/utils/format";
 import { normalizeText } from "@/lib/utils/text-normalize";
 
 export default async function AdminsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; test?: string }>;
 }) {
   const { user } = await requireAdminOrRedirect();
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
+  const showTestAccounts = sp.test === "1";
 
   const supabase = createAdminClient();
 
@@ -62,8 +65,29 @@ export default async function AdminsPage({
       )
     : allAdmins;
 
-  const activeAdmins = admins.filter((a) => a.deactivatedAt === null);
-  const deactivatedAdmins = admins.filter((a) => a.deactivatedAt !== null);
+  // I3 (red-team-admin #18b): default the ephemeral genesis/smoke accounts OUT
+  // of the roster — DB has ~69 of 76 admin profiles matching `uc-cd-*`/`*-gen-*`.
+  // This console alone lacked the filter its sibling /admin/govts already ships;
+  // mirror that pattern (UI-only filter — production carries no such rows). The
+  // toggle below reveals them.
+  const hiddenTestCount = showTestAccounts
+    ? 0
+    : admins.filter((a) => isTestAccount(a.displayName, a.email)).length;
+  const visibleAdmins = showTestAccounts
+    ? admins
+    : admins.filter((a) => !isTestAccount(a.displayName, a.email));
+
+  // Toggle for the test-account filter — preserves the active query.
+  const testToggleHref = (() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (!showTestAccounts) params.set("test", "1");
+    const qs = params.toString();
+    return qs ? `/admin/admins?${qs}` : "/admin/admins";
+  })();
+
+  const activeAdmins = visibleAdmins.filter((a) => a.deactivatedAt === null);
+  const deactivatedAdmins = visibleAdmins.filter((a) => a.deactivatedAt !== null);
 
   // C21/A7: keep service/system accounts out of the human admin list — they
   // aren't people and clutter the roster. Shown in a separate collapsed section
@@ -102,6 +126,17 @@ export default async function AdminsPage({
           placeholder="Buscar por nombre o email"
         />
       </OpFilterBar>
+
+      {(hiddenTestCount > 0 || showTestAccounts) && (
+        <Link
+          href={testToggleHref}
+          className="inline-block text-[11px] text-ln-op-mute underline underline-offset-4 hover:text-ln-op-ink-2"
+        >
+          {showTestAccounts
+            ? "Ocultar cuentas de prueba"
+            : `Mostrar ${hiddenTestCount} ${pluralizeEs(hiddenTestCount, "cuenta")} de prueba`}
+        </Link>
+      )}
 
       {humanActive.length === 0 ? (
         <LnEmptyState

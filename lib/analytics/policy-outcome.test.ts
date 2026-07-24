@@ -11,6 +11,8 @@ import {
   POLICY_OUTCOME_K_ANON,
   POLICY_OUTCOME_WINDOW_DAYS,
   RULE_OUTCOME_METRICS,
+  POLICY_OUTCOME_MIN_AFTER_DAYS,
+  isDeltaUnstable,
   isSuppressedPair,
   outcomeDelta,
   windowsAround,
@@ -97,5 +99,20 @@ describe("isSuppressedPair (k-anon)", () => {
     expect(POLICY_OUTCOME_K_ANON).toBe(5);
     expect(isSuppressedPair(4, 4)).toBe(true);
     expect(isSuppressedPair(5, 5)).toBe(false);
+  });
+});
+
+describe("isDeltaUnstable (red-team-admin #15 — fresh-window guard)", () => {
+  it("flags an after-window too fresh for the delta to mean anything", () => {
+    // The reported regression: a rule changed hours ago → afterDaysCovered 0 →
+    // any before>0 gives a spurious ≈-100%. Must be flagged unstable.
+    expect(isDeltaUnstable(0)).toBe(true);
+    expect(isDeltaUnstable(4)).toBe(true);
+  });
+
+  it("does NOT flag once the after-window covers the documented floor", () => {
+    expect(POLICY_OUTCOME_MIN_AFTER_DAYS).toBe(5);
+    expect(isDeltaUnstable(5)).toBe(false);
+    expect(isDeltaUnstable(60)).toBe(false);
   });
 });

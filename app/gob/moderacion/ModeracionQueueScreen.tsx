@@ -122,6 +122,10 @@ export async function ModeracionQueueScreen({
       : null;
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
+  // Role-aware subtitle scope (red-team-admin #5c): a national admin sees this
+  // shared queue universally, so "de tus localidades" (mandate wording) is wrong
+  // for them — mirror the role branch already used by `noScope` below.
+  const scopePhrase = profile.role === "admin" ? "de todo el país" : "de tus localidades";
 
   // Shared moderation predicate + jurisdiction scope (govt sees only their
   // localities; admin universal). Returns sql`false` for a govt with no scope.
@@ -186,10 +190,10 @@ export async function ModeracionQueueScreen({
         title="Moderación de denuncias"
         subtitle={
           <p className="text-[var(--text-md)] text-ln-op-ink-2">
-            Denuncias anónimas de tus localidades que las heurísticas marcaron para revisión, antes
-            de que entren a la cola de triage. Aprobalas para pasarlas a triage, rechazalas como
-            abuso, o escalalas al equipo de plataforma. Las denuncias sin jurisdicción claras las
-            modera el equipo de plataforma.
+            Denuncias anónimas {scopePhrase} que las heurísticas marcaron para revisión, antes de
+            que entren a la cola de triage. Aprobalas para pasarlas a triage, rechazalas como abuso,
+            o escalalas al equipo de plataforma. Las denuncias sin jurisdicción clara las modera el
+            equipo de plataforma.
           </p>
         }
       />

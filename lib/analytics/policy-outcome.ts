@@ -50,6 +50,16 @@ export const POLICY_OUTCOME_WINDOW_DAYS = 60;
 /** k=5 small-cell policy (AGENTS.md "Aggregation & privacy policy"). */
 export const POLICY_OUTCOME_K_ANON = 5;
 
+/**
+ * Minimum elapsed days in the after-window for the delta to be trustworthy
+ * (red-team-admin #15). A rule changed hours ago has `afterDaysCovered ≈ 0`, so
+ * its after-count is trivially near-zero and the delta collapses to a confident
+ * "-100%" for ANY before>0 — noise painted as a full-strength verdict. Below
+ * this floor the UI must show "ventana insuficiente", not a colored delta.
+ * Mirrors the `unstableDeltaBase` guard other flow KPIs already carry.
+ */
+export const POLICY_OUTCOME_MIN_AFTER_DAYS = 5;
+
 /** Max rule changes analyzed per page load (2 COUNT queries each). */
 export const POLICY_OUTCOME_MAX_CHANGES = 12;
 
@@ -197,6 +207,19 @@ export function isSuppressedPair(
   return before < k && after < k;
 }
 
+/**
+ * The after-window is too fresh for its delta to mean anything (red-team-admin
+ * #15): fewer than `minDays` elapsed since the change, so `after` is trivially
+ * small and any before>0 yields a spurious ≈-100%. The UI shows "ventana
+ * insuficiente" instead of painting the delta.
+ */
+export function isDeltaUnstable(
+  afterDaysCovered: number,
+  minDays: number = POLICY_OUTCOME_MIN_AFTER_DAYS,
+): boolean {
+  return afterDaysCovered < minDays;
+}
+
 // ---------------------------------------------------------------------------
 // DB fetchers (admin-only surface — the page guards with requireAdminOrRedirect)
 // ---------------------------------------------------------------------------
@@ -292,6 +315,11 @@ export type PolicyOutcomeRow = RuleChangeRow & {
   partialAfter: boolean;
   /** k-anon: both windows < 5 — the UI must not show the raw pair. */
   suppressed: boolean;
+  /**
+   * After-window too fresh (< POLICY_OUTCOME_MIN_AFTER_DAYS) for the delta to be
+   * meaningful — the UI shows "ventana insuficiente" instead of a colored delta.
+   */
+  deltaUnstable: boolean;
 };
 
 /**
@@ -323,6 +351,7 @@ export async function fetchPolicyOutcomes(
         afterDaysCovered: windows.afterDaysCovered,
         partialAfter: windows.partialAfter,
         suppressed: isSuppressedPair(before, after),
+        deltaUnstable: isDeltaUnstable(windows.afterDaysCovered),
       };
     }),
   );
