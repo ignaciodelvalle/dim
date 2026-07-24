@@ -317,3 +317,33 @@ system "2 modos, 1 ADN" (tokens compartidos, layouts divergentes) → fase de do
 Cola actualizada: seeds (≥5 + suavizado) → home dueño libreta-portada → coropletas
 clasificadas → cubo ON + frescura → CTA sticky credencial → dieta nav refugio →
 FRENTE Analítica decision desk → OLA integridad ES → (después) trend fetchers.
+
+## DECISIONES PO — cursor 6-pass verificado (2026-07-24, tercera tanda)
+
+16. P1 AAIP: **sacar la oración de registro** (dejar solo el marco Ley 25.326) + extender fence QA.
+17. T1 KPIs: **doble lente Declarado | Firmado** en tiles ministeriales (rabies/esterilización/microchip).
+18. D1 muerte: **spec de death_voided ahora** (doble control + notify + re-derivación), implementa en Ola ES.
+19. V3 rotación token: **fase 3** (documentar riesgo; mitigación actual = rate-limit /p).
+20. T2/T3/T4 confianza writers: **los 3 en la Ola ES** (lab flag, org-bite matrícula, intake clínico).
+21. P2/P3 exposición larga: **solo banner/aviso, sin caps** (Tier2 "siempre" y share "sin vencimiento" siguen disponibles con advertencia más clara).
+22. D4 disputa: **solo mejorar audit trail** (resumen largo + evidencia + log; sin four-eyes).
+23. Escala: **seguir difiriendo Vercel Pro**; solo mitigaciones gratis (alerta si skipped>0 + mover drains de entrega antes en la cola).
+
+### PLAN NOCTURNO — versión final
+FASE 1 (cola aprobada, sin frenar): seeds ≥5+suavizado → home dueño libreta-portada →
+coropletas clasificadas → cubo ON+frescura (incl. agendar refresh_cube + arreglar comentario
+falso) → CTA sticky credencial → dieta nav refugio. + sueltos: empty-state positivo Panorama,
+doc "2 modos 1 ADN", teardown crons, LegendPill.
+
+FASE 2 (fixes confirmados AUTO, no requieren decisión): V8 URL absoluta · D2 banner disputa+freeze
+en /p · V2 "verificada"→"registrada" · K2 rabies-10d breach-aware · K3 badges restantes
+(PppPublicBadge+2 forms) · K4 flag truncado en CSV · K5 refresher de reminder en amend · K8
+methodologyVersion+stamp · P4 migración defaults + fail-closed · P5 reword copy GPS finder · P6
+redactar free-text en erase · P7 sección "con quién se comparten" · P1 sacar oración AAIP+fence ·
+T1 doble lente · T5 documentar firma_hash · T7 notify dueño en atender · S3 fix comentario ·
+S8 alerta si skipped>0 + reordenar drains · setear CRON_ALERT_WEBHOOK.
+
+FASE 3 (specs para lectura PO, NO código): death_voided (D1) · token de credencial rotable (V3
+fase 3) · plan de particionado pet_events (S4) · Ola ES agrupa T2/T3/T4 + D3 amend gob + D4 audit.
+
+Informe de desayuno: ledger de commits por lote + specs para leer + verify verde + suite+reseed.
