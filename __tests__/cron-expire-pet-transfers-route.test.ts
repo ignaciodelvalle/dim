@@ -18,9 +18,17 @@ describe("GET /api/cron/expire-pet-transfers", () => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
     vi.doUnmock("@/src/modules/transfers/actions");
+    vi.doUnmock("@/lib/infra/case-cron");
   });
 
   async function callRoute(headers: Record<string, string>) {
+    // Telemetry wrapper passthrough (cursor A1 root cause): the REAL withCronRun
+    // writes running/failed rows into the shared local cron_runs table, so the
+    // failure fixtures left "proceso no corriendo" noise on /admin. Mirrors the
+    // hermetic pattern of cron-close-rabies-observations-route.test.ts.
+    vi.doMock("@/lib/infra/case-cron", () => ({
+      withCronRun: (_name: string, fn: () => Promise<unknown>) => fn(),
+    }));
     const { GET } = await import("@/app/api/cron/expire-pet-transfers/route");
     const req = new Request("http://test.local/api/cron/expire-pet-transfers", { headers });
     return GET(req as unknown as Parameters<typeof GET>[0]);

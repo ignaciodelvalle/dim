@@ -3313,6 +3313,10 @@ export function SituationalMap({
                 rateProvinceOnlyEmpty,
                 detailKAnonSuppressed,
                 emptyStateScope,
+                // Sentiment review #6: a TRUE zero on a surveillance-only view
+                // ("no zoonosis signals in the window") frames positively —
+                // the honesty branches above still win for degraded/k-anon.
+                activeLayerIds: layers.map((l) => l.id),
               })}
             </p>
           </div>

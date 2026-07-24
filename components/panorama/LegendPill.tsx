@@ -113,10 +113,16 @@ export function LegendPill({
       summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-md hover:border-ln-op-celeste"
       summary={
         <>
-          {/* min-w-0 + truncate: a long metric name ellipsizes instead of hard-
-              clipping the whole strip (the trailing ramp / k-anon pill / caret
-              stay pinned via shrink-0) — legend-truncation fix, PO round-2 QA. */}
-          <span className="min-w-0 flex-shrink truncate font-semibold">{baseLabel}</span>
+          {/* min-w-0 + 2-line clamp: at the dock's mobile width the shrink-0
+              ramp / k-anon pill / caret used to squeeze a truncated label down
+              to "De…" (dataviz review, baseLabel truncation). Wrapping to a
+              second tight line keeps the metric name readable without moving
+              the pinned trailing elements; whitespace-normal re-enables
+              wrapping under the strip's whitespace-nowrap; line-clamp-2 still
+              ellipsizes a pathological third line. */}
+          <span className="line-clamp-2 min-w-0 flex-shrink whitespace-normal font-semibold leading-tight">
+            {baseLabel}
+          </span>
           {bivariate && (
             // Round-3 QA fix 6: the 3×3 hint already existed; add the two axis
             // labels micro-captioned so the collapsed strip names WHAT the

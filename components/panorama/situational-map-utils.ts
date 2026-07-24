@@ -5,6 +5,11 @@
 // from this module to avoid pulling in maplibre-gl which is unavailable in
 // the Vitest environment.
 
+import {
+  isLayerId,
+  isSurveillanceLayer,
+  shortLayerLabel,
+} from "@/src/modules/panorama/domain/layers";
 import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
 import type {
   AggregationLevel,
@@ -119,7 +124,14 @@ export function hasProvinceChoroplethLayer(layers: ActiveLayerLike[]): boolean {
  *      a province-only figure in v1). Its own honest copy (unchanged).
  *   2. `detailKAnonSuppressed` — the aggregate exists but the per-unit detail is
  *      protected by k-anonymity. Say so; affirm the aggregate IS available.
- *   3. genuinely no data — the generic scope-aware "Sin datos" (unchanged).
+ *   3. genuinely no data — the generic scope-aware "Sin datos" (unchanged),
+ *      EXCEPT when every active layer is a surveillance/risk layer (sentiment
+ *      review #6): a TRUE zero on a surveillance layer is the good outcome the
+ *      layer exists to confirm, so it frames positively instead of reading as
+ *      a cold-start failure. Honesty invariant: the positive copy is reachable
+ *      ONLY through this last branch — degraded, rate-below-province and k-anon
+ *      empties all return their own copy above, so protected or failed data
+ *      never reads as "buena noticia".
  */
 export function emptyOverlayMessage(opts: {
   rateProvinceOnlyEmpty: boolean;
@@ -129,6 +141,10 @@ export function emptyOverlayMessage(opts: {
    *  budget/failure fallback — a TIMEOUT, not an empty dataset. Highest
    *  priority: painting it as "sin datos" was the PBA cobertura lie. */
   layerDegraded?: boolean;
+  /** Sentiment review #6: ids of the ACTIVE layers behind this empty view.
+   *  When every one is a surveillance layer (SURVEILLANCE_LAYER_IDS), a true
+   *  zero frames positively. Absent/empty → the generic copy (unchanged). */
+  activeLayerIds?: readonly string[];
 }): string {
   if (opts.layerDegraded) {
     return "No pudimos calcular esta capa a tiempo. Tocá Actualizar para reintentar.";
@@ -138,6 +154,15 @@ export function emptyOverlayMessage(opts: {
   }
   if (opts.detailKAnonSuppressed) {
     return "Detalle por localidad protegido por privacidad (k<5). El agregado del alcance sí está disponible.";
+  }
+  const ids = (opts.activeLayerIds ?? []).filter(isLayerId);
+  if (
+    ids.length > 0 &&
+    ids.length === (opts.activeLayerIds?.length ?? 0) &&
+    ids.every(isSurveillanceLayer)
+  ) {
+    const names = ids.map((id) => shortLayerLabel(id).toLocaleLowerCase("es-AR")).join(" ni ");
+    return `Sin señales de ${names} en el período — buena noticia.`;
   }
   return `Sin datos para esta capa ${opts.emptyStateScope}.`;
 }

@@ -159,6 +159,80 @@ describe("emptyOverlayMessage (cowork QA ronda 3 §5 — honest empty copy)", ()
   });
 });
 
+describe("emptyOverlayMessage — surveillance true zero (sentiment review #6)", () => {
+  it("frames a TRUE zero on a surveillance-only view as good news", () => {
+    // Zero zoonosis signals in the window — not suppression, not a timeout —
+    // is the outcome the surveillance layer exists to confirm.
+    expect(
+      emptyOverlayMessage({
+        rateProvinceOnlyEmpty: false,
+        detailKAnonSuppressed: false,
+        emptyStateScope: "en tu cobertura",
+        activeLayerIds: ["zoonosis"],
+      }),
+    ).toBe("Sin señales de zoonosis en el período — buena noticia.");
+  });
+
+  it("names every active surveillance layer", () => {
+    expect(
+      emptyOverlayMessage({
+        rateProvinceOnlyEmpty: false,
+        detailKAnonSuppressed: false,
+        emptyStateScope: "en tu cobertura",
+        activeLayerIds: ["zoonosis", "mordeduras"],
+      }),
+    ).toBe("Sin señales de zoonosis ni mordeduras en el período — buena noticia.");
+  });
+
+  it("keeps the neutral copy when a non-surveillance layer is also active", () => {
+    // Refugios being empty is NOT good news — the positive framing only applies
+    // when the WHOLE empty view is surveillance layers.
+    expect(
+      emptyOverlayMessage({
+        rateProvinceOnlyEmpty: false,
+        detailKAnonSuppressed: false,
+        emptyStateScope: "en tu cobertura",
+        activeLayerIds: ["zoonosis", "refugios"],
+      }),
+    ).toBe("Sin datos para esta capa en tu cobertura.");
+  });
+
+  it("keeps the neutral copy for a non-surveillance layer alone", () => {
+    expect(
+      emptyOverlayMessage({
+        rateProvinceOnlyEmpty: false,
+        detailKAnonSuppressed: false,
+        emptyStateScope: "en este alcance",
+        activeLayerIds: ["perdidas"],
+      }),
+    ).toBe("Sin datos para esta capa en este alcance.");
+  });
+
+  it("NEVER says 'buena noticia' for a k-anon-suppressed zero (honesty invariant)", () => {
+    // Suppressed data is protected, not absent — the k-anon branch must win.
+    const msg = emptyOverlayMessage({
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: true,
+      emptyStateScope: "en tu cobertura",
+      activeLayerIds: ["zoonosis"],
+    });
+    expect(msg).not.toContain("buena noticia");
+    expect(msg).toContain("protegido por privacidad");
+  });
+
+  it("NEVER says 'buena noticia' for a degraded (timed-out) layer", () => {
+    const msg = emptyOverlayMessage({
+      layerDegraded: true,
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: false,
+      emptyStateScope: "en tu cobertura",
+      activeLayerIds: ["mordeduras"],
+    });
+    expect(msg).not.toContain("buena noticia");
+    expect(msg).toContain("No pudimos calcular");
+  });
+});
+
 describe("emptyOverlayMessage — degraded layer (panorama QA 2026-07-14)", () => {
   it("a budget-degraded layer NEVER reads as 'sin datos' — highest-priority branch", () => {
     // The PBA cobertura drill: the live rollup blew the 8s budget, the server

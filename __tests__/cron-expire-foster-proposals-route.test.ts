@@ -19,9 +19,19 @@ describe("GET /api/cron/expire-foster-proposals", () => {
     process.env.CRON_SECRET = ORIGINAL_CRON_SECRET;
     vi.restoreAllMocks();
     vi.doUnmock("@/src/modules/foster/actions");
+    vi.doUnmock("@/lib/infra/case-cron");
   });
 
   async function callRoute(headers: Record<string, string>) {
+    // Telemetry wrapper passthrough (cursor A1 root cause): the REAL withCronRun
+    // writes running/failed rows into the shared local cron_runs table, so the
+    // failure fixtures left "proceso no corriendo" noise on /admin. Mirrors the
+    // hermetic pattern of cron-close-rabies-observations-route.test.ts. The
+    // route derives its own 500-on-errors from the helper stats, so ignoring
+    // the summarize callback here loses no assertion.
+    vi.doMock("@/lib/infra/case-cron", () => ({
+      withCronRun: (_name: string, fn: () => Promise<unknown>) => fn(),
+    }));
     const { GET } = await import("@/app/api/cron/expire-foster-proposals/route");
     const req = new Request("http://test.local/api/cron/expire-foster-proposals", { headers });
     // The route handler signature accepts NextRequest, which is structurally

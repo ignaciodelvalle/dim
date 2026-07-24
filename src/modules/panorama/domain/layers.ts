@@ -707,9 +707,31 @@ export function isNationalDepartmentGrain(id: LayerId): boolean {
   return NATIONAL_DEPARTMENT_GRAIN_IDS.has(id);
 }
 
+/**
+ * Surveillance/risk layers whose TRUE zero is GOOD news (sentiment review #6):
+ * "no zoonosis signals in the window" is the outcome the surveillance exists to
+ * confirm, so an honest positive framing beats the neutral "sin datos" that
+ * reads as a cold-start failure. The registry has no category/kind field for
+ * this (dataType "signal" also covers reunificacion, whose zero is BAD), so an
+ * explicit allowlist is the declaration: the zoonotic-signal, bite and
+ * syndromic-surveillance layers. NEVER consulted for suppressed or degraded
+ * empties — the caller's honesty branches take precedence (a k-anon zero is
+ * protected data, not good news).
+ */
+export const SURVEILLANCE_LAYER_IDS: ReadonlySet<LayerId> = new Set<LayerId>([
+  "zoonosis",
+  "mordeduras",
+  "sintomas",
+]);
+
+/** True when the layer is a surveillance/risk layer whose true zero is good news. */
+export function isSurveillanceLayer(id: LayerId): boolean {
+  return SURVEILLANCE_LAYER_IDS.has(id);
+}
+
 /** Short display name for a layer — drops the "/ señales" tail so a badge reads
  *  "Zoonosis", not "Zoonosis / señales". Falls back to the raw id. */
-function shortLayerLabel(id: LayerId): string {
+export function shortLayerLabel(id: LayerId): string {
   const label = getLayer(id)?.label ?? id;
   return label.split(/[/(]/)[0]?.trim() || label;
 }
