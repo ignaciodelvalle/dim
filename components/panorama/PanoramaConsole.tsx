@@ -3492,16 +3492,20 @@ export function PanoramaConsole({
 
   // Registros (dock) — the accessible table of what the map paints: the map is
   // the least accessible surface, so mirror it into a real table. Flatten every
-  // ACTIVE AGGREGATE layer (choropleth fills + graduated per-unit circles —
-  // reference/points layers are individual entities, not per-unit values) into
-  // rows, reusing the pinned popup's buildLayerReadout so the value/unit/
-  // protected formatting is identical. A k-anon-suppressed cell reads
-  // "Protegido (k<5)", never a number.
+  // The AGGREGATE layers (choropleth fills + graduated per-unit circles;
+  // reference/points layers are individual entities, not per-unit values) —
+  // the ones that tabulate. Derived once and reused by every map-table memo.
+  const activeAggregateLayers = useMemo(
+    () => activeLayers.filter((l) => l.geomType === "choropleth" || l.renderMode === "graduated"),
+    [activeLayers],
+  );
+
+  // Each aggregate layer's cells become table rows, reusing the pinned popup's
+  // buildLayerReadout so value/unit/protected formatting is identical. A
+  // k-anon-suppressed cell reads "Protegido (k<5)", never a number.
   const mapTableRows = useMemo<MapTableRow[]>(() => {
     const rows: MapTableRow[] = [];
-    for (const layer of activeLayers) {
-      const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
-      if (!isAggregate) continue;
+    for (const layer of activeAggregateLayers) {
       for (const f of layer.features.features) {
         const p = f.properties as Record<string, unknown>;
         // Mirror ranking.identify(): a detail-tier cell's own unit label
@@ -3548,7 +3552,15 @@ export function PanoramaConsole({
     }
     rows.sort((a, b) => a.layer.localeCompare(b.layer, "es") || a.unit.localeCompare(b.unit, "es"));
     return rows;
-  }, [activeLayers]);
+  }, [activeAggregateLayers]);
+
+  // K4 (honest exports): labels of table-contributing layers capped at the
+  // server row limit — the CSV builder appends a truncation comment for each.
+  const mapTableTruncatedLayers = useMemo(
+    () =>
+      activeAggregateLayers.filter((l) => states[l.id as LayerId]?.truncated).map((l) => l.label),
+    [activeAggregateLayers, states],
+  );
 
   // Round-2 review #4: the dock badge used to show mapTableRows.length (the number
   // of UNITS with a row — e.g. 24 provinces), which read as a mismatch against a
@@ -3598,7 +3610,7 @@ export function PanoramaConsole({
   const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
   // v2C dock bar "Exportar CSV": the SAME in-memory CSV artifact the Registros
   // pane's download link builds (one builder, two affordances).
-  const dockCsvHref = useMapTableCsvHref(mapTableRows);
+  const dockCsvHref = useMapTableCsvHref(mapTableRows, mapTableTruncatedLayers);
 
   // v2C: the old FilterChips row (Alcance/Período/Al) is retired — the scope
   // pill + period segmented in the floating top-right cluster ARE the visible
@@ -4002,19 +4014,17 @@ export function PanoramaConsole({
   const referenceLayerLabels = activeLayers
     .filter((l) => l.dataType === "reference")
     .map((l) => l.label);
-  // Cowork QA ronda 3 §3: name the "Valor" column after the metric it shows. The
-  // aggregate layers (choropleth + graduated points) are the ones that tabulate.
-  const mapTableMetrics = activeLayers
-    .filter((l) => l.geomType === "choropleth" || l.renderMode === "graduated")
-    .map((l) => ({ label: l.label, dataType: l.dataType, level: l.level }));
+  // Cowork QA ronda 3 §3: name the "Valor" column after the metric it shows.
+  const mapTableMetrics = activeAggregateLayers.map((l) => ({
+    label: l.label,
+    dataType: l.dataType,
+    level: l.level,
+  }));
   // Cowork QA ronda 3 §3: a rate layer drilled below province shows a per-unit
   // COUNT (not the %) — surface that caveat once so "conteo" is not mistaken for a
   // percentage (the % is a province-only figure in v1).
-  const localityRateInView = activeLayers.some(
-    (l) =>
-      (l.geomType === "choropleth" || l.renderMode === "graduated") &&
-      l.dataType === "rate" &&
-      l.level === "locality",
+  const localityRateInView = activeAggregateLayers.some(
+    (l) => l.dataType === "rate" && l.level === "locality",
   );
   const dockRegistros = (
     <div className="space-y-2">
@@ -4077,6 +4087,7 @@ export function PanoramaConsole({
         caption={mapTableCaption}
         filename="panorama-mapa"
         metrics={mapTableMetrics}
+        truncatedLayers={mapTableTruncatedLayers}
       />
     </div>
   );

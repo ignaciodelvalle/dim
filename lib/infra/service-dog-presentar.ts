@@ -5,6 +5,7 @@
 // lib/service-dog-presentar.test.ts guards this contract.
 
 import type { ServiceDogStatus } from "@/db/schema";
+import { credentialQrUrl } from "@/lib/infra/site-url";
 
 interface PresentableCheck {
   credentialStatus: ServiceDogStatus;
@@ -26,7 +27,11 @@ export function isCredentialPresentable(row: PresentableCheck | null): boolean {
 /**
  * Builds the URL for the public credential page that the QR code links to.
  * Used as the QR payload on the presentation page.
+ *
+ * Always ABSOLUTE via credentialQrUrl (same helper as the main credential QR):
+ * a relative `/p/{token}` payload is unresolvable by a phone camera — the same
+ * unscannable-QR bug lib/infra/site-url.ts exists to prevent.
  */
 export function buildPublicVerifyUrl(publicToken: string): string {
-  return `/p/${publicToken}`;
+  return credentialQrUrl(publicToken);
 }

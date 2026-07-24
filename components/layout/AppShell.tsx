@@ -16,7 +16,7 @@ import { ScrollReset } from "./ScrollReset";
  *   - `operator` → left navy control-room rail + topbar. gob / admin / org.
  *                  No stripe, no footer (D7/D9). Absorbs OpShell/OpRail/OpTopbar.
  *   - `landing`  → minimal trust chrome for token-landing surfaces (D13):
- *                  brand + stripe + "Credencial verificada por miMAR", and NO
+ *                  brand + stripe + "Credencial registrada en miMAR", and NO
  *                  browse nav / footer. Protects the scan→action moment.
  *
  * STRANGLER (Phase A): this component defines the structural contract for all
@@ -190,8 +190,11 @@ function LandingShell({ returnSlot, banner, children }: LandingProps) {
           keep the trust header clear of the notch/status bar. */}
       <header className="pt-safe flex items-center gap-3 border-b border-ln-line bg-white px-4 py-3 md:px-6">
         <span className="text-lg font-bold text-ln-azul">miMAR</span>
+        {/* "registrada", not "verificada" — the token resolving in the registry
+            is the only claim this chrome can honestly make for EVERY /p page,
+            regardless of the credential's verification provenance. */}
         <span className="hidden text-xs text-ln-mute sm:inline">
-          Credencial verificada por miMAR
+          Credencial registrada en miMAR
         </span>
         {/* Discreet "back to my app" — present only for logged-in viewers (D13). */}
         {returnSlot && <div className="ml-auto">{returnSlot}</div>}

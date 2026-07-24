@@ -2,7 +2,7 @@
 // (spec D13), migrated onto the unified AppShell variant=landing (Item 7,
 // Phase C2, the deferred slice of Phase C). A `/p/[publicToken]` QR is scanned
 // by a stranger who found a pet: it gets the minimal trust chrome (brand +
-// Argentina stripe + "Credencial verificada por miMAR"), NOT the public browse
+// Argentina stripe + "Credencial registrada en miMAR"), NOT the public browse
 // chrome. The (public) layout above renders a transparent passthrough for these
 // token-landing paths, so this layout owns the single `#main-content`.
 //

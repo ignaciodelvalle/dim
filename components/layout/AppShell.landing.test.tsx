@@ -30,7 +30,7 @@ describe("AppShell variant=landing — single main-content landmark", () => {
     );
     expect(countMatches(html, /id="main-content"/g)).toBe(1);
     expect(countMatches(html, /<main\b/g)).toBe(1);
-    expect(html).toContain("Credencial verificada por miMAR");
+    expect(html).toContain("Credencial registrada en miMAR");
     expect(html).toContain("page-body");
   });
 
@@ -63,7 +63,7 @@ describe("AppShell variant=landing — single main-content landmark", () => {
     );
     expect(withBanner).toContain("demo-banner");
     expect(withBanner.indexOf("demo-banner")).toBeLessThan(
-      withBanner.indexOf("Credencial verificada por miMAR"),
+      withBanner.indexOf("Credencial registrada en miMAR"),
     );
 
     const withoutBanner = render(

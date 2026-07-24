@@ -32,9 +32,7 @@ export default function PrivacidadPage() {
           <p className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed">
             miMAR trata los datos personales de sus usuarios conforme a la{" "}
             <strong>Ley 25.326 de Protección de Datos Personales</strong> de la República Argentina
-            y su decreto reglamentario 1558/2001. miMAR cumple las obligaciones de registro ante la
-            Agencia de Acceso a la Información Pública (AAIP) / Dirección Nacional de Protección de
-            Datos Personales (DNPDP) conforme lo establece la normativa vigente.
+            y su decreto reglamentario 1558/2001.
           </p>
         </section>
 
@@ -89,6 +87,36 @@ export default function PrivacidadPage() {
             la autoridad jurisdiccional competente y emitir recordatorios sanitarios. No
             comercializamos ni cedemos datos personales a terceros con fines publicitarios.
           </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">
+            Con quién se comparten tus datos
+          </h2>
+          <ul className="text-sm text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-disc list-inside">
+            <li>
+              <strong>Credencial pública:</strong> cualquier persona que escanee el código QR de tu
+              mascota ve los datos públicos de su credencial (nombre, especie, raza y estado). La
+              información médica de Nivel 2 se muestra únicamente si vos la habilitás desde el
+              perfil de la mascota, y podés desactivarla en cualquier momento.
+            </li>
+            <li>
+              <strong>Enlaces de libreta compartida:</strong> los enlaces de libreta sanitaria que
+              generás los compartís vos con quien decidas (por ejemplo, un veterinario). Quien
+              recibe el enlace puede ver el contenido de la libreta mientras el enlace esté vigente.
+            </li>
+            <li>
+              <strong>Autoridades competentes:</strong> los funcionarios habilitados pueden buscar
+              credenciales por DNI del responsable en el ejercicio de sus funciones, y las denuncias
+              se derivan a la autoridad jurisdiccional que corresponde según la ubicación reportada.
+            </li>
+            <li>
+              <strong>Datos abiertos:</strong> publicamos estadísticas agregadas en el marco de la
+              Ley 27.275 de Acceso a la Información Pública. Antes de publicar se suprimen los
+              grupos pequeños (k-anonimato), de modo que ningún dato publicado permita identificarte
+              a vos ni a tu mascota.
+            </li>
+          </ul>
         </section>
 
         <section className="space-y-3">

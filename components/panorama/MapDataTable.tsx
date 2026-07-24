@@ -66,11 +66,21 @@ function csvField(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** Build the CSV text (header + rows) for the map table. Pure — unit-tested. */
-export function buildMapTableCsv(rows: MapTableRow[]): string {
+/**
+ * Build the CSV text (header + rows) for the map table. Pure — unit-tested.
+ *
+ * DATA-TRUTH: a layer whose server fetch hit the 2000-row cap must NOT export
+ * looking complete — `truncatedLayers` (labels of capped layers) appends one
+ * `#`-comment line per capped layer so the self-contained file carries the
+ * same disclosure the on-screen layer panel shows.
+ */
+export function buildMapTableCsv(rows: MapTableRow[], truncatedLayers: string[] = []): string {
   const lines = [CSV_HEADER.join(",")];
   for (const r of rows) {
     lines.push([csvField(r.layer), csvField(r.unit), csvField(r.value)].join(","));
+  }
+  for (const label of truncatedLayers) {
+    lines.push(`# Capa ${label} truncada: mostrando los 2000 registros más recientes`);
   }
   return lines.join("\r\n");
 }
@@ -87,6 +97,12 @@ type Props = {
    * column keeps the generic "Valor" header (backward compatible).
    */
   metrics?: ValueMetric[];
+  /**
+   * Labels of active layers whose fetch hit the server row cap (2000) — the
+   * CSV export appends a per-layer truncation comment so a capped layer never
+   * exports looking complete. Absent/empty → no comment lines.
+   */
+  truncatedLayers?: string[];
 };
 
 /**
@@ -96,8 +112,11 @@ type Props = {
  * v2C dock bar's "Exportar CSV" action shares the exact same artifact as the
  * Registros pane's download link (one CSV builder, two affordances).
  */
-export function useMapTableCsvHref(rows: MapTableRow[]): string | null {
-  const csv = useMemo(() => buildMapTableCsv(rows), [rows]);
+export function useMapTableCsvHref(
+  rows: MapTableRow[],
+  truncatedLayers: string[] = [],
+): string | null {
+  const csv = useMemo(() => buildMapTableCsv(rows, truncatedLayers), [rows, truncatedLayers]);
   const [href, setHref] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined" || rows.length === 0) {
@@ -111,8 +130,8 @@ export function useMapTableCsvHref(rows: MapTableRow[]): string | null {
   return href;
 }
 
-export function MapDataTable({ rows, caption, filename, metrics }: Props) {
-  const href = useMapTableCsvHref(rows);
+export function MapDataTable({ rows, caption, filename, metrics, truncatedLayers }: Props) {
+  const href = useMapTableCsvHref(rows, truncatedLayers);
   // Round-2 review #3a: the Capa column repeats the SAME value on every row
   // when a single layer is active — zero information, pure noise. Derive the
   // count straight from the rows already in scope (no new prop): when 2+

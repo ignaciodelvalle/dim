@@ -27,7 +27,7 @@ export function PppPublicBadge({ petName, breed }: Props) {
           {buildPppHeadline()}
         </h2>
         <span className="text-xs font-medium uppercase tracking-wider text-ln-warn ">
-          Ley 4078 · Prov 14.107
+          CABA: Ley 4078 · PBA: Ley 14.107
         </span>
       </header>
       <p className="text-xs text-ln-warn ">{buildPppDisclaimerLine(petName, breed)}</p>

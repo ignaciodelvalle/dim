@@ -4,7 +4,7 @@
 // guards and URL construction can be tested without a Next.js runtime.
 // Commit 4 of pet-profile-v2 Slice C.
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildPublicVerifyUrl, isCredentialPresentable } from "@/lib/infra/service-dog-presentar";
 
@@ -34,13 +34,26 @@ describe("isCredentialPresentable", () => {
 });
 
 describe("buildPublicVerifyUrl", () => {
-  it("builds the public verify URL from a publicToken", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("builds an ABSOLUTE public verify URL from a publicToken (QR payload)", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://www.mimar.gob.ar");
     const url = buildPublicVerifyUrl("abc123");
-    expect(url).toBe("/p/abc123");
+    expect(url).toBe("https://www.mimar.gob.ar/p/abc123");
+  });
+
+  it("stays absolute on the canonical fallback when the env var is unset/empty", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "");
+    const url = buildPublicVerifyUrl("abc123");
+    expect(url.startsWith("http")).toBe(true);
+    expect(url).toBe("https://mimar.ar/p/abc123");
   });
 
   it("handles tokens with special chars in the path segment", () => {
+    vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://mimar.ar");
     const url = buildPublicVerifyUrl("tok-xyz_789");
-    expect(url).toBe("/p/tok-xyz_789");
+    expect(url).toBe("https://mimar.ar/p/tok-xyz_789");
   });
 });

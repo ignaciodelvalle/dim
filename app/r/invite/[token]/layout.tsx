@@ -1,7 +1,7 @@
 // Invite-acceptance layout — the first surface adopted onto the unified
 // AppShell (Item 7, Phase A). This is a token-landing surface (spec D13): it
 // gets the minimal trust chrome (brand + Argentina stripe + "Credencial
-// verificada por miMAR"), NOT the public browse chrome.
+// registrada en miMAR"), NOT the public browse chrome.
 //
 // Strangler note: the three legacy chromes (LnOwnerNav / AppHeader / OpShell)
 // are untouched. This single, isolated token surface — which previously had no

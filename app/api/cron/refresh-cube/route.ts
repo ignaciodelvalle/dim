@@ -8,8 +8,9 @@
 //
 // Runs the TS cube-builder (src/modules/panorama/infrastructure/cube-builder.ts),
 // which REUSES the live choropleth loaders and writes panorama_cube + cube_meta in
-// one transaction. Scheduled every 15 min (vercel.json). Also runnable locally via
-// `pnpm cube:refresh`.
+// one transaction. Currently UNSCHEDULED — not in vercel.json crons nor in
+// DAILY_JOB_ORDER; invoked manually (or via `pnpm cube:refresh` locally) pending
+// the cube-ON decision. Scheduling it is a separate task.
 //
 // NOTE: the builder brings its OWN lazy session-pooler clients for BOTH phases
 // (task #22): reads AND the write transaction get a long statement_timeout
@@ -53,7 +54,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // covers a genuinely pathological query (cold cache + contention past even the
   // long ceiling). A failed build is already fail-safe (read errors return a
   // structured error result, last-good cube preserved, reader falls to live) —
-  // the retry just avoids wasting the whole 15-min cycle on one cold query.
+  // the retry just avoids wasting the whole (manually-invoked) run on one cold
+  // query.
   let result = await refreshCube();
   // The KPI-strip phase (own failure domain inside the builder) participates in
   // the retry too: a cold-query timeout in its fan-out is exactly as retryable

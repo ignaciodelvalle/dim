@@ -1,7 +1,7 @@
 // Libreta-share landing layout — a token-landing surface (spec D13), migrated
 // onto the unified AppShell variant=landing (Item 7, Phase C). A shared libreta
 // link is scanned/opened by a vet or a trusted third party: it gets the minimal
-// trust chrome (brand + Argentina stripe + "Credencial verificada por miMAR"),
+// trust chrome (brand + Argentina stripe + "Credencial registrada en miMAR"),
 // NOT the public browse chrome.
 //
 // resolveShellNav is the single decision: a token-landing path always yields

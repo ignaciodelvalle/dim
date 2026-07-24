@@ -34,6 +34,28 @@ describe("buildMapTableCsv", () => {
   it("returns a header-only document for no rows", () => {
     expect(buildMapTableCsv([])).toBe("Capa,Unidad,Valor");
   });
+
+  it("appends a truncation comment line per capped layer (honest exports)", () => {
+    const csv = buildMapTableCsv(
+      [
+        { layer: "Perdidas", unit: "Salta", value: "1.234" },
+        { layer: "Denuncias", unit: "Salta", value: "12" },
+      ],
+      ["Perdidas", "Denuncias"],
+    );
+    const lines = csv.split("\r\n");
+    expect(lines[lines.length - 2]).toBe(
+      "# Capa Perdidas truncada: mostrando los 2000 registros más recientes",
+    );
+    expect(lines[lines.length - 1]).toBe(
+      "# Capa Denuncias truncada: mostrando los 2000 registros más recientes",
+    );
+  });
+
+  it("appends no comment lines when no layer is truncated (default)", () => {
+    const csv = buildMapTableCsv([{ layer: "Perdidas", unit: "Salta", value: "1.234" }]);
+    expect(csv).not.toContain("truncada");
+  });
 });
 
 describe("mapTableValueHeader (cowork QA ronda 3 §3 — name the Valor column)", () => {

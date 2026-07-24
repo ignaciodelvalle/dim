@@ -354,8 +354,8 @@ export function MinimalNewPetForm({
           {/* PPP notice — appears/disappears live with the breed selection. */}
           {breedIsDangerous && (
             <LnCallout tone="warn" title="Raza potencialmente peligrosa">
-              Esta raza está en el registro de razas potencialmente peligrosas (Ley CABA 4078, Ley
-              Provincial 14.107). Registrate en el registro provincial correspondiente.
+              Esta raza está en el registro de razas potencialmente peligrosas (CABA: Ley 4078 ·
+              PBA: Ley 14.107). Registrate en el registro provincial correspondiente.
             </LnCallout>
           )}
 

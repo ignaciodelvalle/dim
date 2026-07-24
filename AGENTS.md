@@ -1324,7 +1324,7 @@ Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/han
 - **Three variants:**
   - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
   - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals. **Exception — the situational console** (`/gob|admin/panorama`): a viewport-locked "fixed console" (`100dvh`, no page scroll; the map is fixed like the rail and fills everything except slim bars, with floating overlay chrome + a bottom dock). It is the one operator surface that never page-scrolls (v2C, `#21`).
-  - `landing` — minimal trust chrome for token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): brand + stripe + "Credencial verificada por MiMAR". Auth-independent; a logged-in owner gets a discreet "volver a mi app".
+  - `landing` — minimal trust chrome for token-landing surfaces (`/p/[publicToken]`, `/libreta/compartir/[shareToken]`, `/r/invite/[token]`): brand + stripe + "Credencial registrada en MiMAR". Auth-independent; a logged-in owner gets a discreet "volver a mi app".
 - **"Inicio" is disambiguated**: the brand/logo → public landing `/`; the role home → the owner's "Mis mascotas" tab (`/mis-mascotas`; the `/inicio` route still redirects there or into the most-urgent pet), or the operator panel for gob/admin/org.
 - **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
 
