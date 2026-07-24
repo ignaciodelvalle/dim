@@ -1216,7 +1216,6 @@ export async function recordDiseaseDiagnosisAction(
 
 function parseDisclosurePrefsFromForm(
   formData: FormData,
-  petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput,
 ): import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput {
   const checked = (name: string) => checkboxOn(formData, name);
   const hasSection = [
@@ -1227,7 +1226,21 @@ function parseDisclosurePrefsFromForm(
     "allow_finder_form_when_lost",
   ].some((key) => formData.has(key));
 
-  if (!hasSection) return petDefaults;
+  // cursor privacy P4: fail CLOSED. A caller that omits the disclosure section
+  // entirely used to inherit the pet's current (possibly permissive) prefs via
+  // a `petDefaults` fallback — but the only real caller (MarkLostWizard) always
+  // submits all five fields explicitly via hidden inputs, so "section absent"
+  // means no consent was expressed, not "keep whatever was there before".
+  // Every toggle defaults to false rather than silently republishing PII.
+  if (!hasSection) {
+    return {
+      discloseFirstNameWhenLost: false,
+      disclosePhoneWhenLost: false,
+      discloseEmailWhenLost: false,
+      discloseLastLocationWhenLost: false,
+      allowFinderFormWhenLost: false,
+    };
+  }
 
   return {
     discloseFirstNameWhenLost: checked("disclose_first_name_when_lost"),
@@ -1407,16 +1420,9 @@ export async function setPetLostAction(
     }
   }
 
-  // Parse disclosure prefs from FormData (checkbox pattern).
-  const petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput =
-    {
-      discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
-      disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
-      discloseEmailWhenLost: pet.discloseEmailWhenLost,
-      discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
-      allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
-    };
-  const disclosurePrefs = parseDisclosurePrefsFromForm(formData, petDefaults);
+  // Parse disclosure prefs from FormData (checkbox pattern). cursor privacy P4:
+  // fails closed when the section is absent — see parseDisclosurePrefsFromForm.
+  const disclosurePrefs = parseDisclosurePrefsFromForm(formData);
   const enrichedDescription = parseEnrichedDescriptionFromForm(formData);
 
   const repo = new EventsRepository();

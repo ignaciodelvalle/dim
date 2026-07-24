@@ -239,6 +239,11 @@ afterAll(async () => {
 });
 
 describe("pets — disclosure preference column defaults", () => {
+  // Privacy hardening (cursor privacy P4, migration 0158): the three
+  // PII-disclosing columns now DEFAULT false, matching MarkLostWizard's
+  // affirmative-consent defaults (DISCLOSURE_DEFAULTS) — a row inserted
+  // without explicit values must land closed, not the old permissive
+  // Tier 1 reveal. allow_finder_form_when_lost stays true (no owner PII).
   it("new pet row gets correct defaults for all 5 disclose_* columns", async () => {
     const [row] = await db
       .insert(pets)
@@ -254,10 +259,10 @@ describe("pets — disclosure preference column defaults", () => {
 
     insertedPetId = row.id;
 
-    expect(row.discloseFirstNameWhenLost).toBe(true);
-    expect(row.disclosePhoneWhenLost).toBe(true);
+    expect(row.discloseFirstNameWhenLost).toBe(false);
+    expect(row.disclosePhoneWhenLost).toBe(false);
     expect(row.discloseEmailWhenLost).toBe(false);
-    expect(row.discloseLastLocationWhenLost).toBe(true);
+    expect(row.discloseLastLocationWhenLost).toBe(false);
     expect(row.allowFinderFormWhenLost).toBe(true);
   });
 });

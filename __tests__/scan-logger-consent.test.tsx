@@ -29,19 +29,23 @@ describe("ScanLogger — location-consent prompt", () => {
     const html = renderToStaticMarkup(
       <ScanLogger publicToken="DIM-TEST-0001" isLost petName="Luna" />,
     );
-    expect(html).toContain("Compartí tu ubicación para ayudar a encontrar a Luna");
+    expect(html).toContain("Compartí tu ubicación para sumarla al aviso de búsqueda de Luna");
     expect(html).toContain("Compartir mi ubicación");
     expect(html).toContain("Ahora no");
     // Transparency copy: anonymity promise is shown to the finder.
     expect(html).toContain("No guardamos quién sos");
-    // Consent-copy contract (privacy hardening 2026-07-04): promise recording,
-    // not delivery — no read path surfaces scan coords to the family today.
-    expect(html).toContain("Se registra una sola vez junto al aviso de búsqueda");
+    // Consent-copy contract (privacy hardening 2026-07-04, reworded cursor
+    // privacy P5 2026-07-24): the copy must promise only recording, never
+    // that the owner will use it to find the pet — no read path exists today.
+    expect(html).toContain("Se registra una sola vez junto al aviso.");
     expect(html).not.toContain("Le avisamos a su familia");
+    expect(html).not.toContain("orientar dónde buscar");
   });
 
   it("falls back to generic copy when the pet name is missing", () => {
     const html = renderToStaticMarkup(<ScanLogger publicToken="DIM-TEST-0001" isLost />);
-    expect(html).toContain("Compartí tu ubicación para ayudar a encontrar a esta mascota");
+    expect(html).toContain(
+      "Compartí tu ubicación para sumarla al aviso de búsqueda de esta mascota",
+    );
   });
 });

@@ -602,18 +602,24 @@ export const pets = pgTable(
     emergencyInfoVisible: boolean("emergency_info_visible").notNull().default(false),
     // Lost & Found — per-field disclosure preferences (Fase 1).
     // Owner controls what contact info is visible on the public credential when
-    // the pet is lost. Defaults mirror the previous hardcoded Tier 1 reveal
-    // (first name + phone + last location + finder form = true; email = false).
-    // These are UI preferences — changes do NOT emit pet_profile_updated events,
-    // analogous to emergencyInfoVisible above. Source of truth for the
-    // credential render; the status_changed event optionally carries a
-    // disclosure_prefs_snapshot for historical audit.
-    discloseFirstNameWhenLost: boolean("disclose_first_name_when_lost").notNull().default(true),
-    disclosePhoneWhenLost: boolean("disclose_phone_when_lost").notNull().default(true),
+    // the pet is lost. These are UI preferences — changes do NOT emit
+    // pet_profile_updated events, analogous to emergencyInfoVisible above.
+    // Source of truth for the credential render; the status_changed event
+    // optionally carries a disclosure_prefs_snapshot for historical audit.
+    //
+    // Privacy hardening (cursor privacy P4, migration 0158): these three
+    // PII-disclosing columns used to default to true (the old hardcoded Tier 1
+    // reveal), which disagreed with MarkLostWizard's affirmative-consent
+    // defaults (all OFF) — defense-in-depth now aligns the column DEFAULT with
+    // the wizard so any insert path that skips the wizard's explicit values
+    // still lands closed, not open. allow_finder_form_when_lost stays true —
+    // it exposes no owner PII (see MarkLostWizard DISCLOSURE_DEFAULTS).
+    discloseFirstNameWhenLost: boolean("disclose_first_name_when_lost").notNull().default(false),
+    disclosePhoneWhenLost: boolean("disclose_phone_when_lost").notNull().default(false),
     discloseEmailWhenLost: boolean("disclose_email_when_lost").notNull().default(false),
     discloseLastLocationWhenLost: boolean("disclose_last_location_when_lost")
       .notNull()
-      .default(true),
+      .default(false),
     allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
     // "Primeros pasos" onboarding checklist — per-pet dismissed step keys
     // (owner-onboarding train, migration 0153). A step key here ("photo",

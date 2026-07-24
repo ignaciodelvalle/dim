@@ -671,6 +671,135 @@ describe("erase_subject_data — redacts third-party PII in event payloads (0129
 });
 
 // ---------------------------------------------------------------------------
+// Migration 0159: free-text payload keys redacted on the subject's OWN
+// pet_events (cursor privacy P6).
+// ---------------------------------------------------------------------------
+// Unlike the 0129/0131 victim_contact fix (scoped to incident_reported and
+// DELETES the keys), this redaction runs across ANY event_type and REPLACES a
+// known set of free-text keys with a sentinel, mirroring the case_events
+// pattern. Seeds a status_changed event carrying reason/location_description
+// plus a nested lost_description object, and a sanitary vaccination event
+// whose unrelated keys must survive untouched.
+
+describe("erase_subject_data — redacts free-text payload keys on own pet_events (0159)", () => {
+  let statusChangedEventId: string | undefined;
+  let sanitaryEventId: string | undefined;
+
+  beforeAll(async () => {
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0159");
+
+    const petId = createdPetIds[0];
+    if (!petId) throw new Error("createdPetIds[0] not set");
+
+    const [statusChanged] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "status_changed",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          payload_version: 1,
+          from_status: "active",
+          to_status: "lost",
+          reason: "Se escapó por el portón, lo vio mi vecino Juan Pérez.",
+          location_description: "Plaza San Martín, cerca de la casa de mi ex Ana Gómez.",
+          lost_description: {
+            accessories_when_lost: "Collar con chapita con mi teléfono +5491100000000.",
+            behavior_notes: "Se esconde cuando lo llama mi hijo Tomás.",
+            last_seen_context: "Salió corriendo detrás del auto de mi vecino Carlos.",
+          },
+        },
+      })
+      .returning({ id: petEvents.id });
+    statusChangedEventId = statusChanged.id;
+
+    const [sanitary] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "vaccination_administered",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          vaccine: "antirrábica",
+          lote_biologico: "LOTE-0159-XYZ",
+          laboratorio: "Lab Fixture 0159",
+        },
+      })
+      .returning({ id: petEvents.id });
+    sanitaryEventId = sanitary.id;
+  });
+
+  it("redacts top-level and nested free-text keys but keeps the event row + non-text fields", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'free text redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    const [row] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, statusChangedEventId));
+    const payload = row.payload as Record<string, unknown>;
+
+    expect(payload.reason).toBe("[dato removido]");
+    expect(payload.location_description).toBe("[dato removido]");
+    const lostDescription = payload.lost_description as Record<string, unknown>;
+    expect(lostDescription.accessories_when_lost).toBe("[dato removido]");
+    expect(lostDescription.behavior_notes).toBe("[dato removido]");
+    expect(lostDescription.last_seen_context).toBe("[dato removido]");
+    // Structural fields untouched — only free text is redacted.
+    expect(payload.from_status).toBe("active");
+    expect(payload.to_status).toBe("lost");
+    expect(payload.payload_version).toBe(1);
+
+    // Sanitary payload untouched (retention) — no matching free-text keys.
+    if (!sanitaryEventId) throw new Error("sanitaryEventId not set");
+    const [sanitaryRow] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, sanitaryEventId));
+    const sanitaryPayload = sanitaryRow.payload as Record<string, unknown>;
+    expect(sanitaryPayload.lote_biologico).toBe("LOTE-0159-XYZ");
+    expect(sanitaryPayload.laboratorio).toBe("Lab Fixture 0159");
+  });
+
+  it("emits a pet_events_mutation_override audit row for the redacted event", async () => {
+    if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    const overrides = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(eq(auditLog.action, "pet_events_mutation_override"));
+    const forOurEvent = overrides.some(
+      (a) => (a.payload as Record<string, unknown>).pet_event_id === statusChangedEventId,
+    );
+    expect(forOurEvent).toBe(true);
+  });
+
+  it("is idempotent — re-erasing matches no free-text event rows the second time", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'free text redaction rerun'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    // Values from the first pass remain the sentinel — a second pass is a no-op.
+    if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    const [row] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, statusChangedEventId));
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.reason).toBe("[dato removido]");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Migration 0130: dispute-party / case_events / notification PII redaction.
 // ---------------------------------------------------------------------------
 // The subject's own free-text contributions across the remaining PII holders
