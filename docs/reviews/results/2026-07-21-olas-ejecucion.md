@@ -277,3 +277,21 @@ Accesibilidad (contraste/foco/aria) · microcopy profundo · responsive interact
 
 ### PO-gated
 Push + cutover #760 · migraciones a PROD · Vercel Pro · revisión legal GPS (con convenio).
+
+## DECISIONES PO — entrevista 2026-07-24 (post rondas cursor)
+
+1. Bandeja gob (G7): **de-énfasis visual en cards con count 0** (orden fijo se mantiene).
+2. Mi Argentina en login: **queda como está** (secundario deshabilitado).
+3. Nav refugio (R1): **dieta a 5 jobs** (Ingresos, Custodia, Postulaciones, Casos, Equipo) + resto bajo "Administración".
+4. Citas legales (G3): **badge de jurisdicción ahora** ("CABA: Ley 5470"); resolución completa por mandato en fase 3.
+5. Seed ≥5 eventos: **sembrar con chequeo previo de tests** (seed_tag + idempotente).
+6. Coropletas /gob: **portar escala clasificada + caption "conteos absolutos"** (per-cápita queda fase 3).
+7. Seed cliff esterilizaciones: **suavizar la distribución** (guard y aritmética intactos).
+8. Emails demo (O2): **quedan como están** (el banner de entorno ya avisa).
+9. Quick wins TODOS aprobados: CTA sticky credencial pública mobile · org picker recuerda última + tipo · footer dueño colapsado · página de error con ID + reportar.
+10. Subtítulos: **migrar los 9 legacy text-[13px] → --text-md** (un token para el rol).
+11. Próximo frente grande: **trend fetchers → forecasts completos** (confirmado).
+
+Orden de ejecución: A) mecánicos (G7 de-énfasis, subtitle token, error page, footer, org picker,
+badges legales) → B) seeds (≥5 + suavizado, con chequeo de tests) → C) coropletas clasificadas →
+D) CTA sticky credencial → E) dieta nav refugio → F) frente trend fetchers.
