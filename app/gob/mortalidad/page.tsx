@@ -48,6 +48,7 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { formatMetricLegalBasis, resolveMetricLegalBasis } from "@/lib/metrics/metric-legal-basis";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { deathCauseLabel, formatPercent, pluralizeEs } from "@/lib/utils/format";
@@ -149,6 +150,23 @@ export default async function GobMortalidadPage({
     adminProvince,
     adminLocality,
   });
+  // Mandate-scoped legal citation (red-team CRITICAL): "Ley 5470" is a CABA
+  // law — it is only cited to an operator whose MANDATE (raw assignments, not
+  // the page's narrowed filter) includes CABA. Admin has universal scope and
+  // keeps the full citation.
+  const mandateProvinces =
+    profile.role === "admin"
+      ? ("all" as const)
+      : [...new Set(jurisdictions.map((j) => j.province))];
+  const traceabilityLegalBasis = formatMetricLegalBasis(
+    "mortality_disposal_traceability",
+    mandateProvinces,
+  );
+  const traceabilityLegalGap = resolveMetricLegalBasis(
+    "mortality_disposal_traceability",
+    mandateProvinces,
+  ).hasProvincialGap;
+
   const species = sp.species || undefined;
   // Validate against the closed cause enum so an invalid URL value never
   // drives the query (same discipline as /gob/perdidas' parseStatusFilter).
@@ -223,8 +241,12 @@ export default async function GobMortalidadPage({
               )
             ) : (
               <p className="text-[var(--text-md)] text-ln-op-mute">
-                Trazabilidad de la disposición final de fallecimientos (Ley CABA 5470) en tu
-                cobertura.
+                {!traceabilityLegalGap && traceabilityLegalBasis
+                  ? `Trazabilidad de la disposición final de fallecimientos (${traceabilityLegalBasis}) en tu cobertura.`
+                  : // Provincial gap: the mandate has no province with a
+                    // registered disposal law — neutral framing, never a
+                    // foreign province's law.
+                    `Trazabilidad de la disposición final de fallecimientos en tu cobertura.${traceabilityLegalBasis ? ` ${traceabilityLegalBasis}.` : ""}`}
               </p>
             )}
             <ViewScopeCaption scope={narrowedView} />
@@ -302,7 +324,13 @@ export default async function GobMortalidadPage({
               : "neutral"
           }
           bar={hasDeaths ? m.traceableRate : undefined}
-          sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación (B3 · Ley 5470)`}
+          sub={`meta ${TARGETS.DISPOSAL_TRACEABILITY_PCT}% · método + instalación${
+            !traceabilityLegalGap && traceabilityLegalBasis
+              ? ` (B3 · ${traceabilityLegalBasis})`
+              : // Provincial gap (or no registered basis): keep the metric
+                // code, never cite a province outside the mandate.
+                " (B3)"
+          }`}
           info={getKpiInfo("mortality_disposal_traceability")}
           descriptorId="mortality_disposal_traceability"
           guardInput={{ n: m.total }}

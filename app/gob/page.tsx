@@ -95,6 +95,7 @@ import {
   buildBriefingAlerts,
 } from "@/lib/metrics/briefing-alerts";
 import { KPI_CATALOG, type KpiId, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { formatMetricLegalBasis } from "@/lib/metrics/metric-legal-basis";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
 import { windows } from "@/lib/metrics/period";
 import { type ActivityFeedRow, collapseActivityFeed } from "@/lib/ui/activity-feed";
@@ -158,6 +159,17 @@ export default async function GobiernoDashboardPage({
   // values (filteredJurisdictions/adminProvince/adminLocality) the KPI ctx
   // below already computed — never re-derived.
   const scopeLabel = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
+
+  // Mandate-scoped legal citations (red-team CRITICAL): a province's law is
+  // only cited to an operator whose MANDATE (raw assignments, not the page's
+  // narrowed filter) includes that province. Admin has universal scope and
+  // keeps the full citation list.
+  const mandateProvinces =
+    profile.role === "admin"
+      ? ("all" as const)
+      : [...new Set(jurisdictions.map((j) => j.province))];
+  const microchipLegalBasis = formatMetricLegalBasis("microchip_penetration", mandateProvinces);
+  const pppLegalBasis = formatMetricLegalBasis("ppp_registry_compliance", mandateProvinces);
   const narrowedView = describeNarrowedView({
     role: profile.role,
     mandateJurisdictions: jurisdictions,
@@ -670,7 +682,7 @@ export default async function GobiernoDashboardPage({
             value={formatPercent(microchipPenetration.ratePct)}
             tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
             bar={microchipPenetration.ratePct}
-            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas · PBA: Ley 14.107`}
+            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas${microchipLegalBasis ? ` · ${microchipLegalBasis}` : ""}`}
             href="/gob/analytics"
             descriptorId="microchip_penetration"
             // Red-team 2026-07 #3: 0-pet padrón (e.g. out-of-mandate locality
@@ -693,8 +705,8 @@ export default async function GobiernoDashboardPage({
             bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
             sub={
               breedCompliance.flaggedCount === 0
-                ? "sin PPP en cobertura · CABA: Ley 4078"
-                : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo · CABA: Ley 4078`
+                ? `sin PPP en cobertura${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}`
+                : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}`
             }
             href="/gob/analytics"
             descriptorId="ppp_registry_compliance"
