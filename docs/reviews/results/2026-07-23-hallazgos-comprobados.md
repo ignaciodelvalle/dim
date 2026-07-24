@@ -69,3 +69,24 @@ Branding "Ministerio de Salud" en landing vs entorno demo · ranking por gap×po
 forecast con cupos/dosis faltantes · Operativos: agregación geográfica antes del dump
 PII · scoping de la lista nacional de perdidas · receptor ENO (conocido) · federación
 Mi Argentina (premisa, conocido) · backlog seed de 311 días (dato demo).
+
+## Ronda cursor UX admin/gob (canvas 2026-07-23) — veredictos verificados
+
+Regla aplicada: nada válido por defecto; 5 claims concretos verificados contra código + DB viva.
+
+| ID | Claim | Veredicto | Resolución |
+|---|---|---|---|
+| G1 | Alert "supera plazo legal" vs KPI "0 en curso" (BLOCKER) | CONFIRMADO — pero el ALERT era el falso positivo: seed sin observation_started_event_id → start fantasma; la observación cerró EN TÉRMINO | df89e713: invariante breach ⊆ abiertas en el predicado A9 + el runner de storylines garantiza la clave de pareo |
+| G2 | "-98,3%" esterilizaciones = ruido vestido de urgencia | REFUTADO — 121→2 real en seed; guard (piso 5) correcto. Suprimirlo violaría honestidad métrica | Sin cambio de código. Opcional: suavizar distribución del seed (cola baja) |
+| G3 | Citas legales CABA/PBA sin condicionar por mandato | CONFIRMADO — maquinaria jurisdiccional existe (case-normatives) pero no cableada a KPIs/alerts | TAREA: citas con badge de jurisdicción / resolución por mandato (ojo: borrarlas sería el fix deshonesto) |
+| A1 | Admin "siempre en llamas" (5 procesos caídos) | CONFIRMADO, causa benigna — 375 filas fixture de vitest en cron_runs compartida | DB curada (df89e713); banner honesto queda. TAREA: teardown de tests cron + estado "paused" en registry |
+| G7 | Bandeja ordenada con inbox vacíos primero | CONFIRMADO — orden hardcodeado, PO-locked | DECISIÓN PO: de-énfasis de count-cero (recomendado) vs resort por volumen (rompe memoria espacial) |
+| A3 | Colisión "Gobiernos" vs "Ir a Gobierno" | CONFIRMADO (les pasó en demo) | df89e713: "Cuentas gobierno" |
+| B4 | 21 rutas crasheadas transitorias | EXPLICADO — era el incidente del server stale (chunks muertos), ya blindado en qa-up | TAREA chica: página de error con id + "reportar" (el "sin-digest" no le da nada a soporte) |
+| G6 | Omnibox "mandate-blind" — sugiere "existe fuera de tu mandato" | FIX PROPUESTO RECHAZADO — revelar existencia fuera del mandato viola privacy-by-design | Sin cambio; el empty-state actual es el correcto |
+| G4 | Panorama vacío como primera impresión | PARCIAL — el aviso in-map k-anon (V2) ya aterrizó; falta capa default con datos + H1 | Se pliega a la tarea existente "seed ≥5 eventos" + TAREA: H1/capa default |
+| G8 | Confianza+n como chrome sistémico de KPI | ALINEADO con C1 — el catálogo ya carga confidence; falta render homogéneo | TAREA fase 3: barrido + fence "rate/coverage ⇒ confianza visible" |
+
+Direcciones PO (sin verificar código, son decisiones de producto): G5 analítica como decision desk ·
+A2/S1 work queues query-first para escala · B1 densidad de nav · B3 checklist demo/prod · L1
+tratamiento Mi Argentina en login · B2 alcance repetido 3× en chrome desktop.
