@@ -112,7 +112,7 @@ export function MinimalNewPetForm({
     },
     initialState,
   );
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   const formRef = useRef<HTMLFormElement>(null);
 

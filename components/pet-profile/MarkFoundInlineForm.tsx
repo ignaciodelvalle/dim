@@ -21,7 +21,7 @@ export function MarkFoundInlineForm({
 }) {
   const boundAction = setPetFoundAction.bind(null, petPublicToken);
   const [state, formAction, isPending] = useActionState(boundAction, { error: null });
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   return (
     <form action={formAction}>

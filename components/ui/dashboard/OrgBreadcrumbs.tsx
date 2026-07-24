@@ -19,7 +19,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   servicios: "Servicios",
   // "Operaciones" matches the nav-rail label for this section (nav-presets.ts),
   // which groups adoption operations under that name.
-  adopciones: "Operaciones",
+  adopciones: "Postulaciones",
   miembros: "Miembros",
   cobertura: "Cobertura",
   configuracion: "Configuración",

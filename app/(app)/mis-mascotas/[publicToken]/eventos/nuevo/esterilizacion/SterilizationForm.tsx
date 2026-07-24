@@ -26,7 +26,7 @@ export function SterilizationForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
   // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = todayIsoInAr();

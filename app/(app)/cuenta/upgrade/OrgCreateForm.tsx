@@ -34,7 +34,7 @@ type Props = {
 
 export function OrgCreateForm({ dniVerified }: Props) {
   const [state, formAction, pending] = useActionState(createOrganizationAction, initialState);
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   // Controlled field values — preserved across server-side validation errors so
   // the user doesn't lose what they typed when e.g. the CUIT format is rejected.

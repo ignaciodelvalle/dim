@@ -26,7 +26,7 @@ const STEP_LABELS = ["Datos legales", "Contacto", "Ubicación"];
 
 export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
   const [state, formAction, pending] = useActionState(createClinicAction, initialState);
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
   const [step, setStep] = useState(1);
   const formRef = useRef<HTMLFormElement>(null);
 

@@ -49,7 +49,10 @@ export function CrisisBand() {
   return (
     <section className="lp-crisis" aria-label="Emergencias — sin cuenta" data-section="crisis-band">
       <div className="lp-wrap-wide lp-crisis-grid">
-        <Link className="lp-crisis-card" data-t="perdi" href="/perdidas">
+        {/* Owner job ("activá el modo perdido") lands on the owner's pets, not
+            the finder board — /mis-mascotas preserves the destination through
+            the auth flow (cursor citizen UX P2, verified 2026-07-24). */}
+        <Link className="lp-crisis-card" data-t="perdi" href="/mis-mascotas">
           <span className="lp-cic" aria-hidden="true">
             <Icon name="perdida" size="md" decorative />
           </span>

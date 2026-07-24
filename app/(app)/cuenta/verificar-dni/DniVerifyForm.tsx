@@ -10,7 +10,7 @@ const initialState: DniVerifyFormState = { error: null };
 
 export function DniVerifyForm({ next }: { next: string }) {
   const [state, formAction, pending] = useActionState(verifyDniAction, initialState);
-  useActionRedirect(state.ok ? state.next : null);
+  useActionRedirect(state.ok ? state.next : null, state);
 
   if (state.ok) {
     return (

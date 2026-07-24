@@ -285,7 +285,7 @@ describe("buildOrgNavFlat", () => {
     const labels = buildOrgNavFlat("ORG-ABC", FULL_NAV).map((i) => i.label);
     expect(labels).toContain("Mascotas");
     expect(labels).toContain("Servicios");
-    expect(labels).toContain("Operaciones");
+    expect(labels).toContain("Postulaciones");
     expect(labels).toContain("Miembros");
     expect(labels).toContain("Cobertura");
     expect(labels).toContain("Configuración");
@@ -324,7 +324,7 @@ describe("buildOrgNavFlat", () => {
   // clinic AND a sanitary_authority admin implicitly hold every capability, so
   // the org-type gate — not capability — is what drops Tránsitos / Voluntarios /
   // Operaciones / Check-ins for non-rehoming types.
-  const SHELTER_ONLY_NAV = ["Tránsitos", "Voluntarios", "Operaciones", "Check-ins"];
+  const SHELTER_ONLY_NAV = ["Tránsitos", "Voluntarios", "Censo", "Postulaciones", "Check-ins"];
 
   it("hides shelter-only modules for a clinic (org-type gate)", () => {
     const labels = buildOrgNavFlat("ORG-ABC", {

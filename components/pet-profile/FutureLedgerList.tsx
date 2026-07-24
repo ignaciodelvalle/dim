@@ -52,7 +52,7 @@ function MarkDoseForm({ reminderId }: { reminderId: string }) {
     markMedicationDoseTakenAction,
     initialState,
   );
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   return (
     <form action={formAction}>

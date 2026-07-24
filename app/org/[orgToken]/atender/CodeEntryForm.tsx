@@ -16,7 +16,7 @@ const initialState: EventFormState = { error: null };
 
 export function CodeEntryForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   // A3: clear the previous attempt's error the moment the operator edits the
   // code (onChange), so a fresh lookup starts clean instead of showing a stale
@@ -34,9 +34,20 @@ export function CodeEntryForm({ action }: { action: FormAction }) {
 
   const showError = Boolean(state.error) && !errorDismissed && !isPending;
 
+  // C1 (cursor citizen UX, 2026-07-24): the success branch used to render
+  // NOTHING — the redirect happens via a client effect (N3), so any hiccup in
+  // the assign left the vet on a blank same-page with zero feedback. A visible
+  // "opening" line makes success observable even while the navigation lands.
+  const showSuccess = Boolean(state.redirectTo) && !state.error && !isPending;
+
   return (
     <form action={formAction} className="space-y-4">
       {showError && <OpFormAlert>{state.error}</OpFormAlert>}
+      {showSuccess && (
+        <output className="block text-sm text-ln-op-ink-2">
+          Mascota encontrada — abriendo la libreta…
+        </output>
+      )}
       <OpField
         label="Código de la credencial (DIM-XXXX-XXXX)"
         hint="Ingresá el código de la credencial que te muestra el dueño para registrar un evento clínico."

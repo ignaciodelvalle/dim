@@ -32,7 +32,7 @@ export function FinalizeAdoptionForm({
   // On success the action returns `redirectTo`; navigate via a full document
   // load (immune to the Next 15.5.x router-drop that stranded this flow — see
   // the FinalizeAdoptionFormState.redirectTo docblock).
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   const hasApproved = approvedApplications.length > 0;
   // Default to the approved-application path when one exists — it transfers the

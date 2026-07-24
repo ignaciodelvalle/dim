@@ -29,9 +29,12 @@ export default async function OrgCensoPage({
   // Non-shelter orgs or users without intake.create capability see a not-applicable notice.
   const isShelterOrg = SHELTER_TYPES.has(organization.orgType);
   if (!isShelterOrg || !canIntake) {
+    // Reached only by URL now (the nav item is shelterOnly) — still needs an
+    // H1 for a11y/scanability (cursor citizen UX V1, 2026-07-24).
     return (
       <div className="space-y-6">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
+        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Censo de animales</h1>
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-6 text-[13px] text-ln-op-mute">
           El censo de ocupación solo está disponible para refugios y redes de rescate con acceso a
           ingresos.

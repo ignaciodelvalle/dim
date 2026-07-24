@@ -530,7 +530,7 @@ function MarkFoundConfirmation({
   // lib/ui/use-action-redirect.ts) — which also closes this sheet by loading
   // the profile URL without the ?sheet= param.
   const [state, formAction, isPending] = useActionState(action, { error: null });
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
 
   return (
     <div className="space-y-4">

@@ -53,7 +53,7 @@ export function VaccinationForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
   // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
-  useActionRedirect(state.redirectTo);
+  useActionRedirect(state.redirectTo, state);
   // Wave 2 Item 9: focus error region on submit failure (mobile a11y)
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();

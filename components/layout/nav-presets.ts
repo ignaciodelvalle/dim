@@ -154,6 +154,10 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       matchPrefix: `/org/${orgToken}/censo`,
       requiredCapability: "intake.create",
       section: "Operación",
+      // The census page itself is shelter-only (app/org/[t]/censo/page.tsx
+      // SHELTER_TYPES) — without this flag a clinic admin (implicit all-caps)
+      // got a nav item leading to an H1-less dead end (cursor citizen UX V1).
+      shelterOnly: true,
     },
     {
       href: `/org/${orgToken}/transitos`,
@@ -194,10 +198,12 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       requiredAnyCapability: ["org.transfer.propose", "org.transfer.accept"],
       section: "Animales",
     },
-    // Adopciones
+    // Adopciones — label matches the target page's H1 ("Postulaciones"):
+    // "Operaciones" promised a hub and delivered an applications list, and
+    // operators learn not to trust labels (cursor citizen UX R2, 2026-07-24).
     {
       href: `/org/${orgToken}/adopciones`,
-      label: "Operaciones",
+      label: "Postulaciones",
       matchPrefix: `/org/${orgToken}/adopciones`,
       requiredCapability: "adoption.review",
       section: "Adopciones",
