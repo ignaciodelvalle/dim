@@ -47,10 +47,14 @@ if ($listening) {
     $diskBuildId = (Get-Content $buildIdPath -Raw).Trim()
     $servedFresh = $false
     try {
-        $probe = Invoke-WebRequest -Uri "http://localhost:$Port/login" -UseBasicParsing -TimeoutSec 10
-        if ($probe.Content -match [regex]::Escape("/_next/static/$diskBuildId/")) { $servedFresh = $true }
+        # App-router HTML does not embed the buildId in asset URLs, so grepping
+        # a page is useless — instead ask the server for THIS build's manifest:
+        # only a server booted on the on-disk build can serve it (a stale one
+        # 400s, exactly the dead-chunk symptom this guard exists to catch).
+        $probe = Invoke-WebRequest -Uri "http://localhost:$Port/_next/static/$diskBuildId/_buildManifest.js" -UseBasicParsing -TimeoutSec 10
+        if ($probe.StatusCode -eq 200) { $servedFresh = $true }
     } catch {
-        Write-Warning "Probe of the running server failed - treating it as stale."
+        Write-Warning "Running server cannot serve the on-disk build's manifest - treating it as stale."
     }
     if ($servedFresh) {
         Write-Host "Port $Port already listening and serving the on-disk build ($diskBuildId) - reusing."
