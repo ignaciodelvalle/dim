@@ -90,3 +90,22 @@ Regla aplicada: nada válido por defecto; 5 claims concretos verificados contra 
 Direcciones PO (sin verificar código, son decisiones de producto): G5 analítica como decision desk ·
 A2/S1 work queues query-first para escala · B1 densidad de nav · B3 checklist demo/prod · L1
 tratamiento Mi Argentina en login · B2 alcance repetido 3× en chrome desktop.
+
+## Ronda cursor UX ciudadano/público (canvas 2026-07-24) — veredictos verificados
+
+| ID | Claim | Veredicto | Resolución |
+|---|---|---|---|
+| C1 | "Atender" muere en silencio (BLOCKER) | PARCIAL — las 8 ramas de error SÍ alertan; el mudo era el ÉXITO: el redirect N3 keyed por string no re-dispara con el mismo destino (bfcache/re-submit) | acd2bff4: useActionRedirect gana fireKey (identidad del resultado), barrido de los 24 callers — la clase muere en el contrato; + línea "abriendo la libreta…" |
+| O1 | Contactos basura "doctora mani1234565767" | CONFIRMADO (dato), render exonerado — carga manual en la mascota demo, no seed; fallbacks existen | Fila curada en DB. Sin cambio de código |
+| P1 | Cards de rol sin navegación | REFUTADO — shortcuts de capítulo in-page intencionales (variante PO-locked "2 doors only") | Sin cambio |
+| P2 | Perdí y Encontré al mismo destino | CONFIRMADO — el dueño quedaba a 2 saltos del "modo perdido" prometido | acd2bff4: Perdí → /mis-mascotas (auth preserva destino); Encontré queda en /perdidas (genuinamente finder-first) |
+| O3 | /adopciones 404 | CONFIRMADO pero sin links — URL adivinable tipeada | acd2bff4: permanent redirect → /adoptar |
+| O4 | "0 de 3" sin nombrar obligaciones | REFUTADO — las 3 están nombradas con CTAs; en mobile detrás de un details ("Obligaciones") | Sin cambio (re-nombrarlas en el contador recrearía la duplicación dedup'd por PO) |
+| R2 | Nav "Operaciones" ≠ H1 "Postulaciones" | CONFIRMADO | acd2bff4: label+breadcrumb "Postulaciones"; pins de test actualizados |
+| R3 | "Mordeduras" va directo al form de alta | CONFIRMADO — gap documentado (no existe inbox org de mordeduras) | TAREA fase 3: lista/inbox org de mordeduras; el retarget solo no alcanza |
+| V1 | Censo de clínica sin H1 | CONFIRMADO — el ítem de nav no era shelterOnly (admin de clínica tiene all-caps implícitas) | acd2bff4: shelterOnly + H1 en la rama aviso + fence SHELTER_ONLY_NAV extendido |
+| X2 | Proteger el trimming clínica≠refugio | YA FENCED — nav-presets.test SHELTER_ONLY_NAV; Censo era el único gap, cerrado | Fence extendido en acd2bff4 |
+
+Direcciones PO: R1 dieta de nav refugio (5 jobs) · O2 personas demo con emails realistas ·
+P3 CTA sticky por tier en credencial pública mobile · A1 Mi Argentina (ya en lista) ·
+V2 default de org recordada · X1 footer institucional colapsado en app de dueño.
