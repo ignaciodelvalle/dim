@@ -342,7 +342,7 @@ export default async function GobHistorialPage({
         className="space-y-2"
         eyebrow="Historial"
         title="Historial de auditoría"
-        subtitle={<p className="text-[13px] text-ln-op-mute">{scopeCopy}</p>}
+        subtitle={<p className="text-[var(--text-md)] text-ln-op-mute">{scopeCopy}</p>}
       />
 
       {/* Unified filter bar — Período (shared PeriodPicker, same param names

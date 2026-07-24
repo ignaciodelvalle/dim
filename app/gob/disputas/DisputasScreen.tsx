@@ -95,7 +95,7 @@ export async function DisputasScreen({ searchParams: sp, underHub = false }: Dis
         eyebrow="Disputas"
         title={KPI_CATALOG.custody_disputes_open.label}
         subtitle={
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             {profile.role === "admin"
               ? "Todas las disputas en el sistema."
               : "Disputas en tu cobertura."}

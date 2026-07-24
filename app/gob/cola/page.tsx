@@ -88,7 +88,9 @@ export default async function ColaPage({
       <ScreenHeader
         className="space-y-2"
         title={pageTitle}
-        subtitle={subtitle ? <p className="text-[13px] text-ln-op-mute">{subtitle}</p> : undefined}
+        subtitle={
+          subtitle ? <p className="text-[var(--text-md)] text-ln-op-mute">{subtitle}</p> : undefined
+        }
       />
 
       {/*

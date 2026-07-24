@@ -59,7 +59,7 @@ export default async function AdminDashboardPage() {
         eyebrow="miMAR Plataforma · Admin"
         title="Panel de administración"
         subtitle={
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-[var(--text-md)] text-ln-op-ink-2">
             Estas colas se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
           </p>
         }

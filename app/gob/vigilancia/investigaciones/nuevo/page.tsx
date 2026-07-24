@@ -31,7 +31,7 @@ export default async function NuevaInvestigacionPage({
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink mt-1">
           Nueva investigacion de brote
         </h1>
-        <p className="text-[13px] text-ln-op-mute mt-1">
+        <p className="text-[var(--text-md)] text-ln-op-mute mt-1">
           Apertura manual. La jurisdicción se toma de tu asignación activa.
         </p>
       </header>

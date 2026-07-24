@@ -72,7 +72,7 @@ export default async function ReplaceMicrochipAdminPage({
           {"Reemplazar microchip — "}
           {pet.name}
         </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           {
             "Acción administrativa. Todas las razones están disponibles, incluidas fraude y duplicado. Quedará registrado en el log de auditoría."
           }

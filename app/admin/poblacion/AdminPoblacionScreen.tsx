@@ -112,7 +112,7 @@ export async function AdminPoblacionScreen({
       title="Control poblacional"
       subtitle={
         <>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             Vista nacional: cobertura de esterilización, reproducción y balance, con ranking por
             provincia.
           </p>

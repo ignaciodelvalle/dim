@@ -184,7 +184,7 @@ export default async function DecomisosDashboardPage({
           eyebrow="Ley 14.346"
           title="Decomisos"
           subtitle={
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-[var(--text-md)] text-ln-op-mute">
               {session.profile.role === "admin"
                 ? "Todos los episodios de custodia del sistema."
                 : "Decomisos ejecutados por tu autoridad sanitaria."}

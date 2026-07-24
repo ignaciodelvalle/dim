@@ -106,7 +106,7 @@ export default async function ObservationDetailPage({
           {"Cierre profesional — "}
           {pet.name}
         </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-[var(--text-md)] text-ln-op-ink-2">
           {"Como "}
           {profile.role === "admin" ? "administrador" : "autoridad sanitaria"}
           {", podés cerrar con cualquier resultado."}

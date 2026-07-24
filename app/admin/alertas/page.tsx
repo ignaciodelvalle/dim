@@ -138,7 +138,7 @@ export default async function AdminAlertasPage({
         eyebrow="Admin · Operaciones"
         title="Bandeja de alertas"
         subtitle={
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             Alertas disparadas al cruzar un umbral suscripto. Reconocé, investigá, contactá a la
             autoridad de la jurisdicción y cerrá cada alerta. El SLA de atención (antigüedad)
             refuerza el grado sanitario del programa.

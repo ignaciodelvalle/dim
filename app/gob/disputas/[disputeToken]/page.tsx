@@ -132,7 +132,7 @@ export default async function DisputeDetailPage({
             {STATUS_LABELS[dispute.status] ?? dispute.status}
           </OpPill>
         </div>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           {speciesLabel(pet.species)}
           {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
           {dispute.jurisdictionProvince}

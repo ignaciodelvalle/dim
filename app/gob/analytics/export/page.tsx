@@ -77,7 +77,7 @@ export default async function GobAnalyticsExportPage({
       {/* Page header */}
       <header className="space-y-1">
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Exportar datos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           {profile.role === "admin"
             ? "Vista universal — todas las jurisdicciones."
             : "Genera una exportación anonimizada de los datos de tu cobertura."}

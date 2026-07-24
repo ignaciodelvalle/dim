@@ -158,7 +158,7 @@ export async function ServiciosScreen({
         underHub={underHub}
         eyebrow="miMAR Gobierno · Servicios"
         title="Servicios"
-        subtitle={<p className="text-[13px] text-ln-op-ink-2">{subtitle}</p>}
+        subtitle={<p className="text-[var(--text-md)] text-ln-op-ink-2">{subtitle}</p>}
       />
 
       <Suspense>

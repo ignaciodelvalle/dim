@@ -103,7 +103,7 @@ export async function AdminCensoScreen({
       title="Censo y salud del registro"
       subtitle={
         <>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             Vista nacional: total del padrón, mascotas inactivas, calidad de identificación y
             ranking por provincia.
           </p>

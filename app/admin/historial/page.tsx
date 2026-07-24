@@ -251,7 +251,9 @@ export default async function AdminHistorialPage({
       <ScreenHeader
         title="Historial"
         subtitle={
-          <p className="text-[13px] text-ln-op-ink-2">Vista universal admin — todos los actores.</p>
+          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+            Vista universal admin — todos los actores.
+          </p>
         }
       />
 

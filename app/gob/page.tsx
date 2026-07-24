@@ -658,7 +658,7 @@ export default async function GobiernoDashboardPage({
             value={formatPercent(microchipPenetration.ratePct)}
             tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
             bar={microchipPenetration.ratePct}
-            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas · Ley 14.107`}
+            sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas · PBA: Ley 14.107`}
             href="/gob/analytics"
             descriptorId="microchip_penetration"
           />
@@ -678,8 +678,8 @@ export default async function GobiernoDashboardPage({
             bar={breedCompliance.flaggedCount === 0 ? undefined : breedCompliance.ratePct}
             sub={
               breedCompliance.flaggedCount === 0
-                ? "sin PPP en cobertura · Ley 4078"
-                : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo · Ley 4078`
+                ? "sin PPP en cobertura · CABA: Ley 4078"
+                : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo · CABA: Ley 4078`
             }
             href="/gob/analytics"
             descriptorId="ppp_registry_compliance"
@@ -766,13 +766,15 @@ export default async function GobiernoDashboardPage({
         </h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {queueItems.map((item) => (
-            <OpKpi
-              key={item.href}
-              label={item.label}
-              value={formatCount(item.count)}
-              href={item.href}
-              descriptorId={item.descriptorId}
-            />
+            // PO 2026-07-24 (G7): zero-count queues de-emphasize, order stays fixed.
+            <div key={item.href} className={item.count === 0 ? "opacity-60" : undefined}>
+              <OpKpi
+                label={item.label}
+                value={formatCount(item.count)}
+                href={item.href}
+                descriptorId={item.descriptorId}
+              />
+            </div>
           ))}
         </div>
       </section>

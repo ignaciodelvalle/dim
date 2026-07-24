@@ -16,6 +16,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
+import { AppFooter } from "@/components/layout/AppFooter";
 import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
@@ -89,6 +90,11 @@ export default async function AuthenticatedLayout({
           <LnOfflineBanner />
         </>
       }
+      // PO quick win X1 (2026-07-24): the owner home is pet-first — the
+      // legal/institutional footer cluster collapses under a closed <details>
+      // here ONLY (public marketing surfaces via app/(public)/layout.tsx keep
+      // the full footer — see AppFooter's `collapsed` prop doc).
+      footer={<AppFooter collapsed />}
       masthead={
         <AppCitizenMasthead
           nav={shell.nav}

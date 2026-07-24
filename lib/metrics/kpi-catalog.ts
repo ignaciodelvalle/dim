@@ -719,7 +719,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression:
       "k-anon (k=5) on the per-locality breakdown; the national/province figure is unsuppressed",
-    caveat: "Legal basis: Ley Provincial 14.107. Only counts microchips registered in miMAR.",
+    caveat: "Legal basis: Ley Prov. 14.107 (PBA). Only counts microchips registered in miMAR.",
     window: "all_time",
     species: "all_species",
     basis: "ratio",
@@ -727,7 +727,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       "¿Qué porcentaje de mascotas del padrón (activas/perdidas) tiene un microchip ISO activo registrado, según lo exige la ley?",
     target: {
       value: TARGETS.MICROCHIP_PENETRATION_PCT,
-      source: "Ley Provincial 14.107",
+      source: "Ley Prov. 14.107 (PBA)",
       // The law mandates microchip registration, not an 80% threshold — the
       // figure is a programmatic benchmark (claim #6).
       sourceKind: "programmatic-target",
@@ -744,7 +744,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     },
     ui: {
       definition:
-        "Porcentaje de mascotas activas/extraviadas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Provincial 14.107.",
+        "Porcentaje de mascotas activas/extraviadas en la jurisdicción con al menos una identificación microchip ISO activa registrada (C1). Exigido por Ley Prov. 14.107 (PBA).",
       formula:
         "COUNT(pets activos/extraviados con pet_identifications.kind='microchip_iso' y status='active') / COUNT(pets activos/extraviados en scope)",
       caveat: "Solo cuenta microchips registrados en miMAR.",
@@ -778,7 +778,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     unit: "percent",
     suppression: "none",
     caveat:
-      "Legal basis: Ley CABA 4078 / Ley Prov. 14.107. Reads 0% until the attestation form ships — that is a true value (no adoption yet), not a bug. NOT painted as a legal-verdict tone (semaphore: none) — a self-serve-attestation uptake number reading 'Peligro' misrepresents a feature-adoption gap as a legal breach (red-team #7).",
+      "Legal basis: Ley CABA 4078 / Ley Prov. 14.107 (PBA). Reads 0% until the attestation form ships — that is a true value (no adoption yet), not a bug. NOT painted as a legal-verdict tone (semaphore: none) — a self-serve-attestation uptake number reading 'Peligro' misrepresents a feature-adoption gap as a legal breach (red-team #7).",
     window: "all_time",
     species: "dogs",
     basis: "ratio",
@@ -786,7 +786,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       "¿Qué porcentaje de mascotas PPP en la jurisdicción tiene su atestación cargada en miMAR? (NO mide cumplimiento registral externo a la ley — solo adopción del flujo de atestación en la plataforma).",
     target: {
       value: TARGETS.PPP_ATTESTATION_PCT,
-      source: "Ley CABA 4078 / Ley Prov. 14.107",
+      source: "Ley CABA 4078 / Ley Prov. 14.107 (PBA)",
       // 100% IS what "atestación obligatoria" legally means — number and law
       // are the same fact here, unlike the programmatic-target entries above.
       sourceKind: "statutory-obligation",
@@ -799,7 +799,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
       "No mide cumplimiento registral externo (habilitación municipal/provincial fuera de miMAR) — solo la atestación cargada dentro de la plataforma.",
     ui: {
       definition:
-        "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado en miMAR (C7). Ley CABA 4078 / Ley Prov. 14.107 exige la atestación; este número mide SOLO la adopción del flujo dentro de la plataforma, no el cumplimiento registral externo.",
+        "Porcentaje de mascotas de razas potencialmente peligrosas (PPP) en la jurisdicción con al menos un evento dangerous_breed_attested registrado en miMAR (C7). Ley CABA 4078 / Ley Prov. 14.107 (PBA) exige la atestación; este número mide SOLO la adopción del flujo dentro de la plataforma, no el cumplimiento registral externo.",
       formula:
         "COUNT(pets PPP activos con evento dangerous_breed_attested) / COUNT(pets PPP activos)",
       caveat:

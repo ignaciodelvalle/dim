@@ -78,7 +78,7 @@ async function GovtReglasReadOnlyView({
         eyebrow="miMAR Gobierno · Reglas"
         title="Reglas que aplican a tu jurisdicción"
         subtitle={
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-[var(--text-md)] text-ln-op-ink-2">
             Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
             reglas la hace el admin nacional.
           </p>

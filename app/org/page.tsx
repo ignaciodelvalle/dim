@@ -7,20 +7,31 @@
 // from the URL segment is now the only source of truth — see AGENTS.md and
 // docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md for context.
 
+import { OpPill } from "@/components/ui/dashboard/OpPill";
 import { db, organizationMemberships, organizations } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { BRANDING } from "@/lib/ui/branding";
 import { and, eq, isNull } from "drizzle-orm";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+// PO quick win V2 (2026-07-24): matches the fuller es-AR label set already
+// used for approval-request display (lib/infra/approval-payload-summary.ts) —
+// "Clínica" alone read as ambiguous when read next to "Refugio"/"Red de
+// rescate" on the picker.
 const ORG_TYPE_LABELS: Record<string, string> = {
-  clinic: "Clínica",
+  clinic: "Clínica veterinaria",
   shelter: "Refugio",
   rescue_network: "Red de rescate",
   sanitary_authority: "Autoridad sanitaria",
-  other: "Organización",
+  other: "Otra",
 };
+
+// PO quick win V2 (2026-07-24): the cookie middleware.ts stamps on every
+// /org/[orgToken]/* request — a UX preference only (see middleware.ts's
+// comment), re-validated here against the caller's OWN membership list.
+const LAST_ORG_COOKIE = "dim_last_org";
 
 // miMAR brand header for the standalone org index (#43 item 5). The picker and
 // empty state render outside the org rail, so they carried no brand — a member
@@ -92,6 +103,24 @@ export default async function OrgIndexPage() {
     redirect(`/org/${myOrgs[0].org.publicToken}`);
   }
 
+  // PO quick win V2 (2026-07-24): sort the last-used org first — re-validated
+  // against THIS caller's own already-fetched membership list (no new query;
+  // a stale/foreign cookie just fails to match and the list renders in its
+  // original order). Never auto-redirects: a multi-org member switching
+  // between orgs would be surprised by a silent jump away from the picker.
+  const lastOrgToken = (await cookies()).get(LAST_ORG_COOKIE)?.value;
+  const lastUsedIndex = lastOrgToken
+    ? myOrgs.findIndex(({ org }) => org.publicToken === lastOrgToken)
+    : -1;
+  const sortedOrgs =
+    lastUsedIndex > 0
+      ? [
+          myOrgs[lastUsedIndex],
+          ...myOrgs.slice(0, lastUsedIndex),
+          ...myOrgs.slice(lastUsedIndex + 1),
+        ]
+      : myOrgs;
+
   // Multiple memberships — render a picker so the user can choose.
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
@@ -106,13 +135,16 @@ export default async function OrgIndexPage() {
           </p>
         </header>
         <ul className="space-y-3">
-          {myOrgs.map(({ org, membership }) => (
+          {sortedOrgs.map(({ org, membership }) => (
             <li key={org.id}>
               <Link
                 href={`/org/${org.publicToken}`}
                 className="block p-4 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
+                  {org.publicToken === lastOrgToken && <OpPill tone="neutral">Última usada</OpPill>}
+                </div>
                 <p className="text-sm text-ln-op-mute mt-0.5">
                   {ORG_TYPE_LABELS[org.orgType] ?? org.orgType}
                   {org.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}

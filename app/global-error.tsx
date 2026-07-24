@@ -8,9 +8,15 @@
 // error.tsx boundaries; this is the last-resort fallback. Colors reference the
 // design-system CSS variables (globals.css is loaded at the document level).
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { reportError } from "@/lib/observability/report-error";
+
+// PO quick win B4 (2026-07-24): "sin código" fallback — mirrors
+// components/ErrorBoundary.tsx's contract; this file stays dependency-free
+// (no shared component import) since it renders even when the app shell
+// itself crashed, but the copy/behavior should read as the SAME surface.
+const NO_CODE_LABEL = "sin código";
 
 export default function GlobalError({
   error,
@@ -24,6 +30,19 @@ export default function GlobalError({
     // correlate via the digest; this is the client-side observability seam.
     reportError(error, { route: "global-error" });
   }, [error]);
+
+  const code = error.digest ?? NO_CODE_LABEL;
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable — the code is already visible on-screen.
+    }
+  };
 
   return (
     <html lang="es-AR">
@@ -64,12 +83,35 @@ export default function GlobalError({
             }}
           >
             Ocurrió un error inesperado. Probá de nuevo; si el problema persiste, volvé al inicio.
-            {error.digest ? (
-              <span style={{ display: "block", marginTop: "8px", fontSize: "12px" }}>
-                Código de referencia: <code>{error.digest}</code>
-              </span>
-            ) : null}
           </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              marginBottom: "16px",
+            }}
+          >
+            <span style={{ fontSize: "12px", color: "var(--color-ln-mute, #616e77)" }}>
+              Código de error: <code>{code}</code>
+            </span>
+            <button
+              type="button"
+              onClick={copyCode}
+              style={{
+                border: "none",
+                background: "none",
+                padding: 0,
+                cursor: "pointer",
+                fontSize: "12px",
+                fontWeight: 600,
+                color: "var(--color-ln-azul, #0e5a99)",
+              }}
+            >
+              {copied ? "Copiado" : "Copiar código"}
+            </button>
+          </div>
           <div style={{ display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
             <button
               type="button"
@@ -103,7 +145,7 @@ export default function GlobalError({
                 color: "var(--color-ln-ink, #1b2a33)",
               }}
             >
-              Ir al inicio
+              Volver al inicio
             </a>
           </div>
         </main>

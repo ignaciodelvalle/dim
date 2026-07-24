@@ -195,6 +195,25 @@ export async function middleware(request: NextRequest) {
   }
 
   const response = await updateSession(request);
+
+  // PO quick win V2 (2026-07-24): remember the last org a user entered, so
+  // /org can sort it first on their next visit. Captured at the edge (every
+  // request under /org/[orgToken]/*, whichever way the user arrived —
+  // picker click, single-org auto-redirect, or a bookmarked deep link) rather
+  // than in the org layout, since a Server Component render cannot set
+  // cookies. This is a UX preference only, not an access grant: app/org/page.tsx
+  // still re-checks the cookie's org against the caller's OWN already-fetched
+  // membership list before using it — a stale/foreign token here just fails
+  // that check silently.
+  const orgTokenMatch = pathname.match(/^\/org\/([^/]+)/);
+  if (orgTokenMatch) {
+    response.cookies.set("dim_last_org", orgTokenMatch[1], {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 90, // ~90d
+    });
+  }
+
   // Enforcing: a headless CSP-violation sweep across every page type (public,
   // JSON-LD, maplibre map + OSM tiles, dashboards, print) returned ZERO
   // violations, so the policy is safe to enforce. The early redirect returns

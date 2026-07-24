@@ -11,7 +11,7 @@
 // leaking stack traces.
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
@@ -23,6 +23,11 @@ type Props = {
   homeHref?: string;
   homeLabel?: string;
 };
+
+// PO quick win B4 (2026-07-24): "sin código" fallback — an operator/citizen
+// reading this over the phone to support needs a stable string either way,
+// never a blank line.
+const NO_CODE_LABEL = "sin código";
 
 export function ErrorBoundary({
   error,
@@ -38,6 +43,19 @@ export function ErrorBoundary({
   }, [error, homeHref]);
 
   const isProd = process.env.NODE_ENV === "production";
+  const code = error.digest ?? NO_CODE_LABEL;
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (permissions/older browser) — the code is
+      // already visible on-screen for a manual copy, so this is a silent no-op.
+    }
+  };
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
@@ -53,9 +71,14 @@ export function ErrorBoundary({
           Probá de nuevo o volvé al inicio. Si el problema persiste, este es el código que el equipo
           necesita ver:
         </p>
-        <p className="font-mono text-xs text-[var(--color-ln-mute)] break-all">
-          {error.digest ?? (isProd ? "sin-digest" : error.message)}
-        </p>
+        <div className="flex items-center justify-center gap-2">
+          <p className="font-mono text-xs text-[var(--color-ln-mute)] break-all">
+            Código de error: {code}
+          </p>
+          <LnButton variant="ghost" size="sm" onClick={copyCode} className="shrink-0 text-xs">
+            {copied ? "Copiado" : "Copiar código"}
+          </LnButton>
+        </div>
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <LnButton variant="primary" onClick={reset} className="flex-1">
             Reintentar
@@ -71,6 +94,8 @@ export function ErrorBoundary({
           <details className="text-left text-xs text-[var(--color-ln-mute)] mt-4 pt-4 border-t border-[var(--color-ln-line)]">
             <summary className="cursor-pointer font-medium">Stack trace (solo dev)</summary>
             <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs">
+              {error.message}
+              {"\n\n"}
               {error.stack ?? "(sin stack)"}
             </pre>
           </details>

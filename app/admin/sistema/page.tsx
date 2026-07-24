@@ -165,7 +165,9 @@ export default async function AdminSistemaPage() {
         title="Salud del sistema"
         subtitle={
           <>
-            <p className="text-[13px] text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
+            <p className="text-[var(--text-md)] text-ln-op-ink-2">
+              Métricas operativas en vivo. Solo admin.
+            </p>
             {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
                 métricas agregadas). El admin no tiene charts propios todavía; el
                 Centro de Situación es la superficie integradora pendiente. */}

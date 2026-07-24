@@ -55,14 +55,84 @@ const DEFAULT_COLUMNS: Column[] = [
 
 type Props = {
   columns?: Column[];
+  /**
+   * PO quick win X1 (2026-07-24): the owner home is pet-first — fold the
+   * legal/institutional link cluster (Información + Legales columns + the CC
+   * license/argentina.gob.ar line) under a closed-by-default <details>, so the
+   * first screen is the owner's pets, not a wall of legal links. ALL links
+   * stay present (legal compliance), just folded. `columns[0]` ("Producto",
+   * the real navigation) stays visible either way — only the only caller
+   * (AppShell's citizen variant) ever overrides `columns`, and never changes
+   * its order, so this positional split is safe.
+   */
+  collapsed?: boolean;
 };
 
-export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
+function FooterNav({ col }: { col: Column }) {
+  return (
+    <nav aria-label={col.title}>
+      <h2 className="text-sm font-bold text-ln-ink-2">{col.title}</h2>
+      <ul className="mt-3 space-y-2">
+        {col.links.map((l) => (
+          <li key={l.href}>
+            <Link
+              href={l.href}
+              target={l.external ? "_blank" : undefined}
+              rel={l.external ? "noopener noreferrer" : undefined}
+              className="text-sm text-ln-ink-2 no-underline hover:text-ln-azul hover:underline"
+            >
+              {l.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+function LegalLine() {
+  return (
+    <div className="flex flex-col gap-3 text-xs text-ln-mute md:flex-row md:items-center md:justify-between">
+      <p>
+        Los contenidos están licenciados bajo{" "}
+        <a
+          href="https://creativecommons.org/licenses/by/2.5/ar/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-ln-azul hover:underline"
+        >
+          Creative Commons Reconocimiento 2.5 Argentina
+        </a>
+        .
+      </p>
+      <p>
+        <a
+          href="https://www.argentina.gob.ar/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-ln-azul hover:underline"
+        >
+          argentina.gob.ar
+        </a>
+      </p>
+    </div>
+  );
+}
+
+export function AppFooter({ columns = DEFAULT_COLUMNS, collapsed = false }: Props) {
+  const [primaryColumn, ...restColumns] = columns;
+
   return (
     <footer className="mt-12 bg-white">
       <div className="border-t border-ln-line">
         <div className="mx-auto max-w-6xl px-4 py-10 md:px-6">
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+          <div
+            className={
+              collapsed
+                ? "grid grid-cols-1 gap-8 md:grid-cols-2"
+                : "grid grid-cols-1 gap-8 md:grid-cols-4"
+            }
+          >
             {/* Marca + tagline */}
             <div>
               <p className="text-lg font-bold text-ln-azul">{BRANDING.appName}</p>
@@ -74,52 +144,30 @@ export function AppFooter({ columns = DEFAULT_COLUMNS }: Props) {
               </p>
             </div>
 
-            {columns.map((col) => (
-              <nav key={col.title} aria-label={col.title}>
-                <h2 className="text-sm font-bold text-ln-ink-2">{col.title}</h2>
-                <ul className="mt-3 space-y-2">
-                  {col.links.map((l) => (
-                    <li key={l.href}>
-                      <Link
-                        href={l.href}
-                        target={l.external ? "_blank" : undefined}
-                        rel={l.external ? "noopener noreferrer" : undefined}
-                        className="text-sm text-ln-ink-2 no-underline hover:text-ln-azul hover:underline"
-                      >
-                        {l.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </nav>
-            ))}
+            {primaryColumn && <FooterNav col={primaryColumn} />}
+
+            {!collapsed && restColumns.map((col) => <FooterNav key={col.title} col={col} />)}
           </div>
 
-          {/* Línea legal */}
-          <div className="mt-10 flex flex-col gap-3 border-t border-ln-line pt-6 text-xs text-ln-mute md:flex-row md:items-center md:justify-between">
-            <p>
-              Los contenidos están licenciados bajo{" "}
-              <a
-                href="https://creativecommons.org/licenses/by/2.5/ar/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ln-azul hover:underline"
-              >
-                Creative Commons Reconocimiento 2.5 Argentina
-              </a>
-              .
-            </p>
-            <p>
-              <a
-                href="https://www.argentina.gob.ar/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ln-azul hover:underline"
-              >
-                argentina.gob.ar
-              </a>
-            </p>
-          </div>
+          {collapsed ? (
+            <details className="mt-10 border-t border-ln-line pt-6">
+              <summary className="cursor-pointer text-sm font-medium text-ln-ink-2 hover:text-ln-azul">
+                Acerca de miMAR
+              </summary>
+              <div className="mt-6 grid grid-cols-1 gap-8 md:grid-cols-2">
+                {restColumns.map((col) => (
+                  <FooterNav key={col.title} col={col} />
+                ))}
+              </div>
+              <div className="mt-6">
+                <LegalLine />
+              </div>
+            </details>
+          ) : (
+            <div className="mt-10 border-t border-ln-line pt-6">
+              <LegalLine />
+            </div>
+          )}
         </div>
       </div>
 

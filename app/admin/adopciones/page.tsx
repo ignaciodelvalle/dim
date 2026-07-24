@@ -124,7 +124,7 @@ export default async function AdminAdopcionesPage({
           Admin · Pipeline de custodia & adopción
         </p>
         <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Adopciones</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-[var(--text-md)] text-ln-op-mute">
           Vista nacional: embudo de colocación, tiempos de custodia, ocupación de refugios y pool de
           tránsitos.
         </p>
