@@ -290,8 +290,8 @@ Push + cutover #760 · migraciones a PROD · Vercel Pro · revisión legal GPS (
 8. Emails demo (O2): **quedan como están** (el banner de entorno ya avisa).
 9. Quick wins TODOS aprobados: CTA sticky credencial pública mobile · org picker recuerda última + tipo · footer dueño colapsado · página de error con ID + reportar.
 10. Subtítulos: **migrar los 9 legacy text-[13px] → --text-md** (un token para el rol).
-11. Próximo frente grande: **trend fetchers → forecasts completos** (confirmado).
+11. Próximo frente grande: **Analítica como decision desk** (G5 — 3 preguntas de decisión con handoff a Operativos/Vigilancia). Corrección 2026-07-24: la respuesta 'trend fetchers' fue un click accidental; re-preguntado y decidido. Trend fetchers → forecasts pasa a segundo en la lista de frentes.
 
 Orden de ejecución: A) mecánicos (G7 de-énfasis, subtitle token, error page, footer, org picker,
 badges legales) → B) seeds (≥5 + suavizado, con chequeo de tests) → C) coropletas clasificadas →
-D) CTA sticky credencial → E) dieta nav refugio → F) frente trend fetchers.
+D) CTA sticky credencial → E) dieta nav refugio → F) frente Analítica decision desk (después: trend fetchers → forecasts).
