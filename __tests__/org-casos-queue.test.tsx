@@ -159,8 +159,9 @@ describe("CaseQueue — SLA age badge", () => {
     const html = renderToStaticMarkup(
       <CaseQueue rows={[makeRow({ openedAt: old, closedAt: null, status: "open" })]} />,
     );
-    // The SLA badge renders the age in days as "{N}d" inside an OpPill.
-    expect(html).toMatch(/\d+d/);
+    // The SLA badge renders the age in days as "{N} día(s)" inside an OpPill
+    // (visual review 2026-07-23: "173d" read as "1730"; now spelled out).
+    expect(html).toMatch(/\d+\s+días?/);
   });
 
   it("does NOT render SLA badge on open case below threshold", () => {

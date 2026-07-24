@@ -47,6 +47,7 @@
 // ---------------------------------------------------------------------------
 
 import { config as loadEnv } from "dotenv";
+import { pickWelfareDescriptionDeterministic } from "./welfare-description-templates";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
@@ -134,7 +135,7 @@ if (ALLOW_REMOTE && (!isLocalDb || !isLocalSupabase)) {
 // ---------------------------------------------------------------------------
 
 const { createClient: createSdkClient } = await import("@supabase/supabase-js");
-const { eq, like, sql, inArray } = await import("drizzle-orm");
+const { eq, like, or, sql, inArray } = await import("drizzle-orm");
 const {
   db,
   pets,
@@ -363,12 +364,24 @@ async function runClean(): Promise<void> {
   log("OK", "  Deleted libreta_share_tokens");
 
   // welfare_report_attachments + welfare_reports
+  // Matched by referenceCode (all COV rows are "${COV_TAG}-DEN-*") rather than
+  // description — the k-anon coverage rows (DEN-0002..0005) use realistic
+  // prose with no seed tag in `description` per the seed-hygiene gate, so
+  // description-based matching alone would miss them and leak on --clean.
   await db.delete(welfareReportAttachments).where(
     sql`${welfareReportAttachments.welfareReportId} IN (
-        SELECT id FROM welfare_reports WHERE description LIKE ${`%${COV_TAG}%`}
+        SELECT id FROM welfare_reports
+        WHERE reference_code LIKE ${`${COV_TAG}-%`} OR description LIKE ${`%${COV_TAG}%`}
       )`,
   );
-  await db.delete(welfareReports).where(like(welfareReports.description, `%${COV_TAG}%`));
+  await db
+    .delete(welfareReports)
+    .where(
+      or(
+        like(welfareReports.referenceCode, `${COV_TAG}-%`),
+        like(welfareReports.description, `%${COV_TAG}%`),
+      ),
+    );
   log("OK", "  Deleted welfare_reports + welfare_report_attachments");
 
   log("DONE", "Clean complete");
@@ -483,6 +496,74 @@ async function runSeed(): Promise<void> {
         originalFilename: "evidencia-demo.png",
       });
       log("OK", "  Inserted welfare_report_attachment");
+    }
+  }
+
+  // ── 1b. welfare_reports — k-anon coverage (≥5 in Palermo, CABA) ───────────
+  // Demo maps suppress any cell with <5 reports (k-anonymity). DEN-0001 alone
+  // trips that suppression on the Palermo/CABA cell — add 4 more so the cell
+  // clears k=5 and renders on /gob and /panorama demo maps.
+  log("STEP", "1b/16 welfare_reports (k-anon coverage, DEN-0002..0005)");
+  {
+    const KANON_COVERAGE_REPORTS = [
+      {
+        suffix: "0002",
+        kind: "abandonment" as const,
+        severity: "high" as const,
+        subjectDescription: "Perro atado en la puerta de un local cerrado, sin agua ni sombra",
+      },
+      {
+        suffix: "0003",
+        kind: "physical_abuse" as const,
+        severity: "critical" as const,
+        subjectDescription: "Perro con heridas visibles, cojea al caminar",
+      },
+      {
+        suffix: "0004",
+        kind: "chained" as const,
+        severity: "medium" as const,
+        subjectDescription: "Perro encadenado en el fondo de una vivienda, sin refugio",
+      },
+      {
+        suffix: "0005",
+        kind: "hoarding" as const,
+        severity: "medium" as const,
+        subjectDescription: "Varios animales en mal estado en el mismo departamento",
+      },
+    ];
+
+    for (const entry of KANON_COVERAGE_REPORTS) {
+      const REF_CODE = `${COV_TAG}-DEN-${entry.suffix}`;
+      const [existing] = await db
+        .select({ id: welfareReports.id })
+        .from(welfareReports)
+        .where(eq(welfareReports.referenceCode, REF_CODE))
+        .limit(1);
+
+      if (existing) {
+        log("SKIP", `  welfare_report ${REF_CODE} already exists`);
+      } else if (DRY_RUN) {
+        log("INFO", `  [dry-run] would insert welfare_report ${REF_CODE}`);
+      } else {
+        const [row] = await db
+          .insert(welfareReports)
+          .values({
+            referenceCode: REF_CODE,
+            reporterUserId: ownerUserId,
+            reporterContactEmail: "owner@dim.test",
+            kind: entry.kind,
+            severity: entry.severity,
+            description: pickWelfareDescriptionDeterministic(entry.kind, REF_CODE),
+            subjectKind: "unowned_animal",
+            subjectDescription: entry.subjectDescription,
+            jurisdictionProvince: "CABA",
+            jurisdictionLocality: "Palermo",
+            status: "open",
+            seedTag: COV_TAG,
+          })
+          .returning({ id: welfareReports.id });
+        log("OK", `  Inserted welfare_report ${REF_CODE} id=${row.id.slice(0, 8)}…`);
+      }
     }
   }
 

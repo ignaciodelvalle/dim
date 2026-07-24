@@ -512,7 +512,11 @@ describe("fetchReportableIncidence", () => {
 
   it("A6/A10: counts reportable events and computes lab-confirmation %", async () => {
     const prov = "Formosa";
-    const loc = "Clorinda";
+    // Hermetic locality (not a real seeded barrio): fetchReportableIncidence
+    // scopes by exact (province, locality), and the PANO demo seed populates
+    // real localities like Clorinda with reportable events that would leak
+    // into this exact-count assertion (shared-DB hygiene, cf. commit 49afcb3a).
+    const loc = "Clorinda-SC-ISO";
     // Use one pet with many events so a single disease cell crosses k=5.
     const pet = await insertFixturePet({ name: "IncidencePet", province: prov, locality: loc });
     // 6 lepto disease reports (4 confirmed) → cell visible (>= 5).

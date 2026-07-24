@@ -1258,12 +1258,25 @@ function buildPetEvents(
   // and left the "prior" bucket empty for every org — an unstable base that
   // produced wild, meaningless MoM swings the moment any one org's count
   // moved at all. Widened to 60 days so both windows get real data.
+  //
+  // That 60-day window is relative to ANCHOR_ISO (a frozen date), not to real
+  // "today". Once real time moves past the anchor, the entire cohort ages
+  // into the "31-60 days ago" bucket and the last-30-days bucket goes to ~0,
+  // producing a false ~-100% MoM cliff on the /gob sterilization tile that
+  // has nothing to do with an actual drop in sterilizations. Sterilization
+  // dating is therefore deliberately CURRENT-relative (Date.now(), not
+  // ANCHOR_MS) and spread over a wide ~180-day window straddling real today,
+  // so both the trailing-30-days and prior-30-days buckets stay populated no
+  // matter how much real time has passed since the anchor was frozen. This is
+  // scoped to sterilization_performed only — ANCHOR_ISO stays untouched so
+  // every other anchor-relative metric in this seed is unaffected, and the
+  // guard/arithmetic in fetchSterilizationMetrics is untouched too.
   if (rng() < coverage.ster * (STERILIZATION_RATE / 0.28)) {
     const attributeToOrg = opts.shelterOrgId !== null || rng() < 0.35;
     events.push({
       petId,
       eventType: "sterilization_performed" satisfies EventType,
-      occurredAt: randomWindowDate(60),
+      occurredAt: new Date(Date.now() - rng() * 180 * 24 * 3600 * 1000),
       recordedByUserId: ownerUserId,
       authorRole: attributeToOrg ? "vet" : "owner",
       authorVerified: attributeToOrg,
