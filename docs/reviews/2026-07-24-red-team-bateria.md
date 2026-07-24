@@ -190,3 +190,50 @@ Por cada hallazgo: **persona · pantalla · qué esperabas · qué viste · seve
 (¿funciona/resuelve/se-ve/confianza?). Como siempre: **nada se toma por válido por defecto** — cada
 hallazgo se verifica contra código + DB antes de arreglar, y se distingue "es un bug" de "es una
 decisión de diseño consciente" de "el reviewer vio un estado stale".
+
+---
+
+## PASADA AUTOMATIZADA — RESULTADOS (2026-07-24)
+3 agentes (funcionaria+admin, ciudadano+público, clínica+refugio) recorrieron :3000 con capturas
+desktop+mobile. Verdicts: operador 6,5/10 · ciudadano 7/10 · org 7/10. Todo hallazgo verificado
+contra código+DB antes de actuar.
+
+### ARREGLADO (bugs confirmados — commit 6bd5384c)
+| # | Bug | Lente |
+|---|---|---|
+| HIGH | Credencial de mascota en disputa ruteaba al finder hacia el dueño DISPUTADO (+ bypasseable por POST → endurecidas las 3 server actions) | confianza |
+| — | Middot colgante tras la línea de rol en todo panel org | se-ve |
+| — | Doble empty-state en colas de adopción y casos | se-ve |
+| — | Widget de cumplimiento renderizado 2× en desktop (/inicio) | se-ve |
+| — | "1 organizaciones" plural en tile de esterilización | se-ve |
+| — | Filtro URL no reconocido afirmaba "Sin filtros activos" → "Filtro no reconocido" | funciona/confianza |
+| — | cron_runs re-poluido por fixtures de test (higiene vi.doMock es lazy) — sanado en local | confianza |
+
+### DIFERIDO — ya decidido fase 3 (no son bugs nuevos)
+- **F1 citas legales por mandato**: badge de jurisdicción es el fix interino (decidido G3); la
+  resolución completa por mandato (no mostrar Ley PBA a operador sin PBA) es fase 3.
+- **F4 /admin/casos como work queue** (asignado/mías/breach): fase 3 (Analítica decision desk /
+  work queues). Nit chico: caption "50 más recientes" vs toggle "Urgencia" se contradicen.
+- **F3 estado "pausado/demo" de crons**: el banner no distingue pausado-a-propósito de roto;
+  gap de producto (fase 3). Data sanada.
+
+### DECISIONES / DISEÑO CONSCIENTE (no tocar sin PO)
+- Mordeduras va directo al form de alta (sin inbox) — gap de producto documentado, fase 3.
+- Onboarding "Primeros pasos" como primera card del panel org.
+- Rail refugio desborda el viewport a 900px (13 ítems + 6 headers).
+
+### PENDIENTE DE DECISIÓN PO (residual del fix HIGH)
+- `first_stranger_scan` en mascota disputada: NO relaya identidad del finder (copy educativo puro)
+  pero SÍ notifica al dueño disputado, y el GPS del scan en modo perdido se sigue guardando.
+  ¿La barra es "cero notificación al dueño disputado"? Si sí, hay que gatear también ese path.
+
+### RESIDUO DE DEMO (F9 — no bug de código, dato)
+69 de 195 govts son cuentas de test (uc-cd-govt…) visibles en /admin "actividad por gobierno";
+seeds PERF-COV-DEN e IDs "(Seed)" mezclados en superficies de operador. Filtrable con isTestAccount
+(fase 3 de higiene de seed) o limpieza de datos.
+
+### VERIFICADO Y HONESTO (lo que NO se tocó porque está bien)
+Doble lente Declarado|Firmado funcionando y con scope correcto · AAIP confirmado removido ·
+libreta-primero confirmada (/inicio = credencial) · supresión de contacto en disputa OK ·
+Pampa Tier2 con consentimiento claro · /transparencia con honestidad metodológica ejemplar ·
+picker de org con tipo + "última usada" · atender core sin fallar ni mentir · dietas de nav OK.
