@@ -235,6 +235,21 @@ export type PanoramaLayer = {
    * value is anything else MUST say so here.
    */
   valueKind?: "count" | "rate" | "delta" | "duration" | "index";
+  /**
+   * The value at which this layer STOPS MEASURING — a right-censoring bound.
+   *
+   * `desierto-veterinario` computes "days since the last vet visit" capped at
+   * the window length, so a unit with no visit at all reports the cap. That
+   * number is NOT a measurement of 90 days; it is "we stopped looking at 90",
+   * and rendering it as a value produced two lies at once (2026-07-25): a
+   * legend reading "90 / 90" as if that were a range, and a ranking presenting
+   * a 23-way tie at the cap as if it were the ten worst jurisdictions.
+   *
+   * Declared here so the legend can render "≥N" and the ranking can disclose
+   * the tie instead of pretending to order it. Undefined = the layer measures
+   * its full range and nothing is censored.
+   */
+  censoredAtMax?: number;
 
   // --- panorama-ia-v2 descriptor extension (design §2.2) ---------------------
 

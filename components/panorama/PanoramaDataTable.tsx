@@ -64,6 +64,13 @@ type Props = {
    * every per-unit value (range 2–6) sat under k=5.
    */
   suppressedUnits?: number;
+  /**
+   * The value at which the ranked layer stops measuring (PanoramaLayer
+   * censoredAtMax). When every row sits at or past it, the ranking is a TIE and
+   * ordering it is meaningless — "Peores 10" would be an arbitrary slice of 23
+   * identical values, which is what desierto-veterinario shipped on 2026-07-25.
+   */
+  censoredAtMax?: number;
   /** The unit key currently highlighted on the map (hover sync), or null. */
   highlightedKey?: string | null;
   /** Fired on row hover/focus (key) and blur/leave (null) — mirrors to the map. */
@@ -191,6 +198,7 @@ export function PanoramaDataTable({
   dataUnavailable = false,
   measuredUnits,
   suppressedUnits = 0,
+  censoredAtMax,
   highlightedKey = null,
   onHover,
   scopeFallback = false,
@@ -300,6 +308,20 @@ export function PanoramaDataTable({
       <h3 id={headingId} className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         {heading}
       </h3>
+      {/* A tie at the measurement bound is not an ordering. Say so BEFORE the
+          table, because the table's own shape ("Peores N") asserts a ranking. */}
+      {rows.length > 1 &&
+        typeof censoredAtMax === "number" &&
+        rows.every((r) => r.value >= censoredAtMax) && (
+          <output className="block text-xs leading-snug text-ln-op-warn">
+            {/* NOT "las N unidades": `rows` is the worst-N SLICE, so naming its
+                length would assert that only those are tied when the whole
+                scope may be. The table cannot see past its own rows. */}
+            Las unidades mostradas están igualadas en el tope de medición (≥
+            {censoredAtMax.toLocaleString("es-AR")}): no hay orden entre ellas. La medición se
+            detiene ahí, así que el valor es un piso, no una diferencia.
+          </output>
+        )}
       {rows.length === 0 ? (
         <LnEmptyState
           variant="dashed"

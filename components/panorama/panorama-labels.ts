@@ -162,7 +162,7 @@ export function legendRampTitle(input: {
  */
 export function legendRampEndpointLabels(input: {
   bivariateActive: boolean;
-  captionLayer: { dataType: string; complianceTarget?: number } | null;
+  captionLayer: { dataType: string; complianceTarget?: number; censoredAtMax?: number } | null;
   /** The lifted classed breaks the caption layer's province fill paints, or null. */
   liftedBreaks: readonly number[] | null;
   divisionLegend: { hasRamp: boolean; min: number; max: number } | null;
@@ -178,7 +178,17 @@ export function legendRampEndpointLabels(input: {
     const hi = isMeta
       ? Math.round(captionLayer.complianceTarget as number)
       : Math.round(liftedBreaks[liftedBreaks.length - 1]);
-    return { min: `${lo}${unit}`, max: isMeta ? `${hi}${unit} meta` : `${hi}${unit}` };
+    if (isMeta) return { min: `${lo}${unit}`, max: `${hi}${unit} meta` };
+    // RIGHT-CENSORED endpoint: the layer stopped measuring here, so the number
+    // is a bound and must read as one. Without the "≥" the desierto legend
+    // printed "90 / 90" — two identical numbers presented as a range, when the
+    // truth is "everything is at or past the point where we stopped looking".
+    const censor = captionLayer.censoredAtMax;
+    const hiIsCensored = typeof censor === "number" && hi >= censor;
+    return {
+      min: `${lo}${unit}`,
+      max: hiIsCensored ? `≥${Math.round(censor)}${unit}` : `${hi}${unit}`,
+    };
   }
   if (divisionLegend?.hasRamp) {
     return {

@@ -121,3 +121,47 @@ describe("PanoramaDataTable — empty state tells the epistemic truth", () => {
     expect(screen.getByText(/Sin señales en este alcance/)).toBeTruthy();
   });
 });
+
+describe("PanoramaDataTable — a censored tie is not an ordering", () => {
+  const tied = [90, 90, 90, 90].map((v, i) => ({
+    key: `p${i}`,
+    label: `Provincia ${i}`,
+    value: v,
+    gap: null,
+  }));
+
+  it("says the units are tied at the measurement bound", () => {
+    // desierto-veterinario, live 2026-07-25: 23 of 24 provinces sat exactly at
+    // the 90-day cap, and the table presented an arbitrary slice of that tie as
+    // "Peores 10". The cap is where measurement STOPS, not a worst value.
+    render(
+      <PanoramaDataTable
+        rows={tied}
+        kind="density"
+        measureLabel="días sin actividad veterinaria"
+        censoredAtMax={90}
+      />,
+    );
+    expect(screen.getByText(/igualadas en el tope de medición/)).toBeTruthy();
+    // Must not name a count: `rows` is the worst-N slice, not the tie's size.
+    expect(screen.queryByText(/Las 4 unidades/)).toBeNull();
+    expect(screen.getByText(/el valor es un piso, no una diferencia/)).toBeTruthy();
+  });
+
+  it("stays quiet when the rows genuinely differ", () => {
+    render(
+      <PanoramaDataTable
+        rows={[...tied.slice(0, 3), { key: "x", label: "Otra", value: 12, gap: null }]}
+        kind="density"
+        measureLabel="días sin actividad veterinaria"
+        censoredAtMax={90}
+      />,
+    );
+    expect(screen.queryByText(/igualadas en el tope/)).toBeNull();
+  });
+
+  it("stays quiet for a layer that declares no bound", () => {
+    render(<PanoramaDataTable rows={tied} kind="density" measureLabel="denuncias" />);
+    expect(screen.queryByText(/igualadas en el tope/)).toBeNull();
+  });
+});

@@ -505,6 +505,10 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     id: "desierto-veterinario",
     // Not summable: per-unit value is DAYS without activity.
     valueKind: "duration",
+    // Right-censored at the window length: a unit with no vet visit at all
+    // reports the cap, so the cap is "we stopped looking", not a measurement.
+    // Measured 2026-07-25: 23 of 24 provinces sit exactly here.
+    censoredAtMax: 90,
     label: "Desierto veterinario (días sin actividad)",
     description:
       "Días desde el último evento veterinario registrado en MiMAR por provincia (el tope es el largo del período: sin actividad en todo el período). La ausencia de datos cargados no implica ausencia de veterinarios.",

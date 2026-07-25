@@ -4121,6 +4121,7 @@ export function PanoramaConsole({
           // C4: measurable vs suppressed vs blind — see PanoramaDataTable.
           measuredUnits={rankingAllInScope.length}
           suppressedUnits={dockSuppressedCount}
+          censoredAtMax={rankingLayer?.censoredAtMax}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}
         />
