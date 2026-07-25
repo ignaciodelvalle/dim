@@ -3494,6 +3494,35 @@ async function allocateCasePublicCode(): Promise<string | undefined> {
  * to ~90% (>180d — should be terminal), with a SMALL realistic-backlog
  * exception (~7% of the >180d cohort stays open) rather than none at all.
  */
+/**
+ * The lifecycle instants implied by a seeded welfare report's status.
+ *
+ * A status is a CONCLUSION; the timestamp is the fact that supports it. Seeding
+ * one without the other produced 1.887 reports that read as closed to the list
+ * and as never-resolved to every SLA consumer. Triage lands early in the report
+ * s life, closure somewhere after it — both bounded by the row's own age so a
+ * 200-day-old report cannot be closed tomorrow.
+ */
+function welfareLifecycleStamps(
+  status: "open" | "closed" | "triaged" | "in_progress",
+  createdAt: Date,
+  ageDays: number,
+  rng: () => number,
+): { triagedAt?: Date; closedAt?: Date } {
+  if (status === "open") return {};
+  const day = 24 * 3600 * 1000;
+  // Triage: within the first ~20% of the report's life, capped at 7 days.
+  const triageDays = Math.min(7, Math.max(0.25, ageDays * 0.2 * rng()));
+  const triagedAt = new Date(createdAt.getTime() + triageDays * day);
+  if (status === "triaged" || status === "in_progress") return { triagedAt };
+  // Closure: after triage, inside the remaining age.
+  const closeDays = triageDays + Math.max(0.5, (ageDays - triageDays) * rng());
+  return {
+    triagedAt,
+    closedAt: new Date(createdAt.getTime() + Math.min(ageDays, closeDays) * day),
+  };
+}
+
 function pickHistoricalWelfareStatus(
   ageDays: number,
 ): "open" | "closed" | "triaged" | "in_progress" {
@@ -3596,6 +3625,13 @@ async function seedHistoryWelfareAndCases(
             locationLng: lng.toFixed(7),
             occurredAt: createdAt,
             createdAt,
+            // The C5 fix correlated STATUS with age but never wrote the
+            // matching timestamps, so all 1.887 seeded "closed" reports had
+            // closed_at = NULL. That is not cosmetic: SlaBadge and every
+            // response-time metric read those columns, so a resolved report
+            // presented as breached-forever (adversarial review 2026-07-25).
+            // A terminal status without its instant is a lie about the spine.
+            ...welfareLifecycleStamps(status, createdAt, ageDays, rng),
           });
           welIdx++;
         }

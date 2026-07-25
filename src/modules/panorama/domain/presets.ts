@@ -315,6 +315,17 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     description: "¿Dónde hay más o menos eventos registrados que en el período anterior?",
     // base: tendencia (two-window delta choropleth, zero-anchored diverging
     // fill with inverted polarity — more events than before = warning pole).
+    //
+    // KNOWN LIMITATION, measured 2026-07-25: the delta counts ALL pet_events,
+    // and while registry adoption is still ramping, that growth dominates.
+    // Live seed check: 24 of 24 provinces have a positive delta (62.626 vs
+    // 43.016 nationally), so the map paints the ENTIRE country at the warning
+    // pole and reads "todo el país se deteriora" when the driver is uptake.
+    // The layer description now discloses this. The real fix is a PO decision —
+    // restrict the delta to INCIDENT event types (mordeduras / denuncias /
+    // zoonosis), where "more than before" genuinely means worse — because
+    // choosing which events count as deterioration is a product call, not an
+    // implementation one.
     base: "tendencia",
     level: "province",
     // 30d vs the prior 30d: the operational trend cadence — long enough to

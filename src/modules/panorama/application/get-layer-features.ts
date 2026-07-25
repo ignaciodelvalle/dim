@@ -642,8 +642,16 @@ async function resolveLayerFeatures(
         await loadTerritorialIndexByProvince(actor, jurisdictions, adminProvince, adminLocality),
       );
     }
-    default:
+    default: {
+      // EXHAUSTIVENESS FENCE. This used to be a bare `return empty()`, so a new
+      // LayerId whose case someone forgot COMPILED CLEAN and served an empty
+      // FeatureCollection forever — a layer that silently shows nothing, on a
+      // console whose whole job is to show what is there. The `never`
+      // assignment makes the omission a TYPE ERROR at the point of the mistake.
+      const unreachable: never = layer;
+      void unreachable;
       return empty();
+    }
   }
 }
 

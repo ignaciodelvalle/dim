@@ -469,7 +469,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     valueKind: "delta",
     label: "Tendencia de eventos (Δ vs período anterior)",
     description:
-      "Variación de eventos registrados por provincia: el período elegido contra el período equivalente inmediatamente anterior (Δ = actual − anterior). Cuenta todos los eventos cargados en MiMAR.",
+      "Variación de eventos registrados por provincia: el período elegido contra el período equivalente inmediatamente anterior (Δ = actual − anterior). Cuenta TODOS los eventos cargados en MiMAR, incluidos los de alta y vacunación — mientras el registro sigue creciendo, un aumento puede reflejar más adopción del sistema y no un empeoramiento en territorio. Leer el signo junto con la evolución del padrón.",
     geomType: "choropleth",
     source: "metrics:tendencia",
     // Slate indigo — distinct from refugios' blue (#4e79a7) and microchip's
