@@ -191,3 +191,30 @@ describe("periodDaysPhrase — fixed-start windows (C1)", () => {
     expect(periodDaysPhrase(205)).toBe("últimos 205 días");
   });
 });
+
+describe("captionFor — fixed-start windows reach the CANVAS caption too (C1 regression)", () => {
+  // The bug this locks (found by the copy review, 2026-07-25): the C1 fix
+  // threaded `presetId` into buildViewMeta (the dock) but NOT into captionFor,
+  // so on the same screen, in the same second, the dock said "año en curso"
+  // while the caption under the map said "últimos 205 días". That is the exact
+  // contradiction C1 set out to remove, reintroduced one surface over.
+  const ytdPeriod: PanoramaPeriod = { from: "2026-01-01", to: "2026-07-25" };
+
+  it("names the frame when the caller passes the ytd preset", () => {
+    expect(captionFor(layer("mordeduras"), "locality", ytdPeriod, { presetId: "ytd" })).toContain(
+      "año en curso",
+    );
+  });
+
+  it("still day-counts the same window when no preset is passed", () => {
+    // Not a bug: a custom from/to range genuinely has no frame to name.
+    expect(captionFor(layer("mordeduras"), "locality", ytdPeriod)).toContain("últimos 205 días");
+  });
+
+  it("agrees with the dock phrase for the SAME window and preset", () => {
+    const dockPhrase = periodDaysPhrase(205, "ytd");
+    expect(captionFor(layer("mordeduras"), "locality", ytdPeriod, { presetId: "ytd" })).toContain(
+      dockPhrase,
+    );
+  });
+});

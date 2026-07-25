@@ -98,6 +98,12 @@ test.describe("panorama — deep-link fidelity", () => {
     await page.goto(sharedUrl, { waitUntil: "domcontentloaded" });
     const after = await readBoard(page);
 
+    // Guard against a vacuous pass: readBoard returns "" on timeout, and
+    // "" === "" would satisfy the comparison below while asserting nothing
+    // (correctness review 2026-07-25). Prove the board was READ before
+    // comparing it.
+    expect(before.summary, "board summary was actually read").not.toBe("");
+    expect(before.registros, "Registros was actually read").not.toBe("");
     expect(after.summary, "scope · period · layer count reproduce").toBe(before.summary);
     expect(after.registros, "Registros total reproduces").toBe(before.registros);
     expect(consoleErrors, "no console errors across the round trip").toEqual([]);

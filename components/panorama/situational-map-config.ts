@@ -547,13 +547,23 @@ export const DIVISION_FADE_MS = 300;
 export const HATCH_FILL_OPACITY = 0.85;
 export const SUPPRESS_SOLID_OPACITY = 0.5;
 
-// B1 (map plan) — choropleth paint transition. maplibre SNAPS fill-color and
-// fill-opacity changes by default, so switching period / scope / vista / asOf
-// repaints the whole country in a single frame and the eye cannot follow WHICH
-// units changed. For an instrument whose product IS reading spatial-temporal
-// patterns, that interpolation is the information channel, not decoration.
-// Reuses DIVISION_FADE_MS's cadence so the map keeps ONE motion vocabulary
-// across its chrome (outline fades) and its data (fill transitions).
+// B1 (map plan) — choropleth paint transition.
+//
+// MEASURED LIMIT (perf review 2026-07-25): `fill-color-transition` is INERT
+// here. maplibre refuses to transition DATA-DRIVEN paint —
+// src/style/properties.ts, TransitioningPropertyValue.possiblyEvaluate:
+// "Transitions to data-driven properties are not supported. We snap immediately
+// to the data-driven value" — and both choropleth fills colour through an
+// expression (classedProvinceFill / divisionFillColorExpr). Proven live with a
+// control: a CONSTANT colour blends at t=120ms, the real expression snaps.
+//
+// `fill-opacity-transition` DOES work (constant value), which is what applyDim's
+// dimming rides. So B1 as shipped animates the dim, not the data.
+//
+// Making the data fade needs a different mechanism — a two-layer cross-fade on
+// the constant fill-opacity — which is a PO-sized decision, not a tweak. Until
+// then this stays wired (harmless, and the opacity half is real) but the claim
+// that period/scope/vista changes interpolate is FALSE. Do not restate it.
 export const CHOROPLETH_FADE_MS = DIVISION_FADE_MS;
 
 /**

@@ -14,11 +14,16 @@
 import type maplibregl from "maplibre-gl";
 import { type RefObject, useEffect, useRef } from "react";
 
-import { fillPaintTransition } from "@/components/panorama/situational-map-config";
+import {
+  DIVISION_LINE_ID,
+  fillPaintTransition,
+} from "@/components/panorama/situational-map-config";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
 /** Mounted choropleth fills, by layer-id convention (province + division). */
 const CHOROPLETH_FILL_ID = /^pano-(prov-fill|div-fill)-/;
+// The division outline's fade-in is chrome — same floor, same sweep. Imported,
+// not re-declared, so the id can never drift from the layer that uses it.
 
 export function useChoroplethMotion(mapRef: RefObject<maplibregl.Map | null>): RefObject<boolean> {
   const reducedMotion = useReducedMotion();
@@ -33,6 +38,10 @@ export function useChoroplethMotion(mapRef: RefObject<maplibregl.Map | null>): R
     if (!map || typeof map.getStyle !== "function") return;
     const transition = fillPaintTransition(reducedMotion);
     for (const styleLayer of map.getStyle()?.layers ?? []) {
+      if (styleLayer.type === "line" && styleLayer.id === DIVISION_LINE_ID) {
+        map.setPaintProperty(styleLayer.id, "line-opacity-transition", transition);
+        continue;
+      }
       if (styleLayer.type !== "fill") continue;
       if (!CHOROPLETH_FILL_ID.test(styleLayer.id)) continue;
       map.setPaintProperty(styleLayer.id, "fill-color-transition", transition);

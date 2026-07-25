@@ -1262,7 +1262,9 @@ export function SituationalMap({
         // cursor #7: start transparent and fade IN so the outlines don't hard-pop
         // after the camera settles. The transition is applied before the value.
         "line-opacity": 0,
-        "line-opacity-transition": { duration: DIVISION_FADE_MS, delay: 0 },
+        // B1 floor applies to the CHROME too: this hardcoded fade was the one
+        // animation still running under `reduce` (a11y review 2026-07-25).
+        "line-opacity-transition": { duration: reduced() ? 0 : DIVISION_FADE_MS, delay: 0 },
       },
     });
     // cursor #6: a feature-state hover glow on the division polygons — the polygon

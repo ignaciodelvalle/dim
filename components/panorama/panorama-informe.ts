@@ -86,7 +86,12 @@ export type BuildInformeInput = {
    * as text, not a link: a briefing that leaves the screen must still say where
    * it came from, and a reader holding paper cannot click. Null when the caller
    * has no URL yet (SSR/first paint), which prints nothing rather than a lie.
-   * Carries only scope/period/layer coordinates — never PII.
+   * Carries scope, period, layer, encoding and CAMERA coordinates (lat/lng
+   * rounded to 3 dp ≈ 110 m) — no person, pet, case or free-text param exists on
+   * this surface today. That is a property of the current param set, NOT an
+   * enforced invariant: this prints `window.location.href` verbatim, so a future
+   * `?q=`/`?owner=` would reach paper the day it ships. Whitelisting the params
+   * (with a test asserting the set) is the follow-up.
    */
   viewUrl?: string | null;
   /** The KPI fan-out failed — no real numbers; replace conclusions with an honest failure. */

@@ -211,7 +211,8 @@ export function PanoramaInformeSituacion({ model }: Props) {
               long query string does not overflow the page. */}
           {model.viewUrl && (
             <p className="break-all">
-              Vista reproducible: <span className="font-mono">{model.viewUrl}</span>
+              Vista reproducible (requiere acceso al sistema):{" "}
+              <span className="font-mono">{model.viewUrl}</span>
             </p>
           )}
         </footer>

@@ -18,7 +18,7 @@
 // — the ranking upstream drops them (privacy invariant §5.1); the console renders
 // the k-anon suppressed-count line beneath this table.
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { RankedRowPreview } from "@/components/panorama/RankedRowPreview";
@@ -72,18 +72,21 @@ type Props = {
 };
 
 /** Where the preview card sits, in viewport coords, plus the row it describes. */
-type PreviewAnchor = { row: RankedUnit; top: number; left: number };
+type PreviewAnchor = { row: RankedUnit; top: number; left: number; source: "hover" | "focus" };
 
 const PREVIEW_W = 256; // matches w-64
 const PREVIEW_GAP = 8;
 
 /**
- * Place the card to the RIGHT of the row, flipping to the left at the viewport
- * edge and clamping vertically so a bottom row's card is never half off-screen.
- * The dock sits at the bottom of the console, so the vertical clamp is the one
- * that actually fires.
+ * Place the card next to the row's LABEL CELL — not the row.
+ *
+ * a11y review 2026-07-25: anchoring to the <tr> (which spans the full table
+ * width) made `rect.right + gap + width > innerWidth` true on every row, so the
+ * flip-left branch fired 100% of the time and parked the card against the
+ * viewport edge, on top of the left navigation rail, ~270px from the row it
+ * describes. Anchoring to the label cell keeps it beside its own row.
  */
-function anchorFor(rect: DOMRect, row: RankedUnit): PreviewAnchor {
+function anchorFor(rect: DOMRect, row: RankedUnit, source: "hover" | "focus"): PreviewAnchor {
   const spillsRight = rect.right + PREVIEW_GAP + PREVIEW_W > window.innerWidth;
   const left = spillsRight
     ? Math.max(PREVIEW_GAP, rect.left - PREVIEW_GAP - PREVIEW_W)
@@ -91,7 +94,7 @@ function anchorFor(rect: DOMRect, row: RankedUnit): PreviewAnchor {
   // Assume a ~132px card; clamping against a generous estimate is enough to keep
   // it on screen without measuring the card before it exists.
   const top = Math.min(Math.max(PREVIEW_GAP, rect.top), window.innerHeight - 140);
-  return { row, top, left };
+  return { row, top, left, source };
 }
 
 const ariaSort = (active: boolean, dir: SortDir): "ascending" | "descending" | "none" =>
@@ -116,12 +119,38 @@ export function PanoramaDataTable({
   const [previewAnchor, setPreviewAnchor] = useState<PreviewAnchor | null>(null);
   const previewId = useId();
 
-  /** Hover/focus enter: mirror to the map AND anchor the preview to this row. */
-  const enterRow = (row: RankedUnit, rowEl: HTMLElement | null) => {
+  // WCAG 2.1 SC 1.4.13 (Dismissible): additional content shown on hover/focus
+  // must be dismissible without moving the pointer or focus. Escape is also the
+  // ONLY exit on touch, where hover never fires and a tap that keeps focus never
+  // blurs — the card otherwise sat over the table indefinitely.
+  useEffect(() => {
+    if (!previewAnchor) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewAnchor(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewAnchor]);
+
+  /**
+   * Hover/focus enter: mirror to the map AND anchor the preview.
+   *
+   * FOCUS WINS. Both a pointer resting anywhere over the table and the keyboard
+   * used to write the same single anchor, last-writer-wins: a screen-reader user
+   * tabbing the list got a card describing whatever row the mouse happened to
+   * sit on, and the focused button's aria-describedby was handed to an unfocused
+   * one (a11y + correctness reviews, 2026-07-25).
+   */
+  const enterRow = (row: RankedUnit, cellEl: HTMLElement | null, source: "hover" | "focus") => {
+    if (source === "hover" && previewAnchor?.source === "focus") return;
     onHover?.(row.key);
-    if (preview && rowEl) setPreviewAnchor(anchorFor(rowEl.getBoundingClientRect(), row));
+    if (preview && cellEl) setPreviewAnchor(anchorFor(cellEl.getBoundingClientRect(), row, source));
   };
-  const leaveRow = () => {
+  /** Only the anchor's OWN source may retract it — a mouseleave on row 4 must
+   *  not erase the description of row 1, which still holds focus. */
+  const leaveRow = (row: RankedUnit, source: "hover" | "focus") => {
+    if (previewAnchor && (previewAnchor.row.key !== row.key || previewAnchor.source !== source))
+      return;
     onHover?.(null);
     setPreviewAnchor(null);
   };
@@ -216,8 +245,8 @@ export function PanoramaDataTable({
                 <tr
                   key={row.key}
                   aria-current={highlighted ? "true" : undefined}
-                  onMouseEnter={(e) => enterRow(row, e.currentTarget)}
-                  onMouseLeave={leaveRow}
+                  onMouseEnter={(e) => enterRow(row, e.currentTarget.querySelector("th"), "hover")}
+                  onMouseLeave={() => leaveRow(row, "hover")}
                   className={`border-b border-ln-op-line/50 transition-colors ${
                     highlighted ? "bg-ln-op-line/50" : ""
                   }`}
@@ -229,8 +258,8 @@ export function PanoramaDataTable({
                         onClick={() => onSelect(row.key)}
                         // Keyboard parity: focus reveals the same preview hover
                         // does, and points at it for screen readers.
-                        onFocus={(e) => enterRow(row, e.currentTarget.closest("tr"))}
-                        onBlur={leaveRow}
+                        onFocus={(e) => enterRow(row, e.currentTarget.closest("th"), "focus")}
+                        onBlur={() => leaveRow(row, "focus")}
                         aria-describedby={
                           previewAnchor?.row.key === row.key ? previewId : undefined
                         }
@@ -243,11 +272,18 @@ export function PanoramaDataTable({
                     )}
                   </th>
                   <td className="px-2 py-1 tabular-nums text-ln-op-ink-2">
-                    {kind === "rate" ? `${Math.round(row.value)}%` : row.value}
+                    {/* es-AR thousands separator, matching the hover preview —
+                        the same row read "1.234" on hover and "1234" here. */}
+                    {kind === "rate"
+                      ? `${Math.round(row.value)}%`
+                      : row.value.toLocaleString("es-AR")}
                   </td>
                   {kind === "rate" && (
                     <td className="px-2 py-1 tabular-nums text-ln-op-warn">
-                      {row.gap !== null ? `−${Math.round(row.gap)}` : "—"}
+                      {/* One decimal + the unit: Math.round printed a real
+                          sub-half-point gap as "−0", reporting a below-target
+                          unit as having none. */}
+                      {row.gap !== null ? `−${row.gap.toFixed(1)} pts` : "—"}
                     </td>
                   )}
                 </tr>

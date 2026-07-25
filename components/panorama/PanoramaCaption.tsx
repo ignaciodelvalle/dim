@@ -23,16 +23,19 @@ type Props = {
   level: AggregationLevel;
   /** The active period window (feeds the "últimos N días" phrase for windowed layers). */
   period: PanoramaPeriod;
+  /** Active period preset id, so a fixed-start window (ytd) names its frame —
+   *  without it this caption day-counts while the dock says "año en curso". */
+  presetId?: string;
   /** panorama-percapita: the map paints per-10k rates — the caption's measure
    *  gains "por 10.000 habitantes" so it never claims raw counts. */
   perCapita?: boolean;
 };
 
-export function PanoramaCaption({ layer, level, period, perCapita }: Props) {
+export function PanoramaCaption({ layer, level, period, perCapita, presetId }: Props) {
   if (layer === null) return null;
   return (
     <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
-      {captionFor(layer, level, period, { perCapita: perCapita === true })}
+      {captionFor(layer, level, period, { perCapita: perCapita === true, presetId })}
     </p>
   );
 }

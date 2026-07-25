@@ -46,10 +46,16 @@ export function periodDaysPhrase(days: number, presetId?: string): string {
 
 /** The time phrase: current-state rollups say "estado actual"; windowed layers
  *  say "últimos N días" (year-shaped windows: "últimos N años") from the active
- *  period. */
-function windowPhrase(window: "period" | "current", period: PanoramaPeriod): string {
+ *  period. `presetId` lets a fixed-start window (ytd) name its FRAME instead —
+ *  it MUST be threaded here, not only into the dock's buildViewMeta, or the
+ *  on-canvas caption and the dock contradict each other on the same screen. */
+function windowPhrase(
+  window: "period" | "current",
+  period: PanoramaPeriod,
+  presetId?: string,
+): string {
   if (window === "current") return "estado actual";
-  return periodDaysPhrase(periodDays(period));
+  return periodDaysPhrase(periodDays(period), presetId);
 }
 
 /** Encoding verb + mark noun for a render mode (the word the map actually shows). */
@@ -81,10 +87,10 @@ export function captionFor(
   period: PanoramaPeriod,
   /** panorama-percapita: while the per-cápita encoding paints per-10k rates the
    *  caption must not claim raw counts — the measure gains the denominator. */
-  opts?: { perCapita?: boolean },
+  opts?: { perCapita?: boolean; presetId?: string },
 ): string {
   const mode = layer.renderPolicy[level];
-  const when = windowPhrase(layer.caption.window, period);
+  const when = windowPhrase(layer.caption.window, period, opts?.presetId);
   const { subject, encoding } = markWords(mode);
   const measure =
     opts?.perCapita === true

@@ -4136,7 +4136,7 @@ export function PanoramaConsole({
           </p>
         )}
         <p className="text-xs leading-snug text-ln-op-faint">
-          Pasá el mouse por una fila para ubicarla en el mapa · click para ver el detalle.
+          Pasá el mouse por una fila para ubicarla en el mapa.
         </p>
       </div>
     ) : (
@@ -4409,16 +4409,15 @@ export function PanoramaConsole({
   // projection of the CURRENT view (same `(view, data) → render` discipline as
   // the map + strip + ranking) — no new fetch, every number already computed and
   // privacy-suppressed by the console above. The plain-language pieces reuse the
-  // existing helpers: explainViewState (the ViewState P5 "explain" gift) for the
-  // one-line summary, captionFor for the map caption, and the KPI ⓘ definitions
-  // for the method footnotes. Honesty invariants (demo banner + k-anon disclosure
-  // + method notes) live inside buildInformeModel. E1 adds the view's own URL.
+  // existing helpers: explainViewState for the one-line summary, captionFor for
+  // the map caption, and the KPI ⓘ definitions for the method footnotes. Honesty
+  // invariants live inside buildInformeModel. E1 adds the view's own URL.
   const informeCaption = bivariateActive
     ? bivariateCaptionText(bivariatePair)
     : captionLayer
       ? percapitaActive && percapitaCensusMeta
-        ? `${captionFor(captionLayer, level, captionPeriod, { perCapita: true })} ${percapitaFooterLabel(percapitaCensusMeta)}.`
-        : captionFor(captionLayer, level, captionPeriod)
+        ? `${captionFor(captionLayer, level, captionPeriod, { perCapita: true, presetId: periodParam })} ${percapitaFooterLabel(percapitaCensusMeta)}.`
+        : captionFor(captionLayer, level, captionPeriod, { presetId: periodParam })
       : null;
   const informeModel = useMemo(
     () =>
@@ -4936,7 +4935,7 @@ export function PanoramaConsole({
                     )}
                     {filtersSlot}
                     <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
-                      También podés hacer click en una provincia del mapa.
+                      También podés hacer clic en una provincia del mapa.
                     </p>
                   </div>
                 </OverlayDisclosure>
@@ -5089,6 +5088,7 @@ export function PanoramaConsole({
                     level={level}
                     period={captionPeriod}
                     perCapita={percapitaActive}
+                    presetId={periodParam}
                   />
                   {/* panorama-percapita: the honest denominator footer — year +
                       source read from the census table's own metadata (carried
