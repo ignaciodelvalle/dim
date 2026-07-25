@@ -12,6 +12,7 @@ import {
   guardRatioTone,
   shouldSuppressDelta,
 } from "@/lib/metrics/presentation-guards";
+import { formatPercent } from "@/lib/utils/format";
 
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
@@ -102,10 +103,12 @@ type Props = {
    * provided (and the resolved `value` isn't a guard dash), the headline eases
    * from its previous value to this one on change, via <AnimatedNumber>. `value`
    * stays the required SSR/reduced-motion/guard-dash fallback. `animatedFormat`
-   * owns rounding + es-AR (the in-flight value is fractional).
+   * is a SERIALIZABLE kind (a string, NOT a function — OpKpi is a Client
+   * Component reached from Server Components, which cannot pass functions across
+   * the RSC boundary): "integer" → rounded es-AR; "percent" → formatPercent.
    */
   animatedValue?: number;
-  animatedFormat?: (n: number) => string;
+  animatedFormat?: "integer" | "percent";
   /** Optional mount-reveal start for the count-up (e.g. 0). SSR renders this — client-reveal only. */
   animatedStartAt?: number;
   tone?: Tone;
@@ -498,7 +501,13 @@ export function OpKpi({
         ].join(" ")}
       >
         {animatedValue !== undefined && value !== "—" ? (
-          <AnimatedNumber value={animatedValue} format={animatedFormat} startAt={animatedStartAt} />
+          <AnimatedNumber
+            value={animatedValue}
+            // Map the serializable kind → a client-side formatter HERE (functions
+            // can't cross the RSC boundary). "integer" → AnimatedNumber's default.
+            format={animatedFormat === "percent" ? (n) => formatPercent(n) : undefined}
+            startAt={animatedStartAt}
+          />
         ) : (
           value
         )}
