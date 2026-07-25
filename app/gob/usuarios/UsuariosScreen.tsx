@@ -15,6 +15,7 @@ import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { ResultCount } from "@/components/ui/ResultCount";
 import {
   OpBreach,
   OpCard,
@@ -205,11 +206,16 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
           }
         />
       ) : (
-        <p className="text-sm text-ln-op-mute">
-          {query || roleFilter !== "all"
-            ? `${results.length} ${pluralizeEs(results.length, "resultado")}`
-            : `Mostrando los primeros ${results.length} usuarios ordenados por rol y nombre.`}
-        </p>
+        <ResultCount
+          shown={results.length}
+          // This query has NO limit, so everything matched is on screen — in
+          // both branches. The copy this replaced said "los primeros N", which
+          // claimed a cap that never existed.
+          total={results.length}
+          noun={pluralizeEs(results.length, "resultado")}
+          ordering={query || roleFilter !== "all" ? undefined : "ordenados por rol y nombre"}
+          className="text-sm text-ln-op-mute"
+        />
       )}
 
       <BulkRevokeList

@@ -68,9 +68,7 @@ describe("OpKpi — stock-vs-flow framing is DERIVED from the contract", () => {
   });
 
   it("leaves a flow metric alone — the period control DOES move it", () => {
-    render(
-      <OpKpi label="Esterilizaciones" value="120" descriptorId="sterilizations_per_month" />,
-    );
+    render(<OpKpi label="Esterilizaciones" value="120" descriptorId="sterilizations_per_month" />);
     expect(screen.queryByText(NOTE)).toBeNull();
   });
 

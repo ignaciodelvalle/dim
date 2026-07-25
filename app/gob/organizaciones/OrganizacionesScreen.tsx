@@ -16,6 +16,7 @@ import Link from "next/link";
 
 import { BulkRevokeList } from "@/components/BulkRevokeList";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { ResultCount } from "@/components/ui/ResultCount";
 import {
   OpCard,
   OpCardBody,
@@ -181,11 +182,15 @@ export async function OrganizacionesScreen({
           }
         />
       ) : (
-        <p className="text-sm text-ln-op-mute">
-          {truncated
-            ? `Mostrando los primeros ${results.length} ${pluralizeEs(results.length, "resultado")}. Usá el buscador para acotar la lista.`
-            : `${results.length} ${pluralizeEs(results.length, "resultado")}`}
-        </p>
+        <ResultCount
+          shown={results.length}
+          // Truncated → the total is genuinely UNKNOWN (nobody counted past the
+          // cap), so it must not be implied.
+          total={truncated ? undefined : results.length}
+          noun={pluralizeEs(results.length, "resultado")}
+          hint="Usá el buscador para acotar la lista."
+          className="text-sm text-ln-op-mute"
+        />
       )}
 
       <BulkRevokeList

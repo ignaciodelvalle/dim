@@ -21,6 +21,7 @@ import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { ResultCount } from "@/components/ui/ResultCount";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
@@ -297,7 +298,12 @@ export default async function OrgTransferenciasEntrantesPage({
           </OpCard>
           {truncated && (
             <p className="text-sm text-ln-op-mute">
-              Mostrando las primeras 200. Hay más — este listado todavía no tiene filtros.
+              <ResultCount
+                shown={allRows.length}
+                noun="transferencias"
+                hint="Este listado todavía no tiene filtros."
+                className="text-sm text-ln-op-mute"
+              />
             </p>
           )}
         </>

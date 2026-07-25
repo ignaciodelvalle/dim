@@ -95,6 +95,7 @@ see the variant-map note below).
 | `DiscList` / `DiscRow` | `../pet-profile/DiscList.tsx` | Disc-bulleted definition lists on the pet profile. | — |
 | `OpKpi` / `OpKpiSm` | `dashboard/OpKpi.tsx` | Operator KPI tile (value + tone + trend). | Don't build a KPI tile from scratch — see the `dataviz` skill for chart tiles. |
 | `KpiStrip` | `dashboard/KpiStrip.tsx` | Row of KPIs. | — |
+| `ResultCount` | `ResultCount.tsx` | The "cuántos veo, de cuántos" line under any capped or paginated list. Models the EPISTEMIC split explicitly: pass `total` only when it is genuinely known ("Mostrando 12 de 1.263 casos"); omit it when the query merely capped, and it renders "Mostrando los primeros 200 — hay más" instead of inventing a universe. `hint` (the escape hatch) only renders when there IS more to reach. | Don't hand-roll another "Mostrando …" string — there were ~12 wordings before this. Don't pass `total={items.length}` on a capped query: that claims the cap IS the total. |
 | `AnimatedNumber` | `AnimatedNumber.tsx` | A number that eases from its previous value to a new one ON CHANGE ("conteo arriba/abajo"), so a KPI shows its delta viscerally. `format` owns rounding + es-AR. Client tween; SSR + reduced-motion render the exact value. Backed by `useCountUp` (`lib/hooks/useCountUp.ts`) + `useReducedMotion` (`lib/hooks/useReducedMotion.ts`, the shared JS-animation floor). | Don't hand-roll a RAF/setInterval counter. Pass a NUMBER, not a pre-formatted string (the tween needs the numeric value + a `format`). |
 
 ## Captura rápida
