@@ -54,9 +54,16 @@ describe("PanoramaKpiTile — v+1 rail (meta-progress meters + sparklines)", () 
   it("keeps the delta line a NEUTRAL glyph — never a valence color (code review 2026-07-03)", () => {
     const html = renderToStaticMarkup(<PanoramaKpiTile kpi={COBERTURA_KPI} />);
     // UI professionalism pass: the raw "▲" glyph was retired in favor of the
-    // Icon registry (data-icon-name="chevron-up") — same "up" signal, no bare
-    // symbol-as-icon text.
-    expect(html).toContain('data-icon-name="chevron-up"');
+    // Icon registry — same "up" signal, no bare symbol-as-icon text.
+    //
+    // ARROW, not chevron (2026-07-25). This test previously pinned
+    // "chevron-up", which locked in a real defect: a chevron is the universal
+    // DISCLOSURE affordance, so beside "-26%" it read as a collapse control and
+    // the PO tried to click it. Nothing here is interactive. OpKpi already used
+    // "↑"/"↓" for the identical concept, so Panorama was also the odd surface
+    // out. A passing test is not evidence the behaviour was right.
+    expect(html).toContain('data-icon-name="arrow-up"');
+    expect(html).not.toContain('data-icon-name="chevron-up"');
     expect(html).toContain("+12% vs período anterior");
     // The neutral delta line must not carry the ok/err color tokens (those are
     // reserved for the v1/v2 OpKpi delta props, unused by PanoramaKpiTile).

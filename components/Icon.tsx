@@ -17,6 +17,8 @@
 
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
   Baby,
   Bell,
   BookOpen,
@@ -232,6 +234,12 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "chevron-right": ChevronRight,
   "chevron-up": ChevronUp,
   "chevron-down": ChevronDown,
+  // Direction, NOT disclosure. A chevron is the universal "expand me"
+  // affordance; using one for a trend delta made operators try to click it
+  // (PO, live 2026-07-25: "hay una flecha de minimizar que no funciona").
+  // OpKpi already renders real arrows for the same concept.
+  "arrow-up": ArrowUp,
+  "arrow-down": ArrowDown,
   "chart-line": LineChart,
   "heart-filled": Heart,
   menu: Menu,
