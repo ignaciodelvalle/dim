@@ -8,8 +8,8 @@ Rama `integration/all-20260703`. Rango `c557103b..HEAD`.
 |---|---|
 | A1 · deep-link | **No reproducía.** Verificado en 5 variantes; quedó fijado con spec e2e |
 | A2 · click ranking = drill + hover-preview | Hecho, verificado en vivo |
-| B1 · fundación de animación | Hecho: transiciones de coropleta + piso reduced-motion consolidado |
-| B2 · reproducción temporal | **Parcial**: velocidad 1×/2×/4×. Prefetch diferido (razón abajo) |
+| B1 · fundación de animación | **Parcial y corregido**: el piso de reduced-motion sí quedó (y ahora cubre el chrome). La transición de coropleta es INERTE — maplibre no interpola paint data-driven. Ver batería |
+| B2 · reproducción temporal | **Revertido**: el control de velocidad perdía ~70% de los frames contra el rate-limit. Ver batería |
 | C1 · selector de tiempo | **Parcial**: YTD honesto. Dos items diferidos (razones abajo) |
 | B3 + E1 · fade + exportar vista | Hecho: fade de 140ms + URL reproducible en el informe |
 | D1 · consolidación de vistas | Propuesta escrita (`2026-07-25-panorama-d1-consolidacion-vistas.md`) |
