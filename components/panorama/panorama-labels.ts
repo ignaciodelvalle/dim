@@ -174,10 +174,19 @@ export function legendRampEndpointLabels(input: {
     const isMeta =
       captionLayer.dataType === "rate" && typeof captionLayer.complianceTarget === "number";
     const unit = captionLayer.dataType === "rate" ? "%" : "";
-    const lo = Math.round(liftedBreaks[0]);
-    const hi = isMeta
-      ? Math.round(captionLayer.complianceTarget as number)
-      : Math.round(liftedBreaks[liftedBreaks.length - 1]);
+    // The ramp's endpoints describe the DATA, not the classifier. liftedBreaks
+    // are the INTERIOR boundaries between classes, so reading the first and
+    // last of them as min/max understates the real range — live 2026-07-25,
+    // Mortalidad painted values from 1 to 63 under a legend reading "2 … 6",
+    // and this is an EXPORTABLE surface: a PNG carrying a state seal published
+    // a range off by an order of magnitude. divisionLegend already carries the
+    // true extremes (the fallback branch below has always used them); the
+    // classed branch was simply shadowing them.
+    const lo = Math.round(divisionLegend?.hasRamp ? divisionLegend.min : liftedBreaks[0]);
+    const dataMax = divisionLegend?.hasRamp
+      ? divisionLegend.max
+      : liftedBreaks[liftedBreaks.length - 1];
+    const hi = isMeta ? Math.round(captionLayer.complianceTarget as number) : Math.round(dataMax);
     if (isMeta) return { min: `${lo}${unit}`, max: `${hi}${unit} meta` };
     // RIGHT-CENSORED endpoint: the layer stopped measuring here, so the number
     // is a bound and must read as one. Without the "≥" the desierto legend

@@ -28,7 +28,7 @@ import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
-import { formatDate, speciesLabel } from "@/lib/utils/format";
+import { formatCount, formatDate, speciesLabel } from "@/lib/utils/format";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
 import { DevolverAlDuenoButton } from "./_components/DevolverAlDuenoButton";
@@ -210,7 +210,7 @@ export default async function DecomisosDashboardPage({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <OpKpi
             label={KPI_CATALOG.seizures_period_count.label}
-            value={String(seizures.total)}
+            value={formatCount(seizures.total)}
             tone={seizures.total > 0 ? "warn" : "neutral"}
             sub="incautaciones por Ley 14.346"
             info={{

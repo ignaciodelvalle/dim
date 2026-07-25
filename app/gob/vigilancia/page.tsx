@@ -47,7 +47,7 @@ import {
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { pluralizeEs } from "@/lib/utils/format";
+import { formatCount, pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 
@@ -321,7 +321,7 @@ export default async function GobVigilanciaPage({
       >
         <OpKpi
           label="Brotes activos"
-          value={String(metrics.outbreakActiveCount)}
+          value={formatCount(metrics.outbreakActiveCount)}
           tone={metrics.outbreakActiveCount > 0 ? "warn" : "neutral"}
           sparkline={outbreakSparkline.points.map((p) => p.y)}
           href="/gob/vigilancia/brotes"
@@ -334,7 +334,7 @@ export default async function GobVigilanciaPage({
         />
         <OpKpi
           label="Rábicas activas"
-          value={String(metrics.rabiesActiveCount)}
+          value={formatCount(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
           sparkline={rabiesSparkline.points.map((p) => p.y)}
           // Jumps to the compliance card (panelComplianceId), not the disease-
@@ -351,7 +351,7 @@ export default async function GobVigilanciaPage({
         />
         <OpKpi
           label={KPI_CATALOG.pets_registered_today.label}
-          value={String(metrics.petsRegisteredToday)}
+          value={formatCount(metrics.petsRegisteredToday)}
           info={{
             definition:
               "Mascotas registradas en el sistema desde las 00:00 hora local de hoy (Arg/Buenos Aires), scoped a la jurisdicción del operador.",
@@ -361,7 +361,7 @@ export default async function GobVigilanciaPage({
         />
         <OpKpi
           label="Vacunaciones (7d)"
-          value={String(metrics.vaccinationsThisWeek)}
+          value={formatCount(metrics.vaccinationsThisWeek)}
           tone="ok"
           deltaV2={metrics.vaccinationsThisWeek > 0 ? (vaccinationsDelta ?? undefined) : undefined}
           sparkline={vacSparkline.points.map((p) => p.y)}
@@ -381,7 +381,7 @@ export default async function GobVigilanciaPage({
             investigation, right now) — no period delta on a snapshot. */}
         <OpKpi
           label={KPI_CATALOG.outbreak_investigations_active.label}
-          value={String(metrics.investigationActiveCount)}
+          value={formatCount(metrics.investigationActiveCount)}
           tone={metrics.investigationActiveCount > 0 ? "warn" : "neutral"}
           href="/gob/vigilancia/investigaciones"
           info={{
@@ -410,7 +410,7 @@ export default async function GobVigilanciaPage({
             the bite side of the gap. */}
         <OpKpi
           label={KPI_CATALOG.bite_escalation_gap.label}
-          value={String(escalationGap.bites12m)}
+          value={formatCount(escalationGap.bites12m)}
           sub={`vs ${escalationGap.openObservations} observaciones rábicas abiertas — la ausencia de escalamiento no implica ausencia de riesgo`}
           href="/gob/casos?kind=bite_incident"
           descriptorId="bite_escalation_gap"

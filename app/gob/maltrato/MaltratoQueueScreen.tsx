@@ -50,6 +50,7 @@ import {
 } from "@/src/modules/welfare/domain/types";
 import { and, asc, count, inArray, sql } from "drizzle-orm";
 
+import { formatCount } from "@/lib/utils/format";
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 import { InspectorMounter } from "./_inspector/InspectorMounter";
 import { decodeRiskCursor, encodeRiskCursor, severityRank } from "./_lib/welfare-sla";
@@ -374,7 +375,7 @@ export async function MaltratoQueueScreen({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <OpKpi
             label="Sin asignar"
-            value={String(metrics.unassignedCount)}
+            value={formatCount(metrics.unassignedCount)}
             tone={metrics.unassignedCount > 0 ? "warn" : "neutral"}
             href="/gob/denuncias?etapa=triage&queue=unassigned"
             info={{
@@ -386,7 +387,7 @@ export async function MaltratoQueueScreen({
           />
           <OpKpi
             label="Mías"
-            value={String(metrics.myCount)}
+            value={formatCount(metrics.myCount)}
             tone="blue"
             href="/gob/denuncias?etapa=triage&queue=mine"
             info={{
@@ -403,7 +404,7 @@ export async function MaltratoQueueScreen({
             // "En investigación" while the row pill says "En curso" for the
             // same status='in_progress'. Never an inline synonym here.
             label={welfareReportStatusLabel("in_progress")}
-            value={String(metrics.inProgressCount)}
+            value={formatCount(metrics.inProgressCount)}
             tone="neutral"
             info={{
               definition:
@@ -414,7 +415,7 @@ export async function MaltratoQueueScreen({
           />
           <OpKpi
             label="Cerradas (30d)"
-            value={String(metrics.closedMonth)}
+            value={formatCount(metrics.closedMonth)}
             tone="ok"
             info={{
               definition:

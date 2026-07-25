@@ -40,7 +40,7 @@ import {
   describeNarrowedView,
   isNarrowedToOperativeJurisdiction,
 } from "@/lib/ui/view-scope-caption";
-import { formatPercent, pluralizeEs } from "@/lib/utils/format";
+import { formatCount, formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 const VALID_STATUSES: PetStatusFilter[] = ["all", "lost", "active", "deceased"];
@@ -324,7 +324,7 @@ export default async function GobPerdidasPage({
         />
         <OpKpi
           label="Recuperados (30d)"
-          value={String(metrics.recoveredMonth)}
+          value={formatCount(metrics.recoveredMonth)}
           tone="ok"
           info={{
             definition:

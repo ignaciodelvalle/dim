@@ -5,6 +5,7 @@ import {
   countFiltroModifiers,
   describeCapasMeta,
   filtroBadgeAriaLabel,
+  legendRampEndpointLabels,
   legendRampTitle,
   shortKpiLabel,
   shortLayerLabel,
@@ -382,5 +383,54 @@ describe("legendRampTitle — the collapsed legend pill names the layer that PAI
         divisionRampLabel: null,
       }),
     ).toBe("Eventos por unidad");
+  });
+});
+
+// Live on /admin/panorama?preset=mortalidad, 2026-07-25: values ran 1–63 and
+// the ramp read "2 … 6". liftedBreaks are the INTERIOR class boundaries, so
+// treating the first/last as the data extremes understates the range — on a
+// surface the operator can export as a PNG with a state seal on it.
+describe("legendRampEndpointLabels — the ramp describes the DATA, not the classifier", () => {
+  const layer = { dataType: "density" as const };
+
+  it("prints the true extremes, not the interior class breaks", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [2, 3, 4, 6],
+      divisionLegend: { hasRamp: true, min: 1, max: 63 },
+    });
+    expect(out).toEqual({ min: "1", max: "63" });
+  });
+
+  it("falls back to the breaks when no ramp extent is available", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [2, 3, 4, 6],
+      divisionLegend: null,
+    });
+    expect(out).toEqual({ min: "2", max: "6" });
+  });
+
+  it("a censored bound still wins over the data max — it is where measuring stopped", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: { dataType: "density", censoredAtMax: 90 },
+      liftedBreaks: [30, 60, 90],
+      divisionLegend: { hasRamp: true, min: 4, max: 90 },
+    });
+    expect(out?.max).toBe("≥90");
+    expect(out?.min).toBe("4");
+  });
+
+  it("a compliance target still names the meta, not the data max", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: { dataType: "rate", complianceTarget: 80 },
+      liftedBreaks: [20, 40, 60],
+      divisionLegend: { hasRamp: true, min: 12, max: 71 },
+    });
+    expect(out).toEqual({ min: "12%", max: "80% meta" });
   });
 });

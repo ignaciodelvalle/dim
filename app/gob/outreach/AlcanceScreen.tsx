@@ -57,6 +57,7 @@ import {
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { formatCount } from "@/lib/utils/format";
 
 export type AlcanceScreenProps = {
   /**
@@ -427,7 +428,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
       <section aria-label="Resumen de pipelines" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <OpKpi
           label="Antirrábica vencida"
-          value={String(overdueResult.pets.length)}
+          value={formatCount(overdueResult.pets.length)}
           tone={overdueResult.pets.length > 0 ? "danger" : "ok"}
           sub="mascotas en cobertura (12m)"
           info={{
@@ -439,7 +440,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
         />
         <OpKpi
           label="Áreas con escaneos"
-          value={String(strayResult.areas.length)}
+          value={formatCount(strayResult.areas.length)}
           tone={strayResult.areas.length > 0 ? "warn" : "neutral"}
           sub="localidades con actividad (30d)"
           info={{
@@ -450,7 +451,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
         />
         <OpKpi
           label="Vets en ranking"
-          value={String(sterilResult.vets.length)}
+          value={formatCount(sterilResult.vets.length)}
           tone="blue"
           sub="con esterilizaciones (30d)"
           info={{

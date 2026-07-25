@@ -36,7 +36,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { deathCauseLabel, formatPercent } from "@/lib/utils/format";
+import { deathCauseLabel, formatCount, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { CasesPerCapitaTable } from "./_components/CasesPerCapitaTable";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
@@ -272,7 +272,7 @@ export default async function GobAnalyticsPage({
       >
         <OpKpi
           label="Mascotas totales"
-          value={String(metrics.totalPets)}
+          value={formatCount(metrics.totalPets)}
           sub="activos + perdidos"
           sparkline={
             petRegisteredTrend.points.length > 0
@@ -322,7 +322,7 @@ export default async function GobAnalyticsPage({
         />
         <OpKpi
           label={KPI_CATALOG.custody_disputes_open.label}
-          value={String(metrics.custodyDisputes)}
+          value={formatCount(metrics.custodyDisputes)}
           tone={metrics.custodyDisputes > 0 ? "warn" : undefined}
           sub="casos abiertos"
           href="/gob/casos?expediente=disputas"
