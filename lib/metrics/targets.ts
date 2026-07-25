@@ -81,6 +81,10 @@ export const TARGETS = {
    * See Paquete ENO (surveillance-metrics.ts) for the fetcher.
    */
   ENO_SLA_PCT: 95,
+  /** 100% = never missed the 10-day legal observation window. A statutory
+   *  obligation (Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA), not a
+   *  programmatic benchmark — anything under it is a legal miss. */
+  RABIES_OBSERVATION_COMPLIANCE_PCT: 100,
 
   /**
    * % of adopters who return to the programme within 12 months (repeat adoptions
@@ -259,6 +263,39 @@ export function enoSlaHeadline(
  * historical % as the headline with the closed-count sub (nothing to
  * contradict when there's no open breach).
  */
+/**
+ * Tone for the "Cumplimiento observación 10d" tile — the twin of enoSlaTone,
+ * which this tile never got.
+ *
+ * THE BUG THIS CLOSES (found live 2026-07-25, /gob/vigilancia): the call site
+ * hand-rolled `openBreaches > 0 ? "danger" : pct === null ? "neutral" : "ok"`,
+ * so with zero LIVE breaches a 7,1% historical compliance rate painted GREEN —
+ * an all-clear on a statutory deadline the jurisdiction was missing 92,9% of
+ * the time. The K2 pass had already fixed the tile's HEADLINE to lead with the
+ * live breach count; the COLOUR was left behind.
+ *
+ * The descriptor was never ambiguous: kpi-catalog's
+ * rabies_observation_compliance_10d declares `target: 100` with
+ * `sourceKind: "statutory-obligation"` and `semaphore: { paintAgainst:
+ * "target" }`. The contract said paint against the target; the screen didn't.
+ *
+ * Target is 100 — "never missed the legal deadline" (Ord. CABA 41.831 art. 9 /
+ * Decreto 4669/1973 PBA). A live breach still escalates, exactly as the ENO
+ * twin does: it is a fact about TODAY, while the percentage is a fact about the
+ * period.
+ */
+export function rabiesComplianceTone(rabies: {
+  compliancePct: number | null;
+  openBreaches: number;
+}): ToneResult | undefined {
+  const pctTone =
+    rabies.compliancePct !== null
+      ? toneForTarget(rabies.compliancePct, TARGETS.RABIES_OBSERVATION_COMPLIANCE_PCT)
+      : undefined;
+  if (rabies.openBreaches > 0) return "danger";
+  return pctTone;
+}
+
 export function rabiesComplianceHeadline(
   rabies: { compliancePct: number | null; openBreaches: number; closed: number },
   formatPct: (v: number | null) => string,

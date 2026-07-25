@@ -41,6 +41,7 @@ import {
   fetchKpiTrend,
   fetchMovementCorridors,
   rabiesComplianceHeadline,
+  rabiesComplianceTone,
   windows,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
@@ -424,13 +425,11 @@ export default async function GobVigilanciaPage({
         <OpKpi
           label="Cumplimiento observación 10d"
           value={rabiesComplianceCopy.value}
-          tone={
-            rabiesCompliance.openBreaches > 0
-              ? "danger"
-              : rabiesCompliance.compliancePct === null
-                ? "neutral"
-                : "ok"
-          }
+          // Painted against the STATUTORY target, per the descriptor's own
+          // semaphore.paintAgainst = "target". The previous hand-rolled tone
+          // returned "ok" whenever no breach was live, so 7,1% compliance on a
+          // legal deadline rendered green (found live 2026-07-25).
+          tone={rabiesComplianceTone(rabiesCompliance) ?? "neutral"}
           bar={
             rabiesCompliance.openBreaches > 0
               ? undefined

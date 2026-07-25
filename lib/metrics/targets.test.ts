@@ -13,6 +13,7 @@ import {
   decisionsDeltaPct,
   enoSlaHeadline,
   enoSlaTone,
+  rabiesComplianceTone,
   toneForBreachCeiling,
   toneForTarget,
 } from "./targets";
@@ -325,5 +326,31 @@ describe("enoSlaHeadline", () => {
     );
     expect(value).toBe("—");
     expect(sub).toBe("Sin entregas en el período");
+  });
+});
+
+// Found live on /gob/vigilancia 2026-07-25: the tile showed "7,1%" painted
+// GREEN because the call site's hand-rolled tone only looked at LIVE breaches.
+// The descriptor had always declared semaphore.paintAgainst = "target" with a
+// statutory target of 100 — the screen just never honoured it.
+describe("rabiesComplianceTone — a statutory deadline is painted against its target", () => {
+  it("never paints an all-clear on a failing compliance rate", () => {
+    expect(rabiesComplianceTone({ compliancePct: 7.1, openBreaches: 0 })).toBe("danger");
+  });
+
+  it("still warns in the band below the target", () => {
+    expect(rabiesComplianceTone({ compliancePct: 72, openBreaches: 0 })).toBe("warn");
+  });
+
+  it("paints ok only when the legal deadline was never missed", () => {
+    expect(rabiesComplianceTone({ compliancePct: 100, openBreaches: 0 })).toBe("ok");
+  });
+
+  it("a live breach outranks a perfect historical rate — it is a fact about today", () => {
+    expect(rabiesComplianceTone({ compliancePct: 100, openBreaches: 3 })).toBe("danger");
+  });
+
+  it("says nothing when there is nothing measured", () => {
+    expect(rabiesComplianceTone({ compliancePct: null, openBreaches: 0 })).toBeUndefined();
   });
 });

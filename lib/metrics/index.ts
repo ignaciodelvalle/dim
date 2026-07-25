@@ -122,6 +122,7 @@ export {
   enoSlaHeadline,
   enoSlaTone,
   rabiesComplianceHeadline,
+  rabiesComplianceTone,
   toneForBreachCeiling,
   toneForTarget,
 } from "./targets";
