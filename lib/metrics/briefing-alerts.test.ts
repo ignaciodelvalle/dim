@@ -137,6 +137,27 @@ describe("buildBriefingAlerts — surveillance urgency signals (claim #4)", () =
     expect(alert.actionHref).toBe("/gob/vigilancia");
   });
 
+  // Live on /gob 2026-07-25: the panel read "1507 mordeduras (12m)" beside a
+  // tile reading "3.541". Every fixture above is two digits, so no test ever
+  // crossed a thousand and the raw interpolation survived. A government panel
+  // that prints es-AR numbers unformatted looks like a different system talking.
+  it("formats counts over a thousand with the es-AR separator", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [
+      { kind: "escalation_gap", bites12m: 1507, openObservations: 0 },
+    ];
+    const [alert] = buildBriefingAlerts([], signals);
+    expect(alert.title).toContain("1.507 mordeduras");
+    expect(alert.title).not.toContain("1507");
+  });
+
+  it("formats the deadline-breach count too", () => {
+    const signals: SurveillanceUrgencyCandidate[] = [
+      { kind: "deadline_breach", openBreaches: 1204 },
+    ];
+    const [alert] = buildBriefingAlerts([], signals);
+    expect(alert.title).toContain("1.204 observaciones");
+  });
+
   it("never fabricates a deadline-breach alert when openBreaches is 0", () => {
     const signals: SurveillanceUrgencyCandidate[] = [{ kind: "deadline_breach", openBreaches: 0 }];
     expect(buildBriefingAlerts([], signals)).toEqual([]);

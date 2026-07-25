@@ -608,7 +608,7 @@ export default async function GobiernoDashboardPage({
             }
             value={
               !bitesPer10k.percapitaEligible
-                ? String(bitesPer10k.reports)
+                ? formatCount(bitesPer10k.reports)
                 : bitesPer10k.reports > 0 && formatRate(bitesPer10k.rate) === formatRate(0)
                   ? "<0,1"
                   : formatRate(bitesPer10k.rate)
@@ -627,7 +627,7 @@ export default async function GobiernoDashboardPage({
             sparkline={bitesTrend.points.map((p) => p.y)}
             sub={
               bitesPer10k.percapitaEligible
-                ? `${bitesPer10k.reports} reportes`
+                ? `${formatCount(bitesPer10k.reports)} reportes`
                 : "sin padrón censal local"
             }
             href="/gob/vigilancia"

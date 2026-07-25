@@ -40,7 +40,7 @@
 // PURE — no DB, no React. Every export is unit-tested in briefing-alerts.test.ts.
 
 import { getScreenManifestEntry } from "@/lib/ui/screen-manifest";
-import { formatPercent } from "@/lib/utils/format";
+import { formatCount, formatPercent } from "@/lib/utils/format";
 import { type ForecastTrendPoint, forecastToTarget, resourceGap } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
 import { KPI_CATALOG, formatKpiTarget } from "./kpi-catalog";
@@ -313,7 +313,7 @@ function buildUrgencyAlert(
     if (!action) return undefined;
     return {
       id: "bite_escalation_gap",
-      title: `${descriptor.label}: ${candidate.bites12m} mordeduras (12m) vs ${candidate.openObservations} observaciones abiertas — la ausencia de escalamiento no implica ausencia de riesgo`,
+      title: `${descriptor.label}: ${formatCount(candidate.bites12m)} mordeduras (12m) vs ${formatCount(candidate.openObservations)} observaciones abiertas — la ausencia de escalamiento no implica ausencia de riesgo`,
       evidence: {
         value: candidate.bites12m,
         target: 0,
@@ -340,7 +340,7 @@ function buildUrgencyAlert(
   const source = descriptor.target?.source ?? "";
   return {
     id: "rabies_observation_compliance_10d",
-    title: `${candidate.openBreaches} ${candidate.openBreaches === 1 ? "observación rábica supera" : "observaciones rábicas superan"} el plazo legal de 10 días (${source})`,
+    title: `${formatCount(candidate.openBreaches)} ${candidate.openBreaches === 1 ? "observación rábica supera" : "observaciones rábicas superan"} el plazo legal de 10 días (${source})`,
     evidence: {
       value: candidate.openBreaches,
       target: 0,
