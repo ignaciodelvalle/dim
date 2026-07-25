@@ -4788,7 +4788,7 @@ export function PanoramaConsole({
             {kpis.dataAsOf && (
               <span
                 suppressHydrationWarning
-                title="Fecha y hora del evento más reciente dentro del alcance seleccionado (no es la frescura general de los datos)."
+                title="Fecha y hora del evento más reciente dentro del alcance seleccionado (no es la frescura general de los datos). No cambia al mover la línea de tiempo."
                 className="rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-xs)] tabular-nums text-ln-op-mute"
               >
                 Último evento en el alcance:{" "}
@@ -5101,8 +5101,8 @@ export function PanoramaConsole({
                 </>
               )}
               {/* WARNING 6: honest note when the color scale is anchored to a
-                  shared link's day rather than the live edge. */}
-              {scaleAnchoredToAsOf && scrubbing && (
+                  shared link's day. Shown whenever anchored — P1.1: on entry too. */}
+              {scaleAnchoredToAsOf && (
                 <p className="text-xs leading-snug text-ln-op-mute" aria-live="polite">
                   Escala de color anclada a este día (se abrió desde un enlace con fecha). Volvé al
                   último evento para fijarla al borde en vivo.
