@@ -60,6 +60,7 @@ see the variant-map note below).
 | `LnCallout` | `DocElements.tsx` | Credential-doc callout (tones `azul\|warn`). | — |
 | `OpCallout` | `dashboard/OpCallout.tsx` | Operator callout (title + body + icon). | — |
 | `OpFormAlert` | `dashboard/OpField.tsx` | Form-level error banner in operator forms. | — |
+| `HoverTip` | `HoverTip.tsx` | Lightweight HOVER/focus tooltip (WAI-ARIA, reduced-motion-safe): a glossary acronym that expands on hover, an icon-only control's label, a rich row/map preview. Skin-neutral (light card popover). | Don't hand-roll a `title=`/`onMouseEnter` tooltip. NOT the same as OpKpi's ⓘ (that's a CLICK-toggled dense info popover) — use that for KPI definitions, this for lightweight labels. v1 doesn't flip at the viewport edge or portal out of `overflow:hidden` — extend it if a call site needs that. |
 
 ## Fields & forms
 
