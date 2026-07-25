@@ -81,6 +81,7 @@ import {
   dailyCountsFromTimestamps,
 } from "@/components/panorama/signal-histogram";
 import { Z_LOCALITY, resolveDataLevel } from "@/components/panorama/situational-map-utils";
+import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
@@ -612,15 +613,24 @@ export function PanoramaConsole({
   // Coherence hybrid (cowork QA H1): the temporal-scrub cutoff as a stable ISO
   // string (a new Date identity per render must not thrash the as-of KPI effect
   // below). Null = parked at live.
-  const asOfKpiIso = asOf ? asOf.toISOString() : null;
+  /**
+   * The as-of INSTANT as a stable string. Both the KPI fetch and the layer fetch
+   * key on this, never on the `asOf` Date object: TimeScrubber re-mints that Date
+   * from a useMemo, so an unrelated re-render produces a NEW object at the SAME
+   * instant. The KPI path already keyed on the string; the layer path did not,
+   * and paid for it with a duplicate fetch of every temporal layer on every
+   * frame — measured at exactly 2× the necessary traffic during playback
+   * (perf review 2026-07-25).
+   */
+  const asOfIso = asOf ? asOf.toISOString() : null;
   // Build the KPI query string for the CURRENT scope/period + an optional as-of
   // cutoff. Shared by the as-of KPI effect below (the scope/period effect uses the
   // plain scopePeriodQs — no as-of, unchanged from before the hybrid).
   const kpiFetchQs = useMemo(() => {
     const params = new URLSearchParams(scopePeriodQs);
-    if (asOfKpiIso) params.set("asOf", asOfKpiIso);
+    if (asOfIso) params.set("asOf", asOfIso);
     return params.toString();
-  }, [scopePeriodQs, asOfKpiIso]);
+  }, [scopePeriodQs, asOfIso]);
   // Skip the refetch for the very first render (the server already seeded the
   // KPIs for the initial searchParams); only refetch when the filters change.
   const seededQsRef = useRef<string | null>(scopePeriodQs);
@@ -703,7 +713,7 @@ export function PanoramaConsole({
   const asOfKpiSeededRef = useRef<boolean>(initialAsOf === null);
   const kpiFetchQsRef = useRef(kpiFetchQs);
   kpiFetchQsRef.current = kpiFetchQs;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: asOfKpiIso is the sole intended trigger — scope/period changes are handled by the effect above; kpiFetchQs is read live via a ref and signalFor is stable.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: asOfIso is the sole intended trigger — scope/period changes are handled by the effect above; kpiFetchQs is read live via a ref and signalFor is stable.
   useEffect(() => {
     // Mount pass: skip when seeded at LIVE (server strip already matches). A deep
     // link that mounts WITH an ?asOf starts unseeded so the strip reconciles to the
@@ -755,10 +765,10 @@ export function PanoramaConsole({
       cancelled = true;
       clearTimeout(timer);
     };
-    // asOfKpiIso is the sole trigger (scope/period changes are handled by the effect
+    // asOfIso is the sole trigger (scope/period changes are handled by the effect
     // above); kpiFetchQs/signalFor are read live via refs/stable identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asOfKpiIso]);
+  }, [asOfIso]);
 
   // perf plan 1.3 — resolve the streamed KPI promise into state. The page creates
   // the loader promise and passes it un-awaited over RSC so SSR never blocks on
@@ -1077,62 +1087,29 @@ export function PanoramaConsole({
   // A version counter forces the activeLayers memo to recompute after fetches
   // resolve (the caches are refs, so we bump state to re-render).
   const [asOfVersion, setAsOfVersion] = useState(0);
-  useEffect(() => {
-    if (asOf === null) {
-      // Back to live — repaint from the live cache.
-      setAsOfVersion((v) => v + 1);
-      return;
-    }
-    const iso = asOf.toISOString();
-    const baseQs = searchParams.toString();
-    // The as-of frame must be fetched at the SAME aggregation axis it will render
-    // at, or the province-framed map reads locality features (or vice-versa) and
-    // the scrubber silently paints nothing. Mirror the province-cache fetch's
-    // level logic. `level` (the state, in the deps) is read directly so a mid-scrub
-    // level flip refetches the active temporal layers at the new axis.
-    const currentLevel = level;
-    const activeTemporal = PANORAMA_LAYERS.filter(
-      (l) => statesRef.current[l.id]?.active && isTemporalLayer(l.id),
-    );
-    if (activeTemporal.length === 0) {
-      setAsOfVersion((v) => v + 1);
-      return;
-    }
-    let cancelled = false;
-    Promise.all(
-      activeTemporal.map(async (l) => {
-        const params = new URLSearchParams(baseQs);
-        params.set("asOf", iso);
-        if (currentLevel === "province") params.set("level", "province");
-        else if (isAggregatedPointLayer(l.id)) params.set("level", "locality");
-        // task #77: replay by recorded_at when the operator picked transaction time.
-        if (timeBasis === "transaction") params.set("basis", "transaction");
-        try {
-          // QA fix (finding 4): keyed abort, mirroring the KPI/toggle fetches
-          // — a rapid scrub or basis flip supersedes the prior in-flight
-          // as-of request for this layer instead of racing it into
-          // asOfDataRef out of order.
-          dropCubeStamp();
-          const res = await fetch(`/api/panorama/${l.id}?${params.toString()}`, {
-            headers: { accept: "application/json" },
-            signal: signalFor(`${l.id}:asOf`),
-          });
-          if (!res.ok) return;
-          const body = (await res.json()) as ApiResponse;
-          asOfDataRef.current.set(l.id, body.features);
-        } catch (err) {
-          // Superseded fetch — the newer as-of request owns this layer now.
-          if (isAbortError(err)) return;
-          // Leave the last-known as-of features in place on a transient failure.
-        }
-      }),
-    ).then(() => {
-      if (!cancelled) setAsOfVersion((v) => v + 1);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [asOf, searchParams, timeBasis, signalFor, level, dropCubeStamp]);
+  const frameBaseQs = useMemo(() => {
+    const p = new URLSearchParams(searchParams.toString());
+    for (const k of ["asOf", "z", "lat", "lng"]) p.delete(k);
+    return p.toString();
+  }, [searchParams]);
+  // The temporal FRAME pipeline (see use-asof-frame.ts for the two defects it
+  // fixes by construction: instant-keyed fetches, and reported failures).
+  const staleFrame = useAsOfFrame({
+    asOfIso,
+    // Strip the VOLATILE params the scrub itself writes back into the URL
+    // (asOf + camera). Including them made the frame's own URL write re-fire the
+    // fan-out a second time for the same instant. `verified`/`encoding` stay —
+    // they change what the server returns.
+    baseQs: frameBaseQs,
+    timeBasis,
+    level,
+    activeLayerIds: () =>
+      PANORAMA_LAYERS.filter((l) => statesRef.current[l.id]?.active).map((l) => l.id),
+    asOfData: asOfDataRef.current,
+    signalFor,
+    dropCubeStamp,
+    onFrameSettled: () => setAsOfVersion((v) => v + 1),
+  });
 
   // Selected map feature → DetailDrawer. Null when the drawer is closed.
   const [selected, setSelected] = useState<SelectedFeature | null>(null);
@@ -3963,32 +3940,44 @@ export function PanoramaConsole({
   // SituationalMap `bottomDock`) instead of floating as a separate block below
   // the map. Its logic/props are UNCHANGED — this is a layout move only.
   const scrubberDock = (
-    <TimeScrubber
-      since={since}
-      until={until}
-      onChange={onScrub}
-      basis={timeBasis}
-      onBasisChange={onBasisChange}
-      temporalAvailable={temporalAvailable}
-      currentStateBaseLabel={currentStateBaseLabel}
-      // Cowork QA ronda 3 §2 (C9, P3.6): the Simple/Detalle toggle is removed
-      // from "Reproducción temporal" for consistency with the rail panels —
-      // omitting onScrubDetailChange hides the toggle, and scrubDetail={true}
-      // renders the full detail (date ticks + bitemporal "Base" selector) by
-      // default. The date-tick / basis content is additive, so nothing is lost.
-      scrubDetail={true}
-      resetToken={scrubResetToken}
-      initialAsOf={initialAsOf}
-      // SUGGESTION 9: while a scope/period refetch is in flight the last-known
-      // kpis.dataAsOf belongs to the PREVIOUS scope — showing its time would
-      // print a stale watermark. Drop to null (scrubber falls back to the
-      // generic "Al último evento") until the new cutoff lands.
-      watermark={scrubberWatermark}
-      histogramBins={signalHistogramBins ?? aggregateHistogramBins}
-      // Cowork QA ronda 3 §5: keep "Ahora" an always-available escape hatch while
-      // a temporal frame is active, so a stuck delta is never uncleanable.
-      temporalActive={scrubbing}
-    />
+    <>
+      {/* The frame the caption names did NOT fully load. Stated where the date
+          lives, because that is the claim being corrected. */}
+      {staleFrame !== null && (
+        <p role="status" className="px-3 pb-1 text-[var(--text-xs)] leading-snug text-ln-op-warn">
+          {staleFrame.rateLimited
+            ? "Se alcanzó el límite de consultas: "
+            : "No se pudieron cargar los datos de esta fecha: "}
+          el mapa sigue mostrando el último cuadro cargado de {staleFrame.layers.join(", ")}.
+        </p>
+      )}
+      <TimeScrubber
+        since={since}
+        until={until}
+        onChange={onScrub}
+        basis={timeBasis}
+        onBasisChange={onBasisChange}
+        temporalAvailable={temporalAvailable}
+        currentStateBaseLabel={currentStateBaseLabel}
+        // Cowork QA ronda 3 §2 (C9, P3.6): the Simple/Detalle toggle is removed
+        // from "Reproducción temporal" for consistency with the rail panels —
+        // omitting onScrubDetailChange hides the toggle, and scrubDetail={true}
+        // renders the full detail (date ticks + bitemporal "Base" selector) by
+        // default. The date-tick / basis content is additive, so nothing is lost.
+        scrubDetail={true}
+        resetToken={scrubResetToken}
+        initialAsOf={initialAsOf}
+        // SUGGESTION 9: while a scope/period refetch is in flight the last-known
+        // kpis.dataAsOf belongs to the PREVIOUS scope — showing its time would
+        // print a stale watermark. Drop to null (scrubber falls back to the
+        // generic "Al último evento") until the new cutoff lands.
+        watermark={scrubberWatermark}
+        histogramBins={signalHistogramBins ?? aggregateHistogramBins}
+        // Cowork QA ronda 3 §5: keep "Ahora" an always-available escape hatch while
+        // a temporal frame is active, so a stuck delta is never uncleanable.
+        temporalActive={scrubbing}
+      />
+    </>
   );
 
   // --- v2C floating dock panes ----------------------------------------------
