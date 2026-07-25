@@ -815,6 +815,7 @@ describe("erase_subject_data — scrubs dispute/case/notification PII (0130)", (
   let caseId: string | undefined;
   let caseEventId: string | undefined;
   let notificationId: string | undefined;
+  let raisingEventId: string | undefined;
 
   beforeAll(async () => {
     await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0130");
@@ -848,6 +849,7 @@ describe("erase_subject_data — scrubs dispute/case/notification PII (0130)", (
       })
       .returning({ id: custodyDisputes.id });
     disputeId = dispute.id;
+    raisingEventId = raising.id;
 
     // The subject's own party row — position statement carries their PII.
     const [subjectParty] = await db
@@ -924,7 +926,18 @@ describe("erase_subject_data — scrubs dispute/case/notification PII (0130)", (
     if (caseId) await db.delete(cases).where(eq(cases.id, caseId));
     if (notificationId) await db.delete(notifications).where(eq(notifications.id, notificationId));
     await withMutationOverride(async (tx) => {
-      await tx.delete(petEvents).where(eq(petEvents.eventType, "custody_dispute_raised"));
+      // SCOPED to this suite's own event. It used to delete EVERY
+      // custody_dispute_raised row in the database, and
+      // custody_disputes.raising_event_id is ON DELETE CASCADE — so it wiped
+      // every dispute in the DB, including the demo dispute on
+      // DIM-BRUNO-DEMO, while leaving pets.in_custody_dispute = true and the
+      // open case behind. That orphan trio is what made
+      // __tests__/pet-cache-rederivation.test.ts's fitness sweep fail on every
+      // full-suite run, and with it the project's "pnpm test green" Definition
+      // of Done (traced 2026-07-25 with a DB trigger on the cascade path).
+      if (raisingEventId) {
+        await tx.delete(petEvents).where(eq(petEvents.id, raisingEventId));
+      }
     });
   });
 

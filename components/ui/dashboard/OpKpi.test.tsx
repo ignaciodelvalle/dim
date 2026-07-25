@@ -113,13 +113,33 @@ describe("OpKpi — the delta names its base, and 'Normal' stays quiet", () => {
     expect(screen.queryByText(/desde/)).toBeNull();
   });
 
-  it("announces exception states but NOT the default one", () => {
-    const { container: danger } = render(<OpKpi label="Vencidos" value="9" tone="danger" />);
-    expect(danger.textContent).toContain("Peligro:");
-    cleanup();
-    // "Normal:" asserted a verdict the data often does not support, and buried
-    // the real label behind it on every healthy tile.
-    const { container: ok } = render(<OpKpi label="Al día" value="9" tone="ok" />);
-    expect(ok.textContent).not.toContain("Normal");
+  // Track B asked to kill the "Normal:" leak. The first fix DELETED the ok
+  // label, which removed the tone's only text equivalent — the glyph is
+  // aria-hidden, so that left COLOUR ALONE carrying the state (WCAG 1.4.1).
+  // __tests__/a11y-badge-kpi.test.tsx caught it. The leak was the ORDER, not
+  // the existence: the state preempted the metric name on every tile.
+  it("announces every tone — the glyph is aria-hidden, so text is the only cue", () => {
+    for (const [tone, word] of [
+      ["danger", "Peligro"],
+      ["warn", "Atención"],
+      ["ok", "Normal"],
+    ] as const) {
+      const { container } = render(<OpKpi label="Vencidos" value="9" tone={tone} />);
+      expect(container.textContent).toContain(word);
+      cleanup();
+    }
+  });
+
+  it("puts the state AFTER the label, so the metric is heard first", () => {
+    const { container } = render(<OpKpi label="Al día" value="9" tone="ok" />);
+    const text = container.textContent ?? "";
+    // Both present, label first — the regression was "Normal: Al día".
+    expect(text.indexOf("Al día")).toBeGreaterThan(-1);
+    expect(text.indexOf("Normal")).toBeGreaterThan(text.indexOf("Al día"));
+  });
+
+  it("stays silent when there is no tone to announce", () => {
+    const { container } = render(<OpKpi label="Total" value="9" />);
+    expect(container.textContent).not.toContain("Normal");
   });
 });

@@ -207,16 +207,22 @@ const TONE_ICONS: Partial<Record<Tone, ReactNode>> = {
 };
 
 /**
- * sr-only label appended after the icon so screen readers announce an EXCEPTION
- * state. Track B: "ok" deliberately has NO label. Announcing "Normal:" on every
- * default tile both buried the actual label in noise and asserted a verdict the
- * data often does not support — the audible twin of painting a semaphore colour
- * on a metric whose descriptor says `paintAgainst: "none"`. The icon is
- * decorative/aria-hidden, so silence here is the honest default, not a loss.
+ * sr-only text equivalent for the tone glyph.
+ *
+ * REQUIRED, not optional: the glyph is aria-hidden, so without this the tone is
+ * conveyed by COLOUR ALONE — WCAG 1.4.1, fenced by
+ * __tests__/a11y-badge-kpi.test.tsx ("non-color state cue", UX 2.2).
+ *
+ * Track B asked to kill the "Normal:" leak and I first did it by DELETING the
+ * ok label, which removed an accessibility affordance to fix a copy complaint —
+ * the a11y suite caught it. The leak was never that the text exists; it was the
+ * ORDER: announcing the state BEFORE the metric name buried the label under a
+ * verdict on every healthy tile. The state now follows the label.
  */
 const TONE_LABELS: Partial<Record<Tone, string>> = {
   danger: "Peligro",
   warn: "Atención",
+  ok: "Normal",
 };
 
 // ---------------------------------------------------------------------------
@@ -591,16 +597,16 @@ export function OpKpi({
       {/* Label + tone glyph + ⓘ */}
       <div className="mb-2 flex items-center gap-1">
         {TONE_ICONS[tone] && (
-          <>
-            <span aria-hidden="true" className="inline-flex items-center leading-none">
-              {TONE_ICONS[tone]}
-            </span>
-            {TONE_LABELS[tone] && <span className="sr-only">{TONE_LABELS[tone]}:</span>}
-          </>
+          <span aria-hidden="true" className="inline-flex items-center leading-none">
+            {TONE_ICONS[tone]}
+          </span>
         )}
         <span className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {label}
         </span>
+        {/* AFTER the label: a screen reader hears "Vacunados, Normal", not
+            "Normal: Vacunados". Same information, the metric first. */}
+        {TONE_LABELS[tone] && <span className="sr-only">, {TONE_LABELS[tone]}</span>}
         {info && <InfoButton info={info} />}
       </div>
 
