@@ -265,7 +265,7 @@ export function PanoramaDataTable({
           role="tooltip"
           id={previewId}
           style={{ top: previewAnchor.top, left: previewAnchor.left, width: PREVIEW_W }}
-          className="pointer-events-none fixed z-50 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-card p-3 text-xs shadow-lg"
+          className="ln-hovertip-in pointer-events-none fixed z-50 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-card p-3 text-xs shadow-lg"
         >
           <RankedRowPreview
             row={previewAnchor.row}

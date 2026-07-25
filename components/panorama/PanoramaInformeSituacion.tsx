@@ -206,6 +206,14 @@ export function PanoramaInformeSituacion({ model }: Props) {
             Fuente: miMAR — Centro de Situación Nacional. Toda vista es una proyección del registro
             de eventos.
           </p>
+          {/* E1 — traceability: the URL that reproduces this exact view. Printed
+              as plain text (paper is not clickable) and broken anywhere so a
+              long query string does not overflow the page. */}
+          {model.viewUrl && (
+            <p className="break-all">
+              Vista reproducible: <span className="font-mono">{model.viewUrl}</span>
+            </p>
+          )}
         </footer>
       </article>
     </div>

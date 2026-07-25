@@ -81,6 +81,14 @@ export type BuildInformeInput = {
   viewSummary: string;
   /** The KPIs the operator sees (the active preset's curated subset). */
   kpis: InformeKpiInput[];
+  /**
+   * E1 (map plan) — the shareable URL that REPRODUCES this exact view. Printed
+   * as text, not a link: a briefing that leaves the screen must still say where
+   * it came from, and a reader holding paper cannot click. Null when the caller
+   * has no URL yet (SSR/first paint), which prints nothing rather than a lie.
+   * Carries only scope/period/layer coordinates — never PII.
+   */
+  viewUrl?: string | null;
   /** The KPI fan-out failed — no real numbers; replace conclusions with an honest failure. */
   kpisDegraded: boolean;
   /** The "Peores N" ranking, or null when the active view has no rankable layer. */
@@ -144,6 +152,8 @@ export type InformeModel = {
   methodNotes: string[];
   /** The k-anon disclosure sentence + the scoped suppressed-cell count. */
   kAnonDisclosure: string;
+  /** E1 — the URL that reproduces this view, printed for traceability. */
+  viewUrl: string | null;
 };
 
 const RANKING_LIMIT = 10;
@@ -260,6 +270,7 @@ export function buildInformeModel(input: BuildInformeInput): InformeModel {
     scopeLabel: input.scopeLabel,
     generatedAtLabel: input.generatedAt ? formatGeneratedAt(input.generatedAt) : null,
     isDemo: input.isDemo,
+    viewUrl: input.viewUrl ?? null,
     demoText:
       "Datos de demostración. El dataset cargado es sintético (densidad ponderada por Censo 2022); no representa casos reales.",
     viewSummary: input.viewSummary,

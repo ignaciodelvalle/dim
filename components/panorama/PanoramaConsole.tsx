@@ -4412,7 +4412,7 @@ export function PanoramaConsole({
   // existing helpers: explainViewState (the ViewState P5 "explain" gift) for the
   // one-line summary, captionFor for the map caption, and the KPI ⓘ definitions
   // for the method footnotes. Honesty invariants (demo banner + k-anon disclosure
-  // + method notes) live inside buildInformeModel and are never dropped.
+  // + method notes) live inside buildInformeModel. E1 adds the view's own URL.
   const informeCaption = bivariateActive
     ? bivariateCaptionText(bivariatePair)
     : captionLayer
@@ -4427,6 +4427,7 @@ export function PanoramaConsole({
         periodLabel: viewMeta.periodLabel,
         asOf,
         generatedAt: informeGeneratedAt,
+        viewUrl: typeof window === "undefined" ? null : window.location.href,
         isDemo: demoNotice != null,
         viewSummary: explainViewState(viewState, {
           provinceLabel: (code) =>

@@ -2735,6 +2735,27 @@ body {
    peeking ::after edge stayed put while the face flipped and read as a fixed
    outer border (PO QA). The credential is now ONE sheet that turns as a whole —
    its depth comes from the .ln-face box-shadow, which rotates with it. */
+/* B3 (panorama map plan) — the ranking hover-preview card's entrance. Short on
+   purpose: a preview that trails the pointer reads as lag, not polish, so 140ms
+   where the document reveal takes 600ms. Gated on no-preference (the project's
+   idiom, same as ln-doc-in) rather than leaning on the global reduced-motion
+   reset — under `reduce` the card simply appears. */
+@keyframes ln-hovertip-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ln-hovertip-in {
+    animation: ln-hovertip-in 140ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+}
+
 @keyframes ln-doc-in {
   from {
     opacity: 0;
