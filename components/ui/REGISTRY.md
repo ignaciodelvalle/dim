@@ -61,6 +61,7 @@ see the variant-map note below).
 | `OpCallout` | `dashboard/OpCallout.tsx` | Operator callout (title + body + icon). | — |
 | `OpFormAlert` | `dashboard/OpField.tsx` | Form-level error banner in operator forms. | — |
 | `HoverTip` | `HoverTip.tsx` | Lightweight HOVER/focus tooltip (WAI-ARIA, reduced-motion-safe): a glossary acronym that expands on hover, an icon-only control's label, a rich row/map preview. Skin-neutral (light card popover). | Don't hand-roll a `title=`/`onMouseEnter` tooltip. NOT the same as OpKpi's ⓘ (that's a CLICK-toggled dense info popover) — use that for KPI definitions, this for lightweight labels. v1 doesn't flip at the viewport edge or portal out of `overflow:hidden` — extend it if a call site needs that. |
+| `GlossaryTerm` | `GlossaryTerm.tsx` | Wraps an operator-jargon term (ENO, SLA, PII, PPP, RUPPPA, k<5, P75, "no cohorte") in a dotted-underline + a `HoverTip` with its plain-es-AR definition (from `lib/reference/glossary.ts`). Unknown term → renders plainly. | Don't inline a definition tooltip by hand — add the term to `lib/reference/glossary.ts` and wrap it. Definitions are VERIFIED against the repo's legal/reference sources — no invented expansions. |
 
 ## Fields & forms
 
