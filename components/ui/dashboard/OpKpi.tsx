@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -240,10 +240,41 @@ const toneValue: Record<Tone, string> = {
 // ---------------------------------------------------------------------------
 
 function InfoButton({ info }: { info: InfoTooltip }) {
+  // hover-reveals + click-PINS (red-team QA: save a click on the ⓘ). Hover opens
+  // it for a quick glance (desktop); a small close delay lets the pointer travel
+  // to the dense popover to read a line; a CLICK pins it (survives mouse-leave,
+  // and is the only path on touch, where hover never fires). Escape / outside
+  // click (when pinned) dismisses.
   const [open, setOpen] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const scheduleClose = () => {
+    clearTimer();
+    closeTimer.current = setTimeout(() => setOpen(false), 220);
+  };
+  const closeNow = () => {
+    clearTimer();
+    setOpen(false);
+    setPinned(false);
+  };
+  useEffect(() => clearTimer, []);
 
   return (
-    <span className="relative inline-block">
+    <span
+      className="relative inline-block"
+      onMouseEnter={() => {
+        clearTimer();
+        setOpen(true);
+      }}
+      onMouseLeave={() => {
+        if (!pinned) scheduleClose();
+      }}
+    >
       <button
         type="button"
         aria-label="Información sobre este indicador"
@@ -253,12 +284,25 @@ function InfoButton({ info }: { info: InfoTooltip }) {
           // whole tile is wrapped in <a href> (KPI cards on /gob/programa), the
           // ⓘ button is a descendant of that anchor, so a bare click still
           // triggers the anchor's NATIVE navigation. stopPropagation only stops
-          // React bubbling; it does not cancel the ancestor <a> default. Without
-          // this, clicking ⓘ navigated away instead of opening the tooltip
-          // (Cowork B6). Navigation stays on the explicit tile/"Ver detalle" link.
+          // React bubbling; it does not cancel the ancestor <a> default (Cowork B6).
           e.preventDefault();
           e.stopPropagation();
-          setOpen((v) => !v);
+          clearTimer();
+          // Toggle PIN: pinned keeps it open past mouse-leave; unpinning closes.
+          setPinned((p) => {
+            setOpen(!p);
+            return !p;
+          });
+        }}
+        onFocus={() => {
+          clearTimer();
+          setOpen(true);
+        }}
+        onBlur={() => {
+          if (!pinned) scheduleClose();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") closeNow();
         }}
         className="ml-1 inline-flex items-center align-middle text-ln-op-mute hover:text-ln-op-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
       >
@@ -269,20 +313,22 @@ function InfoButton({ info }: { info: InfoTooltip }) {
 
       {open && (
         <>
-          {/* Backdrop to close on outside click */}
-          <button
-            type="button"
-            className="fixed inset-0 z-40"
-            aria-label="Cerrar información"
-            onClick={(e) => {
-              // Same anchor-descendant hazard as the ⓘ trigger: this backdrop
-              // covers the viewport and sits inside the tile's <a href>, so a
-              // dismiss click must cancel the native navigation too.
-              e.preventDefault();
-              e.stopPropagation();
-              setOpen(false);
-            }}
-          />
+          {/* Backdrop ONLY when pinned — a pinned popover needs an outside-click
+              dismiss; a hover popover closes on mouse-leave, no backdrop needed. */}
+          {pinned && (
+            <button
+              type="button"
+              className="fixed inset-0 z-40"
+              aria-label="Cerrar información"
+              onClick={(e) => {
+                // Same anchor-descendant hazard as the ⓘ trigger: cancel the
+                // native <a> navigation on the dismiss click too.
+                e.preventDefault();
+                e.stopPropagation();
+                closeNow();
+              }}
+            />
+          )}
           {/* Popover aligned to the LN card system (rounded-lg / border-ln-line /
               bg-ln-card / shadow-lg) — the same surface tokens the panorama drawer
               and LN callouts use. Consistent vertical rhythm (space-y-1.5) and a
