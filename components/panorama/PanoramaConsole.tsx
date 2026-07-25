@@ -3565,6 +3565,8 @@ export function PanoramaConsole({
     for (const layer of activeLayers) {
       const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
       if (!isAggregate || layer.dataType === "rate" || layer.dataType === "reference") continue;
+      // Summability is DECLARED, not inferred — see PanoramaLayer.valueKind.
+      if ((getLayer(layer.id as LayerId)?.valueKind ?? "count") !== "count") continue;
       hasCountLayer = true;
       if (isTemporalLayer(layer.id as LayerId)) anyPeriodLayer = true;
       for (const f of layer.features.features) {

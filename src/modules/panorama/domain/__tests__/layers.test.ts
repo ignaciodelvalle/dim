@@ -408,3 +408,59 @@ describe("layer descriptions (task #38 Filtro method notes)", () => {
     expect(getLayer("denuncias")?.description).toMatch(/centroide|localidad/i);
   });
 });
+
+/**
+ * `valueKind` — what a per-unit value MEANS, and therefore whether the dock may
+ * sum it into "Registros".
+ *
+ * The bug this locks was live on 2026-07-25: the dock defined its summable set
+ * by EXCLUSION (everything that is not `dataType: "rate"`), so layers whose
+ * values are rates, signed deltas or durations were added up as if they were
+ * rows. The console showed "Registros −13.288" (Tendencia), "Registros 1.394,7"
+ * (Pérdidas y reunificación) and "Registros 2.138" (Desierto veterinario). A
+ * negative or fractional record count on a government console discredits every
+ * other number on the screen.
+ */
+describe("PanoramaLayer.valueKind — only counts are summable", () => {
+  const kindOf = (id: string) => PANORAMA_LAYERS.find((l) => l.id === id)?.valueKind ?? "count";
+
+  it("marks every layer whose per-unit value is NOT a row count", () => {
+    expect(kindOf("tendencia")).toBe("delta");
+    expect(kindOf("reunificacion")).toBe("rate");
+    expect(kindOf("acceso-veterinario")).toBe("rate");
+    expect(kindOf("desierto-veterinario")).toBe("duration");
+    expect(kindOf("indice-territorial")).toBe("index");
+  });
+
+  it("leaves the genuine event layers summable", () => {
+    for (const id of [
+      "perdidas",
+      "mordeduras",
+      "denuncias",
+      "zoonosis",
+      "sintomas",
+      "mortalidad",
+    ]) {
+      expect(kindOf(id), id).toBe("count");
+    }
+  });
+
+  it("a layer whose own measure names a non-count unit must declare it", () => {
+    // The real guard: `?? "count"` means an omission is SILENTLY summable, so a
+    // future layer measuring days/percentages/indices would reintroduce the bug.
+    // The layer's own es-AR measure text gives it away — use that as the tell.
+    const NON_COUNT_MEASURE = /tasa|%|d[íi]as|[íi]ndice|por 1\.000|por 10\.000|variaci[óo]n/i;
+    for (const l of PANORAMA_LAYERS) {
+      if (l.dataType === "rate" || l.dataType === "reference") continue;
+      if (!NON_COUNT_MEASURE.test(l.caption.measure)) continue;
+      expect(l.valueKind, `${l.id} measures "${l.caption.measure}"`).toBeDefined();
+      expect(l.valueKind, l.id).not.toBe("count");
+    }
+  });
+
+  it("a delta-encoded layer is never summable", () => {
+    for (const l of PANORAMA_LAYERS) {
+      if (l.deltaEncoded) expect(l.valueKind, l.id).toBe("delta");
+    }
+  });
+});

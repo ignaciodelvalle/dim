@@ -215,6 +215,26 @@ export type PanoramaLayer = {
    * exclusive with `complianceTarget` — a delta has no attainment target.
    */
   deltaEncoded?: boolean;
+  /**
+   * What a per-unit `value` MEANS — and therefore whether it can be summed.
+   *
+   * The dock's "Registros" total used to be defined by EXCLUSION (sum everything
+   * that is not `dataType: "rate"`), so any layer whose values are not counts
+   * but whose dataType is not literally "rate" leaked into the sum. Live
+   * consequences on 2026-07-25: "Registros −13.288" on Tendencia (signed deltas
+   * summed), "Registros 1.394,7" on Pérdidas y reunificación (a rate summed with
+   * counts), and "Registros 2.138" on Desierto veterinario (days summed).
+   *
+   * A negative or fractional record count on a government console destroys trust
+   * in every other number on the screen, so summability is now DECLARED rather
+   * than inferred: only "count" is summable, and everything else is reported as
+   * a unit count instead.
+   *
+   * Defaults to "count" — correct for the six genuine event layers (perdidas,
+   * mordeduras, denuncias, zoonosis, sintomas, mortalidad). A NEW layer whose
+   * value is anything else MUST say so here.
+   */
+  valueKind?: "count" | "rate" | "delta" | "duration" | "index";
 
   // --- panorama-ia-v2 descriptor extension (design §2.2) ---------------------
 

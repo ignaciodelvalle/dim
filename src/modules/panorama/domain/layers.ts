@@ -175,6 +175,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "reunificacion",
+    // Not summable: per-unit value is a reunification RATE (0-100), not a row count.
+    valueKind: "rate",
     label: "Reunificación",
     description:
       "Porcentaje de episodios de pérdida reencontrados con su familia en el período, por unidad (el tamaño del símbolo es la tasa).",
@@ -395,6 +397,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "acceso-veterinario",
+    // Not summable: per-unit value is visits per 1.000 inhabitants, not a row count.
+    valueKind: "rate",
     label: "Acceso veterinario (visitas/1.000)",
     description:
       "Visitas veterinarias por cada 1.000 mascotas activas, por unidad — señal de acceso a la atención (los 'desiertos' de atención son las zonas con menos visitas). Ventana móvil de 12 meses.",
@@ -461,6 +465,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "tendencia",
+    // Not summable: per-unit value is a SIGNED delta vs the previous window.
+    valueKind: "delta",
     label: "Tendencia de eventos (Δ vs período anterior)",
     description:
       "Variación de eventos registrados por provincia: el período elegido contra el período equivalente inmediatamente anterior (Δ = actual − anterior). Cuenta todos los eventos cargados en MiMAR.",
@@ -497,6 +503,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "desierto-veterinario",
+    // Not summable: per-unit value is DAYS without activity.
+    valueKind: "duration",
     label: "Desierto veterinario (días sin actividad)",
     description:
       "Días desde el último evento veterinario registrado en MiMAR por provincia (el tope es el largo del período: sin actividad en todo el período). La ausencia de datos cargados no implica ausencia de veterinarios.",
@@ -533,6 +541,8 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "indice-territorial",
+    // Not summable: per-unit value is a 0-100 composite index.
+    valueKind: "index",
     label: "Índice territorial (0-100)",
     description:
       "Índice compuesto por provincia (0-100): media del cumplimiento de metas de antirrábica, esterilización y microchip. Puntúa territorios, nunca personas.",
