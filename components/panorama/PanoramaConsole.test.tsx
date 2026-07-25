@@ -839,7 +839,10 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
     // perdidas (density, EMPTY features) → PanoramaDataTable's honest empty copy.
     expect(screen.getByText(/Peores/)).toBeVisible();
-    expect(screen.getByText("Sin datos suficientes en este alcance.")).toBeVisible();
+    // C4 (2026-07-25): the honest-empty copy is now epistemic — a ranking with
+    // no rankable base is BLIND, not "insufficient data" (which reads as a
+    // measurement that came up short).
+    expect(screen.getByText(/Sin señales en este alcance/)).toBeVisible();
   });
 });
 

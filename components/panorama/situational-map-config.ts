@@ -547,50 +547,32 @@ export const DIVISION_FADE_MS = 300;
 export const HATCH_FILL_OPACITY = 0.85;
 export const SUPPRESS_SOLID_OPACITY = 0.5;
 
-// B1 (map plan) — choropleth paint transition.
+// B1 (map plan) — ABANDONED, and deliberately not left wired.
 //
-// MEASURED LIMIT (perf review 2026-07-25): `fill-color-transition` is INERT
-// here. maplibre refuses to transition DATA-DRIVEN paint —
-// src/style/properties.ts, TransitioningPropertyValue.possiblyEvaluate:
+// The plan wanted period/scope/vista/asOf changes to INTERPOLATE so the eye can
+// follow which units moved. maplibre cannot do it here: it refuses to transition
+// DATA-DRIVEN paint — src/style/properties.ts, TransitioningPropertyValue:
 // "Transitions to data-driven properties are not supported. We snap immediately
-// to the data-driven value" — and both choropleth fills colour through an
-// expression (classedProvinceFill / divisionFillColorExpr). Proven live with a
-// control: a CONSTANT colour blends at t=120ms, the real expression snaps.
+// to the data-driven value" — and both choropleths colour through an expression.
+// Measured with a control on the live map: a CONSTANT colour blends at t=120ms;
+// the real expression snaps. (perf review 2026-07-25.)
 //
-// `fill-opacity-transition` DOES work (constant value), which is what applyDim's
-// dimming rides. So B1 as shipped animates the dim, not the data.
+// The transitions were removed rather than kept "harmless": paint properties
+// that read as an animation but produce none are a claim the code does not
+// honour, and the next reader would have trusted them. Reviving the data fade
+// needs a different mechanism — a two-layer cross-fade on the CONSTANT
+// fill-opacity — which is a product decision, not a tweak (PO: abandoned
+// 2026-07-25).
 //
-// Making the data fade needs a different mechanism — a two-layer cross-fade on
-// the constant fill-opacity — which is a PO-sized decision, not a tweak. Until
-// then this stays wired (harmless, and the opacity half is real) but the claim
-// that period/scope/vista changes interpolate is FALSE. Do not restate it.
-export const CHOROPLETH_FADE_MS = DIVISION_FADE_MS;
+// What survives is the part that works and matters: the reduced-motion FLOOR on
+// camera moves and on the division-outline fade (see use-choropleth-motion.ts).
 
-/**
- * maplibre paint-transition object for the choropleth fills, honoring the
- * reduced-motion FLOOR: duration 0 is not "a fast animation", it is no
- * interpolation at all — the instant repaint the pre-B1 map always did.
- */
-export const fillPaintTransition = (reduced: boolean): { duration: number; delay: number } => ({
-  duration: reduced ? 0 : CHOROPLETH_FADE_MS,
-  delay: 0,
-});
-
-/**
- * The complete paint object for a choropleth fill: the data-driven color
- * expression, the shared data opacity, and B1's transitions. Both add sites
- * (province + division) build it here so a fill can never be mounted with the
- * color but WITHOUT the transition — the failure mode where one axis of the map
- * animates and the other snaps.
- */
+/** The paint object for a choropleth fill: colour expression + shared opacity. */
 export const choroplethFillPaint = (
   colorExpr: maplibregl.ExpressionSpecification | string,
-  reduced: boolean,
 ): maplibregl.FillLayerSpecification["paint"] => ({
   "fill-color": colorExpr,
   "fill-opacity": DATA_FILL_OPACITY,
-  "fill-color-transition": fillPaintTransition(reduced),
-  "fill-opacity-transition": fillPaintTransition(reduced),
 });
 
 // Per-layer maplibre object ids are namespaced by layer id so multiple layers

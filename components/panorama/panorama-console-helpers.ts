@@ -187,6 +187,25 @@ export function parseLayersParam(raw: string | null): LayerId[] | null {
 }
 
 /**
+ * The layer ids a `?layers=` param named that DON'T exist in the registry.
+ *
+ * `parseLayersParam` drops them silently, which is the right rendering choice
+ * (an unknown id cannot be drawn) but the wrong HONESTY choice under Panorama's
+ * "compartir vista" identity: a link written before a layer was renamed reopens
+ * missing that layer, showing a smaller board with no hint that anything was
+ * lost. The operator reads a complete-looking view that isn't the one shared.
+ *
+ * Returns the unknown ids so a caller can SAY so. Empty array = nothing lost.
+ */
+export function unknownLayerIds(raw: string | null): string[] {
+  if (raw === null) return [];
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0 && !getLayer(s as LayerId));
+}
+
+/**
  * Canonical `layers` param value for a set of active ids: registry order,
  * comma-joined. Both onPreset and the URL-sync effect emit this form so the
  * URL is stable regardless of activation order.

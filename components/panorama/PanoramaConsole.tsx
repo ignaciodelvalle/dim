@@ -41,6 +41,7 @@ import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegends } from "@/components/panorama/MapLegends";
 import { type ModeOption, ModeSwitcher } from "@/components/panorama/ModeSwitcher";
 import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
+import { PanoramaBoardNotices } from "@/components/panorama/PanoramaBoardNotices";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaDock, type PanoramaDockTab } from "@/components/panorama/PanoramaDock";
@@ -196,6 +197,7 @@ import {
   saveBoard,
   scopePeriodQsOf,
   seededLayerUsesProvinceCache,
+  unknownLayerIds,
 } from "@/components/panorama/panorama-console-helpers";
 
 export function PanoramaConsole({
@@ -1087,6 +1089,17 @@ export function PanoramaConsole({
   // A version counter forces the activeLayers memo to recompute after fetches
   // resolve (the caches are refs, so we bump state to re-render).
   const [asOfVersion, setAsOfVersion] = useState(0);
+  /**
+   * Layers the opened URL named that no longer exist. A shared link written
+   * before a rename reopens SILENTLY smaller — the operator reads a complete-
+   * looking board that is not the one they were sent. Under the "compartir
+   * vista" identity that is the same class of defect as a broken deep-link.
+   */
+  const droppedLayerIds = useMemo(
+    () => unknownLayerIds(searchParams.get("layers")),
+    [searchParams],
+  );
+
   const frameBaseQs = useMemo(() => {
     const p = new URLSearchParams(searchParams.toString());
     for (const k of ["asOf", "z", "lat", "lng"]) p.delete(k);
@@ -3941,17 +3954,7 @@ export function PanoramaConsole({
   // the map. Its logic/props are UNCHANGED — this is a layout move only.
   const scrubberDock = (
     <>
-      {/* The frame the caption names did NOT fully load — stated where the date
-          lives, because that is the claim being corrected. <output> carries
-          role="status" implicitly, so it announces politely on its own. */}
-      {staleFrame !== null && (
-        <output className="block px-3 pb-1 text-[var(--text-xs)] leading-snug text-ln-op-warn">
-          {staleFrame.rateLimited
-            ? "Se alcanzó el límite de consultas: "
-            : "No se pudieron cargar los datos de esta fecha: "}
-          el mapa sigue mostrando el último cuadro cargado de {staleFrame.layers.join(", ")}.
-        </output>
-      )}
+      <PanoramaBoardNotices staleFrame={staleFrame} droppedLayerIds={droppedLayerIds} />
       <TimeScrubber
         since={since}
         until={until}

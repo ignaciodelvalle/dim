@@ -60,16 +60,20 @@ describe("PanoramaDataTable — accessible view (Ley 26.653)", () => {
   it("shows the empty state when there are no rows", () => {
     render(<PanoramaDataTable rows={[]} kind="rate" measureLabel="cobertura" />);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByText("Sin jurisdicciones bajo meta en este alcance.")).toBeInTheDocument();
+    // C4 (2026-07-25): with no `measuredUnits` the table cannot know whether
+    // everyone is above target or nothing was measured, so it declares
+    // blindness instead of the old unconditional "Sin jurisdicciones bajo meta"
+    // all-clear. See PanoramaDataTable.empty.test.tsx for the full branch set.
+    expect(screen.getByText(/Sin señales en este alcance/)).toBeInTheDocument();
   });
 
   it("dataUnavailable: no rows + no data shows an explicit failure state, not the all-clear (trust/safety)", () => {
     render(<PanoramaDataTable rows={[]} kind="rate" measureLabel="cobertura" dataUnavailable />);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByText("No pudimos calcular el ranking en este momento.")).toBeInTheDocument();
-    expect(
-      screen.queryByText("Sin jurisdicciones bajo meta en este alcance."),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(/No pudimos calcular el ranking/)).toBeInTheDocument();
+    // The invariant this test was written for, unchanged: a failure must never
+    // be dressed as good news.
+    expect(screen.queryByText(/Ninguna jurisdicción quedó bajo meta/)).not.toBeInTheDocument();
   });
 
   // Ranking one-list consolidation: the table is now the DEFAULT rendering, so it

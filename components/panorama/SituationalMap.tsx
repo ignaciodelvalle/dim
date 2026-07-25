@@ -1780,7 +1780,7 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: DIVISION_SRC,
-          paint: choroplethFillPaint(divisionFillColorExpr(values, lockedBreaks), reduced()),
+          paint: choroplethFillPaint(divisionFillColorExpr(values, lockedBreaks)),
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
       );
@@ -2371,7 +2371,7 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: "ar-provinces",
-          paint: choroplethFillPaint(provinceColorExprForLayer(layer, seqBreaks), reduced()),
+          paint: choroplethFillPaint(provinceColorExprForLayer(layer, seqBreaks)),
         },
         chromeAnchor,
       );
