@@ -9,7 +9,9 @@ import type { ReactNode } from "react";
 
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
+import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
+import { periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
 import {
   CHOROPLETH_LAYERS,
   PANORAMA_LAYERS,
@@ -399,3 +401,97 @@ export type PanoramaConsoleProps = {
    */
   cubeBuiltAt?: Date | string | null;
 };
+
+/**
+ * A2 (map plan) — does a click on a ranking row DRILL into that unit, or open
+ * its detail readout?
+ *
+ * MIRROR of the map's choropleth click contract (SituationalMap.tsx ~2538): at
+ * national scope a province drills; once the console is already scoped, the map
+ * pins a readout instead of drilling, so the row opens the detail to match.
+ * A locality row deliberately never drills.
+ *
+ * Pure, and shared by BOTH the click handler and the hover preview's closing
+ * hint — that coupling is the point. While these were two expressions, the
+ * preview promised "Clic para entrar" on rows the click then opened a drawer
+ * for, because aggregated-point layers carry the province as a NAME while the
+ * drill guard only read `provinceCode`. Ranking keys arrive in both shapes, so
+ * this resolves either to a province code.
+ *
+ * @returns the province code to drill into, or null when the row should open
+ *          its detail instead.
+ */
+export function resolveRowDrillTarget(
+  key: string,
+  scope: { province: string | null; level: AggregationLevel },
+): string | null {
+  if (scope.province != null || scope.level !== "province") return null;
+  return provinceByCode(key)?.code ?? provinceByName(key)?.code ?? null;
+}
+
+/**
+ * Find the map feature a ranking row names.
+ *
+ * Mirrors rankWorstUnits' identify() key precedence: choropleth features key
+ * off provinceCode/locality/province, NOT place/name, so matching only
+ * place/name left every ranked-row click a no-op for the cobertura (rate)
+ * layer (2026-07-10 fix).
+ */
+export function findRankedFeature(
+  features: FeatureCollection,
+  key: string,
+): FeatureCollection["features"][number] | undefined {
+  return features.features.find((f) => {
+    const p = f.properties as Record<string, unknown>;
+    return (
+      p.provinceCode === key ||
+      p.place === key ||
+      p.name === key ||
+      p.locality === key ||
+      p.province === key
+    );
+  });
+}
+
+/**
+ * Provenance metadata for the map's export footer and dock caption: WHERE, WHEN
+ * and how much was k-anon suppressed. Pure — the console memoizes the call.
+ */
+export function buildViewMeta(input: {
+  province: string | null;
+  locality: string | null;
+  since: Date;
+  until: Date;
+  /** Active period preset id, so a fixed-start window (ytd) names its frame. */
+  periodParam: string;
+  states: Record<LayerId, LayerPanelState>;
+}): { scopeLabel: string; periodLabel: string; suppressedCount: number } {
+  const scopeLabel = input.locality
+    ? "Localidad seleccionada"
+    : input.province
+      ? "Provincia seleccionada"
+      : "Nacional";
+  const days = Math.max(
+    1,
+    Math.round((input.until.getTime() - input.since.getTime()) / 86_400_000),
+  );
+  // #14 (2026-07-23): year-shaped day counts read as years ("últimos 3 años").
+  const periodLabel = periodDaysPhrase(days, input.periodParam);
+  const suppressedCount = PANORAMA_LAYERS.reduce(
+    (sum, l) => sum + (input.states[l.id]?.active ? (input.states[l.id]?.suppressedCount ?? 0) : 0),
+    0,
+  );
+  return { scopeLabel, periodLabel, suppressedCount };
+}
+
+/**
+ * es-AR plural noun for the ranked units at the active grain — the word the
+ * small-scope ranking heading uses ("Tus 5 comunas"). Mirrors the on-canvas
+ * aggregationLabel: CABA's departments are "comunas", any other province's are
+ * "departamentos", and a national view ranks whole "jurisdicciones".
+ */
+export function rankingUnitNounFor(level: AggregationLevel, province: string | null): string {
+  if (level === "province") return "jurisdicciones";
+  if (province === "AR-C") return "comunas";
+  return province ? "departamentos" : "localidades";
+}

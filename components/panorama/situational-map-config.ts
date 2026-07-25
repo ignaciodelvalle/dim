@@ -566,6 +566,23 @@ export const fillPaintTransition = (reduced: boolean): { duration: number; delay
   delay: 0,
 });
 
+/**
+ * The complete paint object for a choropleth fill: the data-driven color
+ * expression, the shared data opacity, and B1's transitions. Both add sites
+ * (province + division) build it here so a fill can never be mounted with the
+ * color but WITHOUT the transition — the failure mode where one axis of the map
+ * animates and the other snaps.
+ */
+export const choroplethFillPaint = (
+  colorExpr: maplibregl.ExpressionSpecification | string,
+  reduced: boolean,
+): maplibregl.FillLayerSpecification["paint"] => ({
+  "fill-color": colorExpr,
+  "fill-opacity": DATA_FILL_OPACITY,
+  "fill-color-transition": fillPaintTransition(reduced),
+  "fill-opacity-transition": fillPaintTransition(reduced),
+});
+
 // Per-layer maplibre object ids are namespaced by layer id so multiple layers
 // coexist without collision.
 export const srcId = (id: string) => `pano-src-${id}`;

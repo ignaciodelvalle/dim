@@ -86,7 +86,7 @@ import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { deferPrint } from "@/lib/infra/defer-print";
-import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
+import { provinceByCode } from "@/lib/reference/ar-provincias";
 import {
   type MapCamera,
   encodeAsOfToParams,
@@ -115,7 +115,7 @@ import {
   lodProvinceRollupHint,
   markForZoom,
 } from "@/src/modules/panorama/domain/capabilities";
-import { captionFor, periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
+import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
 import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
@@ -182,12 +182,16 @@ import {
   type PanoramaConsoleProps,
   type SavedBoard,
   type SeededLayer,
+  buildViewMeta,
   canonicalLayersKey,
+  findRankedFeature,
   initialState,
   isAbortError,
   loadingPanoramaKpis,
   parseLayersParam,
   pointsDisclosureLine,
+  rankingUnitNounFor,
+  resolveRowDrillTarget,
   saveBoard,
   scopePeriodQsOf,
   seededLayerUsesProvinceCache,
@@ -321,13 +325,10 @@ export function PanoramaConsole({
   // instant. Refreshed when the scrubber moves; cleared when the period/scope
   // changes (a new window invalidates the axis). Live layers stay in dataRef.
   //
-  // Keyed by layer id ALONE — one frame at a time, overwritten on every asOf
-  // change. (An earlier comment here claimed "per (layer, asOf-iso)", which the
-  // code never did.) This is what blocks B2's frame PREFETCH: warming frame N+1
-  // would clobber the frame N being displayed. Prefetch therefore needs this
-  // re-keyed to `${layerId}@${iso}` across its 13 access sites, with the
-  // existing `.clear()` invalidations (period/scope/level changes) preserved —
-  // a scoped follow-up, deliberately not smuggled into the speed-control change.
+  // Keyed by layer id ALONE — one frame, overwritten on every asOf change (an
+  // earlier comment claimed "per (layer, asOf-iso)"; the code never did). That
+  // blocks B2's frame PREFETCH: warming N+1 clobbers the N on screen. Prefetch
+  // needs re-keying to `${layerId}@${iso}` across 13 sites, invalidations kept.
   const asOfDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
   // U5 PROVINCE-level choropleth cache. `dataRef` holds the LOCALITY (and point)
   // features; this holds the province-aggregated features for the two choropleth
@@ -3429,16 +3430,7 @@ export function PanoramaConsole({
     rankingAllInScope.length > 0 && rankingAllInScope.length < RANKING_LIMIT;
   const rankedRows = rankingSmallScope ? rankingAllInScope : rankingWorst;
 
-  // Unit noun for the small-scope header ("Tus N comunas/localidades/…"), from
-  // the active aggregation grain — mirrors the on-canvas aggregationLabel.
-  const rankingUnitNoun =
-    level === "province"
-      ? "jurisdicciones"
-      : effectiveScopeProvince === "AR-C"
-        ? "comunas"
-        : effectiveScopeProvince
-          ? "departamentos"
-          : "localidades";
+  const rankingUnitNoun = rankingUnitNounFor(level, effectiveScopeProvince);
 
   // Hover sync map↔row: the highlighted unit key mirrors between the panel and
   // the map (feature-state highlight). Row click opens the DetailDrawer.
@@ -3449,109 +3441,46 @@ export function PanoramaConsole({
   // match — no timestamp hydration mismatch on the always-mounted print node).
   const [informeGeneratedAt, setInformeGeneratedAt] = useState<Date | null>(null);
 
-  // A2 (map plan): does a click on THIS ranking row drill, or open the detail?
-  // ONE decision function, used by both the click handler and the hover
-  // preview's closing hint — so the affordance can never promise an outcome the
-  // click doesn't deliver (it briefly did: the preview said "Clic para entrar"
-  // while the click opened the drawer, because point layers carry `province` as
-  // a NAME and the drill guard only read `provinceCode`).
-  //
-  // MIRROR of the map's choropleth contract (SituationalMap.tsx ~2538): at
-  // national scope a province drills; once scoped, the map pins a readout
-  // instead of drilling, so the row opens the detail to match.
-  const drillTargetFor = useCallback(
-    (key: string): string | null => {
-      if (effectiveScopeProvince != null || level !== "province") return null;
-      // Ranking keys arrive in two shapes: choropleth layers key off the
-      // province CODE, aggregated-point layers off its display NAME.
-      return provinceByCode(key)?.code ?? provinceByName(key)?.code ?? null;
-    },
-    [effectiveScopeProvince, level],
-  );
-
+  // A2: ONE decision shared by the click and the preview hint (see its jsdoc).
+  const scopeForDrill = { province: effectiveScopeProvince, level };
+  const drillTargetFor = (k: string) => resolveRowDrillTarget(k, scopeForDrill);
   const onRankedSelect = useCallback(
     (key: string) => {
-      const drillTarget = drillTargetFor(key);
-      if (drillTarget) {
-        // The camera follows on its own: commitScopeDrill → setScopeOverride →
-        // the autozoom effect frames the province from the in-map polygons.
-        commitScopeDrill(drillTarget, null);
-        return;
-      }
+      const drillTarget = resolveRowDrillTarget(key, { province: effectiveScopeProvince, level });
+      // The camera follows on its own (commitScopeDrill → autozoom effect).
+      if (drillTarget) return commitScopeDrill(drillTarget, null);
       if (!rankingLayer || !rankedActiveLayer) return;
-      const feature = rankedActiveLayer.features.features.find((f) => {
-        const p = f.properties as Record<string, unknown>;
-        // Mirror rankWorstUnits' identify() key precedence — the choropleth
-        // features key off provinceCode/locality/province, not place/name, so
-        // matching only place/name left every ranked-row click a no-op for the
-        // cobertura (rate) layer (2026-07-10 fix).
-        return (
-          p.provinceCode === key ||
-          p.place === key ||
-          p.name === key ||
-          p.locality === key ||
-          p.province === key
-        );
-      });
+      const feature = findRankedFeature(rankedActiveLayer.features, key);
       if (!feature) return;
       onFeatureClick(rankingLayer.id, feature.properties as Record<string, unknown>);
     },
-    [rankingLayer, rankedActiveLayer, onFeatureClick, drillTargetFor, commitScopeDrill],
-  );
-
-  // A2 (map plan): the hover/focus preview for a ranking row — the unit's key
-  // numbers where the eye already is, so reading the detail costs zero clicks.
-  // The closing hint NAMES what a click will actually do, which now depends on
-  // the scope (drill at national, detail readout once scoped) — the same fork
-  // onRankedSelect takes, so the affordance never promises the wrong outcome.
-  const renderRankedPreview = useCallback(
-    (row: RankedUnit) => (
-      <>
-        <p className="font-semibold text-ln-op-ink">{row.label}</p>
-        <p className="mt-1 text-ln-op-ink-2">
-          {rankingMeasureLabel}:{" "}
-          <span className="tabular-nums">
-            {effectiveRankingKind === "rate"
-              ? `${Math.round(row.value)}%`
-              : row.value.toLocaleString("es-AR")}
-          </span>
-        </p>
-        {row.gap !== null && (
-          <p className="text-ln-op-warn">
-            Brecha vs meta: <span className="tabular-nums">−{Math.round(row.gap)}</span>
-          </p>
-        )}
-        <p className="mt-2 text-ln-op-mute">
-          {drillTargetFor(row.key) ? "Clic para entrar" : "Clic para ver el detalle"}
-        </p>
-      </>
-    ),
-    [rankingMeasureLabel, effectiveRankingKind, drillTargetFor],
+    [
+      rankingLayer,
+      rankedActiveLayer,
+      onFeatureClick,
+      effectiveScopeProvince,
+      level,
+      commitScopeDrill,
+    ],
   );
 
   // panorama-ia-v2 §3.6: metadata for the map's "Exportar PNG" footer
   // (auditable provenance). Scope + period in plain es-AR; suppressed-cell
   // count summed across the active layers (audit trail).
-  const viewMeta = useMemo(() => {
-    const province = effectiveScopeProvince;
-    const locality = effectiveScopeLocality;
-    const scopeLabel = locality
-      ? "Localidad seleccionada"
-      : province
-        ? "Provincia seleccionada"
-        : "Nacional";
-    const days = Math.max(1, Math.round((until.getTime() - since.getTime()) / 86_400_000));
-    // #14 (2026-07-23): humanize year-shaped day counts ("últimos 3 años", not
-    // "últimos 1095 días") — same helper captionFor's window phrase uses.
-    // C1: pass the active preset so a fixed-start window (ytd) names its FRAME
-    // instead of measuring itself in trailing days.
-    const periodLabel = periodDaysPhrase(days, periodParam);
-    const suppressedCount = PANORAMA_LAYERS.reduce(
-      (sum, l) => sum + (states[l.id]?.active ? (states[l.id]?.suppressedCount ?? 0) : 0),
-      0,
-    );
-    return { asOf, scopeLabel, periodLabel, suppressedCount };
-  }, [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf, periodParam]);
+  const viewMeta = useMemo(
+    () => ({
+      asOf,
+      ...buildViewMeta({
+        province: effectiveScopeProvince,
+        locality: effectiveScopeLocality,
+        since,
+        until,
+        periodParam,
+        states,
+      }),
+    }),
+    [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf, periodParam],
+  );
 
   // Registros (dock) — the accessible table of what the map paints: the map is
   // the least accessible surface, so mirror it into a real table. Flatten every
@@ -4189,7 +4118,10 @@ export function PanoramaConsole({
           onSelect={onRankedSelect}
           highlightedKey={highlightedUnitKey}
           onHover={setHighlightedUnitKey}
-          renderPreview={renderRankedPreview}
+          preview={{
+            measureLabel: rankingMeasureLabel,
+            drills: (key) => drillTargetFor(key) !== null,
+          }}
           dataUnavailable={rankingDataUnavailable}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}

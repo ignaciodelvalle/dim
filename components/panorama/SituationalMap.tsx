@@ -4,6 +4,7 @@ import type maplibregl from "maplibre-gl";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -42,7 +43,7 @@ import {
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
-import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
+import { useChoroplethMotion } from "@/components/panorama/use-choropleth-motion";
 import {
   type BivariateCell,
   type BivariatePair,
@@ -147,10 +148,10 @@ import {
   type SituationalMapProps,
   applyDim,
   choroLayerId,
+  choroplethFillPaint,
   clusterLayerId,
   divisionFillLayerId,
   fetchGeojsonFeatures,
-  fillPaintTransition,
   framingMaxZoom,
   layersBbox,
   pointLayerId,
@@ -234,26 +235,9 @@ export function SituationalMap({
   // Keep the latest click callback accessible inside one-time map handlers.
   const onFeatureClickRef = useRef(onFeatureClick);
   onFeatureClickRef.current = onFeatureClick;
-  // B1 (map plan) — the reduced-motion FLOOR for every map animation. Mirrored
-  // into a ref because the paint/camera code below runs inside imperative
-  // maplibre handlers that close over their first render.
-  const reducedMotion = useReducedMotion();
-  const reducedMotionRef = useRef(reducedMotion);
-  reducedMotionRef.current = reducedMotion;
-  // Turning the OS preference ON must stop the animation NOW, not at the next
-  // data update — the floor is a promise, not a default. Walks the mounted
-  // choropleth fills and re-sets their transitions when the preference flips.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map || typeof map.getStyle !== "function") return;
-    const transition = fillPaintTransition(reducedMotion);
-    for (const styleLayer of map.getStyle()?.layers ?? []) {
-      if (styleLayer.type !== "fill") continue;
-      if (!/^pano-(prov-fill|div-fill)-/.test(styleLayer.id)) continue;
-      map.setPaintProperty(styleLayer.id, "fill-color-transition", transition);
-      map.setPaintProperty(styleLayer.id, "fill-opacity-transition", transition);
-    }
-  }, [reducedMotion]);
+  const reducedMotionRef = useChoroplethMotion(mapRef);
+  /** B1 floor, read at call time (the ref is stable; effects must not re-fire). */
+  const reduced = useCallback(() => reducedMotionRef.current, [reducedMotionRef]);
   // Click-to-drill: latest handler for the one-time province click wiring, plus a
   // re-entrancy guard so a click that lands on BOTH the province choropleth fill
   // and the base province fill drills exactly once (the console navigation is
@@ -1061,10 +1045,7 @@ export function SituationalMap({
 
     let cancelled = false;
 
-    // B1: read the ONE reduced-motion source (useReducedMotion, mirrored into a
-    // ref) instead of re-querying matchMedia inline. The ref keeps this effect's
-    // dependency list unchanged — same run cadence, one source of truth.
-    const prefersReducedMotion = reducedMotionRef.current;
+    const prefersReducedMotion = reduced();
 
     const viewport = computeJurisdictionViewport(
       selectedProvinceCode,
@@ -1090,7 +1071,7 @@ export function SituationalMap({
     return () => {
       cancelled = true;
     };
-  }, [selectedProvinceCode, selectedLocalityCenter]);
+  }, [selectedProvinceCode, selectedLocalityCenter, reduced]);
 
   // --- panorama-redesign Fase 1: preset frame (camera-only). ----------------
   // Mirrors the A1 PR-7 autozoom effect above: when the operator activates a
@@ -1110,10 +1091,7 @@ export function SituationalMap({
     const map = mapRef.current;
     if (!map) return;
 
-    // B1: read the ONE reduced-motion source (useReducedMotion, mirrored into a
-    // ref) instead of re-querying matchMedia inline. The ref keeps this effect's
-    // dependency list unchanged — same run cadence, one source of truth.
-    const prefersReducedMotion = reducedMotionRef.current;
+    const prefersReducedMotion = reduced();
 
     const viewport = computePresetFrameViewport(frame.framing, nationalBboxRef.current, AR_BBOX);
     if (viewport === null || viewport.kind !== "fitBounds") return;
@@ -1125,7 +1103,7 @@ export function SituationalMap({
       // below it so an automated frame never leaves the level teetering.
       maxZoom: framingMaxZoom(map, viewport.bbox),
     });
-  }, [frame]);
+  }, [frame, reduced]);
 
   // panorama-ia-v2 §3.3: row→map highlight. Mirror the RankedUnitsPanel's
   // highlighted unit onto the province polygon via feature-state (the
@@ -1800,13 +1778,7 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: DIVISION_SRC,
-          paint: {
-            "fill-color": divisionFillColorExpr(values, lockedBreaks),
-            "fill-opacity": DATA_FILL_OPACITY,
-            // B1 — interpolate instead of snapping (reduced-motion → 0).
-            "fill-color-transition": fillPaintTransition(reducedMotionRef.current),
-            "fill-opacity-transition": fillPaintTransition(reducedMotionRef.current),
-          },
+          paint: choroplethFillPaint(divisionFillColorExpr(values, lockedBreaks), reduced()),
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
       );
@@ -2062,10 +2034,8 @@ export function SituationalMap({
     if (bbox) {
       map.fitBounds(bbox, {
         padding: FRAME_PADDING,
-        // B1: the LIVE drill animates (the camera move IS the "you went here"
-        // signal); reduced motion collapses it to a cut. URL-restore keeps its
-        // own jumpTo — a page load is not a journey worth animating.
-        animate: !reducedMotionRef.current,
+        // B1: the live drill animates; reduced motion collapses it to a cut.
+        animate: !reduced(),
         maxZoom: framingMaxZoom(map, bbox),
       });
     }
@@ -2399,13 +2369,7 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: "ar-provinces",
-          paint: {
-            "fill-color": provinceColorExprForLayer(layer, seqBreaks),
-            "fill-opacity": DATA_FILL_OPACITY,
-            // B1 — interpolate instead of snapping (reduced-motion → 0).
-            "fill-color-transition": fillPaintTransition(reducedMotionRef.current),
-            "fill-opacity-transition": fillPaintTransition(reducedMotionRef.current),
-          },
+          paint: choroplethFillPaint(provinceColorExprForLayer(layer, seqBreaks), reduced()),
         },
         chromeAnchor,
       );
@@ -2660,7 +2624,7 @@ export function SituationalMap({
       map.easeTo({
         center: geom.coordinates as [number, number],
         zoom: Math.max(map.getZoom() + 1.5, 8),
-        animate: !reducedMotionRef.current,
+        animate: !reduced(),
       });
       onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
@@ -2708,7 +2672,7 @@ export function SituationalMap({
         map.easeTo({
           center: geom.coordinates as [number, number],
           zoom,
-          animate: !reducedMotionRef.current,
+          animate: !reduced(),
         });
       });
     });
@@ -2802,7 +2766,7 @@ export function SituationalMap({
       map.easeTo({
         center: geom.coordinates as [number, number],
         zoom: Math.max(map.getZoom() + 1.5, 8),
-        animate: !reducedMotionRef.current,
+        animate: !reduced(),
       });
       onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
@@ -2906,7 +2870,7 @@ export function SituationalMap({
     const map = mapRef.current;
     if (!map) return;
     const bbox = initialBoundsRef.current ?? AR_BBOX;
-    map.fitBounds(bbox, { padding: 56, animate: !reducedMotionRef.current, maxZoom: 11 });
+    map.fitBounds(bbox, { padding: 56, animate: !reduced(), maxZoom: 11 });
   }
   // Accessible label for the reset-view control (Q12). The pure helper keys the
   // copy on `boundedJurisdiction` (a govt operator with an assigned jurisdiction),

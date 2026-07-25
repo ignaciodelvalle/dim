@@ -18,9 +18,10 @@
 // — the ranking upstream drops them (privacy invariant §5.1); the console renders
 // the k-anon suppressed-count line beneath this table.
 
-import { type ReactNode, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { RankedRowPreview } from "@/components/panorama/RankedRowPreview";
 import type { RankedUnit, RankingKind } from "@/src/modules/panorama/domain/ranking";
 
 type SortKey = "label" | "value" | "gap";
@@ -62,7 +63,12 @@ type Props = {
    * <tr>, would nest a focusable span inside the row's own button
    * (nested-interactive), and would be clipped by the dock's overflow.
    */
-  renderPreview?: (row: RankedUnit) => ReactNode;
+  preview?: {
+    /** es-AR label of the ranked measure, for the preview body. */
+    measureLabel: string;
+    /** Whether clicking THIS row drills into the unit (vs opening its detail). */
+    drills: (key: string) => boolean;
+  };
 };
 
 /** Where the preview card sits, in viewport coords, plus the row it describes. */
@@ -105,19 +111,19 @@ export function PanoramaDataTable({
   onHover,
   scopeFallback = false,
   unitNoun = "jurisdicciones",
-  renderPreview,
+  preview,
 }: Props) {
-  const [preview, setPreview] = useState<PreviewAnchor | null>(null);
+  const [previewAnchor, setPreviewAnchor] = useState<PreviewAnchor | null>(null);
   const previewId = useId();
 
   /** Hover/focus enter: mirror to the map AND anchor the preview to this row. */
   const enterRow = (row: RankedUnit, rowEl: HTMLElement | null) => {
     onHover?.(row.key);
-    if (renderPreview && rowEl) setPreview(anchorFor(rowEl.getBoundingClientRect(), row));
+    if (preview && rowEl) setPreviewAnchor(anchorFor(rowEl.getBoundingClientRect(), row));
   };
   const leaveRow = () => {
     onHover?.(null);
-    setPreview(null);
+    setPreviewAnchor(null);
   };
   // Default: worst first — rate by gap desc, density by value desc.
   const [sortKey, setSortKey] = useState<SortKey>(kind === "rate" ? "gap" : "value");
@@ -225,7 +231,9 @@ export function PanoramaDataTable({
                         // does, and points at it for screen readers.
                         onFocus={(e) => enterRow(row, e.currentTarget.closest("tr"))}
                         onBlur={leaveRow}
-                        aria-describedby={preview?.row.key === row.key ? previewId : undefined}
+                        aria-describedby={
+                          previewAnchor?.row.key === row.key ? previewId : undefined
+                        }
                         className="text-left underline-offset-2 hover:underline"
                       >
                         {row.label}
@@ -252,14 +260,19 @@ export function PanoramaDataTable({
           pointer-events:none so it never steals the hover that spawned it. No
           enter/leave animation, so it is reduced-motion-safe by construction
           (the fade is B3's job, behind the motion query). */}
-      {preview && renderPreview && (
+      {previewAnchor && preview && (
         <div
           role="tooltip"
           id={previewId}
-          style={{ top: preview.top, left: preview.left, width: PREVIEW_W }}
+          style={{ top: previewAnchor.top, left: previewAnchor.left, width: PREVIEW_W }}
           className="pointer-events-none fixed z-50 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-card p-3 text-xs shadow-lg"
         >
-          {renderPreview(preview.row)}
+          <RankedRowPreview
+            row={previewAnchor.row}
+            measureLabel={preview.measureLabel}
+            kind={kind}
+            drills={preview.drills(previewAnchor.row.key)}
+          />
         </div>
       )}
     </section>
