@@ -507,7 +507,7 @@ export default async function GobiernoDashboardPage({
                     {alert.title}
                   </p>
                   <p className="text-xs text-ln-op-mute">
-                    Confianza: {alert.confidence} · n = {alert.evidence.n}
+                    Confianza: {alert.confidence} · n = {formatCount(alert.evidence.n)}
                     {/* PO decision 2 item 2: "faltan ~N dosis/cirugías/chips" —
                         undefined (nothing rendered) whenever the descriptor
                         has no resourceUnit or the engine has nothing honest

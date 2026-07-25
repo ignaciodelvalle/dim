@@ -229,6 +229,24 @@ describe("/gob (home) — C6b briefing block order", () => {
     expect(html).toMatch(/Confianza: (alta|media|baja)/);
   });
 
+  // Live on /gob 2026-07-25: the evidence line read "Confianza: alta · n =
+  // 67519" while the resource clause beside it read "faltan ~29.708 chips" —
+  // two number systems in one sentence. It survived because EVERY fixture in
+  // this file is under a thousand (500, 1000, 100, 10, 3), so no test ever
+  // exercised the separator. Same root cause as the briefing-alerts leak.
+  it("formats an evidence n over a thousand with the es-AR separator", async () => {
+    const prev = govtHomeKpisFixture.rabiesCoverage.registryDenominator;
+    govtHomeKpisFixture.rabiesCoverage.registryDenominator = 67519;
+    try {
+      const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+      const html = renderToStaticMarkup(node);
+      expect(html).toContain("n = 67.519");
+      expect(html).not.toContain("n = 67519");
+    } finally {
+      govtHomeKpisFixture.rabiesCoverage.registryDenominator = prev;
+    }
+  });
+
   it("collapses Novedades/Actividad reciente inside a closed-by-default <details>", async () => {
     const node = await GobHomePage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
