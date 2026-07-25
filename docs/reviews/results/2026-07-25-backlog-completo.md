@@ -8,19 +8,19 @@
 
 | # | Qué | Estado |
 |---|---|---|
-| 1 | **`/admin/programa` podría renderizar impacto sin disparar `applyCensusCoverageGuard`** | HIPÓTESIS sin verificar. Si es cierto, es bug de honestidad en página de gobierno ya shippeada |
-| 2 | **Desierto: empate a 23 bandas en 90 días** | "Peores 10" es un corte arbitrario de un empate. Sin arreglo real hasta decidir si la vista se reescribe |
+| 1 | **La guarda censal no se dispara donde se publica el impacto** | **VERIFICADA (2026-07-25).** `censusCoverageLowGate` se llama en UNA sola página (`app/gob/page.tsx`); `/admin/programa` y `/gob/programa`, que son las que renderizan `rankByImpact`, no la llaman. Atenuante: ambas YA declaran que el impacto se proyecta sobre población **estimada** (red-team 24/07). Lo que falta es la MAGNITUD — que el padrón cubre bajo el 1% de esa estimación. **Bloqueo para arreglarlo**: la guarda necesita el % de cobertura del padrón, y para calcularlo bien hace falta un conteo de PERROS del padrón que esas páginas no traen (tienen `registry.total`, que incluye gatos). Usar el total daría un número incorrecto, así que el arreglo es una consulta nueva, no un cableado |
+| 2 | ~~Desierto: empate a 23 bandas~~ | **CERRADO** con `censored`: la leyenda dice ≥90 y el ranking declara el empate. La vista sigue necesitando reescritura (métrica saturada), pero dejó de mentir |
 
 ## 2 · Bloqueado por DECISIÓN tuya (no por código)
 
 | Qué | La decisión |
 |---|---|
-| **Tendencia: polaridad** | Hoy declara "más eventos = alarma" y las 24 provincias dan positivo por adopción del registro. El arreglo es restringir el delta a eventos de INCIDENTE (mordeduras/denuncias/zoonosis). Qué eventos cuentan como deterioro es producto |
-| **Brotes activos: rescate** | El bivariado se autosuprime (233 unidades ocultas vs 9 visibles). Opción propuesta: caer automáticamente a la señal sola cuando la supresión pasa X%, y decirlo |
+| ~~Tendencia: polaridad~~ | **HECHO** (restringida a incidentes). Queda una decisión NUEVA: normalizar por padrón. Medido: todos los eventos 24↑/0↓ · solo incidentes 23↑/1↓ · incidentes por padrón **18↑/6↓**. Normalizar cambia la unidad de la capa (delta de conteo → delta de tasa) |
+| ~~Brotes activos: rescate~~ | **HECHO**, con una corrección: la ventana más larga que elegiste era inviable (0,6% de departamentos visibles a 3 años) y el diagnóstico de "señal rala" era falso — la señal provincial está sana. El bivariado ahora se rechaza cuando supriminaría más de la mitad, y la vista cae al render que funciona |
 | **Per cápita por defecto** | Tres vistas de densidad ordenan por población. El toggle existe y está apagado |
 | **C1: granularidad temporal** | Qué pasos ofrecer entre 90d / 12m / 3a / 5a |
 | **D1: consolidación de vistas** | 11 → 8 propuesto. Cumplimiento + Registro PPP + Control poblacional son la misma vista |
-| **Bloqueante de la DoD** | `pnpm test` completo nunca da verde por el drift de `DIM-BRUNO-DEMO`. Tres opciones en el briefing nocturno |
+| ~~Bloqueante de la DoD~~ | **CULPABLE ENCONTRADO** con un trigger sobre la cascada: `__tests__/subject-rights-rpcs.test.ts:927` borraba TODOS los `custody_dispute_raised` de la base, y `custody_disputes.raising_event_id` es ON DELETE CASCADE. Acotado a su propio evento |
 
 ## 3 · Bloqueado por DATO (ningún esfuerzo de producto lo destraba)
 
@@ -35,7 +35,7 @@
 
 Ordenado por apalancamiento:
 
-1. **Cuarta naturaleza epistémica: `censored`.** "≥90 días" no es una medición de 90 días. **Una primitiva arregla tres vistas** (Desierto, Mortalidad, Brotes). El mejor ratio del backlog.
+1. ~~**Cuarta naturaleza epistémica: `censored`**~~ — **HECHA**. Leyenda "≥N" + el ranking declara el empate. Disponible para Mortalidad y Brotes.
 2. **Cablear las cuatro capas huérfanas.** `indice-territorial`, `acceso-veterinario`, `refugios` y `clinicas` están construidas y **no las usa ningún preset**. *"La consola no tiene escasez de ideas, tiene escasez de cableado."*
 3. **Portar `impact-ranking.ts` a Panorama** con base PADRÓN (no censo). Ya existe, testeado, cableado a 3 páginas, cero referencias en Panorama. Reordena de verdad: Santa Fe 23 → 5.
 4. **Capa "Mascotas registradas por 1.000 habitantes"** con etiqueta honesta — NO llamarla "subregistro" (requiere una prevalencia de tenencia que Argentina no tiene).
@@ -77,6 +77,6 @@ Cron único diario de 55s en Vercel Hobby alimentando ~22 jobs · `refresh_cube`
 
 ## Lo que yo haría primero
 
-**`censored`** (una primitiva, tres vistas) y **cablear las cuatro capas huérfanas** — máximo valor por esfuerzo, cero bloqueos, y ambas atacan el problema real: no faltan ideas, falta terminar lo construido.
+**Cablear las cuatro capas huérfanas** — `indice-territorial`, `acceso-veterinario`, `refugios` y `clinicas` están construidas y sin preset. Máximo valor por esfuerzo, cero bloqueos, y ataca el problema real: no faltan ideas, falta terminar lo construido.
 
 Después **C3**, porque dejó de ser un refactor y es el desbloqueante de la iniciativa mayor.
