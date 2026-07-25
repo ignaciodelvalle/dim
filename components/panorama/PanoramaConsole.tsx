@@ -3941,15 +3941,16 @@ export function PanoramaConsole({
   // the map. Its logic/props are UNCHANGED — this is a layout move only.
   const scrubberDock = (
     <>
-      {/* The frame the caption names did NOT fully load. Stated where the date
-          lives, because that is the claim being corrected. */}
+      {/* The frame the caption names did NOT fully load — stated where the date
+          lives, because that is the claim being corrected. <output> carries
+          role="status" implicitly, so it announces politely on its own. */}
       {staleFrame !== null && (
-        <p role="status" className="px-3 pb-1 text-[var(--text-xs)] leading-snug text-ln-op-warn">
+        <output className="block px-3 pb-1 text-[var(--text-xs)] leading-snug text-ln-op-warn">
           {staleFrame.rateLimited
             ? "Se alcanzó el límite de consultas: "
             : "No se pudieron cargar los datos de esta fecha: "}
           el mapa sigue mostrando el último cuadro cargado de {staleFrame.layers.join(", ")}.
-        </p>
+        </output>
       )}
       <TimeScrubber
         since={since}
