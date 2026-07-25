@@ -22,6 +22,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { RankedRowPreview } from "@/components/panorama/RankedRowPreview";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { RankedUnit, RankingKind } from "@/src/modules/panorama/domain/ranking";
 
 type SortKey = "label" | "value" | "gap";
@@ -40,6 +41,18 @@ type Props = {
    * honest in lockstep.
    */
   dataUnavailable?: boolean;
+  /**
+   * C4 (epistemic states) — how many in-scope units the ranking could actually
+   * MEASURE, regardless of how many made the worst-N cut.
+   *
+   * Zero ranked rows means two OPPOSITE things and this table cannot tell them
+   * apart on its own: either every measured jurisdiction is at or above target
+   * (real good news), or nothing could be measured at all (we are blind). The
+   * old copy collapsed both into "Sin jurisdicciones bajo meta en este alcance"
+   * — an all-clear printed while the system had no idea. That is the exact
+   * "ciego, no tranquilo" failure C4 exists to kill.
+   */
+  measuredUnits?: number;
   /** The unit key currently highlighted on the map (hover sync), or null. */
   highlightedKey?: string | null;
   /** Fired on row hover/focus (key) and blur/leave (null) — mirrors to the map. */
@@ -110,6 +123,7 @@ export function PanoramaDataTable({
   measureLabel,
   onSelect,
   dataUnavailable = false,
+  measuredUnits,
   highlightedKey = null,
   onHover,
   scopeFallback = false,
@@ -213,19 +227,31 @@ export function PanoramaDataTable({
         {heading}
       </h3>
       {rows.length === 0 ? (
-        dataUnavailable ? (
-          // trust/safety invariant: no data loaded — never claim "sin
-          // jurisdicciones bajo meta" (all-clear) when we simply have nothing.
-          <p className="text-xs leading-snug text-ln-op-warn">
-            No pudimos calcular el ranking en este momento.
-          </p>
-        ) : (
-          <p className="text-xs leading-snug text-ln-op-mute">
-            {kind === "rate"
-              ? "Sin jurisdicciones bajo meta en este alcance."
-              : "Sin datos suficientes en este alcance."}
-          </p>
-        )
+        <LnEmptyState
+          variant="dashed"
+          nature={
+            // An all-clear is only claimable when something was actually
+            // measured AND the metric has a target to be clear of.
+            !dataUnavailable && kind === "rate" && (measuredUnits ?? 0) > 0
+              ? "measured-zero"
+              : "no-signal"
+          }
+          title={
+            dataUnavailable
+              ? "No pudimos calcular el ranking"
+              : kind === "rate" && (measuredUnits ?? 0) > 0
+                ? "Ninguna jurisdicción quedó bajo meta"
+                : "Sin señales en este alcance"
+          }
+          description={
+            dataUnavailable
+              ? "El cálculo falló en este momento. No es un resultado: no sabemos cómo está el alcance."
+              : kind === "rate" && (measuredUnits ?? 0) > 0
+                ? `Se midieron ${measuredUnits?.toLocaleString("es-AR")} ${unitNoun} y ninguna quedó por debajo de la meta.`
+                : "Ninguna unidad del alcance reportó datos suficientes para medir. Sin señales no es lo mismo que sin problema."
+          }
+          className="text-xs"
+        />
       ) : (
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">

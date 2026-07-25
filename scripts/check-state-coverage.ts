@@ -202,7 +202,18 @@ function findEmptyStateGaps(pages: string[]): string[] {
 // (ratchet, best-effort, per-file allow-list — see block comment above)
 // ---------------------------------------------------------------------------
 
-const SURVEILLANCE_ROOTS = ["app/gob/vigilancia", "app/admin/observaciones"];
+// C4 first consumers: every EPIDEMIOLOGICAL surface, not just the two
+// surveillance queues. Panorama is the flagship one — it was outside this fence
+// while printing "Sin jurisdicciones bajo meta" (an all-clear) on a ranking
+// that had measured nothing. The components/panorama root is included because
+// the console's empty-states live in components, not under app/.
+const SURVEILLANCE_ROOTS = [
+  "app/gob/vigilancia",
+  "app/admin/observaciones",
+  "app/gob/panorama",
+  "app/admin/panorama",
+  "components/panorama",
+];
 const EPISTEMIC_COMPONENTS = ["LnEmptyState", "OpCallout"];
 
 function collectSurveillanceFiles(): string[] {
