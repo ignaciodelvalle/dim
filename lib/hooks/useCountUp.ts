@@ -18,11 +18,16 @@ import { useReducedMotion } from "./useReducedMotion";
  * Returns a value that eases toward `target` (ease-out cubic) over `durationMs`
  * whenever `target` changes. Reduced motion or `durationMs <= 0` → the exact
  * target, no animation.
+ *
+ * `startAt` (optional): the value the FIRST render eases FROM — a mount reveal
+ * (e.g. `0` → count up on load). Omit for the default (start at the target, so
+ * only later changes animate).
  */
-export function useCountUp(target: number, durationMs = 600): number {
+export function useCountUp(target: number, durationMs = 600, startAt?: number): number {
   const reduced = useReducedMotion();
-  const [value, setValue] = useState(target);
-  const fromRef = useRef(target);
+  const initial = startAt ?? target;
+  const [value, setValue] = useState(initial);
+  const fromRef = useRef(initial);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {

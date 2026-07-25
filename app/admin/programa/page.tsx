@@ -320,6 +320,10 @@ export default async function AdminProgramaPage({
         <OpKpi
           label="Total registradas"
           value={registry.total > 0 ? registry.total.toLocaleString("es-AR") : "—"}
+          // count-up demo (AnimatedNumber): reveal from 0 on load.
+          animatedValue={registry.total > 0 ? registry.total : undefined}
+          animatedFormat={(n) => Math.round(n).toLocaleString("es-AR")}
+          animatedStartAt={0}
           sub="mascotas activas o extraviadas"
           href="/admin/padron?vista=censo"
           info={{
@@ -331,6 +335,9 @@ export default async function AdminProgramaPage({
         <OpKpi
           label="Esterilización"
           value={sterilRatePct > 0 ? formatPercent(sterilRatePct) : "—"}
+          animatedValue={sterilRatePct > 0 ? sterilRatePct : undefined}
+          animatedFormat={(n) => formatPercent(n)}
+          animatedStartAt={0}
           tone={toneForTarget(sterilRatePct, TARGETS.STERILIZATION_COVERAGE_PCT)}
           sub={`meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`}
           href="/admin/padron?vista=poblacion"
@@ -343,6 +350,9 @@ export default async function AdminProgramaPage({
         <OpKpi
           label="Microchip"
           value={chipRatePct > 0 ? formatPercent(chipRatePct) : "—"}
+          animatedValue={chipRatePct > 0 ? chipRatePct : undefined}
+          animatedFormat={(n) => formatPercent(n)}
+          animatedStartAt={0}
           tone={toneForTarget(chipRatePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
           sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}%`}
           href="/admin/padron?vista=censo"

@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
+import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import {
   UNSTABLE_DELTA_BASE_NOTE,
@@ -96,6 +97,17 @@ type InfoTooltip = {
 type Props = {
   label: string;
   value: ReactNode;
+  /**
+   * Optional NUMERIC value for the count-up animation (front-end delight): when
+   * provided (and the resolved `value` isn't a guard dash), the headline eases
+   * from its previous value to this one on change, via <AnimatedNumber>. `value`
+   * stays the required SSR/reduced-motion/guard-dash fallback. `animatedFormat`
+   * owns rounding + es-AR (the in-flight value is fractional).
+   */
+  animatedValue?: number;
+  animatedFormat?: (n: number) => string;
+  /** Optional mount-reveal start for the count-up (e.g. 0). SSR renders this — client-reveal only. */
+  animatedStartAt?: number;
   tone?: Tone;
   /** v1 delta: { text, up } — kept for backward compat */
   delta?: DeltaV1;
@@ -428,6 +440,9 @@ function resolveOpKpiContract(
 export function OpKpi({
   label,
   value: rawValue,
+  animatedValue,
+  animatedFormat,
+  animatedStartAt,
   tone: rawTone = "neutral",
   delta,
   bar,
@@ -482,7 +497,11 @@ export function OpKpi({
           toneValue[tone],
         ].join(" ")}
       >
-        {value}
+        {animatedValue !== undefined && value !== "—" ? (
+          <AnimatedNumber value={animatedValue} format={animatedFormat} startAt={animatedStartAt} />
+        ) : (
+          value
+        )}
       </div>
 
       {/* Guard note (C1) — smallN / unstable-delta explanations from the

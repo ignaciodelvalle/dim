@@ -15,6 +15,7 @@ export function AnimatedNumber({
   value,
   format,
   durationMs,
+  startAt,
   className,
 }: {
   /** The target number. */
@@ -22,9 +23,16 @@ export function AnimatedNumber({
   /** Formats the (fractional, mid-tween) animated value to its display string. */
   format?: (n: number) => string;
   durationMs?: number;
+  /**
+   * Optional mount reveal — the value counts FROM here to `value` on first paint
+   * (e.g. `0`). NOTE: SSR renders `startAt`, so a no-JS/reduced-motion viewer
+   * sees it, not the target — use only where a client-side reveal is acceptable.
+   * Omit for the SSR-safe default (renders the exact target; only changes animate).
+   */
+  startAt?: number;
   className?: string;
 }) {
-  const animated = useCountUp(value, durationMs);
+  const animated = useCountUp(value, durationMs, startAt);
   const rendered = format ? format(animated) : Math.round(animated).toLocaleString("es-AR");
   return <span className={["tabular-nums", className].filter(Boolean).join(" ")}>{rendered}</span>;
 }
