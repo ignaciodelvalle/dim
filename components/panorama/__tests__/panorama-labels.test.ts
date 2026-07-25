@@ -159,7 +159,6 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
           "kpis": [
             "Activas",
             "Tasa de reunificación",
-            "Denuncias activas",
           ],
           "layers": [
             "Avistajes",

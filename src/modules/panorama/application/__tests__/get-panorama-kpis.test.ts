@@ -585,8 +585,9 @@ describe("getPanoramaKpis", () => {
     const denuncias = kpis.find((k) => k.id === "denuncias")!;
     // PRIMARY = the in-period count (matches the map + Registros), NOT the backlog.
     expect(denuncias.value).toBe("195");
-    // SECONDARY carries the all-time backlog, clearly labeled.
-    expect(denuncias.secondary).toContain("backlog");
+    // SECONDARY carries the all-time backlog, clearly labeled ("acumulado" — the
+    // es-AR term replaced the English "backlog", red-team-admin-2 P1.8b).
+    expect(denuncias.secondary).toContain("acumulado");
     expect(denuncias.secondary).toContain("2.202");
   });
 
