@@ -95,6 +95,7 @@ see the variant-map note below).
 | `DiscList` / `DiscRow` | `../pet-profile/DiscList.tsx` | Disc-bulleted definition lists on the pet profile. | — |
 | `OpKpi` / `OpKpiSm` | `dashboard/OpKpi.tsx` | Operator KPI tile (value + tone + trend). | Don't build a KPI tile from scratch — see the `dataviz` skill for chart tiles. |
 | `KpiStrip` | `dashboard/KpiStrip.tsx` | Row of KPIs. | — |
+| `AnimatedNumber` | `AnimatedNumber.tsx` | A number that eases from its previous value to a new one ON CHANGE ("conteo arriba/abajo"), so a KPI shows its delta viscerally. `format` owns rounding + es-AR. Client tween; SSR + reduced-motion render the exact value. Backed by `useCountUp` (`lib/hooks/useCountUp.ts`) + `useReducedMotion` (`lib/hooks/useReducedMotion.ts`, the shared JS-animation floor). | Don't hand-roll a RAF/setInterval counter. Pass a NUMBER, not a pre-formatted string (the tween needs the numeric value + a `format`). |
 
 ## Captura rápida
 
