@@ -2328,7 +2328,7 @@ export function PanoramaConsole({
   // comparable units vs. a degenerate/flat distribution). Carry the REASON so the
   // toggle can explain WHICH one applies instead of the old one-size note. `null`
   // → viable; "count"/"tercile" → refused (see bivariateRefusalReason).
-  const bivariateDegenerateReason = useMemo<"count" | "tercile" | null>(() => {
+  const bivariateDegenerateReason = useMemo<"count" | "tercile" | "suppressed" | null>(() => {
     void levelVersion;
     void asOfVersion;
     if (!bivariateEligible || !bivariatePair) return null;
@@ -4290,17 +4290,17 @@ export function PanoramaConsole({
     bivariate: "Intensidad de reporte (bivariado)",
     percapita: "Per cápita (por 10.000 hab.)",
   };
-  // Item 2: distinct es-AR copy per refusal reason. "count" → not enough
-  // comparable jurisdictions (privacy suppression or missing data); "tercile" →
-  // the values are too alike to cut into honest intensity levels (no amount
-  // of data fixes a flat distribution). Split from the old single "requiere N
-  // unidades".
+  // Distinct es-AR copy per refusal reason: "count" → too few comparable
+  // jurisdictions; "tercile" → values too alike to cut honestly; "suppressed"
+  // → the cross would render almost entirely hatched (see bivariate.ts).
   const bivariateRefusalNote =
     bivariateDegenerateReason === "count"
       ? `La intensidad de reporte combinada necesita al menos ${BIVARIATE_MIN_UNITS} jurisdicciones con datos comparables en ambas capas; en esta vista hay menos (por supresión de privacidad o falta de datos).`
       : bivariateDegenerateReason === "tercile"
         ? "Los valores de esta vista son demasiado parecidos para cortar en niveles de intensidad honestos."
-        : null;
+        : bivariateDegenerateReason === "suppressed"
+          ? "En esta vista el cruce quedaría casi todo protegido por k-anonimato: el mapa mostraría trama en vez de datos. Se muestran las capas por separado, que sí se leen."
+          : null;
   // panorama-percapita: honest per-cápita notes.
   //  - Drilled below province while the selection is on → EXPLICIT count
   //    fallback (requirement: a note, not a silent swap).

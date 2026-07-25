@@ -279,6 +279,13 @@ function normName(raw: string): string {
 export const BIVARIATE_MIN_UNITS = 6;
 
 /**
+ * Above this share of hatched units on either axis the crossed map stops being
+ * a map. Half is deliberately generous: below it the operator still sees enough
+ * painted territory to read a pattern; above it the hatch IS the pattern.
+ */
+export const BIVARIATE_MAX_SUPPRESSED_SHARE = 0.5;
+
+/**
  * WHY the bivariate encoding is refused, or `null` when it is viable (Item 2).
  *
  * Two distinct failure modes hid behind a single "requiere N unidades" note:
@@ -298,7 +305,7 @@ export function bivariateRefusalReason(
   coverage: FeatureCollection,
   signal: FeatureCollection,
   minUnits: number = BIVARIATE_MIN_UNITS,
-): "count" | "tercile" | null {
+): "count" | "tercile" | "suppressed" | null {
   const coverageValues: number[] = [];
   for (const f of coverage.features) {
     const p = (f.properties ?? {}) as CoverageProps;
@@ -318,6 +325,31 @@ export function bivariateRefusalReason(
   // spread one — but the count guard above already covers empty vs minUnits.
   if (!covTh || !sigTh) return "count";
   if (covTh.t1 === covTh.t2 || sigTh.t1 === sigTh.t2) return "tercile";
+  // THIRD refusal reason (2026-07-25). Both axes can pass the checks above and
+  // the JOIN still come back almost entirely hatched, because suppression
+  // propagates per unit from either input at the grain the map paints. Live on
+  // "Brotes activos": the province-grain signal is healthy (24 cells, 2
+  // suppressed) but the rendered cross ran at DEPARTMENT grain, where zoonosis
+  // is so thinly spread that only 11 of 1.983 departments clear k=5 — 0,6%,
+  // and no window fixes it (measured at 90d/1y/2y/3y). The operator saw the
+  // whole country hatched and read it as "the system knows nothing", while the
+  // SAME vista without the bivariate paints a perfectly legible map.
+  //
+  // Refusing here makes the console fall back to that working rendering and
+  // SAY why, instead of shipping a hatch field.
+  const suppressedShare =
+    coverage.features.length === 0
+      ? 0
+      : coverage.features.filter((f) => (f.properties as CoverageProps)?.suppressed === true)
+          .length / coverage.features.length;
+  const signalSuppressedShare =
+    signal.features.length === 0
+      ? 0
+      : signal.features.filter((f) => (f.properties as SignalProps)?.suppressed === true).length /
+        signal.features.length;
+  if (Math.max(suppressedShare, signalSuppressedShare) > BIVARIATE_MAX_SUPPRESSED_SHARE) {
+    return "suppressed";
+  }
   return null;
 }
 
