@@ -6,7 +6,18 @@
 // preserving): every loader here is unchanged, only moved. Scope-clause,
 // event-predicate, and province/geo shaping helpers now live in ./repository-scope.
 
-import { type SQL, and, countDistinct, eq, gte, isNotNull, lt, lte, sql } from "drizzle-orm";
+import {
+  type SQL,
+  and,
+  countDistinct,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  lte,
+  sql,
+} from "drizzle-orm";
 
 import { arLocalities, analyticsDb as db, petEvents, pets } from "@/db";
 import {
@@ -425,6 +436,32 @@ async function rollupPetsPerProvince(
     .map((r) => ({ province: r.province as string, count: r.n }));
 }
 
+/**
+ * The event types whose GROWTH means the situation got worse.
+ *
+ * Tendencia used to count every pet_event, and the four biggest types are
+ * registry activity — pet_registered (66.858), vaccination_administered
+ * (48.250), microchip_implanted (30.339), sterilization_performed (28.733), i.e.
+ * ~174k of ~200k events. Growth there is GOOD, but the layer declares inverted
+ * polarity ("more than before = warning pole"), so while adoption ramps the map
+ * painted all 24 provinces as deteriorating (measured 2026-07-25: 24 up, 0
+ * down). PO decision: restrict the delta to incidents (2026-07-25).
+ *
+ * HONEST LIMIT, measured on the same data — do not read this as "fixed":
+ *   all events, raw            24 up / 0 down
+ *   incidents only, raw        23 up / 1 down   ← this change
+ *   incidents per padrón       18 up / 6 down
+ * Incident REPORTING also grows with registry adoption, so the restriction
+ * makes the metric mean the right thing without removing the confound. Only
+ * normalising by the registered population does that, and it changes the
+ * layer's unit from a count delta to a RATE delta — a product call, pending.
+ */
+const TENDENCIA_INCIDENT_EVENTS = [
+  "incident_reported",
+  "outbreak_signal",
+  "disease_reported",
+] as const;
+
 /** Map a raw province density rollup to ProvinceChoroplethCell[] (resolve ISO
  * code + label). Provinces whose name has no ISO code are dropped — the basemap
  * can only fill a polygon it can join by code. */
@@ -812,6 +849,7 @@ export async function loadTendenciaByProvince(
       gte(tcol, from),
       openUpper ? lt(tcol, to) : lte(tcol, to),
       isNotNull(pets.jurisdictionProvince),
+      inArray(petEvents.eventType, TENDENCIA_INCIDENT_EVENTS),
     ];
     if (scope) conditions.push(sql`(${scope})`);
     const rows = await db

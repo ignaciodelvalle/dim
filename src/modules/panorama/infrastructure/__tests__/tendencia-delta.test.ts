@@ -57,16 +57,33 @@ async function makePet(token: string, locality: string): Promise<string> {
   return row.id;
 }
 
-async function insertEvents(petId: string, occurredAt: Date, n: number): Promise<void> {
+async function insertEvents(
+  petId: string,
+  occurredAt: Date,
+  n: number,
+  // Since 2026-07-25 the layer counts INCIDENTS only — registry activity growth
+  // is adoption, not deterioration. Parameterised so a test can prove the
+  // exclusion, not just the arithmetic.
+  eventType: EventType = "incident_reported" as EventType,
+): Promise<void> {
   for (let i = 0; i < n; i++) {
+    const payload =
+      eventType === ("incident_reported" as EventType)
+        ? validateEventPayload("incident_reported", {
+            incident_type: "bite_inflicted",
+            severity: "minor",
+            injuries_summary: null,
+            vet_involved: null,
+          })
+        : validateEventPayload("note_added", {
+            category: "otro",
+            text: `tendencia fixture ${i}`,
+          });
     await db.insert(petEvents).values({
       petId,
-      eventType: "note_added" as EventType,
+      eventType,
       occurredAt,
-      payload: validateEventPayload("note_added", {
-        category: "otro",
-        text: `tendencia fixture ${i}`,
-      }) as Record<string, unknown>,
+      payload: payload as Record<string, unknown>,
       authorRole: "owner",
       recordedByUserId: null,
     });
@@ -122,4 +139,26 @@ describe("loadTendenciaByProvince — the differencing rule", () => {
     expect(res.cells).toHaveLength(0);
     expect(res.suppressedCount).toBe(1);
   }, 30_000);
+});
+
+describe("loadTendenciaByProvince — counts INCIDENTS, not registry activity", () => {
+  it("a 40-vs-1 swing in registry events moves the delta by zero", async () => {
+    // The bug this locks, measured live 2026-07-25: counting every pet_event
+    // made the four biggest types — pet_registered, vaccination_administered,
+    // microchip_implanted, sterilization_performed (~174k of ~200k) — dominate
+    // the delta. With inverted polarity ("more than before = warning pole") the
+    // map painted 24 of 24 provinces as deteriorating while the driver was
+    // registry ADOPTION. A view that reports uptake as decay is worse than none.
+    const before = await loadTendenciaByProvince(GOVT, jurs(LOC_VISIBLE), SINCE);
+    const valueBefore = before.cells.find((c) => c.provinceCode === PROVINCE_CODE)?.value;
+
+    const noisy = await makePet("DIM-TEND-REG1", LOC_VISIBLE);
+    await insertEvents(noisy, IN_CURRENT, 40, "note_added" as EventType);
+    await insertEvents(noisy, IN_PRIOR, 1, "note_added" as EventType);
+
+    const after = await loadTendenciaByProvince(GOVT, jurs(LOC_VISIBLE), SINCE);
+    const valueAfter = after.cells.find((c) => c.provinceCode === PROVINCE_CODE)?.value;
+
+    expect(valueAfter).toBe(valueBefore);
+  });
 });
