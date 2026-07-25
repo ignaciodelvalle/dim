@@ -50,8 +50,22 @@ import {
   nextPlayIndex,
 } from "@/src/modules/panorama/domain/time-scrub";
 
-/** Ms between play-loop day steps. ~1.1s reads as a deliberate reconstruction. */
+/** Ms between play-loop day steps at 1×. ~1.1s reads as a deliberate reconstruction. */
 const PLAY_INTERVAL_MS = 1100;
+
+/**
+ * B2 (map plan) — playback speed multipliers. Client-only ephemeral state, the
+ * same treatment as `looping`: never URL-encoded, because a speed is how you
+ * are WATCHING a view, not part of the view being shared.
+ *
+ * A note on 4×: the choropleth fill transition is CHOROPLETH_FADE_MS (300ms),
+ * so at 4× (275ms/frame) a frame's fade no longer finishes before the next one
+ * lands and the map reads as a continuous morph rather than discrete steps.
+ * That is the intent at 4× — a fast scan for WHERE the action is, with 1×/2×
+ * left as the speeds for reading an individual frame.
+ */
+const PLAY_SPEEDS = [1, 2, 4] as const;
+type PlaySpeed = (typeof PLAY_SPEEDS)[number];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -202,6 +216,7 @@ export function TimeScrubber({
   // Slider index 0..steps. `steps` (the max) is "ahora"/live.
   const [index, setIndex] = useState<number>(win.steps);
   const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState<PlaySpeed>(1);
   // panorama-vista-redesign: the active loop window (null = not looping).
   const [looping, setLooping] = useState<LoopWindow | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -348,9 +363,9 @@ export function TimeScrubber({
         }
         return next;
       });
-    }, PLAY_INTERVAL_MS);
+    }, PLAY_INTERVAL_MS / speed);
     return stopInterval;
-  }, [playing, scrubbable, win, stopInterval, windowStartIndex]);
+  }, [playing, scrubbable, win, stopInterval, windowStartIndex, speed]);
 
   // Cleanup on unmount (belt-and-suspenders; the effect above also returns it).
   useEffect(() => stopInterval, [stopInterval]);
@@ -557,6 +572,22 @@ export function TimeScrubber({
               className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Icon name={playing ? "pausa" : "reproducir"} size="sm" decorative />
+            </button>
+
+            {/* B2 — playback speed. One cycling button rather than a segmented
+                control: the dock row is dense, and the current speed IS the
+                label, so the control states its own value without a legend. */}
+            <button
+              type="button"
+              onClick={() =>
+                setSpeed((s) => PLAY_SPEEDS[(PLAY_SPEEDS.indexOf(s) + 1) % PLAY_SPEEDS.length])
+              }
+              disabled={!scrubbable}
+              aria-label={`Velocidad de reproducción: ${speed}×. Cambiar.`}
+              title="Velocidad de reproducción"
+              className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-1.5 text-xs font-semibold tabular-nums text-ln-op-ink hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {speed}×
             </button>
 
             <div

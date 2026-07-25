@@ -317,9 +317,17 @@ export function PanoramaConsole({
       return initialLevel === "locality" ? new Map([[defaultLayerId, defaultFeatures]]) : new Map();
     })(),
   );
-  // As-of feature cache (F4): per (layer, asOf-iso) the features the layer had at
-  // that instant. Refreshed when the scrubber moves; cleared when the period/scope
+  // As-of feature cache (F4): the features each layer had at the CURRENT scrub
+  // instant. Refreshed when the scrubber moves; cleared when the period/scope
   // changes (a new window invalidates the axis). Live layers stay in dataRef.
+  //
+  // Keyed by layer id ALONE — one frame at a time, overwritten on every asOf
+  // change. (An earlier comment here claimed "per (layer, asOf-iso)", which the
+  // code never did.) This is what blocks B2's frame PREFETCH: warming frame N+1
+  // would clobber the frame N being displayed. Prefetch therefore needs this
+  // re-keyed to `${layerId}@${iso}` across its 13 access sites, with the
+  // existing `.clear()` invalidations (period/scope/level changes) preserved —
+  // a scoped follow-up, deliberately not smuggled into the speed-control change.
   const asOfDataRef = useRef<Map<LayerId, FeatureCollection>>(new Map());
   // U5 PROVINCE-level choropleth cache. `dataRef` holds the LOCALITY (and point)
   // features; this holds the province-aggregated features for the two choropleth
