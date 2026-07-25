@@ -51,3 +51,77 @@ describe("OpKpi — ⓘ inside an href-wrapped tile", () => {
     expect(container.textContent ?? "").not.toContain("ⓘ");
   });
 });
+
+// Track B (dashboards milestone) — legibility / honesty.
+describe("OpKpi — stock-vs-flow framing is DERIVED from the contract", () => {
+  afterEach(cleanup);
+
+  const NOTE = /no varía con el período/i;
+
+  it("tags a point-in-time stock without the caller remembering to", () => {
+    // open_welfare_reports is basis:"stock", window:"now" in the catalog. A
+    // stock under a period picker "lies by proximity" — the control implies it
+    // moves the number and it does not. 181 call sites cannot be trusted to
+    // remember that; the contract already knows it.
+    render(<OpKpi label="Denuncias abiertas" value="42" descriptorId="open_welfare_reports" />);
+    expect(screen.getByText(NOTE)).toBeTruthy();
+  });
+
+  it("leaves a flow metric alone — the period control DOES move it", () => {
+    render(
+      <OpKpi label="Esterilizaciones" value="120" descriptorId="sterilizations_per_month" />,
+    );
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+
+  it("does not tag a tile with no descriptor (the grandfathered majority)", () => {
+    render(<OpKpi label="Algo" value="7" />);
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+
+  it("an explicit periodInvariant={false} still wins over the derivation", () => {
+    render(
+      <OpKpi
+        label="Denuncias abiertas"
+        value="42"
+        descriptorId="open_welfare_reports"
+        periodInvariant={false}
+      />,
+    );
+    expect(screen.queryByText(NOTE)).toBeNull();
+  });
+});
+
+describe("OpKpi — the delta names its base, and 'Normal' stays quiet", () => {
+  afterEach(cleanup);
+
+  it("shows the prior-period base so a percentage is checkable", () => {
+    render(
+      <OpKpi
+        label="Casos"
+        value="3.021"
+        deltaV2={{ value: 139, period: "vs mes anterior" }}
+        guardInput={{ priorBase: 1263 }}
+      />,
+    );
+    // A bare "+139%" is a press figure; naming the base makes it auditable.
+    expect(screen.getByText(/desde 1\.263/)).toBeTruthy();
+  });
+
+  it("omits the base when the caller has no prior count to show", () => {
+    render(
+      <OpKpi label="Casos" value="3.021" deltaV2={{ value: 139, period: "vs mes anterior" }} />,
+    );
+    expect(screen.queryByText(/desde/)).toBeNull();
+  });
+
+  it("announces exception states but NOT the default one", () => {
+    const { container: danger } = render(<OpKpi label="Vencidos" value="9" tone="danger" />);
+    expect(danger.textContent).toContain("Peligro:");
+    cleanup();
+    // "Normal:" asserted a verdict the data often does not support, and buried
+    // the real label behind it on every healthy tile.
+    const { container: ok } = render(<OpKpi label="Al día" value="9" tone="ok" />);
+    expect(ok.textContent).not.toContain("Normal");
+  });
+});

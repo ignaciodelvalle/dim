@@ -206,11 +206,17 @@ const TONE_ICONS: Partial<Record<Tone, ReactNode>> = {
   ok: <Icon name="circle-dot" size={13} decorative />,
 };
 
-/** sr-only label appended after the icon so screen readers announce the state. */
+/**
+ * sr-only label appended after the icon so screen readers announce an EXCEPTION
+ * state. Track B: "ok" deliberately has NO label. Announcing "Normal:" on every
+ * default tile both buried the actual label in noise and asserted a verdict the
+ * data often does not support — the audible twin of painting a semaphore colour
+ * on a metric whose descriptor says `paintAgainst: "none"`. The icon is
+ * decorative/aria-hidden, so silence here is the honest default, not a loss.
+ */
 const TONE_LABELS: Partial<Record<Tone, string>> = {
   danger: "Peligro",
   warn: "Atención",
-  ok: "Normal",
 };
 
 // ---------------------------------------------------------------------------
@@ -394,6 +400,8 @@ type ContractResolution = {
   deltaV2: DeltaV2 | undefined;
   guardNote: string | undefined;
   info: InfoTooltip | undefined;
+  /** True when the CONTRACT says this is a point-in-time stock (see below). */
+  derivedPeriodInvariant: boolean;
 };
 
 /** "Meta: X% (fuente)" / "Confianza: …" / methodology popover extras from a
@@ -463,6 +471,15 @@ function resolveOpKpiContract(
     guardNote = guarded.note;
   }
 
+  // Track B — stock-vs-flow framing, SYSTEMATIC. A point-in-time count sitting
+  // under a period picker "lies by proximity": the control implies it moves the
+  // number, and it does not. The catalog already declares the axis
+  // (`basis: "stock"`, `window: "now"`), so this is DERIVED here rather than
+  // re-remembered at 181 call sites — the ones that pass `periodInvariant`
+  // explicitly keep winning, so nothing existing changes.
+  const derivedPeriodInvariant =
+    descriptor !== undefined && descriptor.basis === "stock" && descriptor.window === "now";
+
   if (
     descriptor &&
     deltaV2 &&
@@ -482,7 +499,7 @@ function resolveOpKpiContract(
     ? { ...baseInfo, ...contractInfoExtras(descriptor, guardInput?.trendMonths) }
     : undefined;
 
-  return { value, tone, deltaV2, guardNote, info };
+  return { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant };
 }
 
 // ---------------------------------------------------------------------------
@@ -496,7 +513,7 @@ function resolveOpKpiContract(
  * text ("+0%") next to a directional arrow reads as a real increase. No arrow
  * (and neutral tone) when the delta is exactly 0.
  */
-function DeltaV2Row({ delta }: { delta: DeltaV2 }) {
+function DeltaV2Row({ delta, priorBase }: { delta: DeltaV2; priorBase?: number }) {
   const isFlat = delta.value === 0 || delta.valence === "neutral";
   const isGood = delta.value > 0 === (delta.valence !== "goodWhenDown");
   const toneCls = isFlat
@@ -517,7 +534,14 @@ function DeltaV2Row({ delta }: { delta: DeltaV2 }) {
         {delta.value >= 0 ? "+" : ""}
         {delta.value}
         {delta.unit === "count" ? "" : "%"}{" "}
-        <span className="font-normal text-ln-op-mute">{delta.period}</span>
+        <span className="font-normal text-ln-op-mute">
+          {delta.period}
+          {/* Track B: name the BASE the percentage is computed over. A bare
+              "+139%" is a press figure; "+139% vs mes anterior (desde 1.263)"
+              is checkable. The number already arrives for the unstable-base
+              guard — it was simply never shown. */}
+          {priorBase !== undefined && ` (desde ${priorBase.toLocaleString("es-AR")})`}
+        </span>
       </span>
     </div>
   );
@@ -547,7 +571,7 @@ export function OpKpi({
   descriptorId,
   guardInput,
 }: Props) {
-  const { value, tone, deltaV2, guardNote, info } = resolveOpKpiContract(
+  const { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant } = resolveOpKpiContract(
     descriptorId,
     guardInput,
     rawValue,
@@ -571,7 +595,7 @@ export function OpKpi({
             <span aria-hidden="true" className="inline-flex items-center leading-none">
               {TONE_ICONS[tone]}
             </span>
-            <span className="sr-only">{TONE_LABELS[tone]}:</span>
+            {TONE_LABELS[tone] && <span className="sr-only">{TONE_LABELS[tone]}:</span>}
           </>
         )}
         <span className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -640,14 +664,14 @@ export function OpKpi({
           demo-review M5: a delta of exactly 0 got an up-arrow / "Sube" label —
           honest text ("+0%") next to a directional arrow reads as a real
           increase. No arrow (and neutral tone) when the delta is exactly 0. */}
-      {deltaV2 && <DeltaV2Row delta={deltaV2} />}
+      {deltaV2 && <DeltaV2Row delta={deltaV2} priorBase={guardInput?.priorBase} />}
 
       {/* Sub */}
       {sub && <div className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-mute">{sub}</div>}
 
       {/* red-team-admin #20: point-in-time KPI under a period control — say it
           plainly so the picker never reads as a broken control on this tile. */}
-      {periodInvariant && (
+      {(periodInvariant ?? derivedPeriodInvariant) && (
         <p
           className="mt-1 text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
           title="Valor de estado actual (point-in-time): el selector de período mueve los gráficos, no este número."
