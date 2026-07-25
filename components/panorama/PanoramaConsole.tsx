@@ -86,7 +86,7 @@ import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { deferPrint } from "@/lib/infra/defer-print";
-import { provinceByCode } from "@/lib/reference/ar-provincias";
+import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import {
   type MapCamera,
   encodeAsOfToParams,
@@ -3441,8 +3441,35 @@ export function PanoramaConsole({
   // match — no timestamp hydration mismatch on the always-mounted print node).
   const [informeGeneratedAt, setInformeGeneratedAt] = useState<Date | null>(null);
 
+  // A2 (map plan): does a click on THIS ranking row drill, or open the detail?
+  // ONE decision function, used by both the click handler and the hover
+  // preview's closing hint — so the affordance can never promise an outcome the
+  // click doesn't deliver (it briefly did: the preview said "Clic para entrar"
+  // while the click opened the drawer, because point layers carry `province` as
+  // a NAME and the drill guard only read `provinceCode`).
+  //
+  // MIRROR of the map's choropleth contract (SituationalMap.tsx ~2538): at
+  // national scope a province drills; once scoped, the map pins a readout
+  // instead of drilling, so the row opens the detail to match.
+  const drillTargetFor = useCallback(
+    (key: string): string | null => {
+      if (effectiveScopeProvince != null || level !== "province") return null;
+      // Ranking keys arrive in two shapes: choropleth layers key off the
+      // province CODE, aggregated-point layers off its display NAME.
+      return provinceByCode(key)?.code ?? provinceByName(key)?.code ?? null;
+    },
+    [effectiveScopeProvince, level],
+  );
+
   const onRankedSelect = useCallback(
     (key: string) => {
+      const drillTarget = drillTargetFor(key);
+      if (drillTarget) {
+        // The camera follows on its own: commitScopeDrill → setScopeOverride →
+        // the autozoom effect frames the province from the in-map polygons.
+        commitScopeDrill(drillTarget, null);
+        return;
+      }
       if (!rankingLayer || !rankedActiveLayer) return;
       const feature = rankedActiveLayer.features.features.find((f) => {
         const p = f.properties as Record<string, unknown>;
@@ -3458,11 +3485,40 @@ export function PanoramaConsole({
           p.province === key
         );
       });
-      if (feature) {
-        onFeatureClick(rankingLayer.id, feature.properties as Record<string, unknown>);
-      }
+      if (!feature) return;
+      onFeatureClick(rankingLayer.id, feature.properties as Record<string, unknown>);
     },
-    [rankingLayer, rankedActiveLayer, onFeatureClick],
+    [rankingLayer, rankedActiveLayer, onFeatureClick, drillTargetFor, commitScopeDrill],
+  );
+
+  // A2 (map plan): the hover/focus preview for a ranking row — the unit's key
+  // numbers where the eye already is, so reading the detail costs zero clicks.
+  // The closing hint NAMES what a click will actually do, which now depends on
+  // the scope (drill at national, detail readout once scoped) — the same fork
+  // onRankedSelect takes, so the affordance never promises the wrong outcome.
+  const renderRankedPreview = useCallback(
+    (row: RankedUnit) => (
+      <>
+        <p className="font-semibold text-ln-op-ink">{row.label}</p>
+        <p className="mt-1 text-ln-op-ink-2">
+          {rankingMeasureLabel}:{" "}
+          <span className="tabular-nums">
+            {effectiveRankingKind === "rate"
+              ? `${Math.round(row.value)}%`
+              : row.value.toLocaleString("es-AR")}
+          </span>
+        </p>
+        {row.gap !== null && (
+          <p className="text-ln-op-warn">
+            Brecha vs meta: <span className="tabular-nums">−{Math.round(row.gap)}</span>
+          </p>
+        )}
+        <p className="mt-2 text-ln-op-mute">
+          {drillTargetFor(row.key) ? "Clic para entrar" : "Clic para ver el detalle"}
+        </p>
+      </>
+    ),
+    [rankingMeasureLabel, effectiveRankingKind, drillTargetFor],
   );
 
   // panorama-ia-v2 §3.6: metadata for the map's "Exportar PNG" footer
@@ -4123,6 +4179,7 @@ export function PanoramaConsole({
           onSelect={onRankedSelect}
           highlightedKey={highlightedUnitKey}
           onHover={setHighlightedUnitKey}
+          renderPreview={renderRankedPreview}
           dataUnavailable={rankingDataUnavailable}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}

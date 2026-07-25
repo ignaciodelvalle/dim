@@ -18,7 +18,7 @@
 // — the ranking upstream drops them (privacy invariant §5.1); the console renders
 // the k-anon suppressed-count line beneath this table.
 
-import { useId, useMemo, useState } from "react";
+import { type ReactNode, useId, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import type { RankedUnit, RankingKind } from "@/src/modules/panorama/domain/ranking";
@@ -52,7 +52,41 @@ type Props = {
   scopeFallback?: boolean;
   /** es-AR plural unit noun for the fallback heading (comunas/localidades/…). */
   unitNoun?: string;
+  /**
+   * A2 (map plan): rich hover/focus PREVIEW for a row — the unit's key numbers
+   * plus the "entrar" hint, so reading the detail costs zero clicks. Omit and
+   * the table renders exactly as before.
+   *
+   * Rendered as a `position: fixed` card anchored to the row rect, OUTSIDE the
+   * table markup: a HoverTip-style inline wrapper would be invalid inside a
+   * <tr>, would nest a focusable span inside the row's own button
+   * (nested-interactive), and would be clipped by the dock's overflow.
+   */
+  renderPreview?: (row: RankedUnit) => ReactNode;
 };
+
+/** Where the preview card sits, in viewport coords, plus the row it describes. */
+type PreviewAnchor = { row: RankedUnit; top: number; left: number };
+
+const PREVIEW_W = 256; // matches w-64
+const PREVIEW_GAP = 8;
+
+/**
+ * Place the card to the RIGHT of the row, flipping to the left at the viewport
+ * edge and clamping vertically so a bottom row's card is never half off-screen.
+ * The dock sits at the bottom of the console, so the vertical clamp is the one
+ * that actually fires.
+ */
+function anchorFor(rect: DOMRect, row: RankedUnit): PreviewAnchor {
+  const spillsRight = rect.right + PREVIEW_GAP + PREVIEW_W > window.innerWidth;
+  const left = spillsRight
+    ? Math.max(PREVIEW_GAP, rect.left - PREVIEW_GAP - PREVIEW_W)
+    : rect.right + PREVIEW_GAP;
+  // Assume a ~132px card; clamping against a generous estimate is enough to keep
+  // it on screen without measuring the card before it exists.
+  const top = Math.min(Math.max(PREVIEW_GAP, rect.top), window.innerHeight - 140);
+  return { row, top, left };
+}
 
 const ariaSort = (active: boolean, dir: SortDir): "ascending" | "descending" | "none" =>
   active ? (dir === "asc" ? "ascending" : "descending") : "none";
@@ -71,7 +105,20 @@ export function PanoramaDataTable({
   onHover,
   scopeFallback = false,
   unitNoun = "jurisdicciones",
+  renderPreview,
 }: Props) {
+  const [preview, setPreview] = useState<PreviewAnchor | null>(null);
+  const previewId = useId();
+
+  /** Hover/focus enter: mirror to the map AND anchor the preview to this row. */
+  const enterRow = (row: RankedUnit, rowEl: HTMLElement | null) => {
+    onHover?.(row.key);
+    if (renderPreview && rowEl) setPreview(anchorFor(rowEl.getBoundingClientRect(), row));
+  };
+  const leaveRow = () => {
+    onHover?.(null);
+    setPreview(null);
+  };
   // Default: worst first — rate by gap desc, density by value desc.
   const [sortKey, setSortKey] = useState<SortKey>(kind === "rate" ? "gap" : "value");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -163,8 +210,8 @@ export function PanoramaDataTable({
                 <tr
                   key={row.key}
                   aria-current={highlighted ? "true" : undefined}
-                  onMouseEnter={() => onHover?.(row.key)}
-                  onMouseLeave={() => onHover?.(null)}
+                  onMouseEnter={(e) => enterRow(row, e.currentTarget)}
+                  onMouseLeave={leaveRow}
                   className={`border-b border-ln-op-line/50 transition-colors ${
                     highlighted ? "bg-ln-op-line/50" : ""
                   }`}
@@ -174,8 +221,11 @@ export function PanoramaDataTable({
                       <button
                         type="button"
                         onClick={() => onSelect(row.key)}
-                        onFocus={() => onHover?.(row.key)}
-                        onBlur={() => onHover?.(null)}
+                        // Keyboard parity: focus reveals the same preview hover
+                        // does, and points at it for screen readers.
+                        onFocus={(e) => enterRow(row, e.currentTarget.closest("tr"))}
+                        onBlur={leaveRow}
+                        aria-describedby={preview?.row.key === row.key ? previewId : undefined}
                         className="text-left underline-offset-2 hover:underline"
                       >
                         {row.label}
@@ -197,6 +247,20 @@ export function PanoramaDataTable({
             })}
           </tbody>
         </table>
+      )}
+      {/* A2 preview card — fixed-position so the dock's overflow can't clip it,
+          pointer-events:none so it never steals the hover that spawned it. No
+          enter/leave animation, so it is reduced-motion-safe by construction
+          (the fade is B3's job, behind the motion query). */}
+      {preview && renderPreview && (
+        <div
+          role="tooltip"
+          id={previewId}
+          style={{ top: preview.top, left: preview.left, width: PREVIEW_W }}
+          className="pointer-events-none fixed z-50 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-card p-3 text-xs shadow-lg"
+        >
+          {renderPreview(preview.row)}
+        </div>
       )}
     </section>
   );
