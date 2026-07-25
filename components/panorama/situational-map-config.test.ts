@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { CHOROPLETH_FADE_MS, DIVISION_FADE_MS, fillPaintTransition } from "./situational-map-config";
+import {
+  CHOROPLETH_FADE_MS,
+  DIVISION_FADE_MS,
+  fillPaintTransition,
+} from "./situational-map-config";
 
 /**
  * B1 (map plan) — the choropleth paint transition and its reduced-motion floor.
