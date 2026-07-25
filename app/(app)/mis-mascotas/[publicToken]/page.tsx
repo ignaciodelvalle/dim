@@ -70,7 +70,10 @@ import {
   TabErrorState,
   TabLoadingSkeleton,
 } from "@/components/pet-profile/PetDetailTabsPanel";
-import { PetSwitcherDots } from "@/components/pet-profile/PetSwitcherDots";
+import {
+  type AvatarSwitcherPet,
+  PetSwitcherAvatars,
+} from "@/components/pet-profile/PetSwitcherAvatars";
 import {
   appointments,
   attachments,
@@ -79,6 +82,7 @@ import {
   organizations,
   ownerships,
   petServiceDog,
+  pets,
   profiles,
   serviceOfferings,
   timeSlots,
@@ -130,7 +134,7 @@ import {
 } from "@/lib/utils/format";
 import { getLibretaFaceData } from "@/src/modules/pets/application/tab-data/get-libreta-face-data";
 import { fetchPendingReturnProposalForOwner } from "@/src/modules/return-to-owner/application/proposal-queries";
-import { and, asc, desc, eq, gt, isNull, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, notInArray } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
@@ -791,6 +795,11 @@ export default async function PetDetailPage({
   // watchpoint): this adds the pet-list + batch-compliance queries on the owner
   // path only — the same price /inicio already pays for its rail.
   let carouselPets: CarouselPet[] = [];
+  // Avatar switcher (PO "reemplazo total" of the dots): the ranked/capped set
+  // enriched with each pet's name + photo. Populated AFTER ranking so the photo
+  // join runs only over the ≤8 shown tokens — not every live pet (the ranking
+  // query stays deliberately narrow, see fetchLivePetsForCarouselRanking).
+  let avatarPets: AvatarSwitcherPet[] = [];
   // D2: the TRUE number of live pets across the household. The swipe is capped at
   // OWNER_CAROUSEL_CAP (glanceable dots), but /mis-mascotas lists every live pet,
   // so the two silently disagreed (e.g. 8 dots vs 14 in the index). The carousel
@@ -822,6 +831,35 @@ export default async function PetDetailPage({
         };
       }),
     );
+
+    // Enrich the capped set with name + photo for the avatar switcher (one
+    // bounded query over the ≤8 shown tokens; leftJoin so a photo-less pet
+    // falls back to LnPetPhoto's placeholder).
+    if (carouselPets.length > 0) {
+      const photoRows = await db
+        .select({
+          token: pets.publicToken,
+          name: pets.name,
+          storagePath: attachments.storagePath,
+        })
+        .from(pets)
+        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+        .where(
+          inArray(
+            pets.publicToken,
+            carouselPets.map((p) => p.token),
+          ),
+        );
+      const byToken = new Map(
+        photoRows.map((r) => [r.token, { name: r.name, photoUrl: petPhotoUrl(r.storagePath) }]),
+      );
+      avatarPets = carouselPets.map((p) => ({
+        token: p.token,
+        status: p.status,
+        name: byToken.get(p.token)?.name ?? "",
+        photoUrl: byToken.get(p.token)?.photoUrl ?? null,
+      }));
+    }
   }
   const showCarousel = shouldShowCarousel({
     isOwner,
@@ -1009,7 +1047,11 @@ export default async function PetDetailPage({
       {/* live pet); single-pet owners and non-owners get no nav element.     */}
       {/* ------------------------------------------------------------------ */}
       {showCarousel && (
-        <PetSwitcherDots pets={carouselPets} currentToken={pet.publicToken} liveTotal={liveTotal} />
+        <PetSwitcherAvatars
+          pets={avatarPets}
+          currentToken={pet.publicToken}
+          liveTotal={liveTotal}
+        />
       )}
       {showCarousel ? (
         <PetCredentialCarousel pets={carouselPets} currentToken={pet.publicToken}>

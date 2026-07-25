@@ -137,9 +137,9 @@ describe("pet-profile page.tsx — front-face delegation (AGENTS.md rule 5)", ()
 // band (tarjeta-todo's dots-in-band placement), but the PO clarified that
 // switching between pets is APP-LEVEL navigation, a different layer from the
 // credential itself — "no tiene nada que ver la navegación en la app con la
-// credencial digital de una mascota." PetSwitcherDots now mounts ABOVE the
+// credencial digital de una mascota." PetSwitcherAvatars now mounts ABOVE the
 // card as app chrome (org back-link/notice excepted — org viewers only, and
-// now also PetSwitcherDots — owners with >1 live pet). See the describe
+// now also PetSwitcherAvatars — owners with >1 live pet). See the describe
 // block below for the render-order proof.
 // ---------------------------------------------------------------------------
 
@@ -152,7 +152,7 @@ describe("tarjeta-todo — the page renders nothing after the card container", (
     // ex-owner read-only view during a custody episode; its own back-link and
     // banner are that branch's content, NOT under-card surfaces of the owner
     // flow), and the preserved banner helpers below it are alert-strip content
-    // mounted INSIDE the card's Avisos slot. PetSwitcherDots is deliberately
+    // mounted INSIDE the card's Avisos slot. PetSwitcherAvatars is deliberately
     // OUTSIDE this slice — it mounts BEFORE `{showCarousel ? (` (above the
     // card); the companion describe block below proves that source position.
     const start = sourceIndex(src, "{showCarousel ? (");
@@ -200,25 +200,25 @@ describe("tarjeta-todo — the page renders nothing after the card container", (
 });
 
 // ---------------------------------------------------------------------------
-// PO correction (2026-07-18) — PetSwitcherDots (the renamed carousel dots)
+// PO correction (2026-07-18) — PetSwitcherAvatars (the renamed carousel dots)
 // mounts ABOVE the card as its own app-chrome element, gated by the same
 // `showCarousel` condition as the swipe shell, never inside the credential.
 // ---------------------------------------------------------------------------
 
-describe("PO correction — the multi-pet nav (PetSwitcherDots) renders ABOVE the card, as app chrome", () => {
-  it("mounts PetSwitcherDots, gated by showCarousel, BEFORE the card container in source order", () => {
+describe("PO correction — the multi-pet nav (PetSwitcherAvatars) renders ABOVE the card, as app chrome", () => {
+  it("mounts PetSwitcherAvatars, gated by showCarousel, BEFORE the card container in source order", () => {
     const src = read(PAGE_TSX);
     const switcherAt = sourceIndex(src, "{showCarousel && (");
-    sourceIndex(src, "<PetSwitcherDots");
+    sourceIndex(src, "<PetSwitcherAvatars");
     const cardAt = sourceIndex(src, "{showCarousel ? (");
     expect(
       switcherAt,
-      "PetSwitcherDots must mount BEFORE the card container — it is app-level navigation above the credential, not credential content (PO correction 2026-07-18)",
+      "PetSwitcherAvatars must mount BEFORE the card container — it is app-level navigation above the credential, not credential content (PO correction 2026-07-18)",
     ).toBeLessThan(cardAt);
   });
 
-  it("PetSwitcherDots is a standalone component, not a prop threaded into the credential document", () => {
-    const dots = read(resolve(__dirname, "../components/pet-profile/PetSwitcherDots.tsx"));
+  it("PetSwitcherAvatars is a standalone component, not a prop threaded into the credential document", () => {
+    const dots = read(resolve(__dirname, "../components/pet-profile/PetSwitcherAvatars.tsx"));
     // The dots group carries its accessible name (the honest-cap disclosure) —
     // pure design on the page, no visible "mostrando N de M" text.
     expect(dots).toContain("aria-label={groupLabel}");
