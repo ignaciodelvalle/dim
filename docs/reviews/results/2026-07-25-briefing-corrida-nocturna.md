@@ -110,4 +110,105 @@ mecánica de "la iniciativa mayor" está paga.
 
 ## Resultados de la batería adversarial
 
-_(pendiente — se completa al cerrar la corrida)_
+Cinco revisores independientes, lentes distintas, todos con el visualizador para
+medir en vez de opinar. **Encontraron dos cosas que invalidan trabajo de esta
+misma corrida.** Eso es exactamente para lo que la pediste.
+
+### Lo que se rompió y ya arreglé
+
+**B1 no hacía nada.** La transición de coropleta —el ítem central de la
+fundación de animación— es inerte. maplibre se niega a interpolar propiedades
+*data-driven*, y nuestro `fill-color` es una expresión. Del propio source de
+maplibre (`src/style/properties.ts`):
+
+> *"Transitions to data-driven properties are not supported. We snap immediately
+> to the data-driven value"*
+
+Probado con experimento de control sobre el mapa vivo: un color **constante**
+mezcla a los 120ms; nuestra expresión real hace snap. Lo único que sí transiciona
+es `fill-opacity` (constante), que es lo que usa el dimming — o sea **B1 animaba
+el atenuado, no los datos**.
+
+Yo había marcado esto como NO VERIFICADO en el commit, porque el diff de
+screenshots no podía probarlo. La batería convirtió ese "no verificado" en
+"falso". Corregí los comentarios y el test para que digan la verdad medida.
+**Decisión tuya**: hacer que los datos se desvanezcan de verdad requiere un
+cross-fade de dos capas sobre `fill-opacity`. Es una decisión de producto, no un
+retoque.
+
+**Revertí el control de velocidad de B2.** Medido contra el build corriendo: cada
+frame refetchea cada capa temporal, y `_guard.ts` limita al operador a 120
+req/min. A 4×: **~954 req/min y DIEZ respuestas exitosas sobre 35 frames
+pedidos** — se pierde ~70% de la reproducción entre abortos y 429. A 1× ya se
+cruza el límite a los 42 segundos (eso es deuda previa, ahora documentada). Un
+control que le vende al operador una forma más rápida de perder frames es peor
+que no tenerlo.
+
+**Accesibilidad — todo confirmado midiendo, no leyendo:**
+- **WCAG 2.1 SC 1.4.13**: Escape no cerraba el preview. Era además la única
+  salida en touch, donde el hover nunca dispara y un tap que retiene el foco
+  nunca hace blur — la tarjeta quedaba encima de la tabla indefinidamente.
+- **El puntero le robaba `aria-describedby` a la fila enfocada.** Hover y foco
+  escribían el mismo anclaje: un usuario de lector de pantalla tabulando recibía
+  una tarjeta que describía la fila donde estaba el mouse.
+- **La tarjeta aterrizaba sobre la barra lateral**, a ~270px de la fila que
+  describía: anclé al `<tr>`, que ocupa todo el ancho, así que el volteo de borde
+  disparaba en el 100% de los casos.
+- **El fade de contornos ignoraba el piso de reduced-motion** — tras B1 era la
+  única animación que seguía corriendo bajo `reduce`.
+
+**Honestidad:**
+- La leyenda estática del ranking prometía "clic para ver el detalle" mientras
+  las filas ahora drillean. La tarjeta dice la verdad por fila; la leyenda
+  estática dejó de adivinar.
+- El link del informe ahora aclara "requiere acceso al sistema", y su docstring
+  describe lo que la URL realmente lleva (incluidas coordenadas de cámara) y dice
+  que "sin PII" es una **propiedad del set de parámetros de hoy, no un invariante
+  forzado**.
+- Brechas de cumplimiento menores a medio punto se imprimían como **"−0"** — una
+  jurisdicción bajo meta reportada como sin brecha.
+
+**Dos tests míos no podían fallar** y los arreglé: el round-trip e2e comparaba
+`"" === ""` si la lectura expiraba, y una aserción de B1 repetía la
+implementación.
+
+### Lo que NO arreglé, y por qué
+
+Tres hallazgos ALTOS son **un solo problema en un solo lugar** — el pipeline de
+frames:
+
+1. Cada frame de scrub refetchea cada capa **dos veces** (identidad de objeto
+   `Date` re-dispara el efecto). El 50% del tráfico de reproducción es puro
+   desperdicio.
+2. La tira de KPIs **nunca aterriza** durante reproducción a 2× o 4×: el debounce
+   de 250ms pierde contra el intervalo de frame y `signalFor("kpis")` aborta lo
+   propio.
+3. Los 429 se tragan en silencio (`if (!res.ok) return`) pero `setAsOfVersion`
+   igual dispara, así que **el mapa repinta datos viejos mientras la leyenda
+   avanza de fecha**. Una superficie que rotula la fecha del frame N sobre los
+   datos del frame M es justo lo que los invariantes del proyecto existen para
+   impedir.
+
+Arreglarlos bien es rediseñar la adquisición de datos, y no es un cambio de las
+5:30 de la mañana. El revisor propone la costura concreta: un `usePanoramaData`
+que devuelva estado explícito por capa (`fresh | stale | pending | rate-limited`)
+en vez de guardar features viejas en silencio.
+
+### La crítica que me hicieron y acepto
+
+Sobre mi extracción de cinco unidades para pasar el ratchet: **"la compuerta midió
+líneas y obtuvo líneas; no obtuvo un problema más chico"**. Es cierto. La consola
+quedó exactamente en el techo con cero margen — la próxima línea que alguien
+agregue falla CI. Mover cuatro funciones puras y una hoja de presentación no
+descompone nada. Las tres costuras reales que propone el revisor están en el
+briefing de arriba.
+
+### Lo que atacaron y no pudieron romper
+
+Vale decirlo porque también es resultado: el hover-preview **no** evade el
+k-anonimato (la supresión pasa en `rankWorstUnits`, antes del orden); el drill
+**no** puede sacar a un operador de su jurisdicción (`narrowGovtScope` intersecta
+en cada fetch del servidor, y un operador acotado siempre resuelve a
+`level="locality"`); las cinco extracciones son **byte-equivalentes** a lo que
+reemplazaron; el warning de `ReadPixels` es benigno, dispara dos veces al init y
+nada del diff lo empeora — se puede cerrar.
