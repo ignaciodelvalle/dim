@@ -5,18 +5,7 @@
 // preserving): every loader here is unchanged, only moved. Scope-clause and
 // event-predicate helpers now live in ./repository-scope.
 
-import {
-  type SQL,
-  and,
-  count,
-  countDistinct,
-  eq,
-  gte,
-  inArray,
-  isNotNull,
-  lte,
-  sql,
-} from "drizzle-orm";
+import { type SQL, and, count, countDistinct, eq, gte, isNotNull, lte, sql } from "drizzle-orm";
 
 // es-AR severity labels for the welfare-report event label (red-team-admin-2
 // P1.8): the unit-history flyout showed the raw DB enum ("medium"/"high"…). The
@@ -80,12 +69,32 @@ import {
 
 /** One day's scope-total event count for the scrubber histogram. */
 /**
- * The opened-reason codes that make a custody_episode an actual DECOMISO
- * (Ley 14.346 seizure). Anything else sharing `case_kind = "custody_episode"`
- * — org intake, foster placement, lost-pet custody — is not a seizure and must
- * never be plotted as one.
+ * Is this custody_episode an actual DECOMISO (Ley 14.346 seizure)?
+ *
+ * There is no `decomiso` case_kind — the seizure is materialised as a
+ * `custody_episode` (see execute-decomiso.ts). But the reverse does not hold:
+ * org intakes, foster placements and lost-pet custody share the kind, so
+ * filtering on the kind alone plots non-seizures as seizures.
+ *
+ * The marker is the OPENED REASON, and it exists in two forms. The writer in
+ * production and in the seed emits the legacy TEXT grammar
+ * (`auto: decomiso motivo=… judicial_ref=…`, mapped for display in
+ * opened-reason-legacy.ts); the newer structured `opened_reason_code` column
+ * carries the same fact for callers that set it. Both are accepted so this
+ * neither misses today's rows nor breaks when the structured column takes over.
+ *
+ * MEASURED 2026-07-25 — read this before "simplifying" the predicate: of 2.051
+ * seeded custody episodes, 2.049 ARE decomisos by the text marker and 0 carry
+ * the structured code. A code-only filter empties the layer on the DEFAULT
+ * vista while looking like a tightening.
  */
-const DECOMISO_OPENED_REASONS = ["decomiso_executed", "decomiso_handoff_accepted"] as const;
+function isDecomisoCase(): SQL {
+  return sql`(
+    ${cases.openedReason} LIKE 'auto: decomiso motivo=%'
+    OR ${cases.openedReason} LIKE 'auto: decomiso handoff aceptado%'
+    OR ${cases.openedReasonCode} IN ('decomiso_executed', 'decomiso_handoff_accepted')
+  )`;
+}
 
 export type ScopeDailyCount = { date: string; count: number };
 
@@ -496,15 +505,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           sql`${cases.jurisdictionLocality}`,
         );
         const conditions: SQL[] = [
-          // A decomiso IS a custody_episode — the seizure lifecycle lives in
-          // custody-episode.ts — but NOT every custody episode is a decomiso
-          // (org intakes, foster placements and lost-pet custody share the
-          // kind). Filtering on the kind ALONE labelled all 1.213 seeded
-          // custody episodes "Decomisos" on the DEFAULT vista, none of which
-          // was a seizure. The seizure is identified by its opened reason
-          // (src/modules/cases/domain/opened-reason.ts).
+          // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
-          inArray(cases.openedReasonCode, DECOMISO_OPENED_REASONS),
+          isDecomisoCase(),
           gte(cases.openedAt, since),
           lte(cases.openedAt, until),
           sql`${cases.jurisdictionProvince} = ${province}`,
@@ -788,15 +791,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           sql`${cases.jurisdictionLocality}`,
         );
         const conditions: SQL[] = [
-          // A decomiso IS a custody_episode — the seizure lifecycle lives in
-          // custody-episode.ts — but NOT every custody episode is a decomiso
-          // (org intakes, foster placements and lost-pet custody share the
-          // kind). Filtering on the kind ALONE labelled all 1.213 seeded
-          // custody episodes "Decomisos" on the DEFAULT vista, none of which
-          // was a seizure. The seizure is identified by its opened reason
-          // (src/modules/cases/domain/opened-reason.ts).
+          // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
-          inArray(cases.openedReasonCode, DECOMISO_OPENED_REASONS),
+          isDecomisoCase(),
           gte(cases.openedAt, since),
           lte(cases.openedAt, until),
           ...columnJurisdictionFilter(
@@ -1069,15 +1066,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           sql`${cases.jurisdictionLocality}`,
         );
         const conditions: SQL[] = [
-          // A decomiso IS a custody_episode — the seizure lifecycle lives in
-          // custody-episode.ts — but NOT every custody episode is a decomiso
-          // (org intakes, foster placements and lost-pet custody share the
-          // kind). Filtering on the kind ALONE labelled all 1.213 seeded
-          // custody episodes "Decomisos" on the DEFAULT vista, none of which
-          // was a seizure. The seizure is identified by its opened reason
-          // (src/modules/cases/domain/opened-reason.ts).
+          // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
-          inArray(cases.openedReasonCode, DECOMISO_OPENED_REASONS),
+          isDecomisoCase(),
           gte(cases.openedAt, since),
           lte(cases.openedAt, until),
           ...columnJurisdictionFilter(
@@ -1341,15 +1332,9 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           sql`${cases.jurisdictionLocality}`,
         );
         const conditions: SQL[] = [
-          // A decomiso IS a custody_episode — the seizure lifecycle lives in
-          // custody-episode.ts — but NOT every custody episode is a decomiso
-          // (org intakes, foster placements and lost-pet custody share the
-          // kind). Filtering on the kind ALONE labelled all 1.213 seeded
-          // custody episodes "Decomisos" on the DEFAULT vista, none of which
-          // was a seizure. The seizure is identified by its opened reason
-          // (src/modules/cases/domain/opened-reason.ts).
+          // Kind alone is not enough — see isDecomisoCase.
           eq(cases.caseKind, "custody_episode"),
-          inArray(cases.openedReasonCode, DECOMISO_OPENED_REASONS),
+          isDecomisoCase(),
           gte(cases.openedAt, since),
           lte(cases.openedAt, until),
           ...columnJurisdictionFilter(
