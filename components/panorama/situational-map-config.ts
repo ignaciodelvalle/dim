@@ -547,6 +547,25 @@ export const DIVISION_FADE_MS = 300;
 export const HATCH_FILL_OPACITY = 0.85;
 export const SUPPRESS_SOLID_OPACITY = 0.5;
 
+// B1 (map plan) — choropleth paint transition. maplibre SNAPS fill-color and
+// fill-opacity changes by default, so switching period / scope / vista / asOf
+// repaints the whole country in a single frame and the eye cannot follow WHICH
+// units changed. For an instrument whose product IS reading spatial-temporal
+// patterns, that interpolation is the information channel, not decoration.
+// Reuses DIVISION_FADE_MS's cadence so the map keeps ONE motion vocabulary
+// across its chrome (outline fades) and its data (fill transitions).
+export const CHOROPLETH_FADE_MS = DIVISION_FADE_MS;
+
+/**
+ * maplibre paint-transition object for the choropleth fills, honoring the
+ * reduced-motion FLOOR: duration 0 is not "a fast animation", it is no
+ * interpolation at all — the instant repaint the pre-B1 map always did.
+ */
+export const fillPaintTransition = (reduced: boolean): { duration: number; delay: number } => ({
+  duration: reduced ? 0 : CHOROPLETH_FADE_MS,
+  delay: 0,
+});
+
 // Per-layer maplibre object ids are namespaced by layer id so multiple layers
 // coexist without collision.
 export const srcId = (id: string) => `pano-src-${id}`;

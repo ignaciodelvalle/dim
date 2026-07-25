@@ -42,6 +42,7 @@ import {
 } from "@/components/panorama/map-popup";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
+import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 import {
   type BivariateCell,
   type BivariatePair,
@@ -149,6 +150,7 @@ import {
   clusterLayerId,
   divisionFillLayerId,
   fetchGeojsonFeatures,
+  fillPaintTransition,
   framingMaxZoom,
   layersBbox,
   pointLayerId,
@@ -232,6 +234,26 @@ export function SituationalMap({
   // Keep the latest click callback accessible inside one-time map handlers.
   const onFeatureClickRef = useRef(onFeatureClick);
   onFeatureClickRef.current = onFeatureClick;
+  // B1 (map plan) — the reduced-motion FLOOR for every map animation. Mirrored
+  // into a ref because the paint/camera code below runs inside imperative
+  // maplibre handlers that close over their first render.
+  const reducedMotion = useReducedMotion();
+  const reducedMotionRef = useRef(reducedMotion);
+  reducedMotionRef.current = reducedMotion;
+  // Turning the OS preference ON must stop the animation NOW, not at the next
+  // data update — the floor is a promise, not a default. Walks the mounted
+  // choropleth fills and re-sets their transitions when the preference flips.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || typeof map.getStyle !== "function") return;
+    const transition = fillPaintTransition(reducedMotion);
+    for (const styleLayer of map.getStyle()?.layers ?? []) {
+      if (styleLayer.type !== "fill") continue;
+      if (!/^pano-(prov-fill|div-fill)-/.test(styleLayer.id)) continue;
+      map.setPaintProperty(styleLayer.id, "fill-color-transition", transition);
+      map.setPaintProperty(styleLayer.id, "fill-opacity-transition", transition);
+    }
+  }, [reducedMotion]);
   // Click-to-drill: latest handler for the one-time province click wiring, plus a
   // re-entrancy guard so a click that lands on BOTH the province choropleth fill
   // and the base province fill drills exactly once (the console navigation is
@@ -1039,9 +1061,10 @@ export function SituationalMap({
 
     let cancelled = false;
 
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // B1: read the ONE reduced-motion source (useReducedMotion, mirrored into a
+    // ref) instead of re-querying matchMedia inline. The ref keeps this effect's
+    // dependency list unchanged — same run cadence, one source of truth.
+    const prefersReducedMotion = reducedMotionRef.current;
 
     const viewport = computeJurisdictionViewport(
       selectedProvinceCode,
@@ -1087,9 +1110,10 @@ export function SituationalMap({
     const map = mapRef.current;
     if (!map) return;
 
-    const prefersReducedMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // B1: read the ONE reduced-motion source (useReducedMotion, mirrored into a
+    // ref) instead of re-querying matchMedia inline. The ref keeps this effect's
+    // dependency list unchanged — same run cadence, one source of truth.
+    const prefersReducedMotion = reducedMotionRef.current;
 
     const viewport = computePresetFrameViewport(frame.framing, nationalBboxRef.current, AR_BBOX);
     if (viewport === null || viewport.kind !== "fitBounds") return;
@@ -1779,6 +1803,9 @@ export function SituationalMap({
           paint: {
             "fill-color": divisionFillColorExpr(values, lockedBreaks),
             "fill-opacity": DATA_FILL_OPACITY,
+            // B1 — interpolate instead of snapping (reduced-motion → 0).
+            "fill-color-transition": fillPaintTransition(reducedMotionRef.current),
+            "fill-opacity-transition": fillPaintTransition(reducedMotionRef.current),
           },
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
@@ -2035,7 +2062,10 @@ export function SituationalMap({
     if (bbox) {
       map.fitBounds(bbox, {
         padding: FRAME_PADDING,
-        animate: true,
+        // B1: the LIVE drill animates (the camera move IS the "you went here"
+        // signal); reduced motion collapses it to a cut. URL-restore keeps its
+        // own jumpTo — a page load is not a journey worth animating.
+        animate: !reducedMotionRef.current,
         maxZoom: framingMaxZoom(map, bbox),
       });
     }
@@ -2372,6 +2402,9 @@ export function SituationalMap({
           paint: {
             "fill-color": provinceColorExprForLayer(layer, seqBreaks),
             "fill-opacity": DATA_FILL_OPACITY,
+            // B1 — interpolate instead of snapping (reduced-motion → 0).
+            "fill-color-transition": fillPaintTransition(reducedMotionRef.current),
+            "fill-opacity-transition": fillPaintTransition(reducedMotionRef.current),
           },
         },
         chromeAnchor,
@@ -2627,6 +2660,7 @@ export function SituationalMap({
       map.easeTo({
         center: geom.coordinates as [number, number],
         zoom: Math.max(map.getZoom() + 1.5, 8),
+        animate: !reducedMotionRef.current,
       });
       onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
@@ -2671,7 +2705,11 @@ export function SituationalMap({
       if (clusterId == null || !src) return;
       src.getClusterExpansionZoom(clusterId).then((zoom) => {
         const geom = f.geometry as GeoJSON.Point;
-        map.easeTo({ center: geom.coordinates as [number, number], zoom });
+        map.easeTo({
+          center: geom.coordinates as [number, number],
+          zoom,
+          animate: !reducedMotionRef.current,
+        });
       });
     });
 
@@ -2764,6 +2802,7 @@ export function SituationalMap({
       map.easeTo({
         center: geom.coordinates as [number, number],
         zoom: Math.max(map.getZoom() + 1.5, 8),
+        animate: !reducedMotionRef.current,
       });
       onFeatureClickRef.current?.(layer.id, (f.properties ?? {}) as Record<string, unknown>);
     });
@@ -2867,7 +2906,7 @@ export function SituationalMap({
     const map = mapRef.current;
     if (!map) return;
     const bbox = initialBoundsRef.current ?? AR_BBOX;
-    map.fitBounds(bbox, { padding: 56, animate: true, maxZoom: 11 });
+    map.fitBounds(bbox, { padding: 56, animate: !reducedMotionRef.current, maxZoom: 11 });
   }
   // Accessible label for the reset-view control (Q12). The pure helper keys the
   // copy on `boundedJurisdiction` (a govt operator with an assigned jurisdiction),

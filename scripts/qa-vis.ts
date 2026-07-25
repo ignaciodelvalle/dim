@@ -250,6 +250,11 @@ async function main() {
     viewport: { width: cfg.viewport[0], height: cfg.viewport[1] },
     deviceScaleFactor: 1,
     storageState,
+    // --reduced emulates `prefers-reduced-motion: reduce`. Beyond auditing the
+    // accessibility floor, it is the clean DISCRIMINATOR for animation work:
+    // capture the same interaction with and without it, and only a real
+    // transition changes its mid-frame between the two runs.
+    reducedMotion: args.get("reduced") ? "reduce" : "no-preference",
   });
   const page = await context.newPage();
 
