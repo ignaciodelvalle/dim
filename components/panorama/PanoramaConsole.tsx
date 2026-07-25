@@ -3543,13 +3543,15 @@ export function PanoramaConsole({
     const days = Math.max(1, Math.round((until.getTime() - since.getTime()) / 86_400_000));
     // #14 (2026-07-23): humanize year-shaped day counts ("últimos 3 años", not
     // "últimos 1095 días") — same helper captionFor's window phrase uses.
-    const periodLabel = periodDaysPhrase(days);
+    // C1: pass the active preset so a fixed-start window (ytd) names its FRAME
+    // instead of measuring itself in trailing days.
+    const periodLabel = periodDaysPhrase(days, periodParam);
     const suppressedCount = PANORAMA_LAYERS.reduce(
       (sum, l) => sum + (states[l.id]?.active ? (states[l.id]?.suppressedCount ?? 0) : 0),
       0,
     );
     return { asOf, scopeLabel, periodLabel, suppressedCount };
-  }, [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf]);
+  }, [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf, periodParam]);
 
   // Registros (dock) — the accessible table of what the map paints: the map is
   // the least accessible surface, so mirror it into a real table. Flatten every

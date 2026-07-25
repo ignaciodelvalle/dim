@@ -172,3 +172,22 @@ describe("periodDaysPhrase", () => {
     expect(periodDaysPhrase(400)).toBe("últimos 400 días");
   });
 });
+
+describe("periodDaysPhrase — fixed-start windows (C1)", () => {
+  it('names "año en curso" by its frame, not by a trailing day count', () => {
+    // The bug this locks: on 2026-07-25 the YTD window spans 205 days, and the
+    // caption read "últimos 205 días" while the picker chip said "Año en curso"
+    // — two framings of one selection, the day-count one implying a window that
+    // slides every day.
+    expect(periodDaysPhrase(205, "ytd")).toBe("año en curso");
+    expect(periodDaysPhrase(1, "ytd")).toBe("año en curso");
+    expect(periodDaysPhrase(364, "ytd")).toBe("año en curso");
+  });
+
+  it("leaves trailing windows measured in trailing units", () => {
+    expect(periodDaysPhrase(90, "90d")).toBe("últimos 90 días");
+    expect(periodDaysPhrase(1095, "3y")).toBe("últimos 3 años");
+    // No preset (custom ranges, older callers) keeps the day-count behavior.
+    expect(periodDaysPhrase(205)).toBe("últimos 205 días");
+  });
+});

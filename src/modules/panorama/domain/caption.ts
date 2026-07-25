@@ -30,7 +30,13 @@ function periodDays(period: PanoramaPeriod): number {
  * 1095), so every year-preset window lands on the year phrase; anything that is
  * not year-shaped (7/30/90d, custom ranges) keeps the exact day count.
  */
-export function periodDaysPhrase(days: number): string {
+export function periodDaysPhrase(days: number, presetId?: string): string {
+  // C1 (map plan) — "Año en curso" is a FIXED-START window (Jan 1 → today), not
+  // a trailing one. Measuring it in days made the console contradict its own
+  // picker ("Año en curso" in the chip, "últimos 205 días" in the caption) AND
+  // implied a rolling window that slides every day — the opposite of what YTD
+  // means. The day count is right; the FRAME is wrong, so name the frame.
+  if (presetId === "ytd") return "año en curso";
   const years = Math.round(days / 365.25);
   if (years >= 1 && Math.abs(days - years * 365.25) <= 2) {
     return years === 1 ? "último año" : `últimos ${years} años`;
