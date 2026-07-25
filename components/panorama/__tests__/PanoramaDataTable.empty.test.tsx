@@ -67,6 +67,53 @@ describe("PanoramaDataTable — empty state tells the epistemic truth", () => {
     expect(screen.getByText(/Sin señales en este alcance/)).toBeTruthy();
   });
 
+  it("distinguishes WITHHELD from blind — units reported, privacy forbids showing", () => {
+    // The lie this closes, found live on Mortalidad 2026-07-25: the dock showed
+    // 154 records beside an empty ranking saying "nobody reported enough to
+    // measure". Every per-unit value (2-6) sat under k=5, so the system was not
+    // blind at all — it was protecting.
+    render(
+      <PanoramaDataTable
+        rows={[]}
+        kind="density"
+        measureLabel="mortalidad registrada"
+        measuredUnits={0}
+        suppressedUnits={18}
+      />,
+    );
+    expect(screen.getByText(/Protegido por k-anonimato/)).toBeTruthy();
+    expect(screen.getByText(/18 .*S[ÍI] reportaron/)).toBeTruthy();
+    // The false claim must be gone.
+    expect(screen.queryByText(/Ninguna unidad del alcance reportó/)).toBeNull();
+  });
+
+  it("still says BLIND when nothing reported and nothing was withheld", () => {
+    render(
+      <PanoramaDataTable
+        rows={[]}
+        kind="density"
+        measureLabel="mortalidad registrada"
+        measuredUnits={0}
+        suppressedUnits={0}
+      />,
+    );
+    expect(screen.getByText(/Sin señales en este alcance/)).toBeTruthy();
+  });
+
+  it("a failed calculation outranks suppression — we know nothing either way", () => {
+    render(
+      <PanoramaDataTable
+        rows={[]}
+        kind="density"
+        measureLabel="mortalidad registrada"
+        suppressedUnits={18}
+        dataUnavailable
+      />,
+    );
+    expect(screen.getByText(/No pudimos calcular el ranking/)).toBeTruthy();
+    expect(screen.queryByText(/Protegido por k-anonimato/)).toBeNull();
+  });
+
   it("defaults to blindness when the caller passes no measured count", () => {
     // A caller that has not been taught to report its measurable universe must
     // not get the all-clear for free.

@@ -109,8 +109,14 @@ export function rankWorstUnits(features: FeatureCollection, opts: RankOptions): 
       if (gap <= 0) continue; // at/above meta — not a "worst" unit
       rows.push({ key: id.key, label: id.label, value: p.value, gap });
     } else {
-      if (typeof p.count !== "number") continue;
-      rows.push({ key: id.key, label: id.label, value: p.count, gap: null });
+      // Aggregated cells carry their magnitude in `count`, but some density
+      // layers (mortalidad) carry it in `value` — the same both-fields
+      // precedence the dock's own total uses. Reading only `count` skipped
+      // EVERY unit of those layers, so the ranking came back empty while the
+      // dock showed 154 records for the same view (found live 2026-07-25).
+      const magnitude = typeof p.count === "number" ? p.count : p.value;
+      if (typeof magnitude !== "number") continue;
+      rows.push({ key: id.key, label: id.label, value: magnitude, gap: null });
     }
   }
 
@@ -155,8 +161,10 @@ export function rankUnitsInScope(features: FeatureCollection, opts: RankOptions)
       // Keep the unit regardless of meta; only carry a gap when below meta.
       rows.push({ key: id.key, label: id.label, value: p.value, gap: gap > 0 ? gap : null });
     } else {
-      if (typeof p.count !== "number") continue;
-      rows.push({ key: id.key, label: id.label, value: p.count, gap: null });
+      // Same both-fields precedence as rankWorstUnits — see the note there.
+      const magnitude = typeof p.count === "number" ? p.count : p.value;
+      if (typeof magnitude !== "number") continue;
+      rows.push({ key: id.key, label: id.label, value: magnitude, gap: null });
     }
   }
 

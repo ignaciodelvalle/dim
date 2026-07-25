@@ -53,6 +53,17 @@ type Props = {
    * "ciego, no tranquilo" failure C4 exists to kill.
    */
   measuredUnits?: number;
+  /**
+   * How many in-scope units WERE measured but had to be withheld by k-anonymity.
+   *
+   * Without this the table collapsed "nobody reported" and "everybody reported
+   * but privacy forbids showing it" into one blind state — and then said
+   * "Ninguna unidad del alcance reportó datos suficientes", which is FALSE in
+   * the second case. Found live on Mortalidad (2026-07-25): the dock showed 154
+   * records beside an empty ranking claiming nothing had been reported, because
+   * every per-unit value (range 2–6) sat under k=5.
+   */
+  suppressedUnits?: number;
   /** The unit key currently highlighted on the map (hover sync), or null. */
   highlightedKey?: string | null;
   /** Fired on row hover/focus (key) and blur/leave (null) — mirrors to the map. */
@@ -117,6 +128,61 @@ const ariaSort = (active: boolean, dir: SortDir): "ascending" | "descending" | "
 const asHeader = (label: string): string =>
   label.length === 0 ? label : label.charAt(0).toUpperCase() + label.slice(1);
 
+/**
+ * C4 — which epistemic state an EMPTY ranking is in, and the es-AR copy for it.
+ *
+ * Zero rows means four different things and they must not be collapsed:
+ *
+ *   failed        the calculation broke — not a result at all
+ *   measured-zero units were measured and none is below target (real good news)
+ *   protected     units DID report, but every value sits under k-anon
+ *   no-signal     nothing reported — the system is blind
+ *
+ * Pure, and extracted from the JSX because expressing four branches inline
+ * produced nested ternaries the complexity lint rightly rejected.
+ */
+export function rankingEmptyState(input: {
+  kind: RankingKind;
+  dataUnavailable: boolean;
+  measuredUnits?: number;
+  suppressedUnits: number;
+  unitNoun: string;
+}): { nature: "measured-zero" | "no-signal" | "protected"; title: string; description: string } {
+  const { kind, dataUnavailable, suppressedUnits, unitNoun } = input;
+  const measured = input.measuredUnits ?? 0;
+
+  if (dataUnavailable) {
+    return {
+      nature: "no-signal",
+      title: "No pudimos calcular el ranking",
+      description:
+        "El cálculo falló en este momento. No es un resultado: no sabemos cómo está el alcance.",
+    };
+  }
+  // An all-clear is claimable only when something was measured AND the metric
+  // has a target to be clear of.
+  if (kind === "rate" && measured > 0) {
+    return {
+      nature: "measured-zero",
+      title: "Ninguna jurisdicción quedó bajo meta",
+      description: `Se midieron ${measured.toLocaleString("es-AR")} ${unitNoun} y ninguna quedó por debajo de la meta.`,
+    };
+  }
+  if (suppressedUnits > 0) {
+    return {
+      nature: "protected",
+      title: "Protegido por k-anonimato",
+      description: `${suppressedUnits.toLocaleString("es-AR")} ${unitNoun} SÍ reportaron, pero sus valores son tan bajos que mostrarlos identificaría casos. Hay señal; no se puede publicar al detalle.`,
+    };
+  }
+  return {
+    nature: "no-signal",
+    title: "Sin señales en este alcance",
+    description:
+      "Ninguna unidad del alcance reportó datos suficientes para medir. Sin señales no es lo mismo que sin problema.",
+  };
+}
+
 export function PanoramaDataTable({
   rows,
   kind,
@@ -124,12 +190,20 @@ export function PanoramaDataTable({
   onSelect,
   dataUnavailable = false,
   measuredUnits,
+  suppressedUnits = 0,
   highlightedKey = null,
   onHover,
   scopeFallback = false,
   unitNoun = "jurisdicciones",
   preview,
 }: Props) {
+  const emptyState = rankingEmptyState({
+    kind,
+    dataUnavailable,
+    measuredUnits,
+    suppressedUnits,
+    unitNoun,
+  });
   const [previewAnchor, setPreviewAnchor] = useState<PreviewAnchor | null>(null);
   const previewId = useId();
 
@@ -229,27 +303,12 @@ export function PanoramaDataTable({
       {rows.length === 0 ? (
         <LnEmptyState
           variant="dashed"
-          nature={
-            // An all-clear is only claimable when something was actually
-            // measured AND the metric has a target to be clear of.
-            !dataUnavailable && kind === "rate" && (measuredUnits ?? 0) > 0
-              ? "measured-zero"
-              : "no-signal"
-          }
-          title={
-            dataUnavailable
-              ? "No pudimos calcular el ranking"
-              : kind === "rate" && (measuredUnits ?? 0) > 0
-                ? "Ninguna jurisdicción quedó bajo meta"
-                : "Sin señales en este alcance"
-          }
-          description={
-            dataUnavailable
-              ? "El cálculo falló en este momento. No es un resultado: no sabemos cómo está el alcance."
-              : kind === "rate" && (measuredUnits ?? 0) > 0
-                ? `Se midieron ${measuredUnits?.toLocaleString("es-AR")} ${unitNoun} y ninguna quedó por debajo de la meta.`
-                : "Ninguna unidad del alcance reportó datos suficientes para medir. Sin señales no es lo mismo que sin problema."
-          }
+          // `nature` stays spelled out at the call site rather than riding in
+          // the spread: lint:states reads it literally, and a fence that cannot
+          // see the classification is a fence that cannot enforce it.
+          nature={emptyState.nature}
+          title={emptyState.title}
+          description={emptyState.description}
           className="text-xs"
         />
       ) : (

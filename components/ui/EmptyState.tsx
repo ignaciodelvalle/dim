@@ -52,7 +52,7 @@ export type LnEmptyStateProps = {
    * Epistemic nature of this empty state. Omit for today's behavior
    * (equivalent to "measured-zero"). See the block comment above.
    */
-  nature?: "measured-zero" | "no-signal";
+  nature?: "measured-zero" | "no-signal" | "protected";
   className?: string;
 };
 
@@ -65,7 +65,10 @@ export function LnEmptyState({
   nature,
   className = "",
 }: LnEmptyStateProps) {
-  const isNoSignal = nature === "no-signal";
+  // "protected" shares no-signal's warning treatment: in BOTH the operator is
+  // being told they cannot see something, which is the state that must never
+  // read as reassurance. What differs is the CAUSE, and the copy says which.
+  const isNoSignal = nature === "no-signal" || nature === "protected";
   return (
     <div
       role={isNoSignal ? "status" : undefined}

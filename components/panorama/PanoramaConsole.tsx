@@ -4118,10 +4118,9 @@ export function PanoramaConsole({
             drills: (key) => drillTargetFor(key) !== null,
           }}
           dataUnavailable={rankingDataUnavailable}
-          // C4: how many units were MEASURABLE, not how many made the cut —
-          // the table needs this to tell "everyone is above target" apart from
-          // "we measured nothing".
+          // C4: measurable vs suppressed vs blind — see PanoramaDataTable.
           measuredUnits={rankingAllInScope.length}
+          suppressedUnits={dockSuppressedCount}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}
         />
