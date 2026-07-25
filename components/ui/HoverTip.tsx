@@ -42,6 +42,7 @@ export function HoverTip({
   return (
     <span
       className={["relative inline-flex items-center", className].filter(Boolean).join(" ")}
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: WAI-ARIA tooltip trigger must be keyboard-focusable (focus reveals the tip); the rule's autofix would remove it and break keyboard access.
       tabIndex={0}
       aria-describedby={open ? id : undefined}
       onMouseEnter={() => setOpen(true)}
