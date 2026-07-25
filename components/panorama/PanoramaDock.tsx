@@ -120,10 +120,14 @@ export function PanoramaDock({
       aria-label="Datos de la vista"
       data-testid="panorama-dock"
       className="absolute inset-x-3.5 bottom-3.5 z-20 flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-lg"
-      // 42% of the MAP CONTAINER (the positioned ancestor) when expanded; the
-      // collapsed bar sizes itself. Height lives here (not a class) because the
-      // token ratchet bans new arbitrary values.
-      style={open ? { height: "42%" } : undefined}
+      // 42% of the MAP CONTAINER (the positioned ancestor) when expanded, BUT
+      // capped to leave 26rem of clearance at the top so the expanded dock never
+      // covers the top-left cluster (scope→vista→números→modo) on short viewports
+      // — red-team-admin-2 P1.4 (the Capas/Per-cápita toggle lives at the bottom
+      // of that cluster and was getting painted over). On tall maps 42% still
+      // wins. Height lives here (not a class) because the token ratchet bans new
+      // arbitrary values.
+      style={open ? { height: "min(42%, calc(100% - 26rem))" } : undefined}
     >
       {/* flex-nowrap + a scrollable tablist (mobile-polish 2026-07): the old
           flex-wrap + overflow-hidden combo silently clipped tabs into
