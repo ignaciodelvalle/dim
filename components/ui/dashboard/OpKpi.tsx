@@ -262,7 +262,14 @@ function InfoButton({ info }: { info: InfoTooltip }) {
     setOpen(false);
     setPinned(false);
   };
-  useEffect(() => clearTimer, []);
+  // Inline the unmount cleanup instead of passing `clearTimer`: the closure is
+  // recreated every render, so referencing it here would demand it as a dep.
+  useEffect(
+    () => () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    },
+    [],
+  );
 
   return (
     <span
@@ -483,6 +490,40 @@ function resolveOpKpiContract(
 // ---------------------------------------------------------------------------
 
 /**
+ * v2 delta row: numeric value + period, colored by `valence` (not by sign).
+ *
+ * demo-review M5: a delta of exactly 0 got an up-arrow / "Sube" label — honest
+ * text ("+0%") next to a directional arrow reads as a real increase. No arrow
+ * (and neutral tone) when the delta is exactly 0.
+ */
+function DeltaV2Row({ delta }: { delta: DeltaV2 }) {
+  const isFlat = delta.value === 0 || delta.valence === "neutral";
+  const isGood = delta.value > 0 === (delta.valence !== "goodWhenDown");
+  const toneCls = isFlat
+    ? "text-ln-op-mute"
+    : isGood
+      ? "text-[var(--color-st-ok)]"
+      : "text-[var(--color-st-err)]";
+
+  return (
+    <div className={`mt-1 flex items-center gap-1.5 text-sm font-semibold tabular-nums ${toneCls}`}>
+      {delta.value !== 0 && (
+        <>
+          <span aria-hidden="true">{delta.value > 0 ? "↑" : "↓"}</span>
+          <span className="sr-only">{delta.value > 0 ? "Sube:" : "Baja:"}</span>
+        </>
+      )}
+      <span>
+        {delta.value >= 0 ? "+" : ""}
+        {delta.value}
+        {delta.unit === "count" ? "" : "%"}{" "}
+        <span className="font-normal text-ln-op-mute">{delta.period}</span>
+      </span>
+    </div>
+  );
+}
+
+/**
  * Full-size KPI tile. min-h-[112px], serif value, optional delta/bar/sub.
  * v2: adds info tooltip, deltaV2, sparkline, drillHref (all optional).
  */
@@ -599,31 +640,7 @@ export function OpKpi({
           demo-review M5: a delta of exactly 0 got an up-arrow / "Sube" label —
           honest text ("+0%") next to a directional arrow reads as a real
           increase. No arrow (and neutral tone) when the delta is exactly 0. */}
-      {deltaV2 && (
-        <div
-          className={[
-            "mt-1 flex items-center gap-1.5 text-sm font-semibold tabular-nums",
-            deltaV2.value === 0 || deltaV2.valence === "neutral"
-              ? "text-ln-op-mute"
-              : deltaV2.value > 0 === (deltaV2.valence !== "goodWhenDown")
-                ? "text-[var(--color-st-ok)]"
-                : "text-[var(--color-st-err)]",
-          ].join(" ")}
-        >
-          {deltaV2.value !== 0 && (
-            <>
-              <span aria-hidden="true">{deltaV2.value > 0 ? "↑" : "↓"}</span>
-              <span className="sr-only">{deltaV2.value > 0 ? "Sube:" : "Baja:"}</span>
-            </>
-          )}
-          <span>
-            {deltaV2.value >= 0 ? "+" : ""}
-            {deltaV2.value}
-            {deltaV2.unit === "count" ? "" : "%"}{" "}
-            <span className="font-normal text-ln-op-mute">{deltaV2.period}</span>
-          </span>
-        </div>
-      )}
+      {deltaV2 && <DeltaV2Row delta={deltaV2} />}
 
       {/* Sub */}
       {sub && <div className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-mute">{sub}</div>}
