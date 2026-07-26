@@ -52,6 +52,7 @@ describe("OutbreakHistoryTable — a11y: scope + caption", () => {
       province: "CABA",
       peakDate: "2024-03-15",
       totalSignals: 3,
+      lastSeen: "2024-03-18",
     },
   ];
 
