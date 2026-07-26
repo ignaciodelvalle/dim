@@ -26,14 +26,33 @@
 // Nothing else is exempt. Test fixtures are NOT exempt — a fixture that needs a
 // pet either registers it through the real circuit or cleans it up.
 //
+// WHICH DATABASE — a remote one is a skip, not an audit
+// ---------------------------------------------------------------------------
+// This gate counts rows, so the database it counts them in decides the answer.
+// The cutover runbook leaves a shell with the staging pooler in DATABASE_URL
+// (readiness doc §B4); `pnpm verify` there used to make this fence audit
+// staging without saying so and fail on the 13 orphans of an old seed — half an
+// hour of ghost-hunting, and a fence blamed for a database nobody chose. So a
+// non-local host is a SKIP unless the operator typed --allow-remote, exactly as
+// in lint:scope-authz. Shared contract: scripts/_db-target.ts.
+//
 // Run:  pnpm tsx scripts/check-spine-integrity.ts   (or: pnpm lint:spine)
-// Exits 0 when every non-exempt pet is anchored in the spine, OR when the DB is
-//   unreachable (graceful skip, same as lint:locality / lint:db-budget, so a
-//   DB-less CI box does not hard-fail; the partition LOGIC is enforced offline
-//   by __tests__/check-spine-integrity.test.ts).
+// Exits 0 when every non-exempt pet is anchored in the spine, OR when the run
+//   was skipped — DB unreachable (same as lint:locality / lint:db-budget, so a
+//   DB-less CI box does not hard-fail) or a remote host without the opt-in. The
+//   partition LOGIC is enforced offline by __tests__/check-spine-integrity.test.ts.
 // Exits 1 listing the orphan pets, with the two ways to remediate.
 
 import postgres from "postgres";
+
+import {
+  DEFAULT_LOCAL_URL,
+  describeTarget,
+  lines,
+  remoteRemedy,
+  remoteSkipReason,
+  reportSkip as reportDbSkip,
+} from "./_db-target";
 
 /**
  * seed_tag values whose pets may legitimately lack a pet_registered event.
@@ -74,11 +93,30 @@ export function partitionOrphans(rows: OrphanPetRow[]): SpinePartition {
 /** How many offenders to print in full before summarising the rest. */
 const MAX_LISTED = 20;
 
-async function runCheck(): Promise<void> {
-  const dbUrl =
-    process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:54322/postgres";
+const SKIPPED_CHECKS =
+  "  NOT run: the orphan-pet count over the spine (the whole gate). The exemption\n" +
+  "  LOGIC is still pinned offline by __tests__/check-spine-integrity.test.ts.";
 
-  const sql = postgres(dbUrl, { max: 1, connect_timeout: 5 });
+export async function runCheck(argv: string[] = []): Promise<void> {
+  const allowRemote = argv.includes("--allow-remote");
+
+  const rawUrl = process.env.DATABASE_URL ?? DEFAULT_LOCAL_URL;
+  const usingDefault = process.env.DATABASE_URL === undefined;
+  const target = describeTarget(rawUrl);
+
+  const remoteSkip = remoteSkipReason(target, allowRemote);
+  if (remoteSkip !== null) {
+    reportDbSkip({
+      fence: "check-spine-integrity",
+      reason: remoteSkip,
+      target,
+      skipped: SKIPPED_CHECKS,
+      remedy: remoteRemedy("SELECTs from pets / pet_events"),
+    });
+    return;
+  }
+
+  const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
 
   let rows: OrphanPetRow[];
   let totalPets: number;
@@ -98,15 +136,25 @@ async function runCheck(): Promise<void> {
     const [countRow] = await sql<{ n: string }[]>`SELECT count(*)::text AS n FROM pets`;
     totalPets = Number(countRow?.n ?? 0);
   } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[warn] check-spine-integrity: could not reach the DB (${reason}). Skipping this run.\n  This guard needs the local Supabase stack (pnpm db:start) or a DATABASE_URL.\n  The partition LOGIC is still enforced offline by __tests__/check-spine-integrity.test.ts.`,
-    );
+    reportDbSkip({
+      fence: "check-spine-integrity",
+      reason: `could not reach the database (${err instanceof Error ? err.message : String(err)}).`,
+      target,
+      skipped: SKIPPED_CHECKS,
+      remedy: lines(
+        "  Start the local stack with pnpm db:start, or set DATABASE_URL to a reachable database.",
+        "  A DB-less CI box is not a failure — but this run proved nothing about the spine.",
+      ),
+    });
     await sql.end({ timeout: 1 }).catch(() => {});
-    process.exit(0);
     return;
   }
   await sql.end({ timeout: 1 }).catch(() => {});
+
+  // The database being judged is named on EVERY exit path, pass or fail.
+  const origin = usingDefault ? "default local URL" : "DATABASE_URL";
+  const remoteNote = target.isLocal ? "" : " [REMOTE — --allow-remote]";
+  const dbLine = `  Database: ${target.label} (from ${origin})${remoteNote}`;
 
   const { blocking, exempt } = partitionOrphans(rows);
 
@@ -140,6 +188,7 @@ async function runCheck(): Promise<void> {
         "  Do not add a new exemption without a reviewed decision.",
     );
     console.error(`\n${exemptLine}`);
+    console.error(dbLine);
     process.exit(1);
   }
 
@@ -147,6 +196,7 @@ async function runCheck(): Promise<void> {
     `✓ Spine integrity clean — every one of ${totalPets} pet(s) has its pet_registered event.`,
   );
   console.log(exemptLine);
+  console.log(dbLine);
 }
 
 // Only query the DB when invoked as a CLI. Importing this module from unit
@@ -157,5 +207,5 @@ const isMain =
     process.argv[1].endsWith("check-spine-integrity.js"));
 
 if (isMain) {
-  runCheck();
+  runCheck(process.argv.slice(2));
 }
