@@ -17,6 +17,12 @@
 // es-AR user copy, English identifiers (project invariant #4).
 
 import { formatAsOfDate } from "@/components/panorama/panorama-export";
+import {
+  type ViewScopeDescriptor,
+  describeViewScope,
+  serializeViewScope,
+  viewScopeDigest,
+} from "@/lib/ui/view-scope-descriptor";
 
 /** One KPI as the console strip renders it (value + estado-actual + delta). */
 export type InformeKpiInput = {
@@ -111,6 +117,18 @@ export type BuildInformeInput = {
   activeLayerLabels: string[];
   /** Total k-anon-suppressed cells across the active layers (audit disclosure). */
   suppressedTotal: number;
+  /**
+   * V2 — the SERIALIZABLE scope this briefing was cut from.
+   *
+   * `scopeLabel` and `viewSummary` above describe the scope in prose, which a
+   * reader can understand and nobody can re-execute. This is the same scope as
+   * an object: role, mandate, effective view, grain, period, as-of + basis,
+   * layers, encoding and the verified filter — everything needed to regenerate
+   * the numbers on this page. The informe is the artifact with room to print it
+   * in full, so it is the one that carries the whole descriptor rather than a
+   * handle to it. Absent → a pre-V2 briefing (prose scope only).
+   */
+  viewScope?: ViewScopeDescriptor | null;
 };
 
 export type InformeKpiModel = {
@@ -166,6 +184,26 @@ export type InformeModel = {
   kAnonDisclosure: string;
   /** E1 — the URL that reproduces this view, printed for traceability. */
   viewUrl: string | null;
+  /**
+   * V2 — the reproducible-scope block, or null for a pre-V2 briefing.
+   *
+   * Split into what a HUMAN reads and what a MACHINE re-executes, because they
+   * have different jobs: `mandate`/`narrowed` answer "whose view is this?" in
+   * the same es-AR the screen used (the C3 caption builders, never a second
+   * vocabulary), while `json` is the payload a reproduction is run from.
+   * `viewId` is the short digest the PNG footer and the CSV block also print, so
+   * three artifacts of one board can be shown to belong together.
+   */
+  scopeDescriptor: {
+    /** The operator's mandate — "CABA", "3 localidades · Córdoba", "Nacional". */
+    mandate: string;
+    /** The active filter's narrowing, ONLY when it sits below the mandate. */
+    narrowed: string | null;
+    /** Short stable view identity (excludes the generation instant). */
+    viewId: string;
+    /** The full canonical serialization — what a regeneration reads. */
+    json: string;
+  } | null;
 };
 
 const RANKING_LIMIT = 10;
@@ -299,5 +337,12 @@ export function buildInformeModel(input: BuildInformeInput): InformeModel {
     activeLayerLabels: input.activeLayerLabels,
     methodNotes,
     kAnonDisclosure,
+    scopeDescriptor: input.viewScope
+      ? {
+          ...describeViewScope(input.viewScope),
+          viewId: viewScopeDigest(input.viewScope),
+          json: serializeViewScope(input.viewScope),
+        }
+      : null,
   };
 }

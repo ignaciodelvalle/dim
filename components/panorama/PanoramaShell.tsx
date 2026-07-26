@@ -1,6 +1,7 @@
 import { PanoramaConsole, type SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaDemoDisclosure } from "@/components/panorama/PanoramaDemoDisclosure";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
+import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import type { PresetId } from "@/src/modules/panorama/domain/presets";
 import type {
@@ -120,6 +121,13 @@ type Props = {
    * says "Datos en vivo" (never fabricate a freshness the cube can't back).
    */
   cubeBuiltAt?: Date | string | null;
+  /**
+   * V2 — the asker's jurisdictional standing (role + mandate + effective view +
+   * admin drill), resolved server-side by the page. Forwarded verbatim to the
+   * console, which folds it together with the live ViewState into the
+   * ViewScopeDescriptor every export carries. Omitted → pre-V2 prose provenance.
+   */
+  scopeAuthority?: ViewScopeAuthority;
 };
 
 export function PanoramaShell({
@@ -143,6 +151,7 @@ export function PanoramaShell({
   seededLayers,
   boundedJurisdiction = false,
   cubeBuiltAt = null,
+  scopeAuthority,
 }: Props) {
   return (
     // v2C FIXED CONSOLE (PO decision 2026-07-11): LIGHT operator theme on BOTH
@@ -185,6 +194,7 @@ export function PanoramaShell({
         seededPresetId={seededPresetId}
         seededLayers={seededLayers}
         cubeBuiltAt={cubeBuiltAt}
+        scopeAuthority={scopeAuthority}
         // panorama embedded-drill: the console renders the JurisdictionSwitcher
         // CLIENT-SIDE so a province/locality pick commits the scope shallowly (no
         // reload). allowedProvinces + the initial localities are handed down; the

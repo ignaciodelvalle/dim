@@ -5,6 +5,8 @@
 // and how many cells were privacy-suppressed). Kept framework-free and pure so
 // the footer text is unit-testable without a canvas or maplibre.
 
+import { type ViewScopeDescriptor, viewScopeDigest } from "@/lib/ui/view-scope-descriptor";
+
 /** es-AR short date: "4 jul 2026". */
 export function formatAsOfDate(date: Date): string {
   // es-AR renders "4 de jul. de 2026"; the footer uses the compact "4 jul 2026"
@@ -32,6 +34,20 @@ export type ExportFooterInput = {
   suppressedCount: number;
   /** Injectable "now" for deterministic tests; defaults to new Date(). */
   now?: Date;
+  /**
+   * V2 — the serializable scope this frame was cut from. A 34-pixel footer strip
+   * cannot hold the descriptor itself (nor could a reader retype it), so the PNG
+   * carries its DIGEST: an identity handle that ties the image to the full
+   * descriptor printed in the informe and in the CSV header block.
+   *
+   * Be precise about what that buys: the digest lets you PROVE two artifacts
+   * describe the same view, and lets you find the descriptor that regenerates
+   * this frame. It does NOT reconstruct anything on its own, and it is a
+   * non-cryptographic hash — never read it as tamper evidence. A PNG that must
+   * stand alone as evidence needs the signature/expediente work, not a longer
+   * footer. Omitted → the footer is exactly what it was before V2.
+   */
+  viewScope?: ViewScopeDescriptor | null;
 };
 
 /**
@@ -56,6 +72,11 @@ export function buildExportFooter(input: ExportFooterInput): string {
         ? "1 celda protegida por privacidad"
         : `${input.suppressedCount} celdas protegidas por privacidad`;
     parts.push(phrase);
+  }
+  // Last, so the human-readable provenance keeps the front of the strip and the
+  // machine handle never displaces a word an operator actually reads.
+  if (input.viewScope) {
+    parts.push(`vista ${viewScopeDigest(input.viewScope)}`);
   }
   return parts.join(" · ");
 }

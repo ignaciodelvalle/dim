@@ -105,6 +105,7 @@ import {
   replaceMapStateUrl,
   stripCameraParams,
 } from "@/lib/ui/map-layer-nav";
+import { makeViewScopeDescriptor } from "@/lib/ui/view-scope-descriptor";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import {
@@ -231,6 +232,7 @@ export function PanoramaConsole({
   demoNotice,
   boundedJurisdiction = false,
   cubeBuiltAt = null,
+  scopeAuthority,
 }: PanoramaConsoleProps) {
   // perf plan 1.2: a first-visit seed is present only when the server handed
   // down BOTH the preset id and at least one layer envelope. Everything below
@@ -3473,12 +3475,30 @@ export function PanoramaConsole({
     ],
   );
 
+  // V2 — the SERIALIZABLE scope every export now carries. The two halves meet
+  // here and nowhere else: `scopeAuthority` (who is asking — server-resolved,
+  // the console cannot know it) folded together with the live ViewState and the
+  // rendered grain (`level`, which is derived at runtime and therefore absent
+  // from the ViewState). Null when the page did not supply an authority, which
+  // leaves every export exactly as it was before V2.
+  // Deliberately excludes `generatedAt`: this identifies the VIEW, and each
+  // export stamps its own cut instant where it needs one.
+  const viewScope = useMemo(
+    () =>
+      scopeAuthority
+        ? makeViewScopeDescriptor({ authority: scopeAuthority, view: viewState, grain: level })
+        : null,
+    [scopeAuthority, viewState, level],
+  );
+
   // panorama-ia-v2 §3.6: metadata for the map's "Exportar PNG" footer
   // (auditable provenance). Scope + period in plain es-AR; suppressed-cell
-  // count summed across the active layers (audit trail).
+  // count summed across the active layers (audit trail). V2 adds the view
+  // digest, which ties the PNG to the descriptor the CSV/informe print in full.
   const viewMeta = useMemo(
     () => ({
       asOf,
+      viewScope,
       ...buildViewMeta({
         province: effectiveScopeProvince,
         locality: effectiveScopeLocality,
@@ -3488,7 +3508,16 @@ export function PanoramaConsole({
         states,
       }),
     }),
-    [effectiveScopeProvince, effectiveScopeLocality, since, until, states, asOf, periodParam],
+    [
+      effectiveScopeProvince,
+      effectiveScopeLocality,
+      since,
+      until,
+      states,
+      asOf,
+      periodParam,
+      viewScope,
+    ],
   );
 
   // Registros (dock) — the accessible table of what the map paints: the map is
@@ -3546,7 +3575,7 @@ export function PanoramaConsole({
   const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
   // v2C dock bar "Exportar CSV": the SAME in-memory CSV artifact the Registros
   // pane's download link builds (one builder, two affordances).
-  const dockCsvHref = useMapTableCsvHref(mapTableRows, mapTableTruncatedLayers);
+  const dockCsvHref = useMapTableCsvHref(mapTableRows, mapTableTruncatedLayers, viewScope);
 
   // v2C: the old FilterChips row (Alcance/Período/Al) is retired — the scope
   // pill + period segmented in the floating top-right cluster ARE the visible
@@ -4029,6 +4058,9 @@ export function PanoramaConsole({
         // band, or k-anon protection. Never a bare "sin datos".
         pointModeLayers={pointModeLayerLabels}
         suppressedUnits={mapTableSuppressedUnits}
+        // V2: the CSV carries its scope as an OBJECT in a `#` header block, so
+        // a file that outlives this screen can still be regenerated from itself.
+        viewScope={viewScope}
       />
     </div>
   );
@@ -4336,10 +4368,14 @@ export function PanoramaConsole({
         caption: informeCaption,
         activeLayerLabels: activeLayers.map((l) => l.label),
         suppressedTotal: viewMeta.suppressedCount,
+        // V2: the briefing is the artifact with room for the FULL descriptor —
+        // the PNG carries only its digest, the CSV a header block.
+        viewScope,
       }),
     [
       liveScopeLabel,
       viewMeta,
+      viewScope,
       asOf,
       informeGeneratedAt,
       demoNotice,

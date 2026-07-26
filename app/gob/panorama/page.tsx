@@ -24,6 +24,7 @@ import type { DashboardJurisdiction } from "@/lib/metrics";
 import { panoramaScopeLabel } from "@/lib/panorama/scope-label";
 import type { ProvinceCode } from "@/lib/reference/ar-provincias";
 import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
+import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 import { emptyLayerFeatures } from "@/src/modules/panorama/application/get-layer-features";
 import { degradedPanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -211,6 +212,25 @@ async function GobPanoramaBoard({
   const adminLocality =
     profile.role === "admin" ? (localityRow?.localityName ?? undefined) : undefined;
 
+  // V2 (a serializable scope on every export) — the asker's jurisdictional
+  // standing, assembled HERE because this is the only layer that holds all of
+  // it: the session's raw assignments, the narrowing the request applied, and
+  // the admin drill. The console cannot reconstruct any of it from props.
+  //
+  // `mandate` and `effective` are BOTH carried, and NOT because one is derivable
+  // from the other. A whole-province govt mandate drilled to one locality
+  // (`narrowGovtScope` → a single SPECIFIC pair) has the SAME LENGTH as the
+  // mandate at a strictly finer grain; a descriptor that stored a count, or only
+  // `effective`, would serialize two genuinely different views identically.
+  const scopeAuthority: ViewScopeAuthority = {
+    role: profile.role === "admin" ? "admin" : "govt",
+    // Admin holds no assignments — its universal standing is carried by `role`,
+    // and its narrowing is a DRILL, never a mandate list.
+    mandate: profile.role === "admin" ? [] : jurisdictions,
+    effective: profile.role === "admin" ? [] : scoped,
+    adminDrill: adminProvince ? { province: adminProvince, locality: adminLocality ?? null } : null,
+  };
+
   // allowedProvinces: admin → all 24; govt → derive from assigned jurisdictions.
   // Resolve each province code with the ALIAS-TOLERANT provinceByName (not the
   // alias-fragile PROVINCE_ISO_MAP, which lacked the CABA long-form key and could
@@ -374,6 +394,7 @@ async function GobPanoramaBoard({
       <PanoramaShell
         scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
         boundedJurisdiction={boundedJurisdiction}
+        scopeAuthority={scopeAuthority}
         cubeBuiltAt={cubeBuiltAt}
         layer={layer}
         // perdidas is NOT seeded on the first-visit path — the preset owns the
@@ -450,6 +471,7 @@ async function GobPanoramaBoard({
     <PanoramaShell
       scopeLabel={panoramaScopeLabel(profile.role, jurisdictions)}
       boundedJurisdiction={boundedJurisdiction}
+      scopeAuthority={scopeAuthority}
       layer={layer}
       features={result.features}
       truncated={result.truncated}

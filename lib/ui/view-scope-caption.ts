@@ -15,7 +15,12 @@ import { pluralizeEs } from "@/lib/utils/format";
 
 export type ViewScopeJurisdiction = { province: string; locality: string };
 
-function jurisdictionKey(j: ViewScopeJurisdiction): string {
+/** The canonical identity of one (province, locality) pair — the key every
+ *  set comparison and every stable serialization of a jurisdiction list uses.
+ *  Exported so `lib/ui/view-scope-descriptor.ts` sorts by the SAME key this
+ *  module compares by; two orderings of one identity would let a descriptor
+ *  serialize the same view two ways. */
+export function jurisdictionKey(j: ViewScopeJurisdiction): string {
   return `${j.province}|${j.locality}`;
 }
 
@@ -27,7 +32,7 @@ function jurisdictionKey(j: ViewScopeJurisdiction): string {
  * still length-1 — same COUNT as the mandate, but a strictly FINER grain. Set
  * equality catches that; a bare length check does not.
  */
-function jurisdictionsEqual(
+export function jurisdictionsEqual(
   a: readonly ViewScopeJurisdiction[],
   b: readonly ViewScopeJurisdiction[],
 ): boolean {

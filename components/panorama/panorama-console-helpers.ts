@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
+import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
 import {
@@ -419,6 +420,18 @@ export type PanoramaConsoleProps = {
    * freshness annotation, not a per-toggle live signal.
    */
   cubeBuiltAt?: Date | string | null;
+  /**
+   * V2 — the asker's jurisdictional standing, resolved SERVER-SIDE (the console
+   * never sees the session's assignments and must not guess them). Feeds the
+   * `authority` half of the ViewScopeDescriptor every export now carries.
+   *
+   * `mandate` is the raw assignment list; `effective` is the same list after the
+   * page's own `narrowGovtScope` resolution — the two are separate fields
+   * because a whole-province mandate drilled to one locality has the SAME LENGTH
+   * as its mandate and a strictly finer grain (lib/ui/view-scope-descriptor.ts).
+   * Omitted → exports fall back to their pre-V2 prose-only provenance.
+   */
+  scopeAuthority?: ViewScopeAuthority;
 };
 
 /**

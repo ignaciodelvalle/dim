@@ -215,6 +215,26 @@ export function PanoramaInformeSituacion({ model }: Props) {
               <span className="font-mono">{model.viewUrl}</span>
             </p>
           )}
+          {/* V2 — the scope as an OBJECT, not as prose. The URL above says WHERE
+              this came from; this says exactly WHAT was asked, in a form that can
+              be re-executed. Printed in full (it is short) so a page detached
+              from this system still carries everything needed to regenerate its
+              own numbers. NOT a signature and not an expediente number — those
+              are separate, PO-gated concerns; this is the payload they will
+              sign. Jurisdictions only: the block never names a person. */}
+          {model.scopeDescriptor && (
+            <div className="space-y-1 border-t border-ln-op-line pt-2">
+              <p>
+                <span className="font-semibold">Alcance verificable</span> — mandato:{" "}
+                {model.scopeDescriptor.mandate}
+                {model.scopeDescriptor.narrowed && <> · vista: {model.scopeDescriptor.narrowed}</>}{" "}
+                · id de vista: <span className="font-mono">{model.scopeDescriptor.viewId}</span>
+              </p>
+              <p className="break-all font-mono text-[var(--text-xs)] leading-tight">
+                {model.scopeDescriptor.json}
+              </p>
+            </div>
+          )}
         </footer>
       </article>
     </div>
